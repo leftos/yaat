@@ -83,7 +83,7 @@ yaat-server/
         SimulationEngine.cs          # Main tick loop, aircraft lifecycle
         AircraftState.cs             # Aircraft position, heading, alt, speed, etc.
         FlightPhysics.cs             # Heading/altitude/speed interpolation
-        GroundPhysics.cs             # Taxi, pushback, runway operations (M2+)
+        GroundPhysics.cs             # Taxi, pushback, runway operations (M3+)
       Scenarios/
         ScenarioLoader.cs            # Load ATCTrainer v1 JSON scenarios
         ScenarioModels.cs            # Deserialization models for scenario JSON
@@ -199,7 +199,7 @@ yaat/
    - Execute `initializationTriggers` at their `timeOffset`
    - Populate `autoTrackConditions` (pre-tracked aircraft with position/altitude)
    - Handle `aircraftGenerators` for dynamic traffic spawning
-   - For M0, only `Coordinates` and `FixOrFrd` types need to work (airborne aircraft). `Parking`/`OnRunway`/`OnFinal` require ground/tower physics (M2/M3).
+   - For M0, only `Coordinates` and `FixOrFrd` types need to work (airborne aircraft). `Parking`/`OnRunway`/`OnFinal` require tower/ground physics (M2/M3).
 2. **Flight physics enhancement**:
    - Heading interpolation (standard rate turn ~3 deg/sec)
    - Altitude interpolation (climb/descent rates by aircraft category)
@@ -241,51 +241,7 @@ yaat/
 
 ---
 
-### Milestone 2: Ground Operations
-
-**Goal:** Spawn aircraft at parking, pushback, taxi, hold short, collision avoidance.
-
-#### yaat-server
-
-1. **Taxiway graph data**: Load airport taxiway graph (nodes + edges with names)
-   - Source: airport GeoJSON files from lc-trainer/vzoa or generate from vNAS data
-   - Node types: parking, taxiway intersection, hold short line, runway threshold
-2. **Ground physics**:
-   - Taxi speed management (10-20 kts typical)
-   - Turn physics on ground (slow speed turns at intersections)
-   - Pushback physics (straight back or to heading, ~5 kts)
-   - Stop/start acceleration/deceleration
-3. **Ground commands**:
-   - `PUSH [twy/spot]` - Pushback
-   - `TAXI {path} [HS ...]` - Taxi with hold shorts
-   - `RWY {rwy} TAXI {path} [HS ...]` - Taxi to runway
-   - `HS {twy/rwy}` - Hold short
-   - `CROSS {rwy/twy}` - Cross
-   - `HOLD` - Hold position
-   - `RES` - Resume
-   - `BREAK` - Break from conflicts
-   - `GIVEWAY {cs}` - Give way
-4. **Pathfinding**: A* or Dijkstra on taxiway graph
-5. **ASDEX DTOs**: Populate AsdexTargetDto and AsdexTrackDto for ground aircraft
-6. **Collision avoidance**: Basic detection (stop if another aircraft is ahead on same taxiway segment)
-
-#### yaat client
-
-1. **Ground state display**: Show ground status (at parking, taxiing, hold short, etc.)
-2. **Taxi route display**: Show assigned taxi route for selected aircraft
-3. **Ground commands in command bar**: Support all ground commands
-
-#### Definition of Done
-- Spawn aircraft at parking positions
-- Pushback and taxi to runway
-- Hold short of runway
-- Cross runway on command
-- CRC ASDEX display shows ground targets
-- Basic collision avoidance prevents taxi-through
-
----
-
-### Milestone 3: Local Control (Tower)
+### Milestone 2: Local Control (Tower)
 
 **Goal:** Takeoff, landing, traffic pattern, touch-and-go.
 
@@ -336,6 +292,50 @@ yaat/
 - Touch-and-go, go-around work
 - Landing and runway exit
 - Pattern entry from outside
+
+---
+
+### Milestone 3: Ground Operations
+
+**Goal:** Spawn aircraft at parking, pushback, taxi, hold short, collision avoidance.
+
+#### yaat-server
+
+1. **Taxiway graph data**: Load airport taxiway graph (nodes + edges with names)
+   - Source: airport GeoJSON files from lc-trainer/vzoa or generate from vNAS data
+   - Node types: parking, taxiway intersection, hold short line, runway threshold
+2. **Ground physics**:
+   - Taxi speed management (10-20 kts typical)
+   - Turn physics on ground (slow speed turns at intersections)
+   - Pushback physics (straight back or to heading, ~5 kts)
+   - Stop/start acceleration/deceleration
+3. **Ground commands**:
+   - `PUSH [twy/spot]` - Pushback
+   - `TAXI {path} [HS ...]` - Taxi with hold shorts
+   - `RWY {rwy} TAXI {path} [HS ...]` - Taxi to runway
+   - `HS {twy/rwy}` - Hold short
+   - `CROSS {rwy/twy}` - Cross
+   - `HOLD` - Hold position
+   - `RES` - Resume
+   - `BREAK` - Break from conflicts
+   - `GIVEWAY {cs}` - Give way
+4. **Pathfinding**: A* or Dijkstra on taxiway graph
+5. **ASDEX DTOs**: Populate AsdexTargetDto and AsdexTrackDto for ground aircraft
+6. **Collision avoidance**: Basic detection (stop if another aircraft is ahead on same taxiway segment)
+
+#### yaat client
+
+1. **Ground state display**: Show ground status (at parking, taxiing, hold short, etc.)
+2. **Taxi route display**: Show assigned taxi route for selected aircraft
+3. **Ground commands in command bar**: Support all ground commands
+
+#### Definition of Done
+- Spawn aircraft at parking positions
+- Pushback and taxi to runway
+- Hold short of runway
+- Cross runway on command
+- CRC ASDEX display shows ground targets
+- Basic collision avoidance prevents taxi-through
 
 ---
 
