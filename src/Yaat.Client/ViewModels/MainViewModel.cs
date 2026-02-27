@@ -47,10 +47,10 @@ public partial class MainViewModel : ObservableObject
     private string _commandSchemeName = "ATCTrainer";
 
     public ObservableCollection<AircraftModel> Aircraft
-        { get; } = [];
+    { get; } = [];
 
     public ObservableCollection<string> CommandHistory
-        { get; } = [];
+    { get; } = [];
 
     public MainViewModel()
     {
@@ -83,7 +83,9 @@ public partial class MainViewModel : ObservableObject
                 .GetAircraftListAsync();
             Aircraft.Clear();
             foreach (var dto in list)
+            {
                 Aircraft.Add(DtoToModel(dto));
+            }
         }
         catch (Exception ex)
         {
@@ -92,7 +94,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanToggleConnect() => true;
+    private static bool CanToggleConnect() => true;
 
     private async Task DisconnectAsync()
     {
@@ -171,7 +173,9 @@ public partial class MainViewModel : ObservableObject
     {
         var text = CommandText.Trim();
         if (string.IsNullOrEmpty(text))
+        {
             return;
+        }
 
         var scheme = _preferences.CommandScheme;
         var parsed = CommandSchemeParser.Parse(text, scheme);
@@ -248,9 +252,13 @@ public partial class MainViewModel : ObservableObject
         try
         {
             if (IsPaused)
+            {
                 await _connection.ResumeSimulationAsync();
+            }
             else
+            {
                 await _connection.PauseSimulationAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -262,7 +270,9 @@ public partial class MainViewModel : ObservableObject
     private async Task SetSimRateAsync(string rateStr)
     {
         if (!int.TryParse(rateStr, out var rate))
+        {
             return;
+        }
 
         try
         {
@@ -303,7 +313,9 @@ public partial class MainViewModel : ObservableObject
         {
             var ac = FindAircraft(callsign);
             if (ac is not null)
+            {
                 Aircraft.Remove(ac);
+            }
         });
     }
 
@@ -313,7 +325,9 @@ public partial class MainViewModel : ObservableObject
         {
             var existing = FindAircraft(dto.Callsign);
             if (existing is null)
+            {
                 Aircraft.Add(DtoToModel(dto));
+            }
         });
     }
 
@@ -331,8 +345,10 @@ public partial class MainViewModel : ObservableObject
     {
         CommandHistory.Insert(0, entry);
         while (CommandHistory.Count > 50)
+        {
             CommandHistory.RemoveAt(
                 CommandHistory.Count - 1);
+        }
     }
 
     private AircraftModel? FindAircraft(string callsign)
@@ -340,7 +356,9 @@ public partial class MainViewModel : ObservableObject
         foreach (var a in Aircraft)
         {
             if (a.Callsign == callsign)
+            {
                 return a;
+            }
         }
         return null;
     }

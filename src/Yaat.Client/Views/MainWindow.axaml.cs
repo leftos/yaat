@@ -15,17 +15,23 @@ public partial class MainWindow : Window
         var browseBtn = this.FindControl<Button>(
             "BrowseButton");
         if (browseBtn is not null)
+        {
             browseBtn.Click += OnBrowseClick;
+        }
 
         var cmdInput = this.FindControl<TextBox>(
             "CommandInput");
         if (cmdInput is not null)
+        {
             cmdInput.KeyDown += OnCommandKeyDown;
+        }
 
         var settingsBtn = this.FindControl<Button>(
             "SettingsButton");
         if (settingsBtn is not null)
+        {
             settingsBtn.Click += OnSettingsClick;
+        }
     }
 
     private async void OnBrowseClick(
@@ -51,7 +57,9 @@ public partial class MainWindow : Window
         {
             var path = files[0].TryGetLocalPath();
             if (path is not null)
+            {
                 vm.ScenarioFilePath = path;
+            }
         }
     }
 
@@ -59,7 +67,9 @@ public partial class MainWindow : Window
         object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm)
+        {
             return;
+        }
 
         var dialog = new SettingsWindow(vm.Preferences);
         await dialog.ShowDialog(this);
@@ -71,7 +81,9 @@ public partial class MainWindow : Window
         object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)
+        {
             return;
+        }
 
         if (DataContext is MainViewModel vm
             && vm.SendCommandCommand.CanExecute(null))

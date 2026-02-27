@@ -17,18 +17,24 @@ public partial class SettingsWindow : Window
 
         var saveBtn = this.FindControl<Button>("SaveButton");
         if (saveBtn is not null)
+        {
             saveBtn.Click += OnSaveClick;
+        }
 
         var cancelBtn = this.FindControl<Button>("CancelButton");
         if (cancelBtn is not null)
+        {
             cancelBtn.Click += OnCancelClick;
+        }
     }
 
     private void OnSaveClick(
         object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is SettingsViewModel vm)
+        {
             vm.SaveCommand.Execute(null);
+        }
 
         Close();
     }

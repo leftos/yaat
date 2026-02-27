@@ -39,7 +39,9 @@ public sealed class UserPreferences
     private static CommandScheme? Load()
     {
         if (!File.Exists(ConfigPath))
+        {
             return null;
+        }
 
         try
         {
@@ -48,7 +50,9 @@ public sealed class UserPreferences
                 json, JsonOptions);
 
             if (saved?.CommandScheme is null)
+            {
                 return null;
+            }
 
             return FromSaved(saved.CommandScheme);
         }
@@ -79,11 +83,13 @@ public sealed class UserPreferences
         // Start from ATCTrainer defaults, overlay saved patterns
         var defaults = CommandScheme.AtcTrainer();
         foreach (var (type, pattern) in defaults.Patterns)
+        {
             patterns[type] = new CommandPattern
             {
                 Verb = pattern.Verb,
                 Format = pattern.Format
             };
+        }
 
         foreach (var (key, sp) in s.Patterns)
         {
@@ -157,7 +163,7 @@ public sealed class UserPreferences
         public CommandParseMode ParseMode { get; set; }
 
         public Dictionary<string, SavedPattern> Patterns { get; set; }
-            = new();
+            = [];
     }
 
     private sealed class SavedPattern

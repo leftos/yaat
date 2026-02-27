@@ -26,7 +26,7 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
-            return new List<AircraftState>(_aircraft);
+            return [.. _aircraft];
         }
     }
 

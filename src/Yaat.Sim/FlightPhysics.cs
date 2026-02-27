@@ -25,7 +25,9 @@ public static class FlightPhysics
     {
         var target = aircraft.Targets.TargetHeading;
         if (target is null)
+        {
             return;
+        }
 
         double current = aircraft.Heading;
         double goal = target.Value;
@@ -35,7 +37,10 @@ public static class FlightPhysics
         {
             aircraft.Heading = goal % 360.0;
             if (aircraft.Heading < 0)
+            {
                 aircraft.Heading += 360.0;
+            }
+
             aircraft.Targets.TargetHeading = null;
             aircraft.Targets.PreferredTurnDirection = null;
             return;
@@ -118,7 +123,9 @@ public static class FlightPhysics
     {
         var target = aircraft.Targets.TargetSpeed;
         if (target is null)
+        {
             return;
+        }
 
         double current = aircraft.GroundSpeed;
         double goal = target.Value;
@@ -164,9 +171,14 @@ public static class FlightPhysics
         double diff, TurnDirection? preferred)
     {
         if (preferred == TurnDirection.Left)
+        {
             return -1.0;
+        }
+
         if (preferred == TurnDirection.Right)
+        {
             return 1.0;
+        }
 
         return diff > 0 ? 1.0 : -1.0;
     }
@@ -174,8 +186,16 @@ public static class FlightPhysics
     private static double NormalizeAngle(double angle)
     {
         angle %= 360.0;
-        if (angle > 180.0) angle -= 360.0;
-        if (angle < -180.0) angle += 360.0;
+        if (angle > 180.0)
+        {
+            angle -= 360.0;
+        }
+
+        if (angle < -180.0)
+        {
+            angle += 360.0;
+        }
+
         return angle;
     }
 

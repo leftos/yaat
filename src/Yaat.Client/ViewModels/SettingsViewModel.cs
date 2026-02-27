@@ -31,7 +31,10 @@ public partial class VerbMappingRow : ObservableObject
     {
         var result = Format.Replace("{verb}", Verb);
         if (SampleArg is not null)
+        {
             result = result.Replace("{arg}", SampleArg);
+        }
+
         return result.Trim();
     }
 }
@@ -75,10 +78,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedPresetIndex;
 
-    public IReadOnlyList<string> PresetNames_ => PresetNames;
+    public static IReadOnlyList<string> PresetNames_ => PresetNames;
 
     public ObservableCollection<VerbMappingRow> VerbMappings
-        { get; } = [];
+    { get; } = [];
 
     public SettingsViewModel()
         : this(new UserPreferences()) { }
@@ -127,7 +130,9 @@ public partial class SettingsViewModel : ObservableObject
     {
         // Unhook existing rows
         foreach (var row in VerbMappings)
+        {
             row.VerbEdited -= OnVerbEdited;
+        }
 
         VerbMappings.Clear();
 
@@ -157,7 +162,9 @@ public partial class SettingsViewModel : ObservableObject
     private void OnVerbEdited()
     {
         if (!_suppressPresetDetection)
+        {
             DetectAndUpdatePreset();
+        }
     }
 
     private void DetectAndUpdatePreset()
@@ -230,7 +237,9 @@ public partial class SettingsViewModel : ObservableObject
             .Replace("{verb}", pattern.Verb);
 
         if (sampleArg is not null)
+        {
             result = result.Replace("{arg}", sampleArg);
+        }
 
         return result.Trim();
     }

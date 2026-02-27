@@ -17,7 +17,9 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task ConnectAsync(string serverUrl)
     {
         if (_connection is not null)
+        {
             await DisconnectAsync();
+        }
 
         var hubUrl = serverUrl.TrimEnd('/') + "/hubs/training";
 
@@ -50,7 +52,9 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task DisconnectAsync()
     {
         if (_connection is null)
+        {
             return;
+        }
 
         await _connection.DisposeAsync();
         _connection = null;
@@ -59,8 +63,10 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task<List<AircraftDto>> GetAircraftListAsync()
     {
         if (_connection is null)
+        {
             throw new InvalidOperationException(
                 "Not connected.");
+        }
 
         return await _connection
             .InvokeAsync<List<AircraftDto>>(
@@ -70,8 +76,10 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task SpawnAircraftAsync(SpawnAircraftDto dto)
     {
         if (_connection is null)
+        {
             throw new InvalidOperationException(
                 "Not connected.");
+        }
 
         await _connection.InvokeAsync("SpawnAircraft", dto);
     }
@@ -80,8 +88,10 @@ public sealed class ServerConnection : IAsyncDisposable
         LoadScenarioAsync(string scenarioJson)
     {
         if (_connection is null)
+        {
             throw new InvalidOperationException(
                 "Not connected.");
+        }
 
         return await _connection
             .InvokeAsync<LoadScenarioResultDto>(
@@ -92,8 +102,10 @@ public sealed class ServerConnection : IAsyncDisposable
         SendCommandAsync(string callsign, string command)
     {
         if (_connection is null)
+        {
             throw new InvalidOperationException(
                 "Not connected.");
+        }
 
         return await _connection
             .InvokeAsync<CommandResultDto>(
@@ -103,8 +115,10 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task DeleteAircraftAsync(string callsign)
     {
         if (_connection is null)
+        {
             throw new InvalidOperationException(
                 "Not connected.");
+        }
 
         await _connection.InvokeAsync(
             "DeleteAircraft", callsign);
@@ -113,8 +127,10 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task PauseSimulationAsync()
     {
         if (_connection is null)
+        {
             throw new InvalidOperationException(
                 "Not connected.");
+        }
 
         await _connection.InvokeAsync("PauseSimulation");
     }
@@ -122,8 +138,10 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task ResumeSimulationAsync()
     {
         if (_connection is null)
+        {
             throw new InvalidOperationException(
                 "Not connected.");
+        }
 
         await _connection.InvokeAsync("ResumeSimulation");
     }
@@ -131,8 +149,10 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task SetSimRateAsync(int rate)
     {
         if (_connection is null)
+        {
             throw new InvalidOperationException(
                 "Not connected.");
+        }
 
         await _connection.InvokeAsync("SetSimRate", rate);
     }
@@ -140,7 +160,9 @@ public sealed class ServerConnection : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (_connection is not null)
+        {
             await _connection.DisposeAsync();
+        }
     }
 }
 

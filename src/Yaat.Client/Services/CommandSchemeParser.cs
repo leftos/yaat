@@ -13,10 +13,14 @@ public static class CommandSchemeParser
     {
         var trimmed = input.Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(trimmed))
+        {
             return null;
+        }
 
         if (scheme.ParseMode == CommandParseMode.Concatenated)
+        {
             return ParseConcatenated(trimmed, scheme);
+        }
 
         return ParseSpaceSeparated(trimmed, scheme);
     }
@@ -26,10 +30,14 @@ public static class CommandSchemeParser
     {
         var canonical = CommandScheme.AtcTrainer();
         if (!canonical.Patterns.TryGetValue(type, out var pattern))
+        {
             return "";
+        }
 
         if (argument is null)
+        {
             return pattern.Verb;
+        }
 
         return $"{pattern.Verb} {argument}";
     }
@@ -53,9 +61,14 @@ public static class CommandSchemeParser
 
             bool needsArg = pattern.Format.Contains("{arg}");
             if (needsArg && arg is null)
+            {
                 continue;
+            }
+
             if (!needsArg && arg is not null)
+            {
                 continue;
+            }
 
             return new ParsedInput(type, arg);
         }
@@ -89,7 +102,10 @@ public static class CommandSchemeParser
         foreach (var (type, pattern) in scheme.Patterns)
         {
             if (pattern.Format.Contains("{arg}"))
+            {
                 continue;
+            }
+
             if (type is CanonicalCommandType.Pause
                 or CanonicalCommandType.Unpause
                 or CanonicalCommandType.SimRate)
@@ -106,11 +122,17 @@ public static class CommandSchemeParser
 
         // Space-separated global commands (PAUSE, UNPAUSE, SIMRATE)
         if (input.StartsWith("PAUSE"))
+        {
             return new ParsedInput(
                 CanonicalCommandType.Pause, null);
+        }
+
         if (input.StartsWith("UNPAUSE"))
+        {
             return new ParsedInput(
                 CanonicalCommandType.Unpause, null);
+        }
+
         if (input.StartsWith("SIMRATE"))
         {
             var parts = input.Split(
@@ -126,7 +148,10 @@ public static class CommandSchemeParser
         foreach (var (type, pattern) in scheme.Patterns)
         {
             if (!pattern.Format.Contains("{arg}"))
+            {
                 continue;
+            }
+
             if (type is CanonicalCommandType.RelativeLeft
                 or CanonicalCommandType.RelativeRight
                 or CanonicalCommandType.Pause
@@ -145,7 +170,9 @@ public static class CommandSchemeParser
 
             var arg = input[pattern.Verb.Length..];
             if (arg.Length == 0 || !int.TryParse(arg, out _))
+            {
                 continue;
+            }
 
             return new ParsedInput(type, arg);
         }
