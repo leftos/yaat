@@ -56,5 +56,8 @@ public partial class AircraftModel : ObservableObject
     private string _flightRules = "IFR";
 
     [ObservableProperty]
+    private string _status = "";
+
+    [ObservableProperty]
     private bool _isSelected;
 }

@@ -121,6 +121,9 @@
                 <DataGridTextColumn Header="Callsign"
                     Binding="{Binding Callsign}"
                     Width="90" />
+                <DataGridTextColumn Header="Status"
+                    Binding="{Binding Status}"
+                    Width="120" />
                 <DataGridTextColumn Header="Type"
                     Binding="{Binding AircraftType}"
                     Width="60" />

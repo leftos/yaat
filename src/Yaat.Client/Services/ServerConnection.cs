@@ -1,9 +1,14 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services;
 
 public sealed class ServerConnection : IAsyncDisposable
 {
+    private readonly ILogger _log =
+        AppLog.CreateLogger<ServerConnection>();
+
     private HubConnection? _connection;
 
     public event Action<AircraftDto>? AircraftUpdated;
@@ -22,6 +27,7 @@ public sealed class ServerConnection : IAsyncDisposable
         }
 
         var hubUrl = serverUrl.TrimEnd('/') + "/hubs/training";
+        _log.LogInformation("Connecting to {Url}", hubUrl);
 
         _connection = new HubConnectionBuilder()
             .WithUrl(hubUrl)
@@ -47,6 +53,7 @@ public sealed class ServerConnection : IAsyncDisposable
                     paused, rate));
 
         await _connection.StartAsync();
+        _log.LogInformation("Connected");
     }
 
     public async Task DisconnectAsync()
@@ -58,6 +65,7 @@ public sealed class ServerConnection : IAsyncDisposable
 
         await _connection.DisposeAsync();
         _connection = null;
+        _log.LogInformation("Disconnected");
     }
 
     public async Task<List<AircraftDto>> GetAircraftListAsync()
@@ -183,7 +191,8 @@ public record AircraftDto(
     string Departure,
     string Destination,
     string Route,
-    string FlightRules);
+    string FlightRules,
+    string Status);
 
 public record SpawnAircraftDto(
     string Callsign,
@@ -199,7 +208,8 @@ public record LoadScenarioResultDto(
     string Name,
     int AircraftCount,
     int DelayedCount,
-    List<string> Warnings);
+    List<string> Warnings,
+    List<AircraftDto> AllAircraft);
 
 public record CommandResultDto(
     bool Success,

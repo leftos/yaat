@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim.Commands;
@@ -9,6 +11,9 @@ namespace Yaat.Client.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
+    private readonly ILogger _log =
+        AppLog.CreateLogger<MainViewModel>();
+
     private readonly ServerConnection _connection = new();
     private readonly UserPreferences _preferences = new();
 
@@ -89,6 +94,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _log.LogError(ex, "Connection failed");
             StatusText = $"Error: {ex.Message}";
             IsConnected = false;
         }
@@ -124,6 +130,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _log.LogError(ex, "Spawn failed");
             StatusText = $"Spawn error: {ex.Message}";
         }
     }
@@ -139,6 +146,10 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
+            _log.LogInformation(
+                "Loading scenario from {Path}",
+                ScenarioFilePath);
+
             var json = await File.ReadAllTextAsync(
                 ScenarioFilePath);
             var result = await _connection
@@ -146,24 +157,42 @@ public partial class MainViewModel : ObservableObject
 
             if (result.Success)
             {
+                _log.LogInformation(
+                    "Scenario loaded: '{Name}', "
+                    + "{Count} aircraft, "
+                    + "{Delayed} delayed, "
+                    + "{All} total, "
+                    + "{Warnings} warnings",
+                    result.Name, result.AircraftCount,
+                    result.DelayedCount,
+                    result.AllAircraft.Count,
+                    result.Warnings.Count);
+
+                // Populate grid with all aircraft
+                Aircraft.Clear();
+                foreach (var dto in result.AllAircraft)
+                {
+                    Aircraft.Add(DtoToModel(dto));
+                }
+
                 StatusText = $"Loaded '{result.Name}': " +
-                    $"{result.AircraftCount} aircraft" +
-                    (result.DelayedCount > 0
-                        ? $" ({result.DelayedCount} delayed)"
-                        : "");
+                    $"{result.AllAircraft.Count} aircraft";
             }
             else
             {
+                _log.LogWarning("Scenario load failed");
                 StatusText = "Scenario load failed";
             }
 
             foreach (var w in result.Warnings)
             {
+                _log.LogWarning("Scenario: {Warning}", w);
                 AddHistory($"[WARN] {w}");
             }
         }
         catch (Exception ex)
         {
+            _log.LogError(ex, "Scenario load error");
             StatusText = $"Load error: {ex.Message}";
         }
     }
@@ -242,6 +271,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _log.LogError(ex, "Command failed");
             StatusText = $"Command error: {ex.Message}";
         }
     }
@@ -262,6 +292,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _log.LogError(ex, "Pause/resume failed");
             StatusText = $"Pause error: {ex.Message}";
         }
     }
@@ -280,6 +311,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _log.LogError(ex, "SimRate change failed");
             StatusText = $"SimRate error: {ex.Message}";
         }
     }
@@ -324,7 +356,11 @@ public partial class MainViewModel : ObservableObject
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             var existing = FindAircraft(dto.Callsign);
-            if (existing is null)
+            if (existing is not null)
+            {
+                UpdateModel(existing, dto);
+            }
+            else
             {
                 Aircraft.Add(DtoToModel(dto));
             }
@@ -381,6 +417,7 @@ public partial class MainViewModel : ObservableObject
         model.Destination = dto.Destination;
         model.Route = dto.Route;
         model.FlightRules = dto.FlightRules;
+        model.Status = dto.Status;
     }
 
     private static AircraftModel DtoToModel(AircraftDto dto)
@@ -404,6 +441,7 @@ public partial class MainViewModel : ObservableObject
             Destination = dto.Destination,
             Route = dto.Route,
             FlightRules = dto.FlightRules,
+            Status = dto.Status,
         };
     }
 }
