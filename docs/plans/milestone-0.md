@@ -16,7 +16,7 @@ Both repos will be published to GitHub under `leftos` (yaat-server private, yaat
 
 **Standard ASP.NET SignalR for training hub** — our own protocol, JSON is fine.
 
-**Single project per repo for M0** — split into folders, not assemblies.
+**Two projects for yaat repo** — `Yaat.Client` (Avalonia app) and `Yaat.Sim` (shared simulation library, intended for use by yaat-server too). Uses `.slnx` solution format.
 
 ---
 
@@ -93,15 +93,17 @@ EXPOSE 5000
 ENTRYPOINT ["dotnet", "YaatServer.dll"]
 ```
 
-### Phase 9: yaat client (Avalonia)
+### Phase 9: yaat client (Avalonia) — COMPLETED
 
-1. Create `X:\dev\yaat\yaat.sln` + Avalonia project under `src/Yaat/`
-2. NuGet: Avalonia 11.2.x, Avalonia.Desktop, Avalonia.Themes.Fluent, CommunityToolkit.Mvvm, Microsoft.AspNetCore.SignalR.Client
-3. `Services/ServerConnection.cs` — SignalR JSON client to `/hubs/training`, methods for connect/disconnect/getAircraft/spawn
-4. `Models/AircraftModel.cs` — ObservableObject with callsign, type, lat, lon, heading, alt, speed
-5. `ViewModels/MainViewModel.cs` — server URL, connect/disconnect commands, aircraft ObservableCollection, spawn command
-6. `Views/MainView.axaml` — top bar (URL + connect button), center DataGrid (aircraft), bottom spawn button
-7. `App.axaml` / `Program.cs` — standard Avalonia bootstrap
+1. Created `X:\dev\yaat\yaat.slnx` with two projects: `src/Yaat.Client/` (Avalonia app) and `src/Yaat.Sim/` (shared sim library)
+2. NuGet (Yaat.Client): Avalonia 11.2.5, Avalonia.Desktop, Avalonia.Themes.Fluent, Avalonia.Controls.DataGrid, Avalonia.Fonts.Inter, CommunityToolkit.Mvvm 8.4.0, Microsoft.AspNetCore.SignalR.Client 8.0.12
+3. `Services/ServerConnection.cs` — SignalR JSON client to `/hubs/training` with DTOs (AircraftDto, SpawnAircraftDto) as records
+4. `Models/AircraftModel.cs` — ObservableObject with callsign, type, lat, lon, heading, alt, speed, beaconCode
+5. `ViewModels/MainViewModel.cs` — server URL, connect/disconnect toggle, aircraft ObservableCollection, spawn command (random B738 near KOAK)
+6. `ViewModels/ConnectButtonConverter.cs` — IValueConverter for Connect/Disconnect button label
+7. `Views/MainWindow.axaml` — DockPanel: top bar (URL + connect + status), center DataGrid (8 columns), bottom spawn button
+8. `App.axaml` / `Program.cs` — standard Avalonia bootstrap, dark Fluent theme
+9. `Yaat.Sim/` — AircraftState (mutable state), FlightPhysics (constant-speed position update), SimulationWorld (thread-safe collection with tick)
 
 ### Phase 10: GitHub repos
 

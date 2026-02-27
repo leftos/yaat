@@ -106,28 +106,26 @@ yaat-server/
 
 ```
 yaat/
+  yaat.slnx                           # Solution file (.slnx XML format)
+  docs/plans/                          # Milestone plans and architecture docs
   src/
-    Yaat/                            # Main Avalonia application
+    Yaat.Client/                       # Avalonia 11 desktop app (instructor/RPO)
       App.axaml / App.axaml.cs
       Program.cs
-      ViewModels/
-        MainViewModel.cs             # Primary view model
-        ScenarioViewModel.cs         # Scenario loading/management
-        AircraftListViewModel.cs     # Aircraft list and selection
-        CommandInputViewModel.cs     # Command line input
-      Views/
-        MainView.axaml               # Primary layout
-        ScenarioView.axaml           # Scenario browser/loader
-        AircraftListView.axaml       # Aircraft status list
-        CommandInputView.axaml       # Command input bar
-      Services/
-        ServerConnection.cs          # SignalR client to training hub
-        CommandService.cs            # Parse and send commands
       Models/
-        AircraftModel.cs             # Client-side aircraft representation
-        ScenarioModel.cs             # Client-side scenario representation
-    Yaat.Tests/                      # xUnit tests
-  yaat.sln
+        AircraftModel.cs               # ObservableObject aircraft representation
+      Services/
+        ServerConnection.cs            # SignalR client + DTOs (AircraftDto, SpawnAircraftDto)
+      ViewModels/
+        MainViewModel.cs               # Primary view model (connect, spawn, aircraft list)
+        ConnectButtonConverter.cs      # IValueConverter for Connect/Disconnect label
+      Views/
+        MainWindow.axaml               # Primary layout (DockPanel with DataGrid)
+        MainWindow.axaml.cs
+    Yaat.Sim/                          # Shared simulation library
+      AircraftState.cs                 # Mutable aircraft state with flight plan fields
+      FlightPhysics.cs                 # Position update from heading + groundspeed
+      SimulationWorld.cs               # Thread-safe aircraft collection with tick loop
 ```
 
 ### Key NuGet Packages
@@ -137,10 +135,10 @@ yaat/
 - `MessagePack` (neuecc/MessagePack-CSharp) - for CRC binary protocol
 - `System.Text.Json` - for scenario loading and training hub
 
-**yaat:**
-- `Avalonia` + `Avalonia.Desktop` + `Avalonia.Themes.Fluent`
-- `CommunityToolkit.Mvvm` - MVVM source generators
-- `Microsoft.AspNetCore.SignalR.Client` - SignalR client
+**yaat (Yaat.Client):**
+- `Avalonia` 11.2.5 + `Avalonia.Desktop` + `Avalonia.Themes.Fluent` + `Avalonia.Controls.DataGrid` + `Avalonia.Fonts.Inter`
+- `CommunityToolkit.Mvvm` 8.4.0 - MVVM source generators
+- `Microsoft.AspNetCore.SignalR.Client` 8.0.12 - SignalR client
 
 ---
 
@@ -200,18 +198,25 @@ yaat/
    - Populate `autoTrackConditions` (pre-tracked aircraft with position/altitude)
    - Handle `aircraftGenerators` for dynamic traffic spawning
    - For M0, only `Coordinates` and `FixOrFrd` types need to work (airborne aircraft). `Parking`/`OnRunway`/`OnFinal` require tower/ground physics (M2/M3).
-2. **Flight physics enhancement**:
-   - Heading interpolation (standard rate turn ~3 deg/sec)
+2. **`ControlTargets` data model** (see [pilot-ai-architecture.md](pilot-ai-architecture.md) §8.1.7):
+   - Each aircraft gets a `ControlTargets` instance with target heading, altitude, and speed
+   - RPO commands set targets directly (no Phase structure yet)
+   - Physics engine interpolates current values toward targets each tick
+   - `NavigationTarget` on heading axis for waypoint-based navigation (`DCT` command)
+   - `TurnDirection` preference for `TL`/`TR` commands
+3. **Flight physics enhancement**:
+   - Heading interpolation (standard rate turn ~3 deg/sec, 25° bank limit for transport category)
    - Altitude interpolation (climb/descent rates by aircraft category)
    - Speed interpolation (acceleration/deceleration)
    - Wind drift (configurable wind speed/direction)
-3. **CommandParser**: Parse ATCTrainer command syntax for core commands:
+   - Position update from heading + groundspeed (TAS adjusted for wind)
+4. **CommandParser**: Parse ATCTrainer command syntax for core commands:
    - Heading: `FH`, `TL`, `TR`, `LT`, `RT`, `FPH`
    - Altitude: `CM`/`DM`
    - Speed: `SPD`, `MACH`
    - General: `DEL`, `PAUSE`, `UNPAUSE`, `SIMRATE`
    - Transponder: `SQ`, `SQI`, `SQV`, `SN`, `SS`, `ID`
-4. **Training hub methods**:
+5. **Training hub methods**:
    - `LoadScenario(scenarioJson)` - Load and start scenario
    - `SendCommand(callsign, command)` - Issue RPO command to aircraft
    - `GetAircraftList()` - Get all active aircraft
@@ -219,7 +224,7 @@ yaat/
    - `DeleteAircraft(callsign)` - DEL command
    - `SetSimRate(rate)` - SIMRATE command
    - `PauseSimulation()` / `ResumeSimulation()`
-5. **Flight plan DTO population**: Proper route, departure, destination, aircraft type from scenario data
+6. **Flight plan DTO population**: Proper route, departure, destination, aircraft type from scenario data
 
 #### yaat client
 
@@ -247,20 +252,36 @@ yaat/
 
 #### yaat-server
 
-1. **Takeoff physics**:
+1. **Introduce `Phase` base class** (see [pilot-ai-architecture.md](pilot-ai-architecture.md) §8.1.1):
+   - Abstract `Phase` with `OnStart`, `OnTick`, `OnEnd` lifecycle
+   - `PhaseContext` providing access to aircraft state, targets, and services
+   - `PhaseStatus` enum (Pending, Active, Completed, Skipped)
+   - Each aircraft gets a simple phase list — no full `Plan`/`Intent` yet, just a current phase driving `ControlTargets`
+2. **`ClearanceRequirement` for tower operations** (see [pilot-ai-architecture.md](pilot-ai-architecture.md) §8.1.4):
+   - `ClearanceType.ClearedForTakeoff`, `LineUpAndWait`, `ClearedToLand`, `ClearedForOption`, `ClearedTouchAndGo`
+   - RPO tower commands (`CTO`, `LUAW`, etc.) satisfy the corresponding requirement and trigger phase transitions
+   - `StoppedPendingClearance` for aircraft holding short awaiting takeoff clearance
+   - `FlyingPendingClearance` for aircraft on approach awaiting landing clearance (with go-around contingency)
+3. **Tower phases**:
+   - `LinedUpAndWaitingPhase` — clearance-gated, transitions to `TakeoffPhase` on CTO
+   - `TakeoffPhase` — acceleration to rotation speed, liftoff, initial climb
+   - `LandingPhase` — final approach descent (3° glideslope), touchdown, rollout, runway exit
+   - `GoAroundPhase` — climb on runway heading, return to pattern or as directed
+   - Pattern phases: `PatternEntryPhase`, `DownwindPhase`, `BasePhase`, `FinalPhase`
+4. **Takeoff physics**:
    - Acceleration on runway to rotation speed
    - Rotation and liftoff
    - Initial climb rate based on aircraft type
-2. **Landing physics**:
-   - Final approach descent path (3 deg glideslope)
+5. **Landing physics**:
+   - Final approach descent path (3° glideslope)
    - Touchdown and rollout deceleration
    - Runway exit
-3. **Traffic pattern**:
+6. **Traffic pattern**:
    - Pattern legs: upwind, crosswind, downwind, base, final
    - Standard pattern altitude (typically 1000ft AGL)
    - Left/right traffic
    - Pattern entry points
-4. **Tower commands**:
+7. **Tower commands**:
    - `CTO [hdg]` - Cleared for takeoff
    - `LUAW` - Line up and wait
    - `CTOC` - Cancel takeoff clearance
@@ -270,7 +291,7 @@ yaat/
    - `LAHSO {rwy}` - Land and hold short
    - `EXIT {twy}` - Exit at taxiway
    - `EL`/`ER` - Exit left/right
-5. **Pattern commands**:
+8. **Pattern commands**:
    - `ELD`/`ERD` - Enter left/right downwind
    - `ELB`/`ERB` - Enter left/right base
    - `EF` - Enter final
@@ -282,7 +303,7 @@ yaat/
 
 #### yaat client
 
-1. **Tower state display**: Show takeoff/landing/pattern state
+1. **Tower state display**: Show takeoff/landing/pattern state, current phase
 2. **Runway status**: Active runways, who's on them
 3. **Pattern visualization**: Show which leg each aircraft is on
 
@@ -292,6 +313,7 @@ yaat/
 - Touch-and-go, go-around work
 - Landing and runway exit
 - Pattern entry from outside
+- Tower commands satisfy clearance requirements and trigger phase transitions
 
 ---
 
@@ -301,15 +323,24 @@ yaat/
 
 #### yaat-server
 
-1. **Taxiway graph data**: Load airport taxiway graph (nodes + edges with names)
+1. **Ground phases** (see [pilot-ai-architecture.md](pilot-ai-architecture.md) §6.1):
+   - `AtParkingPhase` — clearance-gated: pushback requires clearance if into movement area
+   - `PushbackPhase` — straight back or to heading, ~5 kts
+   - `TaxiingOutPhase` / `TaxiingInPhase` — follow taxi route segments
+   - `HoldingShortPhase` — clearance-gated: runway crossing, LUAW, or takeoff
+   - `CrossingRunwayPhase` — cross and resume taxi
+   - `RunwayExitPhase` / `HoldingAfterRunwayExitPhase` — post-landing ground transition
+   - `ClearanceType.Pushback`, `TaxiClearance`, `RunwayCrossing` added
+2. **TaxiPlan sub-system**: A sub-plan within ground phases — a sequence of taxiway segments with hold-short gates at each runway intersection. Hold short readback is mandatory per AIM 4-4-7.
+3. **Taxiway graph data**: Load airport taxiway graph (nodes + edges with names)
    - Source: airport GeoJSON files from lc-trainer/vzoa or generate from vNAS data
    - Node types: parking, taxiway intersection, hold short line, runway threshold
-2. **Ground physics**:
+4. **Ground physics**:
    - Taxi speed management (10-20 kts typical)
    - Turn physics on ground (slow speed turns at intersections)
    - Pushback physics (straight back or to heading, ~5 kts)
    - Stop/start acceleration/deceleration
-3. **Ground commands**:
+5. **Ground commands**:
    - `PUSH [twy/spot]` - Pushback
    - `TAXI {path} [HS ...]` - Taxi with hold shorts
    - `RWY {rwy} TAXI {path} [HS ...]` - Taxi to runway
@@ -319,20 +350,20 @@ yaat/
    - `RES` - Resume
    - `BREAK` - Break from conflicts
    - `GIVEWAY {cs}` - Give way
-4. **Pathfinding**: A* or Dijkstra on taxiway graph
-5. **ASDEX DTOs**: Populate AsdexTargetDto and AsdexTrackDto for ground aircraft
-6. **Collision avoidance**: Basic detection (stop if another aircraft is ahead on same taxiway segment)
+6. **Pathfinding**: A* or Dijkstra on taxiway graph
+7. **ASDEX DTOs**: Populate AsdexTargetDto and AsdexTrackDto for ground aircraft
+8. **Collision avoidance**: Basic detection (stop if another aircraft is ahead on same taxiway segment)
 
 #### yaat client
 
-1. **Ground state display**: Show ground status (at parking, taxiing, hold short, etc.)
+1. **Ground state display**: Show current ground phase (at parking, pushing, taxiing, hold short, etc.)
 2. **Taxi route display**: Show assigned taxi route for selected aircraft
 3. **Ground commands in command bar**: Support all ground commands
 
 #### Definition of Done
 - Spawn aircraft at parking positions
 - Pushback and taxi to runway
-- Hold short of runway
+- Hold short of runway, clearance-gated phase transitions
 - Cross runway on command
 - CRC ASDEX display shows ground targets
 - Basic collision avoidance prevents taxi-through

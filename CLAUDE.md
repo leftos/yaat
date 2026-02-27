@@ -9,30 +9,42 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
 ## Build & Run
 
 ```bash
-cd src/Yaat
+# Build the entire solution from repo root
 dotnet build
-dotnet run
+
+# Run the client app
+dotnet run --project src/Yaat.Client
 ```
 
 Requires .NET 8 SDK and a running yaat-server instance (default `http://localhost:5000`).
 
+The solution uses `.slnx` format (`yaat.slnx`). If your IDE doesn't support `.slnx`, use `dotnet` CLI directly.
+
 ## Architecture
 
-**Single-project Avalonia 11 desktop app** using MVVM with CommunityToolkit.Mvvm source generators.
+Two projects in `yaat.slnx`:
 
 ```
-src/Yaat/
-  Models/          # ObservableObject data models (source-gen'd properties via [ObservableProperty])
-  Services/        # SignalR client (ServerConnection) + DTOs
-  ViewModels/      # MVVM view models with [RelayCommand] source generators
-  Views/           # Avalonia AXAML views + code-behind
+src/Yaat.Client/     # Avalonia 11 desktop app (MVVM, executable)
+  Models/            # ObservableObject data models ([ObservableProperty] source-gen'd)
+  Services/          # SignalR client (ServerConnection) + DTOs (AircraftDto, SpawnAircraftDto)
+  ViewModels/        # [RelayCommand] view models, ConnectButtonConverter
+  Views/             # Avalonia AXAML views + code-behind
+
+src/Yaat.Sim/        # Shared simulation library (class library, no dependencies)
+  AircraftState.cs   # Mutable aircraft state with flight plan fields
+  FlightPhysics.cs   # Position update from heading + groundspeed
+  SimulationWorld.cs # Thread-safe aircraft collection with tick loop
 ```
+
+**Yaat.Client** is the Avalonia desktop app. **Yaat.Sim** is a standalone library intended to be shared with yaat-server (not currently referenced by Yaat.Client).
 
 **Key patterns:**
-- `ServerConnection` is the single SignalR client connecting to `/hubs/training` (JSON protocol, not MessagePack)
-- ViewModels use `[ObservableProperty]` and `[RelayCommand]` from CommunityToolkit.Mvvm — properties are declared as `_camelCase` fields and auto-generated as `PascalCase` properties
-- UI thread dispatch via `Avalonia.Threading.Dispatcher.UIThread.Post()` for SignalR callbacks
-- `ConnectButtonConverter` is an `IValueConverter` for toggling Connect/Disconnect button text
+- `ServerConnection` is the single SignalR client connecting to `/hubs/training` (JSON protocol, not MessagePack). DTOs (`AircraftDto`, `SpawnAircraftDto`) are records defined in the same file.
+- ViewModels use `[ObservableProperty]` and `[RelayCommand]` from CommunityToolkit.Mvvm — fields are `_camelCase`, auto-generated properties are `PascalCase`
+- SignalR callbacks arrive on a background thread; ViewModels marshal to UI via `Avalonia.Threading.Dispatcher.UIThread.Post()`
+- No DI container — `MainWindow` creates `MainViewModel` directly, which instantiates `ServerConnection` as a field
+- `SimulationWorld.GetSnapshot()` returns a shallow list copy; callers should treat returned `AircraftState` objects as read-only
 
 **Communication flow:**
 ```
@@ -42,12 +54,17 @@ YAAT Client (this repo)  ──SignalR JSON──>  yaat-server  <──SignalR+
 
 The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw WebSocket with varint+MessagePack binary framing (handled entirely by yaat-server).
 
+**SignalR hub methods used by the client:**
+- `GetAircraftList()` → `List<AircraftDto>` — called on connect
+- `SpawnAircraft(SpawnAircraftDto)` — spawns a new aircraft
+- `AircraftUpdated` (server→client event) — pushed on each sim tick
+
 ## Tech Stack
 
-- Avalonia UI 11.2.x with Fluent theme (dark mode)
-- CommunityToolkit.Mvvm 8.4 for MVVM source generators
-- Microsoft.AspNetCore.SignalR.Client for server communication
-- .NET 8, C# with nullable enabled
+- .NET 8, C# with nullable enabled, implicit usings
+- Avalonia UI 11.2.5 with Fluent theme (dark mode) + DataGrid
+- CommunityToolkit.Mvvm 8.4.0 for MVVM source generators
+- Microsoft.AspNetCore.SignalR.Client 8.0.12
 
 ## Related Repositories
 
@@ -72,6 +89,15 @@ This project simulates real-world air traffic control. **Every feature touching 
 
 **Do not guess aviation details.** Real-world ATC and flight operations have strict, well-defined rules (FAA 7110.65, AIM, ICAO Doc 4444). Getting them wrong breaks the training value of the simulator. When in doubt, ask the aviation-sim-expert agent rather than approximating.
 
+**Local FAA reference library — DO NOT web-search for these:**
+The full text of the FAA 7110.65 and AIM are available locally as markdown. Use `Read`, `Grep`, and `Glob` on these paths instead of web searches:
+- **7110.65**: `C:\Users\Leftos\.claude\reference\faa\7110.65/` (index: `INDEX.md`)
+- **AIM**: `C:\Users\Leftos\.claude\reference\faa\aim/` (index: `INDEX.md`)
+- **Top-level index**: `C:\Users\Leftos\.claude\reference\faa\INDEX.md`
+
+When invoking the aviation-sim-expert agent, always include this instruction in the prompt:
+> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files. Read them directly via the Read/Grep/Glob tools at `C:\Users\Leftos\.claude\reference\faa\7110.65/` and `C:\Users\Leftos\.claude\reference\faa\aim/`. Do NOT use web search tools (Exa, WebSearch, WebFetch) to look up 7110.65 or AIM content."
+
 ## Milestone Roadmap
 
-The project follows milestones defined in `docs/plans/main-plan.md`. Currently at Milestone 0 (proof of concept): basic connection, aircraft list display, spawn functionality.
+The project follows milestones defined in `docs/plans/main-plan.md`. Currently at Milestone 0 (proof of concept): basic connection, aircraft list display, spawn functionality. Pilot AI architecture is designed in `docs/plans/pilot-ai-architecture.md`.
