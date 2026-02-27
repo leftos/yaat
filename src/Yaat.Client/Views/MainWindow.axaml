@@ -3,23 +3,25 @@
         xmlns:vm="using:Yaat.Client.ViewModels"
         x:Class="Yaat.Client.Views.MainWindow"
         Title="YAAT"
-        Width="900" Height="600">
+        Width="1200" Height="700">
 
     <Design.DataContext>
         <vm:MainViewModel />
     </Design.DataContext>
 
     <DockPanel Margin="12">
+
         <!-- Top bar: URL + Connect -->
         <StackPanel DockPanel.Dock="Top"
                     Orientation="Horizontal"
                     Spacing="8"
-                    Margin="0,0,0,12">
+                    Margin="0,0,0,8">
             <TextBox Text="{Binding ServerUrl}"
                      Watermark="Server URL"
-                     Width="400" />
+                     Width="300" />
             <Button Content="{Binding IsConnected,
-                    Converter={x:Static vm:ConnectButtonConverter.Instance}}"
+                    Converter={x:Static
+                    vm:ConnectButtonConverter.Instance}}"
                     Command="{Binding ConnectCommand}" />
             <TextBlock Text="{Binding StatusText}"
                        VerticalAlignment="Center"
@@ -27,53 +29,138 @@
                        Foreground="Gray" />
         </StackPanel>
 
-        <!-- Bottom bar: Spawn -->
-        <StackPanel DockPanel.Dock="Bottom"
+        <!-- Scenario bar -->
+        <StackPanel DockPanel.Dock="Top"
                     Orientation="Horizontal"
                     Spacing="8"
-                    Margin="0,12,0,0">
-            <Button Content="Spawn Aircraft"
+                    Margin="0,0,0,8">
+            <TextBox Text="{Binding ScenarioFilePath}"
+                     Watermark="Scenario JSON file..."
+                     Width="400" />
+            <Button Content="Browse"
+                    x:Name="BrowseButton" />
+            <Button Content="Load Scenario"
+                    Command="{Binding LoadScenarioCommand}" />
+            <Button Content="Spawn"
                     Command="{Binding SpawnCommand}" />
         </StackPanel>
 
-        <!-- Center: Aircraft list -->
+        <!-- Bottom: Command bar + sim controls -->
+        <Grid DockPanel.Dock="Bottom"
+              Margin="0,8,0,0"
+              ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+
+            <!-- Selected aircraft label -->
+            <TextBlock Grid.Column="0"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"
+                       FontWeight="Bold"
+                       Text="{Binding SelectedAircraft.Callsign,
+                              FallbackValue='(none)',
+                              TargetNullValue='(none)'}" />
+
+            <!-- Command input -->
+            <TextBox Grid.Column="1"
+                     Text="{Binding CommandText}"
+                     Watermark="Enter command (FH 270, CM 240...)"
+                     x:Name="CommandInput" />
+
+            <!-- Sim controls -->
+            <Button Grid.Column="2"
+                    Margin="8,0,0,0"
+                    Content="{Binding IsPaused,
+                        Converter={x:Static
+                        vm:PauseButtonConverter.Instance}}"
+                    Command="{Binding TogglePauseCommand}" />
+
+            <StackPanel Grid.Column="3"
+                        Orientation="Horizontal"
+                        Margin="8,0,0,0"
+                        Spacing="2">
+                <Button Content="1x"
+                        Command="{Binding SetSimRateCommand}"
+                        CommandParameter="1"
+                        MinWidth="32" />
+                <Button Content="2x"
+                        Command="{Binding SetSimRateCommand}"
+                        CommandParameter="2"
+                        MinWidth="32" />
+                <Button Content="4x"
+                        Command="{Binding SetSimRateCommand}"
+                        CommandParameter="4"
+                        MinWidth="32" />
+                <Button Content="8x"
+                        Command="{Binding SetSimRateCommand}"
+                        CommandParameter="8"
+                        MinWidth="32" />
+            </StackPanel>
+
+            <TextBlock Grid.Column="4"
+                       VerticalAlignment="Center"
+                       Margin="8,0,0,0"
+                       Foreground="Gray"
+                       Text="{Binding CommandSchemeName,
+                              StringFormat='Scheme: {0}'}" />
+        </Grid>
+
+        <!-- Center: Aircraft DataGrid -->
         <DataGrid ItemsSource="{Binding Aircraft}"
+                  SelectedItem="{Binding SelectedAircraft}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   GridLinesVisibility="Horizontal"
-                  CanUserResizeColumns="True">
+                  CanUserResizeColumns="True"
+                  SelectionMode="Single">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Callsign"
-                                    Binding="{Binding Callsign}"
-                                    Width="100" />
+                    Binding="{Binding Callsign}"
+                    Width="90" />
                 <DataGridTextColumn Header="Type"
-                                    Binding="{Binding AircraftType}"
-                                    Width="80" />
-                <DataGridTextColumn Header="Latitude"
-                                    Binding="{Binding Latitude,
-                                    StringFormat=\{0:F4\}}"
-                                    Width="100" />
-                <DataGridTextColumn Header="Longitude"
-                                    Binding="{Binding Longitude,
-                                    StringFormat=\{0:F4\}}"
-                                    Width="100" />
-                <DataGridTextColumn Header="Heading"
-                                    Binding="{Binding Heading,
-                                    StringFormat=\{0:F0\}}"
-                                    Width="80" />
-                <DataGridTextColumn Header="Altitude"
-                                    Binding="{Binding Altitude,
-                                    StringFormat=\{0:F0\}}"
-                                    Width="80" />
-                <DataGridTextColumn Header="Speed"
-                                    Binding="{Binding GroundSpeed,
-                                    StringFormat=\{0:F0\}}"
-                                    Width="80" />
+                    Binding="{Binding AircraftType}"
+                    Width="60" />
+                <DataGridTextColumn Header="Rules"
+                    Binding="{Binding FlightRules}"
+                    Width="40" />
+                <DataGridTextColumn Header="Dep"
+                    Binding="{Binding Departure}"
+                    Width="50" />
+                <DataGridTextColumn Header="Dest"
+                    Binding="{Binding Destination}"
+                    Width="50" />
                 <DataGridTextColumn Header="Squawk"
-                                    Binding="{Binding BeaconCode,
-                                    StringFormat=\{0:D4\}}"
-                                    Width="80" />
+                    Binding="{Binding BeaconCode,
+                    StringFormat=\{0:D4\}}"
+                    Width="55" />
+                <DataGridTextColumn Header="Hdg"
+                    Binding="{Binding Heading,
+                    StringFormat=\{0:F0\}}"
+                    Width="45" />
+                <DataGridTextColumn Header="Alt"
+                    Binding="{Binding Altitude,
+                    StringFormat=\{0:F0\}}"
+                    Width="60" />
+                <DataGridTextColumn Header="Spd"
+                    Binding="{Binding GroundSpeed,
+                    StringFormat=\{0:F0\}}"
+                    Width="45" />
+                <DataGridTextColumn Header="VS"
+                    Binding="{Binding VerticalSpeed,
+                    StringFormat=\{0:F0\}}"
+                    Width="50" />
+                <DataGridTextColumn Header="AHdg"
+                    Binding="{Binding AssignedHeading,
+                    StringFormat=\{0:F0\}}"
+                    Width="50" />
+                <DataGridTextColumn Header="AAlt"
+                    Binding="{Binding AssignedAltitude,
+                    StringFormat=\{0:F0\}}"
+                    Width="55" />
+                <DataGridTextColumn Header="ASpd"
+                    Binding="{Binding AssignedSpeed,
+                    StringFormat=\{0:F0\}}"
+                    Width="50" />
             </DataGrid.Columns>
         </DataGrid>
+
     </DockPanel>
 </Window>
