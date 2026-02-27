@@ -46,6 +46,8 @@ src/Yaat.Sim/        # Shared simulation library (class library, no dependencies
 - No DI container — `MainWindow` creates `MainViewModel` directly, which instantiates `ServerConnection` as a field
 - `SimulationWorld.GetSnapshot()` returns a shallow list copy; callers should treat returned `AircraftState` objects as read-only
 
+**Command scheme:** RPO commands are parsed client-side using a configurable `CommandScheme` (ATCTrainer or VICE presets). The client translates user input into canonical ATCTrainer format before sending to the server. The server only understands canonical format.
+
 **Communication flow:**
 ```
 YAAT Client (this repo)  ──SignalR JSON──>  yaat-server  <──SignalR+MessagePack──  CRC
@@ -71,6 +73,8 @@ The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw W
 - **yaat-server** (`X:\dev\yaat-server`) — ASP.NET Core 8 server with simulation engine, CRC protocol, training hub
 - **vatsim-server-rs** (`X:\dev\vatsim-server-rs`) — Rust reference implementation for CRC protocol (DTO field ordering, varint framing)
 - **lc-trainer** (`X:\dev\lc-trainer`) — Previous WPF ATC trainer (reference for flight physics, scenario format)
+
+> **lc-trainer is NOT a trusted reference.** It is WIP, flawed, and unreviewed. It may be used as inspiration but every aviation detail drawn from it MUST be reviewed by the `aviation-sim-expert` agent. Do not port code from lc-trainer without independent validation. Prefer a fresh, well-organized approach over copying its patterns.
 
 ## Aviation Realism — MANDATORY
 
