@@ -18,4 +18,8 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.12" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Yaat.Sim\Yaat.Sim.csproj" />
+  </ItemGroup>
+
 </Project>

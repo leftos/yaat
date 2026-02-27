@@ -36,8 +36,7 @@ public sealed class SimulationWorld
         {
             foreach (var ac in _aircraft)
             {
-                FlightPhysics.UpdatePosition(
-                    ac, deltaSeconds);
+                FlightPhysics.Update(ac, deltaSeconds);
             }
         }
     }
