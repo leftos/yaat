@@ -512,6 +512,20 @@ ATCTrainer scenarios must load **without modification**. Only the ATCTrainer for
 ### Training Hub Protocol
 Use standard ASP.NET Core SignalR with JSON serialization (not custom MessagePack). This is a separate hub from the CRC-compatible one, so we don't need binary compatibility. Simpler to develop and debug.
 
+### UDP Transport (Future Enhancement)
+Real vNAS servers use UDP alongside WebSocket for high-frequency entity updates (StarsTracks, EramTargets, etc.). CRC expects a UDP endpoint and will attempt to register after calling `GetServerConfiguration()`.
+
+**Current state:** A UDP stub server (`UdpStubServer`) listens on port 6809 and handles:
+- `RegisterConnection` (message type 1) — stores client mapping, responds with ACK
+- Keepalive ping (message type 0) — responds with pong
+- Server-initiated keepalive (15s interval) — sends ACK to all registered clients
+
+Entity updates are **not** sent over UDP yet; CRC receives them via WebSocket invocations (`ReceiveStarsTracks`, etc.).
+
+**Future work:** Migrate entity updates to UDP for lower latency and smaller payloads (MessagePack without SignalR framing overhead). This becomes important when serving many simultaneous CRC clients. Reference implementations:
+- `vatsim-server-rs/crates/server/src/udp.rs` — server-side UDP with entity dispatch
+- `towercab-3d-vnas/src/udp/` — client-side UDP socket, message types, keepalive
+
 ---
 
 ## Detailed Milestone Plans
