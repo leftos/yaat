@@ -21,6 +21,11 @@ public partial class MainWindow : Window
             "CommandInput");
         if (cmdInput is not null)
             cmdInput.KeyDown += OnCommandKeyDown;
+
+        var settingsBtn = this.FindControl<Button>(
+            "SettingsButton");
+        if (settingsBtn is not null)
+            settingsBtn.Click += OnSettingsClick;
     }
 
     private async void OnBrowseClick(
@@ -48,6 +53,18 @@ public partial class MainWindow : Window
             if (path is not null)
                 vm.ScenarioFilePath = path;
         }
+    }
+
+    private async void OnSettingsClick(
+        object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+            return;
+
+        var dialog = new SettingsWindow(vm.Preferences);
+        await dialog.ShowDialog(this);
+
+        vm.RefreshCommandScheme();
     }
 
     private void OnCommandKeyDown(

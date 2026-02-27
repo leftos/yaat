@@ -10,7 +10,9 @@ namespace Yaat.Client.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly ServerConnection _connection = new();
-    private readonly CommandSchemeStore _schemeStore = new();
+    private readonly UserPreferences _preferences = new();
+
+    public UserPreferences Preferences => _preferences;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
@@ -58,7 +60,7 @@ public partial class MainViewModel : ObservableObject
         _connection.SimulationStateChanged +=
             OnSimulationStateChanged;
 
-        CommandSchemeName = _schemeStore.Active.Name;
+        RefreshCommandScheme();
     }
 
     [RelayCommand(CanExecute = nameof(CanToggleConnect))]
@@ -171,7 +173,7 @@ public partial class MainViewModel : ObservableObject
         if (string.IsNullOrEmpty(text))
             return;
 
-        var scheme = _schemeStore.Active;
+        var scheme = _preferences.CommandScheme;
         var parsed = CommandSchemeParser.Parse(text, scheme);
 
         if (parsed is null)
@@ -270,6 +272,13 @@ public partial class MainViewModel : ObservableObject
         {
             StatusText = $"SimRate error: {ex.Message}";
         }
+    }
+
+    public void RefreshCommandScheme()
+    {
+        CommandSchemeName =
+            CommandScheme.DetectPresetName(
+                _preferences.CommandScheme) ?? "Custom";
     }
 
     private void OnAircraftUpdated(AircraftDto dto)

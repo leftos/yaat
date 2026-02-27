@@ -4,22 +4,38 @@ namespace Yaat.Client.Services;
 
 public class CommandPattern
 {
-    public required string Verb { get; init; }
+    public required string Verb { get; set; }
     public required string Format { get; init; }
 }
 
 public class CommandScheme
 {
-    public required string Name { get; init; }
+    public required CommandParseMode ParseMode { get; init; }
 
     public required Dictionary<CanonicalCommandType, CommandPattern>
         Patterns { get; init; }
+
+    /// <summary>
+    /// Returns "ATCTrainer", "VICE", or null if custom.
+    /// </summary>
+    public static string? DetectPresetName(CommandScheme scheme)
+    {
+        var atc = AtcTrainer();
+        if (MatchesPreset(scheme, atc))
+            return "ATCTrainer";
+
+        var vice = Vice();
+        if (MatchesPreset(scheme, vice))
+            return "VICE";
+
+        return null;
+    }
 
     public static CommandScheme AtcTrainer()
     {
         return new CommandScheme
         {
-            Name = "ATCTrainer",
+            ParseMode = CommandParseMode.SpaceSeparated,
             Patterns = new Dictionary<CanonicalCommandType, CommandPattern>
             {
                 [CanonicalCommandType.FlyHeading] = new()
@@ -58,7 +74,7 @@ public class CommandScheme
     {
         return new CommandScheme
         {
-            Name = "VICE",
+            ParseMode = CommandParseMode.Concatenated,
             Patterns = new Dictionary<CanonicalCommandType, CommandPattern>
             {
                 [CanonicalCommandType.FlyHeading] = new()
@@ -91,5 +107,37 @@ public class CommandScheme
                     { Verb = "SIMRATE", Format = "{verb} {arg}" },
             }
         };
+    }
+
+    private static bool MatchesPreset(
+        CommandScheme current, CommandScheme preset)
+    {
+        if (current.ParseMode != preset.ParseMode)
+            return false;
+
+        if (current.Patterns.Count != preset.Patterns.Count)
+            return false;
+
+        foreach (var (type, presetPattern) in preset.Patterns)
+        {
+            if (!current.Patterns.TryGetValue(type, out var p))
+                return false;
+
+            if (!string.Equals(
+                p.Verb, presetPattern.Verb,
+                StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!string.Equals(
+                p.Format, presetPattern.Format,
+                StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

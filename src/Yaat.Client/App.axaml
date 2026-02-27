@@ -3,7 +3,44 @@
              x:Class="Yaat.Client.App"
              RequestedThemeVariant="Dark">
     <Application.Styles>
-        <FluentTheme />
+        <FluentTheme DensityStyle="Compact" />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+        <!-- Smaller default font for data-dense ATC display -->
+        <Style Selector="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="DataGridColumnHeader">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="DataGridCell">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <!-- Heading styles -->
+        <Style Selector="TextBlock.h1">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="TextBlock.h2">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.subtle">
+            <Setter Property="Foreground" Value="Gray" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
     </Application.Styles>
 </Application>

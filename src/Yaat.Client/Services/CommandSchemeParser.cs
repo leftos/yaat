@@ -15,8 +15,8 @@ public static class CommandSchemeParser
         if (string.IsNullOrEmpty(trimmed))
             return null;
 
-        if (scheme.Name == "VICE")
-            return ParseVice(trimmed, scheme);
+        if (scheme.ParseMode == CommandParseMode.Concatenated)
+            return ParseConcatenated(trimmed, scheme);
 
         return ParseSpaceSeparated(trimmed, scheme);
     }
@@ -63,10 +63,10 @@ public static class CommandSchemeParser
         return null;
     }
 
-    private static ParsedInput? ParseVice(
+    private static ParsedInput? ParseConcatenated(
         string input, CommandScheme scheme)
     {
-        // VICE relative turns: T{deg}L or T{deg}R
+        // Concatenated relative turns: T{deg}L or T{deg}R
         if (input.Length >= 3
             && input[0] == 'T'
             && char.IsDigit(input[1]))
@@ -85,13 +85,24 @@ public static class CommandSchemeParser
             }
         }
 
-        // VICE no-arg commands: X (delete), H (fly present hdg)
-        if (input == "X")
-            return new ParsedInput(
-                CanonicalCommandType.Delete, null);
-        if (input == "H")
-            return new ParsedInput(
-                CanonicalCommandType.FlyPresentHeading, null);
+        // No-arg concatenated commands (Delete, FlyPresentHeading)
+        foreach (var (type, pattern) in scheme.Patterns)
+        {
+            if (pattern.Format.Contains("{arg}"))
+                continue;
+            if (type is CanonicalCommandType.Pause
+                or CanonicalCommandType.Unpause
+                or CanonicalCommandType.SimRate)
+            {
+                continue;
+            }
+            if (string.Equals(
+                input, pattern.Verb,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return new ParsedInput(type, null);
+            }
+        }
 
         // Space-separated global commands (PAUSE, UNPAUSE, SIMRATE)
         if (input.StartsWith("PAUSE"))
@@ -110,43 +121,33 @@ public static class CommandSchemeParser
                 : null;
         }
 
-        // VICE single-letter verb + digits: H270, L180, C240...
-        if (input.Length >= 2 && char.IsLetter(input[0]))
+        // Concatenated verb + digits: H270, L180, C240, SQ1234...
+        // Try longer verb matches first (SQ before S)
+        foreach (var (type, pattern) in scheme.Patterns)
         {
-            var verb = input[0].ToString();
-            var arg = input[1..];
-
-            // SQ is two letters
-            if (input.Length >= 3
-                && input.StartsWith("SQ")
-                && char.IsDigit(input[2]))
+            if (!pattern.Format.Contains("{arg}"))
+                continue;
+            if (type is CanonicalCommandType.RelativeLeft
+                or CanonicalCommandType.RelativeRight
+                or CanonicalCommandType.Pause
+                or CanonicalCommandType.Unpause
+                or CanonicalCommandType.SimRate)
             {
-                verb = "SQ";
-                arg = input[2..];
+                continue;
             }
 
-            if (!int.TryParse(arg, out _))
-                return null;
-
-            foreach (var (type, pattern) in scheme.Patterns)
+            if (!input.StartsWith(
+                pattern.Verb,
+                StringComparison.OrdinalIgnoreCase))
             {
-                if (type is CanonicalCommandType.RelativeLeft
-                    or CanonicalCommandType.RelativeRight
-                    or CanonicalCommandType.Delete
-                    or CanonicalCommandType.FlyPresentHeading
-                    or CanonicalCommandType.Pause
-                    or CanonicalCommandType.Unpause)
-                {
-                    continue;
-                }
-
-                if (string.Equals(
-                    verb, pattern.Verb,
-                    StringComparison.OrdinalIgnoreCase))
-                {
-                    return new ParsedInput(type, arg);
-                }
+                continue;
             }
+
+            var arg = input[pattern.Verb.Length..];
+            if (arg.Length == 0 || !int.TryParse(arg, out _))
+                continue;
+
+            return new ParsedInput(type, arg);
         }
 
         return null;

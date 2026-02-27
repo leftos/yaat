@@ -1,0 +1,87 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Yaat.Client.ViewModels"
+        x:Class="Yaat.Client.Views.SettingsWindow"
+        Title="Settings"
+        Width="560" Height="440"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+    <Design.DataContext>
+        <vm:SettingsViewModel />
+    </Design.DataContext>
+
+    <DockPanel Margin="12">
+
+        <!-- Bottom buttons -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <Button Content="Save"
+                    x:Name="SaveButton"
+                    Width="80" />
+            <Button Content="Cancel"
+                    x:Name="CancelButton"
+                    Width="80" />
+        </StackPanel>
+
+        <!-- Tab content -->
+        <TabControl>
+
+            <!-- General tab -->
+            <TabItem Header="General">
+                <StackPanel Margin="12">
+                    <TextBlock Text="General settings will appear here."
+                               Classes="subtle" />
+                </StackPanel>
+            </TabItem>
+
+            <!-- Commands tab -->
+            <TabItem Header="Commands">
+                <DockPanel Margin="12">
+
+                    <!-- Scheme selector -->
+                    <StackPanel DockPanel.Dock="Top"
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                Margin="0,0,0,12">
+                        <TextBlock Text="Command Scheme:"
+                                   VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding PresetNames_}"
+                                  SelectedIndex="{Binding SelectedPresetIndex}"
+                                  PlaceholderText="Custom"
+                                  Width="160" />
+                    </StackPanel>
+
+                    <!-- Verb mapping table -->
+                    <DataGrid ItemsSource="{Binding VerbMappings}"
+                              AutoGenerateColumns="False"
+                              GridLinesVisibility="Horizontal"
+                              CanUserResizeColumns="False"
+                              CanUserSortColumns="False"
+                              SelectionMode="Single"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Command"
+                                Binding="{Binding CommandName}"
+                                IsReadOnly="True"
+                                Width="150" />
+                            <DataGridTextColumn Header="Verb"
+                                Binding="{Binding Verb}"
+                                Width="80" />
+                            <DataGridTextColumn Header="Example"
+                                Binding="{Binding Example}"
+                                IsReadOnly="True"
+                                Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                </DockPanel>
+            </TabItem>
+
+        </TabControl>
+
+    </DockPanel>
+</Window>
