@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.SignalR.Client;
 
-namespace Yaat.Services;
+namespace Yaat.Client.Services;
 
 public sealed class ServerConnection : IAsyncDisposable
 {

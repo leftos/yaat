@@ -1,7 +1,7 @@
 using Avalonia.Controls;
-using Yaat.ViewModels;
+using Yaat.Client.ViewModels;
 
-namespace Yaat.Views;
+namespace Yaat.Client.Views;
 
 public partial class MainWindow : Window
 {

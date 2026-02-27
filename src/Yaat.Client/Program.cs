@@ -1,6 +1,6 @@
 using Avalonia;
 
-namespace Yaat;
+namespace Yaat.Client;
 
 public static class Program
 {

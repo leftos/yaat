@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Yaat/Yaat.csproj" />
+    <Project Path="src/Yaat.Client/Yaat.Client.csproj" />
+    <Project Path="src/Yaat.Sim/Yaat.Sim.csproj" />
   </Folder>
 </Solution>

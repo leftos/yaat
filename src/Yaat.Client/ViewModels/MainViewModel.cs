@@ -1,10 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Yaat.Models;
-using Yaat.Services;
+using Yaat.Client.Models;
+using Yaat.Client.Services;
 
-namespace Yaat.ViewModels;
+namespace Yaat.Client.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {

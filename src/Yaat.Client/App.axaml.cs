@@ -1,9 +1,9 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using Yaat.Views;
+using Yaat.Client.Views;
 
-namespace Yaat;
+namespace Yaat.Client;
 
 public class App : Application
 {

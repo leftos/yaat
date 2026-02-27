@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Yaat.Models;
+namespace Yaat.Client.Models;
 
 public partial class AircraftModel : ObservableObject
 {

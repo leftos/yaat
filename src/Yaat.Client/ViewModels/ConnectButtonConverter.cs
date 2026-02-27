@@ -1,7 +1,7 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
 
-namespace Yaat.ViewModels;
+namespace Yaat.Client.ViewModels;
 
 public class ConnectButtonConverter : IValueConverter
 {
