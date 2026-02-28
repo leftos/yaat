@@ -65,11 +65,17 @@ public static class CommandDispatcher
                 blockMsg = $"At {at.FixName}: {blockMsg}";
             }
 
+            var waitTime = parsedBlock.Commands.OfType<WaitCommand>().FirstOrDefault();
+            var waitDist = parsedBlock.Commands.OfType<WaitDistanceCommand>().FirstOrDefault();
+            bool isWait = waitTime is not null || waitDist is not null;
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
                 ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft),
                 Description = blockDesc,
+                IsWaitBlock = isWait,
+                WaitRemainingSeconds = waitTime?.Seconds ?? 0,
+                WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
             };
 
             foreach (var cmd in parsedBlock.Commands)
@@ -193,6 +199,12 @@ public static class CommandDispatcher
             case IdentCommand:
                 aircraft.IsIdenting = true;
                 return Ok("Ident");
+
+            case WaitCommand cmd:
+                return Ok($"Wait {cmd.Seconds} seconds");
+
+            case WaitDistanceCommand cmd:
+                return Ok($"Wait {cmd.DistanceNm} nm");
 
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
@@ -892,6 +904,8 @@ public static class CommandDispatcher
             DescendMaintainCommand => TrackedCommandType.Altitude,
             SpeedCommand => TrackedCommandType.Speed,
             DirectToCommand => TrackedCommandType.Navigation,
+            WaitCommand => TrackedCommandType.Wait,
+            WaitDistanceCommand => TrackedCommandType.Wait,
             _ => TrackedCommandType.Immediate,
         };
     }
@@ -941,6 +955,8 @@ public static class CommandDispatcher
             HoldAtFixOrbitCommand cmd =>
                 $"HFIX{(cmd.Direction == TurnDirection.Left ? "L" : "R")} {cmd.FixName}",
             HoldAtFixHoverCommand cmd => $"HFIX {cmd.FixName}",
+            WaitCommand cmd => $"WAIT {cmd.Seconds}",
+            WaitDistanceCommand cmd => $"WAITD {cmd.DistanceNm}",
             _ => command.ToString() ?? "?",
         };
     }
@@ -1019,6 +1035,8 @@ public static class CommandDispatcher
             HoldAtFixOrbitCommand cmd =>
                 $"Hold at {cmd.FixName}, {(cmd.Direction == TurnDirection.Left ? "left" : "right")} orbits",
             HoldAtFixHoverCommand cmd => $"Hold at {cmd.FixName}",
+            WaitCommand cmd => $"Wait {cmd.Seconds} seconds",
+            WaitDistanceCommand cmd => $"Wait {cmd.DistanceNm} nm",
             UnsupportedCommand cmd => cmd.RawText,
             _ => command.ToString() ?? "?",
         };

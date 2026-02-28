@@ -66,6 +66,8 @@ internal static class VicePreset
                 [CanonicalCommandType.Pause] = new() { Aliases = ["PAUSE"], Format = "{verb}" },
                 [CanonicalCommandType.Unpause] = new() { Aliases = ["UNPAUSE"], Format = "{verb}" },
                 [CanonicalCommandType.SimRate] = new() { Aliases = ["SIMRATE"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.Wait] = new() { Aliases = ["WAIT"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.WaitDistance] = new() { Aliases = ["WAITD"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.Add] = new() { Aliases = ["ADD"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.SpawnNow] = new() { Aliases = ["SPAWN"], Format = "{verb}" },
                 [CanonicalCommandType.SpawnDelay] = new() { Aliases = ["DELAY"], Format = "{verb} {arg}" },

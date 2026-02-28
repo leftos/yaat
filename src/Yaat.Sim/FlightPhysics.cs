@@ -18,7 +18,7 @@ public static class FlightPhysics
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
         UpdatePosition(aircraft, deltaSeconds);
-        UpdateCommandQueue(aircraft);
+        UpdateCommandQueue(aircraft, deltaSeconds);
     }
 
     private static void UpdateNavigation(AircraftState aircraft)
@@ -183,7 +183,7 @@ public static class FlightPhysics
         aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
     }
 
-    private static void UpdateCommandQueue(AircraftState aircraft)
+    private static void UpdateCommandQueue(AircraftState aircraft, double deltaSeconds)
     {
         if (aircraft.Phases?.CurrentPhase is not null)
         {
@@ -205,7 +205,7 @@ public static class FlightPhysics
         // Check completion of commands in the current applied block
         if (block.IsApplied)
         {
-            UpdateBlockCompletion(aircraft, block);
+            UpdateBlockCompletion(aircraft, block, deltaSeconds);
 
             if (block.AllComplete)
             {
@@ -239,7 +239,8 @@ public static class FlightPhysics
         }
     }
 
-    private static void UpdateBlockCompletion(AircraftState aircraft, CommandBlock block)
+    private static void UpdateBlockCompletion(
+        AircraftState aircraft, CommandBlock block, double deltaSeconds)
     {
         foreach (var cmd in block.Commands)
         {
@@ -255,9 +256,29 @@ public static class FlightPhysics
                 TrackedCommandType.Speed => aircraft.Targets.TargetSpeed is null,
                 TrackedCommandType.Navigation => aircraft.Targets.NavigationRoute.Count == 0,
                 TrackedCommandType.Immediate => true,
+                TrackedCommandType.Wait => CheckWaitComplete(block, aircraft, deltaSeconds),
                 _ => true,
             };
         }
+    }
+
+    private static bool CheckWaitComplete(
+        CommandBlock block, AircraftState aircraft, double deltaSeconds)
+    {
+        if (block.WaitRemainingSeconds > 0)
+        {
+            block.WaitRemainingSeconds -= deltaSeconds;
+            return block.WaitRemainingSeconds <= 0;
+        }
+
+        if (block.WaitRemainingDistanceNm > 0)
+        {
+            double distanceTraveled = (aircraft.GroundSpeed / 3600.0) * deltaSeconds;
+            block.WaitRemainingDistanceNm -= distanceTraveled;
+            return block.WaitRemainingDistanceNm <= 0;
+        }
+
+        return true;
     }
 
     private static bool IsTriggerMet(AircraftState aircraft, BlockTrigger trigger)

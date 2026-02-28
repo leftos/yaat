@@ -112,6 +112,10 @@ public record HoldAtFixHoverCommand(
 /// A compound command consisting of sequential blocks,
 /// each containing parallel commands and an optional trigger.
 /// </summary>
+public record WaitCommand(double Seconds) : ParsedCommand;
+
+public record WaitDistanceCommand(double DistanceNm) : ParsedCommand;
+
 public record CompoundCommand(List<ParsedBlock> Blocks);
 
 public record ParsedBlock(BlockCondition? Condition, List<ParsedCommand> Commands);

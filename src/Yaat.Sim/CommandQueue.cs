@@ -22,6 +22,7 @@ public enum TrackedCommandType
     Speed,
     Navigation,
     Immediate,
+    Wait,
 }
 
 public class TrackedCommand
@@ -37,6 +38,10 @@ public class CommandBlock
     public bool IsApplied { get; set; }
     public bool TriggerMet { get; set; }
     public bool AllComplete => Commands.TrueForAll(c => c.IsComplete);
+
+    public bool IsWaitBlock { get; init; }
+    public double WaitRemainingSeconds { get; set; }
+    public double WaitRemainingDistanceNm { get; set; }
 
     /// <summary>
     /// Human-readable summary of this block (e.g., "CM 040, FH 090" or "at FIXIE: CM 040").

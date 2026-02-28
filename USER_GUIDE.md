@@ -268,6 +268,39 @@ CM 100; LV 050 FH 270; LV 100 DCT SUNOL
 
 Climb to 10,000 ft. At 5,000 ft, turn to heading 270. At 10,000 ft, proceed direct SUNOL.
 
+### Wait Commands
+
+Use `WAIT` and `WAITD` to delay the next command in a `;` sequence by time or distance:
+
+| Command | Effect |
+|---------|--------|
+| `WAIT 30` | Wait 30 seconds before executing the next block |
+| `WAITD 4` | Fly 4 nautical miles before executing the next block |
+
+These commands occupy their own block in a compound sequence and do not change the aircraft's heading, altitude, or speed. They simply delay progression to the next block.
+
+**Examples:**
+
+```
+FH 270; WAIT 10; FH 090
+```
+Turn to heading 270, wait 10 seconds, then turn to heading 090.
+
+```
+CM 100; WAIT 5; DM 030
+```
+Climb to 10,000 ft, wait 5 seconds, then descend to 3,000 ft.
+
+```
+WAITD 2; TL 180
+```
+Fly 2 nm, then turn left to heading 180.
+
+```
+LV 050 WAIT 10; FH 090
+```
+At 5,000 ft, wait 10 seconds, then fly heading 090.
+
 ### Delayed Aircraft Commands
 
 These commands target aircraft in the delayed spawn queue (shown with "Delayed" status):

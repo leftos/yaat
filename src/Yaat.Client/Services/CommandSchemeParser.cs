@@ -412,6 +412,18 @@ public static class CommandSchemeParser
             return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.SimRate, parts[1].Trim()) : null;
         }
 
+        if (input.StartsWith("WAITD "))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.WaitDistance, parts[1].Trim()) : null;
+        }
+
+        if (input.StartsWith("WAIT "))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.Wait, parts[1].Trim()) : null;
+        }
+
         if (input.StartsWith("ADD ", StringComparison.OrdinalIgnoreCase))
         {
             var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
@@ -450,6 +462,8 @@ public static class CommandSchemeParser
                     or CanonicalCommandType.Pause
                     or CanonicalCommandType.Unpause
                     or CanonicalCommandType.SimRate
+                    or CanonicalCommandType.Wait
+                    or CanonicalCommandType.WaitDistance
                     or CanonicalCommandType.Add
                     or CanonicalCommandType.DirectTo
                     or CanonicalCommandType.HoldAtFixLeft

@@ -178,6 +178,8 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 | **Sim Rate** | SIMRATE | — | SIMRATE | SIMRATE |
 | **Spawn Now** | — | — | SPAWN | SPAWN |
 | **Set Spawn Delay** | — | — | DELAY | DELAY |
+| **Wait (seconds)** | WAIT | — | WAIT | WAIT |
+| **Wait (distance)** | — | — | WAITD | WAITD |
 
 > **Note:** VICE pause is a toggle (`P`); YAAT splits into separate Pause/Unpause. The VICE preset uses PAUSE/UNPAUSE (ATCTrainer verbs) since YAAT needs distinct commands.
 >
