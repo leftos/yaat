@@ -1,0 +1,121 @@
+using Yaat.Sim.Phases;
+
+namespace Yaat.Sim.Commands;
+
+public abstract record ParsedCommand;
+
+public record FlyHeadingCommand(int Heading) : ParsedCommand;
+
+public record TurnLeftCommand(int Heading) : ParsedCommand;
+
+public record TurnRightCommand(int Heading) : ParsedCommand;
+
+public record LeftTurnCommand(int Degrees) : ParsedCommand;
+
+public record RightTurnCommand(int Degrees) : ParsedCommand;
+
+public record FlyPresentHeadingCommand : ParsedCommand;
+
+public record ClimbMaintainCommand(int Altitude) : ParsedCommand;
+
+public record DescendMaintainCommand(int Altitude) : ParsedCommand;
+
+public record SpeedCommand(int Speed) : ParsedCommand;
+
+public record SquawkCommand(uint Code) : ParsedCommand;
+
+public record SquawkIdentCommand(uint Code) : ParsedCommand;
+
+public record SquawkVfrCommand : ParsedCommand;
+
+public record SquawkNormalCommand : ParsedCommand;
+
+public record SquawkStandbyCommand : ParsedCommand;
+
+public record IdentCommand : ParsedCommand;
+
+public record DirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
+
+public record ResolvedFix(string Name, double Lat, double Lon);
+
+public record UnsupportedCommand(string RawText) : ParsedCommand;
+
+// Tower commands
+public record LineUpAndWaitCommand : ParsedCommand;
+
+/// <summary>
+/// CTO [hdg]: cleared for takeoff, optionally with assigned heading.
+/// TurnDirection is set by CTOR/CTOL variants.
+/// TrafficPattern is set by CTOMLT/CTOMRT to establish pattern mode.
+/// </summary>
+public record ClearedForTakeoffCommand(
+    int? AssignedHeading, TurnDirection? Turn, PatternDirection? TrafficPattern = null) : ParsedCommand;
+
+public record CancelTakeoffClearanceCommand : ParsedCommand;
+
+public record GoAroundCommand(
+    int? AssignedHeading = null, int? TargetAltitude = null) : ParsedCommand;
+
+public record ClearedToLandCommand : ParsedCommand;
+
+// Pattern commands
+public record EnterLeftDownwindCommand : ParsedCommand;
+
+public record EnterRightDownwindCommand : ParsedCommand;
+
+public record EnterLeftBaseCommand : ParsedCommand;
+
+public record EnterRightBaseCommand : ParsedCommand;
+
+public record EnterFinalCommand : ParsedCommand;
+
+public record MakeLeftTrafficCommand : ParsedCommand;
+
+public record MakeRightTrafficCommand : ParsedCommand;
+
+public record TurnCrosswindCommand : ParsedCommand;
+
+public record TurnDownwindCommand : ParsedCommand;
+
+public record TurnBaseCommand : ParsedCommand;
+
+public record ExtendDownwindCommand : ParsedCommand;
+
+// Option approach / special ops commands
+public record TouchAndGoCommand : ParsedCommand;
+
+public record StopAndGoCommand : ParsedCommand;
+
+public record LowApproachCommand : ParsedCommand;
+
+public record ClearedForOptionCommand : ParsedCommand;
+
+// Hold commands
+
+/// <summary>HPP360L / HPP360R: 360-degree orbits at present position.</summary>
+public record HoldPresentPosition360Command(TurnDirection Direction) : ParsedCommand;
+
+/// <summary>HPP: helicopter hover at present position.</summary>
+public record HoldPresentPositionHoverCommand : ParsedCommand;
+
+/// <summary>HFIXL / HFIXR: fly to fix, then orbit with 360-degree turns.</summary>
+public record HoldAtFixOrbitCommand(
+    string FixName, double Lat, double Lon, TurnDirection Direction) : ParsedCommand;
+
+/// <summary>HFIX: helicopter fly to fix and hover.</summary>
+public record HoldAtFixHoverCommand(
+    string FixName, double Lat, double Lon) : ParsedCommand;
+
+/// <summary>
+/// A compound command consisting of sequential blocks,
+/// each containing parallel commands and an optional trigger.
+/// </summary>
+public record CompoundCommand(List<ParsedBlock> Blocks);
+
+public record ParsedBlock(BlockCondition? Condition, List<ParsedCommand> Commands);
+
+public abstract record BlockCondition;
+
+public record LevelCondition(int Altitude) : BlockCondition;
+
+public record AtFixCondition(string FixName, double Lat, double Lon) : BlockCondition;
