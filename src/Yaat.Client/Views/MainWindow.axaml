@@ -221,7 +221,7 @@
                         Width="Auto" />
                     <DataGridTextColumn Header="Pending Cmds"
                         Binding="{Binding PendingCommands}"
-                        Width="*" />
+                        Width="Auto" />
                 </DataGrid.Columns>
             </DataGrid>
 
