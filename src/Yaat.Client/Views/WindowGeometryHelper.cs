@@ -21,12 +21,7 @@ public sealed class WindowGeometryHelper
     private double _lastNormalWidth;
     private double _lastNormalHeight;
 
-    public WindowGeometryHelper(
-        Window window,
-        UserPreferences preferences,
-        string windowName,
-        double defaultWidth,
-        double defaultHeight)
+    public WindowGeometryHelper(Window window, UserPreferences preferences, string windowName, double defaultWidth, double defaultHeight)
     {
         _window = window;
         _preferences = preferences;
@@ -40,19 +35,15 @@ public sealed class WindowGeometryHelper
         var geo = _windowName switch
         {
             "Main" => _preferences.MainWindowGeometry,
-            "Settings" =>
-                _preferences.SettingsWindowGeometry,
-            _ => null
+            "Settings" => _preferences.SettingsWindowGeometry,
+            _ => null,
         };
 
-        if (geo is not null
-            && IsVisibleOnAnyScreen(
-                geo.X, geo.Y, geo.Width, geo.Height))
+        if (geo is not null && IsVisibleOnAnyScreen(geo.X, geo.Y, geo.Width, geo.Height))
         {
             _window.Width = geo.Width;
             _window.Height = geo.Height;
-            _window.Position = new PixelPoint(
-                geo.X, geo.Y);
+            _window.Position = new PixelPoint(geo.X, geo.Y);
 
             if (geo.IsMaximized)
             {
@@ -63,8 +54,7 @@ public sealed class WindowGeometryHelper
         {
             _window.Width = _defaultWidth;
             _window.Height = _defaultHeight;
-            _window.WindowStartupLocation =
-                WindowStartupLocation.CenterScreen;
+            _window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
 
         _lastNormalWidth = _window.Width;
@@ -75,8 +65,7 @@ public sealed class WindowGeometryHelper
         _window.Closing += OnClosing;
     }
 
-    private void OnPositionChanged(
-        object? sender, PixelPointEventArgs e)
+    private void OnPositionChanged(object? sender, PixelPointEventArgs e)
     {
         if (_window.WindowState == WindowState.Normal)
         {
@@ -86,34 +75,23 @@ public sealed class WindowGeometryHelper
         }
     }
 
-    private void OnClosing(
-        object? sender, WindowClosingEventArgs e)
+    private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
-        var isMax =
-            _window.WindowState == WindowState.Maximized;
+        var isMax = _window.WindowState == WindowState.Maximized;
 
         var geo = new SavedWindowGeometry
         {
-            X = isMax
-                ? _lastNormalPosition.X
-                : _window.Position.X,
-            Y = isMax
-                ? _lastNormalPosition.Y
-                : _window.Position.Y,
-            Width = isMax
-                ? _lastNormalWidth
-                : _window.Width,
-            Height = isMax
-                ? _lastNormalHeight
-                : _window.Height,
+            X = isMax ? _lastNormalPosition.X : _window.Position.X,
+            Y = isMax ? _lastNormalPosition.Y : _window.Position.Y,
+            Width = isMax ? _lastNormalWidth : _window.Width,
+            Height = isMax ? _lastNormalHeight : _window.Height,
             IsMaximized = isMax,
         };
 
         _preferences.SetWindowGeometry(_windowName, geo);
     }
 
-    private bool IsVisibleOnAnyScreen(
-        int x, int y, double w, double h)
+    private bool IsVisibleOnAnyScreen(int x, int y, double w, double h)
     {
         var screens = _window.Screens.All;
         if (screens.Count == 0)
@@ -124,10 +102,8 @@ public sealed class WindowGeometryHelper
         foreach (var screen in screens)
         {
             var bounds = screen.WorkingArea;
-            var overlapX =
-                x + w > bounds.X && x < bounds.Right;
-            var overlapY =
-                y + h > bounds.Y && y < bounds.Bottom;
+            var overlapX = x + w > bounds.X && x < bounds.Right;
+            var overlapY = y + h > bounds.Y && y < bounds.Bottom;
             if (overlapX && overlapY)
             {
                 return true;

@@ -2,14 +2,11 @@ using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;
 
-public record ParsedInput(
-    CanonicalCommandType Type,
-    string? Argument);
+public record ParsedInput(CanonicalCommandType Type, string? Argument);
 
 public static class CommandSchemeParser
 {
-    public static ParsedInput? Parse(
-        string input, CommandScheme scheme)
+    public static ParsedInput? Parse(string input, CommandScheme scheme)
     {
         var trimmed = input.Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(trimmed))
@@ -25,8 +22,7 @@ public static class CommandSchemeParser
         return ParseSpaceSeparated(trimmed, scheme);
     }
 
-    public static string ToCanonical(
-        CanonicalCommandType type, string? argument)
+    public static string ToCanonical(CanonicalCommandType type, string? argument)
     {
         var canonical = CommandScheme.AtcTrainer();
         if (!canonical.Patterns.TryGetValue(type, out var pattern))
@@ -42,19 +38,15 @@ public static class CommandSchemeParser
         return $"{pattern.Verb} {argument}";
     }
 
-    private static ParsedInput? ParseSpaceSeparated(
-        string input, CommandScheme scheme)
+    private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme)
     {
-        var parts = input.Split(
-            ' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var verb = parts[0];
         var arg = parts.Length > 1 ? parts[1].Trim() : null;
 
         foreach (var (type, pattern) in scheme.Patterns)
         {
-            if (!string.Equals(
-                verb, pattern.Verb,
-                StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(verb, pattern.Verb, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -76,13 +68,10 @@ public static class CommandSchemeParser
         return null;
     }
 
-    private static ParsedInput? ParseConcatenated(
-        string input, CommandScheme scheme)
+    private static ParsedInput? ParseConcatenated(string input, CommandScheme scheme)
     {
         // Concatenated relative turns: T{deg}L or T{deg}R
-        if (input.Length >= 3
-            && input[0] == 'T'
-            && char.IsDigit(input[1]))
+        if (input.Length >= 3 && input[0] == 'T' && char.IsDigit(input[1]))
         {
             var lastChar = input[^1];
             if (lastChar is 'L' or 'R')
@@ -90,9 +79,7 @@ public static class CommandSchemeParser
                 var deg = input[1..^1];
                 if (int.TryParse(deg, out _))
                 {
-                    var type = lastChar == 'L'
-                        ? CanonicalCommandType.RelativeLeft
-                        : CanonicalCommandType.RelativeRight;
+                    var type = lastChar == 'L' ? CanonicalCommandType.RelativeLeft : CanonicalCommandType.RelativeRight;
                     return new ParsedInput(type, deg);
                 }
             }
@@ -106,15 +93,11 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            if (type is CanonicalCommandType.Pause
-                or CanonicalCommandType.Unpause
-                or CanonicalCommandType.SimRate)
+            if (type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause or CanonicalCommandType.SimRate)
             {
                 continue;
             }
-            if (string.Equals(
-                input, pattern.Verb,
-                StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(input, pattern.Verb, StringComparison.OrdinalIgnoreCase))
             {
                 return new ParsedInput(type, null);
             }
@@ -123,24 +106,18 @@ public static class CommandSchemeParser
         // Space-separated global commands (PAUSE, UNPAUSE, SIMRATE)
         if (input.StartsWith("PAUSE"))
         {
-            return new ParsedInput(
-                CanonicalCommandType.Pause, null);
+            return new ParsedInput(CanonicalCommandType.Pause, null);
         }
 
         if (input.StartsWith("UNPAUSE"))
         {
-            return new ParsedInput(
-                CanonicalCommandType.Unpause, null);
+            return new ParsedInput(CanonicalCommandType.Unpause, null);
         }
 
         if (input.StartsWith("SIMRATE"))
         {
-            var parts = input.Split(
-                ' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1
-                ? new ParsedInput(
-                    CanonicalCommandType.SimRate, parts[1].Trim())
-                : null;
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.SimRate, parts[1].Trim()) : null;
         }
 
         // Concatenated verb + digits: H270, L180, C240, SQ1234...
@@ -152,18 +129,19 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            if (type is CanonicalCommandType.RelativeLeft
-                or CanonicalCommandType.RelativeRight
-                or CanonicalCommandType.Pause
-                or CanonicalCommandType.Unpause
-                or CanonicalCommandType.SimRate)
+            if (
+                type
+                is CanonicalCommandType.RelativeLeft
+                    or CanonicalCommandType.RelativeRight
+                    or CanonicalCommandType.Pause
+                    or CanonicalCommandType.Unpause
+                    or CanonicalCommandType.SimRate
+            )
             {
                 continue;
             }
 
-            if (!input.StartsWith(
-                pattern.Verb,
-                StringComparison.OrdinalIgnoreCase))
+            if (!input.StartsWith(pattern.Verb, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }

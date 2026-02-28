@@ -15,10 +15,7 @@ public static class AppLog
 
     public static void Initialize()
     {
-        var logDir = Path.Combine(
-            Environment.GetFolderPath(
-                Environment.SpecialFolder.LocalApplicationData),
-            "yaat");
+        var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yaat");
         LogPath = Path.Combine(logDir, "yaat-client.log");
 
         var provider = new FileLoggerProvider(LogPath);
@@ -34,8 +31,7 @@ public static class AppLog
     {
         if (_factory is null)
         {
-            return NullLoggerFactory.Instance
-                .CreateLogger<T>();
+            return NullLoggerFactory.Instance.CreateLogger<T>();
         }
 
         return _factory.CreateLogger<T>();
@@ -45,8 +41,7 @@ public static class AppLog
     {
         if (_factory is null)
         {
-            return NullLoggerFactory.Instance
-                .CreateLogger(category);
+            return NullLoggerFactory.Instance.CreateLogger(category);
         }
 
         return _factory.CreateLogger(category);

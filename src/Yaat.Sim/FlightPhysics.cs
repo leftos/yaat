@@ -6,11 +6,9 @@ public static class FlightPhysics
     private const double AltitudeSnapFt = 10.0;
     private const double SpeedSnapKts = 2.0;
 
-    public static void Update(
-        AircraftState aircraft, double deltaSeconds)
+    public static void Update(AircraftState aircraft, double deltaSeconds)
     {
-        var cat = AircraftCategorization.Categorize(
-            aircraft.AircraftType);
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         UpdateHeading(aircraft, cat, deltaSeconds);
         UpdateAltitude(aircraft, cat, deltaSeconds);
@@ -18,10 +16,7 @@ public static class FlightPhysics
         UpdatePosition(aircraft, deltaSeconds);
     }
 
-    private static void UpdateHeading(
-        AircraftState aircraft,
-        AircraftCategory cat,
-        double deltaSeconds)
+    private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         var target = aircraft.Targets.TargetHeading;
         if (target is null)
@@ -46,25 +41,17 @@ public static class FlightPhysics
             return;
         }
 
-        double turnRate =
-            CategoryPerformance.TurnRate(cat);
+        double turnRate = CategoryPerformance.TurnRate(cat);
         double maxTurn = turnRate * deltaSeconds;
 
-        double direction = ResolveDirection(
-            diff,
-            aircraft.Targets.PreferredTurnDirection);
+        double direction = ResolveDirection(diff, aircraft.Targets.PreferredTurnDirection);
 
-        double turnAmount =
-            Math.Min(Math.Abs(diff), maxTurn) * direction;
+        double turnAmount = Math.Min(Math.Abs(diff), maxTurn) * direction;
 
-        aircraft.Heading =
-            NormalizeHeading(current + turnAmount);
+        aircraft.Heading = NormalizeHeading(current + turnAmount);
     }
 
-    private static void UpdateAltitude(
-        AircraftState aircraft,
-        AircraftCategory cat,
-        double deltaSeconds)
+    private static void UpdateAltitude(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         var target = aircraft.Targets.TargetAltitude;
         if (target is null)
@@ -95,9 +82,7 @@ public static class FlightPhysics
         }
         else
         {
-            rate = climbing
-                ? CategoryPerformance.ClimbRate(cat, current)
-                : CategoryPerformance.DescentRate(cat);
+            rate = climbing ? CategoryPerformance.ClimbRate(cat, current) : CategoryPerformance.DescentRate(cat);
         }
 
         double feetPerSec = rate / 60.0;
@@ -116,10 +101,7 @@ public static class FlightPhysics
         }
     }
 
-    private static void UpdateSpeed(
-        AircraftState aircraft,
-        AircraftCategory cat,
-        double deltaSeconds)
+    private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         var target = aircraft.Targets.TargetSpeed;
         if (target is null)
@@ -139,36 +121,26 @@ public static class FlightPhysics
         }
 
         bool accelerating = diff > 0;
-        double rate = accelerating
-            ? CategoryPerformance.AccelRate(cat)
-            : CategoryPerformance.DecelRate(cat);
+        double rate = accelerating ? CategoryPerformance.AccelRate(cat) : CategoryPerformance.DecelRate(cat);
 
         double maxChange = rate * deltaSeconds;
         double change = Math.Min(Math.Abs(diff), maxChange);
 
-        aircraft.GroundSpeed += accelerating
-            ? change : -change;
+        aircraft.GroundSpeed += accelerating ? change : -change;
     }
 
-    private static void UpdatePosition(
-        AircraftState aircraft, double deltaSeconds)
+    private static void UpdatePosition(AircraftState aircraft, double deltaSeconds)
     {
         double speedNmPerSec = aircraft.GroundSpeed / 3600.0;
         double headingRad = aircraft.Heading * Math.PI / 180.0;
         double latRad = aircraft.Latitude * Math.PI / 180.0;
 
-        aircraft.Latitude +=
-            speedNmPerSec * deltaSeconds
-            * Math.Cos(headingRad) / 60.0;
+        aircraft.Latitude += speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / 60.0;
 
-        aircraft.Longitude +=
-            speedNmPerSec * deltaSeconds
-            * Math.Sin(headingRad)
-            / (60.0 * Math.Cos(latRad));
+        aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (60.0 * Math.Cos(latRad));
     }
 
-    private static double ResolveDirection(
-        double diff, TurnDirection? preferred)
+    private static double ResolveDirection(double diff, TurnDirection? preferred)
     {
         if (preferred == TurnDirection.Left)
         {

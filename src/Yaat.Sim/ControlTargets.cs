@@ -3,7 +3,7 @@ namespace Yaat.Sim;
 public enum TurnDirection
 {
     Left,
-    Right
+    Right,
 }
 
 public class ControlTargets

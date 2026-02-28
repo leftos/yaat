@@ -4,7 +4,7 @@ public enum AircraftCategory
 {
     Jet,
     Turboprop,
-    Piston
+    Piston,
 }
 
 /// <summary>
@@ -15,33 +15,25 @@ public enum AircraftCategory
 /// </summary>
 public static class AircraftCategorization
 {
-    private static Dictionary<string, AircraftCategory>
-        _lookup = new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, AircraftCategory> _lookup = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Populate the lookup from external data (e.g.
     /// AircraftSpecs.json EngineType field). Call once
     /// at startup before any physics simulation runs.
     /// </summary>
-    public static void Initialize(
-        Dictionary<string, AircraftCategory> lookup)
+    public static void Initialize(Dictionary<string, AircraftCategory> lookup)
     {
-        _lookup = new Dictionary<string, AircraftCategory>(
-            lookup, StringComparer.OrdinalIgnoreCase);
+        _lookup = new Dictionary<string, AircraftCategory>(lookup, StringComparer.OrdinalIgnoreCase);
     }
 
-    public static AircraftCategory Categorize(
-        string aircraftType)
+    public static AircraftCategory Categorize(string aircraftType)
     {
-        var baseType = aircraftType.Contains('/')
-            ? aircraftType.Split('/')[0]
-            : aircraftType;
+        var baseType = aircraftType.Contains('/') ? aircraftType.Split('/')[0] : aircraftType;
 
         baseType = baseType.Trim().ToUpperInvariant();
 
-        return _lookup.TryGetValue(baseType, out var cat)
-            ? cat
-            : AircraftCategory.Jet;
+        return _lookup.TryGetValue(baseType, out var cat) ? cat : AircraftCategory.Jet;
     }
 }
 
@@ -59,23 +51,19 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 2.5,
             AircraftCategory.Turboprop => 3.0,
             AircraftCategory.Piston => 3.0,
-            _ => 3.0
+            _ => 3.0,
         };
     }
 
-    public static double ClimbRate(
-        AircraftCategory cat, double altitude)
+    public static double ClimbRate(AircraftCategory cat, double altitude)
     {
         bool belowTenK = altitude < 10000;
         return cat switch
         {
-            AircraftCategory.Jet =>
-                belowTenK ? 2500 : 1800,
-            AircraftCategory.Turboprop =>
-                belowTenK ? 1500 : 1200,
-            AircraftCategory.Piston =>
-                belowTenK ? 700 : 500,
-            _ => 1800
+            AircraftCategory.Jet => belowTenK ? 2500 : 1800,
+            AircraftCategory.Turboprop => belowTenK ? 1500 : 1200,
+            AircraftCategory.Piston => belowTenK ? 700 : 500,
+            _ => 1800,
         };
     }
 
@@ -86,7 +74,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 1800,
             AircraftCategory.Turboprop => 1200,
             AircraftCategory.Piston => 500,
-            _ => 1800
+            _ => 1800,
         };
     }
 
@@ -97,7 +85,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 2.5,
             AircraftCategory.Turboprop => 1.5,
             AircraftCategory.Piston => 1.0,
-            _ => 2.5
+            _ => 2.5,
         };
     }
 
@@ -108,12 +96,11 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 3.5,
             AircraftCategory.Turboprop => 2.5,
             AircraftCategory.Piston => 2.0,
-            _ => 3.5
+            _ => 3.5,
         };
     }
 
-    public static double DefaultSpeed(
-        AircraftCategory cat, double altitude)
+    public static double DefaultSpeed(AircraftCategory cat, double altitude)
     {
         return cat switch
         {
@@ -121,20 +108,20 @@ public static class CategoryPerformance
             {
                 < 10000 => 250,
                 < 24000 => 290,
-                _ => 280
+                _ => 280,
             },
             AircraftCategory.Turboprop => altitude switch
             {
                 < 10000 => 200,
                 < 24000 => 250,
-                _ => 270
+                _ => 270,
             },
             AircraftCategory.Piston => altitude switch
             {
                 < 10000 => 110,
-                _ => 120
+                _ => 120,
             },
-            _ => 250
+            _ => 250,
         };
     }
 }

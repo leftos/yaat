@@ -20,5 +20,5 @@ public enum CanonicalCommandType
     Delete,
     Pause,
     Unpause,
-    SimRate
+    SimRate,
 }

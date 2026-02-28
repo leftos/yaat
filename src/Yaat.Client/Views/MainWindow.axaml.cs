@@ -13,52 +13,39 @@ public partial class MainWindow : Window
         var vm = new MainViewModel();
         DataContext = vm;
 
-        new WindowGeometryHelper(
-            this, vm.Preferences, "Main", 1200, 700)
-            .Restore();
+        new WindowGeometryHelper(this, vm.Preferences, "Main", 1200, 700).Restore();
 
-        var browseBtn = this.FindControl<Button>(
-            "BrowseButton");
+        var browseBtn = this.FindControl<Button>("BrowseButton");
         if (browseBtn is not null)
         {
             browseBtn.Click += OnBrowseClick;
         }
 
-        var cmdInput = this.FindControl<TextBox>(
-            "CommandInput");
+        var cmdInput = this.FindControl<TextBox>("CommandInput");
         if (cmdInput is not null)
         {
             cmdInput.KeyDown += OnCommandKeyDown;
         }
 
-        var settingsBtn = this.FindControl<Button>(
-            "SettingsButton");
+        var settingsBtn = this.FindControl<Button>("SettingsButton");
         if (settingsBtn is not null)
         {
             settingsBtn.Click += OnSettingsClick;
         }
     }
 
-    private async void OnBrowseClick(
-        object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnBrowseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(
             new FilePickerOpenOptions
             {
                 Title = "Open Scenario",
                 AllowMultiple = false,
-                FileTypeFilter =
-                [
-                    new FilePickerFileType("JSON Files")
-                    {
-                        Patterns = ["*.json"]
-                    },
-                    FilePickerFileTypes.All
-                ]
-            });
+                FileTypeFilter = [new FilePickerFileType("JSON Files") { Patterns = ["*.json"] }, FilePickerFileTypes.All],
+            }
+        );
 
-        if (files.Count > 0
-            && DataContext is MainViewModel vm)
+        if (files.Count > 0 && DataContext is MainViewModel vm)
         {
             var path = files[0].TryGetLocalPath();
             if (path is not null)
@@ -68,8 +55,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnSettingsClick(
-        object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm)
         {
@@ -82,16 +68,14 @@ public partial class MainWindow : Window
         vm.RefreshCommandScheme();
     }
 
-    private void OnCommandKeyDown(
-        object? sender, KeyEventArgs e)
+    private void OnCommandKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)
         {
             return;
         }
 
-        if (DataContext is MainViewModel vm
-            && vm.SendCommandCommand.CanExecute(null))
+        if (DataContext is MainViewModel vm && vm.SendCommandCommand.CanExecute(null))
         {
             vm.SendCommandCommand.Execute(null);
         }

@@ -17,8 +17,7 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
-            _aircraft.RemoveAll(
-                a => a.Callsign == callsign);
+            _aircraft.RemoveAll(a => a.Callsign == callsign);
         }
     }
 
@@ -41,13 +40,11 @@ public sealed class SimulationWorld
         }
     }
 
-    public List<AircraftState> GetSnapshotByScenario(
-        string scenarioId)
+    public List<AircraftState> GetSnapshotByScenario(string scenarioId)
     {
         lock (_lock)
         {
-            return [.. _aircraft.Where(
-                a => a.ScenarioId == scenarioId)];
+            return [.. _aircraft.Where(a => a.ScenarioId == scenarioId)];
         }
     }
 
@@ -55,13 +52,11 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
-            return _aircraft.RemoveAll(
-                a => a.ScenarioId == scenarioId);
+            return _aircraft.RemoveAll(a => a.ScenarioId == scenarioId);
         }
     }
 
-    public void TickScenario(
-        string scenarioId, double deltaSeconds)
+    public void TickScenario(string scenarioId, double deltaSeconds)
     {
         lock (_lock)
         {

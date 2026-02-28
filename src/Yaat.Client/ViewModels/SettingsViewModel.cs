@@ -44,36 +44,22 @@ public partial class SettingsViewModel : ObservableObject
     private readonly UserPreferences _preferences;
     private bool _suppressPresetDetection;
 
-    private static readonly string[] PresetNames =
-        ["ATCTrainer", "VICE"];
+    private static readonly string[] PresetNames = ["ATCTrainer", "VICE"];
 
-    private static readonly
-        (CanonicalCommandType Type, string Label, string? SampleArg)[]
-        DisplayCommands =
-        [
-            (CanonicalCommandType.FlyHeading,
-                "Fly Heading", "270"),
-            (CanonicalCommandType.TurnLeft,
-                "Turn Left", "270"),
-            (CanonicalCommandType.TurnRight,
-                "Turn Right", "090"),
-            (CanonicalCommandType.RelativeLeft,
-                "Relative Left", "20"),
-            (CanonicalCommandType.RelativeRight,
-                "Relative Right", "30"),
-            (CanonicalCommandType.FlyPresentHeading,
-                "Fly Present Heading", null),
-            (CanonicalCommandType.ClimbMaintain,
-                "Climb/Maintain", "240"),
-            (CanonicalCommandType.DescendMaintain,
-                "Descend/Maintain", "50"),
-            (CanonicalCommandType.Speed,
-                "Speed", "250"),
-            (CanonicalCommandType.Squawk,
-                "Squawk", "1234"),
-            (CanonicalCommandType.Delete,
-                "Delete", null),
-        ];
+    private static readonly (CanonicalCommandType Type, string Label, string? SampleArg)[] DisplayCommands =
+    [
+        (CanonicalCommandType.FlyHeading, "Fly Heading", "270"),
+        (CanonicalCommandType.TurnLeft, "Turn Left", "270"),
+        (CanonicalCommandType.TurnRight, "Turn Right", "090"),
+        (CanonicalCommandType.RelativeLeft, "Relative Left", "20"),
+        (CanonicalCommandType.RelativeRight, "Relative Right", "30"),
+        (CanonicalCommandType.FlyPresentHeading, "Fly Present Heading", null),
+        (CanonicalCommandType.ClimbMaintain, "Climb/Maintain", "240"),
+        (CanonicalCommandType.DescendMaintain, "Descend/Maintain", "50"),
+        (CanonicalCommandType.Speed, "Speed", "250"),
+        (CanonicalCommandType.Squawk, "Squawk", "1234"),
+        (CanonicalCommandType.Delete, "Delete", null),
+    ];
 
     [ObservableProperty]
     private int _selectedPresetIndex;
@@ -84,11 +70,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _adminPassword = "";
 
-    public static IReadOnlyList<string> PresetNames_ =>
-        PresetNames;
+    public static IReadOnlyList<string> PresetNames_ => PresetNames;
 
-    public ObservableCollection<VerbMappingRow> VerbMappings
-    { get; } = [];
+    public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
 
     public SettingsViewModel()
         : this(new UserPreferences()) { }
@@ -110,9 +94,7 @@ public partial class SettingsViewModel : ObservableObject
         if (value < 0 || value >= PresetNames.Length)
             return;
 
-        var scheme = value == 1
-            ? CommandScheme.Vice()
-            : CommandScheme.AtcTrainer();
+        var scheme = value == 1 ? CommandScheme.Vice() : CommandScheme.AtcTrainer();
 
         _suppressPresetDetection = true;
         try
@@ -130,8 +112,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         var scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
-        _preferences.SetAdminSettings(
-            IsAdminMode, AdminPassword);
+        _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
         Saved = true;
     }
 
@@ -149,8 +130,7 @@ public partial class SettingsViewModel : ObservableObject
 
         foreach (var (type, label, sampleArg) in DisplayCommands)
         {
-            if (!scheme.Patterns.TryGetValue(
-                type, out var pattern))
+            if (!scheme.Patterns.TryGetValue(type, out var pattern))
             {
                 continue;
             }
@@ -190,7 +170,7 @@ public partial class SettingsViewModel : ObservableObject
             {
                 "ATCTrainer" => 0,
                 "VICE" => 1,
-                _ => -1
+                _ => -1,
             };
         }
         finally
@@ -202,50 +182,34 @@ public partial class SettingsViewModel : ObservableObject
     private CommandScheme BuildSchemeFromRows()
     {
         // Determine parse mode from current preset or keep current
-        var parseMode = SelectedPresetIndex == 1
-            ? CommandParseMode.Concatenated
-            : CommandParseMode.SpaceSeparated;
+        var parseMode = SelectedPresetIndex == 1 ? CommandParseMode.Concatenated : CommandParseMode.SpaceSeparated;
 
         // Start with the matching base preset for all patterns
         // (including non-displayed ones like Pause/Unpause/SimRate)
-        var baseScheme = parseMode == CommandParseMode.Concatenated
-            ? CommandScheme.Vice()
-            : CommandScheme.AtcTrainer();
+        var baseScheme = parseMode == CommandParseMode.Concatenated ? CommandScheme.Vice() : CommandScheme.AtcTrainer();
 
-        var patterns =
-            new Dictionary<CanonicalCommandType, CommandPattern>();
+        var patterns = new Dictionary<CanonicalCommandType, CommandPattern>();
 
         foreach (var (type, pattern) in baseScheme.Patterns)
         {
-            patterns[type] = new CommandPattern
-            {
-                Verb = pattern.Verb,
-                Format = pattern.Format
-            };
+            patterns[type] = new CommandPattern { Verb = pattern.Verb, Format = pattern.Format };
         }
 
         // Override verbs from edited rows
         foreach (var row in VerbMappings)
         {
-            if (patterns.TryGetValue(
-                row.CommandType, out var existing))
+            if (patterns.TryGetValue(row.CommandType, out var existing))
             {
                 existing.Verb = row.Verb;
             }
         }
 
-        return new CommandScheme
-        {
-            ParseMode = parseMode,
-            Patterns = patterns
-        };
+        return new CommandScheme { ParseMode = parseMode, Patterns = patterns };
     }
 
-    private static string BuildExample(
-        CommandPattern pattern, string? sampleArg)
+    private static string BuildExample(CommandPattern pattern, string? sampleArg)
     {
-        var result = pattern.Format
-            .Replace("{verb}", pattern.Verb);
+        var result = pattern.Format.Replace("{verb}", pattern.Verb);
 
         if (sampleArg is not null)
         {

@@ -1,5 +1,8 @@
 root = true
 
+[*]
+max_line_length = 150
+
 [*.cs]
 # Require braces for all control flow statements
 csharp_prefer_braces = true:warning

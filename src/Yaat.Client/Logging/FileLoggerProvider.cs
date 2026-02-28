@@ -6,8 +6,7 @@ namespace Yaat.Client.Logging;
 public sealed class FileLoggerProvider : ILoggerProvider
 {
     private readonly StreamWriter _writer;
-    private readonly ConcurrentDictionary<string, FileLogger>
-        _loggers = new();
+    private readonly ConcurrentDictionary<string, FileLogger> _loggers = new();
 
     public FileLoggerProvider(string path)
     {
@@ -17,20 +16,13 @@ public sealed class FileLoggerProvider : ILoggerProvider
             Directory.CreateDirectory(dir);
         }
 
-        var stream = new FileStream(
-            path, FileMode.Create, FileAccess.Write,
-            FileShare.ReadWrite | FileShare.Delete);
-        _writer = new StreamWriter(stream)
-        {
-            AutoFlush = true,
-        };
+        var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+        _writer = new StreamWriter(stream) { AutoFlush = true };
     }
 
     public ILogger CreateLogger(string categoryName)
     {
-        return _loggers.GetOrAdd(
-            categoryName,
-            name => new FileLogger(name, _writer));
+        return _loggers.GetOrAdd(categoryName, name => new FileLogger(name, _writer));
     }
 
     public void Dispose()
@@ -39,8 +31,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
     }
 }
 
-public sealed class FileLogger(
-    string category, StreamWriter writer) : ILogger
+public sealed class FileLogger(string category, StreamWriter writer) : ILogger
 {
     private static readonly object WriteLock = new();
 
@@ -55,12 +46,7 @@ public sealed class FileLogger(
         return logLevel != LogLevel.None;
     }
 
-    public void Log<TState>(
-        LogLevel logLevel,
-        EventId eventId,
-        TState state,
-        Exception? exception,
-        Func<TState, Exception?, string> formatter)
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         if (!IsEnabled(logLevel))
         {
@@ -80,8 +66,7 @@ public sealed class FileLogger(
             _ => "????",
         };
 
-        var line =
-            $"{timestamp} [{level}] {category}: {message}";
+        var line = $"{timestamp} [{level}] {category}: {message}";
 
         lock (WriteLock)
         {

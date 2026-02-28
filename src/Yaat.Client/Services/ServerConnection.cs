@@ -6,8 +6,7 @@ namespace Yaat.Client.Services;
 
 public sealed class ServerConnection : IAsyncDisposable
 {
-    private readonly ILogger _log =
-        AppLog.CreateLogger<ServerConnection>();
+    private readonly ILogger _log = AppLog.CreateLogger<ServerConnection>();
 
     private HubConnection? _connection;
     private PeriodicTimer? _heartbeatTimer;
@@ -19,8 +18,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<bool, int>? SimulationStateChanged;
     public event Action<string?>? Reconnected;
 
-    public bool IsConnected =>
-        _connection?.State == HubConnectionState.Connected;
+    public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
     public async Task ConnectAsync(string serverUrl)
     {
@@ -29,38 +27,22 @@ public sealed class ServerConnection : IAsyncDisposable
             await DisconnectAsync();
         }
 
-        var hubUrl = serverUrl.TrimEnd('/')
-            + "/hubs/training";
-        _log.LogInformation(
-            "Connecting to {Url}", hubUrl);
+        var hubUrl = serverUrl.TrimEnd('/') + "/hubs/training";
+        _log.LogInformation("Connecting to {Url}", hubUrl);
 
-        _connection = new HubConnectionBuilder()
-            .WithUrl(hubUrl)
-            .WithAutomaticReconnect()
-            .Build();
+        _connection = new HubConnectionBuilder().WithUrl(hubUrl).WithAutomaticReconnect().Build();
 
-        _connection.On<AircraftDto>(
-            "AircraftUpdated",
-            dto => AircraftUpdated?.Invoke(dto));
+        _connection.On<AircraftDto>("AircraftUpdated", dto => AircraftUpdated?.Invoke(dto));
 
-        _connection.On<string>(
-            "AircraftDeleted",
-            cs => AircraftDeleted?.Invoke(cs));
+        _connection.On<string>("AircraftDeleted", cs => AircraftDeleted?.Invoke(cs));
 
-        _connection.On<AircraftDto>(
-            "AircraftSpawned",
-            dto => AircraftSpawned?.Invoke(dto));
+        _connection.On<AircraftDto>("AircraftSpawned", dto => AircraftSpawned?.Invoke(dto));
 
-        _connection.On<bool, int>(
-            "SimulationStateChanged",
-            (paused, rate) =>
-                SimulationStateChanged?.Invoke(
-                    paused, rate));
+        _connection.On<bool, int>("SimulationStateChanged", (paused, rate) => SimulationStateChanged?.Invoke(paused, rate));
 
         _connection.Reconnected += connectionId =>
         {
-            _log.LogInformation(
-                "Reconnected with id {Id}", connectionId);
+            _log.LogInformation("Reconnected with id {Id}", connectionId);
             Reconnected?.Invoke(connectionId);
             return Task.CompletedTask;
         };
@@ -87,22 +69,16 @@ public sealed class ServerConnection : IAsyncDisposable
 
     // --- Scenario lifecycle ---
 
-    public async Task<List<AircraftDto>>
-        GetAircraftListAsync()
+    public async Task<List<AircraftDto>> GetAircraftListAsync()
     {
         EnsureConnected();
-        return await _connection!
-            .InvokeAsync<List<AircraftDto>>(
-                "GetAircraftList");
+        return await _connection!.InvokeAsync<List<AircraftDto>>("GetAircraftList");
     }
 
-    public async Task<LoadScenarioResultDto>
-        LoadScenarioAsync(string scenarioJson)
+    public async Task<LoadScenarioResultDto> LoadScenarioAsync(string scenarioJson)
     {
         EnsureConnected();
-        return await _connection!
-            .InvokeAsync<LoadScenarioResultDto>(
-                "LoadScenario", scenarioJson);
+        return await _connection!.InvokeAsync<LoadScenarioResultDto>("LoadScenario", scenarioJson);
     }
 
     public async Task LeaveScenarioAsync()
@@ -111,49 +87,36 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("LeaveScenario");
     }
 
-    public async Task<List<ScenarioSessionInfoDto>>
-        GetActiveScenariosAsync()
+    public async Task<List<ScenarioSessionInfoDto>> GetActiveScenariosAsync()
     {
         EnsureConnected();
-        return await _connection!
-            .InvokeAsync<List<ScenarioSessionInfoDto>>(
-                "GetActiveScenarios");
+        return await _connection!.InvokeAsync<List<ScenarioSessionInfoDto>>("GetActiveScenarios");
     }
 
-    public async Task<LoadScenarioResultDto>
-        RejoinScenarioAsync(string scenarioId)
+    public async Task<LoadScenarioResultDto> RejoinScenarioAsync(string scenarioId)
     {
         EnsureConnected();
-        return await _connection!
-            .InvokeAsync<LoadScenarioResultDto>(
-                "RejoinScenario", scenarioId);
+        return await _connection!.InvokeAsync<LoadScenarioResultDto>("RejoinScenario", scenarioId);
     }
 
     // --- Aircraft commands ---
 
-    public async Task<CommandResultDto>
-        SendCommandAsync(string callsign, string command)
+    public async Task<CommandResultDto> SendCommandAsync(string callsign, string command)
     {
         EnsureConnected();
-        return await _connection!
-            .InvokeAsync<CommandResultDto>(
-                "SendCommand", callsign, command);
+        return await _connection!.InvokeAsync<CommandResultDto>("SendCommand", callsign, command);
     }
 
     public async Task DeleteAircraftAsync(string callsign)
     {
         EnsureConnected();
-        await _connection!.InvokeAsync(
-            "DeleteAircraft", callsign);
+        await _connection!.InvokeAsync("DeleteAircraft", callsign);
     }
 
-    public async Task<DeleteAllResultDto>
-        DeleteAllAircraftAsync()
+    public async Task<DeleteAllResultDto> DeleteAllAircraftAsync()
     {
         EnsureConnected();
-        return await _connection!
-            .InvokeAsync<DeleteAllResultDto>(
-                "DeleteAllAircraft");
+        return await _connection!.InvokeAsync<DeleteAllResultDto>("DeleteAllAircraft");
     }
 
     public async Task ConfirmDeleteAllAsync()
@@ -184,29 +147,22 @@ public sealed class ServerConnection : IAsyncDisposable
 
     // --- Admin ---
 
-    public async Task<bool> AdminAuthenticateAsync(
-        string password)
+    public async Task<bool> AdminAuthenticateAsync(string password)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<bool>(
-            "AdminAuthenticate", password);
+        return await _connection!.InvokeAsync<bool>("AdminAuthenticate", password);
     }
 
-    public async Task<List<ScenarioSessionInfoDto>>
-        AdminGetScenariosAsync()
+    public async Task<List<ScenarioSessionInfoDto>> AdminGetScenariosAsync()
     {
         EnsureConnected();
-        return await _connection!
-            .InvokeAsync<List<ScenarioSessionInfoDto>>(
-                "AdminGetScenarios");
+        return await _connection!.InvokeAsync<List<ScenarioSessionInfoDto>>("AdminGetScenarios");
     }
 
-    public async Task AdminSetScenarioFilterAsync(
-        string? scenarioId)
+    public async Task AdminSetScenarioFilterAsync(string? scenarioId)
     {
         EnsureConnected();
-        await _connection!.InvokeAsync(
-            "AdminSetScenarioFilter", scenarioId);
+        await _connection!.InvokeAsync("AdminSetScenarioFilter", scenarioId);
     }
 
     // --- Lifecycle ---
@@ -224,16 +180,14 @@ public sealed class ServerConnection : IAsyncDisposable
     {
         if (_connection is null)
         {
-            throw new InvalidOperationException(
-                "Not connected.");
+            throw new InvalidOperationException("Not connected.");
         }
     }
 
     private void StartHeartbeat()
     {
         _heartbeatCts = new CancellationTokenSource();
-        _heartbeatTimer = new PeriodicTimer(
-            TimeSpan.FromSeconds(30));
+        _heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(30));
         _ = RunHeartbeat(_heartbeatCts.Token);
     }
 
@@ -250,20 +204,15 @@ public sealed class ServerConnection : IAsyncDisposable
     {
         try
         {
-            while (await _heartbeatTimer!
-                .WaitForNextTickAsync(ct))
+            while (await _heartbeatTimer!.WaitForNextTickAsync(ct))
             {
-                if (_connection?.State ==
-                    HubConnectionState.Connected)
+                if (_connection?.State == HubConnectionState.Connected)
                 {
-                    await _connection.InvokeAsync(
-                        "Heartbeat", ct);
+                    await _connection.InvokeAsync("Heartbeat", ct);
                 }
             }
         }
-        catch (OperationCanceledException)
-        {
-        }
+        catch (OperationCanceledException) { }
     }
 }
 
@@ -287,7 +236,8 @@ public record AircraftDto(
     string Destination,
     string Route,
     string FlightRules,
-    string Status);
+    string Status
+);
 
 public record LoadScenarioResultDto(
     bool Success,
@@ -298,11 +248,10 @@ public record LoadScenarioResultDto(
     bool IsPaused,
     int SimRate,
     List<string> Warnings,
-    List<AircraftDto> AllAircraft);
+    List<AircraftDto> AllAircraft
+);
 
-public record CommandResultDto(
-    bool Success,
-    string? Message);
+public record CommandResultDto(bool Success, string? Message);
 
 public record ScenarioSessionInfoDto(
     string ScenarioId,
@@ -311,9 +260,7 @@ public record ScenarioSessionInfoDto(
     bool IsPaused,
     int SimRate,
     double ElapsedSeconds,
-    int AircraftCount);
+    int AircraftCount
+);
 
-public record DeleteAllResultDto(
-    bool RequiresConfirmation,
-    int OtherClientCount,
-    string? Message);
+public record DeleteAllResultDto(bool RequiresConfirmation, int OtherClientCount, string? Message);
