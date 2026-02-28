@@ -345,7 +345,7 @@ STARS tracks only appear when aircraft altitude >= field elevation + 100ft AGL. 
    - `ClearanceType.Pushback`, `TaxiClearance`, `RunwayCrossing` added
 2. **TaxiPlan sub-system**: A sub-plan within ground phases — a sequence of taxiway segments with hold-short gates at each runway intersection. Hold short readback is mandatory per AIM 4-4-7.
 3. **Taxiway graph data**: Load airport taxiway graph (nodes + edges with names)
-   - Source: airport GeoJSON files from lc-trainer/vzoa or generate from vNAS data
+   - Source: airport GeoJSON files from x:/dev/vzoa or generate from vNAS data
    - Node types: parking, taxiway intersection, hold short line, runway threshold
 4. **Ground physics**:
    - Taxi speed management (10-20 kts typical)
@@ -387,19 +387,26 @@ STARS tracks only appear when aircraft altitude >= field elevation + 100ft AGL. 
 #### yaat-server
 
 1. **Approach commands**:
-   - `CAPP [app] [apt]` - Cleared for approach
+   - `CAPP [app] [apt]` / `JAPP [app] [apt]` - Cleared for approach / join approach
+   - `CAPPSI [app] [apt]` / `JAPPSI [app] [apt]` - Join approach straight-in (skips hold-in-lieu at IAF)
    - `JFAC [app]` - Join final approach course
    - `JARR {star} [trans]` - Join STAR
    - ~~`DCT {wpt}` - Direct to waypoint~~ (basic DCT done in M1; M4 adds course intercepts and procedure-based nav)
    - `JRADO / JRAD {fix}{radial:3}` - Join radial outbound / join radial: fly present heading until intercepting the radial, then track outbound (away from fix). E.g., `JRADO OAK090` — fly until intercepting the OAK 090 radial, then fly heading 090 (outbound from OAK).
    - `JRADI / JICRS {fix}{radial:3}` - Join radial inbound  / join inbound course: fly present heading until intercepting the radial, then track inbound (toward the fix). E.g., `JRADI OAK090` — fly until intercepting the OAK 090 radial, then fly heading 270 (inbound to OAK on the 090 radial).
-   - `HOLD {wpt} {crs} {dist} {dir}` - Holding pattern
+   - `HOLD {wpt} {crs} {dist} {dir} [entry]` - Holding pattern
+     - `{dist}` accepts distance (`3`) for nm-based legs or time (`1M`) for minute-based legs
+     - `[entry]` optional: `D` (direct), `T` (teardrop), `P` (parallel) — auto-determined from aircraft heading vs inbound course (70° sector boundaries) if omitted
+   - `PTAC {hdg} {alt} {app}` - Position-Turn-Altitude-Clearance vector to final: fly heading, maintain altitude until established, cleared approach. Position report is implicit (not in the RPO command). E.g., `PTAC 280 025 ILS30` — fly heading 280, maintain 2,500 until established, cleared ILS runway 30
    - `DVIA [alt]` - Descend via path
    - `CFIX {wpt} {alt} [spd]` - Cross fix at altitude
    - `DEPART {wpt} {hdg}` - Depart fix on heading
-2. **Navigation**: Waypoint database from vNAS NavData.dat for DCT/procedure resolution
-3. **Approach path following**: Aircraft track ILS/RNAV approach paths
-4. **Altitude/speed management**: `CM`, `EXP`, `NORM`, `SPD`, `RFAS`, `RNS`
+   - Commands are composable via compound syntax: e.g., `DCT MYTOE; CFIX A040; CAPP ILS30` — direct MYTOE, cross at or above 4,000, cleared ILS 30 approach
+2. **Approach intercept validation**: When joining an approach course (`CAPP`/`JAPP`/`PTAC`), the aircraft's heading must achieve a ≤30° intercept angle with the final approach course. If the angle exceeds 30°, the command warns RPOs via terminal broadcast and the aircraft does not turn onto the approach. `CAPPF`/`JAPPF` (force variants) override the check and join regardless of intercept angle.
+3. **Hold-in-lieu of procedure turn**: When `DCT {fix}` or `JAPP` routes through an IAF that has a hold-in-lieu defined in NavData, the aircraft executes one circuit of the hold before continuing inbound on the approach. The hold-in-lieu inbound course and pattern come from NavData (no user input needed). `CAPPSI`/`JAPPSI` skips the hold-in-lieu and joins the approach course directly. Command feedback (`CommandResultDto`) should indicate when a hold-in-lieu will be executed and include the hold details (fix, inbound course, direction, leg length).
+4. **Navigation**: Waypoint database from vNAS NavData.dat for DCT/procedure resolution
+5. **Approach path following**: Aircraft track ILS/RNAV approach paths
+6. **Altitude/speed management**: `CM`, `EXP`, `NORM`, `SPD`, `RFAS`, `RNS`
 
 #### yaat client
 
