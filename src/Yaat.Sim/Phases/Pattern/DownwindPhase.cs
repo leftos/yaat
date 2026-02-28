@@ -12,9 +12,13 @@ public sealed class DownwindPhase : Phase
     private const double ArrivalNm = 0.3;
     private const double AbeamThresholdNm = 0.3;
 
+    /// <summary>Feet of altitude per nm for a 3° glideslope (standard rule of thumb).</summary>
+    private const double GlideslopeFtPerNm = 300.0;
+
     private double _targetLat;
     private double _targetLon;
     private bool _pastAbeam;
+    private double _altitudeFloor;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -75,6 +79,18 @@ public sealed class DownwindPhase : Phase
                     + (Waypoints.PatternAltitude - thresholdElev) * 0.6;
                 ctx.Targets.TargetAltitude = midAlt;
 
+                // Compute altitude floor for extended downwind: the altitude
+                // at which the aircraft would intercept a 3° glideslope from
+                // the approximate final approach distance to the threshold.
+                double patternSize =
+                    CategoryPerformance.PatternSizeNm(ctx.Category);
+                double baseExt =
+                    CategoryPerformance.BaseExtensionNm(ctx.Category);
+                double finalApproachDist = Math.Sqrt(
+                    patternSize * patternSize + baseExt * baseExt);
+                _altitudeFloor =
+                    thresholdElev + finalApproachDist * GlideslopeFtPerNm;
+
                 // Begin decelerating toward base speed
                 ctx.Targets.TargetSpeed =
                     CategoryPerformance.BaseSpeed(ctx.Category);
@@ -83,6 +99,15 @@ public sealed class DownwindPhase : Phase
 
         if (IsExtended)
         {
+            // Level off at the glideslope intercept altitude so the
+            // aircraft doesn't descend below a normal approach path
+            // while waiting for the TB command.
+            if (_pastAbeam && ctx.Aircraft.Altitude <= _altitudeFloor)
+            {
+                ctx.Targets.TargetAltitude = _altitudeFloor;
+                ctx.Targets.DesiredVerticalRate = null;
+            }
+
             return false;
         }
 
