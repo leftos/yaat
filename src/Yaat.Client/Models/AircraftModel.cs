@@ -75,6 +75,10 @@ public partial class AircraftModel : ObservableObject
 
     public string StatusDisplay => FormatStatus(Status);
 
+    public bool IsDelayedOrDeferred =>
+        Status.StartsWith("Delayed", StringComparison.Ordinal)
+        || Status.StartsWith("Deferred", StringComparison.Ordinal);
+
     private static string FormatStatus(string status)
     {
         if (status.StartsWith("Delayed (", StringComparison.Ordinal)

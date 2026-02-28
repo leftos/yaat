@@ -82,11 +82,16 @@ public partial class CommandInputController : ObservableObject
         var firstToken = parts[0];
         var hasSpace = fragmentForSuggestion.Contains(' ');
 
+        // Resolve the target aircraft for filtering commands.
+        // If the first token is a callsign (not a verb), find it in the list.
+        var targetAircraft = ResolveTargetAircraft(
+            firstToken, hasSpace, aircraft, selectedAircraft, scheme);
+
         if (!hasSpace)
         {
             // Single token: could be callsign or command verb
             AddCallsignSuggestions(firstToken, text, aircraft);
-            AddCommandVerbSuggestions(firstToken, text, scheme);
+            AddCommandVerbSuggestions(firstToken, text, scheme, targetAircraft);
             AddConditionSuggestions(firstToken);
         }
         else if (TryAddFixSuggestions(fragmentForSuggestion, text, selectedAircraft, scheme))
@@ -99,7 +104,8 @@ public partial class CommandInputController : ObservableObject
             // Only suggest verbs if the first token is NOT a known verb (i.e., it's a callsign)
             if (!IsKnownVerb(firstToken, scheme))
             {
-                AddCommandVerbSuggestions(parts[1].TrimStart(), text, scheme);
+                AddCommandVerbSuggestions(
+                    parts[1].TrimStart(), text, scheme, targetAircraft);
             }
         }
         else if (hasSpace && parts.Length == 1)
@@ -109,7 +115,7 @@ public partial class CommandInputController : ObservableObject
             // If it's not a verb, it's a callsign — show all command verbs
             if (!IsKnownVerb(firstToken, scheme))
             {
-                AddCommandVerbSuggestions("", text, scheme);
+                AddCommandVerbSuggestions("", text, scheme, targetAircraft);
             }
         }
 
@@ -223,6 +229,51 @@ public partial class CommandInputController : ObservableObject
         _historyIndex = -1;
         _savedInput = "";
         _historyFilter = "";
+    }
+
+    private static AircraftModel? ResolveTargetAircraft(
+        string firstToken,
+        bool hasSpace,
+        IReadOnlyCollection<AircraftModel> aircraft,
+        AircraftModel? selectedAircraft,
+        CommandScheme scheme)
+    {
+        if (hasSpace && !IsKnownVerb(firstToken, scheme))
+        {
+            // First token looks like a callsign — find matching aircraft
+            foreach (var ac in aircraft)
+            {
+                if (string.Equals(
+                    ac.Callsign, firstToken, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ac;
+                }
+            }
+
+            // Partial match: if exactly one aircraft contains the token
+            AircraftModel? partial = null;
+            var count = 0;
+            foreach (var ac in aircraft)
+            {
+                if (ac.Callsign.Contains(
+                    firstToken, StringComparison.OrdinalIgnoreCase))
+                {
+                    partial = ac;
+                    count++;
+                    if (count > 1)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (count == 1)
+            {
+                return partial;
+            }
+        }
+
+        return selectedAircraft;
     }
 
     private static bool IsKnownVerb(string token, CommandScheme scheme)
@@ -557,17 +608,32 @@ public partial class CommandInputController : ObservableObject
         return false;
     }
 
+    private static readonly HashSet<Sim.Commands.CanonicalCommandType> DelayedOnlyCommands =
+    [
+        Sim.Commands.CanonicalCommandType.SpawnNow,
+        Sim.Commands.CanonicalCommandType.SpawnDelay,
+        Sim.Commands.CanonicalCommandType.Delete,
+    ];
+
     private void AddCommandVerbSuggestions(
         string token,
         string fullText,
-        CommandScheme scheme)
+        CommandScheme scheme,
+        AircraftModel? targetAircraft = null)
     {
+        var isDelayed = targetAircraft?.IsDelayedOrDeferred == true;
+
         // Collect candidates with match quality so exact alias matches sort first.
         // 0 = exact alias match, 1 = alias prefix match, 2 = label substring match
         var candidates = new List<(int Rank, CommandMetadata.CommandInfo Cmd, CommandPattern Pattern)>();
 
         foreach (var cmd in CommandMetadata.AllCommands)
         {
+            // For delayed/deferred aircraft, only show spawn-related commands
+            if (isDelayed && !DelayedOnlyCommands.Contains(cmd.Type))
+            {
+                continue;
+            }
             if (!scheme.Patterns.TryGetValue(cmd.Type, out var pattern))
             {
                 continue;
