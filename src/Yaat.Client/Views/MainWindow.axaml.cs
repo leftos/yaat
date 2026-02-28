@@ -70,14 +70,22 @@ public partial class MainWindow : Window
 
     private void OnCommandKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && DataContext is MainViewModel vm)
+        {
+            vm.SelectedAircraft = null;
+            vm.CommandText = "";
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key != Key.Enter)
         {
             return;
         }
 
-        if (DataContext is MainViewModel vm && vm.SendCommandCommand.CanExecute(null))
+        if (DataContext is MainViewModel vm2 && vm2.SendCommandCommand.CanExecute(null))
         {
-            vm.SendCommandCommand.Execute(null);
+            vm2.SendCommandCommand.Execute(null);
         }
     }
 }

@@ -370,11 +370,29 @@ public partial class MainViewModel : ObservableObject
         }
 
         var scheme = _preferences.CommandScheme;
+
+        // Try parsing the whole input as a command first (for already-selected aircraft)
         var parsed = CommandSchemeParser.Parse(text, scheme);
+        var commandText = text;
+        AircraftModel? target = SelectedAircraft;
+
+        // If parsing failed, or even if it succeeded, check if the first token is a callsign.
+        // This lets "N436MS CM 240" or "436 CM 240" work regardless of current selection.
+        if (parsed is null || !IsGlobalCommand(parsed.Type))
+        {
+            var resolved = TryResolveCallsignPrefix(text, scheme);
+            if (resolved is not null)
+            {
+                target = resolved.Value.Aircraft;
+                commandText = resolved.Value.Remainder;
+                parsed = CommandSchemeParser.Parse(commandText, scheme);
+            }
+        }
 
         if (parsed is null)
         {
-            StatusText = $"Unknown command: {text}";
+            var verb = commandText.Split(' ', 2)[0];
+            StatusText = $"Unrecognized verb \"{verb}\" — type a command like FH 270, CM 240, SPD 250";
             return;
         }
 
@@ -403,19 +421,22 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (SelectedAircraft is null)
+        if (target is null)
         {
-            StatusText = "Select an aircraft first";
+            StatusText = "No aircraft matched — type a callsign (or partial) before the command";
             return;
         }
+
+        // Update selection to the resolved target
+        SelectedAircraft = target;
 
         var canonical = CommandSchemeParser.ToCanonical(parsed.Type, parsed.Argument);
 
         try
         {
-            var result = await _connection.SendCommandAsync(SelectedAircraft.Callsign, canonical);
+            var result = await _connection.SendCommandAsync(target.Callsign, canonical);
 
-            var entry = $"{SelectedAircraft.Callsign} {text}";
+            var entry = $"{target.Callsign} {commandText}";
             if (result.Success)
             {
                 AddHistory(entry);
@@ -432,6 +453,82 @@ public partial class MainViewModel : ObservableObject
             _log.LogError(ex, "Command failed");
             StatusText = $"Command error: {ex.Message}";
         }
+    }
+
+    private static bool IsGlobalCommand(CanonicalCommandType type)
+    {
+        return type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause or CanonicalCommandType.SimRate;
+    }
+
+    /// <summary>
+    /// Tries to resolve the first token of the input as a full or partial callsign.
+    /// Returns the matched aircraft and the remainder of the input (the command part).
+    /// Returns null if no unique match is found.
+    /// </summary>
+    private (AircraftModel Aircraft, string Remainder)? TryResolveCallsignPrefix(
+        string input,
+        CommandScheme scheme
+    )
+    {
+        // Split into first token (potential callsign) and remainder (the command)
+        var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2)
+        {
+            return null;
+        }
+
+        var token = parts[0];
+        var remainder = parts[1].Trim();
+
+        // Only consider this a callsign if the remainder parses as a valid command
+        var remainderParsed = CommandSchemeParser.Parse(remainder, scheme);
+        if (remainderParsed is null)
+        {
+            return null;
+        }
+
+        var match = ResolveAircraft(token);
+        if (match is null)
+        {
+            return null;
+        }
+
+        return (match, remainder);
+    }
+
+    /// <summary>
+    /// Resolves a full or partial callsign to a single spawned aircraft.
+    /// Returns null and sets StatusText if no match or ambiguous.
+    /// </summary>
+    private AircraftModel? ResolveAircraft(string token)
+    {
+        // Exact match first (case-insensitive)
+        var exact = Aircraft.FirstOrDefault(
+            a => string.Equals(a.Callsign, token, StringComparison.OrdinalIgnoreCase)
+        );
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        // Partial match: substring anywhere in callsign
+        var matches = Aircraft
+            .Where(a => a.Callsign.Contains(token, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (matches.Count == 1)
+        {
+            return matches[0];
+        }
+
+        if (matches.Count > 1)
+        {
+            var names = string.Join(", ", matches.Select(a => a.Callsign).Take(5));
+            StatusText = $"\"{token}\" matches multiple aircraft: {names}";
+            return null;
+        }
+
+        return null;
     }
 
     [RelayCommand(CanExecute = nameof(IsConnected))]

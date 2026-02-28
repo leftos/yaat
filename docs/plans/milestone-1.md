@@ -11,13 +11,8 @@ Work spans three codebases:
 
 ## Pre-step: CLAUDE.md Updates
 
-### A) lc-trainer warning
-Add to `X:\dev\yaat\CLAUDE.md` under "Related Repositories":
-
-> **lc-trainer is NOT a trusted reference.** It is WIP, flawed, and unreviewed. It may be used as inspiration but every aviation detail drawn from it MUST be reviewed by the `aviation-sim-expert` agent. Do not port code from lc-trainer without independent validation. Prefer a fresh, well-organized approach over copying its patterns.
-
-### B) Command scheme note
-Add a note in CLAUDE.md architecture section about the command scheme being client-side.
+- [x] Add lc-trainer warning to CLAUDE.md under "Related Repositories"
+- [x] Add command scheme note to CLAUDE.md architecture section
 
 ---
 
@@ -25,28 +20,10 @@ Add a note in CLAUDE.md architecture section about the command scheme being clie
 
 Foundation that everything else builds on.
 
-### Create `ControlTargets.cs`
-```
-Yaat.Sim/ControlTargets.cs
-```
-- `TargetHeading` (double?) — degrees magnetic
-- `PreferredTurnDirection` (TurnDirection?) — Left/Right/null=shortest
-- `TargetAltitude` (double?) — feet MSL
-- `DesiredVerticalRate` (double?) — fpm override (positive=climb)
-- `TargetSpeed` (double?) — indicated airspeed in knots
-- `TurnDirection` enum: Left, Right
+- [x] Create `ControlTargets.cs` with TargetHeading, PreferredTurnDirection, TargetAltitude, DesiredVerticalRate, TargetSpeed, TurnDirection enum
+- [x] Modify `AircraftState.cs`: add Targets, TransponderMode, IsIdenting, VerticalSpeed, FlightRules, CruiseAltitude, CruiseSpeed
 
 Deferred to M4: `NavigationTarget`, `HeadingNavTarget`, `TargetMach`, `AtPilotsDiscretion`.
-
-### Modify `AircraftState.cs`
-Add properties:
-- `ControlTargets Targets { get; } = new()` — always non-null
-- `string TransponderMode { get; set; } = "C"` — "C", "Standby", "Ident"
-- `bool IsIdenting { get; set; }` — temporary ident flash
-- `double VerticalSpeed { get; set; }` — for CRC display + climb/descent tracking
-- `string FlightRules { get; set; } = "IFR"`
-- `int CruiseAltitude { get; set; }`
-- `int CruiseSpeed { get; set; }`
 
 ---
 
@@ -54,34 +31,13 @@ Add properties:
 
 **AVIATION REVIEW GATE**: aviation-sim-expert MUST validate all rate values before implementation.
 
-### Rewrite `FlightPhysics.cs`
-New entry point `Update(AircraftState, double deltaSeconds)` replaces `UpdatePosition`. Calls four steps:
-
-1. **UpdateHeading** — standard rate turn toward `TargetHeading`
-   - ~3 deg/sec (aviation-sim-expert to confirm)
-   - Honors `PreferredTurnDirection`; defaults to shortest path
-   - Snaps when within 0.5° of target; clears `PreferredTurnDirection`
-   - Handles wrap-around (350→10 turns right, not left 340°)
-
-2. **UpdateAltitude** — climb/descend toward `TargetAltitude`
-   - Rate from `DesiredVerticalRate` if set, otherwise default by aircraft category
-   - Updates `VerticalSpeed` property; sets to 0 when level
-   - Snaps when within threshold
-
-3. **UpdateSpeed** — accel/decel toward `TargetSpeed`
-   - Rate by aircraft category
-   - Snaps when within threshold
-
-4. **UpdatePosition** — existing heading+groundspeed→lat/lon math (unchanged)
-
-### Create `AircraftCategory.cs`
-- Enum: `Jet`, `Turboprop`, `Piston`
-- Static `Categorize(string aircraftType)` — prefix-based heuristic
-- Performance constants per category (turn rate, climb/descent fpm, accel/decel knots/sec)
-- **All values subject to aviation-sim-expert review**
-
-### Modify `SimulationWorld.cs`
-- Change `Tick()` to call `FlightPhysics.Update()` instead of `FlightPhysics.UpdatePosition()`
+- [x] Rewrite `FlightPhysics.cs` with `Update(AircraftState, double deltaSeconds)` calling four steps:
+  - [x] UpdateHeading — standard rate turn, PreferredTurnDirection, snap at 0.5°, wrap-around
+  - [x] UpdateAltitude — climb/descend toward TargetAltitude, DesiredVerticalRate or category default
+  - [x] UpdateSpeed — accel/decel toward TargetSpeed by category
+  - [x] UpdatePosition — existing heading+groundspeed→lat/lon math
+- [x] Create `AircraftCategory.cs` — Jet/Turboprop/Piston enum, Categorize(), performance constants
+- [x] Modify `SimulationWorld.cs` — Tick() calls FlightPhysics.Update()
 
 ---
 
@@ -89,44 +45,10 @@ New entry point `Update(AircraftState, double deltaSeconds)` replaces `UpdatePos
 
 Client-side verb translation. The server always receives canonical (ATCTrainer) format.
 
-### Design
-
-A `CommandScheme` defines how user-typed input maps to canonical commands. Two built-in presets:
-
-**ATCTrainer** (canonical): `FH 270`, `TL 270`, `TR 090`, `LT 20`, `RT 30`, `CM 240`, `DM 50`, `SPD 250`, `SQ 1234`, `DEL`
-
-**VICE**: `H270`, `L270`, `R090`, `T20L`, `T30R`, `C240`, `D50`, `S250`, `SQ1234`, `X`
-
-Key differences: VICE uses single-letter verbs, no spaces between verb and arg, and reversed syntax for relative turns (`T20L` vs `LT 20`).
-
-### Create `Yaat.Sim/Commands/CanonicalCommandType.cs`
-Shared library so both server and client can reference the types.
-
-```csharp
-public enum CanonicalCommandType
-{
-    FlyHeading, TurnLeft, TurnRight,
-    RelativeLeft, RelativeRight, FlyPresentHeading,
-    ClimbMaintain, DescendMaintain,
-    Speed, Mach,
-    Squawk, SquawkIdent, SquawkVfr,
-    SquawkNormal, SquawkStandby, Ident,
-    Delete, Pause, Unpause, SimRate, SquawkAll
-}
-```
-
-### Create `Yaat.Client/Services/CommandScheme.cs`
-- `CommandScheme` class with `Name`, `Dictionary<CanonicalCommandType, CommandPattern>`
-- `CommandPattern`: verb string + format pattern (e.g., `"{verb} {heading}"` vs `"{verb}{heading}"`)
-- `CommandSchemeParser.Parse(string input, CommandScheme scheme) → (CanonicalCommandType, args)?`
-- `CommandSchemeParser.ToCanonical(CanonicalCommandType, args) → string` — produces ATCTrainer format for sending to server
-- Built-in factory methods: `CommandScheme.AtcTrainer()`, `CommandScheme.Vice()`
-- Load/save custom schemes from JSON
-
-### Create `Yaat.Client/Services/CommandSchemeStore.cs`
-- Loads active scheme from `commandScheme.json` in app data dir
-- Falls back to ATCTrainer preset
-- Save/load/reset functionality
+- [x] Create `Yaat.Sim/Commands/CanonicalCommandType.cs` — shared enum for all command types
+- [x] Create `Yaat.Client/Services/CommandScheme.cs` — CommandScheme class with ATCTrainer() and Vice() presets, CommandPattern
+- [x] Create `Yaat.Client/Services/CommandSchemeParser.cs` — Parse() and ToCanonical() for both space-separated and concatenated modes
+- [x] Create persistence (UserPreferences) — loads/saves active scheme from preferences.json
 
 ### ATCTrainer preset mapping
 | Command | Verb | Format |
@@ -164,151 +86,37 @@ public enum CanonicalCommandType
 
 Server always receives canonical (ATCTrainer) format — either from client or from scenario presetCommands.
 
-### Create `Commands/ParsedCommand.cs`
-Record types for each command:
-- `FlyHeadingCommand(int Heading)`
-- `TurnLeftCommand(int Heading)`, `TurnRightCommand(int Heading)`
-- `LeftTurnCommand(int Degrees)`, `RightTurnCommand(int Degrees)`
-- `FlyPresentHeadingCommand`
-- `ClimbMaintainCommand(int Altitude)`, `DescendMaintainCommand(int Altitude)`
-- `SpeedCommand(int Speed)` — 0 means cancel restriction
-- `SquawkCommand(uint Code)`, `SquawkIdentCommand(uint Code)`, `SquawkVfrCommand`, `SquawkNormalCommand`, `SquawkStandbyCommand`, `IdentCommand`
-- `DeleteCommand`, `PauseCommand`, `UnpauseCommand`, `SimRateCommand(int Rate)`
-- `SquawkAllCommand`
-- `UnsupportedCommand(string RawText)` — for PUSH/TAXI/WAIT/SAY etc. (M2/M3)
-
-### Create `Commands/CommandParser.cs`
-- `static ParsedCommand? Parse(string input)` — ATCTrainer canonical format only
-- Altitude parsing: values < 1000 → multiply by 100 (e.g., `CM 240` = 24000 ft, `CM 5000` = 5000 ft)
-- Ground commands (PUSH, TAXI, WAIT, SAY) → `UnsupportedCommand` with warning
-
-### Create `Commands/CommandDispatcher.cs`
-- `Dispatch(ParsedCommand, AircraftState) → CommandResult`
-- Maps each command to ControlTargets changes:
-  - FlyHeading → `Targets.TargetHeading`, clear turn direction
-  - TurnLeft → `Targets.TargetHeading` + `PreferredTurnDirection = Left`
-  - LeftTurn → compute relative heading, set target + direction
-  - ClimbMaintain/DescendMaintain → `Targets.TargetAltitude`
-  - Speed → `Targets.TargetSpeed` (0 = clear)
-  - Squawk → `BeaconCode`
-  - SquawkVfr → `BeaconCode = 1200`
-  - SquawkNormal/Standby → `TransponderMode`
-  - Ident → `IsIdenting = true`
-  - Delete → remove from world
+- [x] Create `Commands/ParsedCommand.cs` — record types for each command (FlyHeading, TurnLeft, ClimbMaintain, Speed, Squawk, Delete, etc.)
+- [x] Create `Commands/CommandParser.cs` — Parse() with altitude shorthand (< 1000 → ×100), ground commands → UnsupportedCommand
+- [x] Create `Commands/CommandDispatcher.cs` — Dispatch() maps commands to ControlTargets/state changes
 
 ---
 
 ## Chunk 5: Scenario Models + ScenarioLoader (Yaat.Server)
 
-### Create `Scenarios/ScenarioModels.cs`
-Deserialization models matching ATCTrainer JSON:
-- `Scenario` (top-level)
-- `ScenarioAircraft` with callsign, type, transponder mode, starting conditions, flight plan, preset commands, spawn delay, auto-track conditions
-- `StartingConditions` with polymorphic `type` discriminator → `CoordinatesCondition`, `FixOrFrdCondition`, `ParkingCondition`, `OnRunwayCondition`, `OnFinalCondition`
-- `ScenarioFlightPlan`, `PresetCommand`, `InitializationTrigger`, `AutoTrackConditions`, `AircraftGenerator`, `ScenarioAtc`, `FlightStripConfiguration`
-
-Use `System.Text.Json` with `[JsonPolymorphic]` / `[JsonDerivedType]` on `StartingConditions`.
-
-### Create `Scenarios/ScenarioLoader.cs`
-- `Load(string json, IFixLookup) → ScenarioLoadResult`
-- For `Coordinates`: directly map lat/lon/alt/speed/heading
-- For `FixOrFrd`: resolve via FrdResolver, set alt/speed from condition fields
-  - If no speed: default by altitude band + aircraft category (aviation-sim-expert to advise)
-  - If no heading: compute heading toward `navigationPath` waypoint, or 0 with warning
-- For `Parking`/`OnRunway`/`OnFinal`: skip with "deferred to M2/M3" warning
-- Populate flight plan fields on AircraftState from scenario flightplan
-- Preserve spawnDelay for deferred spawning
-
-### Create `Scenarios/FrdResolver.cs`
-- Parse FRD strings: `OAK060012` → fix=OAK, radial=060, distance=12nm
-- Project lat/lon along radial from fix position using great-circle math
-- If string is a bare fix name (no radial/distance suffix), resolve directly
-
-### Create `Data/IFixLookup.cs` + `Data/FixDatabase.cs`
-- `IFixLookup.GetFixPosition(string name) → (double Lat, double Lon)?`
-- `FixDatabase` loads from a static JSON file (`Data/Fixes/zoa-fixes.json`)
-- Extract ZOA-area fixes (VORs, waypoints) for initial testing
-- Interface allows swapping to full NavData loading in M4
+- [x] Create `Scenarios/ScenarioModels.cs` — deserialization models matching ATCTrainer JSON (Scenario, ScenarioAircraft, StartingConditions with polymorphic types)
+- [x] Create `Scenarios/ScenarioLoader.cs` — Load() for Coordinates and FixOrFrd conditions, skip Parking/OnRunway/OnFinal with warning
+- [x] Create `Scenarios/FrdResolver.cs` — parse FRD strings, project lat/lon via great-circle math
+- [x] Create `Data/IFixLookup.cs` + `Data/FixDatabase.cs` — fix position lookup (replaced static JSON with VNAS NavData pipeline)
 
 ---
 
 ## Chunk 6: Training Hub Expansion + Sim Engine (Yaat.Server)
 
-### Modify `SimulationHostedService.cs`
-- Add `bool _isPaused`, `double _simRate = 1.0`
-- When paused: tick still broadcasts current state but doesn't advance physics
-- Sim rate: pass `deltaSeconds * _simRate` to physics
-- Add scenario clock (`double _scenarioElapsedSeconds`)
-- Delayed aircraft queue: check each tick, spawn when delay elapsed
-- Initialization triggers: check each tick, dispatch SQALL etc. at timeOffset
-- Remove hardcoded default aircraft — server starts empty
-- Expose methods: `LoadScenario()`, `SendCommand()`, `DeleteAircraft()`, `Pause()`, `Resume()`, `SetSimRate()`
-
-### Modify `TrainingHub.cs`
-New hub methods:
-- `LoadScenario(string scenarioJson) → LoadScenarioResult`
-- `SendCommand(string callsign, string command) → CommandResultDto`
-- `DeleteAircraft(string callsign)`
-- `PauseSimulation()` / `ResumeSimulation()`
-- `SetSimRate(int rate)`
-
-New server→client events:
-- `ScenarioLoaded(string name, int count)`
-- `AircraftDeleted(string callsign)`
-- `SimulationStateChanged(bool isPaused, int simRate)`
-- `AircraftSpawned(AircraftStateDto aircraft)` — when delayed aircraft appears
-
-### Modify `TrainingDtos.cs`
-Expand `AircraftStateDto` with: TransponderMode, VerticalSpeed, AssignedHeading, AssignedAltitude, AssignedSpeed, Departure, Destination, Route, FlightRules.
-
-Add: `LoadScenarioResult`, `CommandResultDto`.
-
-### Modify `DtoConverter.cs`
-- `ToTrainingDto()`: include new AircraftState fields
-- `ToEramTarget()`: include VerticalSpeed
-- `ToFlightPlan()`: use scenario-populated flight plan data
-- `ToStarsTrack()`: reflect TransponderMode properly
+- [x] Modify `SimulationHostedService.cs` — pause/resume, sim rate, scenario clock, delayed aircraft queue, initialization triggers, remove hardcoded aircraft
+- [x] Modify `TrainingHub.cs` — LoadScenario, SendCommand, DeleteAircraft, PauseSimulation, ResumeSimulation, SetSimRate + server→client events
+- [x] Modify `TrainingDtos.cs` — expand AircraftStateDto, add LoadScenarioResult, CommandResultDto
+- [x] Modify `DtoConverter.cs` — include new fields in ToTrainingDto, ToEramTarget, ToFlightPlan, ToStarsTrack
 
 ---
 
 ## Chunk 7: Client UI — Scenario, Commands, Sim Controls (Yaat.Client)
 
-### Modify `ServerConnection.cs`
-Add methods: `LoadScenarioAsync`, `SendCommandAsync`, `DeleteAircraftAsync`, `PauseSimulationAsync`, `ResumeSimulationAsync`, `SetSimRateAsync`
-
-Add events: `AircraftDeleted`, `AircraftSpawned`, `SimulationStateChanged`
-
-Expand `AircraftDto` with assigned values, flight plan, transponder mode.
-
-### Modify `AircraftModel.cs`
-Add observable properties: `AssignedHeading`, `AssignedAltitude`, `AssignedSpeed`, `TransponderMode`, `VerticalSpeed`, `Departure`, `Destination`, `Route`, `FlightRules`, `IsSelected`.
-
-### Modify `MainViewModel.cs`
-- Scenario: `ScenarioFilePath`, `BrowseScenarioCommand` (file dialog), `LoadScenarioCommand`
-- Aircraft selection: `SelectedAircraft` bound to DataGrid selection
-- Command input: `CommandText` property, `SendCommandCommand` on Enter
-  - Uses active `CommandScheme` to translate user input to canonical before sending
-  - Global commands (PAUSE, UNPAUSE, SIMRATE) don't need aircraft selection
-- Command history: `ObservableCollection<string>` last 50 commands, arrow up/down
-- Sim controls: `IsPaused`, `PauseCommand`/`ResumeCommand`, `SimRate`, `SetSimRateCommand`
-- Handle server events: AircraftDeleted, AircraftSpawned, SimulationStateChanged
-
-### Modify `MainWindow.axaml`
-Layout (top to bottom):
-1. **Connection bar**: URL + Connect + Status (existing)
-2. **Scenario bar**: File path + Browse + Load
-3. **Aircraft DataGrid**: Existing columns + AssignedHdg, AssignedAlt, AssignedSpd, Dep, Dest, Rules, Squawk
-4. **Sim controls**: Pause/Resume toggle + SimRate selector (1x/2x/4x/8x)
-5. **Command bar**: Selected aircraft label + command TextBox + Send
-
-### Create Settings modal (new Window)
-- `SettingsWindow.axaml` + `SettingsViewModel.cs`
-- Tab: **Command Scheme**
-  - Dropdown: preset selection (ATCTrainer / VICE / Custom)
-  - Table: CommandType | Current Verb | Format Pattern — editable
-  - Reset to ATCTrainer / Reset to VICE buttons
-  - Save button
-- Opened from a Settings button/menu in MainWindow
+- [x] Modify `ServerConnection.cs` — add LoadScenarioAsync, SendCommandAsync, DeleteAircraftAsync, PauseSimulationAsync, ResumeSimulationAsync, SetSimRateAsync + events + expanded DTOs
+- [x] Modify `AircraftModel.cs` — add AssignedHeading, AssignedAltitude, AssignedSpeed, TransponderMode, VerticalSpeed, Departure, Destination, Route, FlightRules, IsSelected
+- [x] Modify `MainViewModel.cs` — scenario browsing, command input with scheme translation, command history, sim controls, server event handlers
+- [x] Modify `MainWindow.axaml` — connection bar, scenario bar, expanded DataGrid, sim controls, command bar, overlays (delete confirm, scenario switch, active scenarios)
+- [x] Create `SettingsWindow.axaml` + `SettingsViewModel.cs` — General/Commands/Advanced tabs, preset switching, verb editing, admin mode
 
 ---
 
@@ -328,8 +136,6 @@ Chunk 6: Hub Expansion + Sim Engine          [Yaat.Server]
     ↓
 Chunk 7: Client UI                           [Yaat.Client]
 ```
-
-Chunks 4 and 5 can be built in parallel after chunks 1-2. Chunk 3 (command scheme types) can also proceed in parallel since it's mostly independent infrastructure.
 
 ---
 
@@ -353,15 +159,15 @@ Chunks 4 and 5 can be built in parallel after chunks 1-2. Chunk 3 (command schem
 
 ## Verification
 
-1. Start yaat-server, connect YAAT client
-2. Browse to an ATCTrainer scenario JSON with `FixOrFrd`/`Coordinates` aircraft
-3. Load scenario → airborne aircraft appear in DataGrid and CRC
-4. Select aircraft, type `FH 270` → aircraft turns in CRC
-5. Type `CM 50` → aircraft climbs to 5000
-6. Type `SPD 200` → aircraft adjusts speed
-7. Pause → aircraft freeze; Resume → they move again
-8. SimRate 4x → movement accelerates
-9. Squawk commands: `SQ 1234` → code changes in CRC
-10. Switch to VICE command scheme in Settings → `H270` works equivalently
-11. Aircraft with `spawnDelay` appear at correct times after scenario load
-12. SQALL initialization trigger fires at configured offsets
+- [ ] Start yaat-server, connect YAAT client
+- [ ] Browse to an ATCTrainer scenario JSON with `FixOrFrd`/`Coordinates` aircraft
+- [ ] Load scenario → airborne aircraft appear in DataGrid and CRC
+- [ ] Select aircraft, type `FH 270` → aircraft turns in CRC
+- [ ] Type `CM 50` → aircraft climbs to 5000
+- [ ] Type `SPD 200` → aircraft adjusts speed
+- [ ] Pause → aircraft freeze; Resume → they move again
+- [ ] SimRate 4x → movement accelerates
+- [ ] Squawk commands: `SQ 1234` → code changes in CRC
+- [ ] Switch to VICE command scheme in Settings → `H270` works equivalently
+- [ ] Aircraft with `spawnDelay` appear at correct times after scenario load
+- [ ] SQALL initialization trigger fires at configured offsets
