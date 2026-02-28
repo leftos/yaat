@@ -118,6 +118,10 @@ The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw W
 - **data-master** (`Vatsim.Nas.Data`) — Data models for navigation (`Airport`, `Fix`, `Runway`, `Sid`, `Star`), training scenarios (`Scenario`, `ScenarioAircraft`, `TrainingAirport`), aircraft specs (`AircraftSpec`, `AircraftCwt`), and facility configuration (`StarsConfiguration`, `EramConfiguration`, `TowerCabConfiguration`, etc.)
 - **messaging-master** (`Vatsim.Nas.Messaging`) — SignalR entities/DTOs (`EramTrackDto`, `StarsTrackDto`, `FlightPlanDto`, `TowerCabAircraftDto`, `ClearanceDto`), commands (`ProcessStarsCommandDto`, `JoinSessionDto`), and topics (`Topic`, `TopicCategory`). This is the definitive reference for CRC hub message shapes.
 
+**vNAS Configuration API** (`https://configuration.vnas.vatsim.net/`) — Returns serials and URLs for aircraft specs, CWT data, and nav data (used by `VnasDataService` for cache staleness checks). Also lists environment endpoints (Live, Sweatbox 1/2, Test) with their SignalR hub and API base URLs.
+
+**vNAS Data API** (`https://data-api.vnas.vatsim.net/api/artccs/{id}`, e.g. `.../ZOA`) — Full ARTCC facility configuration. Recursively nested child facilities (TRACONs, ATCTs), each with: positions (frequencies, callsigns, transceivers), STARS/ERAM/ASDEX/TDLS configuration, tower cab config (video maps, tower location), flight strips config, and neighboring facility references. Use this to understand real facility hierarchies and operational configuration.
+
 ## Aviation Realism — MANDATORY
 
 This project simulates real-world air traffic control. **Every feature touching aviation must be reviewed by the `aviation-sim-expert` agent** (via the Task tool with `subagent_type: "aviation-sim-expert"`). This is not optional.
