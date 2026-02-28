@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Proto;
 
 namespace Yaat.Sim.Data;
@@ -8,7 +9,7 @@ namespace Yaat.Sim.Data;
 /// VNAS NavData protobuf. Also indexes SID/STAR procedures
 /// for route expansion (autocomplete prioritization).
 /// </summary>
-public sealed class FixDatabase : IFixLookup
+public sealed class FixDatabase : IFixLookup, IRunwayLookup
 {
     private readonly Dictionary<string, (double Lat, double Lon)> _fixes =
         new(StringComparer.OrdinalIgnoreCase);
@@ -20,6 +21,9 @@ public sealed class FixDatabase : IFixLookup
         new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, HashSet<string>> _starFixes =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<string, List<RunwayInfo>> _runways =
         new(StringComparer.OrdinalIgnoreCase);
 
     private readonly ILogger? _logger;
@@ -51,6 +55,29 @@ public sealed class FixDatabase : IFixLookup
     public double? GetAirportElevation(string code)
     {
         return _elevations.TryGetValue(code, out var elev) ? elev : null;
+    }
+
+    public RunwayInfo? GetRunway(string airportCode, string runwayId)
+    {
+        if (!_runways.TryGetValue(airportCode, out var list))
+        {
+            return null;
+        }
+
+        foreach (var rwy in list)
+        {
+            if (string.Equals(rwy.RunwayId, runwayId, StringComparison.OrdinalIgnoreCase))
+            {
+                return rwy;
+            }
+        }
+
+        return null;
+    }
+
+    public IReadOnlyList<RunwayInfo> GetRunways(string airportCode)
+    {
+        return _runways.TryGetValue(airportCode, out var list) ? list : [];
     }
 
     /// <summary>
@@ -135,12 +162,62 @@ public sealed class FixDatabase : IFixLookup
             _fixes.TryAdd(fix.Id, (loc.Lat, loc.Lon));
         }
 
+        int runwayCount = 0;
+        foreach (var airport in navData.Airports)
+        {
+            foreach (var rwy in airport.Runways)
+            {
+                if (rwy.StartLocation is null || rwy.EndLocation is null)
+                {
+                    continue;
+                }
+
+                double elevation = airport.Elevation;
+                var info = new RunwayInfo
+                {
+                    AirportId = airport.FaaId ?? airport.IcaoId ?? "",
+                    RunwayId = rwy.Id,
+                    ThresholdLatitude = rwy.StartLocation.Lat,
+                    ThresholdLongitude = rwy.StartLocation.Lon,
+                    TrueHeading = rwy.TrueHeading,
+                    ElevationFt = elevation,
+                    LengthFt = rwy.LandingDistanceAvailable,
+                    WidthFt = rwy.Width,
+                    EndLatitude = rwy.EndLocation.Lat,
+                    EndLongitude = rwy.EndLocation.Lon,
+                };
+
+                void IndexRunway(string key)
+                {
+                    if (!_runways.TryGetValue(key, out var list))
+                    {
+                        list = [];
+                        _runways[key] = list;
+                    }
+                    list.Add(info);
+                }
+
+                if (!string.IsNullOrEmpty(airport.FaaId))
+                {
+                    IndexRunway(airport.FaaId);
+                }
+
+                if (!string.IsNullOrEmpty(airport.IcaoId))
+                {
+                    IndexRunway(airport.IcaoId);
+                }
+
+                runwayCount++;
+            }
+        }
+
         _logger?.LogInformation(
             "Fix database built: {Count} entries "
-            + "({Airports} airports + {Fixes} fixes)",
+            + "({Airports} airports + {Fixes} fixes + {Runways} runways)",
             _fixes.Count,
             navData.Airports.Count,
-            navData.Fixes.Count);
+            navData.Fixes.Count,
+            runwayCount);
     }
 
     private void BuildProcedureIndex(NavDataSet? navData)

@@ -50,6 +50,8 @@ The main grid shows all aircraft in your scenario:
 | Alt | Current altitude (ft) |
 | Spd | Current ground speed (kts) |
 | VS | Vertical speed (fpm) |
+| Phase | Current phase name (e.g., Downwind, FinalApproach, TakeoffRoll) |
+| Rwy | Assigned runway |
 | AHdg / AAlt / ASpd | Assigned targets — AHdg shows the next fix name when navigating, or heading when under vectors |
 | Pending Cmds | Queued command blocks not yet executed (from compound commands) |
 
@@ -94,7 +96,7 @@ YAAT supports two command schemes, switchable in Settings:
 
 ### Altitude Arguments
 
-Altitude arguments (used by CM, DM, and LV) accept three formats:
+Altitude arguments (used by CM, DM, LV, and GA) accept three formats:
 
 | Format | Example | Result |
 |--------|---------|--------|
@@ -144,6 +146,59 @@ DCT JFK090020
 This means "the point on the 090 radial from JFK at 20 NM." The fix name must be 2-5 characters, followed by exactly 3 digits for the radial (degrees) and 3 digits for the distance (NM). FRD works anywhere a fix name is accepted: DCT arguments and AT conditions.
 
 If the last fix in the list appears in the aircraft's filed route, the aircraft continues on its filed route from that point.
+
+### Tower Commands
+
+These commands control aircraft during takeoff, landing, and pattern operations. They require the aircraft to be in the phase system (e.g., spawned on a runway or on final approach from a scenario).
+
+| Command | Effect |
+|---------|--------|
+| `LUAW` | Line up and wait — aircraft holds on runway |
+| `CTO` | Cleared for takeoff |
+| `CTO 270` | Cleared for takeoff, fly heading 270 |
+| `CTOR 270` / `CTOL 270` | Cleared for takeoff, turn right/left to heading 270 |
+| `CTOR45` / `CTOL45` | Cleared for takeoff, turn right/left 45° from runway heading (no space) |
+| `CTOMLT` / `CTOMRT` | Cleared for takeoff, make left/right traffic |
+| `CTOC` | Cancel takeoff clearance |
+| `CTL` | Cleared to land |
+| `GA` | Go around (fly runway heading, climb to 1500 AGL) |
+| `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft |
+| `GA RH 50` | Go around, fly runway heading, climb to 5,000 ft |
+
+The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments above). `RH` in the heading position means "runway heading."
+
+### Pattern Commands
+
+| Command | Effect |
+|---------|--------|
+| `ELD` / `ERD` | Enter left/right downwind |
+| `ELB` / `ERB` | Enter left/right base |
+| `EF` | Enter final (straight-in) |
+| `MLT` / `MRT` | Make left/right traffic (sets pattern direction) |
+| `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg) |
+| `EXT` | Extend current pattern leg (upwind, crosswind, downwind, or base) |
+
+### Approach Options
+
+| Command | Effect |
+|---------|--------|
+| `TG` | Touch-and-go (establishes pattern mode if not already) |
+| `SG` | Stop-and-go (full stop then re-takeoff, establishes pattern mode) |
+| `LA` | Low approach (fly-through without touchdown, establishes pattern mode) |
+| `COPT` | Cleared for the option |
+
+TG, SG, and LA set pattern mode — the aircraft will continue doing touch-and-goes after the next approach. Use `MLT`/`MRT` to specify traffic direction, or combine: `TG, MLT`.
+
+### Hold Commands
+
+| Command | Effect |
+|---------|--------|
+| `HPP360L` / `HPP360R` | Hold present position, left/right 360° orbits |
+| `HPP` | Hold present position (hover, for helicopters) |
+| `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right orbits |
+| `HFIX {fix}` | Fly to fix, then hover |
+
+Any heading, altitude, or speed command clears the hold.
 
 ### Conditional Blocks
 

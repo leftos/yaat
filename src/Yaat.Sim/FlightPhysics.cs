@@ -90,6 +90,12 @@ public static class FlightPhysics
 
     private static void UpdateAltitude(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
+        if (aircraft.IsOnGround)
+        {
+            aircraft.VerticalSpeed = 0;
+            return;
+        }
+
         var target = aircraft.Targets.TargetAltitude;
         if (target is null)
         {
@@ -179,6 +185,11 @@ public static class FlightPhysics
 
     private static void UpdateCommandQueue(AircraftState aircraft)
     {
+        if (aircraft.Phases?.CurrentPhase is not null)
+        {
+            return;
+        }
+
         var queue = aircraft.Queue;
         if (queue.IsComplete)
         {
@@ -301,6 +312,22 @@ public static class FlightPhysics
 
         double bearing = Math.Atan2(y, x) / DegToRad;
         return NormalizeHeading(bearing);
+    }
+
+    /// <summary>
+    /// Projects a point from a given lat/lon along a heading for a given distance.
+    /// Returns (latitude, longitude) of the projected point.
+    /// </summary>
+    public static (double Lat, double Lon) ProjectPoint(
+        double lat, double lon, double headingDeg, double distanceNm)
+    {
+        double headingRad = headingDeg * DegToRad;
+        double latRad = lat * DegToRad;
+
+        double newLat = lat + (distanceNm * Math.Cos(headingRad) / NmPerDegLat);
+        double newLon = lon + (distanceNm * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad)));
+
+        return (newLat, newLon);
     }
 
     // --- Math helpers ---

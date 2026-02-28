@@ -238,7 +238,10 @@ public record AircraftDto(
     string FlightRules,
     string Status,
     string PendingCommands = "",
-    string NavigatingTo = ""
+    string NavigatingTo = "",
+    string CurrentPhase = "",
+    string AssignedRunway = "",
+    bool IsOnGround = false
 );
 
 public record LoadScenarioResultDto(

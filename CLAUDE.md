@@ -45,6 +45,8 @@ src/Yaat.Sim/           # Shared simulation library (class library, no dependenc
 
 **Yaat.Client** is the Avalonia desktop app. **Yaat.Sim** is a standalone library shared with yaat-server (referenced by both projects).
 
+**Yaat.Sim owns all simulation and aviation logic.** All flight physics, phase behavior, pattern geometry, performance constants, command dispatching logic that builds/mutates phase sequences — everything that constitutes aviation knowledge or simulation behavior belongs in Yaat.Sim. The server (yaat-server) should be a thin layer: comms with CRC and Yaat.Client, scenario loading, hub plumbing. If code in yaat-server needs to build phases, compute pattern geometry, or make aviation decisions, move it to Yaat.Sim instead.
+
 **Key patterns:**
 - `ServerConnection` is the single SignalR client connecting to `/hubs/training` (JSON protocol, not MessagePack). DTOs (`AircraftDto`, `LoadScenarioResultDto`, `CommandResultDto`, etc.) are records defined in the same file.
 - ViewModels use `[ObservableProperty]` and `[RelayCommand]` from CommunityToolkit.Mvvm — fields are `_camelCase`, auto-generated properties are `PascalCase`
@@ -63,6 +65,12 @@ RPO commands are parsed client-side using a configurable `CommandScheme` (ATCTra
 5. The full canonical string is sent to the server via `SendCommand(callsign, canonicalString)`
 
 The server builds a `CommandQueue` of `CommandBlock`s from the canonical string. Each block has an optional `BlockTrigger` (reach altitude, reach fix) and an `ApplyAction` that sets `ControlTargets`. `FlightPhysics.UpdateCommandQueue()` checks triggers and advances blocks each tick.
+
+**Command naming convention:**
+When adding new commands, match the existing command names from ATCTrainer and/or VICE where possible:
+- ATCTrainer reference: https://atctrainer.collinkoldoff.dev/docs/commands
+- VICE reference: https://pharr.org/vice/
+Commands unique to YAAT (not present in either app) can use any suitable name.
 
 **Communication flow:**
 ```
@@ -134,6 +142,10 @@ When invoking the aviation-sim-expert agent, always include this instruction in 
 ## User Guide
 
 `USER_GUIDE.md` documents all user-facing features: commands, UI controls, keyboard shortcuts, etc. **Before each commit that adds, changes, or removes user-facing behavior, update USER_GUIDE.md to reflect the current state.** Keep it accurate — don't document features that aren't implemented, and remove documentation for features that are removed.
+
+## Error Handling
+
+Never swallow errors silently. No empty catch blocks without logging, no early returns on error without logging. At minimum, log the exception with `AppLog` (client) or `ILogger` (Yaat.Sim callers) — even if the intent is to prevent a crash. If you catch an exception, log it.
 
 ## Commits
 

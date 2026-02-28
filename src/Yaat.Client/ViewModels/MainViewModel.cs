@@ -766,6 +766,9 @@ public partial class MainViewModel : ObservableObject
         model.FlightRules = dto.FlightRules;
         model.Status = dto.Status;
         model.PendingCommands = dto.PendingCommands;
+        model.CurrentPhase = dto.CurrentPhase;
+        model.AssignedRunway = dto.AssignedRunway;
+        model.IsOnGround = dto.IsOnGround;
     }
 
     private static AircraftModel DtoToModel(AircraftDto dto)
@@ -792,6 +795,9 @@ public partial class MainViewModel : ObservableObject
             FlightRules = dto.FlightRules,
             Status = dto.Status,
             PendingCommands = dto.PendingCommands,
+            CurrentPhase = dto.CurrentPhase,
+            AssignedRunway = dto.AssignedRunway,
+            IsOnGround = dto.IsOnGround,
         };
     }
 }

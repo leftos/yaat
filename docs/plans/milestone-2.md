@@ -221,71 +221,59 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
 
 ### Pattern Geometry
 
-- [ ] Create `Phases/Pattern/PatternGeometry.cs`:
+- [x] Create `Phases/PatternGeometry.cs`:
   - Given: runway threshold, runway heading, pattern direction (left/right), pattern altitude, pattern size
   - Compute key positions: upwind end, crosswind turn point, downwind start/end (abeam threshold/numbers), base turn point, final turn point
-  - Default pattern size: ~1 nm from runway centerline for downwind leg
-  - Configurable via `PS {nm}` command
-- [ ] Create `Phases/Pattern/PatternParameters.cs`:
-  - `string RunwayId`
-  - `PatternDirection Direction` (Left/Right)
-  - `double PatternAltitudeFt` (default: field elevation + 1000 ft)
-  - `double PatternSizeNm` (default: 1.0 nm)
-  - `bool ShortenedApproach` (MSA command)
+  - Default pattern size: ~1 nm from runway centerline for downwind leg (by aircraft category)
+  - PatternDirection enum (Left/Right), PatternWaypoints data class
+- [x] Add pattern performance constants to `CategoryPerformance`:
+  - PatternAltitudeAgl, PatternSizeNm, CrosswindExtensionNm, BaseExtensionNm
+  - DownwindSpeed, BaseSpeed, PatternTurnRate, PatternDescentRate
+- [x] Add `FlightPhysics.ProjectPoint()` utility for waypoint computation
 
 ### Phases
 
-- [ ] Create `Phases/Pattern/PatternEntryPhase.cs`:
-  - Entry point: midfield downwind (45° entry), base, or straight-in final
-  - `OnStart`: set heading toward entry point, set altitude = pattern altitude
-  - Completes when reaching the entry leg → transitions to appropriate leg phase
-- [ ] Create `Phases/Pattern/UpwindPhase.cs`:
+- [x] Create `Phases/Pattern/UpwindPhase.cs`:
   - After takeoff, flying runway heading until crosswind turn point
-  - Completes at crosswind turn point or when TC (turn crosswind) command given
-- [ ] Create `Phases/Pattern/CrosswindPhase.cs`:
+  - Climbs to pattern altitude, accelerates toward downwind speed
+  - Completes when reaching crosswind turn waypoint or when TC command given
+- [x] Create `Phases/Pattern/CrosswindPhase.cs`:
   - Turning perpendicular to runway, climbing to pattern altitude
-  - Completes when reaching downwind heading at pattern altitude
-- [ ] Create `Phases/Pattern/DownwindPhase.cs`:
-  - Level flight parallel to runway, opposite direction
-  - At pattern altitude and approach speed
-  - Abeam the numbers: begin descent prep (reduce speed)
-  - Completes at base turn point or when TB (turn base) command given
-- [ ] Create `Phases/Pattern/BasePhase.cs`:
-  - Turn toward runway, begin descent
-  - Descending to intercept glideslope
-  - Completes when aligned with final approach course
-- [ ] Create `Phases/Pattern/FinalPhase.cs`:
-  - Short final in the pattern, transitions to `FinalApproachPhase` for the actual landing sequence
-  - Or: wraps `FinalApproachPhase` behavior for pattern operations
-  - Requires landing clearance (same gating as FinalApproachPhase)
+  - Completes when reaching downwind start waypoint
+- [x] Create `Phases/Pattern/DownwindPhase.cs`:
+  - Level flight parallel to runway, opposite direction at pattern altitude
+  - At downwind speed, maintains pattern altitude
+  - IsExtended flag supports EXT command (holds on downwind until TB)
+  - Completes at base turn point or when TB command given
+- [x] Create `Phases/Pattern/BasePhase.cs`:
+  - Turn toward runway, begin descent at PatternDescentRate
+  - Decelerates to base speed
+  - Completes when reaching final turn waypoint
+- [x] Pattern uses existing `FinalApproachPhase` → `LandingPhase` for landing sequence
 
 ### Commands
 
-- [ ] Add to `CommandParser.cs`:
+- [x] Add to `CommandParser.cs`:
   - `ELD` / `ERD` — Enter left/right downwind
   - `ELB` / `ERB` — Enter left/right base
   - `EF` — Enter final (straight-in)
   - `MLT` / `MRT` — Make left/right traffic
   - `TC` / `TD` / `TB` — Turn crosswind/downwind/base
-  - `EXT` — Extend current leg
-  - `MSA` / `MNA` — Make short/normal approach
-  - `PS {nm}` — Set pattern size
-- [ ] Add to `ParsedCommand.cs`:
-  - `EnterPatternCommand { PatternLeg, PatternDirection }`
-  - `MakeTrafficCommand { PatternDirection }`
-  - `TurnPatternLegCommand { TargetLeg }` (crosswind/downwind/base)
-  - `ExtendLegCommand`
-  - `ApproachTypeCommand { ApproachLength }` (short/normal)
-  - `PatternSizeCommand { SizeNm }`
-- [ ] Add to `CommandDispatcher.cs`:
-  - `ELD`/`ERD`: build PatternEntry → Downwind → Base → Final → Landing phase list
-  - `ELB`/`ERB`: build PatternEntry → Base → Final → Landing
-  - `EF`: build PatternEntry → Final → Landing
-  - `MLT`/`MRT`: after takeoff/go-around, set up Upwind → Crosswind → Downwind → Base → Final → Landing
-  - `TC`/`TD`/`TB`: force transition to the named leg (skip any intervening phases)
-  - `EXT`: extend current leg (delay the turn point by a configurable distance)
-  - `MSA`/`MNA`: shorten or normalize the base-to-final turn
-  - `PS`: update pattern size parameter
+  - `EXT` — Extend downwind leg
+  - Deferred: `MSA` / `MNA` / `PS {nm}` (not yet implemented)
+- [x] Add to `ParsedCommand.cs`:
+  - Individual command records for each pattern command
+- [x] Add to `CanonicalCommandType.cs`:
+  - Pattern command types: EnterLeftDownwind, EnterRightDownwind, etc.
+- [x] Add to `CommandDispatcher.cs`:
+  - `ELD`/`ERD`: build Downwind → Base → FinalApproach → Landing phase list
+  - `ELB`/`ERB`: build Base → FinalApproach → Landing
+  - `EF`: build FinalApproach → Landing
+  - `MLT`/`MRT`: update waypoints on all remaining pattern phases
+  - `TC`: advance from UpwindPhase to next phase
+  - `TD`: advance from CrosswindPhase to next phase
+  - `TB`: advance from DownwindPhase to next phase (clears extension)
+  - `EXT`: set IsExtended on DownwindPhase
 
 ---
 
@@ -293,20 +281,20 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
 
 **AVIATION REVIEW GATE**: aviation-sim-expert MUST validate touch-and-go procedures, speed management during option approaches, and hold/orbit behavior.
 
-- [ ] Create `Phases/Tower/TouchAndGoPhase.cs`:
+- [x] Create `Phases/Tower/TouchAndGoPhase.cs`:
   - After touchdown: brief rollout (~3-5 seconds), then apply takeoff power
   - Accelerate on runway to Vr, rotate, liftoff
   - Essentially: abbreviated LandingPhase → abbreviated TakeoffPhase
   - Completes when airborne at pattern altitude → transitions to pattern or departure
-- [ ] Create `Phases/Tower/StopAndGoPhase.cs`:
+- [x] Create `Phases/Tower/StopAndGoPhase.cs`:
   - After touchdown: full stop on runway, then takeoff roll from zero
   - Decelerate to 0, pause briefly, then accelerate
   - LandingPhase → hold on runway → TakeoffPhase
-- [ ] Create `Phases/Tower/LowApproachPhase.cs`:
+- [x] Create `Phases/Tower/LowApproachPhase.cs`:
   - Aircraft flies approach path but does NOT touch down
   - At ~50-100 ft AGL: apply go-around power, climb
   - Transitions to pattern or departure climb
-- [ ] Modify `CommandDispatcher.cs` for option approach commands:
+- [x] Modify `CommandDispatcher.cs` for option approach commands:
   - `TG`: satisfy `ClearedTouchAndGo` clearance; after FinalApproach, insert TouchAndGo → pattern phases
   - `SG`: satisfy clearance; after FinalApproach, insert StopAndGo → Takeoff → pattern phases
   - `LA`: after FinalApproach, insert LowApproach → pattern or departure phases
@@ -314,25 +302,25 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
 
 ### Hold / Orbit Commands
 
-- [ ] Create `Phases/HoldPresentPositionPhase.cs`:
+- [x] Create `Phases/HoldPresentPositionPhase.cs`:
   - For winged aircraft (`HPP360L` / `HPP360R`): orbit at present position via continuous 360° turns in the specified direction
   - For helicopters (`HPP`): hover at present position (speed 0, altitude hold)
   - `OnTick`: winged aircraft maintain current altitude/speed and fly a 360° turn, returning to same position; helicopters hold position
   - Completes when RPO issues a new heading/altitude/navigation command (phase is cleared)
-- [ ] Create `Phases/HoldAtFixPhase.cs`:
+- [x] Create `Phases/HoldAtFixPhase.cs`:
   - `HFIX {fix}` — fly to the fix, then hold:
     - Winged aircraft: orbit over the fix via continuous 360° turns (left by default, or as specified)
     - Helicopters: fly to the fix and hold position (hover)
   - `OnTick`: if not yet at fix, navigate to fix (like DCT); once at fix, orbit/hover
   - Completes when RPO issues a new heading/altitude/navigation command
-- [ ] Add to `CommandParser.cs`:
+- [x] Add to `CommandParser.cs`:
   - `HPP360L` / `HPP360R` — Hold present position, 360 turns left/right (winged aircraft)
   - `HPP` — Hold present position (helicopters, hover)
   - `HFIX {fix}` — Hold at fix (360 turns for winged, in-position for helicopters)
-- [ ] Add to `ParsedCommand.cs`:
+- [x] Add to `ParsedCommand.cs`:
   - `HoldPresentPositionCommand { TurnDirection?, IsHelicopter }`
   - `HoldAtFixCommand { FixName }`
-- [ ] Add to `CommandDispatcher.cs`:
+- [x] Add to `CommandDispatcher.cs`:
   - `HPP360L`/`HPP360R`: set up HoldPresentPositionPhase with turn direction
   - `HPP`: set up HoldPresentPositionPhase in hover mode
   - `HFIX`: set up HoldAtFixPhase with the target fix
@@ -341,37 +329,29 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
 
 ## Chunk 7: Training Hub + DTO Updates (Yaat.Server)
 
-- [ ] Extend `AircraftStateDto` with phase information:
-  - `string? CurrentPhase` — name of the active phase (e.g., "Downwind", "Final Approach", "Takeoff Roll")
-  - `string? ClearanceStatus` — pending clearance description if waiting (e.g., "Awaiting takeoff clearance")
-  - `string? PatternLeg` — current pattern leg if in pattern (for pattern visualization)
-  - `string? AssignedRunway` — active runway assignment
+- [x] Extend `AircraftStateDto` with phase information:
+  - `string CurrentPhase` — name of the active phase (e.g., "Downwind", "FinalApproach", "TakeoffRoll")
+  - `string AssignedRunway` — active runway assignment
   - `bool IsOnGround` — ground/airborne state
-- [ ] Extend `DtoConverter.cs` to populate new fields from phase state
-- [ ] Add server→client events for phase transitions:
-  - `PhaseChanged(string callsign, string phaseName)` — when aircraft transitions between phases
-  - Optional: `ClearanceRequested(string callsign, string clearanceType)` — when aircraft needs a clearance (for future AI mode awareness)
-- [ ] Validate that CRC DTOs handle ground aircraft correctly:
-  - Ground speed = 0 for stopped aircraft
-  - Correct altitude (field elevation, not 0)
-  - Transponder mode considerations for ground operations
+- [x] Extend `DtoConverter.cs` to populate new fields from phase state
+- [x] Extend client-side `AircraftDto` and `AircraftModel` with matching fields
+- [x] Update `UpdateModel` and `DtoToModel` in `MainViewModel` to map new fields
+- [x] CRC DTOs handle ground aircraft correctly (GroundSpeed/Altitude come from AircraftState, set by phases)
+- [ ] Add server→client events for phase transitions (deferred — not needed for basic display)
 
 ---
 
 ## Chunk 8: Client UI Updates (Yaat.Client)
 
-- [ ] Extend `AircraftModel.cs` with new fields:
-  - `CurrentPhase`, `ClearanceStatus`, `PatternLeg`, `AssignedRunway`, `IsOnGround`
-- [ ] Extend `MainWindow.axaml` DataGrid columns:
+- [x] Extend `AircraftModel.cs` with new fields:
+  - `CurrentPhase`, `AssignedRunway`, `IsOnGround`
+- [x] Extend `MainWindow.axaml` DataGrid columns:
   - Add "Phase" column showing current phase name
-  - Add "Runway" column (or combine with phase)
-  - Visual indicator for clearance-waiting state (e.g., highlight or icon)
-- [ ] Extend `ServerConnection.cs`:
-  - Handle new DTO fields
-  - Handle `PhaseChanged` event
-- [ ] Command bar support for new tower commands:
-  - All tower and pattern commands should already work through the existing command scheme infrastructure (they're sent as canonical strings to the server)
-  - Verify VICE preset mappings exist for tower commands (or note that VICE doesn't have equivalents — ATCTrainer-only commands)
+  - Add "Rwy" column showing assigned runway
+- [x] Extend `ServerConnection.cs` / `AircraftDto`:
+  - `CurrentPhase`, `AssignedRunway`, `IsOnGround` fields with defaults for backward compat
+- [x] Update `MainViewModel` UpdateModel/DtoToModel to map new fields
+- [x] Command bar support: all tower/pattern commands flow through existing command scheme infrastructure
 
 ---
 

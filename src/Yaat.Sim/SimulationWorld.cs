@@ -58,12 +58,21 @@ public sealed class SimulationWorld
 
     public void TickScenario(string scenarioId, double deltaSeconds)
     {
+        TickScenario(scenarioId, deltaSeconds, preTick: null);
+    }
+
+    public void TickScenario(
+        string scenarioId,
+        double deltaSeconds,
+        Action<AircraftState, double>? preTick)
+    {
         lock (_lock)
         {
             foreach (var ac in _aircraft)
             {
                 if (ac.ScenarioId == scenarioId)
                 {
+                    preTick?.Invoke(ac, deltaSeconds);
                     FlightPhysics.Update(ac, deltaSeconds);
                 }
             }

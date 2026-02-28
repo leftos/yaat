@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
@@ -31,6 +32,19 @@ public partial class MainWindow : Window
         if (suggestionList is not null)
         {
             suggestionList.Tapped += OnSuggestionTapped;
+        }
+
+        var dataGrid = this.FindControl<DataGrid>("AircraftGrid");
+        if (dataGrid is not null)
+        {
+            foreach (var col in dataGrid.Columns)
+            {
+                if (col.Header is string header && header == "Status")
+                {
+                    col.CustomSortComparer = StatusSortComparer.Instance;
+                    break;
+                }
+            }
         }
 
         var settingsBtn = this.FindControl<Button>("SettingsButton");

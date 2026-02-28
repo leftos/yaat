@@ -1,3 +1,5 @@
+using Yaat.Sim.Phases;
+
 namespace Yaat.Sim;
 
 public class AircraftState
@@ -21,6 +23,8 @@ public class AircraftState
     public int CruiseSpeed { get; set; }
     public string TransponderMode { get; set; } = "C";
     public bool IsIdenting { get; set; }
+    public bool IsOnGround { get; set; }
     public ControlTargets Targets { get; } = new();
     public CommandQueue Queue { get; set; } = new();
+    public PhaseList? Phases { get; set; }
 }

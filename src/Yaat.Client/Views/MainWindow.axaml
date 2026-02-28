@@ -153,7 +153,8 @@
         </Grid>
 
         <!-- Center: Aircraft DataGrid -->
-        <DataGrid ItemsSource="{Binding Aircraft}"
+        <DataGrid x:Name="AircraftGrid"
+                  ItemsSource="{Binding Aircraft}"
                   SelectedItem="{Binding SelectedAircraft}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
@@ -165,7 +166,13 @@
                     Binding="{Binding Callsign}"
                     Width="Auto" />
                 <DataGridTextColumn Header="Status"
-                    Binding="{Binding Status}"
+                    Binding="{Binding StatusDisplay}"
+                    Width="Auto" />
+                <DataGridTextColumn Header="Phase"
+                    Binding="{Binding CurrentPhase}"
+                    Width="Auto" />
+                <DataGridTextColumn Header="Rwy"
+                    Binding="{Binding AssignedRunway}"
                     Width="Auto" />
                 <DataGridTextColumn Header="Type"
                     Binding="{Binding AircraftType}"
