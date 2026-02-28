@@ -4,6 +4,7 @@ public enum SuggestionKind
 {
     Callsign,
     Command,
+    Fix,
 }
 
 public sealed class SuggestionItem

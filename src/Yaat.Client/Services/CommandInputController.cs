@@ -59,11 +59,18 @@ public partial class CommandInputController : ObservableObject
         }
 
         // Strip leading condition (LV/AT) prefix if present within the fragment
-        var fragmentForSuggestion = StripConditionPrefix(fragment);
+        var fragmentForSuggestion = StripConditionPrefix(fragment, out var conditionVerb);
         if (string.IsNullOrWhiteSpace(fragmentForSuggestion))
         {
-            // Condition keyword typed but argument still in progress — no suggestions
-            IsSuggestionsVisible = false;
+            // Condition keyword typed, argument still in progress
+            // For AT conditions, suggest fix names as the argument
+            if (string.Equals(conditionVerb, "AT", StringComparison.OrdinalIgnoreCase))
+            {
+                var atArg = GetConditionArgFragment(fragment);
+                AddFixSuggestions(atArg, text, aircraft);
+            }
+
+            IsSuggestionsVisible = Suggestions.Count > 0;
             return;
         }
 
@@ -77,6 +84,10 @@ public partial class CommandInputController : ObservableObject
             AddCallsignSuggestions(firstToken, text, aircraft);
             AddCommandVerbSuggestions(firstToken, text, scheme);
             AddConditionSuggestions(firstToken);
+        }
+        else if (TryAddFixSuggestions(fragmentForSuggestion, text, aircraft, scheme))
+        {
+            // Fix suggestions were added (DCT or callsign+DCT context)
         }
         else if (parts.Length >= 2)
         {
@@ -237,13 +248,16 @@ public partial class CommandInputController : ObservableObject
         return text[(lastSep + 1)..].TrimStart();
     }
 
-    private static string StripConditionPrefix(string fragment)
+    private static string StripConditionPrefix(string fragment, out string? conditionVerb)
     {
+        conditionVerb = null;
+
         // Check for "LV <arg> " or "AT <arg> " prefix (fully typed condition keyword + space)
         var upper = fragment.TrimStart().ToUpperInvariant();
         if (upper.StartsWith("LV ", StringComparison.Ordinal)
             || upper.StartsWith("AT ", StringComparison.Ordinal))
         {
+            conditionVerb = upper[..2];
             var afterPrefix = fragment[3..].TrimStart();
             var spaceIdx = afterPrefix.IndexOf(' ');
             if (spaceIdx >= 0)
@@ -251,11 +265,142 @@ public partial class CommandInputController : ObservableObject
                 return afterPrefix[(spaceIdx + 1)..].TrimStart();
             }
 
-            // Still typing the condition argument (e.g., "LV 05")
+            // Still typing the condition argument (e.g., "LV 05" or "AT SUN")
             return "";
         }
 
         return fragment;
+    }
+
+    private static string GetConditionArgFragment(string fragment)
+    {
+        // Extract the partial argument after "AT " — e.g., "AT SUN" → "SUN", "AT " → ""
+        var afterKeyword = fragment[3..].TrimStart();
+        return afterKeyword;
+    }
+
+    /// <summary>
+    /// Checks if the user is typing a fix argument for DCT (with or without callsign prefix).
+    /// Returns true if fix suggestions were added.
+    /// </summary>
+    private bool TryAddFixSuggestions(
+        string fragmentWithSpaces,
+        string fullText,
+        IReadOnlyCollection<AircraftModel> aircraft,
+        CommandScheme scheme)
+    {
+        // Find the DCT verb in the active scheme
+        if (!scheme.Patterns.TryGetValue(Sim.Commands.CanonicalCommandType.DirectTo, out var dctPattern))
+        {
+            return false;
+        }
+
+        var dctVerb = dctPattern.Verb;
+        var words = fragmentWithSpaces.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length < 1)
+        {
+            return false;
+        }
+
+        // Pattern 1: "DCT ..." — first word is the DCT verb
+        // Pattern 2: "UAL123 DCT ..." — first word is callsign, second is DCT verb
+        int dctIndex;
+        if (string.Equals(words[0], dctVerb, StringComparison.OrdinalIgnoreCase))
+        {
+            dctIndex = 0;
+        }
+        else if (words.Length >= 2 && string.Equals(words[1], dctVerb, StringComparison.OrdinalIgnoreCase))
+        {
+            dctIndex = 1;
+        }
+        else
+        {
+            return false;
+        }
+
+        // The partial fix token is the last word after DCT (if any), or empty if trailing space
+        var hasTrailingSpace = fragmentWithSpaces.EndsWith(' ');
+        var lastWordAfterDct = words.Length > dctIndex + 1 ? words[^1] : "";
+        var fixToken = hasTrailingSpace ? "" : lastWordAfterDct;
+
+        AddFixSuggestions(fixToken, fullText, aircraft);
+        return Suggestions.Count > 0;
+    }
+
+    private void AddFixSuggestions(
+        string token,
+        string fullText,
+        IReadOnlyCollection<AircraftModel> aircraft)
+    {
+        var fixes = CollectFixNames(aircraft);
+        var count = Suggestions.Count;
+        var prefix = GetTextBeforeLastWord(fullText);
+
+        foreach (var fix in fixes)
+        {
+            if (count >= MaxSuggestions)
+            {
+                break;
+            }
+
+            if (token.Length > 0 && !fix.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Suggestions.Add(new SuggestionItem
+            {
+                Kind = SuggestionKind.Fix,
+                Text = fix,
+                Description = "",
+                InsertText = prefix + fix + " ",
+            });
+            count++;
+        }
+    }
+
+    private static SortedSet<string> CollectFixNames(IReadOnlyCollection<AircraftModel> aircraft)
+    {
+        var fixes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var ac in aircraft)
+        {
+            if (!string.IsNullOrWhiteSpace(ac.Departure))
+            {
+                fixes.Add(ac.Departure);
+            }
+
+            if (!string.IsNullOrWhiteSpace(ac.Destination))
+            {
+                fixes.Add(ac.Destination);
+            }
+
+            if (string.IsNullOrWhiteSpace(ac.Route))
+            {
+                continue;
+            }
+
+            foreach (var word in ac.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                // Skip purely numeric tokens (altitudes, speeds in some route formats)
+                if (!double.TryParse(word, out _))
+                {
+                    fixes.Add(word);
+                }
+            }
+        }
+
+        return fixes;
+    }
+
+    private static string GetTextBeforeLastWord(string text)
+    {
+        var lastSpace = text.LastIndexOf(' ');
+        if (lastSpace >= 0)
+        {
+            return text[..(lastSpace + 1)];
+        }
+
+        return "";
     }
 
     private void AddConditionSuggestions(string token)
