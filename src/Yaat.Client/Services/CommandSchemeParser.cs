@@ -4,14 +4,164 @@ namespace Yaat.Client.Services;
 
 public record ParsedInput(CanonicalCommandType Type, string? Argument);
 
+/// <summary>
+/// Result of parsing a compound input string with ';' and ',' separators.
+/// Contains the full canonical string to send to the server.
+/// </summary>
+public record CompoundParseResult(string CanonicalString);
+
 public static class CommandSchemeParser
 {
+    private static readonly HashSet<string> PassthroughVerbs = new(StringComparer.OrdinalIgnoreCase) { "LV", "AT" };
+
+    /// <summary>
+    /// Parses a compound input string (may contain ';' and ',' separators).
+    /// Returns the canonical string to send to the server, or null if any part fails.
+    /// </summary>
+    public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme)
+    {
+        var trimmed = input.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+
+        bool isCompound = trimmed.Contains(';') || trimmed.Contains(',');
+        var upper = trimmed.ToUpperInvariant();
+        if (!isCompound)
+        {
+            isCompound = upper.StartsWith("LV ") || upper.StartsWith("AT ");
+        }
+
+        if (!isCompound)
+        {
+            // Single command
+            var parsed = Parse(trimmed, scheme);
+            if (parsed is null)
+            {
+                return null;
+            }
+
+            return new CompoundParseResult(ToCanonical(parsed.Type, parsed.Argument));
+        }
+
+        // Split by ';' for sequential blocks
+        var blockStrings = trimmed.Split(';');
+        var canonicalBlocks = new List<string>();
+
+        foreach (var blockStr in blockStrings)
+        {
+            var block = blockStr.Trim();
+            if (string.IsNullOrEmpty(block))
+            {
+                continue;
+            }
+
+            var canonicalBlock = ParseBlockToCanonical(block, scheme);
+            if (canonicalBlock is null)
+            {
+                return null;
+            }
+
+            canonicalBlocks.Add(canonicalBlock);
+        }
+
+        if (canonicalBlocks.Count == 0)
+        {
+            return null;
+        }
+
+        return new CompoundParseResult(string.Join("; ", canonicalBlocks));
+    }
+
+    private static string? ParseBlockToCanonical(string block, CommandScheme scheme)
+    {
+        var parts = new List<string>();
+        var remaining = block;
+
+        // Check for LV or AT prefix
+        var upper = remaining.ToUpperInvariant();
+        if (upper.StartsWith("LV "))
+        {
+            var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 3)
+            {
+                return null;
+            }
+
+            if (!int.TryParse(tokens[1], out _))
+            {
+                return null;
+            }
+
+            parts.Add($"LV {tokens[1]}");
+            remaining = tokens[2];
+        }
+        else if (upper.StartsWith("AT "))
+        {
+            var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 3)
+            {
+                return null;
+            }
+
+            parts.Add($"AT {tokens[1].ToUpperInvariant()}");
+            remaining = tokens[2];
+        }
+
+        // Split remaining by ',' for parallel commands
+        var commandStrings = remaining.Split(',');
+        var canonicalCommands = new List<string>();
+
+        foreach (var cmdStr in commandStrings)
+        {
+            var cmd = cmdStr.Trim();
+            if (string.IsNullOrEmpty(cmd))
+            {
+                continue;
+            }
+
+            var parsed = Parse(cmd, scheme);
+            if (parsed is null)
+            {
+                return null;
+            }
+
+            canonicalCommands.Add(ToCanonical(parsed.Type, parsed.Argument));
+        }
+
+        if (canonicalCommands.Count == 0)
+        {
+            return null;
+        }
+
+        if (parts.Count > 0)
+        {
+            return $"{string.Join(" ", parts)} {string.Join(", ", canonicalCommands)}";
+        }
+
+        return string.Join(", ", canonicalCommands);
+    }
+
     public static ParsedInput? Parse(string input, CommandScheme scheme)
     {
         var trimmed = input.Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(trimmed))
         {
             return null;
+        }
+
+        // DCT is always space-separated regardless of scheme mode
+        if (trimmed.StartsWith("DCT ") || trimmed == "DCT")
+        {
+            var parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            var arg = parts.Length > 1 ? parts[1].Trim() : null;
+            if (arg is null)
+            {
+                return null;
+            }
+
+            return new ParsedInput(CanonicalCommandType.DirectTo, arg);
         }
 
         if (scheme.ParseMode == CommandParseMode.Concatenated)
@@ -136,6 +286,7 @@ public static class CommandSchemeParser
                     or CanonicalCommandType.Pause
                     or CanonicalCommandType.Unpause
                     or CanonicalCommandType.SimRate
+                    or CanonicalCommandType.DirectTo
             )
             {
                 continue;

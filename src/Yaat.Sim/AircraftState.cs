@@ -22,4 +22,5 @@ public class AircraftState
     public string TransponderMode { get; set; } = "C";
     public bool IsIdenting { get; set; }
     public ControlTargets Targets { get; } = new();
+    public CommandQueue Queue { get; set; } = new();
 }

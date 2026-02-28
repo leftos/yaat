@@ -5,15 +5,48 @@ public static class FlightPhysics
     private const double HeadingSnapDeg = 0.5;
     private const double AltitudeSnapFt = 10.0;
     private const double SpeedSnapKts = 2.0;
+    private const double NavArrivalNm = 0.5;
+    private const double DegToRad = Math.PI / 180.0;
+    private const double NmPerDegLat = 60.0;
 
     public static void Update(AircraftState aircraft, double deltaSeconds)
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
+        UpdateNavigation(aircraft);
         UpdateHeading(aircraft, cat, deltaSeconds);
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
         UpdatePosition(aircraft, deltaSeconds);
+        UpdateCommandQueue(aircraft);
+    }
+
+    private static void UpdateNavigation(AircraftState aircraft)
+    {
+        var route = aircraft.Targets.NavigationRoute;
+        if (route.Count == 0)
+        {
+            return;
+        }
+
+        var nav = route[0];
+        double distNm = DistanceNm(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+        if (distNm < NavArrivalNm)
+        {
+            route.RemoveAt(0);
+            if (route.Count == 0)
+            {
+                aircraft.Targets.TargetHeading = null;
+                aircraft.Targets.PreferredTurnDirection = null;
+                return;
+            }
+
+            nav = route[0];
+        }
+
+        double bearing = BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+        aircraft.Targets.TargetHeading = bearing;
+        aircraft.Targets.PreferredTurnDirection = null;
     }
 
     private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
@@ -36,8 +69,12 @@ public static class FlightPhysics
                 aircraft.Heading += 360.0;
             }
 
-            aircraft.Targets.TargetHeading = null;
-            aircraft.Targets.PreferredTurnDirection = null;
+            // Don't clear heading if nav route is actively steering
+            if (aircraft.Targets.NavigationRoute.Count == 0)
+            {
+                aircraft.Targets.TargetHeading = null;
+                aircraft.Targets.PreferredTurnDirection = null;
+            }
             return;
         }
 
@@ -132,13 +169,141 @@ public static class FlightPhysics
     private static void UpdatePosition(AircraftState aircraft, double deltaSeconds)
     {
         double speedNmPerSec = aircraft.GroundSpeed / 3600.0;
-        double headingRad = aircraft.Heading * Math.PI / 180.0;
-        double latRad = aircraft.Latitude * Math.PI / 180.0;
+        double headingRad = aircraft.Heading * DegToRad;
+        double latRad = aircraft.Latitude * DegToRad;
 
-        aircraft.Latitude += speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / 60.0;
+        aircraft.Latitude += speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / NmPerDegLat;
 
-        aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (60.0 * Math.Cos(latRad));
+        aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
     }
+
+    private static void UpdateCommandQueue(AircraftState aircraft)
+    {
+        var queue = aircraft.Queue;
+        if (queue.IsComplete)
+        {
+            return;
+        }
+
+        var block = queue.CurrentBlock;
+        if (block is null)
+        {
+            return;
+        }
+
+        // Check completion of commands in the current applied block
+        if (block.IsApplied)
+        {
+            UpdateBlockCompletion(aircraft, block);
+
+            if (block.AllComplete)
+            {
+                queue.CurrentBlockIndex++;
+                block = queue.CurrentBlock;
+                if (block is null)
+                {
+                    return;
+                }
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        // For unapplied blocks, check if trigger is met
+        if (!block.IsApplied)
+        {
+            if (block.Trigger is not null && !block.TriggerMet)
+            {
+                block.TriggerMet = IsTriggerMet(aircraft, block.Trigger);
+                if (!block.TriggerMet)
+                {
+                    return;
+                }
+            }
+
+            // Apply the block's commands
+            ApplyBlock(aircraft, block);
+        }
+    }
+
+    private static void UpdateBlockCompletion(AircraftState aircraft, CommandBlock block)
+    {
+        foreach (var cmd in block.Commands)
+        {
+            if (cmd.IsComplete)
+            {
+                continue;
+            }
+
+            cmd.IsComplete = cmd.Type switch
+            {
+                TrackedCommandType.Heading => aircraft.Targets.TargetHeading is null && aircraft.Targets.NavigationRoute.Count == 0,
+                TrackedCommandType.Altitude => aircraft.Targets.TargetAltitude is null,
+                TrackedCommandType.Speed => aircraft.Targets.TargetSpeed is null,
+                TrackedCommandType.Navigation => aircraft.Targets.NavigationRoute.Count == 0,
+                TrackedCommandType.Immediate => true,
+                _ => true,
+            };
+        }
+    }
+
+    private static bool IsTriggerMet(AircraftState aircraft, BlockTrigger trigger)
+    {
+        return trigger.Type switch
+        {
+            BlockTriggerType.ReachAltitude => trigger.Altitude.HasValue && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < AltitudeSnapFt,
+            BlockTriggerType.ReachFix => trigger.FixLat.HasValue
+                && trigger.FixLon.HasValue
+                && DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.FixLat.Value, trigger.FixLon.Value) < NavArrivalNm,
+            _ => true,
+        };
+    }
+
+    private static void ApplyBlock(AircraftState aircraft, CommandBlock block)
+    {
+        block.IsApplied = true;
+        block.ApplyAction?.Invoke(aircraft);
+
+        foreach (var cmd in block.Commands)
+        {
+            if (cmd.Type == TrackedCommandType.Immediate)
+            {
+                cmd.IsComplete = true;
+            }
+        }
+    }
+
+    // --- Geo helpers ---
+
+    public static double DistanceNm(double lat1, double lon1, double lat2, double lon2)
+    {
+        double dLat = (lat2 - lat1) * DegToRad;
+        double dLon = (lon2 - lon1) * DegToRad;
+        double lat1Rad = lat1 * DegToRad;
+        double lat2Rad = lat2 * DegToRad;
+
+        double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) + Math.Cos(lat1Rad) * Math.Cos(lat2Rad) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        double c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+        return c * 3440.065; // Earth radius in nm
+    }
+
+    public static double BearingTo(double lat1, double lon1, double lat2, double lon2)
+    {
+        double lat1Rad = lat1 * DegToRad;
+        double lat2Rad = lat2 * DegToRad;
+        double dLonRad = (lon2 - lon1) * DegToRad;
+
+        double y = Math.Sin(dLonRad) * Math.Cos(lat2Rad);
+        double x = Math.Cos(lat1Rad) * Math.Sin(lat2Rad) - Math.Sin(lat1Rad) * Math.Cos(lat2Rad) * Math.Cos(dLonRad);
+
+        double bearing = Math.Atan2(y, x) / DegToRad;
+        return NormalizeHeading(bearing);
+    }
+
+    // --- Math helpers ---
 
     private static double ResolveDirection(double diff, TurnDirection? preferred)
     {

@@ -30,4 +30,18 @@ public class ControlTargets
     /// Null means maintain current speed.
     /// </summary>
     public double? TargetSpeed { get; set; }
+
+    /// <summary>
+    /// Waypoint queue for DCT (direct-to) navigation.
+    /// The aircraft steers toward the first waypoint; when reached,
+    /// it advances to the next. Cleared when all waypoints are visited.
+    /// </summary>
+    public List<NavigationTarget> NavigationRoute { get; } = [];
+}
+
+public class NavigationTarget
+{
+    public required string Name { get; init; }
+    public required double Latitude { get; init; }
+    public required double Longitude { get; init; }
 }

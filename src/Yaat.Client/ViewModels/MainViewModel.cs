@@ -371,31 +371,67 @@ public partial class MainViewModel : ObservableObject
 
         var scheme = _preferences.CommandScheme;
 
-        // Try parsing the whole input as a command first (for already-selected aircraft)
-        var parsed = CommandSchemeParser.Parse(text, scheme);
+        // Check for global commands first (no callsign needed)
+        var globalParsed = CommandSchemeParser.Parse(text, scheme);
+        if (globalParsed is not null && IsGlobalCommand(globalParsed.Type))
+        {
+            await HandleGlobalCommand(globalParsed);
+            return;
+        }
+
+        // Try to resolve callsign prefix from the input
         var commandText = text;
         AircraftModel? target = SelectedAircraft;
 
-        // If parsing failed, or even if it succeeded, check if the first token is a callsign.
-        // This lets "N436MS CM 240" or "436 CM 240" work regardless of current selection.
-        if (parsed is null || !IsGlobalCommand(parsed.Type))
+        var resolved = TryResolveCallsignPrefix(text, scheme);
+        if (resolved is not null)
         {
-            var resolved = TryResolveCallsignPrefix(text, scheme);
-            if (resolved is not null)
-            {
-                target = resolved.Value.Aircraft;
-                commandText = resolved.Value.Remainder;
-                parsed = CommandSchemeParser.Parse(commandText, scheme);
-            }
+            target = resolved.Value.Aircraft;
+            commandText = resolved.Value.Remainder;
         }
 
-        if (parsed is null)
+        // Parse as compound command (handles single and multi-block)
+        var compound = CommandSchemeParser.ParseCompound(commandText, scheme);
+        if (compound is null)
         {
-            var verb = commandText.Split(' ', 2)[0];
+            var verb = commandText.Split([' ', ',', ';'], 2)[0];
             StatusText = $"Unrecognized verb \"{verb}\" — type a command like FH 270, CM 240, SPD 250";
             return;
         }
 
+        if (target is null)
+        {
+            StatusText = "No aircraft matched — type a callsign (or partial) before the command";
+            return;
+        }
+
+        SelectedAircraft = target;
+
+        try
+        {
+            var result = await _connection.SendCommandAsync(target.Callsign, compound.CanonicalString);
+
+            var entry = $"{target.Callsign} {commandText}";
+            if (result.Success)
+            {
+                AddHistory(entry);
+            }
+            else
+            {
+                AddHistory($"{entry} — {result.Message}");
+            }
+
+            CommandText = "";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Command failed");
+            StatusText = $"Command error: {ex.Message}";
+        }
+    }
+
+    private async Task HandleGlobalCommand(ParsedInput parsed)
+    {
         if (parsed.Type == CanonicalCommandType.Pause)
         {
             await _connection.PauseSimulationAsync();
@@ -418,40 +454,6 @@ public partial class MainViewModel : ObservableObject
                 AddHistory($"SIMRATE {rate}");
             }
             CommandText = "";
-            return;
-        }
-
-        if (target is null)
-        {
-            StatusText = "No aircraft matched — type a callsign (or partial) before the command";
-            return;
-        }
-
-        // Update selection to the resolved target
-        SelectedAircraft = target;
-
-        var canonical = CommandSchemeParser.ToCanonical(parsed.Type, parsed.Argument);
-
-        try
-        {
-            var result = await _connection.SendCommandAsync(target.Callsign, canonical);
-
-            var entry = $"{target.Callsign} {commandText}";
-            if (result.Success)
-            {
-                AddHistory(entry);
-            }
-            else
-            {
-                AddHistory($"{entry} — {result.Message}");
-            }
-
-            CommandText = "";
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Command failed");
-            StatusText = $"Command error: {ex.Message}";
         }
     }
 
@@ -481,7 +483,7 @@ public partial class MainViewModel : ObservableObject
         var remainder = parts[1].Trim();
 
         // Only consider this a callsign if the remainder parses as a valid command
-        var remainderParsed = CommandSchemeParser.Parse(remainder, scheme);
+        var remainderParsed = CommandSchemeParser.ParseCompound(remainder, scheme);
         if (remainderParsed is null)
         {
             return null;

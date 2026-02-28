@@ -17,6 +17,7 @@ public enum CanonicalCommandType
     SquawkNormal,
     SquawkStandby,
     Ident,
+    DirectTo,
     Delete,
     Pause,
     Unpause,
