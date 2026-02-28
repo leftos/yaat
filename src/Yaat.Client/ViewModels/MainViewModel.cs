@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
@@ -86,6 +87,12 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _terminalText = "";
+
+    [ObservableProperty]
+    private string _distanceReferenceFix = "";
+
+    private double? _distanceRefLat;
+    private double? _distanceRefLon;
 
     public ObservableCollection<AircraftModel> Aircraft { get; } = [];
 
@@ -266,6 +273,11 @@ public partial class MainViewModel : ObservableObject
                 _commandInput.PrimaryAirportId = result.PrimaryAirportId;
                 ApplySimState(result.IsPaused, result.SimRate);
 
+                if (!string.IsNullOrEmpty(result.PrimaryAirportId))
+                {
+                    SetDistanceReference(result.PrimaryAirportId);
+                }
+
                 _log.LogInformation(
                     "Scenario loaded: '{Name}' ({Id}), " + "{Count} aircraft, " + "{Delayed} delayed, " + "{All} total, " + "{Warnings} warnings",
                     result.Name,
@@ -317,6 +329,11 @@ public partial class MainViewModel : ObservableObject
                 ActiveScenarioName = result.Name;
                 _commandInput.PrimaryAirportId = result.PrimaryAirportId;
                 ApplySimState(result.IsPaused, result.SimRate);
+
+                if (!string.IsNullOrEmpty(result.PrimaryAirportId))
+                {
+                    SetDistanceReference(result.PrimaryAirportId);
+                }
 
                 Aircraft.Clear();
                 foreach (var dto in result.AllAircraft)
@@ -702,6 +719,74 @@ public partial class MainViewModel : ObservableObject
         CommandSchemeName = CommandScheme.DetectPresetName(_preferences.CommandScheme) ?? "Custom";
     }
 
+    public void SetDistanceReference(string fixOrFrd)
+    {
+        if (string.IsNullOrWhiteSpace(fixOrFrd))
+        {
+            _distanceRefLat = null;
+            _distanceRefLon = null;
+            DistanceReferenceFix = "";
+            ClearAllDistances();
+            return;
+        }
+
+        var fixDb = _commandInput.FixDb;
+        if (fixDb is null)
+        {
+            _log.LogWarning(
+                "Cannot set distance reference — navdata not loaded");
+            return;
+        }
+
+        var resolved = FrdResolver.Resolve(fixOrFrd, fixDb);
+        if (resolved is null)
+        {
+            _log.LogWarning(
+                "Distance reference '{Fix}' could not be resolved", fixOrFrd);
+            StatusText = $"Unknown fix: {fixOrFrd}";
+            return;
+        }
+
+        _distanceRefLat = resolved.Latitude;
+        _distanceRefLon = resolved.Longitude;
+        DistanceReferenceFix = FrdResolver.ParseFrd(fixOrFrd)?.Fix
+            ?? fixOrFrd.Trim().ToUpperInvariant();
+        RecalculateAllDistances();
+    }
+
+    private void RecalculateAllDistances()
+    {
+        foreach (var ac in Aircraft)
+        {
+            ac.DistanceFromFix = ComputeDistance(ac);
+        }
+    }
+
+    private void ClearAllDistances()
+    {
+        foreach (var ac in Aircraft)
+        {
+            ac.DistanceFromFix = null;
+        }
+    }
+
+    private double? ComputeDistance(AircraftModel model)
+    {
+        if (_distanceRefLat is null || _distanceRefLon is null)
+        {
+            return null;
+        }
+
+        if (model.IsDelayedOrDeferred)
+        {
+            return null;
+        }
+
+        return GeoMath.DistanceNm(
+            model.Latitude, model.Longitude,
+            _distanceRefLat.Value, _distanceRefLon.Value);
+    }
+
     [RelayCommand]
     private void ToggleTerminalDock()
     {
@@ -895,7 +980,7 @@ public partial class MainViewModel : ObservableObject
         return null;
     }
 
-    private static void UpdateModel(AircraftModel model, AircraftDto dto)
+    private void UpdateModel(AircraftModel model, AircraftDto dto)
     {
         model.Latitude = dto.Latitude;
         model.Longitude = dto.Longitude;
@@ -927,11 +1012,12 @@ public partial class MainViewModel : ObservableObject
         model.EquipmentSuffix = dto.EquipmentSuffix;
         model.CruiseAltitude = dto.CruiseAltitude;
         model.CruiseSpeed = dto.CruiseSpeed;
+        model.DistanceFromFix = ComputeDistance(model);
     }
 
-    private static AircraftModel DtoToModel(AircraftDto dto)
+    private AircraftModel DtoToModel(AircraftDto dto)
     {
-        return new AircraftModel
+        var model = new AircraftModel
         {
             Callsign = dto.Callsign,
             AircraftType = dto.AircraftType,
@@ -966,5 +1052,7 @@ public partial class MainViewModel : ObservableObject
             CruiseAltitude = dto.CruiseAltitude,
             CruiseSpeed = dto.CruiseSpeed,
         };
+        model.DistanceFromFix = ComputeDistance(model);
+        return model;
     }
 }

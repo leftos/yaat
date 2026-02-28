@@ -219,6 +219,27 @@
                         Binding="{Binding AssignedSpeed,
                         StringFormat=\{0:F0\}}"
                         Width="Auto" />
+                    <DataGridTemplateColumn Width="Auto"
+                        SortMemberPath="DistanceFromFix">
+                        <DataGridTemplateColumn.Header>
+                            <TextBlock Text="{Binding
+                                DataContext.DistanceReferenceFix,
+                                RelativeSource={RelativeSource
+                                    AncestorType=Window},
+                                StringFormat='Dist ({0})',
+                                FallbackValue='Dist'}"
+                                x:Name="DistanceHeader" />
+                        </DataGridTemplateColumn.Header>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock
+                                    Text="{Binding DistanceFromFix,
+                                        StringFormat='\{0:F1\}'}"
+                                    Margin="4,0"
+                                    VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn Header="Pending Cmds"
                         Binding="{Binding PendingCommands}"
                         Width="Auto" />

@@ -58,6 +58,7 @@ The main grid shows all aircraft in your scenario:
 | Phase | Current phase name (e.g., Downwind, FinalApproach, TakeoffRoll) |
 | Rwy | Assigned runway |
 | AHdg / AAlt / ASpd | Assigned targets — AHdg shows the next fix name when navigating, or heading when under vectors |
+| Dist | Distance in NM from the reference fix (see below) |
 | Pending Cmds | Queued command blocks not yet executed (from compound commands) |
 
 Click an aircraft row to select it. Press **Esc** to deselect.
@@ -76,6 +77,14 @@ Selecting an aircraft row expands a detail panel below it showing additional sta
 | Pending | Queued command blocks exist | Full pending commands text (same as grid column, with more space) |
 
 Sections with no data are hidden. Selecting a different row collapses the previous panel and expands the new one.
+
+### Distance Column
+
+The **Dist** column shows each aircraft's distance in nautical miles from a reference fix. When a scenario is loaded, the reference fix defaults to the scenario's primary airport.
+
+To change the reference fix, **right-click** the "Dist" column header. A flyout appears where you can type a fix name or FRD (fix-radial-distance) string. Autocomplete suggestions appear as you type. Press **Enter** or click a suggestion to apply, **Escape** to cancel.
+
+Delayed and deferred aircraft (not yet spawned) show a blank distance.
 
 ## Commands
 

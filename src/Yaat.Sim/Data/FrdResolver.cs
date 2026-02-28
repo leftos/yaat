@@ -32,7 +32,7 @@ public static class FrdResolver
             radial.Value, distance.Value);
     }
 
-    internal static (string Fix, int? Radial, int? Distance)? ParseFrd(
+    public static (string Fix, int? Radial, int? Distance)? ParseFrd(
         string frdString)
     {
         if (string.IsNullOrWhiteSpace(frdString))

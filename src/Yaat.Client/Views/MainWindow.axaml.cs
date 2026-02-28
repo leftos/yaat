@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
@@ -44,6 +46,180 @@ public partial class MainWindow : Window
         }
 
         vm.PropertyChanged += OnViewModelPropertyChanged;
+
+        WireDistanceFlyout(vm);
+    }
+
+    private void WireDistanceFlyout(MainViewModel vm)
+    {
+        var dataGrid = this.FindControl<DataGrid>("AircraftGrid");
+        if (dataGrid is null)
+        {
+            return;
+        }
+
+        // Defer until the grid is fully loaded so column headers exist
+        dataGrid.Loaded += (_, _) =>
+        {
+            var header = this.FindControl<TextBlock>("DistanceHeader");
+            if (header is null)
+            {
+                return;
+            }
+
+            var input = new TextBox
+            {
+                Watermark = "Fix or FRD...",
+            };
+            var listBox = new ListBox
+            {
+                MaxHeight = 160,
+                IsVisible = false,
+                Padding = new Avalonia.Thickness(2),
+                Background = Avalonia.Media.Brush.Parse("#2D2D30"),
+                BorderBrush = Avalonia.Media.Brush.Parse("#3F3F46"),
+                BorderThickness = new Avalonia.Thickness(1),
+            };
+
+            var panel = new StackPanel
+            {
+                Width = 220,
+                Spacing = 4,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "Reference Fix",
+                        FontWeight = Avalonia.Media.FontWeight.Bold,
+                        Margin = new Avalonia.Thickness(0, 0, 0, 4),
+                    },
+                    input,
+                    listBox,
+                },
+            };
+
+            var flyout = new Flyout
+            {
+                Content = panel,
+                Placement = PlacementMode.BottomEdgeAlignedLeft,
+            };
+
+            header.ContextFlyout = flyout;
+
+            flyout.Opened += (_, _) =>
+            {
+                input.Text = "";
+                listBox.Items.Clear();
+                listBox.IsVisible = false;
+                input.Focus();
+            };
+
+            input.TextChanged += (_, _) =>
+            {
+                UpdateDistFixSuggestions(vm, input, listBox);
+            };
+
+            input.KeyDown += (_, e) =>
+            {
+                if (e.Key == Key.Enter)
+                {
+                    ApplyDistanceFix(vm, input.Text, flyout);
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Escape)
+                {
+                    flyout.Hide();
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Down && listBox.IsVisible
+                         && listBox.ItemCount > 0)
+                {
+                    listBox.SelectedIndex = 0;
+                    listBox.Focus();
+                    e.Handled = true;
+                }
+            };
+
+            listBox.KeyDown += (_, e) =>
+            {
+                if (e.Key == Key.Enter
+                    && listBox.SelectedItem is string sel)
+                {
+                    ApplyDistanceFix(vm, sel, flyout);
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Escape)
+                {
+                    flyout.Hide();
+                    e.Handled = true;
+                }
+            };
+
+            listBox.DoubleTapped += (_, _) =>
+            {
+                if (listBox.SelectedItem is string sel)
+                {
+                    ApplyDistanceFix(vm, sel, flyout);
+                }
+            };
+        };
+    }
+
+    private static void UpdateDistFixSuggestions(
+        MainViewModel vm, TextBox input, ListBox listBox)
+    {
+        var text = input.Text?.Trim().ToUpperInvariant() ?? "";
+        listBox.Items.Clear();
+
+        var fixDb = vm.CommandInput.FixDb;
+        if (fixDb is null || text.Length == 0)
+        {
+            listBox.IsVisible = false;
+            return;
+        }
+
+        var allNames = fixDb.AllFixNames;
+        int lo = 0, hi = allNames.Length - 1;
+        while (lo <= hi)
+        {
+            int mid = lo + (hi - lo) / 2;
+            if (string.Compare(
+                allNames[mid], 0, text, 0, text.Length,
+                StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid - 1;
+            }
+        }
+
+        int count = 0;
+        for (int i = lo; i < allNames.Length && count < 10; i++)
+        {
+            if (!allNames[i].StartsWith(
+                text, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+            listBox.Items.Add(allNames[i]);
+            count++;
+        }
+
+        listBox.IsVisible = count > 0;
+    }
+
+    private static void ApplyDistanceFix(
+        MainViewModel vm, string? text, Flyout flyout)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        vm.SetDistanceReference(text.Trim());
+        flyout.Hide();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

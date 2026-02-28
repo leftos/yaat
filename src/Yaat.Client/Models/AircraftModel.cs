@@ -233,6 +233,9 @@ public partial class AircraftModel : ObservableObject
     }
 
     [ObservableProperty]
+    private double? _distanceFromFix;
+
+    [ObservableProperty]
     private bool _isSelected;
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)
