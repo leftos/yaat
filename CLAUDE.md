@@ -25,28 +25,44 @@ The solution uses `.slnx` format (`yaat.slnx`). If your IDE doesn't support `.sl
 Two projects in `yaat.slnx`:
 
 ```
-src/Yaat.Client/     # Avalonia 11 desktop app (MVVM, executable)
-  Models/            # ObservableObject data models ([ObservableProperty] source-gen'd)
-  Services/          # SignalR client (ServerConnection) + DTOs (AircraftDto, SpawnAircraftDto)
-  ViewModels/        # [RelayCommand] view models, ConnectButtonConverter
-  Views/             # Avalonia AXAML views + code-behind
+src/Yaat.Client/        # Avalonia 11 desktop app (MVVM, executable)
+  Logging/              # AppLog static factory + FileLoggerProvider
+  Models/               # ObservableObject data models ([ObservableProperty] source-gen'd)
+  Services/             # SignalR client, command parsing, user preferences
+  ViewModels/           # [RelayCommand] view models, value converters
+  Views/                # Avalonia AXAML views + code-behind
 
-src/Yaat.Sim/        # Shared simulation library (class library, no dependencies)
-  AircraftState.cs   # Mutable aircraft state with flight plan fields
-  FlightPhysics.cs   # Position update from heading + groundspeed
-  SimulationWorld.cs # Thread-safe aircraft collection with tick loop
+src/Yaat.Sim/           # Shared simulation library (class library, no dependencies)
+  AircraftState.cs      # Mutable aircraft state with flight plan fields
+  AircraftCategory.cs   # AircraftCategorization (static lookup) + CategoryPerformance constants
+  ControlTargets.cs     # Target heading/altitude/speed/navigation for physics interpolation
+  CommandQueue.cs       # CommandBlock/BlockTrigger/TrackedCommand for chained command execution
+  FlightPhysics.cs      # 6-step Update: navigation → heading → altitude → speed → position → queue
+  SimulationWorld.cs    # Thread-safe aircraft collection with tick loop (per-scenario support)
+  Commands/             # CanonicalCommandType enum (FlyHeading, ClimbMaintain, Speed, etc.)
+  Data/                 # CustomFixDefinition/Loader for scenario-defined waypoints
 ```
 
-**Yaat.Client** is the Avalonia desktop app. **Yaat.Sim** is a standalone library intended to be shared with yaat-server (not currently referenced by Yaat.Client).
+**Yaat.Client** is the Avalonia desktop app. **Yaat.Sim** is a standalone library shared with yaat-server (referenced by both projects).
 
 **Key patterns:**
-- `ServerConnection` is the single SignalR client connecting to `/hubs/training` (JSON protocol, not MessagePack). DTOs (`AircraftDto`, `SpawnAircraftDto`) are records defined in the same file.
+- `ServerConnection` is the single SignalR client connecting to `/hubs/training` (JSON protocol, not MessagePack). DTOs (`AircraftDto`, `LoadScenarioResultDto`, `CommandResultDto`, etc.) are records defined in the same file.
 - ViewModels use `[ObservableProperty]` and `[RelayCommand]` from CommunityToolkit.Mvvm — fields are `_camelCase`, auto-generated properties are `PascalCase`
 - SignalR callbacks arrive on a background thread; ViewModels marshal to UI via `Avalonia.Threading.Dispatcher.UIThread.Post()`
 - No DI container — `MainWindow` creates `MainViewModel` directly, which instantiates `ServerConnection` as a field
 - `SimulationWorld.GetSnapshot()` returns a shallow list copy; callers should treat returned `AircraftState` objects as read-only
+- `UserPreferences` persists to `%LOCALAPPDATA%/yaat/preferences.json` (command scheme, admin settings, window geometry)
+- `AppLog` is a static logger factory; logs to `%LOCALAPPDATA%/yaat/yaat-client.log`
 
-**Command scheme:** RPO commands are parsed client-side using a configurable `CommandScheme` (ATCTrainer or VICE presets). The client translates user input into canonical ATCTrainer format before sending to the server. The server only understands canonical format.
+**Command parsing pipeline:**
+RPO commands are parsed client-side using a configurable `CommandScheme` (ATCTrainer or VICE presets). The flow:
+1. User types input in command bar (optionally prefixed with callsign)
+2. `MainViewModel.SendCommandAsync()` resolves callsign via partial match
+3. `CommandSchemeParser.ParseCompound()` handles compound syntax: `;` separates sequential blocks, `,` separates parallel commands, `LV {alt}` / `AT {fix}` prefix conditions
+4. Each command is translated to canonical ATCTrainer format (`FH 270`, `CM 240`, etc.)
+5. The full canonical string is sent to the server via `SendCommand(callsign, canonicalString)`
+
+The server builds a `CommandQueue` of `CommandBlock`s from the canonical string. Each block has an optional `BlockTrigger` (reach altitude, reach fix) and an `ApplyAction` that sets `ControlTargets`. `FlightPhysics.UpdateCommandQueue()` checks triggers and advances blocks each tick.
 
 **Communication flow:**
 ```
@@ -56,10 +72,23 @@ YAAT Client (this repo)  ──SignalR JSON──>  yaat-server  <──SignalR+
 
 The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw WebSocket with varint+MessagePack binary framing (handled entirely by yaat-server).
 
-**SignalR hub methods used by the client:**
+**SignalR hub methods (client→server):**
 - `GetAircraftList()` → `List<AircraftDto>` — called on connect
-- `SpawnAircraft(SpawnAircraftDto)` — spawns a new aircraft
-- `AircraftUpdated` (server→client event) — pushed on each sim tick
+- `LoadScenario(scenarioJson)` → `LoadScenarioResultDto` — load and start scenario
+- `LeaveScenario()` — leave current scenario
+- `GetActiveScenarios()` → `List<ScenarioSessionInfoDto>` — list resumable scenarios
+- `RejoinScenario(scenarioId)` → `LoadScenarioResultDto` — rejoin existing scenario
+- `SendCommand(callsign, command)` → `CommandResultDto` — issue RPO command
+- `DeleteAircraft(callsign)` / `DeleteAllAircraft()` / `ConfirmDeleteAll()`
+- `PauseSimulation()` / `ResumeSimulation()` / `SetSimRate(rate)`
+- `AdminAuthenticate(password)` / `AdminGetScenarios()` / `AdminSetScenarioFilter(scenarioId?)`
+- `Heartbeat` — 30-second keepalive
+
+**Server→client events:**
+- `AircraftUpdated(AircraftDto)` — pushed on each sim tick
+- `AircraftSpawned(AircraftDto)` — new aircraft (e.g., from delayed spawn)
+- `AircraftDeleted(callsign)` — aircraft removed
+- `SimulationStateChanged(isPaused, simRate)` — pause/rate changes
 
 ## Tech Stack
 
