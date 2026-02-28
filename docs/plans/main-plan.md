@@ -144,7 +144,7 @@ yaat/
 
 ## Milestones
 
-### Milestone 0: Proof of Concept
+### ~~Milestone 0: Proof of Concept~~ COMPLETE
 
 **Goal:** CRC connects to yaat-server and sees aircraft moving on radar.
 
@@ -183,7 +183,7 @@ yaat/
 
 ---
 
-### Milestone 1: Scenario Loading & Basic RPO Commands
+### ~~Milestone 1: Scenario Loading & Basic RPO Commands~~ COMPLETE
 
 **Goal:** Load ATCTrainer scenarios, spawn aircraft from them, issue heading/altitude/speed commands.
 
@@ -530,7 +530,9 @@ Entity updates are **not** sent over UDP yet; CRC receives them via WebSocket in
 
 ## Detailed Milestone Plans
 
-- [Milestone 0: Proof of Concept](milestone-0.md)
+- [Milestone 0: Proof of Concept](completed/milestone-0.md) — COMPLETE
+- [Milestone 1: Scenario Loading & Basic RPO Commands](completed/milestone-1.md) — COMPLETE
+- [Milestone 2: Local Control (Tower)](milestone-2.md)
 
 ---
 

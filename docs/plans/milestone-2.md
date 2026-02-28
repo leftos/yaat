@@ -1,0 +1,408 @@
+# Milestone 2: Local Control (Tower)
+
+## Context
+
+M0 (proof of concept) and M1 (scenario loading + RPO commands) are complete. Aircraft spawn from ATCTrainer scenarios at airborne positions, respond to heading/altitude/speed commands, and display in CRC. The server uses a target-based architecture: RPO commands set `ControlTargets`, and `FlightPhysics` interpolates toward them each tick.
+
+M2 introduces the **Phase system** — the foundation for all future behavior — and uses it to implement tower operations: takeoff, landing, traffic pattern, touch-and-go, and go-around. This transforms YAAT from an airborne-only RPO tool into a local control trainer.
+
+Work spans three codebases:
+- **Yaat.Sim** (`X:\dev\yaat\src\Yaat.Sim\`) — Phase infrastructure, pattern geometry, ground roll physics
+- **Yaat.Server** (`X:\dev\yaat-server\src\Yaat.Server\`) — Phase implementations, tower commands, runway data, hub updates
+- **Yaat.Client** (`X:\dev\yaat\src\Yaat.Client\`) — Phase display, tower state UI
+
+### Key Design Decisions
+
+**Simplified Phase system.** Per the pilot-ai-architecture doc: "Each aircraft gets a simple phase list — no full Plan/Intent yet, just a current phase driving ControlTargets." We implement the abstract `Phase` base class and a linear phase list, but defer `Plan`, `Intent`, `Contingency`, and `Expectation` classes to M4+ when approach control needs them.
+
+**ClearanceRequirement is essential.** Tower operations are fundamentally clearance-gated: aircraft hold short until LUAW, wait on the runway until CTO, go around if no landing clearance. This is not optional for training realism.
+
+**Runway data from VNAS.** The server's `FixDatabase` already loads NavData.dat which contains airport and runway data. We extend it to expose runway positions, headings, and elevations.
+
+**Phase drives ControlTargets.** The current M1 architecture has RPO commands setting targets directly. In M2, when an aircraft has an active Phase, the Phase sets targets each tick. RPO commands that conflict with the phase (e.g., speed assignment during takeoff roll) are rejected. RPO commands that override the phase (e.g., heading after takeoff) transition to the appropriate state.
+
+---
+
+## Chunk 1: Phase Infrastructure (Yaat.Sim)
+
+Foundation that all tower operations build on.
+
+**AVIATION REVIEW GATE**: aviation-sim-expert MUST validate Phase lifecycle and clearance model before implementation.
+
+- [ ] Create `Phases/Phase.cs` — abstract base class with:
+  - `PhaseStatus` enum (Pending, Active, Completed, Skipped)
+  - `OnStart(PhaseContext)`, `OnTick(PhaseContext, double deltaSec) -> bool`, `OnEnd(PhaseContext, PhaseStatus)`
+  - `Name` and `Description` abstract properties
+  - `ClearanceRequirements` list (created via `CreateRequirements()`)
+- [ ] Create `Phases/PhaseContext.cs` — provides access to:
+  - `AircraftState` (current state)
+  - `ControlTargets` (to set each tick)
+  - `RunwayInfo` (position, heading, elevation, length — nullable, only set for runway-related phases)
+  - `PatternInfo` (pattern parameters — nullable, only set for pattern phases)
+  - `ElapsedInPhaseMs` (time since phase became active)
+- [ ] Create `Phases/ClearanceRequirement.cs`:
+  - `ClearanceType` enum: `ClearedForTakeoff`, `LineUpAndWait`, `ClearedToLand`, `ClearedForOption`, `ClearedTouchAndGo`
+  - `ClearanceRequirement` class with `Type`, `IsSatisfied`
+- [ ] Create `Phases/PhaseList.cs` — simple linear phase container:
+  - `CurrentPhase`, `CurrentIndex`, `IsComplete`
+  - `AdvanceToNext()` — completes current, starts next
+  - `InsertAfterCurrent(Phase)` — for go-around insertion
+  - `SkipTo<T>()` — skip forward to a phase type
+  - `Clear()` — remove all phases (aircraft returns to target-only mode)
+- [ ] Modify `AircraftState.cs` — add `PhaseList? Phases` field
+- [ ] Modify `FlightPhysics.cs` or create `PhaseRunner.cs`:
+  - Before the 4-step physics update, tick the current phase
+  - Phase's `OnTick` sets `ControlTargets`; then physics interpolates toward them
+  - If phase returns `true` (complete), advance to next phase
+  - If current phase has unsatisfied clearance requirements, the phase's `OnTick` should handle the "waiting" behavior (e.g., hold position)
+- [ ] Wire into `SimulationWorld.TickScenario()` — call phase tick before physics tick for each aircraft
+
+---
+
+## Chunk 2: Runway Data Model (Yaat.Server)
+
+Tower operations need runway geometry: threshold position, heading, elevation, length.
+
+- [ ] Determine runway data source — check if VNAS NavData.dat contains runway records, or if we need a separate data source
+  - NavData.dat likely has airport reference points but may not have individual runway thresholds
+  - Fallback: extract from scenario data (`primaryAirportId` + runway identifiers) or hardcode for common training airports
+- [ ] Create `Data/RunwayInfo.cs`:
+  - `string AirportId` (ICAO or FAA id)
+  - `string RunwayId` (e.g., "28R", "10L")
+  - `double ThresholdLatitude`, `ThresholdLongitude`
+  - `double Heading` (magnetic heading of the runway)
+  - `double ElevationFt` (threshold elevation)
+  - `double LengthFt`, `double WidthFt`
+  - `string? ReciprocalId` (the other end)
+  - Computed: `double OppositeHeading`, endpoint lat/lon from heading + length
+- [ ] Create `Data/IRunwayLookup.cs` + `Data/RunwayDatabase.cs`:
+  - `RunwayInfo? GetRunway(string airportId, string runwayId)`
+  - `IReadOnlyList<RunwayInfo> GetRunways(string airportId)`
+  - Load from whatever data source is available
+- [ ] If VNAS data is insufficient, create `Data/RunwayData/` with JSON files for common training airports (at minimum: SFO/KSFO, OAK/KOAK — the ZOA airports used in ATCTrainer scenarios)
+
+---
+
+## Chunk 3: Takeoff Sequence (Yaat.Sim + Yaat.Server)
+
+**AVIATION REVIEW GATE**: aviation-sim-expert MUST validate takeoff physics (Vr, V2, initial climb rates by aircraft category, acceleration rates on ground).
+
+### Phases
+
+- [ ] Create `Phases/Tower/LinedUpAndWaitingPhase.cs`:
+  - Aircraft is on the runway, stationary, aligned with runway heading
+  - Clearance-gated: requires `ClearedForTakeoff`
+  - `OnTick`: hold position (speed = 0, heading = runway heading) until clearance satisfied
+  - When clearance received, complete → advance to `TakeoffPhase`
+- [ ] Create `Phases/Tower/TakeoffPhase.cs`:
+  - `OnStart`: set heading target = runway heading (or assigned heading from CTO command), begin acceleration
+  - Ground roll: accelerate from 0 to Vr (rotation speed, ~130-150 kts for jets, ~60-80 kts for props)
+  - At Vr: "rotate" — begin pitch up, liftoff occurs ~5-10 kts above Vr
+  - After liftoff: climb at V2+10, initial climb rate by aircraft category
+  - `OnTick` returns complete when aircraft reaches a configurable altitude (e.g., 400 ft AGL or pattern altitude)
+  - Track `IsAirborne` flag — transitions from ground roll to flight
+- [ ] Create `Phases/Tower/InitialClimbPhase.cs`:
+  - After takeoff phase completes, aircraft continues climbing
+  - Maintains runway heading (or assigned heading) and accelerates to cruise climb speed
+  - Completes when reaching assigned altitude, or transitions to "no phase" (RPO takes over with direct heading/altitude commands)
+
+### Physics
+
+- [ ] Extend `FlightPhysics.cs` — ground roll mode:
+  - When aircraft altitude equals airport elevation and speed < liftoff speed: ground mode
+  - No altitude change during ground roll (aircraft stays on runway)
+  - Heading locked to runway heading during ground roll (no turns on the ground yet — that's M3)
+  - Acceleration rate on ground (higher than airborne — ~3-5 kts/sec for jets)
+  - Position updates along runway centerline during ground roll
+- [ ] Add `AircraftState.IsOnGround` computed property (altitude within ~50 ft of last known ground elevation, or explicit flag)
+- [ ] Add aircraft category Vr/V2 estimates to `AircraftCategorization.cs`
+
+### Commands
+
+- [ ] Add to `CommandParser.cs`:
+  - `CTO [hdg]` — Cleared for takeoff (optional heading assignment)
+  - `LUAW` — Line up and wait
+  - `CTOC` — Cancel takeoff clearance
+  - `CTOMLT` / `CTOMRT` — Cleared for takeoff, make left/right traffic
+- [ ] Add to `ParsedCommand.cs`:
+  - `ClearedForTakeoffCommand { AssignedHeading?, TrafficDirection? }`
+  - `LineUpAndWaitCommand`
+  - `CancelTakeoffClearanceCommand`
+- [ ] Add to `CommandDispatcher.cs`:
+  - `CTO`: satisfy `ClearedForTakeoff` clearance requirement on current phase; if aircraft has no phase, build LinedUpAndWaiting → Takeoff → InitialClimb phase list
+  - `LUAW`: satisfy `LineUpAndWait` clearance (for future use when aircraft taxi to runway in M3); for now, place aircraft in LinedUpAndWaiting phase
+  - `CTOC`: revoke takeoff clearance (only valid during LinedUpAndWaiting before roll begins)
+  - `CTOMLT`/`CTOMRT`: CTO + set up pattern re-entry after initial climb
+
+### Scenario Support
+
+- [ ] Add `OnRunway` starting condition support in `ScenarioLoader.cs`:
+  - Look up runway from `RunwayDatabase`
+  - Place aircraft at runway threshold, aligned with runway heading, speed 0, altitude = field elevation
+  - Initialize with `LinedUpAndWaitingPhase` → `TakeoffPhase` → `InitialClimbPhase`
+
+---
+
+## Chunk 4: Landing Sequence (Yaat.Sim + Yaat.Server)
+
+**AVIATION REVIEW GATE**: aviation-sim-expert MUST validate glideslope geometry, touchdown physics, rollout deceleration rates, and go-around climb profiles.
+
+### Phases
+
+- [ ] Create `Phases/Tower/FinalApproachPhase.cs`:
+  - Aircraft is on final approach, descending toward the runway
+  - Tracks glideslope (3.0° default) from current position to runway threshold
+  - `OnTick`: continuously compute required descent rate to stay on glideslope, set altitude/speed targets
+  - Clearance-gated: requires `ClearedToLand` (or `ClearedForOption`, `ClearedTouchAndGo`)
+  - If no landing clearance by a configurable distance (default: 0.5 nm from threshold for VFR, DA for IFR), trigger go-around
+  - Completes when aircraft crosses runway threshold → advance to `LandingPhase`
+- [ ] Create `Phases/Tower/LandingPhase.cs`:
+  - Flare: reduce descent rate as aircraft approaches runway elevation
+  - Touchdown: aircraft reaches runway elevation, transition to ground mode
+  - Rollout: decelerate from touchdown speed to taxi speed
+  - Completes when aircraft reaches taxi speed (~30 kts) or stops
+  - After completion: aircraft is on the ground, no active phase (awaits taxi instructions in M3, or DEL)
+- [ ] Create `Phases/Tower/GoAroundPhase.cs`:
+  - Triggered by `GA` command or automatic (no landing clearance at decision point)
+  - `OnStart`: set full power climb, set heading = runway heading, set target altitude = pattern altitude or as assigned
+  - Accelerate to Vy (best rate of climb speed)
+  - Completes when reaching target altitude
+  - After completion: aircraft has no phase (RPO takes over), or transitions to pattern entry if directed
+
+### Physics
+
+- [ ] Extend `FlightPhysics.cs` — landing mode:
+  - Flare model: reduce vertical speed to ~100-200 fpm descent in last 50 ft AGL
+  - Touchdown detection: altitude reaches field elevation → transition to ground
+  - Rollout deceleration: ~3-5 kts/sec for jets (reverse thrust + brakes), ~2-3 kts/sec for props
+  - Position tracks runway centerline during rollout
+- [ ] Add glideslope geometry utility:
+  - Given runway threshold position, heading, and glideslope angle, compute target altitude at any point along the approach path
+  - Compute required descent rate given groundspeed and glideslope angle
+
+### Commands
+
+- [ ] Add to `CommandParser.cs`:
+  - `GA` — Go around
+  - `FS` — Full stop (explicit landing)
+  - `EXIT {twy}` — Exit at taxiway (M3 will implement taxiway routing; for now just mark intent)
+  - `EL` / `ER` — Exit left / exit right
+  - `LAHSO {rwy}` — Land and hold short of runway (store as intent, physics deferred)
+- [ ] Add to `ParsedCommand.cs`:
+  - `GoAroundCommand`
+  - `FullStopCommand`
+  - `ExitRunwayCommand { Direction?, TaxiwayName? }`
+  - `LahsoCommand { HoldShortRunway }`
+- [ ] Add to `CommandDispatcher.cs`:
+  - `GA`: if aircraft is in FinalApproach or Landing phase, transition to GoAround phase
+  - `FS`: satisfy landing clearance (for ClearedForOption scenarios where full stop is the choice)
+  - `EXIT`/`EL`/`ER`: store exit preference on aircraft state (actual exit routing is M3)
+
+### Scenario Support
+
+- [ ] Add `OnFinal` starting condition support in `ScenarioLoader.cs`:
+  - Place aircraft on final approach at configured distance from runway threshold
+  - Compute position: offset from runway threshold along approach course
+  - Compute altitude: `distanceFromRunway * tan(glideslope) * 6076` (ft per nm, 3° glideslope ≈ 318 ft/nm)
+  - Set speed to approach speed for aircraft category
+  - Initialize with `FinalApproachPhase` → `LandingPhase`
+
+---
+
+## Chunk 5: Traffic Pattern (Yaat.Sim + Yaat.Server)
+
+**AVIATION REVIEW GATE**: aviation-sim-expert MUST validate pattern geometry, standard altitudes, leg lengths, turn points, and entry procedures.
+
+### Pattern Geometry
+
+- [ ] Create `Phases/Pattern/PatternGeometry.cs`:
+  - Given: runway threshold, runway heading, pattern direction (left/right), pattern altitude, pattern size
+  - Compute key positions: upwind end, crosswind turn point, downwind start/end (abeam threshold/numbers), base turn point, final turn point
+  - Default pattern size: ~1 nm from runway centerline for downwind leg
+  - Configurable via `PS {nm}` command
+- [ ] Create `Phases/Pattern/PatternParameters.cs`:
+  - `string RunwayId`
+  - `PatternDirection Direction` (Left/Right)
+  - `double PatternAltitudeFt` (default: field elevation + 1000 ft)
+  - `double PatternSizeNm` (default: 1.0 nm)
+  - `bool ShortenedApproach` (MSA command)
+
+### Phases
+
+- [ ] Create `Phases/Pattern/PatternEntryPhase.cs`:
+  - Entry point: midfield downwind (45° entry), base, or straight-in final
+  - `OnStart`: set heading toward entry point, set altitude = pattern altitude
+  - Completes when reaching the entry leg → transitions to appropriate leg phase
+- [ ] Create `Phases/Pattern/UpwindPhase.cs`:
+  - After takeoff, flying runway heading until crosswind turn point
+  - Completes at crosswind turn point or when TC (turn crosswind) command given
+- [ ] Create `Phases/Pattern/CrosswindPhase.cs`:
+  - Turning perpendicular to runway, climbing to pattern altitude
+  - Completes when reaching downwind heading at pattern altitude
+- [ ] Create `Phases/Pattern/DownwindPhase.cs`:
+  - Level flight parallel to runway, opposite direction
+  - At pattern altitude and approach speed
+  - Abeam the numbers: begin descent prep (reduce speed)
+  - Completes at base turn point or when TB (turn base) command given
+- [ ] Create `Phases/Pattern/BasePhase.cs`:
+  - Turn toward runway, begin descent
+  - Descending to intercept glideslope
+  - Completes when aligned with final approach course
+- [ ] Create `Phases/Pattern/FinalPhase.cs`:
+  - Short final in the pattern, transitions to `FinalApproachPhase` for the actual landing sequence
+  - Or: wraps `FinalApproachPhase` behavior for pattern operations
+  - Requires landing clearance (same gating as FinalApproachPhase)
+
+### Commands
+
+- [ ] Add to `CommandParser.cs`:
+  - `ELD` / `ERD` — Enter left/right downwind
+  - `ELB` / `ERB` — Enter left/right base
+  - `EF` — Enter final (straight-in)
+  - `MLT` / `MRT` — Make left/right traffic
+  - `TC` / `TD` / `TB` — Turn crosswind/downwind/base
+  - `EXT` — Extend current leg
+  - `MSA` / `MNA` — Make short/normal approach
+  - `PS {nm}` — Set pattern size
+- [ ] Add to `ParsedCommand.cs`:
+  - `EnterPatternCommand { PatternLeg, PatternDirection }`
+  - `MakeTrafficCommand { PatternDirection }`
+  - `TurnPatternLegCommand { TargetLeg }` (crosswind/downwind/base)
+  - `ExtendLegCommand`
+  - `ApproachTypeCommand { ApproachLength }` (short/normal)
+  - `PatternSizeCommand { SizeNm }`
+- [ ] Add to `CommandDispatcher.cs`:
+  - `ELD`/`ERD`: build PatternEntry → Downwind → Base → Final → Landing phase list
+  - `ELB`/`ERB`: build PatternEntry → Base → Final → Landing
+  - `EF`: build PatternEntry → Final → Landing
+  - `MLT`/`MRT`: after takeoff/go-around, set up Upwind → Crosswind → Downwind → Base → Final → Landing
+  - `TC`/`TD`/`TB`: force transition to the named leg (skip any intervening phases)
+  - `EXT`: extend current leg (delay the turn point by a configurable distance)
+  - `MSA`/`MNA`: shorten or normalize the base-to-final turn
+  - `PS`: update pattern size parameter
+
+---
+
+## Chunk 6: Touch-and-Go + Special Operations (Yaat.Server)
+
+**AVIATION REVIEW GATE**: aviation-sim-expert MUST validate touch-and-go procedures, speed management during option approaches.
+
+- [ ] Create `Phases/Tower/TouchAndGoPhase.cs`:
+  - After touchdown: brief rollout (~3-5 seconds), then apply takeoff power
+  - Accelerate on runway to Vr, rotate, liftoff
+  - Essentially: abbreviated LandingPhase → abbreviated TakeoffPhase
+  - Completes when airborne at pattern altitude → transitions to pattern or departure
+- [ ] Create `Phases/Tower/StopAndGoPhase.cs`:
+  - After touchdown: full stop on runway, then takeoff roll from zero
+  - Decelerate to 0, pause briefly, then accelerate
+  - LandingPhase → hold on runway → TakeoffPhase
+- [ ] Create `Phases/Tower/LowApproachPhase.cs`:
+  - Aircraft flies approach path but does NOT touch down
+  - At ~50-100 ft AGL: apply go-around power, climb
+  - Transitions to pattern or departure climb
+- [ ] Modify `CommandDispatcher.cs` for option approach commands:
+  - `TG`: satisfy `ClearedTouchAndGo` clearance; after FinalApproach, insert TouchAndGo → pattern phases
+  - `SG`: satisfy clearance; after FinalApproach, insert StopAndGo → Takeoff → pattern phases
+  - `LA`: after FinalApproach, insert LowApproach → pattern or departure phases
+  - `ClearedForOption` (`COPT`): general clearance — pilot behavior depends on intent (default: touch-and-go)
+
+---
+
+## Chunk 7: Training Hub + DTO Updates (Yaat.Server)
+
+- [ ] Extend `AircraftStateDto` with phase information:
+  - `string? CurrentPhase` — name of the active phase (e.g., "Downwind", "Final Approach", "Takeoff Roll")
+  - `string? ClearanceStatus` — pending clearance description if waiting (e.g., "Awaiting takeoff clearance")
+  - `string? PatternLeg` — current pattern leg if in pattern (for pattern visualization)
+  - `string? AssignedRunway` — active runway assignment
+  - `bool IsOnGround` — ground/airborne state
+- [ ] Extend `DtoConverter.cs` to populate new fields from phase state
+- [ ] Add server→client events for phase transitions:
+  - `PhaseChanged(string callsign, string phaseName)` — when aircraft transitions between phases
+  - Optional: `ClearanceRequested(string callsign, string clearanceType)` — when aircraft needs a clearance (for future AI mode awareness)
+- [ ] Validate that CRC DTOs handle ground aircraft correctly:
+  - Ground speed = 0 for stopped aircraft
+  - Correct altitude (field elevation, not 0)
+  - Transponder mode considerations for ground operations
+
+---
+
+## Chunk 8: Client UI Updates (Yaat.Client)
+
+- [ ] Extend `AircraftModel.cs` with new fields:
+  - `CurrentPhase`, `ClearanceStatus`, `PatternLeg`, `AssignedRunway`, `IsOnGround`
+- [ ] Extend `MainWindow.axaml` DataGrid columns:
+  - Add "Phase" column showing current phase name
+  - Add "Runway" column (or combine with phase)
+  - Visual indicator for clearance-waiting state (e.g., highlight or icon)
+- [ ] Extend `ServerConnection.cs`:
+  - Handle new DTO fields
+  - Handle `PhaseChanged` event
+- [ ] Command bar support for new tower commands:
+  - All tower and pattern commands should already work through the existing command scheme infrastructure (they're sent as canonical strings to the server)
+  - Verify VICE preset mappings exist for tower commands (or note that VICE doesn't have equivalents — ATCTrainer-only commands)
+
+---
+
+## Implementation Order
+
+```
+Chunk 1: Phase Infrastructure             [Yaat.Sim]              ← aviation review gate
+    |
+Chunk 2: Runway Data Model                [Yaat.Server]
+    |
+    +---> Chunk 3: Takeoff Sequence        [Yaat.Sim + Yaat.Server] ← aviation review gate
+    |         |
+    |     Chunk 4: Landing Sequence        [Yaat.Sim + Yaat.Server] ← aviation review gate
+    |         |
+    |     Chunk 5: Traffic Pattern         [Yaat.Sim + Yaat.Server] ← aviation review gate
+    |         |
+    |     Chunk 6: Touch-and-Go + Special  [Yaat.Server]            ← aviation review gate
+    |
+Chunk 7: Hub + DTO Updates                [Yaat.Server]            (can start after Chunk 3)
+    |
+Chunk 8: Client UI                        [Yaat.Client]            (can start after Chunk 7)
+```
+
+Chunks 3-6 are sequential (each builds on the previous). Chunks 7-8 can begin as soon as Chunk 3 introduces phase state to the DTOs.
+
+---
+
+## What's Deferred (M3+)
+
+- **Ground operations**: Parking, pushback, taxi, hold short, runway crossing (M3)
+- **Taxiway graph and pathfinding**: A* on taxiway nodes (M3)
+- **ASDEX ground target DTOs**: M3
+- **Full Plan/Intent/Contingency system**: M4 (approach control needs it for route-based navigation)
+- **NavigationTarget / DCT waypoint following**: M4
+- **Missed approach procedures**: M4 (requires published procedure data)
+- **Speed restriction stack**: M4
+- **Communication / verbal actions**: M8 (AI mode)
+- **Wind effects on pattern**: deferred (Phase architecture supports it when added)
+- **Terrain-aware operations**: deferred
+- **LAHSO physics**: noted in commands but actual hold-short-of-runway behavior deferred
+
+---
+
+## Verification
+
+- [ ] Start yaat-server, connect YAAT client
+- [ ] Load an ATCTrainer scenario with `OnRunway` aircraft
+- [ ] Aircraft appears on runway, stationary, in "Lined Up and Waiting" phase
+- [ ] Issue `CTO` → aircraft accelerates, rotates, lifts off, climbs
+- [ ] Issue `CTO 270` → aircraft takes off and turns to heading 270 after liftoff
+- [ ] Load scenario with `OnFinal` aircraft
+- [ ] Aircraft appears on final approach, descending toward runway
+- [ ] Issue landing clearance → aircraft lands, rolls out, stops
+- [ ] Do NOT issue landing clearance → aircraft goes around at decision point
+- [ ] Issue `GA` while on final → aircraft executes go-around
+- [ ] Issue `CTOMLT` → aircraft takes off, enters left traffic pattern
+- [ ] Aircraft flies full pattern: upwind → crosswind → downwind → base → final
+- [ ] Issue `TC`, `TD`, `TB` → aircraft turns to the commanded leg early
+- [ ] Issue `EXT` on downwind → aircraft continues past normal base turn point
+- [ ] Issue `TG` clearance → aircraft touches down and takes off again
+- [ ] Issue `LA` → aircraft flies low approach without touching down
+- [ ] Phase name displays correctly in client DataGrid
+- [ ] CRC shows correct aircraft behavior (altitude, heading, speed transitions)
+- [ ] Pattern altitude is correct (~1000 ft AGL)
+- [ ] Multiple aircraft can be in the pattern simultaneously
