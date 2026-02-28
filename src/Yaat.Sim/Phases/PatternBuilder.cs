@@ -29,7 +29,8 @@ public static class PatternBuilder
         AircraftCategory category,
         PatternDirection direction,
         PatternEntryLeg entryLeg,
-        bool touchAndGo)
+        bool touchAndGo,
+        double? finalDistanceNm = null)
     {
         var waypoints = PatternGeometry.Compute(runway, category, direction);
         var phases = new List<Phase>();
@@ -49,7 +50,11 @@ public static class PatternBuilder
                 break;
 
             case PatternEntryLeg.Base:
-                phases.Add(new BasePhase { Waypoints = waypoints });
+                phases.Add(new BasePhase
+                {
+                    Waypoints = waypoints,
+                    FinalDistanceNm = finalDistanceNm,
+                });
                 break;
 
             case PatternEntryLeg.Final:

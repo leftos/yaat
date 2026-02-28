@@ -207,11 +207,18 @@ The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments
 | Command | Effect |
 |---------|--------|
 | `ELD` / `ERD` | Enter left/right downwind |
+| `ELD 28R` / `ERD 28R` | Enter left/right downwind, assign runway |
 | `ELB` / `ERB` | Enter left/right base |
+| `ELB 3` / `ERB 5` | Enter left/right base with specified final distance (NM) |
+| `ELB 28R` / `ERB 28R` | Enter left/right base, assign runway |
+| `ELB 28R 3` | Enter left base, assign runway 28R, 3nm final |
 | `EF` | Enter final (straight-in) |
+| `EF 28R` | Enter final, assign runway |
 | `MLT` / `MRT` | Make left/right traffic (sets pattern direction) |
 | `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg) |
 | `EXT` | Extend current pattern leg (upwind, crosswind, downwind, or base) |
+
+All pattern entry commands (ELB, ERB, ELD, ERD, EF) accept an optional runway argument that assigns or overrides the runway. ELB/ERB also accept an optional distance argument that controls how far from the threshold the final turn occurs (default is the standard pattern geometry).
 
 ### Approach Options
 

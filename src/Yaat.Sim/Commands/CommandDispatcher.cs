@@ -1,3 +1,4 @@
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -8,12 +9,13 @@ public record CommandResult(bool Success, string? Message = null);
 
 public static class CommandDispatcher
 {
-    public static CommandResult DispatchCompound(CompoundCommand compound, AircraftState aircraft)
+    public static CommandResult DispatchCompound(
+        CompoundCommand compound, AircraftState aircraft, IRunwayLookup? runways = null)
     {
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase);
+            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways);
             if (result is not null)
             {
                 return result;
@@ -94,7 +96,8 @@ public static class CommandDispatcher
         return new CommandResult(true, fullMessage);
     }
 
-    public static CommandResult Dispatch(ParsedCommand command, AircraftState aircraft)
+    public static CommandResult Dispatch(
+        ParsedCommand command, AircraftState aircraft, IRunwayLookup? runways = null)
     {
         // Clear any existing queue when a new single command is issued
         aircraft.Queue.Blocks.Clear();
@@ -205,14 +208,15 @@ public static class CommandDispatcher
     /// or null if phases were cleared and normal dispatch should proceed.
     /// </summary>
     private static CommandResult? DispatchWithPhase(
-        CompoundCommand compound, AircraftState aircraft, Phase currentPhase)
+        CompoundCommand compound, AircraftState aircraft, Phase currentPhase,
+        IRunwayLookup? runways = null)
     {
         // Extract the first command to check acceptance
         var firstCmd = compound.Blocks[0].Commands[0];
         var cmdType = ToCanonicalType(firstCmd);
 
         // Try tower-specific handling first (phase-interactive commands)
-        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase);
+        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, runways);
         if (towerResult is not null)
         {
             return towerResult;
@@ -242,7 +246,8 @@ public static class CommandDispatcher
     }
 
     private static CommandResult? TryApplyTowerCommand(
-        ParsedCommand command, AircraftState aircraft, Phase currentPhase)
+        ParsedCommand command, AircraftState aircraft, Phase currentPhase,
+        IRunwayLookup? runways = null)
     {
         switch (command)
         {
@@ -378,20 +383,25 @@ public static class CommandDispatcher
                 return new CommandResult(false, "Go around not applicable");
 
             // Pattern entry commands
-            case EnterLeftDownwindCommand:
-                return TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind);
+            case EnterLeftDownwindCommand eld:
+                return TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind,
+                    runwayId: eld.RunwayId, runways: runways);
 
-            case EnterRightDownwindCommand:
-                return TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind);
+            case EnterRightDownwindCommand erd:
+                return TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind,
+                    runwayId: erd.RunwayId, runways: runways);
 
-            case EnterLeftBaseCommand:
-                return TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Base);
+            case EnterLeftBaseCommand elb:
+                return TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Base,
+                    runwayId: elb.RunwayId, finalDistanceNm: elb.FinalDistanceNm, runways: runways);
 
-            case EnterRightBaseCommand:
-                return TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base);
+            case EnterRightBaseCommand erb:
+                return TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base,
+                    runwayId: erb.RunwayId, finalDistanceNm: erb.FinalDistanceNm, runways: runways);
 
-            case EnterFinalCommand:
-                return TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final);
+            case EnterFinalCommand ef:
+                return TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final,
+                    runwayId: ef.RunwayId, runways: runways);
 
             // Pattern modification commands
             case MakeLeftTrafficCommand:
@@ -444,8 +454,30 @@ public static class CommandDispatcher
     }
 
     private static CommandResult TryEnterPattern(
-        AircraftState aircraft, PatternDirection direction, PatternEntryLeg entryLeg)
+        AircraftState aircraft, PatternDirection direction, PatternEntryLeg entryLeg,
+        string? runwayId = null, double? finalDistanceNm = null,
+        IRunwayLookup? runways = null)
     {
+        // Resolve runway from argument if provided
+        if (runwayId is not null && runways is not null)
+        {
+            var airportId = aircraft.Phases?.AssignedRunway?.AirportId
+                ?? aircraft.Destination ?? aircraft.Departure;
+            if (airportId is null)
+            {
+                return new CommandResult(false, "No airport context to resolve runway");
+            }
+
+            var resolved = runways.GetRunway(airportId, runwayId);
+            if (resolved is null)
+            {
+                return new CommandResult(false, $"Runway {runwayId} not found at {airportId}");
+            }
+
+            aircraft.Phases ??= new PhaseList();
+            aircraft.Phases.AssignedRunway = resolved;
+        }
+
         if (aircraft.Phases?.AssignedRunway is null)
         {
             return new CommandResult(false, "No assigned runway for pattern entry");
@@ -460,7 +492,7 @@ public static class CommandDispatcher
         aircraft.Phases.Clear(ctx);
 
         var circuitPhases = PatternBuilder.BuildCircuit(
-            runway, category, direction, entryLeg, touchAndGo);
+            runway, category, direction, entryLeg, touchAndGo, finalDistanceNm);
 
         var phases = new PhaseList { AssignedRunway = runway };
         phases.LandingClearance = aircraft.Phases.LandingClearance;
@@ -476,7 +508,8 @@ public static class CommandDispatcher
 
         var dirStr = direction == PatternDirection.Left ? "left" : "right";
         var legStr = entryLeg.ToString().ToLowerInvariant();
-        return Ok($"Enter {dirStr} {legStr}{RunwayLabel(aircraft)}");
+        var distStr = finalDistanceNm is not null ? $", {finalDistanceNm:G}nm final" : "";
+        return Ok($"Enter {dirStr} {legStr}{RunwayLabel(aircraft)}{distStr}");
     }
 
     private static CommandResult TryChangePatternDirection(
@@ -887,11 +920,11 @@ public static class CommandDispatcher
             GoAroundCommand ga => ga.AssignedHeading is not null || ga.TargetAltitude is not null
                 ? $"GA {(ga.AssignedHeading?.ToString("000") ?? "RH")} {ga.TargetAltitude}"
                 : "GA",
-            EnterLeftDownwindCommand => "ELD",
-            EnterRightDownwindCommand => "ERD",
-            EnterLeftBaseCommand => "ELB",
-            EnterRightBaseCommand => "ERB",
-            EnterFinalCommand => "EF",
+            EnterLeftDownwindCommand eld => eld.RunwayId is not null ? $"ELD {eld.RunwayId}" : "ELD",
+            EnterRightDownwindCommand erd => erd.RunwayId is not null ? $"ERD {erd.RunwayId}" : "ERD",
+            EnterLeftBaseCommand elb => DescribePatternBase("ELB", elb.RunwayId, elb.FinalDistanceNm),
+            EnterRightBaseCommand erb => DescribePatternBase("ERB", erb.RunwayId, erb.FinalDistanceNm),
+            EnterFinalCommand ef => ef.RunwayId is not null ? $"EF {ef.RunwayId}" : "EF",
             MakeLeftTrafficCommand => "MLT",
             MakeRightTrafficCommand => "MRT",
             TurnCrosswindCommand => "TC",
@@ -964,11 +997,11 @@ public static class CommandDispatcher
             ClearedToLandCommand => "Cleared to land",
             CancelLandingClearanceCommand => "Cancel landing clearance",
             GoAroundCommand ga => DescribeGaNatural(ga),
-            EnterLeftDownwindCommand => "Enter left downwind",
-            EnterRightDownwindCommand => "Enter right downwind",
-            EnterLeftBaseCommand => "Enter left base",
-            EnterRightBaseCommand => "Enter right base",
-            EnterFinalCommand => "Enter straight-in final",
+            EnterLeftDownwindCommand eld => DescribePatternEntryNatural("left downwind", eld.RunwayId, null),
+            EnterRightDownwindCommand erd => DescribePatternEntryNatural("right downwind", erd.RunwayId, null),
+            EnterLeftBaseCommand elb => DescribePatternEntryNatural("left base", elb.RunwayId, elb.FinalDistanceNm),
+            EnterRightBaseCommand erb => DescribePatternEntryNatural("right base", erb.RunwayId, erb.FinalDistanceNm),
+            EnterFinalCommand ef => DescribePatternEntryNatural("straight-in final", ef.RunwayId, null),
             MakeLeftTrafficCommand => "Make left traffic",
             MakeRightTrafficCommand => "Make right traffic",
             TurnCrosswindCommand => "Turn crosswind",
@@ -1050,6 +1083,39 @@ public static class CommandDispatcher
     {
         var runway = aircraft.Phases?.AssignedRunway;
         return runway is not null ? $", Runway {runway.RunwayId}" : "";
+    }
+
+    private static string DescribePatternBase(string verb, string? runwayId, double? distNm)
+    {
+        var parts = new List<string> { verb };
+        if (runwayId is not null)
+        {
+            parts.Add(runwayId);
+        }
+
+        if (distNm is not null)
+        {
+            parts.Add(distNm.Value.ToString("G"));
+        }
+
+        return string.Join(' ', parts);
+    }
+
+    private static string DescribePatternEntryNatural(
+        string legName, string? runwayId, double? distNm)
+    {
+        var msg = $"Enter {legName}";
+        if (runwayId is not null)
+        {
+            msg += $", Runway {runwayId}";
+        }
+
+        if (distNm is not null)
+        {
+            msg += $", {distNm:G}nm final";
+        }
+
+        return msg;
     }
 
     private static CommandResult Ok(string message)

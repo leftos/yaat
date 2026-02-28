@@ -17,6 +17,12 @@ public sealed class BasePhase : Phase
     public PatternWaypoints? Waypoints { get; set; }
 
     /// <summary>
+    /// When set, overrides the default final turn target to a point on the
+    /// extended centerline at this distance from the threshold.
+    /// </summary>
+    public double? FinalDistanceNm { get; set; }
+
+    /// <summary>
     /// When true, the aircraft continues on the current heading past the turn point
     /// until a turn-final command or another EXT-clearing command is issued.
     /// </summary>
@@ -31,8 +37,20 @@ public sealed class BasePhase : Phase
             return;
         }
 
-        _targetLat = Waypoints.FinalTurnLat;
-        _targetLon = Waypoints.FinalTurnLon;
+        if (FinalDistanceNm is not null)
+        {
+            double reciprocal = ((Waypoints.FinalHeading + 180.0) % 360.0 + 360.0) % 360.0;
+            var target = FlightPhysics.ProjectPoint(
+                Waypoints.ThresholdLat, Waypoints.ThresholdLon,
+                reciprocal, FinalDistanceNm.Value);
+            _targetLat = target.Lat;
+            _targetLon = target.Lon;
+        }
+        else
+        {
+            _targetLat = Waypoints.FinalTurnLat;
+            _targetLon = Waypoints.FinalTurnLon;
+        }
 
         var turnDir = Waypoints.Direction == PatternDirection.Left
             ? TurnDirection.Left : TurnDirection.Right;

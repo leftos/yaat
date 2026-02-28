@@ -291,13 +291,15 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            bool needsArg = pattern.Format.Contains("{arg}");
-            if (needsArg && arg is null)
+            bool hasOptionalArg = pattern.Format.Contains("{arg?}");
+            bool hasRequiredArg = !hasOptionalArg && pattern.Format.Contains("{arg}");
+
+            if (hasRequiredArg && arg is null)
             {
                 continue;
             }
 
-            if (!needsArg && arg is not null)
+            if (!hasRequiredArg && !hasOptionalArg && arg is not null)
             {
                 continue;
             }
@@ -358,10 +360,10 @@ public static class CommandSchemeParser
             }
         }
 
-        // No-arg concatenated commands (Delete, FlyPresentHeading)
+        // No-arg and optional-arg concatenated commands (Delete, FlyPresentHeading, pattern entry)
         foreach (var (type, pattern) in scheme.Patterns)
         {
-            if (pattern.Format.Contains("{arg}"))
+            if (pattern.Format.Contains("{arg}") && !pattern.Format.Contains("{arg?}"))
             {
                 continue;
             }
@@ -373,9 +375,23 @@ public static class CommandSchemeParser
                 continue;
             }
 
+            // Exact match (no arg)
             if (MatchesAnyAlias(input, pattern))
             {
                 return new ParsedInput(type, null);
+            }
+
+            // Optional-arg commands: check for space-separated arg after verb
+            if (pattern.Format.Contains("{arg?}")
+                && StartsWithAnyAlias(input, pattern, out var optAlias)
+                && input.Length > optAlias.Length
+                && input[optAlias.Length] == ' ')
+            {
+                var optArg = input[(optAlias.Length + 1)..].Trim();
+                if (optArg.Length > 0)
+                {
+                    return new ParsedInput(type, optArg);
+                }
             }
         }
 

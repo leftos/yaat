@@ -133,11 +133,11 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 
 | Command | ATCTrainer doc | YAAT ATCTrainer preset | YAAT VICE preset |
 |---|---|---|---|
-| **Enter Left Downwind** | ELD | ELD | ELD |
-| **Enter Right Downwind** | ERD | ERD | ERD |
-| **Enter Left Base** | ELB | ELB | ELB |
-| **Enter Right Base** | ERB | ERB | ERB |
-| **Enter Final** | EF | EF | EF |
+| **Enter Left Downwind** | ELD | ELD [runway] | ELD [runway] |
+| **Enter Right Downwind** | ERD | ERD [runway] | ERD [runway] |
+| **Enter Left Base** | ELB | ELB [runway] [distance] | ELB [runway] [distance] |
+| **Enter Right Base** | ERB | ERB [runway] [distance] | ERB [runway] [distance] |
+| **Enter Final** | EF | EF [runway] | EF [runway] |
 | Enter Left Crosswind | ELC | — | — |
 | Enter Right Crosswind | ERC | — | — |
 | **Make Left Traffic** | MLT | MLT | MLT |

@@ -61,15 +61,15 @@ public record ClearedToLandCommand : ParsedCommand;
 public record CancelLandingClearanceCommand : ParsedCommand;
 
 // Pattern commands
-public record EnterLeftDownwindCommand : ParsedCommand;
+public record EnterLeftDownwindCommand(string? RunwayId = null) : ParsedCommand;
 
-public record EnterRightDownwindCommand : ParsedCommand;
+public record EnterRightDownwindCommand(string? RunwayId = null) : ParsedCommand;
 
-public record EnterLeftBaseCommand : ParsedCommand;
+public record EnterLeftBaseCommand(string? RunwayId = null, double? FinalDistanceNm = null) : ParsedCommand;
 
-public record EnterRightBaseCommand : ParsedCommand;
+public record EnterRightBaseCommand(string? RunwayId = null, double? FinalDistanceNm = null) : ParsedCommand;
 
-public record EnterFinalCommand : ParsedCommand;
+public record EnterFinalCommand(string? RunwayId = null) : ParsedCommand;
 
 public record MakeLeftTrafficCommand : ParsedCommand;
 
