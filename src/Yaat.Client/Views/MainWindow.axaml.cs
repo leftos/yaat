@@ -27,6 +27,12 @@ public partial class MainWindow : Window
             cmdInput.KeyDown += OnCommandKeyDown;
         }
 
+        var suggestionList = this.FindControl<ListBox>("SuggestionList");
+        if (suggestionList is not null)
+        {
+            suggestionList.Tapped += OnSuggestionTapped;
+        }
+
         var settingsBtn = this.FindControl<Button>("SettingsButton");
         if (settingsBtn is not null)
         {
@@ -70,22 +76,114 @@ public partial class MainWindow : Window
 
     private void OnCommandKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && DataContext is MainViewModel vm)
-        {
-            vm.SelectedAircraft = null;
-            vm.CommandText = "";
-            e.Handled = true;
-            return;
-        }
-
-        if (e.Key != Key.Enter)
+        if (DataContext is not MainViewModel vm)
         {
             return;
         }
 
-        if (DataContext is MainViewModel vm2 && vm2.SendCommandCommand.CanExecute(null))
+        var cmdInput = sender as TextBox;
+        var input = vm.CommandInput;
+
+        switch (e.Key)
         {
-            vm2.SendCommandCommand.Execute(null);
+            case Key.Escape:
+                if (input.IsSuggestionsVisible)
+                {
+                    input.DismissSuggestions();
+                }
+                else
+                {
+                    vm.SelectedAircraft = null;
+                    vm.CommandText = "";
+                }
+                e.Handled = true;
+                return;
+
+            case Key.Up:
+                if (input.IsSuggestionsVisible)
+                {
+                    input.MoveSelection(-1);
+                }
+                else
+                {
+                    var older = input.NavigateHistory(-1, vm.CommandText, vm.CommandHistory);
+                    if (older is not null)
+                    {
+                        vm.CommandText = older;
+                        MoveCaret(cmdInput, older.Length);
+                    }
+                }
+                e.Handled = true;
+                return;
+
+            case Key.Down:
+                if (input.IsSuggestionsVisible)
+                {
+                    input.MoveSelection(1);
+                }
+                else
+                {
+                    var newer = input.NavigateHistory(1, vm.CommandText, vm.CommandHistory);
+                    if (newer is not null)
+                    {
+                        vm.CommandText = newer;
+                        MoveCaret(cmdInput, newer.Length);
+                    }
+                }
+                e.Handled = true;
+                return;
+
+            case Key.Tab:
+                if (input.IsSuggestionsVisible)
+                {
+                    if (input.SelectedSuggestionIndex < 0 && input.Suggestions.Count > 0)
+                    {
+                        input.SelectedSuggestionIndex = 0;
+                    }
+
+                    var text = input.AcceptSuggestion(vm.CommandText);
+                    if (text is not null)
+                    {
+                        vm.CommandText = text;
+                        MoveCaret(cmdInput, text.Length);
+                    }
+                }
+                e.Handled = true;
+                return;
+
+            case Key.Enter:
+                input.DismissSuggestions();
+                if (vm.SendCommandCommand.CanExecute(null))
+                {
+                    vm.SendCommandCommand.Execute(null);
+                }
+                e.Handled = true;
+                return;
+        }
+    }
+
+    private void OnSuggestionTapped(object? sender, TappedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var text = vm.CommandInput.AcceptSuggestion(vm.CommandText);
+        if (text is not null)
+        {
+            vm.CommandText = text;
+            var cmdInput = this.FindControl<TextBox>("CommandInput");
+            MoveCaret(cmdInput, text.Length);
+            cmdInput?.Focus();
+        }
+    }
+
+    private static void MoveCaret(TextBox? textBox, int position)
+    {
+        if (textBox is not null)
+        {
+            textBox.CaretIndex = position;
         }
     }
 }

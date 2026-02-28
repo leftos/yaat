@@ -84,11 +84,48 @@
                               FallbackValue='(none)',
                               TargetNullValue='(none)'}" />
 
-            <!-- Command input -->
-            <TextBox Grid.Column="1"
-                     Text="{Binding CommandText}"
-                     Watermark="Enter command (FH 270, CM 240...)"
-                     x:Name="CommandInput" />
+            <!-- Command input with autocomplete popup -->
+            <Panel Grid.Column="1">
+                <TextBox Text="{Binding CommandText}"
+                         Watermark="Enter command (FH 270, CM 240...)"
+                         x:Name="CommandInput" />
+                <Popup IsOpen="{Binding CommandInput.IsSuggestionsVisible}"
+                       PlacementTarget="{Binding #CommandInput}"
+                       Placement="Top"
+                       IsLightDismissEnabled="False"
+                       MaxHeight="240"
+                       Width="{Binding #CommandInput.Bounds.Width}">
+                    <Border Background="#2D2D30"
+                            BorderBrush="#3F3F46"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                        <ListBox ItemsSource="{Binding
+                                     CommandInput.Suggestions}"
+                                 SelectedIndex="{Binding
+                                     CommandInput.SelectedSuggestionIndex}"
+                                 Focusable="False"
+                                 x:Name="SuggestionList"
+                                 Background="Transparent"
+                                 Padding="2">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <TextBlock Grid.Column="0"
+                                            Text="{Binding Text}"
+                                            FontWeight="Bold"
+                                            FontFamily="Consolas"
+                                            Margin="4,2" />
+                                        <TextBlock Grid.Column="1"
+                                            Text="{Binding Description}"
+                                            Foreground="Gray"
+                                            Margin="8,2,4,2" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+                </Popup>
+            </Panel>
 
             <!-- Sim controls -->
             <Button Grid.Column="2"

@@ -46,20 +46,8 @@ public partial class SettingsViewModel : ObservableObject
 
     private static readonly string[] PresetNames = ["ATCTrainer", "VICE"];
 
-    private static readonly (CanonicalCommandType Type, string Label, string? SampleArg)[] DisplayCommands =
-    [
-        (CanonicalCommandType.FlyHeading, "Fly Heading", "270"),
-        (CanonicalCommandType.TurnLeft, "Turn Left", "270"),
-        (CanonicalCommandType.TurnRight, "Turn Right", "090"),
-        (CanonicalCommandType.RelativeLeft, "Relative Left", "20"),
-        (CanonicalCommandType.RelativeRight, "Relative Right", "30"),
-        (CanonicalCommandType.FlyPresentHeading, "Fly Present Heading", null),
-        (CanonicalCommandType.ClimbMaintain, "Climb/Maintain", "240"),
-        (CanonicalCommandType.DescendMaintain, "Descend/Maintain", "50"),
-        (CanonicalCommandType.Speed, "Speed", "250"),
-        (CanonicalCommandType.Squawk, "Squawk", "1234"),
-        (CanonicalCommandType.Delete, "Delete", null),
-    ];
+    private static readonly IReadOnlyList<CommandMetadata.CommandInfo> DisplayCommands =
+        CommandMetadata.AllCommands.Where(c => !c.IsGlobal && c.Type != CanonicalCommandType.DirectTo).ToArray();
 
     [ObservableProperty]
     private int _selectedPresetIndex;
@@ -128,21 +116,21 @@ public partial class SettingsViewModel : ObservableObject
 
         VerbMappings.Clear();
 
-        foreach (var (type, label, sampleArg) in DisplayCommands)
+        foreach (var cmd in DisplayCommands)
         {
-            if (!scheme.Patterns.TryGetValue(type, out var pattern))
+            if (!scheme.Patterns.TryGetValue(cmd.Type, out var pattern))
             {
                 continue;
             }
 
             var row = new VerbMappingRow
             {
-                CommandType = type,
-                CommandName = label,
+                CommandType = cmd.Type,
+                CommandName = cmd.Label,
                 Format = pattern.Format,
-                SampleArg = sampleArg,
+                SampleArg = cmd.SampleArg,
                 Verb = pattern.Verb,
-                Example = BuildExample(pattern, sampleArg),
+                Example = BuildExample(pattern, cmd.SampleArg),
             };
 
             row.VerbEdited += OnVerbEdited;

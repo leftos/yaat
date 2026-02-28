@@ -15,8 +15,10 @@ public partial class MainViewModel : ObservableObject
 
     private readonly ServerConnection _connection = new();
     private readonly UserPreferences _preferences = new();
+    private readonly CommandInputController _commandInput = new();
 
     public UserPreferences Preferences => _preferences;
+    public CommandInputController CommandInput => _commandInput;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
@@ -358,6 +360,11 @@ public partial class MainViewModel : ObservableObject
         PendingDeleteAllWarning = null;
     }
 
+    partial void OnCommandTextChanged(string value)
+    {
+        _commandInput.UpdateSuggestions(value, Aircraft, _preferences.CommandScheme);
+    }
+
     // --- Commands ---
 
     [RelayCommand(CanExecute = nameof(IsConnected))]
@@ -421,6 +428,8 @@ public partial class MainViewModel : ObservableObject
                 AddHistory($"{entry} — {result.Message}");
             }
 
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
             CommandText = "";
         }
         catch (Exception ex)

@@ -187,12 +187,33 @@ Click **Settings** in the top-right to configure:
 
 - **Command scheme** — ATCTrainer (space-separated) or VICE (concatenated)
 
+## Autocomplete
+
+As you type in the command bar, a popup appears with matching suggestions:
+
+- **Command verbs** — matching verbs from your active command scheme with syntax hints (e.g., `FH  Fly Heading {270}`)
+- **Callsigns** — aircraft whose callsign matches what you've typed, showing type and route
+- After accepting a callsign, the popup immediately shows all available command verbs
+
+Suggestions are context-aware: after a `;` or `,` separator in compound commands, suggestions reset for the new command. Conditions (`LV`, `AT`) are also suggested.
+
+## Command History
+
+The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
+
+- **Up** — recall the previous command
+- **Down** — move forward through history (or restore what you were typing)
+- If you type something first, only history entries starting with that text are shown
+
 ## Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
-| Enter | Send command |
-| Escape | Deselect aircraft / close dialog |
+| Enter | Send command (dismisses suggestions if open) |
+| Tab | Accept the highlighted suggestion (or first if none highlighted) |
+| Up | Navigate suggestions or recall older history |
+| Down | Navigate suggestions or recall newer history |
+| Escape | Dismiss suggestions / deselect aircraft / close dialog |
 
 ## Window State
 
