@@ -26,9 +26,9 @@
 
         <!-- Scrolling terminal entries -->
         <ScrollViewer x:Name="TerminalScroll"
-                      Background="#1A1A1E"
-                      Padding="4">
-            <ItemsControl ItemsSource="{Binding TerminalEntries}">
+                      Background="#1A1A1E">
+            <ItemsControl ItemsSource="{Binding TerminalEntries}"
+                          Margin="4">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="models:TerminalEntry">
                         <StackPanel Orientation="Horizontal"
