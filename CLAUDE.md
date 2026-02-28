@@ -102,10 +102,14 @@ The full text of the FAA 7110.65 and AIM are available locally as markdown. Use 
 When invoking the aviation-sim-expert agent, always include this instruction in the prompt:
 > "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files. Read them directly via the Read/Grep/Glob tools at `C:\Users\Leftos\.claude\reference\faa\7110.65/` and `C:\Users\Leftos\.claude\reference\faa\aim/`. Do NOT use web search tools (Exa, WebSearch, WebFetch) to look up 7110.65 or AIM content."
 
+## User Guide
+
+`USER_GUIDE.md` documents all user-facing features: commands, UI controls, keyboard shortcuts, etc. **Before each commit that adds, changes, or removes user-facing behavior, update USER_GUIDE.md to reflect the current state.** Keep it accurate — don't document features that aren't implemented, and remove documentation for features that are removed.
+
 ## Commits
 
 Prefix subject with a ≤4-char type tag: `fix:` `feat:` `add:` `docs:` `ref:` `test:` `ci:` `dep:` `chore:` etc. Imperative mood, ≤72 char subject line.
 
 ## Milestone Roadmap
 
-The project follows milestones defined in `docs/plans/main-plan.md`. Currently at Milestone 0 (proof of concept): basic connection, aircraft list display, spawn functionality. Pilot AI architecture is designed in `docs/plans/pilot-ai-architecture.md`.
+The project follows milestones defined in `docs/plans/main-plan.md`. M0 and M1 are complete; M2 (tower operations) is next. Pilot AI architecture is designed in `docs/plans/pilot-ai-architecture.md`.
