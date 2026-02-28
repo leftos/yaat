@@ -29,33 +29,33 @@ Foundation that all tower operations build on.
 
 **AVIATION REVIEW GATE**: aviation-sim-expert MUST validate Phase lifecycle and clearance model before implementation.
 
-- [ ] Create `Phases/Phase.cs` — abstract base class with:
+- [x] Create `Phases/Phase.cs` — abstract base class with:
   - `PhaseStatus` enum (Pending, Active, Completed, Skipped)
   - `OnStart(PhaseContext)`, `OnTick(PhaseContext, double deltaSec) -> bool`, `OnEnd(PhaseContext, PhaseStatus)`
   - `Name` and `Description` abstract properties
   - `ClearanceRequirements` list (created via `CreateRequirements()`)
-- [ ] Create `Phases/PhaseContext.cs` — provides access to:
+- [x] Create `Phases/PhaseContext.cs` — provides access to:
   - `AircraftState` (current state)
   - `ControlTargets` (to set each tick)
   - `RunwayInfo` (position, heading, elevation, length — nullable, only set for runway-related phases)
   - `PatternInfo` (pattern parameters — nullable, only set for pattern phases)
   - `ElapsedInPhaseMs` (time since phase became active)
-- [ ] Create `Phases/ClearanceRequirement.cs`:
+- [x] Create `Phases/ClearanceRequirement.cs`:
   - `ClearanceType` enum: `ClearedForTakeoff`, `LineUpAndWait`, `ClearedToLand`, `ClearedForOption`, `ClearedTouchAndGo`
   - `ClearanceRequirement` class with `Type`, `IsSatisfied`
-- [ ] Create `Phases/PhaseList.cs` — simple linear phase container:
+- [x] Create `Phases/PhaseList.cs` — simple linear phase container:
   - `CurrentPhase`, `CurrentIndex`, `IsComplete`
   - `AdvanceToNext()` — completes current, starts next
   - `InsertAfterCurrent(Phase)` — for go-around insertion
   - `SkipTo<T>()` — skip forward to a phase type
   - `Clear()` — remove all phases (aircraft returns to target-only mode)
-- [ ] Modify `AircraftState.cs` — add `PhaseList? Phases` field
-- [ ] Modify `FlightPhysics.cs` or create `PhaseRunner.cs`:
+- [x] Modify `AircraftState.cs` — add `PhaseList? Phases` field
+- [x] Create `PhaseRunner.cs`:
   - Before the 4-step physics update, tick the current phase
   - Phase's `OnTick` sets `ControlTargets`; then physics interpolates toward them
   - If phase returns `true` (complete), advance to next phase
   - If current phase has unsatisfied clearance requirements, the phase's `OnTick` should handle the "waiting" behavior (e.g., hold position)
-- [ ] Wire into `SimulationWorld.TickScenario()` — call phase tick before physics tick for each aircraft
+- [x] Wire into `SimulationWorld.TickScenario()` — call phase tick before physics tick for each aircraft
 
 ---
 
@@ -63,23 +63,19 @@ Foundation that all tower operations build on.
 
 Tower operations need runway geometry: threshold position, heading, elevation, length.
 
-- [ ] Determine runway data source — check if VNAS NavData.dat contains runway records, or if we need a separate data source
-  - NavData.dat likely has airport reference points but may not have individual runway thresholds
-  - Fallback: extract from scenario data (`primaryAirportId` + runway identifiers) or hardcode for common training airports
-- [ ] Create `Data/RunwayInfo.cs`:
+- [x] Determine runway data source — VNAS NavData.dat contains runway records; `FixDatabase` extended to implement `IRunwayLookup`
+- [x] Create `Phases/RunwayInfo.cs`:
   - `string AirportId` (ICAO or FAA id)
   - `string RunwayId` (e.g., "28R", "10L")
   - `double ThresholdLatitude`, `ThresholdLongitude`
-  - `double Heading` (magnetic heading of the runway)
+  - `double TrueHeading` (true heading of the runway)
   - `double ElevationFt` (threshold elevation)
   - `double LengthFt`, `double WidthFt`
   - `string? ReciprocalId` (the other end)
-  - Computed: `double OppositeHeading`, endpoint lat/lon from heading + length
-- [ ] Create `Data/IRunwayLookup.cs` + `Data/RunwayDatabase.cs`:
-  - `RunwayInfo? GetRunway(string airportId, string runwayId)`
-  - `IReadOnlyList<RunwayInfo> GetRunways(string airportId)`
-  - Load from whatever data source is available
-- [ ] If VNAS data is insufficient, create `Data/RunwayData/` with JSON files for common training airports (at minimum: SFO/KSFO, OAK/KOAK — the ZOA airports used in ATCTrainer scenarios)
+- [x] Create `Data/IRunwayLookup.cs` — implemented by `FixDatabase`:
+  - `RunwayInfo? GetRunway(string airportCode, string runwayId)`
+  - `IReadOnlyList<RunwayInfo> GetRunways(string airportCode)`
+  - Loaded from VNAS NavData.dat runway records
 
 ---
 
@@ -89,62 +85,57 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
 
 ### Phases
 
-- [ ] Create `Phases/Tower/LinedUpAndWaitingPhase.cs`:
+- [x] Create `Phases/Tower/LinedUpAndWaitingPhase.cs`:
   - Aircraft is on the runway, stationary, aligned with runway heading
   - Clearance-gated: requires `ClearedForTakeoff`
   - `OnTick`: hold position (speed = 0, heading = runway heading) until clearance satisfied
   - When clearance received, complete → advance to `TakeoffPhase`
-- [ ] Create `Phases/Tower/TakeoffPhase.cs`:
+- [x] Create `Phases/Tower/TakeoffPhase.cs`:
   - `OnStart`: set heading target = runway heading (or assigned heading from CTO command), begin acceleration
   - Ground roll: accelerate from 0 to Vr (rotation speed, ~130-150 kts for jets, ~60-80 kts for props)
   - At Vr: "rotate" — begin pitch up, liftoff occurs ~5-10 kts above Vr
   - After liftoff: climb at V2+10, initial climb rate by aircraft category
   - `OnTick` returns complete when aircraft reaches a configurable altitude (e.g., 400 ft AGL or pattern altitude)
   - Track `IsAirborne` flag — transitions from ground roll to flight
-- [ ] Create `Phases/Tower/InitialClimbPhase.cs`:
+- [x] Create `Phases/Tower/InitialClimbPhase.cs`:
   - After takeoff phase completes, aircraft continues climbing
   - Maintains runway heading (or assigned heading) and accelerates to cruise climb speed
   - Completes when reaching assigned altitude, or transitions to "no phase" (RPO takes over with direct heading/altitude commands)
 
 ### Physics
 
-- [ ] Extend `FlightPhysics.cs` — ground roll mode:
-  - When aircraft altitude equals airport elevation and speed < liftoff speed: ground mode
-  - No altitude change during ground roll (aircraft stays on runway)
-  - Heading locked to runway heading during ground roll (no turns on the ground yet — that's M3)
-  - Acceleration rate on ground (higher than airborne — ~3-5 kts/sec for jets)
+- [x] Ground roll mode handled by `TakeoffPhase` and `LandingPhase` directly via `ControlTargets`:
+  - Phases set speed/altitude/heading targets; `FlightPhysics` interpolates
+  - Ground acceleration rate via `CategoryPerformance.GroundAcceleration`
   - Position updates along runway centerline during ground roll
-- [ ] Add `AircraftState.IsOnGround` computed property (altitude within ~50 ft of last known ground elevation, or explicit flag)
-- [ ] Add aircraft category Vr/V2 estimates to `AircraftCategorization.cs`
+- [x] Add `AircraftState.IsOnGround` field (set by phases on takeoff/landing transitions)
+- [x] Add aircraft category Vr/V2/approach speed estimates to `AircraftCategorization.cs` / `CategoryPerformance`
 
 ### Commands
 
-- [ ] Add to `CommandParser.cs`:
+- [x] Add to `CommandParser.cs`:
   - `CTO [hdg]` — Cleared for takeoff (optional heading assignment)
   - `CTOR{deg}` / `CTOL{deg}` — Cleared for takeoff with relative right/left turn of N degrees from runway heading (no space between command and degrees). E.g., on runway 28 (heading 280): `CTOR45` → takeoff heading 325, `CTOL270` → takeoff heading 010. **Note:** `CTOR 270` (with space) parses as `CTO` heading 270 with right turn direction — different command.
   - `LUAW` — Line up and wait
   - `CTOC` — Cancel takeoff clearance
   - `CTOMLT` / `CTOMRT` — Cleared for takeoff, make left/right traffic
-- [ ] Add to `ParsedCommand.cs`:
-  - `ClearedForTakeoffCommand { AssignedHeading?, TurnDirection?, RelativeTurnDegrees?, TrafficDirection? }`
-    - `CTO 270` → AssignedHeading=270, TurnDirection=null (shortest turn)
-    - `CTOR 270` → AssignedHeading=270, TurnDirection=Right (same as `CTO 270` but forces right turn)
-    - `CTOR270` (no space) → RelativeTurnDegrees=270, TurnDirection=Right, AssignedHeading computed at dispatch from runway heading + 270
+- [x] Add to `ParsedCommand.cs`:
+  - `ClearedForTakeoffCommand { AssignedHeading?, Turn?, TrafficPattern? }`
   - `LineUpAndWaitCommand`
   - `CancelTakeoffClearanceCommand`
-- [ ] Add to `CommandDispatcher.cs`:
-  - `CTO`: satisfy `ClearedForTakeoff` clearance requirement on current phase; if aircraft has no phase, build LinedUpAndWaiting → Takeoff → InitialClimb phase list
-  - `CTOR`/`CTOL` (with space + heading, e.g., `CTOR 270`): same as `CTO 270` but forces right/left turn direction to the absolute heading
-  - `CTOR{deg}`/`CTOL{deg}` (no space, e.g., `CTOR270`): relative turn — compute target heading as runway heading + degrees (right) or - degrees (left), then CTO to that heading with forced turn direction
-  - `LUAW`: satisfy `LineUpAndWait` clearance (for future use when aircraft taxi to runway in M3); for now, place aircraft in LinedUpAndWaiting phase
-  - `CTOC`: revoke takeoff clearance (only valid during LinedUpAndWaiting before roll begins)
+- [x] Add to `CommandDispatcher.cs`:
+  - `CTO`: satisfy `ClearedForTakeoff` clearance requirement on current phase
+  - `CTOR`/`CTOL` (with space + heading): CTO with forced turn direction
+  - `CTOR{deg}`/`CTOL{deg}` (no space): relative turn computed at parse time from runway heading
+  - `LUAW`: scenario-only (aircraft positioned by scenario loader)
+  - `CTOC`: revoke takeoff clearance; abort during ground roll
   - `CTOMLT`/`CTOMRT`: CTO + set up pattern re-entry after initial climb
 
 ### Scenario Support
 
-- [ ] Add `OnRunway` starting condition support in `ScenarioLoader.cs`:
-  - Look up runway from `RunwayDatabase`
-  - Place aircraft at runway threshold, aligned with runway heading, speed 0, altitude = field elevation
+- [x] Add `OnRunway` starting condition support in `ScenarioLoader.cs`:
+  - Look up runway from `IRunwayLookup`
+  - `AircraftInitializer.InitializeOnRunway()` places aircraft at threshold, speed 0, altitude = field elevation
   - Initialize with `LinedUpAndWaitingPhase` → `TakeoffPhase` → `InitialClimbPhase`
 
 ---
@@ -155,62 +146,56 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
 
 ### Phases
 
-- [ ] Create `Phases/Tower/FinalApproachPhase.cs`:
+- [x] Create `Phases/Tower/FinalApproachPhase.cs`:
   - Aircraft is on final approach, descending toward the runway
   - Tracks glideslope (3.0° default) from current position to runway threshold
   - `OnTick`: continuously compute required descent rate to stay on glideslope, set altitude/speed targets
-  - Clearance-gated: requires `ClearedToLand` (or `ClearedForOption`, `ClearedTouchAndGo`)
-  - If no landing clearance by a configurable distance (default: 0.5 nm from threshold for VFR, DA for IFR), trigger go-around
+  - Clearance-gated: requires landing clearance on `PhaseList.LandingClearance`
+  - If no landing clearance by decision distance (0.5 nm), trigger go-around
   - Completes when aircraft crosses runway threshold → advance to `LandingPhase`
-- [ ] Create `Phases/Tower/LandingPhase.cs`:
+- [x] Create `Phases/Tower/LandingPhase.cs`:
   - Flare: reduce descent rate as aircraft approaches runway elevation
   - Touchdown: aircraft reaches runway elevation, transition to ground mode
   - Rollout: decelerate from touchdown speed to taxi speed
   - Completes when aircraft reaches taxi speed (~30 kts) or stops
   - After completion: aircraft is on the ground, no active phase (awaits taxi instructions in M3, or DEL)
-- [ ] Create `Phases/Tower/GoAroundPhase.cs`:
+- [x] Create `Phases/Tower/GoAroundPhase.cs`:
   - Triggered by `GA` command or automatic (no landing clearance at decision point)
-  - `OnStart`: set full power climb, set heading = runway heading, set target altitude = pattern altitude or as assigned
+  - `OnStart`: set full power climb, set heading = runway heading (or assigned), set target altitude = pattern altitude or as assigned
   - Accelerate to Vy (best rate of climb speed)
   - Completes when reaching target altitude
   - After completion: aircraft has no phase (RPO takes over), or transitions to pattern entry if directed
 
 ### Physics
 
-- [ ] Extend `FlightPhysics.cs` — landing mode:
-  - Flare model: reduce vertical speed to ~100-200 fpm descent in last 50 ft AGL
-  - Touchdown detection: altitude reaches field elevation → transition to ground
-  - Rollout deceleration: ~3-5 kts/sec for jets (reverse thrust + brakes), ~2-3 kts/sec for props
+- [x] Landing mode handled by `FinalApproachPhase` and `LandingPhase` directly via `ControlTargets`:
+  - Flare model: `LandingPhase` reduces descent rate in last 50 ft AGL
+  - Touchdown: altitude reaches field elevation → `IsOnGround = true`
+  - Rollout deceleration via `CategoryPerformance.GroundDeceleration`
   - Position tracks runway centerline during rollout
-- [ ] Add glideslope geometry utility:
-  - Given runway threshold position, heading, and glideslope angle, compute target altitude at any point along the approach path
-  - Compute required descent rate given groundspeed and glideslope angle
+- [x] Create `Phases/GlideSlopeGeometry.cs`:
+  - `AltitudeAtDistance(distNm, fieldElevation)` — compute target altitude from glideslope
+  - `DescentRate(groundspeedKts, glideSlopeDeg)` — compute required descent rate
 
 ### Commands
 
-- [ ] Add to `CommandParser.cs`:
-  - `GA` — Go around
-  - `FS` — Full stop (explicit landing)
-  - `EXIT {twy}` — Exit at taxiway (M3 will implement taxiway routing; for now just mark intent)
-  - `EL` / `ER` — Exit left / exit right
-  - `LAHSO {rwy}` — Land and hold short of runway (store as intent, physics deferred)
-- [ ] Add to `ParsedCommand.cs`:
-  - `GoAroundCommand`
-  - `FullStopCommand`
-  - `ExitRunwayCommand { Direction?, TaxiwayName? }`
-  - `LahsoCommand { HoldShortRunway }`
-- [ ] Add to `CommandDispatcher.cs`:
-  - `GA`: if aircraft is in FinalApproach or Landing phase, transition to GoAround phase
-  - `FS`: satisfy landing clearance (for ClearedForOption scenarios where full stop is the choice)
-  - `EXIT`/`EL`/`ER`: store exit preference on aircraft state (actual exit routing is M3)
+- [x] Add to `CommandParser.cs`:
+  - `GA` — Go around (with optional heading/altitude: `GA 270 50`, `GA RH 50`)
+  - `CTL` — Cleared to land
+  - Deferred to M3: `FS`, `EXIT`, `EL`/`ER`, `LAHSO`
+- [x] Add to `ParsedCommand.cs`:
+  - `GoAroundCommand { AssignedHeading?, TargetAltitude? }`
+  - `ClearedToLandCommand`
+- [x] Add to `CommandDispatcher.cs`:
+  - `GA`: insert GoAroundPhase after current and advance to it
+  - `CTL`: set `PhaseList.LandingClearance = ClearedToLand`
 
 ### Scenario Support
 
-- [ ] Add `OnFinal` starting condition support in `ScenarioLoader.cs`:
-  - Place aircraft on final approach at configured distance from runway threshold
-  - Compute position: offset from runway threshold along approach course
-  - Compute altitude: `distanceFromRunway * tan(glideslope) * 6076` (ft per nm, 3° glideslope ≈ 318 ft/nm)
-  - Set speed to approach speed for aircraft category
+- [x] Add `OnFinal` starting condition support in `ScenarioLoader.cs`:
+  - `AircraftInitializer.InitializeOnFinal()` places aircraft on extended centerline
+  - Altitude from glideslope geometry (default 5nm if not specified via altitude hint)
+  - Speed to approach speed for aircraft category
   - Initialize with `FinalApproachPhase` → `LandingPhase`
 
 ---
@@ -379,11 +364,51 @@ Chunks 3-6 are sequential (each builds on the previous). Chunks 7-8 can begin as
 
 ---
 
+## Known Issue: CRC Visibility for Ground / Low-Altitude Aircraft
+
+**STARS tracks only appear when aircraft altitude >= field elevation + 100ft AGL.** Aircraft on the ground or below 100ft AGL (lined up and waiting, takeoff roll, landing rollout, low approach) are invisible in STARS. These aircraft appear in CRC via two other display systems:
+
+- **TowerCab** (`TowerCabAircraftDto`): Aircraft within range of the subscribed tower position. Contains position, heading, altitude (true + AGL), type code, heavy flag. CRC uses this for tower cab displays.
+- **ASDEX** (`AsdexTargetDto` + `AsdexTrackDto`): Sent when altitude <= ASDEX visibility ceiling (configurable per airport via `targetVisibilityCeiling` in ARTCC config, typically 1500ft MSL). Contains ground position, heading, ground speed, beacon code, category, callsign. Keyed by airport — each ASDEX airport gets its own target/track lists.
+
+**Note on reference implementations:** vatsim-server-rs has STARS, ERAM, and ASDEX support but does **not** implement TowerCab broadcasting (the `tower_cabs` vector is commented out in the update loop). TowerCab filtering rules are our own design based on observed CRC behavior.
+
+Visibility/filtering logic:
+```
+STARS:     show when altitude >= field_elevation + 100ft AGL
+           remove when altitude < field_elevation
+ASDEX:     show when altitude <= targetVisibilityCeiling (from asdexConfiguration, default 1500ft MSL)
+           remove when altitude >= targetVisibilityCeiling + 600ft
+           lateral: within targetVisibilityRange nm (from asdexConfiguration, default 15nm)
+TowerCab:  show when within 20nm of subscribed airport AND altitude <= field_elevation + 4000ft AGL
+           (our own rule — vatsim-server-rs doesn't implement TowerCab filtering)
+```
+
+**Config sources** (from ARTCC JSON, e.g., ZOA.json):
+- `towerCabConfiguration.aircraftVisibilityCeiling` — altitude ceiling in feet (e.g., 6000). We use our own 4000ft AGL rule instead since this appears to be a display config, not a server filter.
+- `asdexConfiguration.targetVisibilityRange` — lateral range in nm (e.g., 15)
+- `asdexConfiguration.targetVisibilityCeiling` — altitude ceiling in feet MSL (e.g., 1500)
+
+**Impact on M2:** OnRunway aircraft and aircraft in ground phases (takeoff roll, landing rollout, touch-and-go) will not appear in CRC until we implement TowerCab and ASDEX DTO support. This is a blocking issue for tower training realism — the controller needs to see aircraft on the runway.
+
+**Reference code:**
+- C# DTO definitions: `X:\dev\towercab-3d-vnas\docs\repos\messaging-master\Entities\` (TowerCabAircraftDto.cs, AsdexTargetDto.cs, AsdexTrackDto.cs, AsdexTrackStatus.cs)
+- Rust DTO definitions: `vatsim-server-rs/crates/messaging/src/dtos.rs` lines 434-766
+- ASDEX visibility logic: `vatsim-server-rs/crates/server/src/clientstate/updates.rs`
+
+**Required work (should be M2, not M3):**
+- [x] Add `TowerCabAircraftDto` to CRC DTOs and broadcast via `ReceiveTowerCabAircrafts` — filter to aircraft within 20nm of airport and <= 4000ft AGL
+- [x] Add `AsdexTargetDto` + `AsdexTrackDto` to CRC DTOs, broadcast via `ReceiveAsdexTargets` / `ReceiveAsdexTracks` — per-airport, within `targetVisibilityRange` nm and <= `targetVisibilityCeiling` ft
+- [x] Add STARS altitude filtering with 5-second coast before deletion — aircraft below 100ft AGL coast (Phase1) for 5 wall-clock seconds with continued position updates, then are deleted from STARS
+- [x] Add delete events for STARS/ASDEX/TowerCab transitions (aircraft crossing visibility thresholds)
+- [x] Load `towerCabConfiguration` and `asdexConfiguration` from ARTCC config (downloaded on-demand from VNAS data API when CRC clients connect)
+
+---
+
 ## What's Deferred (M3+)
 
 - **Ground operations**: Parking, pushback, taxi, hold short, runway crossing (M3)
 - **Taxiway graph and pathfinding**: A* on taxiway nodes (M3)
-- **ASDEX ground target DTOs**: M3
 - **Full Plan/Intent/Contingency system**: M4 (approach control needs it for route-based navigation)
 - **~~NavigationTarget / DCT waypoint following~~**: Done (basic DCT + route continuation implemented in M1; M4 adds course intercepts and procedure-based nav)
 - **Missed approach procedures**: M4 (requires published procedure data)

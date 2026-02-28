@@ -246,73 +246,81 @@ yaat/
 
 ---
 
-### Milestone 2: Local Control (Tower)
+### Milestone 2: Local Control (Tower) — IMPLEMENTATION COMPLETE, VERIFICATION PENDING
 
 **Goal:** Takeoff, landing, traffic pattern, touch-and-go.
 
-#### yaat-server
+#### yaat-server / Yaat.Sim
 
-1. **Introduce `Phase` base class** (see [pilot-ai-architecture.md](pilot-ai-architecture.md) §8.1.1):
+1. **~~Introduce `Phase` base class~~** ✓ (see [pilot-ai-architecture.md](pilot-ai-architecture.md) §8.1.1):
    - Abstract `Phase` with `OnStart`, `OnTick`, `OnEnd` lifecycle
    - `PhaseContext` providing access to aircraft state, targets, and services
    - `PhaseStatus` enum (Pending, Active, Completed, Skipped)
    - Each aircraft gets a simple phase list — no full `Plan`/`Intent` yet, just a current phase driving `ControlTargets`
-2. **`ClearanceRequirement` for tower operations** (see [pilot-ai-architecture.md](pilot-ai-architecture.md) §8.1.4):
+2. **~~`ClearanceRequirement` for tower operations~~** ✓ (see [pilot-ai-architecture.md](pilot-ai-architecture.md) §8.1.4):
    - `ClearanceType.ClearedForTakeoff`, `LineUpAndWait`, `ClearedToLand`, `ClearedForOption`, `ClearedTouchAndGo`
    - RPO tower commands (`CTO`, `LUAW`, etc.) satisfy the corresponding requirement and trigger phase transitions
-   - `StoppedPendingClearance` for aircraft holding short awaiting takeoff clearance
-   - `FlyingPendingClearance` for aircraft on approach awaiting landing clearance (with go-around contingency)
-3. **Tower phases**:
+   - Landing clearance tracked on `PhaseList.LandingClearance` (not per-phase)
+3. **~~Tower phases~~** ✓:
    - `LinedUpAndWaitingPhase` — clearance-gated, transitions to `TakeoffPhase` on CTO
    - `TakeoffPhase` — acceleration to rotation speed, liftoff, initial climb
-   - `LandingPhase` — final approach descent (3° glideslope), touchdown, rollout, runway exit
-   - `GoAroundPhase` — climb on runway heading, return to pattern or as directed
-   - Pattern phases: `PatternEntryPhase`, `DownwindPhase`, `BasePhase`, `FinalPhase`
-4. **Takeoff physics**:
-   - Acceleration on runway to rotation speed
+   - `FinalApproachPhase` — glideslope tracking, clearance-gated go-around
+   - `LandingPhase` — flare, touchdown, rollout deceleration
+   - `GoAroundPhase` — climb on runway heading (or assigned), return to pattern or as directed
+   - Pattern phases: `UpwindPhase`, `CrosswindPhase`, `DownwindPhase`, `BasePhase`
+4. **~~Takeoff physics~~** ✓:
+   - Acceleration on runway to rotation speed (Vr by category)
    - Rotation and liftoff
-   - Initial climb rate based on aircraft type
-5. **Landing physics**:
-   - Final approach descent path (3° glideslope)
+   - Initial climb rate based on aircraft category
+5. **~~Landing physics~~** ✓:
+   - Final approach descent path (3° glideslope via `GlideSlopeGeometry`)
    - Touchdown and rollout deceleration
-   - Runway exit
-6. **Traffic pattern**:
+6. **~~Traffic pattern~~** ✓:
    - Pattern legs: upwind, crosswind, downwind, base, final
-   - Standard pattern altitude (typically 1000ft AGL)
-   - Left/right traffic
-   - Pattern entry points
-7. **Tower commands**:
+   - Standard pattern altitude (~1000ft AGL by category)
+   - Left/right traffic with `PatternGeometry` waypoint computation
+   - Pattern entry points (downwind, base, final)
+   - Pattern cycling: `TrafficDirection` on `PhaseList` auto-appends next circuit
+7. **~~Tower commands~~** ✓:
    - `CTO [hdg]` - Cleared for takeoff
-   - `CTOR{deg}`/`CTOL{deg}` - Cleared for takeoff, relative right/left turn of N degrees from runway heading (e.g., `CTOR45` = 45° right of runway heading; `CTOL270` = 270° left). No space — `CTOR 270` would be parsed as `CTO` with absolute heading 270 + right turn.
+   - `CTOR{deg}`/`CTOL{deg}` - Cleared for takeoff, relative right/left turn
    - `LUAW` - Line up and wait
-   - `CTOC` - Cancel takeoff clearance
+   - `CTOC` - Cancel takeoff clearance (aborts during ground roll)
    - `CTOMLT`/`CTOMRT` - Takeoff with left/right traffic
-   - `GA` - Go around
-   - `TG`/`SG`/`LA`/`FS` - Touch-and-go, stop-and-go, low approach, full stop
-   - `LAHSO {rwy}` - Land and hold short
-   - `EXIT {twy}` - Exit at taxiway
-   - `EL`/`ER` - Exit left/right
+   - `GA [hdg] [alt]` - Go around with optional heading/altitude
+   - `CTL` - Cleared to land
+   - `TG`/`SG`/`LA`/`COPT` - Touch-and-go, stop-and-go, low approach, cleared for option
    - `HPP360L`/`HPP360R` - Hold present position via 360° turns left/right
    - `HPP` - Hold present position (helicopter hover)
-   - `HFIX {fix}` - Hold at fix (360° turns for winged, in-position for helicopters)
-8. **Pattern commands**:
+   - `HFIX {fix}` / `HFIXL`/`HFIXR` - Hold at fix
+   - Deferred to M3: `FS`, `EXIT`, `EL`/`ER`, `LAHSO`
+8. **~~Pattern commands~~** ✓:
    - `ELD`/`ERD` - Enter left/right downwind
    - `ELB`/`ERB` - Enter left/right base
    - `EF` - Enter final
    - `MLT`/`MRT` - Make left/right traffic
    - `TC`/`TD`/`TB` - Turn crosswind/downwind/base
-   - `EXT` - Extend leg
-   - `MSA`/`MNA` - Short/normal approach
-   - `PS {nm}` - Pattern size
+   - `EXT` - Extend leg (works on any pattern leg)
+   - Deferred: `MSA`/`MNA`, `PS {nm}`
+9. **~~Runway data~~** ✓: `FixDatabase` extended to implement `IRunwayLookup` from VNAS NavData.dat
+10. **~~Scenario support~~** ✓: `OnRunway` and `OnFinal` starting conditions via `AircraftInitializer`
+
+#### CRC Visibility (TowerCab + ASDEX + STARS filtering)
+
+STARS tracks only appear when aircraft altitude >= field elevation + 100ft AGL. Ground and low-altitude aircraft (lined up, takeoff roll, landing rollout) need TowerCab and ASDEX DTOs to be visible in CRC. Note: vatsim-server-rs has STARS/ERAM/ASDEX but does **not** implement TowerCab — our filtering rules are our own design.
+
+11. **TowerCab DTOs**: `TowerCabAircraftDto` via `ReceiveTowerCabAircrafts` — aircraft within 20nm of airport and <= 4000ft AGL
+12. **ASDEX DTOs**: `AsdexTargetDto` + `AsdexTrackDto` via `ReceiveAsdexTargets`/`ReceiveAsdexTracks` — per-airport, within `targetVisibilityRange` nm and <= `targetVisibilityCeiling` ft (from ARTCC config)
+13. **STARS altitude filtering**: Only include in `ReceiveStarsTracks` when altitude >= field elevation + 100ft AGL; delete events on transitions
 
 #### yaat client
 
-1. **Tower state display**: Show takeoff/landing/pattern state, current phase
-2. **Runway status**: Active runways, who's on them
-3. **Pattern visualization**: Show which leg each aircraft is on
+1. **~~Tower state display~~** ✓: Phase and Rwy columns in DataGrid
+2. **Runway status**: Active runways, who's on them — deferred
+3. **Pattern visualization**: Show which leg each aircraft is on — deferred
 
 #### Definition of Done
-- Takeoff roll and liftoff visible in CRC
+- Takeoff roll and liftoff visible in CRC (via TowerCab/ASDEX)
 - Aircraft fly traffic pattern
 - Touch-and-go, go-around work
 - Landing and runway exit
@@ -355,8 +363,7 @@ yaat/
    - `BREAK` - Break from conflicts
    - `GIVEWAY {cs}` - Give way
 6. **Pathfinding**: A* or Dijkstra on taxiway graph
-7. **ASDEX DTOs**: Populate AsdexTargetDto and AsdexTrackDto for ground aircraft
-8. **Collision avoidance**: Basic detection (stop if another aircraft is ahead on same taxiway segment)
+7. **Collision avoidance**: Basic detection (stop if another aircraft is ahead on same taxiway segment)
 
 #### yaat client
 
@@ -369,7 +376,6 @@ yaat/
 - Pushback and taxi to runway
 - Hold short of runway, clearance-gated phase transitions
 - Cross runway on command
-- CRC ASDEX display shows ground targets
 - Basic collision avoidance prevents taxi-through
 
 ---
