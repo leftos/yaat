@@ -57,6 +57,21 @@ The main grid shows all aircraft in your scenario:
 
 Click an aircraft row to select it. Press **Esc** to deselect.
 
+### Aircraft Detail Panel
+
+Selecting an aircraft row expands a detail panel below it showing additional state not visible in the grid columns:
+
+| Section | Shown when | Content |
+|---------|------------|---------|
+| Phases | Aircraft is tower-managed | Phase sequence with active phase in brackets, e.g. `[Base] > FinalApproach > Landing` |
+| Pattern | Aircraft is in the pattern | Traffic direction (Left/Right traffic) |
+| Clearance | A clearance has been issued | Clearance type and runway, e.g. "Cleared to land Rwy 28L" |
+| Route | Aircraft has a navigation route | Remaining waypoints in the route |
+| Cruise | Filed cruise altitude exists | Filed cruise altitude and speed |
+| Pending | Queued command blocks exist | Full pending commands text (same as grid column, with more space) |
+
+Sections with no data are hidden. Selecting a different row collapses the previous panel and expands the new one.
+
 ## Commands
 
 Type commands in the command bar at the bottom and press **Enter**.
@@ -229,6 +244,15 @@ CM 100; LV 050 FH 270; LV 100 DCT SUNOL
 ```
 
 Climb to 10,000 ft. At 5,000 ft, turn to heading 270. At 10,000 ft, proceed direct SUNOL.
+
+### Delayed Aircraft Commands
+
+These commands target aircraft in the delayed spawn queue (shown with "Delayed" status):
+
+| Command | Effect |
+|---------|--------|
+| `SPAWN` | Spawn the selected aircraft immediately |
+| `DELAY <n>` | Set spawn delay to N seconds from now (accepts M:SS, e.g., `DELAY 2:00`) |
 
 ### Global Commands
 

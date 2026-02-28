@@ -241,7 +241,16 @@ public record AircraftDto(
     string NavigatingTo = "",
     string CurrentPhase = "",
     string AssignedRunway = "",
-    bool IsOnGround = false
+    bool IsOnGround = false,
+    string PhaseSequence = "",
+    int ActivePhaseIndex = -1,
+    string LandingClearance = "",
+    string ClearedRunway = "",
+    string PatternDirection = "",
+    string NavigationRoute = "",
+    string EquipmentSuffix = "",
+    int CruiseAltitude = 0,
+    int CruiseSpeed = 0
 );
 
 public record LoadScenarioResultDto(

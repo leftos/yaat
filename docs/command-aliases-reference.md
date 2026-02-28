@@ -176,8 +176,12 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 | **Pause** | PAUSE, P | P (toggle) | PAUSE, P | PAUSE |
 | **Unpause** | UNPAUSE, U, UN, UNP, UP | P (toggle) | UNPAUSE, U, UN, UNP, UP | UNPAUSE |
 | **Sim Rate** | SIMRATE | — | SIMRATE | SIMRATE |
+| **Spawn Now** | — | — | SPAWN | SPAWN |
+| **Set Spawn Delay** | — | — | DELAY | DELAY |
 
 > **Note:** VICE pause is a toggle (`P`); YAAT splits into separate Pause/Unpause. The VICE preset uses PAUSE/UNPAUSE (ATCTrainer verbs) since YAAT needs distinct commands.
+>
+> SPAWN and DELAY are YAAT-specific commands for controlling delayed aircraft spawns. SPAWN immediately spawns a delayed aircraft; DELAY sets a new spawn countdown in seconds (accepts M:SS format, e.g., `DELAY 2:00`).
 
 ## ATC / Handoff (not implemented)
 
@@ -236,7 +240,7 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 | Say Frequency | SAYF | — |
 | Cleared | CLRD | — |
 | Delete At | DELAT | — |
-| Wait/Delay | WAIT, DELAY | — |
+| Wait | WAIT | — |
 | Open Chat | OPENCHAT | — |
 | Operations/Stats | OPS, STATS, STAT | — |
 | Show At | SHOWAT | — |

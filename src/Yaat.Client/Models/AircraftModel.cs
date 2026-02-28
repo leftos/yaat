@@ -104,6 +104,131 @@ public partial class AircraftModel : ObservableObject
     private bool _isOnGround;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PhaseSequenceDisplay))]
+    [NotifyPropertyChangedFor(nameof(HasPhases))]
+    private string _phaseSequence = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PhaseSequenceDisplay))]
+    private int _activePhaseIndex = -1;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ClearanceDisplay))]
+    [NotifyPropertyChangedFor(nameof(HasClearance))]
+    private string _landingClearance = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ClearanceDisplay))]
+    private string _clearedRunway = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PatternDisplay))]
+    [NotifyPropertyChangedFor(nameof(HasPattern))]
+    private string _patternDirection = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNavigationRoute))]
+    private string _navigationRoute = "";
+
+    [ObservableProperty]
+    private string _equipmentSuffix = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
+    [NotifyPropertyChangedFor(nameof(HasCruise))]
+    private int _cruiseAltitude;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
+    private int _cruiseSpeed;
+
+    public bool HasPhases => !string.IsNullOrEmpty(PhaseSequence);
+
+    public string PhaseSequenceDisplay
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(PhaseSequence))
+            {
+                return "";
+            }
+
+            var parts = PhaseSequence.Split(" > ");
+            if (ActivePhaseIndex < 0 || ActivePhaseIndex >= parts.Length)
+            {
+                return PhaseSequence;
+            }
+
+            // The server sends only non-completed phases, so index 0
+            // in the split array is the active phase.
+            parts[0] = $"[{parts[0]}]";
+            return string.Join(" > ", parts);
+        }
+    }
+
+    public bool HasClearance => !string.IsNullOrEmpty(LandingClearance);
+
+    public string ClearanceDisplay
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(LandingClearance))
+            {
+                return "";
+            }
+
+            var humanized = LandingClearance switch
+            {
+                "ClearedToLand" => "Cleared to land",
+                "ClearedForOption" => "Cleared for the option",
+                "ClearedTouchAndGo" => "Cleared touch and go",
+                "ClearedStopAndGo" => "Cleared stop and go",
+                "LineUpAndWait" => "Line up and wait",
+                "ClearedForTakeoff" => "Cleared for takeoff",
+                _ => LandingClearance,
+            };
+
+            if (!string.IsNullOrEmpty(ClearedRunway))
+            {
+                return $"{humanized} Rwy {ClearedRunway}";
+            }
+            return humanized;
+        }
+    }
+
+    public bool HasPattern => !string.IsNullOrEmpty(PatternDirection);
+
+    public string PatternDisplay =>
+        string.IsNullOrEmpty(PatternDirection)
+            ? ""
+            : $"{PatternDirection} traffic";
+
+    public bool HasNavigationRoute => !string.IsNullOrEmpty(NavigationRoute);
+
+    public bool HasCruise => CruiseAltitude > 0;
+
+    public string CruiseDisplay
+    {
+        get
+        {
+            if (CruiseAltitude <= 0)
+            {
+                return "";
+            }
+
+            var altStr = CruiseAltitude >= 18000
+                ? $"FL{CruiseAltitude / 100}"
+                : $"{CruiseAltitude}";
+
+            if (CruiseSpeed > 0)
+            {
+                return $"{altStr} / {CruiseSpeed} kt";
+            }
+            return altStr;
+        }
+    }
+
+    [ObservableProperty]
     private bool _isSelected;
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)

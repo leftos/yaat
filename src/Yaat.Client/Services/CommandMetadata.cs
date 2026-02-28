@@ -68,5 +68,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.Pause, "Pause", null, true),
         new(CanonicalCommandType.Unpause, "Unpause", null, true),
         new(CanonicalCommandType.SimRate, "Sim Rate", "2", true),
+        new(CanonicalCommandType.SpawnNow, "Spawn Now", null, false),
+        new(CanonicalCommandType.SpawnDelay, "Set Spawn Delay", "120", false),
     ];
 }

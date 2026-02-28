@@ -160,7 +160,84 @@
                   IsReadOnly="True"
                   GridLinesVisibility="Horizontal"
                   CanUserResizeColumns="True"
-                  SelectionMode="Single">
+                  SelectionMode="Single"
+                  RowDetailsVisibilityMode="VisibleWhenSelected">
+            <DataGrid.RowDetailsTemplate>
+                <DataTemplate>
+                    <Border Padding="12,6"
+                            Background="#0AFFFFFF"
+                            BorderBrush="#1AFFFFFF"
+                            BorderThickness="0,1">
+                        <StackPanel Spacing="3">
+                            <!-- Phases -->
+                            <StackPanel Orientation="Horizontal"
+                                        IsVisible="{Binding HasPhases}">
+                                <TextBlock Text="Phases"
+                                           Width="80"
+                                           Foreground="Gray"
+                                           FontSize="12" />
+                                <TextBlock Text="{Binding PhaseSequenceDisplay}"
+                                           FontFamily="Consolas"
+                                           FontSize="12" />
+                            </StackPanel>
+                            <!-- Pattern -->
+                            <StackPanel Orientation="Horizontal"
+                                        IsVisible="{Binding HasPattern}">
+                                <TextBlock Text="Pattern"
+                                           Width="80"
+                                           Foreground="Gray"
+                                           FontSize="12" />
+                                <TextBlock Text="{Binding PatternDisplay}"
+                                           FontSize="12" />
+                            </StackPanel>
+                            <!-- Clearance -->
+                            <StackPanel Orientation="Horizontal"
+                                        IsVisible="{Binding HasClearance}">
+                                <TextBlock Text="Clearance"
+                                           Width="80"
+                                           Foreground="Gray"
+                                           FontSize="12" />
+                                <TextBlock Text="{Binding ClearanceDisplay}"
+                                           Foreground="LightGreen"
+                                           FontSize="12" />
+                            </StackPanel>
+                            <!-- Navigation Route -->
+                            <StackPanel Orientation="Horizontal"
+                                        IsVisible="{Binding HasNavigationRoute}">
+                                <TextBlock Text="Route"
+                                           Width="80"
+                                           Foreground="Gray"
+                                           FontSize="12" />
+                                <TextBlock Text="{Binding NavigationRoute}"
+                                           FontSize="12" />
+                            </StackPanel>
+                            <!-- Cruise -->
+                            <StackPanel Orientation="Horizontal"
+                                        IsVisible="{Binding HasCruise}">
+                                <TextBlock Text="Cruise"
+                                           Width="80"
+                                           Foreground="Gray"
+                                           FontSize="12" />
+                                <TextBlock Text="{Binding CruiseDisplay}"
+                                           FontSize="12" />
+                            </StackPanel>
+                            <!-- Pending Commands (full, when present) -->
+                            <StackPanel Orientation="Horizontal"
+                                        IsVisible="{Binding PendingCommands,
+                                            Converter={x:Static
+                                            StringConverters.IsNotNullOrEmpty}}">
+                                <TextBlock Text="Pending"
+                                           Width="80"
+                                           Foreground="Gray"
+                                           FontSize="12" />
+                                <TextBlock Text="{Binding PendingCommands}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </DataGrid.RowDetailsTemplate>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Callsign"
                     Binding="{Binding Callsign}"

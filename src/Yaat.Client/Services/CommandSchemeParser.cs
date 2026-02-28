@@ -302,6 +302,12 @@ public static class CommandSchemeParser
                 continue;
             }
 
+            if (type == CanonicalCommandType.SpawnDelay)
+            {
+                var normalized = NormalizeDelayArg(arg);
+                return normalized is not null ? new ParsedInput(type, normalized) : null;
+            }
+
             return new ParsedInput(type, arg);
         }
 
@@ -360,7 +366,9 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            if (type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause or CanonicalCommandType.SimRate)
+            if (type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause
+                or CanonicalCommandType.SimRate or CanonicalCommandType.SpawnNow
+                or CanonicalCommandType.SpawnDelay)
             {
                 continue;
             }
@@ -388,6 +396,22 @@ public static class CommandSchemeParser
             return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.SimRate, parts[1].Trim()) : null;
         }
 
+        if (string.Equals(input, "SPAWN", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ParsedInput(CanonicalCommandType.SpawnNow, null);
+        }
+
+        if (input.StartsWith("DELAY ", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 1)
+            {
+                var normalized = NormalizeDelayArg(parts[1].Trim());
+                return normalized is not null ? new ParsedInput(CanonicalCommandType.SpawnDelay, normalized) : null;
+            }
+            return null;
+        }
+
         // Concatenated verb + digits: H270, L180, C240, SQ1234...
         // Try longer verb matches first (SQ before S)
         foreach (var (type, pattern) in scheme.Patterns)
@@ -408,6 +432,8 @@ public static class CommandSchemeParser
                     or CanonicalCommandType.HoldAtFixLeft
                     or CanonicalCommandType.HoldAtFixRight
                     or CanonicalCommandType.HoldAtFixHover
+                    or CanonicalCommandType.SpawnNow
+                    or CanonicalCommandType.SpawnDelay
             )
             {
                 continue;
@@ -431,6 +457,30 @@ public static class CommandSchemeParser
             }
 
             return new ParsedInput(type, arg);
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeDelayArg(string? arg)
+    {
+        if (arg is null)
+        {
+            return null;
+        }
+
+        if (int.TryParse(arg, out var secs) && secs >= 0)
+        {
+            return secs.ToString();
+        }
+
+        var colonIdx = arg.IndexOf(':');
+        if (colonIdx > 0 && colonIdx < arg.Length - 1
+            && int.TryParse(arg[..colonIdx], out var minutes)
+            && int.TryParse(arg[(colonIdx + 1)..], out var seconds)
+            && minutes >= 0 && seconds >= 0 && seconds < 60)
+        {
+            return (minutes * 60 + seconds).ToString();
         }
 
         return null;

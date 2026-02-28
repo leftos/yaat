@@ -780,6 +780,15 @@ public partial class MainViewModel : ObservableObject
         model.CurrentPhase = dto.CurrentPhase;
         model.AssignedRunway = dto.AssignedRunway;
         model.IsOnGround = dto.IsOnGround;
+        model.PhaseSequence = dto.PhaseSequence;
+        model.ActivePhaseIndex = dto.ActivePhaseIndex;
+        model.LandingClearance = dto.LandingClearance;
+        model.ClearedRunway = dto.ClearedRunway;
+        model.PatternDirection = dto.PatternDirection;
+        model.NavigationRoute = dto.NavigationRoute;
+        model.EquipmentSuffix = dto.EquipmentSuffix;
+        model.CruiseAltitude = dto.CruiseAltitude;
+        model.CruiseSpeed = dto.CruiseSpeed;
     }
 
     private static AircraftModel DtoToModel(AircraftDto dto)
@@ -809,6 +818,15 @@ public partial class MainViewModel : ObservableObject
             CurrentPhase = dto.CurrentPhase,
             AssignedRunway = dto.AssignedRunway,
             IsOnGround = dto.IsOnGround,
+            PhaseSequence = dto.PhaseSequence,
+            ActivePhaseIndex = dto.ActivePhaseIndex,
+            LandingClearance = dto.LandingClearance,
+            ClearedRunway = dto.ClearedRunway,
+            PatternDirection = dto.PatternDirection,
+            NavigationRoute = dto.NavigationRoute,
+            EquipmentSuffix = dto.EquipmentSuffix,
+            CruiseAltitude = dto.CruiseAltitude,
+            CruiseSpeed = dto.CruiseSpeed,
         };
     }
 }
