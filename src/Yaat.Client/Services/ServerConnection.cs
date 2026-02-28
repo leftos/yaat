@@ -276,6 +276,7 @@ public record LoadScenarioResultDto(
     int DelayedCount,
     bool IsPaused,
     int SimRate,
+    string? PrimaryAirportId,
     List<string> Warnings,
     List<AircraftDto> AllAircraft
 );

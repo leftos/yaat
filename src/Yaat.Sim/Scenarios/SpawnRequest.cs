@@ -6,7 +6,7 @@ public enum WeightClass { Small, Large, Heavy }
 
 public enum EngineKind { Piston, Turboprop, Jet }
 
-public enum SpawnPositionType { Bearing, Runway, OnFinal }
+public enum SpawnPositionType { Bearing, Runway, OnFinal, AtFix }
 
 public sealed class SpawnRequest
 {
@@ -25,6 +25,9 @@ public sealed class SpawnRequest
 
     // OnFinal variant
     public double FinalDistanceNm { get; init; }
+
+    // AtFix variant
+    public string FixId { get; init; } = "";
 
     // Optional overrides
     public string? ExplicitType { get; init; }

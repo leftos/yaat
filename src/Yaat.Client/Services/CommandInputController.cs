@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Models;
 using Yaat.Sim.Data;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.Services;
 
@@ -24,6 +25,7 @@ public partial class CommandInputController : ObservableObject
     private bool _suppressNextUpdate;
 
     public FixDatabase? FixDb { get; set; }
+    public string? PrimaryAirportId { get; set; }
 
     public void UpdateSuggestions(
         string text,
@@ -93,6 +95,11 @@ public partial class CommandInputController : ObservableObject
             AddCallsignSuggestions(firstToken, text, aircraft);
             AddCommandVerbSuggestions(firstToken, text, scheme, targetAircraft);
             AddConditionSuggestions(firstToken);
+        }
+        else if (TryAddAddArgumentSuggestions(
+            fragmentForSuggestion, text, scheme, selectedAircraft))
+        {
+            // ADD command positional argument suggestions
         }
         else if (TryAddFixSuggestions(fragmentForSuggestion, text, selectedAircraft, scheme))
         {
@@ -527,6 +534,385 @@ public partial class CommandInputController : ObservableObject
         }
 
         return "";
+    }
+
+    private bool TryAddAddArgumentSuggestions(
+        string fragment, string fullText, CommandScheme scheme,
+        AircraftModel? selectedAircraft)
+    {
+        if (!scheme.Patterns.TryGetValue(
+            Sim.Commands.CanonicalCommandType.Add, out var addPattern))
+        {
+            return false;
+        }
+
+        var words = fragment.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length < 1 || !MatchesAnyAlias(words[0], addPattern))
+        {
+            return false;
+        }
+
+        var hasTrailingSpace = fragment.EndsWith(' ');
+        var completedArgs = hasTrailingSpace ? words.Length - 1 : words.Length - 2;
+        var partial = hasTrailingSpace ? "" : (words.Length > 1 ? words[^1] : "");
+        var prefix = GetTextBeforeLastWord(fullText);
+
+        switch (completedArgs)
+        {
+            case 0:
+                AddAddOptions(prefix, partial,
+                    ("I", "IFR — Instrument flight rules"),
+                    ("V", "VFR — Visual flight rules"));
+                break;
+
+            case 1:
+                AddAddOptions(prefix, partial,
+                    ("S", "Small — GA/light aircraft"),
+                    ("L", "Large — Regional/narrow-body"),
+                    ("H", "Heavy — Wide-body"));
+                break;
+
+            case 2:
+            {
+                var weight = ParseWeightToken(words[2]);
+                if (weight is not null)
+                {
+                    AddEngineOptions(prefix, partial, weight.Value);
+                }
+                break;
+            }
+
+            case >= 3:
+                AddPositionSuggestions(
+                    words, fullText, prefix, partial,
+                    completedArgs, selectedAircraft);
+                break;
+        }
+
+        return Suggestions.Count > 0;
+    }
+
+    private void AddAddOptions(
+        string prefix, string partial,
+        params (string Value, string Description)[] options)
+    {
+        foreach (var (value, desc) in options)
+        {
+            if (Suggestions.Count >= MaxSuggestions)
+            {
+                break;
+            }
+
+            if (partial.Length > 0
+                && !value.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Suggestions.Add(new SuggestionItem
+            {
+                Kind = SuggestionKind.Command,
+                Text = value,
+                Description = desc,
+                InsertText = prefix + value + " ",
+            });
+        }
+    }
+
+    private void AddEngineOptions(
+        string prefix, string partial, WeightClass weight)
+    {
+        var options = weight switch
+        {
+            WeightClass.Small => new (string, string)[]
+            {
+                ("P", "Piston — " + FormatTypes(weight, EngineKind.Piston)),
+                ("T", "Turboprop — " + FormatTypes(weight, EngineKind.Turboprop)),
+            },
+            WeightClass.Large => new (string, string)[]
+            {
+                ("T", "Turboprop — " + FormatTypes(weight, EngineKind.Turboprop)),
+                ("J", "Jet — " + FormatTypes(weight, EngineKind.Jet)),
+            },
+            WeightClass.Heavy => new (string, string)[]
+            {
+                ("J", "Jet — " + FormatTypes(weight, EngineKind.Jet)),
+            },
+            _ => [],
+        };
+
+        AddAddOptions(prefix, partial, options);
+    }
+
+    private static string FormatTypes(WeightClass weight, EngineKind engine)
+    {
+        var types = AircraftGenerator.GetTypesForCombo(weight, engine);
+        return types is not null ? string.Join(", ", types) : "";
+    }
+
+    private void AddPositionSuggestions(
+        string[] words, string fullText, string prefix, string partial,
+        int completedArgs, AircraftModel? selectedAircraft)
+    {
+        if (completedArgs == 3)
+        {
+            if (partial.StartsWith('@'))
+            {
+                // User is typing @fixname — show fix suggestions
+                var fixPartial = partial.Length > 1 ? partial[1..] : "";
+                AddAtFixSuggestions(fixPartial, prefix, selectedAircraft);
+            }
+            else
+            {
+                // Show all position variant hints + runway suggestions
+                AddAddOptions(prefix, partial,
+                    ("-", "Airborne — -{bearing} {dist_nm} {alt_ft}"),
+                    ("@", "At fix — @{fix_or_FRD} {alt_ft}"));
+                AddRunwaySuggestions(prefix, partial);
+            }
+            return;
+        }
+
+        // Determine which variant the user is typing
+        bool isBearingVariant = words.Length > 4 && words[4].StartsWith('-');
+        bool isFixVariant = words.Length > 4 && words[4].StartsWith('@');
+
+        if (isBearingVariant)
+        {
+            if (completedArgs >= 6)
+            {
+                AddTypeAndAirlineOverrides(words, prefix, partial);
+            }
+        }
+        else if (isFixVariant)
+        {
+            if (completedArgs >= 5)
+            {
+                AddTypeAndAirlineOverrides(words, prefix, partial);
+            }
+        }
+        else
+        {
+            // Runway variant
+            if (completedArgs >= 4)
+            {
+                AddTypeAndAirlineOverrides(words, prefix, partial);
+            }
+        }
+    }
+
+    private void AddRunwaySuggestions(string prefix, string partial)
+    {
+        if (FixDb is null || string.IsNullOrEmpty(PrimaryAirportId))
+        {
+            return;
+        }
+
+        var runways = FixDb.GetRunways(PrimaryAirportId);
+        foreach (var rwy in runways)
+        {
+            if (Suggestions.Count >= MaxSuggestions)
+            {
+                break;
+            }
+
+            if (partial.Length > 0
+                && !rwy.RunwayId.StartsWith(
+                    partial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var desc = $"Runway — lined up, or add distance for final";
+            Suggestions.Add(new SuggestionItem
+            {
+                Kind = SuggestionKind.Command,
+                Text = rwy.RunwayId,
+                Description = desc,
+                InsertText = prefix + rwy.RunwayId + " ",
+            });
+        }
+    }
+
+    private void AddAtFixSuggestions(
+        string fixPartial, string prefix, AircraftModel? selectedAircraft)
+    {
+        var count = Suggestions.Count;
+
+        // Tier 1: Route fixes from selected aircraft
+        if (selectedAircraft is not null && FixDb is not null)
+        {
+            var routeFixes = CollectRouteFixNames(selectedAircraft);
+            foreach (var fix in routeFixes)
+            {
+                if (count >= MaxSuggestions)
+                {
+                    break;
+                }
+
+                if (fixPartial.Length > 0
+                    && !fix.StartsWith(
+                        fixPartial, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                Suggestions.Add(new SuggestionItem
+                {
+                    Kind = SuggestionKind.RouteFix,
+                    Text = $"@{fix}",
+                    Description = "Route",
+                    InsertText = prefix + $"@{fix} ",
+                });
+                count++;
+            }
+        }
+
+        // Tier 2: All navdata fixes
+        if (FixDb is not null && fixPartial.Length > 0)
+        {
+            var allNames = FixDb.AllFixNames;
+
+            // Binary search for first match
+            int lo = 0, hi = allNames.Length - 1;
+            while (lo <= hi)
+            {
+                int mid = lo + (hi - lo) / 2;
+                if (string.Compare(
+                    allNames[mid], 0, fixPartial, 0, fixPartial.Length,
+                    StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    lo = mid + 1;
+                }
+                else
+                {
+                    hi = mid - 1;
+                }
+            }
+
+            // Avoid duplicates with route fixes
+            var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var s in Suggestions)
+            {
+                if (s.Kind == SuggestionKind.RouteFix)
+                {
+                    // Strip the @ prefix to get the raw fix name
+                    existing.Add(
+                        s.Text.StartsWith('@') ? s.Text[1..] : s.Text);
+                }
+            }
+
+            for (int i = lo; i < allNames.Length && count < MaxSuggestions; i++)
+            {
+                var name = allNames[i];
+                if (!name.StartsWith(
+                    fixPartial, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                if (existing.Contains(name))
+                {
+                    continue;
+                }
+
+                Suggestions.Add(new SuggestionItem
+                {
+                    Kind = SuggestionKind.Fix,
+                    Text = $"@{name}",
+                    Description = "",
+                    InsertText = prefix + $"@{name} ",
+                });
+                count++;
+            }
+        }
+    }
+
+    private void AddTypeAndAirlineOverrides(
+        string[] words, string prefix, string partial)
+    {
+        var weight = ParseWeightToken(words[2]);
+        var engine = ParseEngineToken(words[3]);
+        if (weight is null || engine is null)
+        {
+            return;
+        }
+
+        var types = AircraftGenerator.GetTypesForCombo(weight.Value, engine.Value);
+        if (types is not null)
+        {
+            foreach (var type in types)
+            {
+                if (Suggestions.Count >= MaxSuggestions)
+                {
+                    break;
+                }
+
+                if (partial.Length > 0
+                    && !type.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                Suggestions.Add(new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = type,
+                    Description = "Aircraft type override",
+                    InsertText = prefix + type + " ",
+                });
+            }
+        }
+
+        if (partial.Length == 0 || partial.StartsWith('*'))
+        {
+            var airlinePartial = partial.Length > 1 ? partial[1..] : "";
+            foreach (var airline in AircraftGenerator.GetAirlines())
+            {
+                if (Suggestions.Count >= MaxSuggestions)
+                {
+                    break;
+                }
+
+                if (airlinePartial.Length > 0
+                    && !airline.StartsWith(
+                        airlinePartial, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var display = $"*{airline}";
+                Suggestions.Add(new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = display,
+                    Description = "Airline callsign override",
+                    InsertText = prefix + display + " ",
+                });
+            }
+        }
+    }
+
+    private static WeightClass? ParseWeightToken(string token)
+    {
+        return token.ToUpperInvariant() switch
+        {
+            "S" => WeightClass.Small,
+            "L" => WeightClass.Large,
+            "H" => WeightClass.Heavy,
+            _ => null,
+        };
+    }
+
+    private static EngineKind? ParseEngineToken(string token)
+    {
+        return token.ToUpperInvariant() switch
+        {
+            "P" => EngineKind.Piston,
+            "T" => EngineKind.Turboprop,
+            "J" => EngineKind.Jet,
+            _ => null,
+        };
     }
 
     private void AddConditionSuggestions(string token)

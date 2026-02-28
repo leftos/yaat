@@ -16,6 +16,11 @@ public static class AircraftGenerator
     private static readonly string[] Airlines =
         ["UAL", "AAL", "DAL", "SWA", "JBU", "ASA", "NKS", "SKW", "ENY", "RPA"];
 
+    public static string[]? GetTypesForCombo(WeightClass weight, EngineKind engine)
+        => TypeTable.GetValueOrDefault((weight, engine));
+
+    public static IReadOnlyList<string> GetAirlines() => Airlines;
+
     public static (AircraftState? State, string? Error) Generate(
         SpawnRequest request,
         string? primaryAirportId,
@@ -50,6 +55,11 @@ public static class AircraftGenerator
             case SpawnPositionType.OnFinal:
                 return GenerateOnFinal(
                     request, primaryAirportId, runways, callsign,
+                    aircraftType, category, beaconCode, transponderMode, flightRules);
+
+            case SpawnPositionType.AtFix:
+                return GenerateAtFix(
+                    request, primaryAirportId, fixes, callsign,
                     aircraftType, category, beaconCode, transponderMode, flightRules);
 
             default:
@@ -87,6 +97,49 @@ public static class AircraftGenerator
             AircraftType = aircraftType,
             Latitude = lat,
             Longitude = lon,
+            Heading = heading,
+            Altitude = request.Altitude,
+            GroundSpeed = speed,
+            BeaconCode = beaconCode,
+            TransponderMode = transponderMode,
+            FlightRules = flightRules,
+        };
+
+        return (state, null);
+    }
+
+    private static (AircraftState? State, string? Error) GenerateAtFix(
+        SpawnRequest request, string? primaryAirportId, IFixLookup fixes,
+        string callsign, string aircraftType, AircraftCategory category,
+        uint beaconCode, string transponderMode, string flightRules)
+    {
+        var resolved = FrdResolver.Resolve(request.FixId, fixes);
+        if (resolved is null)
+        {
+            return (null, $"Could not resolve fix or FRD '{request.FixId}'");
+        }
+
+        // If primary airport is known, head toward it; otherwise head north
+        double heading = 0;
+        if (!string.IsNullOrEmpty(primaryAirportId))
+        {
+            var airportPos = fixes.GetFixPosition(primaryAirportId);
+            if (airportPos is not null)
+            {
+                heading = ComputeBearing(
+                    resolved.Latitude, resolved.Longitude,
+                    airportPos.Value.Lat, airportPos.Value.Lon);
+            }
+        }
+
+        var speed = CategoryPerformance.DefaultSpeed(category, request.Altitude);
+
+        var state = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = aircraftType,
+            Latitude = resolved.Latitude,
+            Longitude = resolved.Longitude,
             Heading = heading,
             Altitude = request.Altitude,
             GroundSpeed = speed,
