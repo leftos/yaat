@@ -91,7 +91,17 @@ YAAT supports two command schemes, switchable in Settings:
 | Direct to fix | `DCT SUNOL` | `DCT SUNOL` |
 | Delete aircraft | `DEL` | `X` |
 
-Altitude arguments use hundreds of feet (e.g., `050` = 5,000 ft, `240` = 24,000 ft).
+### Altitude Arguments
+
+Altitude arguments (used by CM, DM, and LV) accept three formats:
+
+| Format | Example | Result |
+|--------|---------|--------|
+| Hundreds (1-3 digits) | `050` | 5,000 ft |
+| Absolute (4+ digits) | `5000` | 5,000 ft |
+| AGL (airport + altitude) | `KOAK010` | 1,000 ft above KOAK field elevation |
+
+The hundreds-vs-absolute rule: values under 1,000 are multiplied by 100; values 1,000+ are used as-is. This applies to both numeric and AGL formats — `KOAK010` means 1,000 ft AGL, `KOAK1500` means 1,500 ft AGL. The airport code can be FAA (e.g., `OAK`) or ICAO (e.g., `KOAK`).
 
 ### Command Chaining
 

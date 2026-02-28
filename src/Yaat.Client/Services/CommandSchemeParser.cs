@@ -15,6 +15,36 @@ public static class CommandSchemeParser
     private static readonly HashSet<string> PassthroughVerbs = new(StringComparer.OrdinalIgnoreCase) { "LV", "AT" };
 
     /// <summary>
+    /// Returns true if the argument is a valid altitude: numeric (e.g., "050", "5000")
+    /// or AGL format with an airport prefix (e.g., "KOAK010").
+    /// </summary>
+    private static bool IsAltitudeArg(string arg)
+    {
+        if (int.TryParse(arg, out _))
+        {
+            return true;
+        }
+
+        // AGL: leading letters + trailing digits
+        int splitIndex = -1;
+        for (int i = 0; i < arg.Length; i++)
+        {
+            if (char.IsDigit(arg[i]))
+            {
+                splitIndex = i;
+                break;
+            }
+        }
+
+        if (splitIndex <= 0)
+        {
+            return false;
+        }
+
+        return int.TryParse(arg[splitIndex..], out _);
+    }
+
+    /// <summary>
     /// Parses a compound input string (may contain ';' and ',' separators).
     /// Returns the canonical string to send to the server, or null if any part fails.
     /// </summary>
@@ -89,7 +119,7 @@ public static class CommandSchemeParser
                 return null;
             }
 
-            if (!int.TryParse(tokens[1], out _))
+            if (!IsAltitudeArg(tokens[1]))
             {
                 return null;
             }
@@ -298,7 +328,13 @@ public static class CommandSchemeParser
             }
 
             var arg = input[pattern.Verb.Length..];
-            if (arg.Length == 0 || !int.TryParse(arg, out _))
+            if (arg.Length == 0)
+            {
+                continue;
+            }
+
+            bool isAltitudeCommand = type is CanonicalCommandType.ClimbMaintain or CanonicalCommandType.DescendMaintain;
+            if (isAltitudeCommand ? !IsAltitudeArg(arg) : !int.TryParse(arg, out _))
             {
                 continue;
             }
