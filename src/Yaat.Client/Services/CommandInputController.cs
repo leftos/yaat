@@ -124,6 +124,7 @@ public partial class CommandInputController : ObservableObject
         }
 
         var item = Suggestions[SelectedSuggestionIndex];
+        _suppressNextUpdate = true;
         DismissSuggestions();
         return item.InsertText;
     }
@@ -228,9 +229,12 @@ public partial class CommandInputController : ObservableObject
     {
         foreach (var pattern in scheme.Patterns.Values)
         {
-            if (string.Equals(pattern.Verb, token, StringComparison.OrdinalIgnoreCase))
+            foreach (var alias in pattern.Aliases)
             {
-                return true;
+                if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
             }
         }
 
@@ -300,7 +304,6 @@ public partial class CommandInputController : ObservableObject
             return false;
         }
 
-        var dctVerb = dctPattern.Verb;
         var words = fragmentWithSpaces.Split(
             ' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length < 1)
@@ -308,15 +311,14 @@ public partial class CommandInputController : ObservableObject
             return false;
         }
 
-        // Pattern 1: "DCT ..." — first word is the DCT verb
-        // Pattern 2: "UAL123 DCT ..." — first word is callsign, second is DCT verb
+        // Pattern 1: "DCT ..." — first word is a DCT alias
+        // Pattern 2: "UAL123 DCT ..." — first word is callsign, second is DCT alias
         int dctIndex;
-        if (string.Equals(words[0], dctVerb, StringComparison.OrdinalIgnoreCase))
+        if (MatchesAnyAlias(words[0], dctPattern))
         {
             dctIndex = 0;
         }
-        else if (words.Length >= 2
-            && string.Equals(words[1], dctVerb, StringComparison.OrdinalIgnoreCase))
+        else if (words.Length >= 2 && MatchesAnyAlias(words[1], dctPattern))
         {
             dctIndex = 1;
         }
@@ -542,41 +544,85 @@ public partial class CommandInputController : ObservableObject
         }
     }
 
+    private static bool MatchesAnyAlias(string token, CommandPattern pattern)
+    {
+        foreach (var alias in pattern.Aliases)
+        {
+            if (string.Equals(token, alias, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void AddCommandVerbSuggestions(
         string token,
         string fullText,
         CommandScheme scheme)
     {
-        var count = Suggestions.Count;
+        // Collect candidates with match quality so exact alias matches sort first.
+        // 0 = exact alias match, 1 = alias prefix match, 2 = label substring match
+        var candidates = new List<(int Rank, CommandMetadata.CommandInfo Cmd, CommandPattern Pattern)>();
+
         foreach (var cmd in CommandMetadata.AllCommands)
+        {
+            if (!scheme.Patterns.TryGetValue(cmd.Type, out var pattern))
+            {
+                continue;
+            }
+
+            int bestRank = int.MaxValue;
+            foreach (var alias in pattern.Aliases)
+            {
+                if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
+                {
+                    bestRank = 0;
+                    break;
+                }
+
+                if (alias.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+                {
+                    bestRank = Math.Min(bestRank, 1);
+                }
+            }
+
+            if (bestRank == int.MaxValue
+                && cmd.Label.Contains(token, StringComparison.OrdinalIgnoreCase))
+            {
+                bestRank = 2;
+            }
+
+            if (bestRank < int.MaxValue)
+            {
+                candidates.Add((bestRank, cmd, pattern));
+            }
+        }
+
+        candidates.Sort((a, b) => a.Rank.CompareTo(b.Rank));
+
+        var count = Suggestions.Count;
+        foreach (var (_, cmd, pattern) in candidates)
         {
             if (count >= MaxSuggestions)
             {
                 break;
             }
 
-            if (!scheme.Patterns.TryGetValue(cmd.Type, out var pattern))
-            {
-                continue;
-            }
-
-            var matchesVerb = pattern.Verb.StartsWith(token, StringComparison.OrdinalIgnoreCase);
-            var matchesLabel = cmd.Label.Contains(token, StringComparison.OrdinalIgnoreCase);
-            if (!matchesVerb && !matchesLabel)
-            {
-                continue;
-            }
-
             var argHint = cmd.SampleArg is not null ? $" {{{cmd.SampleArg}}}" : "";
-            var desc = $"{cmd.Label}{argHint}";
+            var aliasHint = pattern.Aliases.Count > 1
+                ? $" ({string.Join(", ", pattern.Aliases)})"
+                : "";
+            var desc = $"{cmd.Label}{argHint}{aliasHint}";
             var needsArg = pattern.Format.Contains("{arg}");
             var prefix = GetTextBeforeCurrentToken(fullText);
-            var insertText = prefix + pattern.Verb + (needsArg ? " " : "");
+            var insertText = prefix + pattern.PrimaryVerb + (needsArg ? " " : "");
 
             Suggestions.Add(new SuggestionItem
             {
                 Kind = SuggestionKind.Command,
-                Text = pattern.Verb,
+                Text = pattern.PrimaryVerb,
                 Description = desc,
                 InsertText = insertText,
             });

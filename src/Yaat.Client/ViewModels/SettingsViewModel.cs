@@ -14,22 +14,27 @@ public partial class VerbMappingRow : ObservableObject
     public required string? SampleArg { get; init; }
 
     [ObservableProperty]
-    private string _verb = "";
+    private string _aliases = "";
 
     [ObservableProperty]
     private string _example = "";
 
-    public event Action? VerbEdited;
+    public event Action? AliasesEdited;
 
-    partial void OnVerbChanged(string value)
+    public List<string> AliasesList =>
+        Aliases.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+    partial void OnAliasesChanged(string value)
     {
         Example = BuildExample();
-        VerbEdited?.Invoke();
+        AliasesEdited?.Invoke();
     }
 
     private string BuildExample()
     {
-        var result = Format.Replace("{verb}", Verb);
+        var primary = AliasesList.Count > 0 ? AliasesList[0] : "";
+        var result = Format.Replace("{verb}", primary);
         if (SampleArg is not null)
         {
             result = result.Replace("{arg}", SampleArg);
@@ -111,7 +116,7 @@ public partial class SettingsViewModel : ObservableObject
         // Unhook existing rows
         foreach (var row in VerbMappings)
         {
-            row.VerbEdited -= OnVerbEdited;
+            row.AliasesEdited -= OnAliasesEdited;
         }
 
         VerbMappings.Clear();
@@ -129,16 +134,16 @@ public partial class SettingsViewModel : ObservableObject
                 CommandName = cmd.Label,
                 Format = pattern.Format,
                 SampleArg = cmd.SampleArg,
-                Verb = pattern.Verb,
+                Aliases = string.Join(", ", pattern.Aliases),
                 Example = BuildExample(pattern, cmd.SampleArg),
             };
 
-            row.VerbEdited += OnVerbEdited;
+            row.AliasesEdited += OnAliasesEdited;
             VerbMappings.Add(row);
         }
     }
 
-    private void OnVerbEdited()
+    private void OnAliasesEdited()
     {
         if (!_suppressPresetDetection)
         {
@@ -180,15 +185,16 @@ public partial class SettingsViewModel : ObservableObject
 
         foreach (var (type, pattern) in baseScheme.Patterns)
         {
-            patterns[type] = new CommandPattern { Verb = pattern.Verb, Format = pattern.Format };
+            patterns[type] = new CommandPattern { Aliases = [.. pattern.Aliases], Format = pattern.Format };
         }
 
-        // Override verbs from edited rows
+        // Override aliases from edited rows
         foreach (var row in VerbMappings)
         {
-            if (patterns.TryGetValue(row.CommandType, out var existing))
+            var aliases = row.AliasesList;
+            if (aliases.Count > 0 && patterns.TryGetValue(row.CommandType, out var existing))
             {
-                existing.Verb = row.Verb;
+                existing.Aliases = aliases;
             }
         }
 
@@ -197,7 +203,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private static string BuildExample(CommandPattern pattern, string? sampleArg)
     {
-        var result = pattern.Format.Replace("{verb}", pattern.Verb);
+        var result = pattern.Format.Replace("{verb}", pattern.PrimaryVerb);
 
         if (sampleArg is not null)
         {

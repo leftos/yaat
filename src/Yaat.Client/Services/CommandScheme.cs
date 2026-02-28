@@ -4,8 +4,10 @@ namespace Yaat.Client.Services;
 
 public class CommandPattern
 {
-    public required string Verb { get; set; }
+    public required List<string> Aliases { get; set; }
     public required string Format { get; init; }
+
+    public string PrimaryVerb => Aliases[0];
 }
 
 public class CommandScheme
@@ -42,59 +44,59 @@ public class CommandScheme
             Patterns = new Dictionary<CanonicalCommandType, CommandPattern>
             {
                 // Heading
-                [CanonicalCommandType.FlyHeading] = new() { Verb = "FH", Format = "{verb} {arg}" },
-                [CanonicalCommandType.TurnLeft] = new() { Verb = "TL", Format = "{verb} {arg}" },
-                [CanonicalCommandType.TurnRight] = new() { Verb = "TR", Format = "{verb} {arg}" },
-                [CanonicalCommandType.RelativeLeft] = new() { Verb = "LT", Format = "{verb} {arg}" },
-                [CanonicalCommandType.RelativeRight] = new() { Verb = "RT", Format = "{verb} {arg}" },
-                [CanonicalCommandType.FlyPresentHeading] = new() { Verb = "FPH", Format = "{verb}" },
+                [CanonicalCommandType.FlyHeading] = new() { Aliases = ["FH"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.TurnLeft] = new() { Aliases = ["TL"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.TurnRight] = new() { Aliases = ["TR"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.RelativeLeft] = new() { Aliases = ["LT"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.RelativeRight] = new() { Aliases = ["RT"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.FlyPresentHeading] = new() { Aliases = ["FPH", "FCH"], Format = "{verb}" },
                 // Altitude / Speed
-                [CanonicalCommandType.ClimbMaintain] = new() { Verb = "CM", Format = "{verb} {arg}" },
-                [CanonicalCommandType.DescendMaintain] = new() { Verb = "DM", Format = "{verb} {arg}" },
-                [CanonicalCommandType.Speed] = new() { Verb = "SPD", Format = "{verb} {arg}" },
+                [CanonicalCommandType.ClimbMaintain] = new() { Aliases = ["CM"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.DescendMaintain] = new() { Aliases = ["DM"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.Speed] = new() { Aliases = ["SPD", "SLOW", "SL", "SPEED"], Format = "{verb} {arg}" },
                 // Transponder
-                [CanonicalCommandType.Squawk] = new() { Verb = "SQ", Format = "{verb} {arg}" },
-                [CanonicalCommandType.SquawkIdent] = new() { Verb = "SQI", Format = "{verb}" },
-                [CanonicalCommandType.SquawkVfr] = new() { Verb = "SQVFR", Format = "{verb}" },
-                [CanonicalCommandType.SquawkNormal] = new() { Verb = "SQNORM", Format = "{verb}" },
-                [CanonicalCommandType.SquawkStandby] = new() { Verb = "SQSBY", Format = "{verb}" },
-                [CanonicalCommandType.Ident] = new() { Verb = "IDENT", Format = "{verb}" },
+                [CanonicalCommandType.Squawk] = new() { Aliases = ["SQ", "SQUAWK"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.SquawkIdent] = new() { Aliases = ["SQI", "SQID"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkVfr] = new() { Aliases = ["SQVFR", "SQV"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkNormal] = new() { Aliases = ["SQNORM", "SN"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkStandby] = new() { Aliases = ["SQSBY", "SS"], Format = "{verb}" },
+                [CanonicalCommandType.Ident] = new() { Aliases = ["IDENT", "ID"], Format = "{verb}" },
                 // Navigation
-                [CanonicalCommandType.DirectTo] = new() { Verb = "DCT", Format = "{verb} {arg}" },
+                [CanonicalCommandType.DirectTo] = new() { Aliases = ["DCT"], Format = "{verb} {arg}" },
                 // Tower
-                [CanonicalCommandType.LineUpAndWait] = new() { Verb = "LUAW", Format = "{verb}" },
-                [CanonicalCommandType.ClearedForTakeoff] = new() { Verb = "CTO", Format = "{verb}" },
-                [CanonicalCommandType.CancelTakeoffClearance] = new() { Verb = "CTOC", Format = "{verb}" },
-                [CanonicalCommandType.GoAround] = new() { Verb = "GA", Format = "{verb}" },
-                [CanonicalCommandType.ClearedToLand] = new() { Verb = "CTL", Format = "{verb}" },
-                [CanonicalCommandType.TouchAndGo] = new() { Verb = "TG", Format = "{verb}" },
-                [CanonicalCommandType.StopAndGo] = new() { Verb = "SG", Format = "{verb}" },
-                [CanonicalCommandType.LowApproach] = new() { Verb = "LA", Format = "{verb}" },
-                [CanonicalCommandType.ClearedForOption] = new() { Verb = "COPT", Format = "{verb}" },
+                [CanonicalCommandType.LineUpAndWait] = new() { Aliases = ["LUAW", "POS", "LU", "PH"], Format = "{verb}" },
+                [CanonicalCommandType.ClearedForTakeoff] = new() { Aliases = ["CTO"], Format = "{verb}" },
+                [CanonicalCommandType.CancelTakeoffClearance] = new() { Aliases = ["CTOC"], Format = "{verb}" },
+                [CanonicalCommandType.GoAround] = new() { Aliases = ["GA"], Format = "{verb}" },
+                [CanonicalCommandType.ClearedToLand] = new() { Aliases = ["CTL", "LAND"], Format = "{verb}" },
+                [CanonicalCommandType.TouchAndGo] = new() { Aliases = ["TG"], Format = "{verb}" },
+                [CanonicalCommandType.StopAndGo] = new() { Aliases = ["SG"], Format = "{verb}" },
+                [CanonicalCommandType.LowApproach] = new() { Aliases = ["LA"], Format = "{verb}" },
+                [CanonicalCommandType.ClearedForOption] = new() { Aliases = ["COPT"], Format = "{verb}" },
                 // Pattern
-                [CanonicalCommandType.EnterLeftDownwind] = new() { Verb = "ELD", Format = "{verb}" },
-                [CanonicalCommandType.EnterRightDownwind] = new() { Verb = "ERD", Format = "{verb}" },
-                [CanonicalCommandType.EnterLeftBase] = new() { Verb = "ELB", Format = "{verb}" },
-                [CanonicalCommandType.EnterRightBase] = new() { Verb = "ERB", Format = "{verb}" },
-                [CanonicalCommandType.EnterFinal] = new() { Verb = "EF", Format = "{verb}" },
-                [CanonicalCommandType.MakeLeftTraffic] = new() { Verb = "MLT", Format = "{verb}" },
-                [CanonicalCommandType.MakeRightTraffic] = new() { Verb = "MRT", Format = "{verb}" },
-                [CanonicalCommandType.TurnCrosswind] = new() { Verb = "TC", Format = "{verb}" },
-                [CanonicalCommandType.TurnDownwind] = new() { Verb = "TD", Format = "{verb}" },
-                [CanonicalCommandType.TurnBase] = new() { Verb = "TB", Format = "{verb}" },
-                [CanonicalCommandType.ExtendDownwind] = new() { Verb = "EXT", Format = "{verb}" },
+                [CanonicalCommandType.EnterLeftDownwind] = new() { Aliases = ["ELD"], Format = "{verb}" },
+                [CanonicalCommandType.EnterRightDownwind] = new() { Aliases = ["ERD"], Format = "{verb}" },
+                [CanonicalCommandType.EnterLeftBase] = new() { Aliases = ["ELB"], Format = "{verb}" },
+                [CanonicalCommandType.EnterRightBase] = new() { Aliases = ["ERB"], Format = "{verb}" },
+                [CanonicalCommandType.EnterFinal] = new() { Aliases = ["EF"], Format = "{verb}" },
+                [CanonicalCommandType.MakeLeftTraffic] = new() { Aliases = ["MLT"], Format = "{verb}" },
+                [CanonicalCommandType.MakeRightTraffic] = new() { Aliases = ["MRT"], Format = "{verb}" },
+                [CanonicalCommandType.TurnCrosswind] = new() { Aliases = ["TC"], Format = "{verb}" },
+                [CanonicalCommandType.TurnDownwind] = new() { Aliases = ["TD"], Format = "{verb}" },
+                [CanonicalCommandType.TurnBase] = new() { Aliases = ["TB"], Format = "{verb}" },
+                [CanonicalCommandType.ExtendDownwind] = new() { Aliases = ["EXT"], Format = "{verb}" },
                 // Hold
-                [CanonicalCommandType.HoldPresentPosition360Left] = new() { Verb = "HPP360L", Format = "{verb}" },
-                [CanonicalCommandType.HoldPresentPosition360Right] = new() { Verb = "HPP360R", Format = "{verb}" },
-                [CanonicalCommandType.HoldPresentPositionHover] = new() { Verb = "HPP", Format = "{verb}" },
-                [CanonicalCommandType.HoldAtFixLeft] = new() { Verb = "HFIXL", Format = "{verb} {arg}" },
-                [CanonicalCommandType.HoldAtFixRight] = new() { Verb = "HFIXR", Format = "{verb} {arg}" },
-                [CanonicalCommandType.HoldAtFixHover] = new() { Verb = "HFIX", Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldPresentPosition360Left] = new() { Aliases = ["HPP360L"], Format = "{verb}" },
+                [CanonicalCommandType.HoldPresentPosition360Right] = new() { Aliases = ["HPP360R"], Format = "{verb}" },
+                [CanonicalCommandType.HoldPresentPositionHover] = new() { Aliases = ["HPP"], Format = "{verb}" },
+                [CanonicalCommandType.HoldAtFixLeft] = new() { Aliases = ["HFIXL"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldAtFixRight] = new() { Aliases = ["HFIXR"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldAtFixHover] = new() { Aliases = ["HFIX"], Format = "{verb} {arg}" },
                 // Sim control
-                [CanonicalCommandType.Delete] = new() { Verb = "DEL", Format = "{verb}" },
-                [CanonicalCommandType.Pause] = new() { Verb = "PAUSE", Format = "{verb}" },
-                [CanonicalCommandType.Unpause] = new() { Verb = "UNPAUSE", Format = "{verb}" },
-                [CanonicalCommandType.SimRate] = new() { Verb = "SIMRATE", Format = "{verb} {arg}" },
+                [CanonicalCommandType.Delete] = new() { Aliases = ["DEL"], Format = "{verb}" },
+                [CanonicalCommandType.Pause] = new() { Aliases = ["PAUSE", "P"], Format = "{verb}" },
+                [CanonicalCommandType.Unpause] = new() { Aliases = ["UNPAUSE", "U", "UN", "UNP", "UP"], Format = "{verb}" },
+                [CanonicalCommandType.SimRate] = new() { Aliases = ["SIMRATE"], Format = "{verb} {arg}" },
             },
         };
     }
@@ -107,59 +109,59 @@ public class CommandScheme
             Patterns = new Dictionary<CanonicalCommandType, CommandPattern>
             {
                 // Heading
-                [CanonicalCommandType.FlyHeading] = new() { Verb = "H", Format = "{verb}{arg}" },
-                [CanonicalCommandType.TurnLeft] = new() { Verb = "L", Format = "{verb}{arg}" },
-                [CanonicalCommandType.TurnRight] = new() { Verb = "R", Format = "{verb}{arg}" },
-                [CanonicalCommandType.RelativeLeft] = new() { Verb = "T", Format = "{verb}{arg}L" },
-                [CanonicalCommandType.RelativeRight] = new() { Verb = "T", Format = "{verb}{arg}R" },
-                [CanonicalCommandType.FlyPresentHeading] = new() { Verb = "H", Format = "{verb}" },
+                [CanonicalCommandType.FlyHeading] = new() { Aliases = ["H"], Format = "{verb}{arg}" },
+                [CanonicalCommandType.TurnLeft] = new() { Aliases = ["L"], Format = "{verb}{arg}" },
+                [CanonicalCommandType.TurnRight] = new() { Aliases = ["R"], Format = "{verb}{arg}" },
+                [CanonicalCommandType.RelativeLeft] = new() { Aliases = ["T"], Format = "{verb}{arg}L" },
+                [CanonicalCommandType.RelativeRight] = new() { Aliases = ["T"], Format = "{verb}{arg}R" },
+                [CanonicalCommandType.FlyPresentHeading] = new() { Aliases = ["H"], Format = "{verb}" },
                 // Altitude / Speed
-                [CanonicalCommandType.ClimbMaintain] = new() { Verb = "C", Format = "{verb}{arg}" },
-                [CanonicalCommandType.DescendMaintain] = new() { Verb = "D", Format = "{verb}{arg}" },
-                [CanonicalCommandType.Speed] = new() { Verb = "S", Format = "{verb}{arg}" },
+                [CanonicalCommandType.ClimbMaintain] = new() { Aliases = ["C"], Format = "{verb}{arg}" },
+                [CanonicalCommandType.DescendMaintain] = new() { Aliases = ["D"], Format = "{verb}{arg}" },
+                [CanonicalCommandType.Speed] = new() { Aliases = ["S"], Format = "{verb}{arg}" },
                 // Transponder
-                [CanonicalCommandType.Squawk] = new() { Verb = "SQ", Format = "{verb}{arg}" },
-                [CanonicalCommandType.SquawkIdent] = new() { Verb = "SQI", Format = "{verb}" },
-                [CanonicalCommandType.SquawkVfr] = new() { Verb = "SQVFR", Format = "{verb}" },
-                [CanonicalCommandType.SquawkNormal] = new() { Verb = "SQNORM", Format = "{verb}" },
-                [CanonicalCommandType.SquawkStandby] = new() { Verb = "SQSBY", Format = "{verb}" },
-                [CanonicalCommandType.Ident] = new() { Verb = "IDENT", Format = "{verb}" },
+                [CanonicalCommandType.Squawk] = new() { Aliases = ["SQ"], Format = "{verb}{arg}" },
+                [CanonicalCommandType.SquawkIdent] = new() { Aliases = ["SQI"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkVfr] = new() { Aliases = ["SQVFR"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkNormal] = new() { Aliases = ["SQNORM", "SQA", "SQON"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkStandby] = new() { Aliases = ["SQSBY", "SQS"], Format = "{verb}" },
+                [CanonicalCommandType.Ident] = new() { Aliases = ["IDENT", "ID"], Format = "{verb}" },
                 // Navigation
-                [CanonicalCommandType.DirectTo] = new() { Verb = "DCT", Format = "{verb} {arg}" },
-                // Tower
-                [CanonicalCommandType.LineUpAndWait] = new() { Verb = "LUAW", Format = "{verb}" },
-                [CanonicalCommandType.ClearedForTakeoff] = new() { Verb = "CTO", Format = "{verb}" },
-                [CanonicalCommandType.CancelTakeoffClearance] = new() { Verb = "CTOC", Format = "{verb}" },
-                [CanonicalCommandType.GoAround] = new() { Verb = "GA", Format = "{verb}" },
-                [CanonicalCommandType.ClearedToLand] = new() { Verb = "CTL", Format = "{verb}" },
-                [CanonicalCommandType.TouchAndGo] = new() { Verb = "TG", Format = "{verb}" },
-                [CanonicalCommandType.StopAndGo] = new() { Verb = "SG", Format = "{verb}" },
-                [CanonicalCommandType.LowApproach] = new() { Verb = "LA", Format = "{verb}" },
-                [CanonicalCommandType.ClearedForOption] = new() { Verb = "COPT", Format = "{verb}" },
+                [CanonicalCommandType.DirectTo] = new() { Aliases = ["DCT"], Format = "{verb} {arg}" },
+                // Tower (VICE has no tower commands; these use ATCTrainer verbs)
+                [CanonicalCommandType.LineUpAndWait] = new() { Aliases = ["LUAW"], Format = "{verb}" },
+                [CanonicalCommandType.ClearedForTakeoff] = new() { Aliases = ["CTO"], Format = "{verb}" },
+                [CanonicalCommandType.CancelTakeoffClearance] = new() { Aliases = ["CTOC"], Format = "{verb}" },
+                [CanonicalCommandType.GoAround] = new() { Aliases = ["GA"], Format = "{verb}" },
+                [CanonicalCommandType.ClearedToLand] = new() { Aliases = ["CTL"], Format = "{verb}" },
+                [CanonicalCommandType.TouchAndGo] = new() { Aliases = ["TG"], Format = "{verb}" },
+                [CanonicalCommandType.StopAndGo] = new() { Aliases = ["SG"], Format = "{verb}" },
+                [CanonicalCommandType.LowApproach] = new() { Aliases = ["LA"], Format = "{verb}" },
+                [CanonicalCommandType.ClearedForOption] = new() { Aliases = ["COPT"], Format = "{verb}" },
                 // Pattern
-                [CanonicalCommandType.EnterLeftDownwind] = new() { Verb = "ELD", Format = "{verb}" },
-                [CanonicalCommandType.EnterRightDownwind] = new() { Verb = "ERD", Format = "{verb}" },
-                [CanonicalCommandType.EnterLeftBase] = new() { Verb = "ELB", Format = "{verb}" },
-                [CanonicalCommandType.EnterRightBase] = new() { Verb = "ERB", Format = "{verb}" },
-                [CanonicalCommandType.EnterFinal] = new() { Verb = "EF", Format = "{verb}" },
-                [CanonicalCommandType.MakeLeftTraffic] = new() { Verb = "MLT", Format = "{verb}" },
-                [CanonicalCommandType.MakeRightTraffic] = new() { Verb = "MRT", Format = "{verb}" },
-                [CanonicalCommandType.TurnCrosswind] = new() { Verb = "TC", Format = "{verb}" },
-                [CanonicalCommandType.TurnDownwind] = new() { Verb = "TD", Format = "{verb}" },
-                [CanonicalCommandType.TurnBase] = new() { Verb = "TB", Format = "{verb}" },
-                [CanonicalCommandType.ExtendDownwind] = new() { Verb = "EXT", Format = "{verb}" },
+                [CanonicalCommandType.EnterLeftDownwind] = new() { Aliases = ["ELD"], Format = "{verb}" },
+                [CanonicalCommandType.EnterRightDownwind] = new() { Aliases = ["ERD"], Format = "{verb}" },
+                [CanonicalCommandType.EnterLeftBase] = new() { Aliases = ["ELB"], Format = "{verb}" },
+                [CanonicalCommandType.EnterRightBase] = new() { Aliases = ["ERB"], Format = "{verb}" },
+                [CanonicalCommandType.EnterFinal] = new() { Aliases = ["EF"], Format = "{verb}" },
+                [CanonicalCommandType.MakeLeftTraffic] = new() { Aliases = ["MLT"], Format = "{verb}" },
+                [CanonicalCommandType.MakeRightTraffic] = new() { Aliases = ["MRT"], Format = "{verb}" },
+                [CanonicalCommandType.TurnCrosswind] = new() { Aliases = ["TC"], Format = "{verb}" },
+                [CanonicalCommandType.TurnDownwind] = new() { Aliases = ["TD"], Format = "{verb}" },
+                [CanonicalCommandType.TurnBase] = new() { Aliases = ["TB"], Format = "{verb}" },
+                [CanonicalCommandType.ExtendDownwind] = new() { Aliases = ["EXT"], Format = "{verb}" },
                 // Hold
-                [CanonicalCommandType.HoldPresentPosition360Left] = new() { Verb = "HPP360L", Format = "{verb}" },
-                [CanonicalCommandType.HoldPresentPosition360Right] = new() { Verb = "HPP360R", Format = "{verb}" },
-                [CanonicalCommandType.HoldPresentPositionHover] = new() { Verb = "HPP", Format = "{verb}" },
-                [CanonicalCommandType.HoldAtFixLeft] = new() { Verb = "HFIXL", Format = "{verb} {arg}" },
-                [CanonicalCommandType.HoldAtFixRight] = new() { Verb = "HFIXR", Format = "{verb} {arg}" },
-                [CanonicalCommandType.HoldAtFixHover] = new() { Verb = "HFIX", Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldPresentPosition360Left] = new() { Aliases = ["HPP360L"], Format = "{verb}" },
+                [CanonicalCommandType.HoldPresentPosition360Right] = new() { Aliases = ["HPP360R"], Format = "{verb}" },
+                [CanonicalCommandType.HoldPresentPositionHover] = new() { Aliases = ["HPP"], Format = "{verb}" },
+                [CanonicalCommandType.HoldAtFixLeft] = new() { Aliases = ["HFIXL"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldAtFixRight] = new() { Aliases = ["HFIXR"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldAtFixHover] = new() { Aliases = ["HFIX"], Format = "{verb} {arg}" },
                 // Sim control
-                [CanonicalCommandType.Delete] = new() { Verb = "X", Format = "{verb}" },
-                [CanonicalCommandType.Pause] = new() { Verb = "PAUSE", Format = "{verb}" },
-                [CanonicalCommandType.Unpause] = new() { Verb = "UNPAUSE", Format = "{verb}" },
-                [CanonicalCommandType.SimRate] = new() { Verb = "SIMRATE", Format = "{verb} {arg}" },
+                [CanonicalCommandType.Delete] = new() { Aliases = ["X"], Format = "{verb}" },
+                [CanonicalCommandType.Pause] = new() { Aliases = ["PAUSE"], Format = "{verb}" },
+                [CanonicalCommandType.Unpause] = new() { Aliases = ["UNPAUSE"], Format = "{verb}" },
+                [CanonicalCommandType.SimRate] = new() { Aliases = ["SIMRATE"], Format = "{verb} {arg}" },
             },
         };
     }
@@ -183,7 +185,7 @@ public class CommandScheme
                 return false;
             }
 
-            if (!string.Equals(p.Verb, presetPattern.Verb, StringComparison.Ordinal))
+            if (!string.Equals(p.PrimaryVerb, presetPattern.PrimaryVerb, StringComparison.Ordinal))
             {
                 return false;
             }

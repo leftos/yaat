@@ -1,0 +1,237 @@
+# Command Aliases Reference
+
+Sources:
+- **ATCTrainer**: https://atctrainer.collinkoldoff.dev/docs/commands
+- **VICE**: https://pharr.org/vice/
+
+**Bold** = implemented in YAAT. Normal = not yet implemented.
+YAAT aliases = what's actually in the code presets (primary alias listed first).
+
+---
+
+## Heading
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Fly Heading** | FH | H{hdg} | FH | H |
+| **Turn Left** | TL | L{hdg} | TL | L |
+| **Turn Right** | TR | R{hdg} | TR | R |
+| **Relative Left** | LT | T{deg}L | LT | T |
+| **Relative Right** | RT | T{deg}R | RT | T |
+| **Fly Present Heading** | FPH, FCH | H (no arg) | FPH, FCH | H |
+| Turn (direction as arg) | T {deg} {dir} | — | — | — |
+| Say Heading | — | SH | — | — |
+
+## Altitude
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Climb/Maintain** | CM | C{alt}, TC{alt} | CM | C |
+| **Descend/Maintain** | DM | D{alt}, TD{alt} | DM | D |
+| Assign Altitude | — | A{alt} | — | — |
+| Expedite | EXP | EC, ED | — | — |
+| Normal Rate | NORM | — | — | — |
+| Cross Fix at Altitude | CFIX, CF | C{fix}/A{alt} | — | — |
+| Climb Via SID | CVIA | CVS | — | — |
+| Descend Via STAR | DVIA | DVS | — | — |
+| Say Altitude | — | SA | — | — |
+
+## Speed
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Speed** | SPD, DS, IS, SLOW, SL, SPEED | S{kts}, TS{kts} | SPD, SLOW, SL, SPEED | S |
+| Speed Min | — | SMIN | — | — |
+| Speed Max | — | SMAX | — | — |
+| Speed Present | — | SPRES | — | — |
+| Speed Cancel | — | S (no arg) | — | — |
+| Mach | MACH, M | — | — | — |
+| Resume Normal Speed | RNS, NS | — | — | — |
+| Reduce Final Approach Speed | RFAS, FAS | — | — | — |
+| Say Speed | — | SS | — | — |
+
+> **Note:** ATCTrainer's `DS` (decrease speed) and `IS` (increase speed) are excluded from YAAT aliases — they imply directional speed changes, while our Speed command sets an absolute value.
+
+## Transponder
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Squawk** | SQ, SQUAWK | SQ{code} | SQ, SQUAWK | SQ |
+| **Squawk Ident** | SQI, SQID | — | SQI, SQID | SQI |
+| **Squawk VFR** | SQV | — | SQVFR, SQV | SQVFR |
+| **Squawk Normal** | SN | SQA, SQON | SQNORM, SN | SQNORM, SQA, SQON |
+| **Squawk Standby** | SS | SQS | SQSBY, SS | SQSBY, SQS |
+| **Ident** | ID | ID | IDENT, ID | IDENT, ID |
+| Random Squawk | RANDSQ | — | — | — |
+| Squawk All | SQALL | — | — | — |
+| Squawk Normal All | SNALL | — | — | — |
+| Squawk Standby All | SSALL | — | — | — |
+
+## Navigation
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Direct To** | DCT | D{fix} | DCT | DCT |
+| Depart Fix | DEPART, DEP, D | D{fix}/H{hdg} | — | — |
+| Join STAR | JARR, ARR, STAR, JSTAR | — | — | — |
+| Join Airway | JAWY | — | — | — |
+| Join Final Approach | JFAC, JLOC, JF | — | — | — |
+| Airport/Destination | APT, DEST | — | — | — |
+
+> **Note:** VICE uses `D` for both Direct-to and Descend (resolved by fix name vs number). YAAT keeps `DCT` in the VICE preset to avoid ambiguity.
+
+## Tower
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Line Up and Wait** | LUAW, POS, LU, PH | — | LUAW, POS, LU, PH | LUAW |
+| **Cleared for Takeoff** | CTO | — | CTO | CTO |
+| **Cancel Takeoff Clearance** | CTOC | — | CTOC | CTOC |
+| Takeoff Left Traffic | CTOMLT | — | — | — |
+| Takeoff Right Traffic | CTOMRT | — | — | — |
+| Takeoff Present Position | CTOPP | — | — | — |
+| Takeoff Runway Heading | CTORH | — | — | — |
+| **Go Around** | GA | GA (VFR "go ahead") | GA | GA |
+| **Cleared to Land** | LAND | — | CTL, LAND | CTL |
+| **Touch and Go** | TG | — | TG | TG |
+| **Stop and Go** | SG | — | SG | SG |
+| **Low Approach** | LA | — | LA | LA |
+| **Cleared for the Option** | — | — | COPT | COPT |
+| Full Stop | FS | — | — | — |
+| Land and Hold Short | LAHSO | — | — | — |
+| Takeoff Roll | GO | — | — | — |
+| Exit Left | EL | — | — | — |
+| Exit Right | ER | — | — | — |
+| Exit (taxiway) | EXIT | — | — | — |
+
+> **Note:** ATCTrainer's `CTL` means "Clear Approach" (IFR approach clearance), NOT "Cleared to Land". YAAT uses `CTL` for Cleared to Land — this is a YAAT-specific mapping. ATCTrainer's "Land" command uses `LAND`.
+>
+> ClearedForOption (`COPT`) is YAAT-specific; neither ATCTrainer nor VICE has this command.
+>
+> VICE has no tower commands; the VICE preset uses ATCTrainer verbs for tower operations.
+
+## Approach
+
+| Command | ATCTrainer doc | VICE doc |
+|---|---|---|
+| Clear Approach | CAPP, CTL | C{appr}, C (no arg) |
+| Clear Straight In | — | CSI{appr} |
+| Clear at Fix | — | A{fix}/C{appr} |
+| Expect Approach | — | E{appr} |
+| Intercept Localizer | — | I, A{fix}/I |
+| Cancel Approach | — | CAC |
+
+## Pattern
+
+VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
+
+| Command | ATCTrainer doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|
+| **Enter Left Downwind** | ELD | ELD | ELD |
+| **Enter Right Downwind** | ERD | ERD | ERD |
+| **Enter Left Base** | ELB | ELB | ELB |
+| **Enter Right Base** | ERB | ERB | ERB |
+| **Enter Final** | EF | EF | EF |
+| Enter Left Crosswind | ELC | — | — |
+| Enter Right Crosswind | ERC | — | — |
+| **Make Left Traffic** | MLT | MLT | MLT |
+| **Make Right Traffic** | MRT | MRT | MRT |
+| **Turn Crosswind** | TC | TC | TC |
+| **Turn Downwind** | TD | TD | TD |
+| **Turn Base** | TB | TB | TB |
+| **Extend Downwind** | EXT | EXT | EXT |
+| Make 270 | M2, M270 | — | — |
+| Make Left 360s | ML3, ML360 | — | — |
+| Make Right 360s | MR3, MR360 | — | — |
+| Make Left S-Turns | MLS, STURN, STURNS | — | — |
+| Make Right S-Turns | MRS | — | — |
+| Make Normal Approach | MNA | — | — |
+| Make Short Approach | MSA | — | — |
+| No 270 | NO270 | — | — |
+| Pattern Size | PS, PATTSIZE, PSIZE, PATTS | — | — |
+
+## Hold
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Hold Present Position (360 Left)** | HPP360L | — | HPP360L | HPP360L |
+| **Hold Present Position (360 Right)** | HPP360R | — | HPP360R | HPP360R |
+| **Hold Present Position (Hover)** | HPP | — | HPP | HPP |
+| **Hold at Fix (Left)** | HFIXL | H{fix}/L | HFIXL | HFIXL |
+| **Hold at Fix (Right)** | HFIXR | H{fix} (default right) | HFIXR | HFIXR |
+| **Hold at Fix (Hover)** | HFIX | — | HFIX | HFIX |
+| Hold (general) | HOLD | H{fix} (with /NM, /M, /R options) | — | — |
+
+## Sim Control
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Delete** | DEL | X | DEL | X |
+| **Pause** | PAUSE, P | P (toggle) | PAUSE, P | PAUSE |
+| **Unpause** | UNPAUSE, U, UN, UNP, UP | P (toggle) | UNPAUSE, U, UN, UNP, UP | UNPAUSE |
+| **Sim Rate** | SIMRATE | — | SIMRATE | SIMRATE |
+
+> **Note:** VICE pause is a toggle (`P`); YAAT splits into separate Pause/Unpause. The VICE preset uses PAUSE/UNPAUSE (ATCTrainer verbs) since YAAT needs distinct commands.
+
+## ATC / Handoff (not implemented)
+
+| Command | ATCTrainer doc | VICE doc |
+|---|---|---|
+| Accept | ACCEPT, A | — |
+| Accept All | ACCEPTALL | — |
+| Handoff | HO | — |
+| Handoff All | HOALL | — |
+| Cancel Handoff | CANCEL | — |
+| Point Out | PO | — |
+| Drop | DROP | — |
+| Track | TRACK | — |
+| OK | OK | — |
+| Annotate | ANNOTATE, AN, BOX | — |
+| Scratchpad | SCRATCHPAD, SP | — |
+| Temporary Altitude | TEMPALT, TA, TEMP, QQ | — |
+| Cruise | CRUISE, QZ | — |
+| Strip | STRIP | — |
+| On Handoff | ONHO, ONH | — |
+| Frequency Change | — | FC |
+| Contact TCP | — | CT{tcp} |
+| Contact Tower | — | TO |
+
+## VFR (not implemented)
+
+| Command | ATCTrainer doc | VICE doc |
+|---|---|---|
+| Resume Own Navigation | — | RON |
+| Radar Services Terminated | — | RST |
+| Altitude Your Discretion | — | A (no arg, VFR context) |
+
+## Ground (not implemented)
+
+| Command | ATCTrainer doc | VICE doc |
+|---|---|---|
+| Taxi | TAXI | — |
+| Taxi All | TAXIALL | — |
+| Runway Taxi | RWY | — |
+| Push Back | PUSH | — |
+| Hold Short | HS | — |
+| Cross | CROSS | — |
+| Give Way | GIVEWAY, GW, PB | — |
+| Break | BREAK | — |
+| Resume | RES | — |
+
+## Misc (not implemented)
+
+| Command | ATCTrainer doc | VICE doc |
+|---|---|---|
+| Add Aircraft | ADD | — |
+| Flight Plan | FP | — |
+| VFR Flight Plan | VP | — |
+| Remarks | REMARKS | — |
+| Say | SAY | — |
+| Say Frequency | SAYF | — |
+| Cleared | CLRD | — |
+| Delete At | DELAT | — |
+| Wait/Delay | WAIT, DELAY | — |
+| Open Chat | OPENCHAT | — |
+| Operations/Stats | OPS, STATS, STAT | — |
+| Show At | SHOWAT | — |
+| Global Message | — | /{msg} |

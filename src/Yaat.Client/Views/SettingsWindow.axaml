@@ -65,9 +65,9 @@
                                 Binding="{Binding CommandName}"
                                 IsReadOnly="True"
                                 Width="150" />
-                            <DataGridTextColumn Header="Verb"
-                                Binding="{Binding Verb}"
-                                Width="80" />
+                            <DataGridTextColumn Header="Verb(s)"
+                                Binding="{Binding Aliases}"
+                                Width="160" />
                             <DataGridTextColumn Header="Example"
                                 Binding="{Binding Example}"
                                 IsReadOnly="True"

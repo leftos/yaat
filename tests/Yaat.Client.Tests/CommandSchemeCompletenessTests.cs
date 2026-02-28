@@ -66,7 +66,7 @@ public class CommandSchemeCompletenessTests
     }
 
     [Fact]
-    public void AllSchemeVerbs_AreNonEmpty()
+    public void AllSchemeAliases_AreNonEmpty()
     {
         var schemes = new[]
         {
@@ -79,9 +79,133 @@ public class CommandSchemeCompletenessTests
             foreach (var (type, pattern) in scheme.Patterns)
             {
                 Assert.True(
-                    !string.IsNullOrWhiteSpace(pattern.Verb),
-                    $"{name} scheme has empty verb for CanonicalCommandType.{type}");
+                    pattern.Aliases.Count > 0,
+                    $"{name} scheme has no aliases for CanonicalCommandType.{type}");
+
+                foreach (var alias in pattern.Aliases)
+                {
+                    Assert.True(
+                        !string.IsNullOrWhiteSpace(alias),
+                        $"{name} scheme has empty/whitespace alias for CanonicalCommandType.{type}");
+                }
             }
         }
+    }
+
+    [Fact]
+    public void AllSchemeAliases_HaveNoDuplicatesWithinCommand()
+    {
+        var schemes = new[]
+        {
+            ("ATCTrainer", CommandScheme.AtcTrainer()),
+            ("VICE", CommandScheme.Vice()),
+        };
+
+        foreach (var (name, scheme) in schemes)
+        {
+            foreach (var (type, pattern) in scheme.Patterns)
+            {
+                var duplicates = pattern.Aliases
+                    .GroupBy(a => a, StringComparer.OrdinalIgnoreCase)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToList();
+
+                Assert.True(
+                    duplicates.Count == 0,
+                    $"{name} scheme has duplicate aliases [{string.Join(", ", duplicates)}] within CanonicalCommandType.{type}");
+            }
+        }
+    }
+
+    [Fact]
+    public void AtcTrainerAliases_AreUniqueAcrossCommands()
+    {
+        var scheme = CommandScheme.AtcTrainer();
+        var aliasToTypes = new Dictionary<string, List<CanonicalCommandType>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (type, pattern) in scheme.Patterns)
+        {
+            foreach (var alias in pattern.Aliases)
+            {
+                if (!aliasToTypes.TryGetValue(alias, out var list))
+                {
+                    list = [];
+                    aliasToTypes[alias] = list;
+                }
+
+                list.Add(type);
+            }
+        }
+
+        var conflicts = aliasToTypes
+            .Where(kv => kv.Value.Count > 1)
+            .Select(kv => $"'{kv.Key}' used by: {string.Join(", ", kv.Value)}")
+            .ToList();
+
+        Assert.True(
+            conflicts.Count == 0,
+            $"ATCTrainer scheme has aliases shared across commands:\n{string.Join("\n", conflicts)}");
+    }
+
+    [Fact]
+    public void ViceAliases_AreUniqueAcrossCommands_ExceptKnownShared()
+    {
+        // VICE scheme intentionally shares: T for RelativeLeft/RelativeRight, H for FlyHeading/FlyPresentHeading
+        var knownShared = new HashSet<(CanonicalCommandType, CanonicalCommandType)>
+        {
+            (CanonicalCommandType.RelativeLeft, CanonicalCommandType.RelativeRight),
+            (CanonicalCommandType.FlyHeading, CanonicalCommandType.FlyPresentHeading),
+        };
+
+        var scheme = CommandScheme.Vice();
+        var aliasToTypes = new Dictionary<string, List<CanonicalCommandType>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (type, pattern) in scheme.Patterns)
+        {
+            foreach (var alias in pattern.Aliases)
+            {
+                if (!aliasToTypes.TryGetValue(alias, out var list))
+                {
+                    list = [];
+                    aliasToTypes[alias] = list;
+                }
+
+                list.Add(type);
+            }
+        }
+
+        var conflicts = new List<string>();
+        foreach (var (alias, types) in aliasToTypes)
+        {
+            if (types.Count <= 1)
+            {
+                continue;
+            }
+
+            // Check if all pairs in this group are known-shared
+            bool allKnown = true;
+            for (int i = 0; i < types.Count && allKnown; i++)
+            {
+                for (int j = i + 1; j < types.Count && allKnown; j++)
+                {
+                    var pair = (types[i], types[j]);
+                    var pairRev = (types[j], types[i]);
+                    if (!knownShared.Contains(pair) && !knownShared.Contains(pairRev))
+                    {
+                        allKnown = false;
+                    }
+                }
+            }
+
+            if (!allKnown)
+            {
+                conflicts.Add($"'{alias}' used by: {string.Join(", ", types)}");
+            }
+        }
+
+        Assert.True(
+            conflicts.Count == 0,
+            $"VICE scheme has unexpected aliases shared across commands:\n{string.Join("\n", conflicts)}");
     }
 }

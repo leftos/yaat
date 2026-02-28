@@ -183,7 +183,7 @@ public static class CommandSchemeParser
 
         // Text-arg commands are always space-separated regardless of scheme mode.
         // Check longer prefixes first (HFIXL/HFIXR before HFIX).
-        var textArgMatch = ParseTextArgCommand(trimmed);
+        var textArgMatch = ParseTextArgCommand(trimmed, scheme);
         if (textArgMatch is not null)
         {
             return textArgMatch;
@@ -207,44 +207,75 @@ public static class CommandSchemeParser
 
         if (argument is null)
         {
-            return pattern.Verb;
+            return pattern.PrimaryVerb;
         }
 
-        return $"{pattern.Verb} {argument}";
+        return $"{pattern.PrimaryVerb} {argument}";
     }
 
-    private static readonly (string Verb, CanonicalCommandType Type)[] TextArgCommands =
+    private static readonly CanonicalCommandType[] TextArgCommandTypes =
     [
-        ("HFIXL", CanonicalCommandType.HoldAtFixLeft),
-        ("HFIXR", CanonicalCommandType.HoldAtFixRight),
-        ("HFIX", CanonicalCommandType.HoldAtFixHover),
-        ("DCT", CanonicalCommandType.DirectTo),
+        CanonicalCommandType.HoldAtFixLeft,
+        CanonicalCommandType.HoldAtFixRight,
+        CanonicalCommandType.HoldAtFixHover,
+        CanonicalCommandType.DirectTo,
     ];
 
-    private static ParsedInput? ParseTextArgCommand(string input)
+    private static ParsedInput? ParseTextArgCommand(string input, CommandScheme scheme)
     {
-        foreach (var (verb, type) in TextArgCommands)
+        // Build (alias, type) pairs from the scheme, longest alias first so
+        // HFIXL matches before HFIX.
+        var candidates = new List<(string Alias, CanonicalCommandType Type)>();
+        foreach (var type in TextArgCommandTypes)
         {
-            if (!input.StartsWith(verb, StringComparison.OrdinalIgnoreCase))
+            if (!scheme.Patterns.TryGetValue(type, out var pattern))
             {
                 continue;
             }
 
-            if (input.Length == verb.Length)
+            foreach (var alias in pattern.Aliases)
+            {
+                candidates.Add((alias, type));
+            }
+        }
+
+        candidates.Sort((a, b) => b.Alias.Length.CompareTo(a.Alias.Length));
+
+        foreach (var (alias, type) in candidates)
+        {
+            if (!input.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (input.Length == alias.Length)
             {
                 return null;
             }
 
-            if (input[verb.Length] != ' ')
+            if (input[alias.Length] != ' ')
             {
                 continue;
             }
 
-            var arg = input[(verb.Length + 1)..].Trim();
+            var arg = input[(alias.Length + 1)..].Trim();
             return arg.Length > 0 ? new ParsedInput(type, arg) : null;
         }
 
         return null;
+    }
+
+    private static bool MatchesAnyAlias(string token, CommandPattern pattern)
+    {
+        foreach (var alias in pattern.Aliases)
+        {
+            if (string.Equals(token, alias, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme)
@@ -255,7 +286,7 @@ public static class CommandSchemeParser
 
         foreach (var (type, pattern) in scheme.Patterns)
         {
-            if (!string.Equals(verb, pattern.Verb, StringComparison.OrdinalIgnoreCase))
+            if (!MatchesAnyAlias(verb, pattern))
             {
                 continue;
             }
@@ -277,19 +308,46 @@ public static class CommandSchemeParser
         return null;
     }
 
+    private static bool StartsWithAnyAlias(
+        string input, CommandPattern pattern, out string matchedAlias)
+    {
+        foreach (var alias in pattern.Aliases)
+        {
+            if (input.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
+            {
+                matchedAlias = alias;
+                return true;
+            }
+        }
+
+        matchedAlias = "";
+        return false;
+    }
+
     private static ParsedInput? ParseConcatenated(string input, CommandScheme scheme)
     {
         // Concatenated relative turns: T{deg}L or T{deg}R
-        if (input.Length >= 3 && input[0] == 'T' && char.IsDigit(input[1]))
+        // Check any alias for RelativeLeft/RelativeRight that matches pattern {alias}{digits}{L|R}
+        if (scheme.Patterns.TryGetValue(CanonicalCommandType.RelativeLeft, out var relLeftPattern))
         {
-            var lastChar = input[^1];
-            if (lastChar is 'L' or 'R')
+            foreach (var alias in relLeftPattern.Aliases)
             {
-                var deg = input[1..^1];
-                if (int.TryParse(deg, out _))
+                if (input.Length > alias.Length + 1
+                    && input.StartsWith(alias, StringComparison.OrdinalIgnoreCase)
+                    && char.IsDigit(input[alias.Length]))
                 {
-                    var type = lastChar == 'L' ? CanonicalCommandType.RelativeLeft : CanonicalCommandType.RelativeRight;
-                    return new ParsedInput(type, deg);
+                    var lastChar = input[^1];
+                    if (lastChar is 'L' or 'R')
+                    {
+                        var deg = input[alias.Length..^1];
+                        if (int.TryParse(deg, out _))
+                        {
+                            var type = lastChar == 'L'
+                                ? CanonicalCommandType.RelativeLeft
+                                : CanonicalCommandType.RelativeRight;
+                            return new ParsedInput(type, deg);
+                        }
+                    }
                 }
             }
         }
@@ -306,7 +364,8 @@ public static class CommandSchemeParser
             {
                 continue;
             }
-            if (string.Equals(input, pattern.Verb, StringComparison.OrdinalIgnoreCase))
+
+            if (MatchesAnyAlias(input, pattern))
             {
                 return new ParsedInput(type, null);
             }
@@ -354,12 +413,12 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            if (!input.StartsWith(pattern.Verb, StringComparison.OrdinalIgnoreCase))
+            if (!StartsWithAnyAlias(input, pattern, out var matchedAlias))
             {
                 continue;
             }
 
-            var arg = input[pattern.Verb.Length..];
+            var arg = input[matchedAlias.Length..];
             if (arg.Length == 0)
             {
                 continue;

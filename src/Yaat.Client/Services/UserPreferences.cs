@@ -129,7 +129,7 @@ public sealed class UserPreferences
         var defaults = CommandScheme.AtcTrainer();
         foreach (var (type, pattern) in defaults.Patterns)
         {
-            patterns[type] = new CommandPattern { Verb = pattern.Verb, Format = pattern.Format };
+            patterns[type] = new CommandPattern { Aliases = [.. pattern.Aliases], Format = pattern.Format };
         }
 
         foreach (var (key, sp) in s.Patterns)
@@ -139,10 +139,19 @@ public sealed class UserPreferences
                 continue;
             }
 
-            // Only override verb; format comes from parse mode
+            // Read aliases: prefer Aliases list, fall back to legacy Verb field
+            var aliases = sp.Aliases is { Count: > 0 }
+                ? sp.Aliases
+                : (!string.IsNullOrWhiteSpace(sp.Verb) ? [sp.Verb] : null);
+
+            if (aliases is null)
+            {
+                continue;
+            }
+
             if (patterns.TryGetValue(type, out var existing))
             {
-                existing.Verb = sp.Verb;
+                existing.Aliases = aliases;
             }
         }
 
@@ -154,7 +163,7 @@ public sealed class UserPreferences
         {
             var format = reference.Patterns.TryGetValue(type, out var refPattern) ? refPattern.Format : pattern.Format;
 
-            result[type] = new CommandPattern { Verb = pattern.Verb, Format = format };
+            result[type] = new CommandPattern { Aliases = pattern.Aliases, Format = format };
         }
 
         return new CommandScheme { ParseMode = s.ParseMode, Patterns = result };
@@ -165,7 +174,7 @@ public sealed class UserPreferences
         var patterns = new Dictionary<string, SavedPattern>();
         foreach (var (type, pattern) in scheme.Patterns)
         {
-            patterns[type.ToString()] = new SavedPattern { Verb = pattern.Verb, Format = pattern.Format };
+            patterns[type.ToString()] = new SavedPattern { Aliases = pattern.Aliases, Format = pattern.Format };
         }
 
         return new SavedCommandScheme { ParseMode = scheme.ParseMode, Patterns = patterns };
@@ -189,7 +198,8 @@ public sealed class UserPreferences
 
     private sealed class SavedPattern
     {
-        public string Verb { get; set; } = "";
+        public List<string>? Aliases { get; set; }
+        public string? Verb { get; set; }
         public string Format { get; set; } = "";
     }
 }

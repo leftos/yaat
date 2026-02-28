@@ -67,10 +67,7 @@ RPO commands are parsed client-side using a configurable `CommandScheme` (ATCTra
 The server builds a `CommandQueue` of `CommandBlock`s from the canonical string. Each block has an optional `BlockTrigger` (reach altitude, reach fix) and an `ApplyAction` that sets `ControlTargets`. `FlightPhysics.UpdateCommandQueue()` checks triggers and advances blocks each tick.
 
 **Command naming convention:**
-When adding new commands, match the existing command names from ATCTrainer and/or VICE where possible:
-- ATCTrainer reference: https://atctrainer.collinkoldoff.dev/docs/commands
-- VICE reference: https://pharr.org/vice/
-Commands unique to YAAT (not present in either app) can use any suitable name.
+When adding new commands, match the existing command names from ATCTrainer and/or VICE where possible. See `docs/command-aliases-reference.md` and keep it updated as you go.
 
 **Command completeness rule — MANDATORY:**
 Every value in `CanonicalCommandType` (in Yaat.Sim) MUST have a corresponding entry in:
