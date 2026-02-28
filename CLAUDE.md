@@ -113,6 +113,11 @@ The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw W
 
 > **lc-trainer is NOT a trusted reference.** It is WIP, flawed, and unreviewed. It may be used as inspiration but every aviation detail drawn from it MUST be reviewed by the `aviation-sim-expert` agent. Do not port code from lc-trainer without independent validation. Prefer a fresh, well-organized approach over copying its patterns.
 
+**vNAS source code reference** (`X:\dev\towercab-3d-vnas\docs\repos\`) — Snapshots of official vNAS C# repos. Use these as authoritative references for CRC protocol compatibility, data models, and messaging DTOs:
+- **common-master** (`Vatsim.Nas.Common`) — Shared utilities: `GeoCalc`, `NavCalc`, `GeoPoint`, `ParsedAltitude`, `TransponderMode`, `TurnDirection`, `NetworkRating`, `Metar`, etc.
+- **data-master** (`Vatsim.Nas.Data`) — Data models for navigation (`Airport`, `Fix`, `Runway`, `Sid`, `Star`), training scenarios (`Scenario`, `ScenarioAircraft`, `TrainingAirport`), aircraft specs (`AircraftSpec`, `AircraftCwt`), and facility configuration (`StarsConfiguration`, `EramConfiguration`, `TowerCabConfiguration`, etc.)
+- **messaging-master** (`Vatsim.Nas.Messaging`) — SignalR entities/DTOs (`EramTrackDto`, `StarsTrackDto`, `FlightPlanDto`, `TowerCabAircraftDto`, `ClearanceDto`), commands (`ProcessStarsCommandDto`, `JoinSessionDto`), and topics (`Topic`, `TopicCategory`). This is the definitive reference for CRC hub message shapes.
+
 ## Aviation Realism — MANDATORY
 
 This project simulates real-world air traffic control. **Every feature touching aviation must be reviewed by the `aviation-sim-expert` agent** (via the Task tool with `subagent_type: "aviation-sim-expert"`). This is not optional.
