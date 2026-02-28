@@ -68,7 +68,7 @@ public class CommandScheme
                 [CanonicalCommandType.ClearedForTakeoff] = new() { Aliases = ["CTO"], Format = "{verb}" },
                 [CanonicalCommandType.CancelTakeoffClearance] = new() { Aliases = ["CTOC"], Format = "{verb}" },
                 [CanonicalCommandType.GoAround] = new() { Aliases = ["GA"], Format = "{verb}" },
-                [CanonicalCommandType.ClearedToLand] = new() { Aliases = ["CTL", "LAND"], Format = "{verb}" },
+                [CanonicalCommandType.ClearedToLand] = new() { Aliases = ["CTL"], Format = "{verb}" },
                 [CanonicalCommandType.TouchAndGo] = new() { Aliases = ["TG"], Format = "{verb}" },
                 [CanonicalCommandType.StopAndGo] = new() { Aliases = ["SG"], Format = "{verb}" },
                 [CanonicalCommandType.LowApproach] = new() { Aliases = ["LA"], Format = "{verb}" },

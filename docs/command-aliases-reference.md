@@ -92,19 +92,24 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 | Takeoff Present Position | CTOPP | — | — | — |
 | Takeoff Runway Heading | CTORH | — | — | — |
 | **Go Around** | GA | GA (VFR "go ahead") | GA | GA |
-| **Cleared to Land** | LAND | — | CTL, LAND | CTL |
+| **Cleared to Land** | — | — | CTL | CTL |
 | **Touch and Go** | TG | — | TG | TG |
 | **Stop and Go** | SG | — | SG | SG |
 | **Low Approach** | LA | — | LA | LA |
 | **Cleared for the Option** | — | — | COPT | COPT |
 | Full Stop | FS | — | — | — |
+| Land (heli at parking spot) | LAND | — | — | — |
 | Land and Hold Short | LAHSO | — | — | — |
 | Takeoff Roll | GO | — | — | — |
 | Exit Left | EL | — | — | — |
 | Exit Right | ER | — | — | — |
 | Exit (taxiway) | EXIT | — | — | — |
 
-> **Note:** ATCTrainer's `CTL` means "Clear Approach" (IFR approach clearance), NOT "Cleared to Land". YAAT uses `CTL` for Cleared to Land — this is a YAAT-specific mapping. ATCTrainer's "Land" command uses `LAND`.
+> **Note:** ATCTrainer's `CTL` means "Clear Approach" (IFR approach clearance), NOT "Cleared to Land".
+>
+> ATCTrainer has no explicit "cleared to land" command — aircraft in the pattern are implicitly cleared to land. `LAND` in ATCTrainer is only for helicopters landing at a named parking spot on the destination ramp (ground ops, not tower clearance). `FS` (Full Stop) tells a pattern aircraft to make a full-stop landing on the current/next approach. YAAT uses `CTL` as its own "Cleared to Land" command (no ATCTrainer equivalent); `FS` should also be supported as an alternative (not yet implemented).
+>
+> `LAND` will be added to YAAT in the ground ops milestone for helicopter parking spot landings.
 >
 > ClearedForOption (`COPT`) is YAAT-specific; neither ATCTrainer nor VICE has this command.
 >
