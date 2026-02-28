@@ -106,7 +106,7 @@ The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw W
 ## Tech Stack
 
 - .NET 10, C# with nullable enabled, implicit usings
-- Avalonia UI 11.2.5 with Fluent theme (dark mode) + DataGrid
+- Avalonia UI 11.2.5 with Fluent theme (dark mode) + DataGrid — source at https://github.com/AvaloniaUI/Avalonia (DataGrid is in a separate repo: https://github.com/AvaloniaUI/Avalonia.Controls.DataGrid)
 - CommunityToolkit.Mvvm 8.4.0 for MVVM source generators
 - Microsoft.AspNetCore.SignalR.Client 10.0.3
 

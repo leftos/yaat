@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
@@ -11,6 +12,9 @@ namespace Yaat.Client.Views;
 public partial class MainWindow : Window
 {
     private TerminalWindow? _terminalWindow;
+    private bool _restoringGrid;
+    private string? _sortColumnKey;
+    private ListSortDirection? _sortDirection;
 
     public MainWindow()
     {
@@ -37,6 +41,39 @@ public partial class MainWindow : Window
                     break;
                 }
             }
+
+            RestoreGridLayout(dataGrid, vm.Preferences);
+
+            dataGrid.ColumnReordered += (_, _) =>
+                SaveGridLayout(dataGrid, vm.Preferences);
+            dataGrid.Sorting += (_, e) =>
+            {
+                if (_restoringGrid)
+                {
+                    return;
+                }
+
+                var clickedKey = GetColumnKey(e.Column);
+                if (clickedKey == _sortColumnKey)
+                {
+                    _sortDirection = _sortDirection switch
+                    {
+                        ListSortDirection.Ascending => ListSortDirection.Descending,
+                        _ => null,
+                    };
+                    if (_sortDirection is null)
+                    {
+                        _sortColumnKey = null;
+                    }
+                }
+                else
+                {
+                    _sortColumnKey = clickedKey;
+                    _sortDirection = ListSortDirection.Ascending;
+                }
+
+                SaveGridLayout(dataGrid, vm.Preferences);
+            };
         }
 
         var settingsBtn = this.FindControl<Button>("SettingsButton");
@@ -48,6 +85,91 @@ public partial class MainWindow : Window
         vm.PropertyChanged += OnViewModelPropertyChanged;
 
         WireDistanceFlyout(vm);
+    }
+
+    private static string GetColumnKey(DataGridColumn column)
+    {
+        if (column.Header is string headerText)
+        {
+            return headerText;
+        }
+
+        if (!string.IsNullOrEmpty(column.SortMemberPath))
+        {
+            return column.SortMemberPath;
+        }
+
+        return column.DisplayIndex.ToString();
+    }
+
+    private void RestoreGridLayout(DataGrid dataGrid, UserPreferences prefs)
+    {
+        var layout = prefs.GridLayout;
+        if (layout is null)
+        {
+            return;
+        }
+
+        _restoringGrid = true;
+        try
+        {
+            if (layout.ColumnOrder is { Count: > 0 })
+            {
+                var keyToColumn = new Dictionary<string, DataGridColumn>();
+                foreach (var col in dataGrid.Columns)
+                {
+                    keyToColumn[GetColumnKey(col)] = col;
+                }
+
+                int displayIndex = 0;
+                foreach (var key in layout.ColumnOrder)
+                {
+                    if (keyToColumn.Remove(key, out var col))
+                    {
+                        col.DisplayIndex = displayIndex;
+                        displayIndex++;
+                    }
+                }
+            }
+
+            if (layout.SortColumn is not null && layout.SortDirection is not null)
+            {
+                foreach (var col in dataGrid.Columns)
+                {
+                    if (GetColumnKey(col) == layout.SortColumn)
+                    {
+                        col.Sort(layout.SortDirection.Value);
+                        _sortColumnKey = layout.SortColumn;
+                        _sortDirection = layout.SortDirection;
+                        break;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _restoringGrid = false;
+        }
+    }
+
+    private void SaveGridLayout(DataGrid dataGrid, UserPreferences prefs)
+    {
+        if (_restoringGrid)
+        {
+            return;
+        }
+
+        var columnOrder = dataGrid.Columns
+            .OrderBy(c => c.DisplayIndex)
+            .Select(GetColumnKey)
+            .ToList();
+
+        prefs.SetGridLayout(new SavedGridLayout
+        {
+            ColumnOrder = columnOrder,
+            SortColumn = _sortColumnKey,
+            SortDirection = _sortDirection,
+        });
     }
 
     private void WireDistanceFlyout(MainViewModel vm)

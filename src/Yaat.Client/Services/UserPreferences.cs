@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Yaat.Sim.Commands;
@@ -24,6 +25,7 @@ public sealed class UserPreferences
     private SavedWindowGeometry? _mainWindowGeometry;
     private SavedWindowGeometry? _settingsWindowGeometry;
     private SavedWindowGeometry? _terminalWindowGeometry;
+    private SavedGridLayout? _gridLayout;
 
     public UserPreferences()
     {
@@ -35,6 +37,7 @@ public sealed class UserPreferences
         _mainWindowGeometry = saved.MainWindowGeometry;
         _settingsWindowGeometry = saved.SettingsWindowGeometry;
         _terminalWindowGeometry = saved.TerminalWindowGeometry;
+        _gridLayout = saved.GridLayout;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -44,6 +47,7 @@ public sealed class UserPreferences
     public SavedWindowGeometry? MainWindowGeometry => _mainWindowGeometry;
     public SavedWindowGeometry? SettingsWindowGeometry => _settingsWindowGeometry;
     public SavedWindowGeometry? TerminalWindowGeometry => _terminalWindowGeometry;
+    public SavedGridLayout? GridLayout => _gridLayout;
 
     public void SetCommandScheme(CommandScheme scheme)
     {
@@ -81,6 +85,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetGridLayout(SavedGridLayout layout)
+    {
+        _gridLayout = layout;
+        Save();
+    }
+
     private static LoadedPrefs Load()
     {
         if (!File.Exists(ConfigPath))
@@ -104,6 +114,7 @@ public sealed class UserPreferences
                 MainWindowGeometry = saved?.MainWindowGeometry,
                 SettingsWindowGeometry = saved?.SettingsWindowGeometry,
                 TerminalWindowGeometry = saved?.TerminalWindowGeometry,
+                GridLayout = saved?.GridLayout,
             };
         }
         catch (JsonException)
@@ -121,6 +132,7 @@ public sealed class UserPreferences
         public SavedWindowGeometry? MainWindowGeometry { get; init; }
         public SavedWindowGeometry? SettingsWindowGeometry { get; init; }
         public SavedWindowGeometry? TerminalWindowGeometry { get; init; }
+        public SavedGridLayout? GridLayout { get; init; }
     }
 
     private void Save()
@@ -136,6 +148,7 @@ public sealed class UserPreferences
             MainWindowGeometry = _mainWindowGeometry,
             SettingsWindowGeometry = _settingsWindowGeometry,
             TerminalWindowGeometry = _terminalWindowGeometry,
+            GridLayout = _gridLayout,
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
@@ -210,6 +223,7 @@ public sealed class UserPreferences
         public SavedWindowGeometry? MainWindowGeometry { get; set; }
         public SavedWindowGeometry? SettingsWindowGeometry { get; set; }
         public SavedWindowGeometry? TerminalWindowGeometry { get; set; }
+        public SavedGridLayout? GridLayout { get; set; }
     }
 
     private sealed class SavedCommandScheme
@@ -234,4 +248,11 @@ public sealed class SavedWindowGeometry
     public double Width { get; set; }
     public double Height { get; set; }
     public bool IsMaximized { get; set; }
+}
+
+public sealed class SavedGridLayout
+{
+    public List<string>? ColumnOrder { get; set; }
+    public string? SortColumn { get; set; }
+    public ListSortDirection? SortDirection { get; set; }
 }

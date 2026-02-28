@@ -85,6 +85,7 @@
                       IsReadOnly="True"
                       GridLinesVisibility="Horizontal"
                       CanUserResizeColumns="True"
+                  CanUserReorderColumns="True"
                       SelectionMode="Single"
                       RowDetailsVisibilityMode="VisibleWhenSelected">
                 <DataGrid.RowDetailsTemplate>

@@ -61,7 +61,9 @@ The main grid shows all aircraft in your scenario:
 | Dist | Distance in NM from the reference fix (see below) |
 | Pending Cmds | Queued command blocks not yet executed (from compound commands) |
 
-Click an aircraft row to select it. Press **Esc** to deselect.
+Click an aircraft row to select it. Press **Esc** to deselect. Click a column header to sort by that column; click again to reverse the sort direction.
+
+Drag column headers to rearrange the column order. Column order and sort state are remembered across sessions.
 
 ### Aircraft Detail Panel
 
