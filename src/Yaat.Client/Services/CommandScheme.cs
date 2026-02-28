@@ -87,8 +87,8 @@ public class CommandScheme
                 [CanonicalCommandType.TurnBase] = new() { Aliases = ["TB"], Format = "{verb}" },
                 [CanonicalCommandType.ExtendDownwind] = new() { Aliases = ["EXT"], Format = "{verb}" },
                 // Hold
-                [CanonicalCommandType.HoldPresentPosition360Left] = new() { Aliases = ["HPP360L"], Format = "{verb}" },
-                [CanonicalCommandType.HoldPresentPosition360Right] = new() { Aliases = ["HPP360R"], Format = "{verb}" },
+                [CanonicalCommandType.HoldPresentPosition360Left] = new() { Aliases = ["HPPL"], Format = "{verb}" },
+                [CanonicalCommandType.HoldPresentPosition360Right] = new() { Aliases = ["HPPR"], Format = "{verb}" },
                 [CanonicalCommandType.HoldPresentPositionHover] = new() { Aliases = ["HPP"], Format = "{verb}" },
                 [CanonicalCommandType.HoldAtFixLeft] = new() { Aliases = ["HFIXL"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.HoldAtFixRight] = new() { Aliases = ["HFIXR"], Format = "{verb} {arg}" },
@@ -155,8 +155,8 @@ public class CommandScheme
                 [CanonicalCommandType.TurnBase] = new() { Aliases = ["TB"], Format = "{verb}" },
                 [CanonicalCommandType.ExtendDownwind] = new() { Aliases = ["EXT"], Format = "{verb}" },
                 // Hold
-                [CanonicalCommandType.HoldPresentPosition360Left] = new() { Aliases = ["HPP360L"], Format = "{verb}" },
-                [CanonicalCommandType.HoldPresentPosition360Right] = new() { Aliases = ["HPP360R"], Format = "{verb}" },
+                [CanonicalCommandType.HoldPresentPosition360Left] = new() { Aliases = ["HPPL"], Format = "{verb}" },
+                [CanonicalCommandType.HoldPresentPosition360Right] = new() { Aliases = ["HPPR"], Format = "{verb}" },
                 [CanonicalCommandType.HoldPresentPositionHover] = new() { Aliases = ["HPP"], Format = "{verb}" },
                 [CanonicalCommandType.HoldAtFixLeft] = new() { Aliases = ["HFIXL"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.HoldAtFixRight] = new() { Aliases = ["HFIXR"], Format = "{verb} {arg}" },

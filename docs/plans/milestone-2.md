@@ -288,7 +288,7 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
 ### Hold / Orbit Commands
 
 - [x] Create `Phases/HoldPresentPositionPhase.cs`:
-  - For winged aircraft (`HPP360L` / `HPP360R`): orbit at present position via continuous 360° turns in the specified direction
+  - For winged aircraft (`HPPL` / `HPPR`): orbit at present position via continuous 360° turns in the specified direction
   - For helicopters (`HPP`): hover at present position (speed 0, altitude hold)
   - `OnTick`: winged aircraft maintain current altitude/speed and fly a 360° turn, returning to same position; helicopters hold position
   - Completes when RPO issues a new heading/altitude/navigation command (phase is cleared)
@@ -299,14 +299,14 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
   - `OnTick`: if not yet at fix, navigate to fix (like DCT); once at fix, orbit/hover
   - Completes when RPO issues a new heading/altitude/navigation command
 - [x] Add to `CommandParser.cs`:
-  - `HPP360L` / `HPP360R` — Hold present position, 360 turns left/right (winged aircraft)
+  - `HPPL` / `HPPR` — Hold present position, 360 turns left/right (winged aircraft)
   - `HPP` — Hold present position (helicopters, hover)
   - `HFIX {fix}` — Hold at fix (360 turns for winged, in-position for helicopters)
 - [x] Add to `ParsedCommand.cs`:
   - `HoldPresentPositionCommand { TurnDirection?, IsHelicopter }`
   - `HoldAtFixCommand { FixName }`
 - [x] Add to `CommandDispatcher.cs`:
-  - `HPP360L`/`HPP360R`: set up HoldPresentPositionPhase with turn direction
+  - `HPPL`/`HPPR`: set up HoldPresentPositionPhase with turn direction
   - `HPP`: set up HoldPresentPositionPhase in hover mode
   - `HFIX`: set up HoldAtFixPhase with the target fix
 
@@ -444,7 +444,7 @@ TowerCab:  show when within 20nm of subscribed airport AND altitude <= field_ele
 - [ ] Phase name displays correctly in client DataGrid
 - [ ] CRC shows correct aircraft behavior (altitude, heading, speed transitions)
 - [ ] Pattern altitude is correct (~1000 ft AGL)
-- [ ] Issue `HPP360L` → aircraft orbits at current position via left 360° turns
-- [ ] Issue `HPP360R` → aircraft orbits at current position via right 360° turns
+- [ ] Issue `HPPL` → aircraft orbits at current position via left 360° turns
+- [ ] Issue `HPPR` → aircraft orbits at current position via right 360° turns
 - [ ] Issue `HFIX OAK` → aircraft navigates to OAK, then orbits over it
 - [ ] Multiple aircraft can be in the pattern simultaneously

@@ -400,8 +400,8 @@ public static class CommandDispatcher
                 return TrySetLandingClearance(aircraft, ClearanceType.ClearedForOption, "Cleared for the option");
 
             // Hold commands
-            case HoldPresentPosition360Command hpp360:
-                return TryHoldPresentPosition(aircraft, hpp360.Direction);
+            case HoldPresentPosition360Command hpp:
+                return TryHoldPresentPosition(aircraft, hpp.Direction);
 
             case HoldPresentPositionHoverCommand:
                 return TryHoldPresentPosition(aircraft, null);
@@ -877,7 +877,7 @@ public static class CommandDispatcher
             LowApproachCommand => "LA",
             ClearedForOptionCommand => "COPT",
             HoldPresentPosition360Command cmd =>
-                cmd.Direction == TurnDirection.Left ? "HPP360L" : "HPP360R",
+                cmd.Direction == TurnDirection.Left ? "HPPL" : "HPPR",
             HoldPresentPositionHoverCommand => "HPP",
             HoldAtFixOrbitCommand cmd =>
                 $"HFIX{(cmd.Direction == TurnDirection.Left ? "L" : "R")} {cmd.FixName}",

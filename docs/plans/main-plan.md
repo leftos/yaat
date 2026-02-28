@@ -290,7 +290,7 @@ yaat/
    - `GA [hdg] [alt]` - Go around with optional heading/altitude
    - `CTL` - Cleared to land
    - `TG`/`SG`/`LA`/`COPT` - Touch-and-go, stop-and-go, low approach, cleared for option
-   - `HPP360L`/`HPP360R` - Hold present position via 360° turns left/right
+   - `HPPL`/`HPPR` - Hold present position via 360° turns left/right
    - `HPP` - Hold present position (helicopter hover)
    - `HFIX {fix}` / `HFIXL`/`HFIXR` - Hold at fix
    - Deferred to M3: `FS`, `EXIT`, `EL`/`ER`, `LAHSO`

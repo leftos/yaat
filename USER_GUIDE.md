@@ -219,7 +219,7 @@ TG, SG, and LA set pattern mode — the aircraft will continue doing touch-and-g
 
 | Command | Effect |
 |---------|--------|
-| `HPP360L` / `HPP360R` | Hold present position, left/right 360° orbits |
+| `HPPL` / `HPPR` | Hold present position, left/right 360° orbits |
 | `HPP` | Hold present position (hover, for helicopters) |
 | `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right orbits |
 | `HFIX {fix}` | Fly to fix, then hover |

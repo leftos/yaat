@@ -3,7 +3,7 @@ using Yaat.Sim.Commands;
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
-/// Hold present position via continuous 360° turns (HPP360L/HPP360R)
+/// Hold present position via continuous 360° turns (HPPL/HPPR)
 /// or hover for helicopters (HPP).
 /// Maintains current altitude and speed. Standard turn rate per category.
 /// Never self-completes — waits for RPO to issue a new command.
@@ -17,7 +17,7 @@ public sealed class HoldPresentPositionPhase : Phase
     /// <summary>Turn direction for winged aircraft. Null = helicopter hover.</summary>
     public TurnDirection? OrbitDirection { get; init; }
 
-    public override string Name => OrbitDirection is not null ? "HPP360" : "HPP";
+    public override string Name => OrbitDirection is not null ? "HPP" : "HPP";
 
     public override void OnStart(PhaseContext ctx)
     {

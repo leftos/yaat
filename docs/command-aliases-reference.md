@@ -160,8 +160,8 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 
 | Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
 |---|---|---|---|---|
-| **Hold Present Position (360 Left)** | HPP360L | — | HPP360L | HPP360L |
-| **Hold Present Position (360 Right)** | HPP360R | — | HPP360R | HPP360R |
+| **Hold Present Position (360 Left)** | HPPL | — | HPPL | HPPL |
+| **Hold Present Position (360 Right)** | HPPR | — | HPPR | HPPR |
 | **Hold Present Position (Hover)** | HPP | — | HPP | HPP |
 | **Hold at Fix (Left)** | HFIXL | H{fix}/L | HFIXL | HFIXL |
 | **Hold at Fix (Right)** | HFIXR | H{fix} (default right) | HFIXR | HFIXR |

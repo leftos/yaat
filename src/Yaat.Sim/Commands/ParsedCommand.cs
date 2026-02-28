@@ -94,7 +94,7 @@ public record ClearedForOptionCommand : ParsedCommand;
 
 // Hold commands
 
-/// <summary>HPP360L / HPP360R: 360-degree orbits at present position.</summary>
+/// <summary>HPPL / HPPR: 360-degree orbits at present position.</summary>
 public record HoldPresentPosition360Command(TurnDirection Direction) : ParsedCommand;
 
 /// <summary>HPP: helicopter hover at present position.</summary>
