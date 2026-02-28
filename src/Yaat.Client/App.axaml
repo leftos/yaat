@@ -21,9 +21,22 @@
         </Style>
         <Style Selector="DataGridColumnHeader">
             <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="4,2" />
         </Style>
         <Style Selector="DataGridCell">
             <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinHeight" Value="22" />
+        </Style>
+        <Style Selector="DataGridCell TextBlock">
+            <Setter Property="Margin" Value="4,1" />
+        </Style>
+
+        <!-- Alternating row colors -->
+        <Style Selector="DataGridRow">
+            <Setter Property="MinHeight" Value="22" />
+        </Style>
+        <Style Selector="DataGridRow:nth-child(even) /template/ Rectangle#BackgroundRectangle">
+            <Setter Property="Fill" Value="#0AFFFFFF" />
         </Style>
         <Style Selector="TabItem">
             <Setter Property="FontSize" Value="12" />

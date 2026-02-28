@@ -39,6 +39,12 @@ public class CommandBlock
     public bool AllComplete => Commands.TrueForAll(c => c.IsComplete);
 
     /// <summary>
+    /// Human-readable summary of this block (e.g., "CM 040, FH 090" or "at FIXIE: CM 040").
+    /// Set by CommandDispatcher when building the queue.
+    /// </summary>
+    public string Description { get; init; } = "";
+
+    /// <summary>
     /// Deferred action that applies this block's commands to the aircraft.
     /// Set by the CommandDispatcher when building the queue.
     /// </summary>

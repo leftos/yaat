@@ -50,7 +50,8 @@ The main grid shows all aircraft in your scenario:
 | Alt | Current altitude (ft) |
 | Spd | Current ground speed (kts) |
 | VS | Vertical speed (fpm) |
-| AHdg / AAlt / ASpd | Assigned heading, altitude, speed targets |
+| AHdg / AAlt / ASpd | Assigned targets — AHdg shows the next fix name when navigating, or heading when under vectors |
+| Pending Cmds | Queued command blocks not yet executed (from compound commands) |
 
 Click an aircraft row to select it. Press **Esc** to deselect.
 

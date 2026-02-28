@@ -758,6 +758,7 @@ public partial class MainViewModel : ObservableObject
         model.TransponderMode = dto.TransponderMode;
         model.VerticalSpeed = dto.VerticalSpeed;
         model.AssignedHeading = dto.AssignedHeading;
+        model.NavigatingTo = dto.NavigatingTo;
         model.AssignedAltitude = dto.AssignedAltitude;
         model.AssignedSpeed = dto.AssignedSpeed;
         model.Departure = dto.Departure;
@@ -765,6 +766,7 @@ public partial class MainViewModel : ObservableObject
         model.Route = dto.Route;
         model.FlightRules = dto.FlightRules;
         model.Status = dto.Status;
+        model.PendingCommands = dto.PendingCommands;
     }
 
     private static AircraftModel DtoToModel(AircraftDto dto)
@@ -782,6 +784,7 @@ public partial class MainViewModel : ObservableObject
             TransponderMode = dto.TransponderMode,
             VerticalSpeed = dto.VerticalSpeed,
             AssignedHeading = dto.AssignedHeading,
+            NavigatingTo = dto.NavigatingTo,
             AssignedAltitude = dto.AssignedAltitude,
             AssignedSpeed = dto.AssignedSpeed,
             Departure = dto.Departure,
@@ -789,6 +792,7 @@ public partial class MainViewModel : ObservableObject
             Route = dto.Route,
             FlightRules = dto.FlightRules,
             Status = dto.Status,
+            PendingCommands = dto.PendingCommands,
         };
     }
 }

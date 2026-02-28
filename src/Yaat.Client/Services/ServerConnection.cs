@@ -236,7 +236,9 @@ public record AircraftDto(
     string Destination,
     string Route,
     string FlightRules,
-    string Status
+    string Status,
+    string PendingCommands = "",
+    string NavigatingTo = ""
 );
 
 public record LoadScenarioResultDto(

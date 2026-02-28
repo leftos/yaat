@@ -35,7 +35,19 @@ public partial class AircraftModel : ObservableObject
     private double _verticalSpeed;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AssignedHeadingDisplay))]
     private double? _assignedHeading;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AssignedHeadingDisplay))]
+    private string _navigatingTo = "";
+
+    public string AssignedHeadingDisplay =>
+        !string.IsNullOrEmpty(NavigatingTo)
+            ? NavigatingTo
+            : AssignedHeading.HasValue
+                ? AssignedHeading.Value.ToString("F0")
+                : "";
 
     [ObservableProperty]
     private double? _assignedAltitude;
@@ -57,6 +69,9 @@ public partial class AircraftModel : ObservableObject
 
     [ObservableProperty]
     private string _status = "";
+
+    [ObservableProperty]
+    private string _pendingCommands = "";
 
     [ObservableProperty]
     private bool _isSelected;
