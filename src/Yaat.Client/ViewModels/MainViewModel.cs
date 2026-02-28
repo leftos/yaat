@@ -21,10 +21,10 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SpawnCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(SendCommandCommand))]
     [NotifyCanExecuteChangedFor(nameof(TogglePauseCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteAllCommand))]
     private bool _isConnected;
 
     [ObservableProperty]
@@ -49,13 +49,43 @@ public partial class MainViewModel : ObservableObject
     private int _simRate = 1;
 
     [ObservableProperty]
+    private int _selectedSimRateIndex;
+
+    public static int[] SimRateOptions { get; } =
+        [1, 2, 4, 8, 16];
+
+    [ObservableProperty]
     private string _commandSchemeName = "ATCTrainer";
+
+    [ObservableProperty]
+    private string? _activeScenarioId;
+
+    [ObservableProperty]
+    private string? _activeScenarioName;
+
+    [ObservableProperty]
+    private int _scenarioClientCount;
+
+    [ObservableProperty]
+    private bool _showDeleteAllConfirmation;
+
+    [ObservableProperty]
+    private string? _pendingDeleteAllWarning;
+
+    [ObservableProperty]
+    private bool _showScenarioSwitchConfirmation;
+
+    [ObservableProperty]
+    private bool _showActiveScenarios;
 
     public ObservableCollection<AircraftModel> Aircraft
     { get; } = [];
 
     public ObservableCollection<string> CommandHistory
     { get; } = [];
+
+    public ObservableCollection<ScenarioSessionInfoDto>
+        ActiveScenarios { get; } = [];
 
     public MainViewModel()
     {
@@ -64,6 +94,7 @@ public partial class MainViewModel : ObservableObject
         _connection.AircraftSpawned += OnAircraftSpawned;
         _connection.SimulationStateChanged +=
             OnSimulationStateChanged;
+        _connection.Reconnected += OnReconnected;
 
         RefreshCommandScheme();
     }
@@ -83,6 +114,19 @@ public partial class MainViewModel : ObservableObject
             await _connection.ConnectAsync(ServerUrl);
             IsConnected = true;
             StatusText = "Connected";
+
+            // Check for resumable scenarios
+            var scenarios = await _connection
+                .GetActiveScenariosAsync();
+            if (scenarios.Count > 0)
+            {
+                ActiveScenarios.Clear();
+                foreach (var s in scenarios)
+                {
+                    ActiveScenarios.Add(s);
+                }
+                ShowActiveScenarios = true;
+            }
 
             var list = await _connection
                 .GetAircraftListAsync();
@@ -104,35 +148,26 @@ public partial class MainViewModel : ObservableObject
 
     private async Task DisconnectAsync()
     {
+        if (ActiveScenarioId is not null)
+        {
+            try
+            {
+                await _connection.LeaveScenarioAsync();
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(
+                    ex, "LeaveScenario on disconnect failed");
+            }
+        }
+
         await _connection.DisconnectAsync();
         IsConnected = false;
         StatusText = "Disconnected";
         Aircraft.Clear();
-    }
-
-    [RelayCommand(CanExecute = nameof(IsConnected))]
-    private async Task SpawnAsync()
-    {
-        try
-        {
-            var dto = new SpawnAircraftDto(
-                Callsign: $"TST{Random.Shared.Next(100, 999)}",
-                AircraftType: "B738",
-                Latitude: 37.72
-                    + Random.Shared.NextDouble() * 0.1,
-                Longitude: -122.22
-                    - Random.Shared.NextDouble() * 0.1,
-                Heading: Random.Shared.Next(0, 360),
-                Altitude: Random.Shared.Next(3000, 15000),
-                GroundSpeed: Random.Shared.Next(180, 350));
-
-            await _connection.SpawnAircraftAsync(dto);
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Spawn failed");
-            StatusText = $"Spawn error: {ex.Message}";
-        }
+        ActiveScenarioId = null;
+        ActiveScenarioName = null;
+        ScenarioClientCount = 0;
     }
 
     [RelayCommand(CanExecute = nameof(IsConnected))]
@@ -144,6 +179,44 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (ActiveScenarioId is not null)
+        {
+            ShowScenarioSwitchConfirmation = true;
+            return;
+        }
+
+        await ExecuteLoadScenario();
+    }
+
+    [RelayCommand]
+    private async Task ConfirmScenarioSwitchAsync()
+    {
+        ShowScenarioSwitchConfirmation = false;
+
+        try
+        {
+            await _connection.LeaveScenarioAsync();
+            ActiveScenarioId = null;
+            ActiveScenarioName = null;
+            ScenarioClientCount = 0;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(
+                ex, "LeaveScenario on switch failed");
+        }
+
+        await ExecuteLoadScenario();
+    }
+
+    [RelayCommand]
+    private void CancelScenarioSwitch()
+    {
+        ShowScenarioSwitchConfirmation = false;
+    }
+
+    private async Task ExecuteLoadScenario()
+    {
         try
         {
             _log.LogInformation(
@@ -157,18 +230,23 @@ public partial class MainViewModel : ObservableObject
 
             if (result.Success)
             {
+                ActiveScenarioId = result.ScenarioId;
+                ActiveScenarioName = result.Name;
+                ApplySimState(
+                    result.IsPaused, result.SimRate);
+
                 _log.LogInformation(
-                    "Scenario loaded: '{Name}', "
+                    "Scenario loaded: '{Name}' ({Id}), "
                     + "{Count} aircraft, "
                     + "{Delayed} delayed, "
                     + "{All} total, "
                     + "{Warnings} warnings",
-                    result.Name, result.AircraftCount,
+                    result.Name, result.ScenarioId,
+                    result.AircraftCount,
                     result.DelayedCount,
                     result.AllAircraft.Count,
                     result.Warnings.Count);
 
-                // Populate grid with all aircraft
                 Aircraft.Clear();
                 foreach (var dto in result.AllAircraft)
                 {
@@ -186,7 +264,8 @@ public partial class MainViewModel : ObservableObject
 
             foreach (var w in result.Warnings)
             {
-                _log.LogWarning("Scenario: {Warning}", w);
+                _log.LogWarning(
+                    "Scenario: {Warning}", w);
                 AddHistory($"[WARN] {w}");
             }
         }
@@ -196,6 +275,114 @@ public partial class MainViewModel : ObservableObject
             StatusText = $"Load error: {ex.Message}";
         }
     }
+
+    [RelayCommand]
+    private async Task RejoinScenarioAsync(string scenarioId)
+    {
+        ShowActiveScenarios = false;
+        try
+        {
+            var result = await _connection
+                .RejoinScenarioAsync(scenarioId);
+            if (result.Success)
+            {
+                ActiveScenarioId = result.ScenarioId;
+                ActiveScenarioName = result.Name;
+                ApplySimState(
+                    result.IsPaused, result.SimRate);
+
+                Aircraft.Clear();
+                foreach (var dto in result.AllAircraft)
+                {
+                    Aircraft.Add(DtoToModel(dto));
+                }
+
+                StatusText =
+                    $"Rejoined '{result.Name}': " +
+                    $"{result.AllAircraft.Count} aircraft";
+            }
+            else
+            {
+                StatusText = "Scenario no longer active";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Rejoin failed");
+            StatusText = $"Rejoin error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void DismissActiveScenarios()
+    {
+        ShowActiveScenarios = false;
+    }
+
+    // --- Delete All ---
+
+    [RelayCommand(CanExecute = nameof(IsConnected))]
+    private async Task DeleteAllAsync()
+    {
+        if (ActiveScenarioId is null)
+        {
+            StatusText = "No active scenario";
+            return;
+        }
+
+        try
+        {
+            var result = await _connection
+                .DeleteAllAircraftAsync();
+
+            if (result.RequiresConfirmation)
+            {
+                PendingDeleteAllWarning = result.Message;
+                ShowDeleteAllConfirmation = true;
+                return;
+            }
+
+            Aircraft.Clear();
+            ActiveScenarioId = null;
+            ActiveScenarioName = null;
+            ScenarioClientCount = 0;
+            StatusText = "All aircraft deleted";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "DeleteAll failed");
+            StatusText = $"Delete error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task ConfirmDeleteAllAsync()
+    {
+        ShowDeleteAllConfirmation = false;
+        try
+        {
+            await _connection.ConfirmDeleteAllAsync();
+            Aircraft.Clear();
+            ActiveScenarioId = null;
+            ActiveScenarioName = null;
+            ScenarioClientCount = 0;
+            StatusText = "All aircraft deleted";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "ConfirmDeleteAll failed");
+            StatusText = $"Delete error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void CancelDeleteAll()
+    {
+        ShowDeleteAllConfirmation = false;
+        PendingDeleteAllWarning = null;
+    }
+
+    // --- Commands ---
 
     [RelayCommand(CanExecute = nameof(IsConnected))]
     private async Task SendCommandAsync()
@@ -207,7 +394,8 @@ public partial class MainViewModel : ObservableObject
         }
 
         var scheme = _preferences.CommandScheme;
-        var parsed = CommandSchemeParser.Parse(text, scheme);
+        var parsed = CommandSchemeParser.Parse(
+            text, scheme);
 
         if (parsed is null)
         {
@@ -215,7 +403,6 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // Global commands don't need aircraft selection
         if (parsed.Type == CanonicalCommandType.Pause)
         {
             await _connection.PauseSimulationAsync();
@@ -232,7 +419,8 @@ public partial class MainViewModel : ObservableObject
         }
         if (parsed.Type == CanonicalCommandType.SimRate)
         {
-            if (int.TryParse(parsed.Argument, out var rate))
+            if (int.TryParse(
+                parsed.Argument, out var rate))
             {
                 await _connection.SetSimRateAsync(rate);
                 AddHistory($"SIMRATE {rate}");
@@ -241,7 +429,6 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // Aircraft-targeted commands
         if (SelectedAircraft is null)
         {
             StatusText = "Select an aircraft first";
@@ -257,14 +444,16 @@ public partial class MainViewModel : ObservableObject
                 .SendCommandAsync(
                     SelectedAircraft.Callsign, canonical);
 
-            var entry = $"{SelectedAircraft.Callsign} {text}";
+            var entry =
+                $"{SelectedAircraft.Callsign} {text}";
             if (result.Success)
             {
                 AddHistory(entry);
             }
             else
             {
-                AddHistory($"{entry} — {result.Message}");
+                AddHistory(
+                    $"{entry} — {result.Message}");
             }
 
             CommandText = "";
@@ -297,14 +486,24 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
-    private async Task SetSimRateAsync(string rateStr)
+    partial void OnSelectedSimRateIndexChanged(int value)
     {
-        if (!int.TryParse(rateStr, out var rate))
+        if (value < 0 || value >= SimRateOptions.Length)
         {
             return;
         }
 
+        var rate = SimRateOptions[value];
+        if (rate == SimRate)
+        {
+            return;
+        }
+
+        _ = SetSimRateFromDropdownAsync(rate);
+    }
+
+    private async Task SetSimRateFromDropdownAsync(int rate)
+    {
         try
         {
             await _connection.SetSimRateAsync(rate);
@@ -322,6 +521,8 @@ public partial class MainViewModel : ObservableObject
             CommandScheme.DetectPresetName(
                 _preferences.CommandScheme) ?? "Custom";
     }
+
+    // --- Event handlers ---
 
     private void OnAircraftUpdated(AircraftDto dto)
     {
@@ -372,9 +573,62 @@ public partial class MainViewModel : ObservableObject
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            IsPaused = paused;
-            SimRate = rate;
+            ApplySimState(paused, rate);
         });
+    }
+
+    private void OnReconnected(string? connectionId)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            async () =>
+        {
+            if (ActiveScenarioId is null)
+            {
+                return;
+            }
+
+            try
+            {
+                var result = await _connection
+                    .RejoinScenarioAsync(ActiveScenarioId);
+                if (result.Success)
+                {
+                    ApplySimState(
+                        result.IsPaused, result.SimRate);
+
+                    Aircraft.Clear();
+                    foreach (var dto in result.AllAircraft)
+                    {
+                        Aircraft.Add(DtoToModel(dto));
+                    }
+                    StatusText = "Reconnected to scenario";
+                }
+                else
+                {
+                    StatusText =
+                        "Scenario no longer active";
+                    ActiveScenarioId = null;
+                    ActiveScenarioName = null;
+                    ScenarioClientCount = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(
+                    ex,
+                    "Rejoin after reconnect failed");
+            }
+        });
+    }
+
+    // --- Helpers ---
+
+    private void ApplySimState(bool paused, int rate)
+    {
+        IsPaused = paused;
+        SimRate = rate;
+        SelectedSimRateIndex = Array.IndexOf(
+            SimRateOptions, rate);
     }
 
     private void AddHistory(string entry)
@@ -420,7 +674,8 @@ public partial class MainViewModel : ObservableObject
         model.Status = dto.Status;
     }
 
-    private static AircraftModel DtoToModel(AircraftDto dto)
+    private static AircraftModel DtoToModel(
+        AircraftDto dto)
     {
         return new AircraftModel
         {

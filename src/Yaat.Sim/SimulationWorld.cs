@@ -41,6 +41,40 @@ public sealed class SimulationWorld
         }
     }
 
+    public List<AircraftState> GetSnapshotByScenario(
+        string scenarioId)
+    {
+        lock (_lock)
+        {
+            return [.. _aircraft.Where(
+                a => a.ScenarioId == scenarioId)];
+        }
+    }
+
+    public int RemoveByScenario(string scenarioId)
+    {
+        lock (_lock)
+        {
+            return _aircraft.RemoveAll(
+                a => a.ScenarioId == scenarioId);
+        }
+    }
+
+    public void TickScenario(
+        string scenarioId, double deltaSeconds)
+    {
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                if (ac.ScenarioId == scenarioId)
+                {
+                    FlightPhysics.Update(ac, deltaSeconds);
+                }
+            }
+        }
+    }
+
     public static uint GenerateBeaconCode()
     {
         var rng = Random.Shared;

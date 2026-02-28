@@ -22,13 +22,21 @@ public sealed class UserPreferences
     };
 
     private CommandScheme _commandScheme;
+    private bool _isAdminMode;
+    private string _adminPassword = "";
 
     public UserPreferences()
     {
-        _commandScheme = Load() ?? CommandScheme.AtcTrainer();
+        var (scheme, isAdmin, adminPassword) = Load();
+        _commandScheme = scheme
+            ?? CommandScheme.AtcTrainer();
+        _isAdminMode = isAdmin;
+        _adminPassword = adminPassword;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
+    public bool IsAdminMode => _isAdminMode;
+    public string AdminPassword => _adminPassword;
 
     public void SetCommandScheme(CommandScheme scheme)
     {
@@ -36,29 +44,40 @@ public sealed class UserPreferences
         Save();
     }
 
-    private static CommandScheme? Load()
+    public void SetAdminSettings(
+        bool isAdmin, string password)
+    {
+        _isAdminMode = isAdmin;
+        _adminPassword = password;
+        Save();
+    }
+
+    private static (CommandScheme? scheme,
+        bool isAdmin, string adminPassword) Load()
     {
         if (!File.Exists(ConfigPath))
         {
-            return null;
+            return (null, false, "");
         }
 
         try
         {
             var json = File.ReadAllText(ConfigPath);
-            var saved = JsonSerializer.Deserialize<SavedPrefs>(
-                json, JsonOptions);
+            var saved = JsonSerializer
+                .Deserialize<SavedPrefs>(
+                    json, JsonOptions);
 
-            if (saved?.CommandScheme is null)
-            {
-                return null;
-            }
+            var scheme = saved?.CommandScheme is not null
+                ? FromSaved(saved.CommandScheme)
+                : null;
 
-            return FromSaved(saved.CommandScheme);
+            return (scheme,
+                saved?.IsAdminMode ?? false,
+                saved?.AdminPassword ?? "");
         }
         catch (JsonException)
         {
-            return null;
+            return (null, false, "");
         }
     }
 
@@ -68,10 +87,13 @@ public sealed class UserPreferences
 
         var saved = new SavedPrefs
         {
-            CommandScheme = ToSaved(_commandScheme)
+            CommandScheme = ToSaved(_commandScheme),
+            IsAdminMode = _isAdminMode,
+            AdminPassword = _adminPassword
         };
 
-        var json = JsonSerializer.Serialize(saved, JsonOptions);
+        var json = JsonSerializer.Serialize(
+            saved, JsonOptions);
         File.WriteAllText(ConfigPath, json);
     }
 
@@ -156,6 +178,8 @@ public sealed class UserPreferences
     private sealed class SavedPrefs
     {
         public SavedCommandScheme? CommandScheme { get; set; }
+        public bool IsAdminMode { get; set; }
+        public string AdminPassword { get; set; } = "";
     }
 
     private sealed class SavedCommandScheme

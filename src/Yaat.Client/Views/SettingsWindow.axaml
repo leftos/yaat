@@ -81,6 +81,28 @@
                 </DockPanel>
             </TabItem>
 
+            <!-- Advanced tab -->
+            <TabItem Header="Advanced">
+                <StackPanel Margin="12" Spacing="12">
+                    <CheckBox Content="Server Admin Mode"
+                              IsChecked="{Binding IsAdminMode}" />
+                    <StackPanel Spacing="4"
+                                IsVisible="{Binding IsAdminMode}">
+                        <TextBlock Text="Admin Password:"
+                                   Foreground="Gray" />
+                        <TextBox Text="{Binding AdminPassword}"
+                                 PasswordChar="*"
+                                 Watermark="Enter server admin password"
+                                 Width="300"
+                                 HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap"
+                               Foreground="Gray"
+                               FontSize="11"
+                               Text="Admin mode allows you to see all scenarios running on the server, filter the aircraft list by scenario, and manage aircraft across all scenarios." />
+                </StackPanel>
+            </TabItem>
+
         </TabControl>
 
     </DockPanel>

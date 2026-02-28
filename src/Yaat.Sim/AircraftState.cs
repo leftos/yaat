@@ -4,6 +4,7 @@ public class AircraftState
 {
     public required string Callsign { get; set; }
     public required string AircraftType { get; set; }
+    public string? ScenarioId { get; set; }
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public double Heading { get; set; }

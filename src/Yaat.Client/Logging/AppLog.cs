@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Yaat.Client.Logging;
 
@@ -33,8 +34,8 @@ public static class AppLog
     {
         if (_factory is null)
         {
-            throw new InvalidOperationException(
-                "AppLog.Initialize() must be called first.");
+            return NullLoggerFactory.Instance
+                .CreateLogger<T>();
         }
 
         return _factory.CreateLogger<T>();
@@ -44,8 +45,8 @@ public static class AppLog
     {
         if (_factory is null)
         {
-            throw new InvalidOperationException(
-                "AppLog.Initialize() must be called first.");
+            return NullLoggerFactory.Instance
+                .CreateLogger(category);
         }
 
         return _factory.CreateLogger(category);

@@ -6,6 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>Yaat.Client</RootNamespace>
+    <!-- MC3101: Avalonia DataGrid columns use reflection bindings;
+         the XAML compiler cannot resolve their item type -->
+    <NoWarn>MC3101</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

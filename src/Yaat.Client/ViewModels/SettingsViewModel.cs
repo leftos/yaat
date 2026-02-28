@@ -78,7 +78,14 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedPresetIndex;
 
-    public static IReadOnlyList<string> PresetNames_ => PresetNames;
+    [ObservableProperty]
+    private bool _isAdminMode;
+
+    [ObservableProperty]
+    private string _adminPassword = "";
+
+    public static IReadOnlyList<string> PresetNames_ =>
+        PresetNames;
 
     public ObservableCollection<VerbMappingRow> VerbMappings
     { get; } = [];
@@ -91,6 +98,8 @@ public partial class SettingsViewModel : ObservableObject
         _preferences = preferences;
         LoadFromScheme(_preferences.CommandScheme);
         DetectAndUpdatePreset();
+        _isAdminMode = _preferences.IsAdminMode;
+        _adminPassword = _preferences.AdminPassword;
     }
 
     partial void OnSelectedPresetIndexChanged(int value)
@@ -121,6 +130,8 @@ public partial class SettingsViewModel : ObservableObject
     {
         var scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
+        _preferences.SetAdminSettings(
+            IsAdminMode, AdminPassword);
         Saved = true;
     }
 

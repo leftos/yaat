@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Yaat.Client.ViewModels"
+        xmlns:svc="using:Yaat.Client.Services"
         x:Class="Yaat.Client.Views.MainWindow"
         Title="YAAT"
         Width="1200" Height="700">
@@ -8,6 +9,8 @@
     <Design.DataContext>
         <vm:MainViewModel />
     </Design.DataContext>
+
+    <Panel>
 
     <DockPanel Margin="12">
 
@@ -47,8 +50,25 @@
                     x:Name="BrowseButton" />
             <Button Content="Load Scenario"
                     Command="{Binding LoadScenarioCommand}" />
-            <Button Content="Spawn"
-                    Command="{Binding SpawnCommand}" />
+            <Button Content="Delete All"
+                    Command="{Binding DeleteAllCommand}" />
+
+            <!-- Active scenario indicator -->
+            <TextBlock VerticalAlignment="Center"
+                       Margin="8,0,0,0"
+                       Foreground="CornflowerBlue"
+                       IsVisible="{Binding ActiveScenarioName,
+                           Converter={x:Static
+                           StringConverters.IsNotNullOrEmpty}}"
+                       Text="{Binding ActiveScenarioName,
+                           StringFormat='Scenario: {0}'}" />
+            <TextBlock VerticalAlignment="Center"
+                       Foreground="Gray"
+                       IsVisible="{Binding ActiveScenarioName,
+                           Converter={x:Static
+                           StringConverters.IsNotNullOrEmpty}}"
+                       Text="{Binding ScenarioClientCount,
+                           StringFormat='({0} client(s))'}" />
         </StackPanel>
 
         <!-- Bottom: Command bar + sim controls -->
@@ -79,34 +99,18 @@
                         vm:PauseButtonConverter.Instance}}"
                     Command="{Binding TogglePauseCommand}" />
 
-            <StackPanel Grid.Column="3"
-                        Orientation="Horizontal"
-                        Margin="8,0,0,0"
-                        Spacing="2">
-                <Button Content="1x"
-                        Command="{Binding SetSimRateCommand}"
-                        CommandParameter="1"
-                        MinWidth="32" />
-                <Button Content="2x"
-                        Command="{Binding SetSimRateCommand}"
-                        CommandParameter="2"
-                        MinWidth="32" />
-                <Button Content="4x"
-                        Command="{Binding SetSimRateCommand}"
-                        CommandParameter="4"
-                        MinWidth="32" />
-                <Button Content="8x"
-                        Command="{Binding SetSimRateCommand}"
-                        CommandParameter="8"
-                        MinWidth="32" />
-            </StackPanel>
+            <ComboBox Grid.Column="3"
+                      Margin="8,0,0,0"
+                      ItemsSource="{Binding SimRateOptions}"
+                      SelectedIndex="{Binding SelectedSimRateIndex}"
+                      MinWidth="70">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding StringFormat='{}{0}x'}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
 
-            <TextBlock Grid.Column="4"
-                       VerticalAlignment="Center"
-                       Margin="8,0,0,0"
-                       Foreground="Gray"
-                       Text="{Binding CommandSchemeName,
-                              StringFormat='Scheme: {0}'}" />
         </Grid>
 
         <!-- Center: Aircraft DataGrid -->
@@ -172,4 +176,132 @@
         </DataGrid>
 
     </DockPanel>
+
+    <!-- Delete-all confirmation overlay -->
+    <Border IsVisible="{Binding ShowDeleteAllConfirmation}"
+            Background="#CC000000"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="8"
+            Padding="24"
+            MinWidth="350">
+        <StackPanel Spacing="12">
+            <TextBlock Text="Delete All Aircraft?"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Foreground="White" />
+            <TextBlock Text="{Binding PendingDeleteAllWarning}"
+                       TextWrapping="Wrap"
+                       Foreground="Orange" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8"
+                        HorizontalAlignment="Right">
+                <Button Content="Delete Anyway"
+                        Command="{Binding
+                            ConfirmDeleteAllCommand}" />
+                <Button Content="Cancel"
+                        Command="{Binding
+                            CancelDeleteAllCommand}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+
+    <!-- Scenario switch confirmation overlay -->
+    <Border IsVisible="{Binding
+                ShowScenarioSwitchConfirmation}"
+            Background="#CC000000"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="8"
+            Padding="24"
+            MinWidth="350">
+        <StackPanel Spacing="12">
+            <TextBlock Text="Switch Scenario?"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Foreground="White" />
+            <TextBlock TextWrapping="Wrap"
+                       Foreground="LightGray">
+                <Run Text="You are currently in scenario " />
+                <Run Text="{Binding ActiveScenarioName}"
+                     FontWeight="Bold" />
+                <Run Text=". Loading a new scenario will " />
+                <Run Text="leave the current one." />
+            </TextBlock>
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8"
+                        HorizontalAlignment="Right">
+                <Button Content="Switch"
+                        Command="{Binding
+                            ConfirmScenarioSwitchCommand}" />
+                <Button Content="Cancel"
+                        Command="{Binding
+                            CancelScenarioSwitchCommand}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+
+    <!-- Active scenarios (crash recovery) overlay -->
+    <Border IsVisible="{Binding ShowActiveScenarios}"
+            Background="#CC000000"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="8"
+            Padding="24"
+            MinWidth="400"
+            MaxHeight="400">
+        <StackPanel Spacing="12">
+            <TextBlock Text="Active Scenarios Found"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Foreground="White" />
+            <TextBlock Text="Resumable scenarios are
+                       running on the server."
+                       Foreground="LightGray"
+                       TextWrapping="Wrap" />
+            <ItemsControl
+                ItemsSource="{Binding ActiveScenarios}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="svc:ScenarioSessionInfoDto">
+                        <Border Margin="0,4"
+                                Padding="8"
+                                Background="#40FFFFFF"
+                                CornerRadius="4">
+                            <Grid
+                                ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock
+                                        Text="{Binding
+                                            ScenarioName}"
+                                        FontWeight="Bold"
+                                        Foreground="White"/>
+                                    <TextBlock
+                                        Foreground="Gray"
+                                        FontSize="11">
+                                        <Run Text="{Binding
+                                            AircraftCount}" />
+                                        <Run Text=" aircraft," />
+                                        <Run Text="{Binding
+                                            ClientCount}" />
+                                        <Run Text=" client(s)" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                    Content="Rejoin"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding $parent[Window].DataContext.RejoinScenarioCommand}"
+                                    CommandParameter="{Binding ScenarioId}"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Content="Dismiss"
+                    HorizontalAlignment="Right"
+                    Command="{Binding
+                        DismissActiveScenariosCommand}" />
+        </StackPanel>
+    </Border>
+
+    </Panel>
 </Window>

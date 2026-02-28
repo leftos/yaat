@@ -10,11 +10,14 @@ public sealed class ServerConnection : IAsyncDisposable
         AppLog.CreateLogger<ServerConnection>();
 
     private HubConnection? _connection;
+    private PeriodicTimer? _heartbeatTimer;
+    private CancellationTokenSource? _heartbeatCts;
 
     public event Action<AircraftDto>? AircraftUpdated;
     public event Action<string>? AircraftDeleted;
     public event Action<AircraftDto>? AircraftSpawned;
     public event Action<bool, int>? SimulationStateChanged;
+    public event Action<string?>? Reconnected;
 
     public bool IsConnected =>
         _connection?.State == HubConnectionState.Connected;
@@ -26,8 +29,10 @@ public sealed class ServerConnection : IAsyncDisposable
             await DisconnectAsync();
         }
 
-        var hubUrl = serverUrl.TrimEnd('/') + "/hubs/training";
-        _log.LogInformation("Connecting to {Url}", hubUrl);
+        var hubUrl = serverUrl.TrimEnd('/')
+            + "/hubs/training";
+        _log.LogInformation(
+            "Connecting to {Url}", hubUrl);
 
         _connection = new HubConnectionBuilder()
             .WithUrl(hubUrl)
@@ -52,12 +57,24 @@ public sealed class ServerConnection : IAsyncDisposable
                 SimulationStateChanged?.Invoke(
                     paused, rate));
 
+        _connection.Reconnected += connectionId =>
+        {
+            _log.LogInformation(
+                "Reconnected with id {Id}", connectionId);
+            Reconnected?.Invoke(connectionId);
+            return Task.CompletedTask;
+        };
+
         await _connection.StartAsync();
         _log.LogInformation("Connected");
+
+        StartHeartbeat();
     }
 
     public async Task DisconnectAsync()
     {
+        StopHeartbeat();
+
         if (_connection is null)
         {
             return;
@@ -68,111 +85,189 @@ public sealed class ServerConnection : IAsyncDisposable
         _log.LogInformation("Disconnected");
     }
 
-    public async Task<List<AircraftDto>> GetAircraftListAsync()
-    {
-        if (_connection is null)
-        {
-            throw new InvalidOperationException(
-                "Not connected.");
-        }
+    // --- Scenario lifecycle ---
 
-        return await _connection
+    public async Task<List<AircraftDto>>
+        GetAircraftListAsync()
+    {
+        EnsureConnected();
+        return await _connection!
             .InvokeAsync<List<AircraftDto>>(
                 "GetAircraftList");
-    }
-
-    public async Task SpawnAircraftAsync(SpawnAircraftDto dto)
-    {
-        if (_connection is null)
-        {
-            throw new InvalidOperationException(
-                "Not connected.");
-        }
-
-        await _connection.InvokeAsync("SpawnAircraft", dto);
     }
 
     public async Task<LoadScenarioResultDto>
         LoadScenarioAsync(string scenarioJson)
     {
-        if (_connection is null)
-        {
-            throw new InvalidOperationException(
-                "Not connected.");
-        }
-
-        return await _connection
+        EnsureConnected();
+        return await _connection!
             .InvokeAsync<LoadScenarioResultDto>(
                 "LoadScenario", scenarioJson);
     }
 
+    public async Task LeaveScenarioAsync()
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("LeaveScenario");
+    }
+
+    public async Task<List<ScenarioSessionInfoDto>>
+        GetActiveScenariosAsync()
+    {
+        EnsureConnected();
+        return await _connection!
+            .InvokeAsync<List<ScenarioSessionInfoDto>>(
+                "GetActiveScenarios");
+    }
+
+    public async Task<LoadScenarioResultDto>
+        RejoinScenarioAsync(string scenarioId)
+    {
+        EnsureConnected();
+        return await _connection!
+            .InvokeAsync<LoadScenarioResultDto>(
+                "RejoinScenario", scenarioId);
+    }
+
+    // --- Aircraft commands ---
+
     public async Task<CommandResultDto>
         SendCommandAsync(string callsign, string command)
     {
-        if (_connection is null)
-        {
-            throw new InvalidOperationException(
-                "Not connected.");
-        }
-
-        return await _connection
+        EnsureConnected();
+        return await _connection!
             .InvokeAsync<CommandResultDto>(
                 "SendCommand", callsign, command);
     }
 
     public async Task DeleteAircraftAsync(string callsign)
     {
-        if (_connection is null)
-        {
-            throw new InvalidOperationException(
-                "Not connected.");
-        }
-
-        await _connection.InvokeAsync(
+        EnsureConnected();
+        await _connection!.InvokeAsync(
             "DeleteAircraft", callsign);
     }
 
+    public async Task<DeleteAllResultDto>
+        DeleteAllAircraftAsync()
+    {
+        EnsureConnected();
+        return await _connection!
+            .InvokeAsync<DeleteAllResultDto>(
+                "DeleteAllAircraft");
+    }
+
+    public async Task ConfirmDeleteAllAsync()
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("ConfirmDeleteAll");
+    }
+
+    // --- Simulation state ---
+
     public async Task PauseSimulationAsync()
     {
-        if (_connection is null)
-        {
-            throw new InvalidOperationException(
-                "Not connected.");
-        }
-
-        await _connection.InvokeAsync("PauseSimulation");
+        EnsureConnected();
+        await _connection!.InvokeAsync("PauseSimulation");
     }
 
     public async Task ResumeSimulationAsync()
     {
-        if (_connection is null)
-        {
-            throw new InvalidOperationException(
-                "Not connected.");
-        }
-
-        await _connection.InvokeAsync("ResumeSimulation");
+        EnsureConnected();
+        await _connection!.InvokeAsync("ResumeSimulation");
     }
 
     public async Task SetSimRateAsync(int rate)
     {
-        if (_connection is null)
-        {
-            throw new InvalidOperationException(
-                "Not connected.");
-        }
-
-        await _connection.InvokeAsync("SetSimRate", rate);
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetSimRate", rate);
     }
+
+    // --- Admin ---
+
+    public async Task<bool> AdminAuthenticateAsync(
+        string password)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<bool>(
+            "AdminAuthenticate", password);
+    }
+
+    public async Task<List<ScenarioSessionInfoDto>>
+        AdminGetScenariosAsync()
+    {
+        EnsureConnected();
+        return await _connection!
+            .InvokeAsync<List<ScenarioSessionInfoDto>>(
+                "AdminGetScenarios");
+    }
+
+    public async Task AdminSetScenarioFilterAsync(
+        string? scenarioId)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync(
+            "AdminSetScenarioFilter", scenarioId);
+    }
+
+    // --- Lifecycle ---
 
     public async ValueTask DisposeAsync()
     {
+        StopHeartbeat();
         if (_connection is not null)
         {
             await _connection.DisposeAsync();
         }
     }
+
+    private void EnsureConnected()
+    {
+        if (_connection is null)
+        {
+            throw new InvalidOperationException(
+                "Not connected.");
+        }
+    }
+
+    private void StartHeartbeat()
+    {
+        _heartbeatCts = new CancellationTokenSource();
+        _heartbeatTimer = new PeriodicTimer(
+            TimeSpan.FromSeconds(30));
+        _ = RunHeartbeat(_heartbeatCts.Token);
+    }
+
+    private void StopHeartbeat()
+    {
+        _heartbeatCts?.Cancel();
+        _heartbeatCts?.Dispose();
+        _heartbeatCts = null;
+        _heartbeatTimer?.Dispose();
+        _heartbeatTimer = null;
+    }
+
+    private async Task RunHeartbeat(CancellationToken ct)
+    {
+        try
+        {
+            while (await _heartbeatTimer!
+                .WaitForNextTickAsync(ct))
+            {
+                if (_connection?.State ==
+                    HubConnectionState.Connected)
+                {
+                    await _connection.InvokeAsync(
+                        "Heartbeat", ct);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
 }
+
+// --- DTOs ---
 
 public record AircraftDto(
     string Callsign,
@@ -194,23 +289,31 @@ public record AircraftDto(
     string FlightRules,
     string Status);
 
-public record SpawnAircraftDto(
-    string Callsign,
-    string AircraftType,
-    double Latitude,
-    double Longitude,
-    double Heading,
-    double Altitude,
-    double GroundSpeed);
-
 public record LoadScenarioResultDto(
     bool Success,
     string Name,
+    string ScenarioId,
     int AircraftCount,
     int DelayedCount,
+    bool IsPaused,
+    int SimRate,
     List<string> Warnings,
     List<AircraftDto> AllAircraft);
 
 public record CommandResultDto(
     bool Success,
+    string? Message);
+
+public record ScenarioSessionInfoDto(
+    string ScenarioId,
+    string ScenarioName,
+    int ClientCount,
+    bool IsPaused,
+    int SimRate,
+    double ElapsedSeconds,
+    int AircraftCount);
+
+public record DeleteAllResultDto(
+    bool RequiresConfirmation,
+    int OtherClientCount,
     string? Message);
