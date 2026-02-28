@@ -391,8 +391,8 @@ STARS tracks only appear when aircraft altitude >= field elevation + 100ft AGL. 
    - `JFAC [app]` - Join final approach course
    - `JARR {star} [trans]` - Join STAR
    - ~~`DCT {wpt}` - Direct to waypoint~~ (basic DCT done in M1; M4 adds course intercepts and procedure-based nav)
-   - `JOINO {fix}{radial:3}` - Join radial outbound: fly present heading until intercepting the radial, then track outbound (away from fix). E.g., `JOINO OAK090` — fly until intercepting the OAK 090 radial, then fly heading 090 (outbound from OAK).
-   - `JOINI {fix}{radial:3}` - Join radial inbound: fly present heading until intercepting the radial, then track inbound (toward the fix). E.g., `JOINI OAK090` — fly until intercepting the OAK 090 radial, then fly heading 270 (inbound to OAK on the 090 radial).
+   - `JRADO / JRAD {fix}{radial:3}` - Join radial outbound / join radial: fly present heading until intercepting the radial, then track outbound (away from fix). E.g., `JRADO OAK090` — fly until intercepting the OAK 090 radial, then fly heading 090 (outbound from OAK).
+   - `JRADI / JICRS {fix}{radial:3}` - Join radial inbound  / join inbound course: fly present heading until intercepting the radial, then track inbound (toward the fix). E.g., `JRADI OAK090` — fly until intercepting the OAK 090 radial, then fly heading 270 (inbound to OAK on the 090 radial).
    - `HOLD {wpt} {crs} {dist} {dir}` - Holding pattern
    - `DVIA [alt]` - Descend via path
    - `CFIX {wpt} {alt} [spd]` - Cross fix at altitude
