@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+option csharp_namespace = "Yaat.Sim.Proto";
+
+message GeoPoint {
+    double lat = 1;
+    double lon = 2;
+}
+
+message NavDataSet {
+    repeated Airport airports = 1;
+    repeated Fix fixes = 2;
+    repeated Airway airways = 3;
+    repeated Sid sids = 4;
+    repeated Star stars = 5;
+}
+
+message Airport {
+    optional string faa_id = 1;
+    optional string icao_id = 2;
+    optional string artcc_id = 3;
+    string name = 4;
+    double elevation = 5;
+    GeoPoint location = 6;
+    repeated Runway runways = 7;
+}
+
+message Runway {
+    string id = 1;
+    double true_heading = 2;
+    int32 landing_distance_available = 3;
+    int32 width = 4;
+    GeoPoint start_location = 5;
+    GeoPoint end_location = 6;
+}
+
+message Fix {
+    string id = 1;
+    GeoPoint location = 2;
+}
+
+message Airway {
+    string id = 1;
+    repeated string fixes = 2;
+}
+
+message Sid {
+    string id = 1;
+    repeated string body = 2;
+    repeated Transition transitions = 3;
+}
+
+message Star {
+    string id = 1;
+    repeated Transition transitions = 2;
+    repeated string body = 3;
+}
+
+message Transition {
+    repeated string fixes = 1;
+}

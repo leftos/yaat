@@ -5,6 +5,7 @@ public enum SuggestionKind
     Callsign,
     Command,
     Fix,
+    RouteFix,
 }
 
 public sealed class SuggestionItem

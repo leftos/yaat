@@ -193,9 +193,19 @@ As you type in the command bar, a popup appears with matching suggestions:
 
 - **Command verbs** — matching verbs from your active command scheme with syntax hints (e.g., `FH  Fly Heading {270}`)
 - **Callsigns** — aircraft whose callsign matches what you've typed, showing type and route
+- **Fix names** (for DCT and AT arguments) — all VNAS navdata fixes (~40k airports, navaids, waypoints) plus custom scenario fixes
 - After accepting a callsign, the popup immediately shows all available command verbs
 
 Suggestions are context-aware: after a `;` or `,` separator in compound commands, suggestions reset for the new command. Conditions (`LV`, `AT`) are also suggested.
+
+### Fix Suggestion Priority
+
+When typing a fix argument (after `DCT` or `AT`), suggestions use two tiers:
+
+1. **Route fixes** (teal) — fixes from the selected aircraft's flight plan: departure, destination, filed route fixes, and all fixes from expanded SIDs/STARs. These are fixes "in the FMS" that the pilot has programmed.
+2. **Navdata fixes** (white) — all other navdata fixes matching your prefix.
+
+If no aircraft is selected, only navdata fixes are shown. Route fixes always appear first.
 
 ## Command History
 

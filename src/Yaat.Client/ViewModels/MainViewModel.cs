@@ -6,6 +6,8 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.ViewModels;
 
@@ -93,6 +95,31 @@ public partial class MainViewModel : ObservableObject
         _connection.Reconnected += OnReconnected;
 
         RefreshCommandScheme();
+
+        _ = InitializeNavDataAsync();
+    }
+
+    private async Task InitializeNavDataAsync()
+    {
+        try
+        {
+            var logger = AppLog.CreateLogger<VnasDataService>();
+            using var vnasData = new VnasDataService(logger);
+            await vnasData.InitializeAsync();
+
+            var fixDb = new FixDatabase(
+                vnasData.NavData,
+                logger: AppLog.CreateLogger<FixDatabase>());
+
+            _commandInput.FixDb = fixDb;
+            _log.LogInformation(
+                "Navdata loaded: {Count} fixes available for autocomplete",
+                fixDb.Count);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Navdata initialization failed");
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanToggleConnect))]
@@ -362,7 +389,8 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnCommandTextChanged(string value)
     {
-        _commandInput.UpdateSuggestions(value, Aircraft, _preferences.CommandScheme);
+        _commandInput.UpdateSuggestions(
+            value, Aircraft, _preferences.CommandScheme, SelectedAircraft);
     }
 
     // --- Commands ---

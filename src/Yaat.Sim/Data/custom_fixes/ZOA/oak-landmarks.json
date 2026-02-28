@@ -4,5 +4,11 @@
     "aliases": ["VP915", "TOLLPLAZA"],
     "lat": 37.61814825135482,
     "lon": -122.15262493420477
+  },
+  {
+    "name": "Oakland Runway 30 Numbers",
+    "aliases": ["OAK30NUM"],
+    "lat": 37.70208081559119,
+    "lon": -122.2152109537947
   }
 ]

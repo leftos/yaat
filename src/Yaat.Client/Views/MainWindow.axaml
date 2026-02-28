@@ -112,6 +112,9 @@
                                     <Grid ColumnDefinitions="Auto,*">
                                         <TextBlock Grid.Column="0"
                                             Text="{Binding Text}"
+                                            Foreground="{Binding Kind,
+                                                Converter={x:Static
+                                                vm:SuggestionKindColorConverter.Instance}}"
                                             FontWeight="Bold"
                                             FontFamily="Consolas"
                                             Margin="4,2" />

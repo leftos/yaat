@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Models;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.Services;
 
@@ -22,10 +23,13 @@ public partial class CommandInputController : ObservableObject
     private bool _isNavigatingHistory;
     private bool _suppressNextUpdate;
 
+    public FixDatabase? FixDb { get; set; }
+
     public void UpdateSuggestions(
         string text,
         IReadOnlyCollection<AircraftModel> aircraft,
-        CommandScheme scheme)
+        CommandScheme scheme,
+        AircraftModel? selectedAircraft = null)
     {
         if (_suppressNextUpdate)
         {
@@ -67,7 +71,7 @@ public partial class CommandInputController : ObservableObject
             if (string.Equals(conditionVerb, "AT", StringComparison.OrdinalIgnoreCase))
             {
                 var atArg = GetConditionArgFragment(fragment);
-                AddFixSuggestions(atArg, text, aircraft);
+                AddFixSuggestions(atArg, text, selectedAircraft);
             }
 
             IsSuggestionsVisible = Suggestions.Count > 0;
@@ -85,7 +89,7 @@ public partial class CommandInputController : ObservableObject
             AddCommandVerbSuggestions(firstToken, text, scheme);
             AddConditionSuggestions(firstToken);
         }
-        else if (TryAddFixSuggestions(fragmentForSuggestion, text, aircraft, scheme))
+        else if (TryAddFixSuggestions(fragmentForSuggestion, text, selectedAircraft, scheme))
         {
             // Fix suggestions were added (DCT or callsign+DCT context)
         }
@@ -286,17 +290,19 @@ public partial class CommandInputController : ObservableObject
     private bool TryAddFixSuggestions(
         string fragmentWithSpaces,
         string fullText,
-        IReadOnlyCollection<AircraftModel> aircraft,
+        AircraftModel? selectedAircraft,
         CommandScheme scheme)
     {
         // Find the DCT verb in the active scheme
-        if (!scheme.Patterns.TryGetValue(Sim.Commands.CanonicalCommandType.DirectTo, out var dctPattern))
+        if (!scheme.Patterns.TryGetValue(
+            Sim.Commands.CanonicalCommandType.DirectTo, out var dctPattern))
         {
             return false;
         }
 
         var dctVerb = dctPattern.Verb;
-        var words = fragmentWithSpaces.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var words = fragmentWithSpaces.Split(
+            ' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length < 1)
         {
             return false;
@@ -309,7 +315,8 @@ public partial class CommandInputController : ObservableObject
         {
             dctIndex = 0;
         }
-        else if (words.Length >= 2 && string.Equals(words[1], dctVerb, StringComparison.OrdinalIgnoreCase))
+        else if (words.Length >= 2
+            && string.Equals(words[1], dctVerb, StringComparison.OrdinalIgnoreCase))
         {
             dctIndex = 1;
         }
@@ -323,27 +330,100 @@ public partial class CommandInputController : ObservableObject
         var lastWordAfterDct = words.Length > dctIndex + 1 ? words[^1] : "";
         var fixToken = hasTrailingSpace ? "" : lastWordAfterDct;
 
-        AddFixSuggestions(fixToken, fullText, aircraft);
+        AddFixSuggestions(fixToken, fullText, selectedAircraft);
         return Suggestions.Count > 0;
     }
 
     private void AddFixSuggestions(
         string token,
         string fullText,
-        IReadOnlyCollection<AircraftModel> aircraft)
+        AircraftModel? selectedAircraft)
     {
-        var fixes = CollectFixNames(aircraft);
-        var count = Suggestions.Count;
         var prefix = GetTextBeforeLastWord(fullText);
+        var count = Suggestions.Count;
 
-        foreach (var fix in fixes)
+        // Tier 1: Route fixes from selected aircraft's FMS
+        if (selectedAircraft is not null && FixDb is not null)
         {
-            if (count >= MaxSuggestions)
+            var routeFixes = CollectRouteFixNames(selectedAircraft);
+            foreach (var fix in routeFixes)
+            {
+                if (count >= MaxSuggestions)
+                {
+                    break;
+                }
+
+                if (token.Length > 0
+                    && !fix.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                Suggestions.Add(new SuggestionItem
+                {
+                    Kind = SuggestionKind.RouteFix,
+                    Text = fix,
+                    Description = "Route",
+                    InsertText = prefix + fix + " ",
+                });
+                count++;
+            }
+        }
+
+        // Tier 2: All navdata fixes
+        if (FixDb is not null)
+        {
+            AddNavdataFixSuggestions(token, prefix, ref count);
+        }
+    }
+
+    private void AddNavdataFixSuggestions(
+        string token, string prefix, ref int count)
+    {
+        var allNames = FixDb!.AllFixNames;
+
+        if (token.Length == 0)
+        {
+            // No prefix typed — don't show all 40k fixes
+            return;
+        }
+
+        // Binary search for the first name matching the prefix
+        int lo = 0, hi = allNames.Length - 1;
+        while (lo <= hi)
+        {
+            int mid = lo + (hi - lo) / 2;
+            if (string.Compare(
+                allNames[mid], 0, token, 0, token.Length,
+                StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid - 1;
+            }
+        }
+
+        // Already-added route fix names (avoid duplicates)
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in Suggestions)
+        {
+            if (s.Kind == SuggestionKind.RouteFix)
+            {
+                existing.Add(s.Text);
+            }
+        }
+
+        for (int i = lo; i < allNames.Length && count < MaxSuggestions; i++)
+        {
+            var name = allNames[i];
+            if (!name.StartsWith(token, StringComparison.OrdinalIgnoreCase))
             {
                 break;
             }
 
-            if (token.Length > 0 && !fix.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+            if (existing.Contains(name))
             {
                 continue;
             }
@@ -351,41 +431,34 @@ public partial class CommandInputController : ObservableObject
             Suggestions.Add(new SuggestionItem
             {
                 Kind = SuggestionKind.Fix,
-                Text = fix,
+                Text = name,
                 Description = "",
-                InsertText = prefix + fix + " ",
+                InsertText = prefix + name + " ",
             });
             count++;
         }
     }
 
-    private static SortedSet<string> CollectFixNames(IReadOnlyCollection<AircraftModel> aircraft)
+    private SortedSet<string> CollectRouteFixNames(AircraftModel aircraft)
     {
         var fixes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var ac in aircraft)
+
+        if (!string.IsNullOrWhiteSpace(aircraft.Departure))
         {
-            if (!string.IsNullOrWhiteSpace(ac.Departure))
-            {
-                fixes.Add(ac.Departure);
-            }
+            fixes.Add(aircraft.Departure);
+        }
 
-            if (!string.IsNullOrWhiteSpace(ac.Destination))
-            {
-                fixes.Add(ac.Destination);
-            }
+        if (!string.IsNullOrWhiteSpace(aircraft.Destination))
+        {
+            fixes.Add(aircraft.Destination);
+        }
 
-            if (string.IsNullOrWhiteSpace(ac.Route))
+        if (!string.IsNullOrWhiteSpace(aircraft.Route) && FixDb is not null)
+        {
+            var expanded = FixDb.ExpandRoute(aircraft.Route);
+            foreach (var fix in expanded)
             {
-                continue;
-            }
-
-            foreach (var word in ac.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            {
-                // Skip purely numeric tokens (altitudes, speeds in some route formats)
-                if (!double.TryParse(word, out _))
-                {
-                    fixes.Add(word);
-                }
+                fixes.Add(fix);
             }
         }
 
