@@ -283,6 +283,7 @@ yaat/
    - Pattern entry points
 7. **Tower commands**:
    - `CTO [hdg]` - Cleared for takeoff
+   - `CTOR{deg}`/`CTOL{deg}` - Cleared for takeoff, relative right/left turn of N degrees from runway heading (e.g., `CTOR45` = 45° right of runway heading; `CTOL270` = 270° left). No space — `CTOR 270` would be parsed as `CTO` with absolute heading 270 + right turn.
    - `LUAW` - Line up and wait
    - `CTOC` - Cancel takeoff clearance
    - `CTOMLT`/`CTOMRT` - Takeoff with left/right traffic
@@ -291,6 +292,9 @@ yaat/
    - `LAHSO {rwy}` - Land and hold short
    - `EXIT {twy}` - Exit at taxiway
    - `EL`/`ER` - Exit left/right
+   - `HPP360L`/`HPP360R` - Hold present position via 360° turns left/right
+   - `HPP` - Hold present position (helicopter hover)
+   - `HFIX {fix}` - Hold at fix (360° turns for winged, in-position for helicopters)
 8. **Pattern commands**:
    - `ELD`/`ERD` - Enter left/right downwind
    - `ELB`/`ERB` - Enter left/right base

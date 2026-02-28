@@ -121,15 +121,21 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
 
 - [ ] Add to `CommandParser.cs`:
   - `CTO [hdg]` — Cleared for takeoff (optional heading assignment)
+  - `CTOR{deg}` / `CTOL{deg}` — Cleared for takeoff with relative right/left turn of N degrees from runway heading (no space between command and degrees). E.g., on runway 28 (heading 280): `CTOR45` → takeoff heading 325, `CTOL270` → takeoff heading 010. **Note:** `CTOR 270` (with space) parses as `CTO` heading 270 with right turn direction — different command.
   - `LUAW` — Line up and wait
   - `CTOC` — Cancel takeoff clearance
   - `CTOMLT` / `CTOMRT` — Cleared for takeoff, make left/right traffic
 - [ ] Add to `ParsedCommand.cs`:
-  - `ClearedForTakeoffCommand { AssignedHeading?, TrafficDirection? }`
+  - `ClearedForTakeoffCommand { AssignedHeading?, TurnDirection?, RelativeTurnDegrees?, TrafficDirection? }`
+    - `CTO 270` → AssignedHeading=270, TurnDirection=null (shortest turn)
+    - `CTOR 270` → AssignedHeading=270, TurnDirection=Right (same as `CTO 270` but forces right turn)
+    - `CTOR270` (no space) → RelativeTurnDegrees=270, TurnDirection=Right, AssignedHeading computed at dispatch from runway heading + 270
   - `LineUpAndWaitCommand`
   - `CancelTakeoffClearanceCommand`
 - [ ] Add to `CommandDispatcher.cs`:
   - `CTO`: satisfy `ClearedForTakeoff` clearance requirement on current phase; if aircraft has no phase, build LinedUpAndWaiting → Takeoff → InitialClimb phase list
+  - `CTOR`/`CTOL` (with space + heading, e.g., `CTOR 270`): same as `CTO 270` but forces right/left turn direction to the absolute heading
+  - `CTOR{deg}`/`CTOL{deg}` (no space, e.g., `CTOR270`): relative turn — compute target heading as runway heading + degrees (right) or - degrees (left), then CTO to that heading with forced turn direction
   - `LUAW`: satisfy `LineUpAndWait` clearance (for future use when aircraft taxi to runway in M3); for now, place aircraft in LinedUpAndWaiting phase
   - `CTOC`: revoke takeoff clearance (only valid during LinedUpAndWaiting before roll begins)
   - `CTOMLT`/`CTOMRT`: CTO + set up pattern re-entry after initial climb
@@ -283,9 +289,9 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
 
 ---
 
-## Chunk 6: Touch-and-Go + Special Operations (Yaat.Server)
+## Chunk 6: Touch-and-Go, Holds + Special Operations (Yaat.Server)
 
-**AVIATION REVIEW GATE**: aviation-sim-expert MUST validate touch-and-go procedures, speed management during option approaches.
+**AVIATION REVIEW GATE**: aviation-sim-expert MUST validate touch-and-go procedures, speed management during option approaches, and hold/orbit behavior.
 
 - [ ] Create `Phases/Tower/TouchAndGoPhase.cs`:
   - After touchdown: brief rollout (~3-5 seconds), then apply takeoff power
@@ -305,6 +311,31 @@ Tower operations need runway geometry: threshold position, heading, elevation, l
   - `SG`: satisfy clearance; after FinalApproach, insert StopAndGo → Takeoff → pattern phases
   - `LA`: after FinalApproach, insert LowApproach → pattern or departure phases
   - `ClearedForOption` (`COPT`): general clearance — pilot behavior depends on intent (default: touch-and-go)
+
+### Hold / Orbit Commands
+
+- [ ] Create `Phases/HoldPresentPositionPhase.cs`:
+  - For winged aircraft (`HPP360L` / `HPP360R`): orbit at present position via continuous 360° turns in the specified direction
+  - For helicopters (`HPP`): hover at present position (speed 0, altitude hold)
+  - `OnTick`: winged aircraft maintain current altitude/speed and fly a 360° turn, returning to same position; helicopters hold position
+  - Completes when RPO issues a new heading/altitude/navigation command (phase is cleared)
+- [ ] Create `Phases/HoldAtFixPhase.cs`:
+  - `HFIX {fix}` — fly to the fix, then hold:
+    - Winged aircraft: orbit over the fix via continuous 360° turns (left by default, or as specified)
+    - Helicopters: fly to the fix and hold position (hover)
+  - `OnTick`: if not yet at fix, navigate to fix (like DCT); once at fix, orbit/hover
+  - Completes when RPO issues a new heading/altitude/navigation command
+- [ ] Add to `CommandParser.cs`:
+  - `HPP360L` / `HPP360R` — Hold present position, 360 turns left/right (winged aircraft)
+  - `HPP` — Hold present position (helicopters, hover)
+  - `HFIX {fix}` — Hold at fix (360 turns for winged, in-position for helicopters)
+- [ ] Add to `ParsedCommand.cs`:
+  - `HoldPresentPositionCommand { TurnDirection?, IsHelicopter }`
+  - `HoldAtFixCommand { FixName }`
+- [ ] Add to `CommandDispatcher.cs`:
+  - `HPP360L`/`HPP360R`: set up HoldPresentPositionPhase with turn direction
+  - `HPP`: set up HoldPresentPositionPhase in hover mode
+  - `HFIX`: set up HoldAtFixPhase with the target fix
 
 ---
 
@@ -396,6 +427,9 @@ Chunks 3-6 are sequential (each builds on the previous). Chunks 7-8 can begin as
 - [ ] Issue landing clearance → aircraft lands, rolls out, stops
 - [ ] Do NOT issue landing clearance → aircraft goes around at decision point
 - [ ] Issue `GA` while on final → aircraft executes go-around
+- [ ] Issue `CTOR45` on runway 28 → aircraft takes off, turns right 45° from runway heading (280+45=325)
+- [ ] Issue `CTOL270` on runway 28 → aircraft takes off, turns left 270° from runway heading (280-270=010)
+- [ ] Issue `CTOR 270` (with space) → aircraft takes off, turns right to absolute heading 270 (distinct from `CTOR270`)
 - [ ] Issue `CTOMLT` → aircraft takes off, enters left traffic pattern
 - [ ] Aircraft flies full pattern: upwind → crosswind → downwind → base → final
 - [ ] Issue `TC`, `TD`, `TB` → aircraft turns to the commanded leg early
@@ -405,4 +439,7 @@ Chunks 3-6 are sequential (each builds on the previous). Chunks 7-8 can begin as
 - [ ] Phase name displays correctly in client DataGrid
 - [ ] CRC shows correct aircraft behavior (altitude, heading, speed transitions)
 - [ ] Pattern altitude is correct (~1000 ft AGL)
+- [ ] Issue `HPP360L` → aircraft orbits at current position via left 360° turns
+- [ ] Issue `HPP360R` → aircraft orbits at current position via right 360° turns
+- [ ] Issue `HFIX OAK` → aircraft navigates to OAK, then orbits over it
 - [ ] Multiple aircraft can be in the pattern simultaneously
