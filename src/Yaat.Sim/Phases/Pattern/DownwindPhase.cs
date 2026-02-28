@@ -9,14 +9,16 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class DownwindPhase : Phase
 {
-    private const double ArrivalNm = 0.3;
-    private const double AbeamThresholdNm = 0.3;
+    private const double AlongTrackToleranceNm = 0.3;
 
     /// <summary>Feet of altitude per nm for a 3° glideslope (standard rule of thumb).</summary>
     private const double GlideslopeFtPerNm = 300.0;
 
-    private double _targetLat;
-    private double _targetLon;
+    private double _baseTurnAlongTrack;
+    private double _abeamAlongTrack;
+    private double _thresholdLat;
+    private double _thresholdLon;
+    private double _downwindHeading;
     private bool _pastAbeam;
     private double _altitudeFloor;
 
@@ -37,9 +39,18 @@ public sealed class DownwindPhase : Phase
             return;
         }
 
-        _targetLat = Waypoints.BaseTurnLat;
-        _targetLon = Waypoints.BaseTurnLon;
+        _thresholdLat = Waypoints.ThresholdLat;
+        _thresholdLon = Waypoints.ThresholdLon;
+        _downwindHeading = Waypoints.DownwindHeading;
         _pastAbeam = false;
+
+        _abeamAlongTrack = FlightPhysics.AlongTrackDistanceNm(
+            Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon,
+            _thresholdLat, _thresholdLon, _downwindHeading);
+
+        _baseTurnAlongTrack = FlightPhysics.AlongTrackDistanceNm(
+            Waypoints.BaseTurnLat, Waypoints.BaseTurnLon,
+            _thresholdLat, _thresholdLon, _downwindHeading);
 
         var turnDir = Waypoints.Direction == PatternDirection.Left
             ? TurnDirection.Left : TurnDirection.Right;
@@ -58,14 +69,14 @@ public sealed class DownwindPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        double aircraftAlongTrack = FlightPhysics.AlongTrackDistanceNm(
+            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
+            _thresholdLat, _thresholdLon, _downwindHeading);
+
         // Begin descent when abeam the approach end of the runway
         if (!_pastAbeam && Waypoints is not null)
         {
-            double distToAbeam = FlightPhysics.DistanceNm(
-                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-                Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon);
-
-            if (distToAbeam < AbeamThresholdNm)
+            if (aircraftAlongTrack >= _abeamAlongTrack - AlongTrackToleranceNm)
             {
                 _pastAbeam = true;
                 double descentRate = CategoryPerformance.PatternDescentRate(
@@ -111,11 +122,7 @@ public sealed class DownwindPhase : Phase
             return false;
         }
 
-        double dist = FlightPhysics.DistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _targetLat, _targetLon);
-
-        return dist < ArrivalNm;
+        return aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

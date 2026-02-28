@@ -411,6 +411,36 @@ public static class FlightPhysics
         return (newLat, newLon);
     }
 
+    /// <summary>
+    /// Signed perpendicular distance from a point to a line defined by
+    /// a reference point and heading. Positive = right of heading, negative = left.
+    /// </summary>
+    public static double SignedCrossTrackDistanceNm(
+        double pointLat, double pointLon,
+        double refLat, double refLon,
+        double headingDeg)
+    {
+        double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
+        double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
+        double angleDiff = (bearing - headingDeg) * DegToRad;
+        return dist * Math.Sin(angleDiff);
+    }
+
+    /// <summary>
+    /// Signed distance along a heading from a reference point to a target point.
+    /// Positive = ahead (in heading direction), negative = behind.
+    /// </summary>
+    public static double AlongTrackDistanceNm(
+        double pointLat, double pointLon,
+        double refLat, double refLon,
+        double headingDeg)
+    {
+        double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
+        double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
+        double angleDiff = (bearing - headingDeg) * DegToRad;
+        return dist * Math.Cos(angleDiff);
+    }
+
     // --- Math helpers ---
 
     private static double ResolveDirection(double diff, TurnDirection? preferred)

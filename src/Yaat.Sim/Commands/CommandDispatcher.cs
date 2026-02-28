@@ -500,17 +500,54 @@ public static class CommandDispatcher
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool touchAndGo = aircraft.Phases.TrafficDirection is not null;
 
+        // Detect if the aircraft is on the wrong side of the runway
+        bool isOnWrongSide = false;
+        PatternWaypoints? waypoints = null;
+
+        if (entryLeg is PatternEntryLeg.Downwind or PatternEntryLeg.Base)
+        {
+            // Crosswind heading points toward the pattern side
+            double crosswindHdg = direction == PatternDirection.Right
+                ? NormalizeHeading(runway.TrueHeading + 90.0)
+                : NormalizeHeading(runway.TrueHeading - 90.0);
+
+            // Positive = pattern side, negative = wrong side
+            double patternSideOffset = FlightPhysics.AlongTrackDistanceNm(
+                aircraft.Latitude, aircraft.Longitude,
+                runway.ThresholdLatitude, runway.ThresholdLongitude,
+                crosswindHdg);
+
+            isOnWrongSide = patternSideOffset < 0;
+
+            if (isOnWrongSide)
+            {
+                waypoints = PatternGeometry.Compute(runway, category, direction);
+            }
+        }
+
         // Clear current phases and build new sequence from entry leg
         var ctx = BuildMinimalContext(aircraft);
         aircraft.Phases.Clear(ctx);
 
+        // For wrong-side entry: midfield crossing then downwind entry
+        PatternEntryLeg effectiveEntryLeg = isOnWrongSide
+            ? PatternEntryLeg.Downwind : entryLeg;
+        double? effectiveFinalDistanceNm = isOnWrongSide
+            ? null : finalDistanceNm;
+
         var circuitPhases = PatternBuilder.BuildCircuit(
-            runway, category, direction, entryLeg, touchAndGo, finalDistanceNm);
+            runway, category, direction, effectiveEntryLeg, touchAndGo,
+            effectiveFinalDistanceNm);
 
         var phases = new PhaseList { AssignedRunway = runway };
         phases.LandingClearance = aircraft.Phases.LandingClearance;
         phases.ClearedRunwayId = aircraft.Phases.ClearedRunwayId;
         phases.TrafficDirection = aircraft.Phases.TrafficDirection;
+
+        if (isOnWrongSide)
+        {
+            phases.Add(new MidfieldCrossingPhase { Waypoints = waypoints });
+        }
 
         foreach (var phase in circuitPhases)
         {
@@ -522,7 +559,8 @@ public static class CommandDispatcher
         var dirStr = direction == PatternDirection.Left ? "left" : "right";
         var legStr = entryLeg.ToString().ToLowerInvariant();
         var distStr = finalDistanceNm is not null ? $", {finalDistanceNm:G}nm final" : "";
-        return Ok($"Enter {dirStr} {legStr}{RunwayLabel(aircraft)}{distStr}");
+        var sideStr = isOnWrongSide ? " (crossing midfield)" : "";
+        return Ok($"Enter {dirStr} {legStr}{RunwayLabel(aircraft)}{distStr}{sideStr}");
     }
 
     private static CommandResult TryChangePatternDirection(

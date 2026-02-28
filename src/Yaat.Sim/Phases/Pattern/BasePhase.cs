@@ -9,10 +9,11 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class BasePhase : Phase
 {
-    private const double ArrivalNm = 0.3;
+    private const double CrossTrackToleranceNm = 0.3;
 
-    private double _targetLat;
-    private double _targetLon;
+    private double _thresholdLat;
+    private double _thresholdLon;
+    private double _finalHeading;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -37,19 +38,21 @@ public sealed class BasePhase : Phase
             return;
         }
 
+        _finalHeading = Waypoints.FinalHeading;
+
         if (FinalDistanceNm is not null)
         {
             double reciprocal = ((Waypoints.FinalHeading + 180.0) % 360.0 + 360.0) % 360.0;
             var target = FlightPhysics.ProjectPoint(
                 Waypoints.ThresholdLat, Waypoints.ThresholdLon,
                 reciprocal, FinalDistanceNm.Value);
-            _targetLat = target.Lat;
-            _targetLon = target.Lon;
+            _thresholdLat = target.Lat;
+            _thresholdLon = target.Lon;
         }
         else
         {
-            _targetLat = Waypoints.FinalTurnLat;
-            _targetLon = Waypoints.FinalTurnLon;
+            _thresholdLat = Waypoints.ThresholdLat;
+            _thresholdLon = Waypoints.ThresholdLon;
         }
 
         var turnDir = Waypoints.Direction == PatternDirection.Left
@@ -79,11 +82,11 @@ public sealed class BasePhase : Phase
             return false;
         }
 
-        double dist = FlightPhysics.DistanceNm(
+        double crossTrack = Math.Abs(FlightPhysics.SignedCrossTrackDistanceNm(
             ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _targetLat, _targetLon);
+            _thresholdLat, _thresholdLon, _finalHeading));
 
-        return dist < ArrivalNm;
+        return crossTrack < CrossTrackToleranceNm;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

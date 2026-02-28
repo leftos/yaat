@@ -50,6 +50,7 @@ public static class PatternBuilder
                 break;
 
             case PatternEntryLeg.Base:
+                phases.Add(new DownwindPhase { Waypoints = waypoints });
                 phases.Add(new BasePhase
                 {
                     Waypoints = waypoints,
@@ -108,6 +109,10 @@ public static class PatternBuilder
                     break;
                 case BasePhase bp:
                     bp.Waypoints = waypoints;
+                    found = true;
+                    break;
+                case MidfieldCrossingPhase mc:
+                    mc.Waypoints = waypoints;
                     found = true;
                     break;
             }
