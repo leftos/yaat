@@ -100,14 +100,14 @@ The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw W
 
 ## Tech Stack
 
-- .NET 8, C# with nullable enabled, implicit usings
+- .NET 10, C# with nullable enabled, implicit usings
 - Avalonia UI 11.2.5 with Fluent theme (dark mode) + DataGrid
 - CommunityToolkit.Mvvm 8.4.0 for MVVM source generators
-- Microsoft.AspNetCore.SignalR.Client 8.0.12
+- Microsoft.AspNetCore.SignalR.Client 10.0.3
 
 ## Related Repositories
 
-- **yaat-server** (`X:\dev\yaat-server`) — ASP.NET Core 8 server with simulation engine, CRC protocol, training hub
+- **yaat-server** (`X:\dev\yaat-server`) — ASP.NET Core 10 server with simulation engine, CRC protocol, training hub
 - **vatsim-server-rs** (`X:\dev\vatsim-server-rs`) — Rust reference implementation for CRC protocol (DTO field ordering, varint framing)
 - **lc-trainer** (`X:\dev\lc-trainer`) — Previous WPF ATC trainer (reference for flight physics, scenario format)
 
