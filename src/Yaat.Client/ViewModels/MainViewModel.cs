@@ -446,14 +446,13 @@ public partial class MainViewModel : ObservableObject
         {
             var result = await _connection.SendCommandAsync(target.Callsign, compound.CanonicalString);
 
-            var entry = $"{target.Callsign} {commandText}";
             if (result.Success)
             {
-                AddHistory(entry);
+                AddHistory(commandText);
             }
             else
             {
-                AddHistory($"{entry} — {result.Message}");
+                AddHistory($"{commandText} — {result.Message}");
             }
 
             _commandInput.DismissSuggestions();
