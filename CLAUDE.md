@@ -165,6 +165,10 @@ Never swallow errors silently. No empty catch blocks without logging, no early r
 
 Prefix subject with a ≤4-char type tag: `fix:` `feat:` `add:` `docs:` `ref:` `test:` `ci:` `dep:` `chore:` etc. Imperative mood, ≤72 char subject line.
 
+## Memory Updates
+
+When an Explore agent's findings reveal core architectural information — file responsibilities, key type relationships, data flow patterns, invariants, or conventions — distill the findings into the auto-memory files (`C:\Users\Leftos\.claude\projects\X--dev-yaat\memory\`). This avoids repeating the same exploration in future sessions. Only record stable facts confirmed by the code, not speculative conclusions from a single file.
+
 ## Milestone Roadmap
 
 The project follows milestones defined in `docs/plans/main-plan.md`. M0 and M1 are complete; M2 (tower operations) is next. Pilot AI architecture is designed in `docs/plans/pilot-ai-architecture.md`.
