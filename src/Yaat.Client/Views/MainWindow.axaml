@@ -3,8 +3,7 @@
         xmlns:vm="using:Yaat.Client.ViewModels"
         xmlns:svc="using:Yaat.Client.Services"
         x:Class="Yaat.Client.Views.MainWindow"
-        Title="YAAT"
-        Width="1200" Height="700">
+        Title="YAAT">
 
     <Design.DataContext>
         <vm:MainViewModel />

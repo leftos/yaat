@@ -15,13 +15,19 @@ public partial class SettingsWindow : Window
         var vm = new SettingsViewModel(preferences);
         DataContext = vm;
 
-        var saveBtn = this.FindControl<Button>("SaveButton");
+        new WindowGeometryHelper(
+            this, preferences, "Settings", 560, 440)
+            .Restore();
+
+        var saveBtn = this.FindControl<Button>(
+            "SaveButton");
         if (saveBtn is not null)
         {
             saveBtn.Click += OnSaveClick;
         }
 
-        var cancelBtn = this.FindControl<Button>("CancelButton");
+        var cancelBtn = this.FindControl<Button>(
+            "CancelButton");
         if (cancelBtn is not null)
         {
             cancelBtn.Click += OnCancelClick;

@@ -24,19 +24,28 @@ public sealed class UserPreferences
     private CommandScheme _commandScheme;
     private bool _isAdminMode;
     private string _adminPassword = "";
+    private SavedWindowGeometry? _mainWindowGeometry;
+    private SavedWindowGeometry? _settingsWindowGeometry;
 
     public UserPreferences()
     {
-        var (scheme, isAdmin, adminPassword) = Load();
-        _commandScheme = scheme
+        var saved = Load();
+        _commandScheme = saved.Scheme
             ?? CommandScheme.AtcTrainer();
-        _isAdminMode = isAdmin;
-        _adminPassword = adminPassword;
+        _isAdminMode = saved.IsAdmin;
+        _adminPassword = saved.AdminPassword;
+        _mainWindowGeometry = saved.MainWindowGeometry;
+        _settingsWindowGeometry =
+            saved.SettingsWindowGeometry;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
     public bool IsAdminMode => _isAdminMode;
     public string AdminPassword => _adminPassword;
+    public SavedWindowGeometry? MainWindowGeometry =>
+        _mainWindowGeometry;
+    public SavedWindowGeometry? SettingsWindowGeometry =>
+        _settingsWindowGeometry;
 
     public void SetCommandScheme(CommandScheme scheme)
     {
@@ -52,12 +61,26 @@ public sealed class UserPreferences
         Save();
     }
 
-    private static (CommandScheme? scheme,
-        bool isAdmin, string adminPassword) Load()
+    public void SetWindowGeometry(
+        string windowName, SavedWindowGeometry geometry)
+    {
+        switch (windowName)
+        {
+            case "Main":
+                _mainWindowGeometry = geometry;
+                break;
+            case "Settings":
+                _settingsWindowGeometry = geometry;
+                break;
+        }
+        Save();
+    }
+
+    private static LoadedPrefs Load()
     {
         if (!File.Exists(ConfigPath))
         {
-            return (null, false, "");
+            return new LoadedPrefs();
         }
 
         try
@@ -71,14 +94,32 @@ public sealed class UserPreferences
                 ? FromSaved(saved.CommandScheme)
                 : null;
 
-            return (scheme,
-                saved?.IsAdminMode ?? false,
-                saved?.AdminPassword ?? "");
+            return new LoadedPrefs
+            {
+                Scheme = scheme,
+                IsAdmin = saved?.IsAdminMode ?? false,
+                AdminPassword = saved?.AdminPassword ?? "",
+                MainWindowGeometry =
+                    saved?.MainWindowGeometry,
+                SettingsWindowGeometry =
+                    saved?.SettingsWindowGeometry,
+            };
         }
         catch (JsonException)
         {
-            return (null, false, "");
+            return new LoadedPrefs();
         }
+    }
+
+    private sealed class LoadedPrefs
+    {
+        public CommandScheme? Scheme { get; init; }
+        public bool IsAdmin { get; init; }
+        public string AdminPassword { get; init; } = "";
+        public SavedWindowGeometry? MainWindowGeometry
+        { get; init; }
+        public SavedWindowGeometry? SettingsWindowGeometry
+        { get; init; }
     }
 
     private void Save()
@@ -89,7 +130,10 @@ public sealed class UserPreferences
         {
             CommandScheme = ToSaved(_commandScheme),
             IsAdminMode = _isAdminMode,
-            AdminPassword = _adminPassword
+            AdminPassword = _adminPassword,
+            MainWindowGeometry = _mainWindowGeometry,
+            SettingsWindowGeometry =
+                _settingsWindowGeometry,
         };
 
         var json = JsonSerializer.Serialize(
@@ -180,6 +224,10 @@ public sealed class UserPreferences
         public SavedCommandScheme? CommandScheme { get; set; }
         public bool IsAdminMode { get; set; }
         public string AdminPassword { get; set; } = "";
+        public SavedWindowGeometry? MainWindowGeometry
+        { get; set; }
+        public SavedWindowGeometry? SettingsWindowGeometry
+        { get; set; }
     }
 
     private sealed class SavedCommandScheme
@@ -195,4 +243,13 @@ public sealed class UserPreferences
         public string Verb { get; set; } = "";
         public string Format { get; set; } = "";
     }
+}
+
+public sealed class SavedWindowGeometry
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public bool IsMaximized { get; set; }
 }

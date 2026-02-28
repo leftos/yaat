@@ -10,7 +10,12 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainViewModel();
+        var vm = new MainViewModel();
+        DataContext = vm;
+
+        new WindowGeometryHelper(
+            this, vm.Preferences, "Main", 1200, 700)
+            .Restore();
 
         var browseBtn = this.FindControl<Button>(
             "BrowseButton");
