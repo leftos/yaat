@@ -134,6 +134,14 @@ DCT SUNOL
 DCT SUNOL CEDES MYCOB
 ```
 
+Fixes can also be specified as FRD (Fix-Radial-Distance) strings in the format `{fix}{radial:3}{distance:3}`:
+
+```
+DCT JFK090020
+```
+
+This means "the point on the 090 radial from JFK at 20 NM." The fix name must be 2-5 characters, followed by exactly 3 digits for the radial (degrees) and 3 digits for the distance (NM). FRD works anywhere a fix name is accepted: DCT arguments and AT conditions.
+
 If the last fix in the list appears in the aircraft's filed route, the aircraft continues on its filed route from that point.
 
 ### Conditional Blocks
