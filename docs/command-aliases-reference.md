@@ -228,11 +228,11 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 | Break | BREAK | — |
 | Resume | RES | — |
 
-## Misc (not implemented)
+## Misc
 
-| Command | ATCTrainer doc | VICE doc |
-|---|---|---|
-| Add Aircraft | ADD | — |
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Add Aircraft** | ADD | — | ADD | ADD |
 | Flight Plan | FP | — |
 | VFR Flight Plan | VP | — |
 | Remarks | REMARKS | — |

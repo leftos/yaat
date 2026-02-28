@@ -367,8 +367,8 @@ public static class CommandSchemeParser
             }
 
             if (type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause
-                or CanonicalCommandType.SimRate or CanonicalCommandType.SpawnNow
-                or CanonicalCommandType.SpawnDelay)
+                or CanonicalCommandType.SimRate or CanonicalCommandType.Add
+                or CanonicalCommandType.SpawnNow or CanonicalCommandType.SpawnDelay)
             {
                 continue;
             }
@@ -394,6 +394,12 @@ public static class CommandSchemeParser
         {
             var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
             return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.SimRate, parts[1].Trim()) : null;
+        }
+
+        if (input.StartsWith("ADD ", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.Add, parts[1].Trim()) : null;
         }
 
         if (string.Equals(input, "SPAWN", StringComparison.OrdinalIgnoreCase))
@@ -428,6 +434,7 @@ public static class CommandSchemeParser
                     or CanonicalCommandType.Pause
                     or CanonicalCommandType.Unpause
                     or CanonicalCommandType.SimRate
+                    or CanonicalCommandType.Add
                     or CanonicalCommandType.DirectTo
                     or CanonicalCommandType.HoldAtFixLeft
                     or CanonicalCommandType.HoldAtFixRight

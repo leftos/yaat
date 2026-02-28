@@ -259,6 +259,45 @@ These commands target aircraft in the delayed spawn queue (shown with "Delayed" 
 | `SPAWN` | Spawn the selected aircraft immediately |
 | `DELAY <n>` | Set spawn delay to N seconds from now (accepts M:SS, e.g., `DELAY 2:00`) |
 
+### Add Aircraft (ADD)
+
+Spawn an aircraft on demand without a scenario file. Requires an active scenario.
+
+**Syntax variants:**
+
+| Variant | Syntax | Example |
+|---------|--------|---------|
+| Airborne | `ADD {rules} {weight} {engine} -{bearing} {dist} {alt}` | `ADD IFR H J -270 15 10000` |
+| Lined up on runway | `ADD {rules} {weight} {engine} {runway}` | `ADD VFR S P 28R` |
+| On final | `ADD {rules} {weight} {engine} {runway} {dist}` | `ADD IFR L J 28R 8` |
+
+**Parameters:**
+
+| Parameter | Values |
+|-----------|--------|
+| Rules | `I`/`IFR` (instrument) or `V`/`VFR` (visual) |
+| Weight | `S` (small/GA), `L` (large), `H` (heavy) |
+| Engine | `P` (piston), `T` (turboprop), `J` (jet) |
+
+**Position arguments:**
+- **Airborne**: `-{bearing}` is degrees from the primary airport, `{dist}` is distance in NM, `{alt}` is altitude in feet. Aircraft spawns heading toward the airport.
+- **Lined up**: `{runway}` is the runway designator (e.g., `28R`). Aircraft spawns on the runway threshold, ready for takeoff clearance.
+- **On final**: `{runway}` plus `{dist}` in NM. Aircraft spawns on final approach at that distance from the runway.
+
+**Optional trailing tokens:**
+- Explicit aircraft type: `ADD IFR H J -090 20 15000 B77L`
+- Explicit airline prefix: `ADD IFR L J -180 10 5000 *SWA`
+
+**Valid weight/engine combinations:**
+
+| | Piston (P) | Turboprop (T) | Jet (J) |
+|---|---|---|---|
+| Small (S) | C172, C182, PA28, SR22 | C208, PC12, BE20 | — |
+| Large (L) | — | DH8D, AT76, AT72 | B738, A320, E170, E175, CRJ9 |
+| Heavy (H) | — | — | B77L, B772, A332, B789, B744, A359 |
+
+IFR aircraft get a random airline callsign (e.g., UAL1234). VFR aircraft get an N-number (e.g., N1234A). Aircraft type is randomly selected from the table unless explicitly specified.
+
 ### Global Commands
 
 These commands don't require an aircraft selection:
@@ -268,6 +307,7 @@ These commands don't require an aircraft selection:
 | `PAUSE` | Pause the simulation |
 | `UNPAUSE` | Resume the simulation |
 | `SIMRATE <n>` | Set simulation speed (1, 2, 4, 8, 16) |
+| `ADD ...` | Spawn an aircraft (see above) |
 
 The pause/unpause button and sim rate dropdown in the bottom bar also control these.
 

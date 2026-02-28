@@ -531,12 +531,43 @@ public partial class MainViewModel : ObservableObject
                 AddHistory($"SIMRATE {rate}");
             }
             CommandText = "";
+            return;
+        }
+        if (parsed.Type == CanonicalCommandType.Add)
+        {
+            if (string.IsNullOrWhiteSpace(parsed.Argument))
+            {
+                StatusText = "ADD requires arguments: ADD {rules} {weight} {engine} {position...}";
+                return;
+            }
+            try
+            {
+                var result = await _connection.SpawnAircraftAsync(parsed.Argument);
+                if (result.Success)
+                {
+                    AddHistory($"ADD {parsed.Argument}");
+                    StatusText = result.Message ?? "Aircraft spawned";
+                }
+                else
+                {
+                    StatusText = result.Message ?? "Spawn failed";
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "SpawnAircraft failed");
+                StatusText = $"Spawn error: {ex.Message}";
+            }
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
         }
     }
 
     private static bool IsGlobalCommand(CanonicalCommandType type)
     {
-        return type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause or CanonicalCommandType.SimRate;
+        return type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause
+            or CanonicalCommandType.SimRate or CanonicalCommandType.Add;
     }
 
     /// <summary>

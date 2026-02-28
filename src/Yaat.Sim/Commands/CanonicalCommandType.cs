@@ -52,6 +52,7 @@ public enum CanonicalCommandType
     HoldAtFixRight,
     HoldAtFixHover,
     // Spawn control
+    Add,
     SpawnNow,
     SpawnDelay,
 }

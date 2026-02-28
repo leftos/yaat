@@ -116,6 +116,12 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("SendChat", initials, message);
     }
 
+    public async Task<CommandResultDto> SpawnAircraftAsync(string args)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("SpawnAircraft", args);
+    }
+
     public async Task DeleteAircraftAsync(string callsign)
     {
         EnsureConnected();
