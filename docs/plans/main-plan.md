@@ -380,7 +380,7 @@ yaat/
    - `CAPP [app] [apt]` - Cleared for approach
    - `JFAC [app]` - Join final approach course
    - `JARR {star} [trans]` - Join STAR
-   - `DCT {wpt}` - Direct to waypoint
+   - ~~`DCT {wpt}` - Direct to waypoint~~ (basic DCT done in M1; M4 adds course intercepts and procedure-based nav)
    - `HOLD {wpt} {crs} {dist} {dir}` - Holding pattern
    - `DVIA [alt]` - Descend via path
    - `CFIX {wpt} {alt} [spd]` - Cross fix at altitude

@@ -374,7 +374,7 @@ Chunks 3-6 are sequential (each builds on the previous). Chunks 7-8 can begin as
 - **Taxiway graph and pathfinding**: A* on taxiway nodes (M3)
 - **ASDEX ground target DTOs**: M3
 - **Full Plan/Intent/Contingency system**: M4 (approach control needs it for route-based navigation)
-- **NavigationTarget / DCT waypoint following**: M4
+- **~~NavigationTarget / DCT waypoint following~~**: Done (basic DCT + route continuation implemented in M1; M4 adds course intercepts and procedure-based nav)
 - **Missed approach procedures**: M4 (requires published procedure data)
 - **Speed restriction stack**: M4
 - **Communication / verbal actions**: M8 (AI mode)
