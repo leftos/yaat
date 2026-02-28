@@ -58,6 +58,21 @@ public static class FrdResolver
             }
         }
 
+        // Format: {FIX}{radial:3} — fix names are 2+ chars, radial is 3 digits
+        if (s.Length >= 5)
+        {
+            var suffix = s[^3..];
+            if (suffix.All(char.IsDigit))
+            {
+                var fixName = s[..^3];
+                if (fixName.Length >= 2)
+                {
+                    int radial = int.Parse(suffix);
+                    return (fixName, radial, null);
+                }
+            }
+        }
+
         // Bare fix name (no radial/distance)
         return (s, null, null);
     }

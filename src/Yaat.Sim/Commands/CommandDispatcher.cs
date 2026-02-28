@@ -61,8 +61,9 @@ public static class CommandDispatcher
             }
             else if (parsedBlock.Condition is AtFixCondition at)
             {
-                blockDesc = $"at {at.FixName}: {blockDesc}";
-                blockMsg = $"At {at.FixName}: {blockMsg}";
+                var atLabel = FormatAtLabel(at);
+                blockDesc = $"at {atLabel}: {blockDesc}";
+                blockMsg = $"At {atLabel}: {blockMsg}";
             }
 
             var waitTime = parsedBlock.Commands.OfType<WaitCommand>().FirstOrDefault();
@@ -970,6 +971,16 @@ public static class CommandDispatcher
                 Type = BlockTriggerType.ReachAltitude,
                 Altitude = lv.Altitude,
             },
+            AtFixCondition { Radial: { } radial, Distance: { } dist } at =>
+                ConvertFrdCondition(at, radial, dist),
+            AtFixCondition { Radial: { } radial } at => new BlockTrigger
+            {
+                Type = BlockTriggerType.InterceptRadial,
+                FixName = at.FixName,
+                FixLat = at.Lat,
+                FixLon = at.Lon,
+                Radial = radial,
+            },
             AtFixCondition at => new BlockTrigger
             {
                 Type = BlockTriggerType.ReachFix,
@@ -979,6 +990,39 @@ public static class CommandDispatcher
             },
             _ => null,
         };
+    }
+
+    private static BlockTrigger ConvertFrdCondition(
+        AtFixCondition at, int radial, int dist)
+    {
+        var (targetLat, targetLon) = FlightPhysics.ProjectPoint(
+            at.Lat, at.Lon, radial, dist);
+        return new BlockTrigger
+        {
+            Type = BlockTriggerType.ReachFrdPoint,
+            FixName = at.FixName,
+            FixLat = at.Lat,
+            FixLon = at.Lon,
+            Radial = radial,
+            DistanceNm = dist,
+            TargetLat = targetLat,
+            TargetLon = targetLon,
+        };
+    }
+
+    private static string FormatAtLabel(AtFixCondition at)
+    {
+        if (at.Radial is { } radial && at.Distance is { } dist)
+        {
+            return $"{at.FixName} R{radial:D3} D{dist:D3}";
+        }
+
+        if (at.Radial is { } r)
+        {
+            return $"{at.FixName} R{r:D3}";
+        }
+
+        return at.FixName;
     }
 
     private static int NormalizeHeading(double heading)

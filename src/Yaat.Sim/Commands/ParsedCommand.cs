@@ -124,4 +124,6 @@ public abstract record BlockCondition;
 
 public record LevelCondition(int Altitude) : BlockCondition;
 
-public record AtFixCondition(string FixName, double Lat, double Lon) : BlockCondition;
+public record AtFixCondition(
+    string FixName, double Lat, double Lon,
+    int? Radial = null, int? Distance = null) : BlockCondition;

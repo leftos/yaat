@@ -79,6 +79,26 @@ public sealed class SimulationWorld
         }
     }
 
+    public List<(string Callsign, string Warning)> DrainWarnings(string scenarioId)
+    {
+        var result = new List<(string, string)>();
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                if (ac.ScenarioId == scenarioId && ac.PendingWarnings.Count > 0)
+                {
+                    foreach (var w in ac.PendingWarnings)
+                    {
+                        result.Add((ac.Callsign, w));
+                    }
+                    ac.PendingWarnings.Clear();
+                }
+            }
+        }
+        return result;
+    }
+
     public static uint GenerateBeaconCode()
     {
         var rng = Random.Shared;

@@ -27,4 +27,5 @@ public class AircraftState
     public ControlTargets Targets { get; } = new();
     public CommandQueue Queue { get; set; } = new();
     public PhaseList? Phases { get; set; }
+    public List<string> PendingWarnings { get; } = [];
 }

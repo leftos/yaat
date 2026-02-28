@@ -179,7 +179,7 @@ Fixes can also be specified as FRD (Fix-Radial-Distance) strings in the format `
 DCT JFK090020
 ```
 
-This means "the point on the 090 radial from JFK at 20 NM." The fix name must be 2-5 characters, followed by exactly 3 digits for the radial (degrees) and 3 digits for the distance (NM). FRD works anywhere a fix name is accepted: DCT arguments and AT conditions.
+This means "the point on the 090 radial from JFK at 20 NM." The fix name must be 2+ characters, followed by exactly 3 digits for the radial (degrees) and 3 digits for the distance (NM). FRD works anywhere a fix name is accepted: DCT arguments and AT conditions. AT conditions also support fix-radial (FR) format without distance — see Conditional Blocks below.
 
 If the last fix in the list appears in the aircraft's filed route, the aircraft continues on its filed route from that point.
 
@@ -254,11 +254,23 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
   ```
   When reaching 5,000 ft, turn to heading 270.
 
-- **AT** — triggers when the aircraft reaches a fix:
+- **AT** — triggers when the aircraft reaches a fix, intercepts a radial, or reaches an FRD point:
   ```
   AT SUNOL FH 180
   ```
-  When reaching SUNOL, turn to heading 180.
+  When reaching SUNOL (within 0.5 NM), turn to heading 180.
+
+  ```
+  AT SUNOL090 FH 270
+  ```
+  When crossing radial 090 from SUNOL, turn to heading 270. (Fix-Radial format: `{fix}{radial:3}`)
+
+  ```
+  AT SUNOL090020 FH 270
+  ```
+  When reaching 20 NM on the 090 radial from SUNOL (within 1.5 NM), turn to heading 270. (Fix-Radial-Distance format: `{fix}{radial:3}{distance:3}`)
+
+  If an aircraft passes through an FRD point without triggering (misses by more than 1.5 NM but came within 5 NM), a warning message appears in the terminal: `Missed condition at SUNOL R090 D020 (closest: 2.3 NM)`.
 
 These work within compound chains:
 

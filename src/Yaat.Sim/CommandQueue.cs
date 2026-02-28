@@ -4,6 +4,8 @@ public enum BlockTriggerType
 {
     ReachAltitude,
     ReachFix,
+    InterceptRadial,
+    ReachFrdPoint,
 }
 
 public class BlockTrigger
@@ -13,6 +15,10 @@ public class BlockTrigger
     public string? FixName { get; init; }
     public double? FixLat { get; init; }
     public double? FixLon { get; init; }
+    public int? Radial { get; init; }
+    public int? DistanceNm { get; init; }
+    public double? TargetLat { get; init; }
+    public double? TargetLon { get; init; }
 }
 
 public enum TrackedCommandType
@@ -38,6 +44,9 @@ public class CommandBlock
     public bool IsApplied { get; set; }
     public bool TriggerMet { get; set; }
     public bool AllComplete => Commands.TrueForAll(c => c.IsComplete);
+
+    public double TriggerClosestApproach { get; set; } = double.MaxValue;
+    public bool TriggerMissed { get; set; }
 
     public bool IsWaitBlock { get; init; }
     public double WaitRemainingSeconds { get; set; }

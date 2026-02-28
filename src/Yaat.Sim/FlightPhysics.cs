@@ -6,6 +6,10 @@ public static class FlightPhysics
     private const double AltitudeSnapFt = 10.0;
     private const double SpeedSnapKts = 2.0;
     private const double NavArrivalNm = 0.5;
+    private const double FrdArrivalNm = 1.5;
+    private const double RadialInterceptDeg = 3.0;
+    private const double FrdMissThresholdNm = 5.0;
+    private const double FrdMissDepartureNm = 0.5;
     private const double DegToRad = Math.PI / 180.0;
     private const double NmPerDegLat = 60.0;
 
@@ -230,6 +234,7 @@ public static class FlightPhysics
                 block.TriggerMet = IsTriggerMet(aircraft, block.Trigger);
                 if (!block.TriggerMet)
                 {
+                    TrackFrdMiss(aircraft, block);
                     return;
                 }
             }
@@ -285,12 +290,67 @@ public static class FlightPhysics
     {
         return trigger.Type switch
         {
-            BlockTriggerType.ReachAltitude => trigger.Altitude.HasValue && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < AltitudeSnapFt,
-            BlockTriggerType.ReachFix => trigger.FixLat.HasValue
+            BlockTriggerType.ReachAltitude =>
+                trigger.Altitude.HasValue
+                && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < AltitudeSnapFt,
+            BlockTriggerType.ReachFix =>
+                trigger.FixLat.HasValue
                 && trigger.FixLon.HasValue
-                && DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.FixLat.Value, trigger.FixLon.Value) < NavArrivalNm,
+                && DistanceNm(aircraft.Latitude, aircraft.Longitude,
+                    trigger.FixLat.Value, trigger.FixLon.Value) < NavArrivalNm,
+            BlockTriggerType.InterceptRadial =>
+                trigger.FixLat.HasValue
+                && trigger.FixLon.HasValue
+                && trigger.Radial.HasValue
+                && IsRadialIntercepted(aircraft, trigger),
+            BlockTriggerType.ReachFrdPoint =>
+                trigger.TargetLat.HasValue
+                && trigger.TargetLon.HasValue
+                && DistanceNm(aircraft.Latitude, aircraft.Longitude,
+                    trigger.TargetLat.Value, trigger.TargetLon.Value) < FrdArrivalNm,
             _ => true,
         };
+    }
+
+    private static bool IsRadialIntercepted(
+        AircraftState aircraft, BlockTrigger trigger)
+    {
+        double bearing = BearingTo(
+            trigger.FixLat!.Value, trigger.FixLon!.Value,
+            aircraft.Latitude, aircraft.Longitude);
+        double diff = Math.Abs(NormalizeAngle(bearing - trigger.Radial!.Value));
+        return diff < RadialInterceptDeg;
+    }
+
+    private static void TrackFrdMiss(AircraftState aircraft, CommandBlock block)
+    {
+        if (block.TriggerMissed
+            || block.Trigger?.Type is not BlockTriggerType.ReachFrdPoint
+            || !block.Trigger.TargetLat.HasValue
+            || !block.Trigger.TargetLon.HasValue)
+        {
+            return;
+        }
+
+        double dist = DistanceNm(
+            aircraft.Latitude, aircraft.Longitude,
+            block.Trigger.TargetLat.Value, block.Trigger.TargetLon.Value);
+
+        if (dist < block.TriggerClosestApproach)
+        {
+            block.TriggerClosestApproach = dist;
+        }
+        else if (block.TriggerClosestApproach < FrdMissThresholdNm
+                 && dist > block.TriggerClosestApproach + FrdMissDepartureNm)
+        {
+            block.TriggerMissed = true;
+            var fixName = block.Trigger.FixName ?? "?";
+            var radial = block.Trigger.Radial?.ToString("D3") ?? "???";
+            var distNm = block.Trigger.DistanceNm?.ToString("D3") ?? "???";
+            aircraft.PendingWarnings.Add(
+                $"Missed condition at {fixName} R{radial} D{distNm} " +
+                $"(closest: {block.TriggerClosestApproach:F1} NM)");
+        }
     }
 
     private static void ApplyBlock(AircraftState aircraft, CommandBlock block)

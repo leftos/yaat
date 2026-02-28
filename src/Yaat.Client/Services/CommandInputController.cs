@@ -945,7 +945,7 @@ public partial class CommandInputController : ObservableObject
             {
                 Kind = SuggestionKind.Command,
                 Text = "AT",
-                Description = "At {fix} — trigger at a fix",
+                Description = "At {fix/FR/FRD} — trigger at fix, radial, or FRD point",
                 InsertText = "AT ",
             });
         }
