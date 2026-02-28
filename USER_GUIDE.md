@@ -91,6 +91,11 @@ YAAT supports two command schemes, switchable in Settings:
 | Descend and maintain | `DM 050` | `D050` |
 | Speed | `SPD 250` | `S250` |
 | Squawk | `SQ 4521` | `SQ4521` |
+| Squawk ident | `SQI` | `SQI` |
+| Squawk VFR | `SQVFR` | `SQVFR` |
+| Squawk normal | `SQNORM` | `SQNORM` |
+| Squawk standby | `SQSBY` | `SQSBY` |
+| Ident | `IDENT` | `IDENT` |
 | Direct to fix | `DCT SUNOL` | `DCT SUNOL` |
 | Delete aircraft | `DEL` | `X` |
 

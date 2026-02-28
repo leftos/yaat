@@ -181,17 +181,12 @@ public static class CommandSchemeParser
             return null;
         }
 
-        // DCT is always space-separated regardless of scheme mode
-        if (trimmed.StartsWith("DCT ") || trimmed == "DCT")
+        // Text-arg commands are always space-separated regardless of scheme mode.
+        // Check longer prefixes first (HFIXL/HFIXR before HFIX).
+        var textArgMatch = ParseTextArgCommand(trimmed);
+        if (textArgMatch is not null)
         {
-            var parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            var arg = parts.Length > 1 ? parts[1].Trim() : null;
-            if (arg is null)
-            {
-                return null;
-            }
-
-            return new ParsedInput(CanonicalCommandType.DirectTo, arg);
+            return textArgMatch;
         }
 
         if (scheme.ParseMode == CommandParseMode.Concatenated)
@@ -216,6 +211,40 @@ public static class CommandSchemeParser
         }
 
         return $"{pattern.Verb} {argument}";
+    }
+
+    private static readonly (string Verb, CanonicalCommandType Type)[] TextArgCommands =
+    [
+        ("HFIXL", CanonicalCommandType.HoldAtFixLeft),
+        ("HFIXR", CanonicalCommandType.HoldAtFixRight),
+        ("HFIX", CanonicalCommandType.HoldAtFixHover),
+        ("DCT", CanonicalCommandType.DirectTo),
+    ];
+
+    private static ParsedInput? ParseTextArgCommand(string input)
+    {
+        foreach (var (verb, type) in TextArgCommands)
+        {
+            if (!input.StartsWith(verb, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (input.Length == verb.Length)
+            {
+                return null;
+            }
+
+            if (input[verb.Length] != ' ')
+            {
+                continue;
+            }
+
+            var arg = input[(verb.Length + 1)..].Trim();
+            return arg.Length > 0 ? new ParsedInput(type, arg) : null;
+        }
+
+        return null;
     }
 
     private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme)
@@ -317,6 +346,9 @@ public static class CommandSchemeParser
                     or CanonicalCommandType.Unpause
                     or CanonicalCommandType.SimRate
                     or CanonicalCommandType.DirectTo
+                    or CanonicalCommandType.HoldAtFixLeft
+                    or CanonicalCommandType.HoldAtFixRight
+                    or CanonicalCommandType.HoldAtFixHover
             )
             {
                 continue;

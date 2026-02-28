@@ -429,8 +429,19 @@ public partial class MainViewModel : ObservableObject
         var compound = CommandSchemeParser.ParseCompound(commandText, scheme);
         if (compound is null)
         {
-            var verb = commandText.Split([' ', ',', ';'], 2)[0];
-            StatusText = $"Unrecognized verb \"{verb}\" — type a command like FH 270, CM 240, SPD 250";
+            // If the first token is a known callsign, report the command as the problem
+            var tokens = commandText.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length >= 2 && ResolveAircraft(tokens[0]) is not null)
+            {
+                var cmdVerb = tokens[1].Split([' ', ',', ';'], 2)[0];
+                StatusText = $"Unrecognized command \"{cmdVerb}\" — type a command like FH 270, CM 240, CTL";
+            }
+            else
+            {
+                var verb = commandText.Split([' ', ',', ';'], 2)[0];
+                StatusText = $"Unrecognized command \"{verb}\" — type a command like FH 270, CM 240, CTL";
+            }
+
             return;
         }
 

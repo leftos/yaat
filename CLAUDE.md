@@ -72,6 +72,14 @@ When adding new commands, match the existing command names from ATCTrainer and/o
 - VICE reference: https://pharr.org/vice/
 Commands unique to YAAT (not present in either app) can use any suitable name.
 
+**Command completeness rule — MANDATORY:**
+Every value in `CanonicalCommandType` (in Yaat.Sim) MUST have a corresponding entry in:
+1. `CommandScheme.AtcTrainer()` patterns
+2. `CommandScheme.Vice()` patterns
+3. `CommandMetadata.AllCommands`
+
+Unit tests in `tests/Yaat.Client.Tests/CommandSchemeCompletenessTests.cs` enforce this — `dotnet test` will fail if any are missing. When adding a new `CanonicalCommandType` value, update all three locations in the same commit.
+
 **Communication flow:**
 ```
 YAAT Client (this repo)  ──SignalR JSON──>  yaat-server  <──SignalR+MessagePack──  CRC
