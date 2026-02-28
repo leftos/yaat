@@ -21,6 +21,19 @@ public static class CommandDispatcher
             // result is null means phases were cleared, fall through to normal dispatch
         }
 
+        // Reject tower commands that require phase context
+        foreach (var block in compound.Blocks)
+        {
+            foreach (var cmd in block.Commands)
+            {
+                if (IsTowerCommand(cmd))
+                {
+                    return new CommandResult(false,
+                        $"{DescribeNatural(cmd)} requires an active runway assignment");
+                }
+            }
+        }
+
         // Clear any existing queue
         aircraft.Queue.Blocks.Clear();
         aircraft.Queue.CurrentBlockIndex = 0;
@@ -31,23 +44,30 @@ public static class CommandDispatcher
         {
             var parsedBlock = compound.Blocks[i];
 
-            // Build description before constructing the block
-            var blockMsgs = parsedBlock.Commands.Select(DescribeCommand).ToList();
-            var blockMsg = string.Join(", ", blockMsgs);
+            // Terse description for block tracking
+            var blockDesc = string.Join(", ",
+                parsedBlock.Commands.Select(DescribeCommand));
+
+            // Natural language for response message
+            var blockMsg = string.Join(", ",
+                parsedBlock.Commands.Select(DescribeNatural));
+
             if (parsedBlock.Condition is LevelCondition lv)
             {
-                blockMsg = $"at {lv.Altitude}ft: {blockMsg}";
+                blockDesc = $"at {lv.Altitude}ft: {blockDesc}";
+                blockMsg = $"At {lv.Altitude:N0} ft: {blockMsg}";
             }
             else if (parsedBlock.Condition is AtFixCondition at)
             {
-                blockMsg = $"at {at.FixName}: {blockMsg}";
+                blockDesc = $"at {at.FixName}: {blockDesc}";
+                blockMsg = $"At {at.FixName}: {blockMsg}";
             }
 
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
                 ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft),
-                Description = blockMsg,
+                Description = blockDesc,
             };
 
             foreach (var cmd in parsedBlock.Commands)
@@ -205,7 +225,7 @@ public static class CommandDispatcher
         {
             return new CommandResult(
                 false,
-                $"Cannot accept {DescribeCommand(firstCmd)} during {currentPhase.Name}");
+                $"Cannot accept {DescribeNatural(firstCmd)} during {currentPhase.Name}");
         }
 
         if (acceptance == CommandAcceptance.ClearsPhase)
@@ -229,6 +249,12 @@ public static class CommandDispatcher
             case ClearedForTakeoffCommand cto:
                 if (currentPhase is LinedUpAndWaitingPhase luaw)
                 {
+                    if (aircraft.Phases?.AssignedRunway is null)
+                    {
+                        return new CommandResult(false,
+                            "No runway assigned — cannot clear for takeoff");
+                    }
+
                     luaw.AssignedHeading = cto.AssignedHeading;
                     luaw.AssignedTurn = cto.Turn;
                     luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
@@ -263,7 +289,7 @@ public static class CommandDispatcher
                         }
                     }
 
-                    var msg = "Cleared for takeoff";
+                    var msg = $"Cleared for takeoff{RunwayLabel(aircraft)}";
                     if (cto.AssignedHeading is not null)
                     {
                         msg += $", fly heading {cto.AssignedHeading:000}";
@@ -290,7 +316,7 @@ public static class CommandDispatcher
                     }
                     luawCancel.AssignedHeading = null;
                     luawCancel.AssignedTurn = null;
-                    return Ok("Takeoff clearance cancelled, hold position");
+                    return Ok($"Takeoff clearance cancelled, hold position{RunwayLabel(aircraft)}");
                 }
                 if (currentPhase is TakeoffPhase && aircraft.IsOnGround)
                 {
@@ -313,7 +339,7 @@ public static class CommandDispatcher
                     aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.RunwayId;
                     aircraft.Phases.TrafficDirection = null;
                     ReplaceApproachEnding(aircraft.Phases, new LandingPhase());
-                    return Ok("Cleared to land");
+                    return Ok($"Cleared to land{RunwayLabel(aircraft)}");
                 }
                 return new CommandResult(false, "Aircraft has no active phase sequence");
 
@@ -322,7 +348,7 @@ public static class CommandDispatcher
                 {
                     aircraft.Phases.LandingClearance = null;
                     aircraft.Phases.ClearedRunwayId = null;
-                    return Ok("Landing clearance cancelled");
+                    return Ok($"Landing clearance cancelled{RunwayLabel(aircraft)}");
                 }
                 return new CommandResult(false, "No landing clearance to cancel");
 
@@ -345,7 +371,7 @@ public static class CommandDispatcher
                     }
                     if (ga.TargetAltitude is not null)
                     {
-                        gaMsg += $", climb to {ga.TargetAltitude}";
+                        gaMsg += $", climb to {ga.TargetAltitude:N0}";
                     }
                     return Ok(gaMsg);
                 }
@@ -397,7 +423,7 @@ public static class CommandDispatcher
                 return TrySetupLowApproach(aircraft);
 
             case ClearedForOptionCommand:
-                return TrySetLandingClearance(aircraft, ClearanceType.ClearedForOption, "Cleared for the option");
+                return TrySetLandingClearance(aircraft, ClearanceType.ClearedForOption, $"Cleared for the option{RunwayLabel(aircraft)}");
 
             // Hold commands
             case HoldPresentPosition360Command hpp:
@@ -450,7 +476,7 @@ public static class CommandDispatcher
 
         var dirStr = direction == PatternDirection.Left ? "left" : "right";
         var legStr = entryLeg.ToString().ToLowerInvariant();
-        return Ok($"Enter {dirStr} {legStr}");
+        return Ok($"Enter {dirStr} {legStr}{RunwayLabel(aircraft)}");
     }
 
     private static CommandResult TryChangePatternDirection(
@@ -496,7 +522,7 @@ public static class CommandDispatcher
         }
 
         var dirStr = newDirection == PatternDirection.Left ? "left" : "right";
-        return Ok($"Make {dirStr} traffic");
+        return Ok($"Make {dirStr} traffic{RunwayLabel(aircraft)}");
     }
 
     /// <summary>
@@ -645,7 +671,7 @@ public static class CommandDispatcher
         EnsurePatternMode(aircraft.Phases);
         ReplaceApproachEnding(aircraft.Phases, new LowApproachPhase());
 
-        return Ok("Cleared low approach");
+        return Ok($"Cleared low approach{RunwayLabel(aircraft)}");
     }
 
     private static CommandResult TrySetupTouchAndGo(AircraftState aircraft)
@@ -660,7 +686,7 @@ public static class CommandDispatcher
         EnsurePatternMode(aircraft.Phases);
         ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase());
 
-        return Ok("Cleared touch-and-go");
+        return Ok($"Cleared touch-and-go{RunwayLabel(aircraft)}");
     }
 
     private static CommandResult TrySetupStopAndGo(AircraftState aircraft)
@@ -675,7 +701,7 @@ public static class CommandDispatcher
         EnsurePatternMode(aircraft.Phases);
         ReplaceApproachEnding(aircraft.Phases, new StopAndGoPhase());
 
-        return Ok("Cleared stop-and-go");
+        return Ok($"Cleared stop-and-go{RunwayLabel(aircraft)}");
     }
 
     private static CommandResult TryHoldPresentPosition(
@@ -910,6 +936,120 @@ public static class CommandDispatcher
     {
         var normalized = ((heading % 360.0) + 360.0) % 360.0;
         return normalized < 0.5 ? 360 : (int)Math.Round(normalized);
+    }
+
+    private static string DescribeNatural(ParsedCommand command)
+    {
+        return command switch
+        {
+            FlyHeadingCommand cmd => $"Fly heading {cmd.Heading:000}",
+            TurnLeftCommand cmd => $"Turn left heading {cmd.Heading:000}",
+            TurnRightCommand cmd => $"Turn right heading {cmd.Heading:000}",
+            LeftTurnCommand cmd => $"Turn {cmd.Degrees} degrees left",
+            RightTurnCommand cmd => $"Turn {cmd.Degrees} degrees right",
+            FlyPresentHeadingCommand => "Fly present heading",
+            ClimbMaintainCommand cmd => $"Climb and maintain {cmd.Altitude:N0}",
+            DescendMaintainCommand cmd => $"Descend and maintain {cmd.Altitude:N0}",
+            SpeedCommand cmd => cmd.Speed == 0
+                ? "Resume normal speed" : $"Speed {cmd.Speed} knots",
+            DirectToCommand cmd =>
+                $"Proceed direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
+            SquawkCommand cmd => $"Squawk {cmd.Code:D4}",
+            SquawkVfrCommand => "Squawk VFR",
+            SquawkNormalCommand => "Squawk normal",
+            SquawkStandbyCommand => "Squawk standby",
+            IdentCommand => "Ident",
+            ClearedForTakeoffCommand cto => DescribeCtoNatural(cto),
+            CancelTakeoffClearanceCommand => "Cancel takeoff clearance",
+            ClearedToLandCommand => "Cleared to land",
+            CancelLandingClearanceCommand => "Cancel landing clearance",
+            GoAroundCommand ga => DescribeGaNatural(ga),
+            EnterLeftDownwindCommand => "Enter left downwind",
+            EnterRightDownwindCommand => "Enter right downwind",
+            EnterLeftBaseCommand => "Enter left base",
+            EnterRightBaseCommand => "Enter right base",
+            EnterFinalCommand => "Enter straight-in final",
+            MakeLeftTrafficCommand => "Make left traffic",
+            MakeRightTrafficCommand => "Make right traffic",
+            TurnCrosswindCommand => "Turn crosswind",
+            TurnDownwindCommand => "Turn downwind",
+            TurnBaseCommand => "Turn base",
+            ExtendDownwindCommand => "Extend downwind",
+            TouchAndGoCommand => "Cleared touch-and-go",
+            StopAndGoCommand => "Cleared stop-and-go",
+            LowApproachCommand => "Cleared low approach",
+            ClearedForOptionCommand => "Cleared for the option",
+            HoldPresentPosition360Command cmd => cmd.Direction == TurnDirection.Left
+                ? "Hold present position, left 360s"
+                : "Hold present position, right 360s",
+            HoldPresentPositionHoverCommand => "Hold present position",
+            HoldAtFixOrbitCommand cmd =>
+                $"Hold at {cmd.FixName}, {(cmd.Direction == TurnDirection.Left ? "left" : "right")} orbits",
+            HoldAtFixHoverCommand cmd => $"Hold at {cmd.FixName}",
+            UnsupportedCommand cmd => cmd.RawText,
+            _ => command.ToString() ?? "?",
+        };
+    }
+
+    private static string DescribeCtoNatural(ClearedForTakeoffCommand cto)
+    {
+        var msg = "Cleared for takeoff";
+        if (cto.AssignedHeading is not null)
+        {
+            msg += $", fly heading {cto.AssignedHeading:000}";
+        }
+        if (cto.TrafficPattern is not null)
+        {
+            var dir = cto.TrafficPattern == PatternDirection.Left
+                ? "left" : "right";
+            msg += $", make {dir} traffic";
+        }
+        return msg;
+    }
+
+    private static string DescribeGaNatural(GoAroundCommand ga)
+    {
+        var msg = "Go around";
+        if (ga.AssignedHeading is not null)
+        {
+            msg += $", fly heading {ga.AssignedHeading:000}";
+        }
+        if (ga.TargetAltitude is not null)
+        {
+            msg += $", climb to {ga.TargetAltitude:N0}";
+        }
+        return msg;
+    }
+
+    private static bool IsTowerCommand(ParsedCommand command)
+    {
+        return command is ClearedForTakeoffCommand
+            or CancelTakeoffClearanceCommand
+            or LineUpAndWaitCommand
+            or ClearedToLandCommand
+            or CancelLandingClearanceCommand
+            or GoAroundCommand
+            or EnterLeftDownwindCommand
+            or EnterRightDownwindCommand
+            or EnterLeftBaseCommand
+            or EnterRightBaseCommand
+            or EnterFinalCommand
+            or MakeLeftTrafficCommand
+            or MakeRightTrafficCommand
+            or TurnCrosswindCommand
+            or TurnDownwindCommand
+            or TurnBaseCommand
+            or ExtendDownwindCommand
+            or TouchAndGoCommand
+            or StopAndGoCommand
+            or LowApproachCommand
+            or ClearedForOptionCommand;
+    }
+
+    private static string RunwayLabel(AircraftState aircraft)
+    {
+        var runway = aircraft.Phases?.AssignedRunway;
+        return runway is not null ? $", Runway {runway.RunwayId}" : "";
     }
 
     private static CommandResult Ok(string message)

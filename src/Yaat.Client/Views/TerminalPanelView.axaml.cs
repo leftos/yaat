@@ -1,5 +1,6 @@
-using System.Collections.Specialized;
+using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 
 namespace Yaat.Client.Views;
 
@@ -16,16 +17,10 @@ public partial class TerminalPanelView : UserControl
     protected override void OnLoaded(Avalonia.Interactivity.RoutedEventArgs e)
     {
         base.OnLoaded(e);
-        _scrollViewer = this.FindControl<ScrollViewer>("TerminalScroll");
-
-        if (_scrollViewer is not null)
-        {
-            _scrollViewer.ScrollChanged += OnScrollChanged;
-        }
 
         if (DataContext is ViewModels.MainViewModel vm)
         {
-            vm.TerminalEntries.CollectionChanged += OnEntriesChanged;
+            vm.PropertyChanged += OnViewModelPropertyChanged;
         }
     }
 
@@ -33,10 +28,48 @@ public partial class TerminalPanelView : UserControl
     {
         if (DataContext is ViewModels.MainViewModel vm)
         {
-            vm.TerminalEntries.CollectionChanged -= OnEntriesChanged;
+            vm.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
+        if (_scrollViewer is not null)
+        {
+            _scrollViewer.ScrollChanged -= OnScrollChanged;
         }
 
         base.OnUnloaded(e);
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ViewModels.MainViewModel.TerminalText))
+        {
+            return;
+        }
+
+        var sv = GetScrollViewer();
+        if (_isNearBottom && sv is not null)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                () => sv.ScrollToEnd(),
+                Avalonia.Threading.DispatcherPriority.Background);
+        }
+    }
+
+    private ScrollViewer? GetScrollViewer()
+    {
+        if (_scrollViewer is not null)
+        {
+            return _scrollViewer;
+        }
+
+        var textBox = this.FindControl<TextBox>("TerminalTextBox");
+        _scrollViewer = textBox?.FindDescendantOfType<ScrollViewer>();
+        if (_scrollViewer is not null)
+        {
+            _scrollViewer.ScrollChanged += OnScrollChanged;
+        }
+
+        return _scrollViewer;
     }
 
     private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
@@ -47,16 +80,5 @@ public partial class TerminalPanelView : UserControl
         }
 
         _isNearBottom = _scrollViewer.Offset.Y >= _scrollViewer.ScrollBarMaximum.Y - 20;
-    }
-
-    private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (_isNearBottom && _scrollViewer is not null)
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                _scrollViewer.ScrollToEnd();
-            }, Avalonia.Threading.DispatcherPriority.Background);
-        }
     }
 }

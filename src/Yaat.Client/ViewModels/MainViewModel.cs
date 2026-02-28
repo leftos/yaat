@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -82,6 +83,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isTerminalDocked = true;
+
+    [ObservableProperty]
+    private string _terminalText = "";
 
     public ObservableCollection<AircraftModel> Aircraft { get; } = [];
 
@@ -259,6 +263,7 @@ public partial class MainViewModel : ObservableObject
             {
                 ActiveScenarioId = result.ScenarioId;
                 ActiveScenarioName = result.Name;
+                _commandInput.PrimaryAirportId = result.PrimaryAirportId;
                 ApplySimState(result.IsPaused, result.SimRate);
 
                 _log.LogInformation(
@@ -310,6 +315,7 @@ public partial class MainViewModel : ObservableObject
             {
                 ActiveScenarioId = result.ScenarioId;
                 ActiveScenarioName = result.Name;
+                _commandInput.PrimaryAirportId = result.PrimaryAirportId;
                 ApplySimState(result.IsPaused, result.SimRate);
 
                 Aircraft.Clear();
@@ -709,6 +715,33 @@ public partial class MainViewModel : ObservableObject
         {
             TerminalEntries.RemoveAt(0);
         }
+        RebuildTerminalText();
+    }
+
+    private void RebuildTerminalText()
+    {
+        var sb = new StringBuilder();
+        foreach (var entry in TerminalEntries)
+        {
+            if (sb.Length > 0)
+            {
+                sb.AppendLine();
+            }
+            sb.Append(entry.Timestamp.ToString("HH:mm:ss"));
+            if (!string.IsNullOrEmpty(entry.Initials))
+            {
+                sb.Append("  ");
+                sb.Append(entry.Initials);
+            }
+            if (!string.IsNullOrEmpty(entry.Callsign))
+            {
+                sb.Append("  ");
+                sb.Append(entry.Callsign);
+            }
+            sb.Append("  ");
+            sb.Append(entry.Message);
+        }
+        TerminalText = sb.ToString();
     }
 
     public void AddSystemEntry(string message)
