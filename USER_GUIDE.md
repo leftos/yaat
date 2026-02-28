@@ -165,7 +165,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTOR45` / `CTOL45` | Cleared for takeoff, turn right/left 45° from runway heading (no space) |
 | `CTOMLT` / `CTOMRT` | Cleared for takeoff, make left/right traffic |
 | `CTOC` | Cancel takeoff clearance |
-| `CTL` | Cleared to land |
+| `CTL` / `FS` | Cleared to land (full stop) |
+| `CLC` / `CTLC` | Cancel landing clearance |
 | `GA` | Go around (fly runway heading, climb to 1500 AGL) |
 | `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft |
 | `GA RH 50` | Go around, fly runway heading, climb to 5,000 ft |

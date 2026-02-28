@@ -39,6 +39,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.CancelTakeoffClearance, "Cancel Takeoff Clearance", null, false),
         new(CanonicalCommandType.GoAround, "Go Around", null, false),
         new(CanonicalCommandType.ClearedToLand, "Cleared to Land", null, false),
+        new(CanonicalCommandType.CancelLandingClearance, "Cancel Landing Clearance", null, false),
         new(CanonicalCommandType.TouchAndGo, "Touch and Go", null, false),
         new(CanonicalCommandType.StopAndGo, "Stop and Go", null, false),
         new(CanonicalCommandType.LowApproach, "Low Approach", null, false),

@@ -92,12 +92,13 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 | Takeoff Present Position | CTOPP | — | — | — |
 | Takeoff Runway Heading | CTORH | — | — | — |
 | **Go Around** | GA | GA (VFR "go ahead") | GA | GA |
-| **Cleared to Land** | — | — | CTL | CTL |
+| **Cleared to Land** | — | — | CTL, FS | CTL, FS |
+| **Cancel Landing Clearance** | — | — | CLC, CTLC | CLC, CTLC |
 | **Touch and Go** | TG | — | TG | TG |
 | **Stop and Go** | SG | — | SG | SG |
 | **Low Approach** | LA | — | LA | LA |
 | **Cleared for the Option** | — | — | COPT | COPT |
-| Full Stop | FS | — | — | — |
+| Full Stop | FS | — | (alias of CTL) | (alias of CTL) |
 | Land (heli at parking spot) | LAND | — | — | — |
 | Land and Hold Short | LAHSO | — | — | — |
 | Takeoff Roll | GO | — | — | — |

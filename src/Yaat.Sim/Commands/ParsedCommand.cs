@@ -58,6 +58,8 @@ public record GoAroundCommand(
 
 public record ClearedToLandCommand : ParsedCommand;
 
+public record CancelLandingClearanceCommand : ParsedCommand;
+
 // Pattern commands
 public record EnterLeftDownwindCommand : ParsedCommand;
 

@@ -311,9 +311,20 @@ public static class CommandDispatcher
                 {
                     aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
                     aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.RunwayId;
+                    aircraft.Phases.TrafficDirection = null;
+                    ReplaceApproachEnding(aircraft.Phases, new LandingPhase());
                     return Ok("Cleared to land");
                 }
                 return new CommandResult(false, "Aircraft has no active phase sequence");
+
+            case CancelLandingClearanceCommand:
+                if (aircraft.Phases is not null && aircraft.Phases.LandingClearance is not null)
+                {
+                    aircraft.Phases.LandingClearance = null;
+                    aircraft.Phases.ClearedRunwayId = null;
+                    return Ok("Landing clearance cancelled");
+                }
+                return new CommandResult(false, "No landing clearance to cancel");
 
             case GoAroundCommand ga:
                 if (aircraft.Phases is not null && !aircraft.Phases.IsComplete)
@@ -846,6 +857,7 @@ public static class CommandDispatcher
                 ? $"CTO {cto.AssignedHeading:000}" : "CTO",
             CancelTakeoffClearanceCommand => "CTOC",
             ClearedToLandCommand => "CTL",
+            CancelLandingClearanceCommand => "CLC",
             GoAroundCommand ga => ga.AssignedHeading is not null || ga.TargetAltitude is not null
                 ? $"GA {(ga.AssignedHeading?.ToString("000") ?? "RH")} {ga.TargetAltitude}"
                 : "GA",
