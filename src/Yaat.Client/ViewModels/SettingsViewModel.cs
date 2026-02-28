@@ -58,6 +58,9 @@ public partial class SettingsViewModel : ObservableObject
     private int _selectedPresetIndex;
 
     [ObservableProperty]
+    private string _userInitials = "";
+
+    [ObservableProperty]
     private bool _isAdminMode;
 
     [ObservableProperty]
@@ -75,8 +78,18 @@ public partial class SettingsViewModel : ObservableObject
         _preferences = preferences;
         LoadFromScheme(_preferences.CommandScheme);
         DetectAndUpdatePreset();
+        _userInitials = _preferences.UserInitials;
         _isAdminMode = _preferences.IsAdminMode;
         _adminPassword = _preferences.AdminPassword;
+    }
+
+    partial void OnUserInitialsChanged(string value)
+    {
+        var upper = value.ToUpperInvariant();
+        if (upper != value)
+        {
+            UserInitials = upper;
+        }
     }
 
     partial void OnSelectedPresetIndexChanged(int value)
@@ -105,6 +118,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         var scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
+        _preferences.SetUserInitials(UserInitials);
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
         Saved = true;
     }

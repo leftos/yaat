@@ -17,6 +17,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<AircraftDto>? AircraftSpawned;
     public event Action<bool, int>? SimulationStateChanged;
     public event Action<string?>? Reconnected;
+    public event Action<TerminalBroadcastDto>? TerminalEntryReceived;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -39,6 +40,8 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<AircraftDto>("AircraftSpawned", dto => AircraftSpawned?.Invoke(dto));
 
         _connection.On<bool, int>("SimulationStateChanged", (paused, rate) => SimulationStateChanged?.Invoke(paused, rate));
+
+        _connection.On<TerminalBroadcastDto>("TerminalBroadcast", dto => TerminalEntryReceived?.Invoke(dto));
 
         _connection.Reconnected += connectionId =>
         {
@@ -101,10 +104,16 @@ public sealed class ServerConnection : IAsyncDisposable
 
     // --- Aircraft commands ---
 
-    public async Task<CommandResultDto> SendCommandAsync(string callsign, string command)
+    public async Task<CommandResultDto> SendCommandAsync(string callsign, string command, string initials)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<CommandResultDto>("SendCommand", callsign, command);
+        return await _connection!.InvokeAsync<CommandResultDto>("SendCommand", callsign, command, initials);
+    }
+
+    public async Task SendChatAsync(string initials, string message)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SendChat", initials, message);
     }
 
     public async Task DeleteAircraftAsync(string callsign)
@@ -278,3 +287,5 @@ public record ScenarioSessionInfoDto(
 );
 
 public record DeleteAllResultDto(bool RequiresConfirmation, int OtherClientCount, string? Message);
+
+public record TerminalBroadcastDto(string Initials, string Kind, string Callsign, string Message, DateTime Timestamp);

@@ -16,11 +16,16 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
 dotnet run --project src/Yaat.Client
 ```
 
+### User Initials
+
+Before connecting, open **Settings** and enter your 2-letter initials (e.g., "AB") in the **General** tab. Initials are required — you cannot connect without them. They appear in the terminal panel so all RPOs can see who issued each command.
+
 ### Connecting
 
-1. Enter the server URL (default `http://localhost:5000`)
-2. Click **Connect**
-3. If the server has active scenarios from a previous session, a **rejoin** dialog appears
+1. Set your initials in Settings (required)
+2. Enter the server URL (default `http://localhost:5000`)
+3. Click **Connect**
+4. If the server has active scenarios from a previous session, a **rejoin** dialog appears
 
 ### Loading a Scenario
 
@@ -275,10 +280,53 @@ At the bottom-right of the window:
 
 Pause and sim rate are scoped to your scenario — they don't affect other clients' scenarios.
 
+## Terminal Panel
+
+The terminal panel sits below the aircraft grid. It shows a scrolling history of all commands and server feedback for your scenario, visible to all connected RPOs.
+
+### Entry Format
+
+Each line shows:
+```
+HH:MM:SS  AB  UAL123  FH 270
+```
+- **Timestamp** (gray) — when the entry was received
+- **Initials** (blue) — who issued the command (2-letter user initials)
+- **Callsign** (gold) — which aircraft was targeted
+- **Message** (colored by type):
+  - **White** — command echo
+  - **Green** — server response/feedback
+  - **Gray** — system message (errors, scenario events, chat)
+  - **Orange** — SAY (future instructor messages)
+
+### Multi-User Visibility
+
+All RPOs connected to the same scenario see each other's commands in their terminal. This lets you monitor what other controllers are doing.
+
+### Chat Messages
+
+Type a message prefixed with `'`, `/`, or `>` to send a text chat to all RPOs in your scenario:
+
+```
+'Switching to RNAV approach
+>Ready for next aircraft
+```
+
+Chat messages appear as gray system entries with your initials.
+
+### Resizing
+
+Drag the splitter bar between the aircraft grid and terminal panel to resize them.
+
+### Pop Out / Dock
+
+Click the **Pop Out** button in the terminal header to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Click **Dock** (or close the window) to return it to the main window.
+
 ## Settings
 
 Click **Settings** in the top-right to configure:
 
+- **General** — User initials (required before connecting)
 - **Command scheme** — ATCTrainer (space-separated) or VICE (concatenated)
 
 ## Autocomplete

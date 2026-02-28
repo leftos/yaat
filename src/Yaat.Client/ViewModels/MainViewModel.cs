@@ -80,9 +80,14 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _showActiveScenarios;
 
+    [ObservableProperty]
+    private bool _isTerminalDocked = true;
+
     public ObservableCollection<AircraftModel> Aircraft { get; } = [];
 
     public ObservableCollection<string> CommandHistory { get; } = [];
+
+    public ObservableCollection<TerminalEntry> TerminalEntries { get; } = [];
 
     public ObservableCollection<ScenarioSessionInfoDto> ActiveScenarios { get; } = [];
 
@@ -93,6 +98,7 @@ public partial class MainViewModel : ObservableObject
         _connection.AircraftSpawned += OnAircraftSpawned;
         _connection.SimulationStateChanged += OnSimulationStateChanged;
         _connection.Reconnected += OnReconnected;
+        _connection.TerminalEntryReceived += OnTerminalEntry;
 
         RefreshCommandScheme();
 
@@ -128,6 +134,12 @@ public partial class MainViewModel : ObservableObject
         if (IsConnected)
         {
             await DisconnectAsync();
+            return;
+        }
+
+        if (_preferences.UserInitials.Length != 2)
+        {
+            StatusText = "Set your 2-letter initials in Settings before connecting";
             return;
         }
 
@@ -266,6 +278,7 @@ public partial class MainViewModel : ObservableObject
                 }
 
                 StatusText = $"Loaded '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
+                AddSystemEntry($"Scenario loaded: {result.Name} ({result.AllAircraft.Count} aircraft)");
             }
             else
             {
@@ -404,6 +417,29 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        // Chat messages: ' / > prefix → broadcast text, not a command
+        if (text.Length > 1 && (text[0] == '\'' || text[0] == '/' || text[0] == '>'))
+        {
+            var chatMessage = text[1..].TrimStart();
+            if (!string.IsNullOrEmpty(chatMessage))
+            {
+                try
+                {
+                    await _connection.SendChatAsync(_preferences.UserInitials, chatMessage);
+                    AddHistory(text);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Chat send failed");
+                    StatusText = $"Chat error: {ex.Message}";
+                }
+            }
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+            return;
+        }
+
         var scheme = _preferences.CommandScheme;
 
         // Check for global commands first (no callsign needed)
@@ -455,16 +491,10 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var result = await _connection.SendCommandAsync(target.Callsign, compound.CanonicalString);
+            var result = await _connection.SendCommandAsync(
+                target.Callsign, compound.CanonicalString, _preferences.UserInitials);
 
-            if (result.Success)
-            {
-                AddHistory(commandText);
-            }
-            else
-            {
-                AddHistory($"{commandText} — {result.Message}");
-            }
+            AddHistory(commandText);
 
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
@@ -635,6 +665,49 @@ public partial class MainViewModel : ObservableObject
         CommandSchemeName = CommandScheme.DetectPresetName(_preferences.CommandScheme) ?? "Custom";
     }
 
+    [RelayCommand]
+    private void ToggleTerminalDock()
+    {
+        IsTerminalDocked = !IsTerminalDocked;
+    }
+
+    private void AddTerminalEntry(TerminalEntry entry)
+    {
+        TerminalEntries.Add(entry);
+        while (TerminalEntries.Count > 500)
+        {
+            TerminalEntries.RemoveAt(0);
+        }
+    }
+
+    public void AddSystemEntry(string message)
+    {
+        AddTerminalEntry(new TerminalEntry
+        {
+            Timestamp = DateTime.Now,
+            Initials = "",
+            Kind = TerminalEntryKind.System,
+            Callsign = "",
+            Message = message,
+        });
+    }
+
+    private void OnTerminalEntry(TerminalBroadcastDto dto)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            var kind = Enum.TryParse<TerminalEntryKind>(dto.Kind, out var k) ? k : TerminalEntryKind.System;
+            AddTerminalEntry(new TerminalEntry
+            {
+                Timestamp = dto.Timestamp.ToLocalTime(),
+                Initials = dto.Initials,
+                Kind = kind,
+                Callsign = dto.Callsign,
+                Message = dto.Message,
+            });
+        });
+    }
+
     // --- Event handlers ---
 
     private void OnAircraftUpdated(AircraftDto dto)
@@ -711,6 +784,7 @@ public partial class MainViewModel : ObservableObject
                         Aircraft.Add(DtoToModel(dto));
                     }
                     StatusText = "Reconnected to scenario";
+                    AddSystemEntry("Reconnected to scenario");
                 }
                 else
                 {

@@ -18,30 +18,42 @@ public sealed class UserPreferences
     };
 
     private CommandScheme _commandScheme;
+    private string _userInitials = "";
     private bool _isAdminMode;
     private string _adminPassword = "";
     private SavedWindowGeometry? _mainWindowGeometry;
     private SavedWindowGeometry? _settingsWindowGeometry;
+    private SavedWindowGeometry? _terminalWindowGeometry;
 
     public UserPreferences()
     {
         var saved = Load();
         _commandScheme = saved.Scheme ?? CommandScheme.AtcTrainer();
+        _userInitials = saved.UserInitials;
         _isAdminMode = saved.IsAdmin;
         _adminPassword = saved.AdminPassword;
         _mainWindowGeometry = saved.MainWindowGeometry;
         _settingsWindowGeometry = saved.SettingsWindowGeometry;
+        _terminalWindowGeometry = saved.TerminalWindowGeometry;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
+    public string UserInitials => _userInitials;
     public bool IsAdminMode => _isAdminMode;
     public string AdminPassword => _adminPassword;
     public SavedWindowGeometry? MainWindowGeometry => _mainWindowGeometry;
     public SavedWindowGeometry? SettingsWindowGeometry => _settingsWindowGeometry;
+    public SavedWindowGeometry? TerminalWindowGeometry => _terminalWindowGeometry;
 
     public void SetCommandScheme(CommandScheme scheme)
     {
         _commandScheme = scheme;
+        Save();
+    }
+
+    public void SetUserInitials(string initials)
+    {
+        _userInitials = initials.ToUpperInvariant();
         Save();
     }
 
@@ -61,6 +73,9 @@ public sealed class UserPreferences
                 break;
             case "Settings":
                 _settingsWindowGeometry = geometry;
+                break;
+            case "Terminal":
+                _terminalWindowGeometry = geometry;
                 break;
         }
         Save();
@@ -83,10 +98,12 @@ public sealed class UserPreferences
             return new LoadedPrefs
             {
                 Scheme = scheme,
+                UserInitials = saved?.UserInitials ?? "",
                 IsAdmin = saved?.IsAdminMode ?? false,
                 AdminPassword = saved?.AdminPassword ?? "",
                 MainWindowGeometry = saved?.MainWindowGeometry,
                 SettingsWindowGeometry = saved?.SettingsWindowGeometry,
+                TerminalWindowGeometry = saved?.TerminalWindowGeometry,
             };
         }
         catch (JsonException)
@@ -98,10 +115,12 @@ public sealed class UserPreferences
     private sealed class LoadedPrefs
     {
         public CommandScheme? Scheme { get; init; }
+        public string UserInitials { get; init; } = "";
         public bool IsAdmin { get; init; }
         public string AdminPassword { get; init; } = "";
         public SavedWindowGeometry? MainWindowGeometry { get; init; }
         public SavedWindowGeometry? SettingsWindowGeometry { get; init; }
+        public SavedWindowGeometry? TerminalWindowGeometry { get; init; }
     }
 
     private void Save()
@@ -111,10 +130,12 @@ public sealed class UserPreferences
         var saved = new SavedPrefs
         {
             CommandScheme = ToSaved(_commandScheme),
+            UserInitials = _userInitials,
             IsAdminMode = _isAdminMode,
             AdminPassword = _adminPassword,
             MainWindowGeometry = _mainWindowGeometry,
             SettingsWindowGeometry = _settingsWindowGeometry,
+            TerminalWindowGeometry = _terminalWindowGeometry,
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
@@ -183,10 +204,12 @@ public sealed class UserPreferences
     private sealed class SavedPrefs
     {
         public SavedCommandScheme? CommandScheme { get; set; }
+        public string UserInitials { get; set; } = "";
         public bool IsAdminMode { get; set; }
         public string AdminPassword { get; set; } = "";
         public SavedWindowGeometry? MainWindowGeometry { get; set; }
         public SavedWindowGeometry? SettingsWindowGeometry { get; set; }
+        public SavedWindowGeometry? TerminalWindowGeometry { get; set; }
     }
 
     private sealed class SavedCommandScheme

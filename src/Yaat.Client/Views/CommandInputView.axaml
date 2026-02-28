@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Yaat.Client.ViewModels"
+             x:Class="Yaat.Client.Views.CommandInputView">
+
+    <Grid Margin="0,8,0,0"
+          ColumnDefinitions="Auto,*,Auto,Auto">
+
+        <!-- Selected aircraft label -->
+        <TextBlock Grid.Column="0"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0"
+                   FontWeight="Bold"
+                   Text="{Binding SelectedAircraft.Callsign,
+                          FallbackValue='(none)',
+                          TargetNullValue='(none)'}" />
+
+        <!-- Command input with autocomplete popup -->
+        <Panel Grid.Column="1">
+            <TextBox Text="{Binding CommandText}"
+                     Watermark="Enter command (FH 270, CM 240...)"
+                     x:Name="CommandInput" />
+            <Popup IsOpen="{Binding CommandInput.IsSuggestionsVisible}"
+                   PlacementTarget="{Binding #CommandInput}"
+                   Placement="Top"
+                   IsLightDismissEnabled="False"
+                   MaxHeight="240"
+                   Width="{Binding #CommandInput.Bounds.Width}">
+                <Border Background="#2D2D30"
+                        BorderBrush="#3F3F46"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <ListBox ItemsSource="{Binding
+                                 CommandInput.Suggestions}"
+                             SelectedIndex="{Binding
+                                 CommandInput.SelectedSuggestionIndex}"
+                             Focusable="False"
+                             x:Name="SuggestionList"
+                             Background="Transparent"
+                             Padding="2">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <TextBlock Grid.Column="0"
+                                        Text="{Binding Text}"
+                                        Foreground="{Binding Kind,
+                                            Converter={x:Static
+                                            vm:SuggestionKindColorConverter.Instance}}"
+                                        FontWeight="Bold"
+                                        FontFamily="Consolas"
+                                        Margin="4,2" />
+                                    <TextBlock Grid.Column="1"
+                                        Text="{Binding Description}"
+                                        Foreground="Gray"
+                                        Margin="8,2,4,2" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Popup>
+        </Panel>
+
+        <!-- Sim controls -->
+        <Button Grid.Column="2"
+                Margin="8,0,0,0"
+                Content="{Binding IsPaused,
+                    Converter={x:Static
+                    vm:PauseButtonConverter.Instance}}"
+                Command="{Binding TogglePauseCommand}" />
+
+        <ComboBox Grid.Column="3"
+                  Margin="8,0,0,0"
+                  ItemsSource="{Binding SimRateOptions}"
+                  SelectedIndex="{Binding SelectedSimRateIndex}"
+                  MinWidth="70">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding StringFormat='{}{0}x'}" />
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+    </Grid>
+</UserControl>

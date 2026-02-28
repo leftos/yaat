@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Yaat.Client.ViewModels"
+             xmlns:models="using:Yaat.Client.Models"
+             x:Class="Yaat.Client.Views.TerminalPanelView">
+
+    <DockPanel>
+
+        <!-- Header -->
+        <Grid DockPanel.Dock="Top"
+              ColumnDefinitions="*,Auto"
+              Margin="4,2">
+            <TextBlock Grid.Column="0"
+                       Text="Terminal"
+                       FontWeight="Bold"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Foreground="Gray" />
+            <Button Grid.Column="1"
+                    Content="{Binding IsTerminalDocked,
+                        Converter={x:Static vm:DockButtonConverter.Instance}}"
+                    Command="{Binding ToggleTerminalDockCommand}"
+                    FontSize="11"
+                    Padding="6,2" />
+        </Grid>
+
+        <!-- Scrolling terminal entries -->
+        <ScrollViewer x:Name="TerminalScroll"
+                      Background="#1A1A1E"
+                      Padding="4">
+            <ItemsControl ItemsSource="{Binding TerminalEntries}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:TerminalEntry">
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,1">
+                            <TextBlock Text="{Binding Timestamp,
+                                           StringFormat='{}{0:HH:mm:ss}'}"
+                                       Foreground="Gray"
+                                       FontFamily="Consolas"
+                                       FontSize="12"
+                                       Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Initials}"
+                                       Foreground="CornflowerBlue"
+                                       FontFamily="Consolas"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Margin="0,0,6,0"
+                                       MinWidth="20"
+                                       IsVisible="{Binding Initials,
+                                           Converter={x:Static
+                                           StringConverters.IsNotNullOrEmpty}}" />
+                            <TextBlock Text="{Binding Callsign}"
+                                       Foreground="Gold"
+                                       FontFamily="Consolas"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Margin="0,0,6,0"
+                                       IsVisible="{Binding Callsign,
+                                           Converter={x:Static
+                                           StringConverters.IsNotNullOrEmpty}}" />
+                            <TextBlock Text="{Binding Message}"
+                                       Foreground="{Binding Kind,
+                                           Converter={x:Static
+                                           vm:TerminalEntryColorConverter.Instance}}"
+                                       FontFamily="Consolas"
+                                       FontSize="12"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+    </DockPanel>
+</UserControl>

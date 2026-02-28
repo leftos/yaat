@@ -36,6 +36,7 @@ public sealed class WindowGeometryHelper
         {
             "Main" => _preferences.MainWindowGeometry,
             "Settings" => _preferences.SettingsWindowGeometry,
+            "Terminal" => _preferences.TerminalWindowGeometry,
             _ => null,
         };
 

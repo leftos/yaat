@@ -29,9 +29,20 @@
 
             <!-- General tab -->
             <TabItem Header="General">
-                <StackPanel Margin="12">
-                    <TextBlock Text="General settings will appear here."
-                               Classes="subtle" />
+                <StackPanel Margin="12" Spacing="12">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Your Initials (2 letters):"
+                                   Foreground="Gray" />
+                        <TextBox Text="{Binding UserInitials}"
+                                 MaxLength="2"
+                                 Watermark="e.g. AB"
+                                 Width="80"
+                                 HorizontalAlignment="Left" />
+                        <TextBlock Text="Required before connecting. Shown in the terminal panel so other RPOs can see who issued each command."
+                                   TextWrapping="Wrap"
+                                   Foreground="Gray"
+                                   FontSize="11" />
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
 
