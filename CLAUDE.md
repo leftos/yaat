@@ -341,7 +341,7 @@ The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw W
 
 - **yaat-server** (`X:\dev\yaat-server`) — ASP.NET Core 10 server with simulation engine, CRC protocol, training hub
 - **vatsim-server-rs** (`X:\dev\vatsim-server-rs`) — Rust reference implementation for CRC protocol (DTO field ordering, varint framing)
-- **lc-trainer** (`X:\dev\lc-trainer`) — Previous WPF ATC trainer (reference for flight physics, scenario format)
+- **lc-trainer** (`X:\dev\lc-trainer`) — Previous WPF ATC trainer (reference for flight physics, scenario format). ATCTrainer scenario JSON examples at `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 
 > **lc-trainer is NOT a trusted reference.** It is WIP, flawed, and unreviewed. It may be used as inspiration but every aviation detail drawn from it MUST be reviewed by the `aviation-sim-expert` agent. Do not port code from lc-trainer without independent validation. Prefer a fresh, well-organized approach over copying its patterns.
 
