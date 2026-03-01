@@ -104,11 +104,11 @@ internal static class VicePreset
                 [CanonicalCommandType.ContactTcp] = new() { Aliases = ["CT"], Format = "{verb}{arg}" },
                 [CanonicalCommandType.ContactTower] = new() { Aliases = ["TO"], Format = "{verb}" },
                 // Coordination
-                [CanonicalCommandType.CoordinationRelease] = new() { Aliases = ["RLS"], Format = "{verb} {arg?}" },
-                [CanonicalCommandType.CoordinationHold] = new() { Aliases = ["RLSH"], Format = "{verb} {arg?}" },
-                [CanonicalCommandType.CoordinationRecall] = new() { Aliases = ["RLSR"], Format = "{verb} {arg?}" },
-                [CanonicalCommandType.CoordinationAcknowledge] = new() { Aliases = ["RLSACK"], Format = "{verb} {arg?}" },
-                [CanonicalCommandType.CoordinationAutoAck] = new() { Aliases = ["RLSAUTO"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.CoordinationRelease] = new() { Aliases = ["RD"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.CoordinationHold] = new() { Aliases = ["RDH"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.CoordinationRecall] = new() { Aliases = ["RDR"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.CoordinationAcknowledge] = new() { Aliases = ["RDACK"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.CoordinationAutoAck] = new() { Aliases = ["RDAUTO"], Format = "{verb} {arg}" },
                 // Broadcast
                 [CanonicalCommandType.Say] = new() { Aliases = ["SAY"], Format = "{verb} {arg}" },
             },

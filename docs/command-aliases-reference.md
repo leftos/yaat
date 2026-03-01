@@ -216,13 +216,13 @@ YAAT-specific commands for STARS departure release coordination (rundown lists).
 
 | Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
 |---|---|---|---|---|
-| **Release (Rundown)** | — | — | RLS | RLS |
-| **Hold Release** | — | — | RLSH | RLSH |
-| **Recall Release** | — | — | RLSR | RLSR |
-| **Acknowledge Release** | — | — | RLSACK | RLSACK |
-| **Toggle Auto-Ack** | — | — | RLSAUTO | RLSAUTO |
+| **Release (Rundown)** | — | — | RD | RD |
+| **Hold Release** | — | — | RDH | RDH |
+| **Recall Release** | — | — | RDR | RDR |
+| **Acknowledge Release** | — | — | RDACK | RDACK |
+| **Toggle Auto-Ack** | — | — | RDAUTO | RDAUTO |
 
-> **Note:** `RLS`, `RLSH`, `RLSR`, and `RLSACK` take an optional list ID argument (e.g., `RLS PFAT`). When omitted, the server auto-detects the list from the sender/receiver TCP. `RLSAUTO` requires a list ID and is a global command (no callsign needed).
+> **Note:** `RD`, `RDH`, `RDR`, and `RDACK` take an optional list ID argument (e.g., `RD PFAT`). When omitted, the server auto-detects the list from the sender/receiver TCP. `RDACK` works without a list ID even when the TCP belongs to multiple lists, as long as there is only one unacknowledged release across all lists. `RDAUTO` requires a list ID and is a global command (no callsign needed).
 
 ## VFR (not implemented)
 

@@ -184,7 +184,7 @@ src/Yaat.Server/
     SimulationHostedService.cs # Thin orchestrator: 1s tick loop iterating rooms
     TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, auto-accept, coordination timers)
     TrackCommandHandler.cs     # Stateless track command logic (HO, ACCEPT, DROP, etc.)
-    CoordinationCommandHandler.cs # Stateless coordination logic (RLS, RLSH, RLSR, RLSACK, RLSAUTO)
+    CoordinationCommandHandler.cs # Stateless coordination logic (RD, RDH, RDR, RDACK, RDAUTO)
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic
     TrainingBroadcastService.cs # SignalR hub context wrapper for training clients
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch
@@ -227,7 +227,7 @@ src/Yaat.Server/
 
 **Track commands** (TRACK, DROP, HO, ACCEPT, etc.) bypass CommandDispatcher — RoomEngine routes to TrackCommandHandler, mutating ownership fields. `AS` prefix resolves RPO identity.
 
-**Coordination commands** (RLS, RLSH, RLSR, RLSACK, RLSAUTO) bypass CommandDispatcher — RoomEngine routes to CoordinationCommandHandler. Coordination channels are loaded from ARTCC config on scenario load. Items auto-expire (5min after ack, 2min warning) and are removed on radar acquisition (TRACK).
+**Coordination commands** (RD, RDH, RDR, RDACK, RDAUTO) bypass CommandDispatcher — RoomEngine routes to CoordinationCommandHandler. Coordination channels are loaded from ARTCC config on scenario load. Items auto-expire (5min after ack, 2min warning) and are removed on radar acquisition (TRACK).
 
 ### Command Rules
 
