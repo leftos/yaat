@@ -467,20 +467,12 @@ public static class GeoJsonParser
                 double holdShortOffsetNm = ComputeHoldShortOffset(
                     taxiBearing, rwyBearing, holdShortFromCenterlineFt);
 
-                // Clamp offset so nodes don't land beyond the edge endpoints
-                double distToFrom = GeoMath.DistanceNm(
-                    intLat, intLon, fromNode.Latitude, fromNode.Longitude);
-                double distToTo = GeoMath.DistanceNm(
-                    intLat, intLon, toNode.Latitude, toNode.Longitude);
-                double fromSideOffset = Math.Min(holdShortOffsetNm, distToFrom * 0.8);
-                double toSideOffset = Math.Min(holdShortOffsetNm, distToTo * 0.8);
-
                 // Hold-short node on the from-node side (approach from fromNode direction)
                 var (hsALat, hsALon) = FlightPhysics.ProjectPoint(
-                    intLat, intLon, taxiBearing + 180.0, fromSideOffset);
+                    intLat, intLon, taxiBearing + 180.0, holdShortOffsetNm);
                 // Hold-short node on the to-node side (approach from toNode direction)
                 var (hsBLat, hsBLon) = FlightPhysics.ProjectPoint(
-                    intLat, intLon, taxiBearing, toSideOffset);
+                    intLat, intLon, taxiBearing, holdShortOffsetNm);
 
                 int hsAId = nextNodeId++;
                 var hsANode = new GroundNode
