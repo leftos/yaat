@@ -527,6 +527,32 @@ public partial class MainViewModel : ObservableObject
             CommandText = "";
             return;
         }
+        if (parsed.Type is CanonicalCommandType.SquawkAll
+            or CanonicalCommandType.SquawkNormalAll
+            or CanonicalCommandType.SquawkStandbyAll)
+        {
+            var verb = parsed.Type switch
+            {
+                CanonicalCommandType.SquawkAll => "SQALL",
+                CanonicalCommandType.SquawkNormalAll => "SNALL",
+                CanonicalCommandType.SquawkStandbyAll => "SSALL",
+                _ => "",
+            };
+            try
+            {
+                await _connection.SendCommandAsync("", verb, _preferences.UserInitials);
+                AddHistory(verb);
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "{Verb} failed", verb);
+                StatusText = $"{verb} error: {ex.Message}";
+            }
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+            return;
+        }
         if (parsed.Type == CanonicalCommandType.Add)
         {
             if (string.IsNullOrWhiteSpace(parsed.Argument))
@@ -561,7 +587,9 @@ public partial class MainViewModel : ObservableObject
     private static bool IsGlobalCommand(CanonicalCommandType type)
     {
         return type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause
-            or CanonicalCommandType.SimRate or CanonicalCommandType.Add;
+            or CanonicalCommandType.SimRate or CanonicalCommandType.Add
+            or CanonicalCommandType.SquawkAll or CanonicalCommandType.SquawkNormalAll
+            or CanonicalCommandType.SquawkStandbyAll;
     }
 
     /// <summary>

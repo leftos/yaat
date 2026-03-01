@@ -207,6 +207,10 @@ public static class CommandDispatcher
                 aircraft.BeaconCode = cmd.Code;
                 return Ok($"Squawk {cmd.Code:D4}");
 
+            case SquawkResetCommand:
+                aircraft.BeaconCode = aircraft.AssignedBeaconCode;
+                return Ok($"Squawk {aircraft.AssignedBeaconCode:D4}");
+
             case SquawkVfrCommand:
                 aircraft.BeaconCode = 1200;
                 return Ok("Squawk VFR");
@@ -221,7 +225,12 @@ public static class CommandDispatcher
 
             case IdentCommand:
                 aircraft.IsIdenting = true;
+                aircraft.IdentStartedAt = DateTime.UtcNow;
                 return Ok("Ident");
+
+            case RandomSquawkCommand:
+                aircraft.BeaconCode = SimulationWorld.GenerateBeaconCode();
+                return Ok($"Squawk {aircraft.BeaconCode:D4}");
 
             case WaitCommand cmd:
                 return Ok($"Wait {cmd.Seconds} seconds");

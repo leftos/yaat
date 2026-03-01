@@ -23,12 +23,15 @@ internal static class VicePreset
                 [CanonicalCommandType.DescendMaintain] = new() { Aliases = ["D"], Format = "{verb}{arg}" },
                 [CanonicalCommandType.Speed] = new() { Aliases = ["S"], Format = "{verb}{arg}" },
                 // Transponder
-                [CanonicalCommandType.Squawk] = new() { Aliases = ["SQ"], Format = "{verb}{arg}" },
-                [CanonicalCommandType.SquawkIdent] = new() { Aliases = ["SQI"], Format = "{verb}" },
+                [CanonicalCommandType.Squawk] = new() { Aliases = ["SQ"], Format = "{verb}{arg?}" },
                 [CanonicalCommandType.SquawkVfr] = new() { Aliases = ["SQVFR"], Format = "{verb}" },
                 [CanonicalCommandType.SquawkNormal] = new() { Aliases = ["SQNORM", "SQA", "SQON"], Format = "{verb}" },
                 [CanonicalCommandType.SquawkStandby] = new() { Aliases = ["SQSBY", "SQS"], Format = "{verb}" },
-                [CanonicalCommandType.Ident] = new() { Aliases = ["IDENT", "ID"], Format = "{verb}" },
+                [CanonicalCommandType.Ident] = new() { Aliases = ["IDENT", "ID", "SQI"], Format = "{verb}" },
+                [CanonicalCommandType.RandomSquawk] = new() { Aliases = ["RANDSQ"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkAll] = new() { Aliases = ["SQALL"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkNormalAll] = new() { Aliases = ["SNALL"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkStandbyAll] = new() { Aliases = ["SSALL"], Format = "{verb}" },
                 // Navigation
                 [CanonicalCommandType.DirectTo] = new() { Aliases = ["DCT"], Format = "{verb} {arg}" },
                 // Tower (VICE has no tower commands; these use ATCTrainer verbs)

@@ -57,15 +57,16 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 | Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
 |---|---|---|---|---|
 | **Squawk** | SQ, SQUAWK | SQ{code} | SQ, SQUAWK | SQ |
-| **Squawk Ident** | SQI, SQID | — | SQI, SQID | SQI |
 | **Squawk VFR** | SQV | — | SQVFR, SQV | SQVFR |
 | **Squawk Normal** | SN | SQA, SQON | SQNORM, SN | SQNORM, SQA, SQON |
 | **Squawk Standby** | SS | SQS | SQSBY, SS | SQSBY, SQS |
-| **Ident** | ID | ID | IDENT, ID | IDENT, ID |
-| Random Squawk | RANDSQ | — | — | — |
-| Squawk All | SQALL | — | — | — |
-| Squawk Normal All | SNALL | — | — | — |
-| Squawk Standby All | SSALL | — | — | — |
+| **Ident** | ID, SQI, SQID | ID | IDENT, ID, SQI, SQID | IDENT, ID, SQI |
+| **Random Squawk** | RANDSQ | — | RANDSQ | RANDSQ |
+| **Squawk All** | SQALL | — | SQALL | SQALL |
+| **Squawk Normal All** | SNALL | — | SNALL | SNALL |
+| **Squawk Standby All** | SSALL | — | SSALL | SSALL |
+
+> **Note:** `SQ` with no argument resets the aircraft to its flight-plan-assigned squawk code. `SQ 1234` sets only the actual transponder code (the assigned code in the flight plan remains unchanged). `RANDSQ` generates a random actual code without changing the assigned code. `SQALL` resets all aircraft to their assigned codes. `SNALL` and `SSALL` set all aircraft to mode C or standby. Ident auto-clears after 18 seconds.
 
 ## Navigation
 

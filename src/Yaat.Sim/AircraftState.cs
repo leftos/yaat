@@ -15,6 +15,7 @@ public class AircraftState
     public double Altitude { get; set; }
     public double GroundSpeed { get; set; }
     public double VerticalSpeed { get; set; }
+    public uint AssignedBeaconCode { get; set; }
     public uint BeaconCode { get; set; }
     public string Departure { get; set; } = "";
     public string Destination { get; set; } = "";
@@ -25,6 +26,7 @@ public class AircraftState
     public int CruiseSpeed { get; set; }
     public string TransponderMode { get; set; } = "C";
     public bool IsIdenting { get; set; }
+    public DateTime? IdentStartedAt { get; set; }
     public bool IsOnGround { get; set; }
     public ControlTargets Targets { get; } = new();
     public CommandQueue Queue { get; set; } = new();

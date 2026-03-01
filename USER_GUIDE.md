@@ -126,11 +126,12 @@ YAAT supports two command schemes, switchable in Settings:
 | Descend and maintain | `DM 050` | `D050` |
 | Speed | `SPD 250` | `S250` |
 | Squawk | `SQ 4521` | `SQ4521` |
-| Squawk ident | `SQI` | `SQI` |
+| Squawk (reset) | `SQ` | `SQ` |
 | Squawk VFR | `SQVFR` | `SQVFR` |
 | Squawk normal | `SQNORM` | `SQNORM` |
 | Squawk standby | `SQSBY` | `SQSBY` |
-| Ident | `IDENT` | `IDENT` |
+| Ident | `IDENT` / `SQI` | `IDENT` / `SQI` |
+| Random squawk | `RANDSQ` | `RANDSQ` |
 | Direct to fix | `DCT SUNOL` | `DCT SUNOL` |
 | Pushback | `PUSH` | `PUSH` |
 | Taxi | `TAXI S T U` | `TAXI S T U` |
@@ -476,6 +477,9 @@ These commands don't require an aircraft selection:
 | `UNPAUSE` | Resume the simulation |
 | `SIMRATE <n>` | Set simulation speed (1, 2, 4, 8, 16) |
 | `ADD ...` | Spawn an aircraft (see above) |
+| `SQALL` | Reset all aircraft to their assigned squawk codes |
+| `SNALL` | Set all aircraft transponders to mode C (normal) |
+| `SSALL` | Set all aircraft transponders to standby |
 
 The pause/unpause button and sim rate dropdown in the bottom bar also control these.
 

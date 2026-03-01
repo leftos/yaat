@@ -23,12 +23,15 @@ internal static class AtcTrainerPreset
                 [CanonicalCommandType.DescendMaintain] = new() { Aliases = ["DM"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.Speed] = new() { Aliases = ["SPD", "SLOW", "SL", "SPEED"], Format = "{verb} {arg}" },
                 // Transponder
-                [CanonicalCommandType.Squawk] = new() { Aliases = ["SQ", "SQUAWK"], Format = "{verb} {arg}" },
-                [CanonicalCommandType.SquawkIdent] = new() { Aliases = ["SQI", "SQID"], Format = "{verb}" },
+                [CanonicalCommandType.Squawk] = new() { Aliases = ["SQ", "SQUAWK"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.SquawkVfr] = new() { Aliases = ["SQVFR", "SQV"], Format = "{verb}" },
                 [CanonicalCommandType.SquawkNormal] = new() { Aliases = ["SQNORM", "SN"], Format = "{verb}" },
                 [CanonicalCommandType.SquawkStandby] = new() { Aliases = ["SQSBY", "SS"], Format = "{verb}" },
-                [CanonicalCommandType.Ident] = new() { Aliases = ["IDENT", "ID"], Format = "{verb}" },
+                [CanonicalCommandType.Ident] = new() { Aliases = ["IDENT", "ID", "SQI", "SQID"], Format = "{verb}" },
+                [CanonicalCommandType.RandomSquawk] = new() { Aliases = ["RANDSQ"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkAll] = new() { Aliases = ["SQALL"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkNormalAll] = new() { Aliases = ["SNALL"], Format = "{verb}" },
+                [CanonicalCommandType.SquawkStandbyAll] = new() { Aliases = ["SSALL"], Format = "{verb}" },
                 // Navigation
                 [CanonicalCommandType.DirectTo] = new() { Aliases = ["DCT"], Format = "{verb} {arg}" },
                 // Tower

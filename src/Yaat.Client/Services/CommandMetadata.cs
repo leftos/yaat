@@ -26,11 +26,14 @@ public static class CommandMetadata
         new(CanonicalCommandType.Speed, "Speed", "250", false),
         // Transponder
         new(CanonicalCommandType.Squawk, "Squawk", "1234", false),
-        new(CanonicalCommandType.SquawkIdent, "Squawk Ident", null, false),
         new(CanonicalCommandType.SquawkVfr, "Squawk VFR", null, false),
         new(CanonicalCommandType.SquawkNormal, "Squawk Normal", null, false),
         new(CanonicalCommandType.SquawkStandby, "Squawk Standby", null, false),
         new(CanonicalCommandType.Ident, "Ident", null, false),
+        new(CanonicalCommandType.RandomSquawk, "Random Squawk", null, false),
+        new(CanonicalCommandType.SquawkAll, "Squawk All", null, true),
+        new(CanonicalCommandType.SquawkNormalAll, "Squawk Normal All", null, true),
+        new(CanonicalCommandType.SquawkStandbyAll, "Squawk Standby All", null, true),
         // Navigation
         new(CanonicalCommandType.DirectTo, "Direct To", "FIX", false),
         // Tower

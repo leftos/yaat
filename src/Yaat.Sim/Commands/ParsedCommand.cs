@@ -24,7 +24,7 @@ public record SpeedCommand(int Speed) : ParsedCommand;
 
 public record SquawkCommand(uint Code) : ParsedCommand;
 
-public record SquawkIdentCommand(uint Code) : ParsedCommand;
+public record SquawkResetCommand : ParsedCommand;
 
 public record SquawkVfrCommand : ParsedCommand;
 
@@ -33,6 +33,14 @@ public record SquawkNormalCommand : ParsedCommand;
 public record SquawkStandbyCommand : ParsedCommand;
 
 public record IdentCommand : ParsedCommand;
+
+public record RandomSquawkCommand : ParsedCommand;
+
+public record SquawkAllCommand : ParsedCommand;
+
+public record SquawkNormalAllCommand : ParsedCommand;
+
+public record SquawkStandbyAllCommand : ParsedCommand;
 
 public record DirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
 
