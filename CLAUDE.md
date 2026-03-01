@@ -128,6 +128,8 @@ Commands/CommandDispatcher.cs  # Static. DispatchCompound(): phase interaction (
                                #   Allowed/Rejected/ClearsPhase), builds CommandBlocks with closures.
                                #   ApplyCommand: switch setting ControlTargets per command type.
                                #   TryApplyTowerCommand: delegates to TryXxx helpers per command.
+                               #   TryTaxi: resolves explicit path via TaxiPathfinder (passes
+                               #     IRunwayLookup for variant inference), surfaces failReason
 Commands/CommandDescriber.cs   # Static. Description/classification extracted from CommandDispatcher:
                                #   DescribeCommand (terse), DescribeNatural (human-readable),
                                #   ToCanonicalType, ClassifyCommand, IsTowerCommand, IsGroundCommand
@@ -201,8 +203,17 @@ Data/Airport/AirportGroundLayout.cs     # Graph: Nodes (parking/spot/holdShort/i
 Data/Airport/GroundNode.cs              # {Id, Lat, Lon, Type, Name?, RunwayId?, Edges}
 Data/Airport/GroundEdge.cs              # {From, To, TaxiwayName, DistanceNm, IntermediatePoints}
 Data/Airport/TaxiRoute.cs              # Resolved path: Segments + HoldShortPoints + completion tracking
+                                        # HoldShortReason: RunwayCrossing (implicit), ExplicitHoldShort,
+                                        #   DestinationRunway. ToSummary() for human-readable output
 Data/Airport/TaxiPathfinder.cs         # ResolveExplicitPath (user-specified taxiways), FindRoute (A*)
+                                        # Variant inference: when last taxiway doesn't reach destination
+                                        #   runway, auto-extends via numbered variant (e.g. W→W1).
+                                        #   Picks closest to threshold when multiple variants exist.
+                                        #   Non-variant connectors produce actionable failReason.
+                                        # IsNumberedVariant, RunwayIdMatches (internal, tested)
 Data/Airport/GeoJsonParser.cs          # GeoJSON → AirportGroundLayout (7-step build with snap grid)
+                                        # DetectRunwayCrossings: splices hold-short nodes into taxiway
+                                        #   edges via SplitEdgeAtNode (edge A→B becomes A→HS→B)
 
 # Data/Vnas/ — VNAS data pipeline
 Data/Vnas/VnasDataService.cs   # Downloads NavData protobuf + AircraftSpecs/CWT; serial-based cache
