@@ -145,21 +145,21 @@ public static class CommandDispatcher
 
             case LeftTurnCommand cmd:
                 aircraft.Targets.NavigationRoute.Clear();
-                var leftHdg = NormalizeHeading(aircraft.Heading - cmd.Degrees);
+                var leftHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading - cmd.Degrees);
                 aircraft.Targets.TargetHeading = leftHdg;
                 aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
                 return Ok($"Turn {cmd.Degrees} degrees left, heading {leftHdg:000}");
 
             case RightTurnCommand cmd:
                 aircraft.Targets.NavigationRoute.Clear();
-                var rightHdg = NormalizeHeading(aircraft.Heading + cmd.Degrees);
+                var rightHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading + cmd.Degrees);
                 aircraft.Targets.TargetHeading = rightHdg;
                 aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
                 return Ok($"Turn {cmd.Degrees} degrees right, heading {rightHdg:000}");
 
             case FlyPresentHeadingCommand:
                 aircraft.Targets.NavigationRoute.Clear();
-                aircraft.Targets.TargetHeading = NormalizeHeading(aircraft.Heading);
+                aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
                 aircraft.Targets.PreferredTurnDirection = null;
                 return Ok("Fly present heading");
 
@@ -542,8 +542,8 @@ public static class CommandDispatcher
         {
             // Crosswind heading points toward the pattern side
             double crosswindHdg = direction == PatternDirection.Right
-                ? NormalizeHeading(runway.TrueHeading + 90.0)
-                : NormalizeHeading(runway.TrueHeading - 90.0);
+                ? FlightPhysics.NormalizeHeading(runway.TrueHeading + 90.0)
+                : FlightPhysics.NormalizeHeading(runway.TrueHeading - 90.0);
 
             // Positive = pattern side, negative = wrong side
             double patternSideOffset = FlightPhysics.AlongTrackDistanceNm(
@@ -1152,12 +1152,6 @@ public static class CommandDispatcher
         }
 
         return at.FixName;
-    }
-
-    private static int NormalizeHeading(double heading)
-    {
-        var normalized = ((heading % 360.0) + 360.0) % 360.0;
-        return normalized < 0.5 ? 360 : (int)Math.Round(normalized);
     }
 
     private static string RunwayLabel(AircraftState aircraft)

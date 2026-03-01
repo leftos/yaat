@@ -532,9 +532,15 @@ public static class FlightPhysics
         return angle;
     }
 
-    private static double NormalizeHeading(double heading)
+    internal static double NormalizeHeading(double heading)
     {
         heading = ((heading % 360.0) + 360.0) % 360.0;
         return heading;
+    }
+
+    internal static int NormalizeHeadingInt(double heading)
+    {
+        var normalized = ((heading % 360.0) + 360.0) % 360.0;
+        return normalized < 0.5 ? 360 : (int)Math.Round(normalized);
     }
 }
