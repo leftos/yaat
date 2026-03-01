@@ -40,6 +40,11 @@
                 <MenuItem Header="_Leave Room"
                           Command="{Binding LeaveRoomCommand}" />
             </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem Header="_Active Only"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding FilterActiveOnly}" />
+            </MenuItem>
             <MenuItem Header="_Scenario">
                 <MenuItem Header="_Load Scenario..."
                           x:Name="LoadScenarioMenuItem" />
@@ -63,15 +68,8 @@
             IsVisible="{Binding IsTerminalDocked}" />
 
         <!-- Center: DataGrid + Terminal with splitter -->
-        <Grid Margin="8,4,8,0" RowDefinitions="Auto,3*,Auto,*">
-            <ToggleButton Grid.Row="0"
-                          IsChecked="{Binding FilterActiveOnly}"
-                          Content="Active Only"
-                          Padding="8,2"
-                          Margin="0,0,0,4"
-                          FontSize="11"
-                          HorizontalAlignment="Left" />
-            <DataGrid Grid.Row="1"
+        <Grid Margin="8,4,8,0" RowDefinitions="3*,Auto,*">
+            <DataGrid Grid.Row="0"
                       x:Name="AircraftGrid"
                       ItemsSource="{Binding AircraftView}"
                       SelectedItem="{Binding SelectedAircraft}"
@@ -253,12 +251,12 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <GridSplitter Grid.Row="2"
+            <GridSplitter Grid.Row="1"
                           Height="6"
                           Background="#3F3F46"
                           IsVisible="{Binding IsTerminalDocked}" />
 
-            <views:TerminalPanelView Grid.Row="3"
+            <views:TerminalPanelView Grid.Row="2"
                 IsVisible="{Binding IsTerminalDocked}" />
         </Grid>
 
