@@ -270,6 +270,12 @@ YAAT Client ──SignalR JSON──> yaat-server <──SignalR+MessagePack─�
 - Config: `https://configuration.vnas.vatsim.net/` (serials, URLs, environment endpoints)
 - Data: `https://data-api.vnas.vatsim.net/api/artccs/{id}` (full ARTCC facility config)
 
+## Reference Docs
+
+- `docs/atctrainer-scenario-examples/` — 9 real ATCTrainer scenario JSON files (all "Easy" difficulty). Use as reference for scenario format when building scenario loading/parsing.
+- `docs/crc/` — CRC (Consolidated Radar Client) controller manual pages scraped from vNAS docs. Covers overview, STARS terminal radar, Tower Cab mode, and vStrips. Use as reference for understanding CRC display behavior and terminology when implementing CRC protocol features.
+- `docs/vnas-artcc-config-examples/` — Real vNAS ARTCC configuration JSON files (e.g., `zoa.json`). Contains facility hierarchy, positions, TCPs, STARS lists with coordination channels, ASDEX/TowerCab configs. Use as reference for parsing ARTCC API responses and understanding coordination channel adaptation.
+
 ## Aviation Realism — MANDATORY
 
 **Every feature touching aviation must be reviewed by `aviation-sim-expert`** (via `Agent` with `subagent_type: "aviation-sim-expert"`). This is not optional.
