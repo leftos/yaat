@@ -22,6 +22,8 @@ The solution uses `.slnx` format (`yaat.slnx`). If your IDE doesn't support `.sl
 
 ## Architecture
 
+> **Keep this section up-to-date.** Before each git commit, review the Architecture section and update it to reflect any structural changes (new files, renamed files, moved responsibilities, new patterns). Outdated architecture docs mislead both developers and LLMs.
+
 Three projects across two repos. **Yaat.Sim** is the shared simulation library referenced by both Yaat.Client and yaat-server.
 
 **Yaat.Sim owns all simulation and aviation logic.** Flight physics, phase behavior, pattern geometry, performance constants, command dispatching, command queue — everything aviation or simulation belongs in Yaat.Sim. The server is a thin comms layer. If server code makes aviation decisions, move it to Yaat.Sim.

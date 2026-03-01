@@ -18,7 +18,7 @@ Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 - [x] `artccId` — parsed (used for VNAS data context)
 - [x] `aircraft[]` — loaded into simulation (see per-aircraft fields below)
 - [x] `initializationTriggers[]` — queued and fired at time offsets (SQALL supported)
-- [~] `aircraftGenerators[]` — deserialized as stub (`Id` only); emits warning "deferred to M4"
+- [~] `aircraftGenerators[]` — deserialized as stub (`Id` only); emits warning "deferred to M8"
 - [~] `atc[]` — deserialized (artccId, facilityId, positionId, autoConnect, autoTrackAirportIds) but not used
 - [x] `primaryAirportId` — stored on session, sent to client
 - [~] `primaryApproach` — parsed but not used
@@ -42,7 +42,7 @@ Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 - [x] `spawnDelay` — aircraft with delay>0 go into delayed spawn queue
 - [x] `airportId` — used to resolve runway for OnRunway/OnFinal
 - [~] `difficulty` — parsed but not used
-- [~] `autoTrackConditions` — parsed (positionId, handoffDelay, scratchPad, clearedAltitude) but not used
+- [~] `autoTrackConditions` — parsed (positionId, handoffDelay, clearedAltitude) but not used; `scratchPad` field missing from model (to be added in M4)
 - [~] `expectedApproach` — parsed but not used
 
 ---
@@ -165,10 +165,10 @@ Deserialized as stub (only `Id`). Full schema fields silently dropped:
 2. **Navigation path as route** — aircraft should fly the path, not just point toward first fix
 3. **`onAltitudeProfile`** — VNAV descent along STAR altitude constraints
 4. **Timed preset commands** (`timeOffset > 0`) — schedule commands after spawn
-5. **Aircraft generators** (M4) — procedural traffic generation
+5. **Aircraft generators** (M8) — procedural traffic generation
 6. **`heading` field** — explicit heading for Coordinates type (override navigationPath heading)
 7. **`distanceFromRunway`** — OnFinal spawn distance from threshold
 8. **`remarks`** — flight plan remarks (CALLSIGN, equipment, etc.)
-9. **ATC positions / auto-track** — simulated controller handoffs and tracking
+9. **ATC positions / auto-track** (M4) — STARS track ownership, handoffs, and auto-track from scenarios
 10. **Auto-delete mode** — auto-remove aircraft on landing or parking
 11. **Flight strip configurations** — pre-arranged flight strip display

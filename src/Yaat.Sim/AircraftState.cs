@@ -35,4 +35,19 @@ public class AircraftState
     public string? ParkingSpot { get; set; }
     public string? CurrentTaxiway { get; set; }
     public bool IsHeld { get; set; }
+
+    // Track operations state
+    public TrackOwner? Owner { get; set; }
+    public TrackOwner? HandoffPeer { get; set; }
+    public TrackOwner? HandoffRedirectedBy { get; set; }
+    public StarsPointout? Pointout { get; set; }
+    public string? Scratchpad1 { get; set; }
+    public string? Scratchpad2 { get; set; }
+    public int? TemporaryAltitude { get; set; }
+    public bool IsAnnotated { get; set; }
+    public bool FrequencyChangeApproved { get; set; }
+    public string? ContactPosition { get; set; }
+    public bool OnHandoff { get; set; }
+    public DateTime? HandoffInitiatedAt { get; set; }
+    public int? AssignedAltitude { get; set; }
 }

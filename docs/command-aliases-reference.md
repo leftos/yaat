@@ -185,28 +185,29 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 >
 > SPAWN and DELAY are YAAT-specific commands for controlling delayed aircraft spawns. SPAWN immediately spawns a delayed aircraft; DELAY sets a new spawn countdown in seconds (accepts M:SS format, e.g., `DELAY 2:00`).
 
-## ATC / Handoff (not implemented)
+## Track Operations
 
-| Command | ATCTrainer doc | VICE doc |
-|---|---|---|
-| Accept | ACCEPT, A | — |
-| Accept All | ACCEPTALL | — |
-| Handoff | HO | — |
-| Handoff All | HOALL | — |
-| Cancel Handoff | CANCEL | — |
-| Point Out | PO | — |
-| Drop | DROP | — |
-| Track | TRACK | — |
-| OK | OK | — |
-| Annotate | ANNOTATE, AN, BOX | — |
-| Scratchpad | SCRATCHPAD, SP | — |
-| Temporary Altitude | TEMPALT, TA, TEMP, QQ | — |
-| Cruise | CRUISE, QZ | — |
-| Strip | STRIP | — |
-| On Handoff | ONHO, ONH | — |
-| Frequency Change | — | FC |
-| Contact TCP | — | CT{tcp} |
-| Contact Tower | — | TO |
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Act As Position** | AS | — | AS | AS |
+| **Track** | TRACK | — | TRACK | TRACK |
+| **Drop Track** | DROP | — | DROP | DROP |
+| **Handoff** | HO | — | HO | HO |
+| **Accept Handoff** | ACCEPT, A | — | ACCEPT, A | ACCEPT |
+| **Cancel Handoff** | CANCEL | — | CANCEL | CANCEL |
+| **Accept All Handoffs** | ACCEPTALL | — | ACCEPTALL | ACCEPTALL |
+| **Handoff All** | HOALL | — | HOALL | HOALL |
+| **Point Out** | PO | — | PO | PO |
+| **Acknowledge** | OK | — | OK | OK |
+| **Annotate** | ANNOTATE, AN, BOX | — | ANNOTATE, AN, BOX | ANNOTATE |
+| **Scratchpad** | SCRATCHPAD, SP | — | SCRATCHPAD, SP | SP |
+| **Temporary Altitude** | TEMPALT, TA, TEMP, QQ | — | TEMPALT, TA, TEMP, QQ | TA |
+| **Cruise** | CRUISE, QZ | — | CRUISE, QZ | CRUISE |
+| **On Handoff** | ONHO, ONH | — | ONHO, ONH | ONHO |
+| **Frequency Change** | — | FC | FC | FC |
+| **Contact Position** | — | CT{tcp} | CT | CT |
+| **Contact Tower** | — | TO | TO | TO |
+| Strip | STRIP | — | — | — |
 
 ## VFR (not implemented)
 

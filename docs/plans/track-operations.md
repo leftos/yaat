@@ -18,11 +18,17 @@ M4 adds STARS track ownership, handoffs, point-outs, and related operations. Thi
 
 **RPO identity from ARTCC config.** The scenario's `studentPositionId` (a vNAS ULID) is resolved against `ArtccConfigService` to build the RPO's `TrackOwner` (callsign, facilityId, subset, sectorId).
 
+**RPO can act as any position.** The RPO defaults to the student position but can emulate any `atc[]` position using the `AS` command:
+- **Standalone** `AS 2B` — sets the RPO's active position persistently (until changed or reset)
+- **Prefix** `N135BS AS 2B HO 3Y` — acts as 2B for this one command only (no persistent change)
+- Resolution order: per-command `AS` prefix > persistent active position > student position default
+- The server tracks `ActivePosition` per client connection on the scenario session
+
 **TCP-based handoff addressing.** The RPO types `HO 2B` (subset 2, sector B) to handoff to Boulder approach. This matches real STARS keyboard entry. ProcessStarsCommand from CRC uses the same TCP resolution via `ParameterString`.
 
 **Full vNAS protocol for ProcessStarsCommand.** Parse `ProcessStarsCommandDto` exactly as vNAS defines it. This maximizes CRC compatibility.
 
-**Spawn with owner + immediate handoff.** Aircraft with `autoTrackConditions` spawn with `Owner` set to the specified position. If `handoffDelay >= 0`, the server immediately initiates a handoff to the student position (sets `HandoffPeer`). The auto-accept timer fires if no CRC client claims the target position.
+**Spawn with owner + delayed handoff initiation.** Aircraft with `autoTrackConditions` spawn with `Owner` set to the specified position. `handoffDelay` controls when the handoff to the student is **initiated** (data block starts flashing): a value of 0 means immediate, 240 means 4 minutes after spawn. This paces scenario difficulty — the student receives aircraft gradually. The auto-accept timer (from YAAT Client Settings) is separate and controls how long an unattended position waits before auto-accepting an inbound handoff. If `handoffDelay` is absent (field not present in JSON, deserialized as null), the aircraft is owned by the ATC position with no handoff to the student — it must be manually handed off or tracked.
 
 **StarsConsolidation required.** Without `StarsConsolidationItemDto`, CRC cannot correctly color-code owned vs. other tracks. Include this topic.
 
@@ -30,6 +36,7 @@ M4 adds STARS track ownership, handoffs, point-outs, and related operations. Thi
 
 | CanonicalCommandType | ATCTrainer | VICE | Args | Effect |
 |---|---|---|---|---|
+| SetActivePosition | AS | AS | TCP code | Set RPO active position (standalone) or per-command override (prefix) |
 | TrackAircraft | TRACK | — | none | Set Owner to RPO (initiate control) |
 | DropTrack | DROP | — | none | Clear Owner (terminate control) |
 | InitiateHandoff | HO | — | TCP code | Set HandoffPeer to target |
@@ -63,20 +70,20 @@ Commands whose effect is pilot-side (FC, CT, TO) set a flag on `AircraftState` a
 
 Foundation types and AircraftState fields. No server or client changes yet.
 
-- [ ] Create `TrackOwner.cs` in Yaat.Sim root:
+- [x] Create `TrackOwner.cs` in Yaat.Sim root:
   - `record TrackOwner(string Callsign, string? FacilityId, int? Subset, string? SectorId, TrackOwnerType OwnerType)`
   - Factory methods: `CreateStars(callsign, facilityId, subset, sectorId)`, `CreateNonNas(callsign)`
   - `bool IsNasPosition => OwnerType is Stars or Eram`
-- [ ] Create `TrackOwnerType.cs` enum: `Other`, `Eram`, `Stars`, `Caats`, `Atop`
-- [ ] Create `Tcp.cs`:
+- [x] Create `TrackOwnerType.cs` enum: `Other`, `Eram`, `Stars`, `Caats`, `Atop`
+- [x] Create `Tcp.cs`:
   - `record Tcp(int Subset, string SectorId, string Id, string? ParentTcpId)`
   - Equality by `Id` only
   - `ToString()` returns `$"{Subset}{SectorId}"`
-- [ ] Create `StarsPointout.cs`:
+- [x] Create `StarsPointout.cs`:
   - `class StarsPointout { Tcp Recipient, Tcp Sender, StarsPointoutStatus Status }`
   - `bool IsPending`, `bool IsAccepted`, `bool IsRejected`
-- [ ] Create `StarsPointoutStatus.cs` enum: `Pending`, `Accepted`, `Rejected`
-- [ ] Add to `AircraftState.cs`:
+- [x] Create `StarsPointoutStatus.cs` enum: `Pending`, `Accepted`, `Rejected`
+- [x] Add to `AircraftState.cs`:
   - `TrackOwner? Owner { get; set; }` — current controlling position
   - `TrackOwner? HandoffPeer { get; set; }` — pending handoff target
   - `TrackOwner? HandoffRedirectedBy { get; set; }` — who redirected the handoff
@@ -88,6 +95,8 @@ Foundation types and AircraftState fields. No server or client changes yet.
   - `bool FrequencyChangeApproved { get; set; }` — FC flag for pilot AI
   - `string? ContactPosition { get; set; }` — position callsign pilot should contact (CT/TO)
   - `bool OnHandoff { get; set; }` — on-handoff status flag
+  - `DateTime? HandoffInitiatedAt { get; set; }` — when current handoff was initiated (for auto-accept timing)
+  - `int? AssignedAltitude { get; set; }` — assigned altitude from autoTrackConditions.clearedAltitude (hundreds of feet)
 
 ---
 
@@ -95,13 +104,14 @@ Foundation types and AircraftState fields. No server or client changes yet.
 
 Add all new command types, parsed command records, ATCTrainer/VICE patterns, and metadata. No server-side handling yet.
 
-- [ ] Add to `CanonicalCommandType.cs` (new section `// Track operations`):
+- [x] Add to `CanonicalCommandType.cs` (new section `// Track operations`):
+  - `SetActivePosition`
   - `TrackAircraft`, `DropTrack`, `InitiateHandoff`, `AcceptHandoff`, `CancelHandoff`
   - `AcceptAllHandoffs`, `InitiateHandoffAll`
   - `PointOut`, `Acknowledge`, `Annotate`
   - `Scratchpad`, `TemporaryAltitude`, `Cruise`
   - `OnHandoff`, `FrequencyChange`, `ContactTcp`, `ContactTower`
-- [ ] Add to `ParsedCommand.cs` (new records):
+- [x] Add to `ParsedCommand.cs` (new records):
   - `record TrackAircraftCommand : ParsedCommand`
   - `record DropTrackCommand : ParsedCommand`
   - `record InitiateHandoffCommand(string TcpCode) : ParsedCommand`
@@ -119,7 +129,7 @@ Add all new command types, parsed command records, ATCTrainer/VICE patterns, and
   - `record FrequencyChangeCommand : ParsedCommand`
   - `record ContactTcpCommand(string TcpCode) : ParsedCommand`
   - `record ContactTowerCommand : ParsedCommand`
-- [ ] Add to `AtcTrainerPreset.cs`:
+- [x] Add to `AtcTrainerPreset.cs`:
   - `TRACK` → TrackAircraft (no args)
   - `DROP` → DropTrack (no args)
   - `HO {tcp}` → InitiateHandoff (1 arg)
@@ -134,15 +144,15 @@ Add all new command types, parsed command records, ATCTrainer/VICE patterns, and
   - `TEMPALT {alt}` / `TA {alt}` / `TEMP {alt}` / `QQ {alt}` → TemporaryAltitude (1 arg)
   - `CRUISE {alt}` / `QZ {alt}` → Cruise (1 arg)
   - `ONHO` / `ONH` → OnHandoff (no args)
-- [ ] Add to `VicePreset.cs`:
+- [x] Add to `VicePreset.cs`:
   - `FC` → FrequencyChange (no args)
   - `CT{tcp}` → ContactTcp (1 arg, concatenated)
   - `TO` → ContactTower (no args)
   - Plus VICE equivalents for all ATCTrainer commands above (where applicable; VICE may not have all)
-- [ ] Add to `CommandMetadata.cs` `AllCommands` list:
+- [x] Add to `CommandMetadata.cs` `AllCommands` list:
   - One `CommandInfo` per new CanonicalCommandType (label, sample arg, IsGlobal for ACCEPTALL/HOALL)
-- [ ] Verify `CommandSchemeCompletenessTests` pass (`dotnet test`)
-- [ ] Update `docs/command-aliases-reference.md`:
+- [x] Verify `CommandSchemeCompletenessTests` pass (`dotnet test`)
+- [x] Update `docs/command-aliases-reference.md`:
   - Move commands from "not implemented" section to their proper section
   - Add VICE column entries
 
@@ -177,32 +187,43 @@ Resolve vNAS positions to TrackOwner instances. Build a position registry to tra
 
 Process scenario JSON fields that were previously ignored: `atc[]`, `studentPositionId`, `autoTrackConditions`.
 
+- [ ] Fix `AutoTrackConditions` model in `ScenarioModels.cs` (yaat-server):
+  - Add `string? ScratchPad` property (missing — real scenarios use it extensively)
+  - Change `HandoffDelay` from `int` to `int?` (null = no handoff to student; 0 = immediate handoff; >0 = delayed handoff)
 - [ ] Update `ScenarioLoader.Load()`:
   - Resolve `scenario.StudentPositionId` via `ArtccConfigService.ResolvePosition()` → store on `ScenarioSession.StudentPosition` (new field, type `TrackOwner?`)
   - Register student position via `PositionRegistry.RegisterTrainingPosition()`
   - For each `scenario.Atc[]` entry:
     - Resolve `positionId` via `ArtccConfigService.ResolvePosition()` → store as `ScenarioSession.AtcPositions` (new field, `List<ResolvedAtcPosition>`)
     - `ResolvedAtcPosition` captures: `ScenarioAtc` source data + resolved `TrackOwner` + resolved `Tcp`
+  - Collect distinct `artccId` values from `atc[]` entries; call `ArtccConfigService.EnsureLoadedAsync()` for each (scenarios may reference cross-ARTCC positions, e.g., ZOA + ZLA)
 - [ ] Update `ScenarioLoader.LoadAircraft()`:
   - If `autoTrackConditions` is present:
     - Resolve `autoTrackConditions.PositionId` → `TrackOwner`
     - Set `AircraftState.Owner` to that TrackOwner
-    - If `scenario.StudentPositionId` is set: immediately set `AircraftState.HandoffPeer` to the student's TrackOwner
-    - If `autoTrackConditions.ClearedAltitude` is set: parse and store on AircraftState (as assigned altitude)
+    - If `autoTrackConditions.HandoffDelay` is not null AND `scenario.StudentPositionId` is set:
+      - If `HandoffDelay == 0`: immediately set `AircraftState.HandoffPeer` to the student's TrackOwner and set `HandoffInitiatedAt`
+      - If `HandoffDelay > 0`: queue a delayed handoff initiation (fire after N seconds of scenario time)
+    - If `autoTrackConditions.HandoffDelay` is null: aircraft stays owned by ATC position with no automatic handoff to student
+    - If `autoTrackConditions.ScratchPad` is set: store on `AircraftState.Scratchpad1`
+    - If `autoTrackConditions.ClearedAltitude` is set: parse and store on `AircraftState.AssignedAltitude` (string → int hundreds of feet)
   - If `autoTrackConditions` is absent: aircraft spawns unowned (`Owner = null`)
 - [ ] Update `ScenarioSession`:
   - Add `TrackOwner? StudentPosition` property
   - Add `List<ResolvedAtcPosition> AtcPositions` property
   - Add `TimeSpan AutoAcceptDelay` property (received from client)
+  - Add `ConcurrentDictionary<string, TrackOwner> ActivePositionByConnection` — per-client active position override (set by standalone `AS` command, defaults to StudentPosition)
 - [ ] Auto-accept timer logic in `SimulationHostedService`:
   - Each tick, check all aircraft with non-null `HandoffPeer`:
     - If `HandoffPeer` target position is unattended (`!PositionRegistry.IsPositionAttended(tcp)`)
     - And elapsed time since handoff initiation >= `ScenarioSession.AutoAcceptDelay`
-    - Then: complete the handoff (set `Owner = HandoffPeer`, clear `HandoffPeer`)
-  - Track handoff initiation time: add `DateTime? HandoffInitiatedAt` to `AircraftState`
+    - Then: complete the handoff (set `Owner = HandoffPeer`, clear `HandoffPeer`, clear `HandoffInitiatedAt`)
+  - `HandoffInitiatedAt` is already on `AircraftState` (Chunk 1)
 - [ ] Update `ScenarioSession` leave/cleanup to call `PositionRegistry.UnregisterTrainingPosition()`
 - [ ] Add training hub method: `SetAutoAcceptDelay(int seconds)` — stores on the active scenario session
 - [ ] `autoTrackAirportIds` on `ScenarioAtc`: when an aircraft spawns from a listed airport with no explicit `autoTrackConditions`, auto-set `Owner` to that ATC position's TrackOwner
+  - Match uses FAA airport IDs (e.g., "SJC", "OAK") against `AircraftState.Departure`; if departure is ICAO format ("KSJC"), strip the "K" prefix for matching
+- [ ] Handle null `scenario.PrimaryAirportId` gracefully — some scenarios don't set it
 
 ---
 
@@ -256,16 +277,22 @@ Server-side dispatch for all track commands received from the training hub.
 - [ ] Add track command handling in `CommandParser.cs` / `ServerCommands.cs`:
   - Track commands are NOT dispatched through `CommandDispatcher` (they don't build `CommandBlocks`). Instead, the server handles them directly in `SimulationHostedService.HandleTrackCommand()` (new method).
   - Pattern: `SendCommand("callsign", "TRACK")` → server detects track command type → calls `HandleTrackCommand()` instead of `CommandDispatcher`
+- [ ] `AS` prefix and identity resolution:
+  - Before dispatching any track command, extract `AS {tcp}` prefix from the canonical string if present
+  - Resolve effective identity: per-command AS prefix > session's `ActivePositionByConnection[connectionId]` > `ScenarioSession.StudentPosition`
+  - **AS (standalone)**: `SendCommand(null, "AS 2B")` → resolve TCP, store in `ScenarioSession.ActivePositionByConnection[connectionId]`. Return success with terminal message "Now acting as {position callsign}"
+  - **AS (prefix)**: `SendCommand("N135BS", "AS 2B HO 3Y")` → strip `AS 2B`, resolve identity to 2B, dispatch `HO 3Y` with that identity. Do NOT update the persistent active position.
 - [ ] `HandleTrackCommand()` implementations:
-  - **TRACK**: Validate aircraft has no Owner. Set `Owner = studentPosition`. Return success/error.
-  - **DROP**: Validate aircraft is owned by RPO. Clear `Owner`. Clear `HandoffPeer` if set. Return success/error.
-  - **HO {tcp}**: Validate aircraft is owned by RPO. Resolve TCP code → `TrackOwner` via `ArtccConfigService.ResolveTcpCode()`. Set `HandoffPeer`. Set `HandoffInitiatedAt`. Return success/error.
-  - **ACCEPT**: Find pending inbound handoff (aircraft where `HandoffPeer` matches student position). Set `Owner = studentPosition`. Clear `HandoffPeer`. Clear `HandoffInitiatedAt`. Return success/error.
-  - **CANCEL**: Validate aircraft has pending outbound handoff from RPO. Clear `HandoffPeer`. Clear `HandoffInitiatedAt`. Return success/error.
-  - **ACCEPTALL**: For all aircraft where `HandoffPeer` matches student position: accept each. Return count.
-  - **HOALL {tcp}**: For all aircraft where `Owner` matches student position: initiate handoff to TCP. Return count.
-  - **PO {tcp}**: Validate aircraft is owned by RPO. Resolve TCP → `Tcp`. Set `Pointout = new StarsPointout(targetTcp, rpoTcp, Pending)`. Return success.
-  - **OK**: Validate aircraft has a pending pointout TO the RPO. Set `Pointout.Status = Accepted`. Return success.
+  - All ownership-sensitive commands use `effectivePosition` (resolved from AS prefix > active position > student position)
+  - **TRACK**: Validate aircraft has no Owner. Set `Owner = effectivePosition`. Return success/error.
+  - **DROP**: Validate aircraft is owned by effectivePosition. Clear `Owner`. Clear `HandoffPeer` if set. Return success/error.
+  - **HO {tcp}**: Validate aircraft is owned by effectivePosition. Resolve TCP code → `TrackOwner` via `ArtccConfigService.ResolveTcpCode()`. Set `HandoffPeer`. Set `HandoffInitiatedAt`. Return success/error.
+  - **ACCEPT**: Find pending inbound handoff (aircraft where `HandoffPeer` matches effectivePosition). Set `Owner = effectivePosition`. Clear `HandoffPeer`. Clear `HandoffInitiatedAt`. Return success/error.
+  - **CANCEL**: Validate aircraft has pending outbound handoff from effectivePosition. Clear `HandoffPeer`. Clear `HandoffInitiatedAt`. Return success/error.
+  - **ACCEPTALL**: For all aircraft where `HandoffPeer` matches effectivePosition: accept each. Return count.
+  - **HOALL {tcp}**: For all aircraft where `Owner` matches effectivePosition: initiate handoff to TCP. Return count.
+  - **PO {tcp}**: Validate aircraft is owned by effectivePosition. Resolve TCP → `Tcp`. Set `Pointout = new StarsPointout(targetTcp, effectiveTcp, Pending)`. Return success.
+  - **OK**: Validate aircraft has a pending pointout TO effectivePosition. Set `Pointout.Status = Accepted`. Return success.
   - **ANNOTATE/AN/BOX**: Toggle `IsAnnotated` flag. Return success.
   - **SP {text}**: Set `Scratchpad1 = text`. Return success.
   - **TA/QQ {alt}**: Parse altitude → hundreds. Set `TemporaryAltitude`. Return success.
@@ -374,9 +401,10 @@ End-to-end verification and tests.
 ## Definition of Done
 
 - [ ] Aircraft spawn with correct Owner from `autoTrackConditions`
-- [ ] Handoff to student is immediately initiated when `autoTrackConditions` present
+- [ ] Handoff to student is initiated per `handoffDelay` (0 = immediate, N = after N seconds, null = no auto-handoff)
 - [ ] Auto-accept timer completes handoffs to unattended positions
-- [ ] RPO can TRACK/DROP/HO/ACCEPT/CANCEL aircraft
+- [ ] RPO can `AS {tcp}` to set active position (standalone and prefix)
+- [ ] RPO can TRACK/DROP/HO/ACCEPT/CANCEL aircraft (using effective position)
 - [ ] RPO can PO/OK/SP/TA/QQ/CRUISE aircraft
 - [ ] ACCEPTALL and HOALL batch operations work
 - [ ] CRC displays correct Owner, HandoffPeer, Pointout, Scratchpad in STARS data blocks

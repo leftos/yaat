@@ -144,3 +144,40 @@ public record AtFixCondition(
     int? Radial = null, int? Distance = null) : BlockCondition;
 
 public record GiveWayCondition(string TargetCallsign) : BlockCondition;
+
+// Track operations commands
+public record SetActivePositionCommand(string TcpCode) : ParsedCommand;
+
+public record TrackAircraftCommand : ParsedCommand;
+
+public record DropTrackCommand : ParsedCommand;
+
+public record InitiateHandoffCommand(string TcpCode) : ParsedCommand;
+
+public record AcceptHandoffCommand : ParsedCommand;
+
+public record CancelHandoffCommand : ParsedCommand;
+
+public record AcceptAllHandoffsCommand : ParsedCommand;
+
+public record InitiateHandoffAllCommand(string TcpCode) : ParsedCommand;
+
+public record PointOutCommand(string TcpCode) : ParsedCommand;
+
+public record AcknowledgeCommand : ParsedCommand;
+
+public record AnnotateCommand : ParsedCommand;
+
+public record ScratchpadCommand(string Text) : ParsedCommand;
+
+public record TemporaryAltitudeCommand(int AltitudeHundreds) : ParsedCommand;
+
+public record CruiseCommand(int AltitudeHundreds) : ParsedCommand;
+
+public record OnHandoffCommand : ParsedCommand;
+
+public record FrequencyChangeCommand : ParsedCommand;
+
+public record ContactTcpCommand(string TcpCode) : ParsedCommand;
+
+public record ContactTowerCommand : ParsedCommand;
