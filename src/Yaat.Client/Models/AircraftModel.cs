@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Yaat.Client.Services;
 
 namespace Yaat.Client.Models;
 
@@ -246,6 +247,88 @@ public partial class AircraftModel : ObservableObject
 
     [ObservableProperty]
     private bool _isSelected;
+
+    public static AircraftModel FromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
+    {
+        var model = new AircraftModel
+        {
+            Callsign = dto.Callsign,
+            AircraftType = dto.AircraftType,
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
+            Heading = dto.Heading,
+            Altitude = dto.Altitude,
+            GroundSpeed = dto.GroundSpeed,
+            BeaconCode = dto.BeaconCode,
+            TransponderMode = dto.TransponderMode,
+            VerticalSpeed = dto.VerticalSpeed,
+            AssignedHeading = dto.AssignedHeading,
+            NavigatingTo = dto.NavigatingTo,
+            AssignedAltitude = dto.AssignedAltitude,
+            AssignedSpeed = dto.AssignedSpeed,
+            Departure = dto.Departure,
+            Destination = dto.Destination,
+            Route = dto.Route,
+            FlightRules = dto.FlightRules,
+            Status = dto.Status,
+            PendingCommands = dto.PendingCommands,
+            CurrentPhase = dto.CurrentPhase,
+            AssignedRunway = dto.AssignedRunway,
+            IsOnGround = dto.IsOnGround,
+            PhaseSequence = dto.PhaseSequence,
+            ActivePhaseIndex = dto.ActivePhaseIndex,
+            LandingClearance = dto.LandingClearance,
+            ClearedRunway = dto.ClearedRunway,
+            PatternDirection = dto.PatternDirection,
+            NavigationRoute = dto.NavigationRoute,
+            EquipmentSuffix = dto.EquipmentSuffix,
+            CruiseAltitude = dto.CruiseAltitude,
+            CruiseSpeed = dto.CruiseSpeed,
+            TaxiRoute = dto.TaxiRoute,
+            ParkingSpot = dto.ParkingSpot,
+            CurrentTaxiway = dto.CurrentTaxiway,
+        };
+        model.DistanceFromFix = computeDistance?.Invoke(model);
+        return model;
+    }
+
+    public void UpdateFromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
+    {
+        Latitude = dto.Latitude;
+        Longitude = dto.Longitude;
+        Heading = dto.Heading;
+        Altitude = dto.Altitude;
+        GroundSpeed = dto.GroundSpeed;
+        BeaconCode = dto.BeaconCode;
+        TransponderMode = dto.TransponderMode;
+        VerticalSpeed = dto.VerticalSpeed;
+        AssignedHeading = dto.AssignedHeading;
+        NavigatingTo = dto.NavigatingTo;
+        AssignedAltitude = dto.AssignedAltitude;
+        AssignedSpeed = dto.AssignedSpeed;
+        Departure = dto.Departure;
+        Destination = dto.Destination;
+        Route = dto.Route;
+        FlightRules = dto.FlightRules;
+        Status = dto.Status;
+        PendingCommands = dto.PendingCommands;
+        CurrentPhase = dto.CurrentPhase;
+        AssignedRunway = dto.AssignedRunway;
+        IsOnGround = dto.IsOnGround;
+        PhaseSequence = dto.PhaseSequence;
+        ActivePhaseIndex = dto.ActivePhaseIndex;
+        LandingClearance = dto.LandingClearance;
+        ClearedRunway = dto.ClearedRunway;
+        PatternDirection = dto.PatternDirection;
+        NavigationRoute = dto.NavigationRoute;
+        EquipmentSuffix = dto.EquipmentSuffix;
+        CruiseAltitude = dto.CruiseAltitude;
+        CruiseSpeed = dto.CruiseSpeed;
+        TaxiRoute = dto.TaxiRoute;
+        ParkingSpot = dto.ParkingSpot;
+        CurrentTaxiway = dto.CurrentTaxiway;
+        DistanceFromFix = computeDistance?.Invoke(this);
+    }
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)
     {

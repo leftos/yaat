@@ -177,7 +177,7 @@ public partial class MainViewModel : ObservableObject
             Aircraft.Clear();
             foreach (var dto in list)
             {
-                Aircraft.Add(DtoToModel(dto));
+                Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
             }
         }
         catch (Exception ex)
@@ -291,7 +291,7 @@ public partial class MainViewModel : ObservableObject
                 Aircraft.Clear();
                 foreach (var dto in result.AllAircraft)
                 {
-                    Aircraft.Add(DtoToModel(dto));
+                    Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
                 }
 
                 StatusText = $"Loaded '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
@@ -338,7 +338,7 @@ public partial class MainViewModel : ObservableObject
                 Aircraft.Clear();
                 foreach (var dto in result.AllAircraft)
                 {
-                    Aircraft.Add(DtoToModel(dto));
+                    Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
                 }
 
                 StatusText = $"Rejoined '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
@@ -866,11 +866,11 @@ public partial class MainViewModel : ObservableObject
             var existing = FindAircraft(dto.Callsign);
             if (existing is not null)
             {
-                UpdateModel(existing, dto);
+                existing.UpdateFromDto(dto, ComputeDistance);
             }
             else
             {
-                Aircraft.Add(DtoToModel(dto));
+                Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
             }
         });
     }
@@ -894,11 +894,11 @@ public partial class MainViewModel : ObservableObject
             var existing = FindAircraft(dto.Callsign);
             if (existing is not null)
             {
-                UpdateModel(existing, dto);
+                existing.UpdateFromDto(dto, ComputeDistance);
             }
             else
             {
-                Aircraft.Add(DtoToModel(dto));
+                Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
             }
         });
     }
@@ -930,7 +930,7 @@ public partial class MainViewModel : ObservableObject
                     Aircraft.Clear();
                     foreach (var dto in result.AllAircraft)
                     {
-                        Aircraft.Add(DtoToModel(dto));
+                        Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
                     }
                     StatusText = "Reconnected to scenario";
                     AddSystemEntry("Reconnected to scenario");
@@ -980,85 +980,4 @@ public partial class MainViewModel : ObservableObject
         return null;
     }
 
-    private void UpdateModel(AircraftModel model, AircraftDto dto)
-    {
-        model.Latitude = dto.Latitude;
-        model.Longitude = dto.Longitude;
-        model.Heading = dto.Heading;
-        model.Altitude = dto.Altitude;
-        model.GroundSpeed = dto.GroundSpeed;
-        model.BeaconCode = dto.BeaconCode;
-        model.TransponderMode = dto.TransponderMode;
-        model.VerticalSpeed = dto.VerticalSpeed;
-        model.AssignedHeading = dto.AssignedHeading;
-        model.NavigatingTo = dto.NavigatingTo;
-        model.AssignedAltitude = dto.AssignedAltitude;
-        model.AssignedSpeed = dto.AssignedSpeed;
-        model.Departure = dto.Departure;
-        model.Destination = dto.Destination;
-        model.Route = dto.Route;
-        model.FlightRules = dto.FlightRules;
-        model.Status = dto.Status;
-        model.PendingCommands = dto.PendingCommands;
-        model.CurrentPhase = dto.CurrentPhase;
-        model.AssignedRunway = dto.AssignedRunway;
-        model.IsOnGround = dto.IsOnGround;
-        model.PhaseSequence = dto.PhaseSequence;
-        model.ActivePhaseIndex = dto.ActivePhaseIndex;
-        model.LandingClearance = dto.LandingClearance;
-        model.ClearedRunway = dto.ClearedRunway;
-        model.PatternDirection = dto.PatternDirection;
-        model.NavigationRoute = dto.NavigationRoute;
-        model.EquipmentSuffix = dto.EquipmentSuffix;
-        model.CruiseAltitude = dto.CruiseAltitude;
-        model.CruiseSpeed = dto.CruiseSpeed;
-        model.TaxiRoute = dto.TaxiRoute;
-        model.ParkingSpot = dto.ParkingSpot;
-        model.CurrentTaxiway = dto.CurrentTaxiway;
-        model.DistanceFromFix = ComputeDistance(model);
-    }
-
-    private AircraftModel DtoToModel(AircraftDto dto)
-    {
-        var model = new AircraftModel
-        {
-            Callsign = dto.Callsign,
-            AircraftType = dto.AircraftType,
-            Latitude = dto.Latitude,
-            Longitude = dto.Longitude,
-            Heading = dto.Heading,
-            Altitude = dto.Altitude,
-            GroundSpeed = dto.GroundSpeed,
-            BeaconCode = dto.BeaconCode,
-            TransponderMode = dto.TransponderMode,
-            VerticalSpeed = dto.VerticalSpeed,
-            AssignedHeading = dto.AssignedHeading,
-            NavigatingTo = dto.NavigatingTo,
-            AssignedAltitude = dto.AssignedAltitude,
-            AssignedSpeed = dto.AssignedSpeed,
-            Departure = dto.Departure,
-            Destination = dto.Destination,
-            Route = dto.Route,
-            FlightRules = dto.FlightRules,
-            Status = dto.Status,
-            PendingCommands = dto.PendingCommands,
-            CurrentPhase = dto.CurrentPhase,
-            AssignedRunway = dto.AssignedRunway,
-            IsOnGround = dto.IsOnGround,
-            PhaseSequence = dto.PhaseSequence,
-            ActivePhaseIndex = dto.ActivePhaseIndex,
-            LandingClearance = dto.LandingClearance,
-            ClearedRunway = dto.ClearedRunway,
-            PatternDirection = dto.PatternDirection,
-            NavigationRoute = dto.NavigationRoute,
-            EquipmentSuffix = dto.EquipmentSuffix,
-            CruiseAltitude = dto.CruiseAltitude,
-            CruiseSpeed = dto.CruiseSpeed,
-            TaxiRoute = dto.TaxiRoute,
-            ParkingSpot = dto.ParkingSpot,
-            CurrentTaxiway = dto.CurrentTaxiway,
-        };
-        model.DistanceFromFix = ComputeDistance(model);
-        return model;
-    }
 }
