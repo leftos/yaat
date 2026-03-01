@@ -292,7 +292,7 @@ public partial class MainViewModel : ObservableObject
             foreach (var w in result.Warnings)
             {
                 _log.LogWarning("Scenario: {Warning}", w);
-                AddHistory($"[WARN] {w}");
+                AddSystemEntry($"[WARN] {w}");
             }
         }
         catch (Exception ex)
