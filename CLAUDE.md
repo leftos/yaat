@@ -22,30 +22,257 @@ The solution uses `.slnx` format (`yaat.slnx`). If your IDE doesn't support `.sl
 
 ## Architecture
 
-Two projects in `yaat.slnx`:
+Three projects across two repos. **Yaat.Sim** is the shared simulation library referenced by both Yaat.Client and yaat-server.
+
+**Yaat.Sim owns all simulation and aviation logic.** Flight physics, phase behavior, pattern geometry, performance constants, command dispatching, command queue — everything aviation or simulation belongs in Yaat.Sim. The server is a thin comms layer. If server code makes aviation decisions, move it to Yaat.Sim.
+
+### Yaat.Client — Avalonia desktop app (`src/Yaat.Client/`)
 
 ```
-src/Yaat.Client/        # Avalonia 11 desktop app (MVVM, executable)
-  Logging/              # AppLog static factory + FileLoggerProvider
-  Models/               # ObservableObject data models ([ObservableProperty] source-gen'd)
-  Services/             # SignalR client, command parsing, user preferences
-  ViewModels/           # [RelayCommand] view models, value converters
-  Views/                # Avalonia AXAML views + code-behind
+Logging/
+  AppLog.cs                    # Static logger factory; Initialize() in Program.Main()
+  FileLoggerProvider.cs        # Writes to %LOCALAPPDATA%/yaat/yaat-client.log
 
-src/Yaat.Sim/           # Shared simulation library (class library, no dependencies)
-  AircraftState.cs      # Mutable aircraft state with flight plan fields
-  AircraftCategory.cs   # AircraftCategorization (static lookup) + CategoryPerformance constants
-  ControlTargets.cs     # Target heading/altitude/speed/navigation for physics interpolation
-  CommandQueue.cs       # CommandBlock/BlockTrigger/TrackedCommand for chained command execution
-  FlightPhysics.cs      # 6-step Update: navigation → heading → altitude → speed → position → queue
-  SimulationWorld.cs    # Thread-safe aircraft collection with tick loop (per-scenario support)
-  Commands/             # CanonicalCommandType enum (FlyHeading, ClimbMaintain, Speed, etc.)
-  Data/                 # CustomFixDefinition/Loader for scenario-defined waypoints
+Models/
+  AircraftModel.cs             # ObservableObject wrapping AircraftDto fields
+                               # Computed: StatusDisplay, PhaseSequenceDisplay, ClearanceDisplay,
+                               #   DistanceFromFix; StatusSortComparer for DataGrid
+  TerminalEntry.cs             # Immutable entry for terminal/radio log (Kind: Command/Response/System/Say)
+
+Services/
+  ServerConnection.cs          # Single SignalR client to /hubs/training (JSON protocol)
+                               # DTOs defined inline: AircraftDto, LoadScenarioResultDto, etc.
+  CommandScheme.cs              # Maps CanonicalCommandType → CommandPattern (aliases + format)
+                               # Factory methods: AtcTrainer(), Vice(); DetectPresetName()
+  AtcTrainerPreset.cs           # SpaceSeparated scheme: FH 270, CM 240, DM 50, SPD 250
+  VicePreset.cs                 # Concatenated scheme: H270, C240, D50, S250
+  CommandSchemeParser.cs        # Parse() for single commands, ParseCompound() for ;/, syntax
+                               # ToCanonical() always outputs ATCTrainer format
+  CommandMetadata.cs            # Static registry: CommandInfo per type (label, sample arg, IsGlobal)
+  CommandInputController.cs     # Autocomplete suggestions (callsign/command/fix/route fix)
+                               # History navigation (up/down with prefix filter)
+                               # FixDb binary search for nav fix prefix matching
+  UserPreferences.cs            # JSON persistence to %LOCALAPPDATA%/yaat/preferences.json
+                               # Fields: CommandScheme, UserInitials, admin state, window geometries, grid layout
+
+ViewModels/
+  MainViewModel.cs              # Root ViewModel (no DI); owns ServerConnection, UserPreferences,
+                               #   CommandInputController; SendCommandAsync pipeline:
+                               #   chat detection → global cmd → callsign resolve → ParseCompound → hub
+                               # Nav data init (VnasDataService + FixDatabase) fire-and-forget in ctor
+                               # Distance reference: resolves fix/FRD, computes per-aircraft distances
+  SettingsViewModel.cs          # Modal: VerbMappingRow collection for alias editing; preset detection
+  *Converter.cs                 # IValueConverters: Connect/Pause/Dock buttons, terminal entry colors
+
+Views/
+  MainWindow.axaml.cs           # Creates MainViewModel; DataGrid column order/sort persistence;
+                               #   distance reference flyout with fix search; terminal dock/undock
+  CommandInputView.axaml.cs     # Keyboard handling: Esc/Up/Down/Tab/Enter for suggestions/history
+  TerminalPanelView.axaml.cs    # Auto-scroll terminal with user-scroll detection
+  TerminalWindow.axaml.cs       # Pop-out terminal window (shares MainViewModel DataContext)
+  SettingsWindow.axaml.cs       # Modal settings dialog
+  WindowGeometryHelper.cs       # Save/restore window position+size; validates on-screen visibility
 ```
 
-**Yaat.Client** is the Avalonia desktop app. **Yaat.Sim** is a standalone library shared with yaat-server (referenced by both projects).
+### Yaat.Sim — Shared simulation library (`src/Yaat.Sim/`)
 
-**Yaat.Sim owns all simulation and aviation logic.** All flight physics, phase behavior, pattern geometry, performance constants, command dispatching logic that builds/mutates phase sequences — everything that constitutes aviation knowledge or simulation behavior belongs in Yaat.Sim. The server (yaat-server) should be a thin layer: comms with CRC and Yaat.Client, scenario loading, hub plumbing. If code in yaat-server needs to build phases, compute pattern geometry, or make aviation decisions, move it to Yaat.Sim instead.
+No UI dependencies. Deps: Google.Protobuf (NavData), Microsoft.Extensions.Logging.Abstractions.
+
+```
+# Core state & physics
+AircraftState.cs               # Mutable entity per aircraft: position, flight plan, identity, control,
+                               #   ground state, PendingWarnings feedback list
+ControlTargets.cs              # Autopilot-style targets: heading, altitude, speed, NavigationRoute
+                               #   (List<NavigationTarget>); FlightPhysics reads each tick
+FlightPhysics.cs               # Static. 6-step Update(): navigation → heading → altitude → speed
+                               #   → position → command queue. Trigger checking (ReachAltitude,
+                               #   ReachFix, InterceptRadial, ReachFrdPoint, GiveWay). Geo helpers.
+GeoMath.cs                     # Static. DistanceNm (haversine), BearingTo, TurnHeadingToward
+SimulationWorld.cs             # Thread-safe aircraft collection. GetSnapshot/GetSnapshotByScenario,
+                               #   Tick/TickScenario (with preTick callback), DrainWarnings,
+                               #   GenerateBeaconCode
+CommandQueue.cs                # CommandBlock (trigger + Action<AircraftState> closure + TrackedCommands),
+                               #   BlockTrigger (type + fix/alt/radial/callsign params),
+                               #   TrackedCommand (Heading/Altitude/Speed/Navigation/Immediate/Wait)
+AircraftCategory.cs            # AircraftCategory enum (Jet/Turboprop/Piston)
+                               # AircraftCategorization: static Initialize() from AircraftSpecs.json
+                               # CategoryPerformance: all aviation constants (turn rates, climb/descent
+                               #   rates, pattern sizes, approach/landing speeds, taxi speeds, holding
+                               #   speeds). All validated by aviation-sim-expert.
+GroundConflictDetector.cs      # Static. ComputeSpeedOverrides(): pairwise ground proximity checks,
+                               #   returns max-speed dictionary; called by server preTick
+
+# Commands/
+Commands/CanonicalCommandType.cs  # Enum of every command (heading, altitude, speed, transponder,
+                               #   navigation, tower, pattern, hold, ground, spawn, sim control)
+Commands/ParsedCommand.cs      # Discriminated union records for all command types;
+                               #   CompoundCommand/ParsedBlock/BlockCondition hierarchy
+Commands/CommandDispatcher.cs  # Static. DispatchCompound(): phase interaction (CanAcceptCommand →
+                               #   Allowed/Rejected/ClearsPhase), builds CommandBlocks with closures.
+                               #   ApplyCommand: big switch setting ControlTargets per command type.
+Commands/AltitudeResolver.cs   # Plain int or AGL format (KOAK010) → feet MSL via IFixLookup
+Commands/RouteChainer.cs       # After DCT to an on-route fix, appends remaining route fixes
+
+# Phases/ — structured clearance-gated behavior (tower, pattern, ground)
+Phases/Phase.cs                # Abstract base: Name, Status, Requirements (ClearanceRequirement list),
+                               #   OnStart/OnTick/OnEnd, CanAcceptCommand → CommandAcceptance,
+                               #   SatisfyClearance. When CurrentPhase != null, CommandQueue is bypassed.
+Phases/PhaseList.cs            # Mutable list on AircraftState: AssignedRunway, TaxiRoute,
+                               #   LandingClearance, TrafficDirection (pattern mode auto-cycles),
+                               #   mutation: Start/AdvanceToNext/InsertAfterCurrent/ReplaceUpcoming/
+                               #   SkipTo<T>/Clear
+Phases/PhaseRunner.cs          # Static. Drives lifecycle: start → tick → advance. Auto-appends
+                               #   RunwayExitPhase after landing, or next pattern circuit in pattern mode.
+Phases/PhaseContext.cs         # Readonly tick context: Aircraft, Targets, Category, DeltaSeconds,
+                               #   Runway, FieldElevation, GroundLayout, AircraftLookup
+Phases/CommandAcceptance.cs    # Enum: Allowed (clearance satisfied), Rejected, ClearsPhase
+Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff, ClearedToLand,
+                               #   ClearedForOption, ClearedTouchAndGo, ClearedStopAndGo, RunwayCrossing
+Phases/RunwayInfo.cs           # Runway geometry: threshold/end lat/lon, heading, elevation, dimensions
+Phases/GlideSlopeGeometry.cs   # AltitudeAtDistance, RequiredDescentRate (3° default)
+Phases/PatternGeometry.cs      # Computes 7 pattern waypoints from RunwayInfo + category + direction
+Phases/PatternBuilder.cs       # BuildCircuit (from any leg), BuildNextCircuit, UpdateWaypoints
+
+# Phases/Tower/ — departure, approach, landing phases
+Phases/Tower/LinedUpAndWaitingPhase.cs  # Holds at threshold; awaits ClearedForTakeoff
+Phases/Tower/TakeoffPhase.cs            # Ground roll → Vr liftoff → completes at 400ft AGL
+Phases/Tower/InitialClimbPhase.cs       # Climb to 1500ft AGL or assigned altitude
+Phases/Tower/FinalApproachPhase.cs      # Glideslope descent; auto-go-around at 0.5nm if no clearance
+Phases/Tower/LandingPhase.cs            # Flare → touchdown → rollout to 20 kts
+Phases/Tower/GoAroundPhase.cs           # TOGA power, runway heading, climb to 1500ft AGL
+Phases/Tower/TouchAndGoPhase.cs         # Brief rollout then re-accelerate, completes at 400ft AGL
+Phases/Tower/StopAndGoPhase.cs          # Full stop, pause, then takeoff from zero
+Phases/Tower/LowApproachPhase.cs        # Fly glideslope to low alt, climb out without landing
+Phases/Tower/HoldAtFixPhase.cs          # Navigate to fix, then 360° orbits or helicopter hover
+Phases/Tower/HoldPresentPositionPhase.cs # 360° orbits or hover at current position
+
+# Phases/Pattern/ — traffic pattern legs
+Phases/Pattern/UpwindPhase.cs           # Completes at crosswind turn point
+Phases/Pattern/CrosswindPhase.cs        # Completes at downwind start
+Phases/Pattern/DownwindPhase.cs         # Descent starts abeam; completes at base turn
+Phases/Pattern/BasePhase.cs             # Completes when aligned with extended centerline
+Phases/Pattern/MidfieldCrossingPhase.cs # Crosses midfield at pattern alt + 500ft
+
+# Phases/Ground/ — surface movement phases
+Phases/Ground/AtParkingPhase.cs         # Awaits pushback/taxi/delete
+Phases/Ground/PushbackPhase.cs          # Push to target heading or default distance
+Phases/Ground/TaxiingPhase.cs           # Follows TaxiRoute segments; auto-inserts HoldingShort
+Phases/Ground/HoldingShortPhase.cs      # Awaits RunwayCrossing clearance
+Phases/Ground/CrossingRunwayPhase.cs    # Crosses to far-side node
+Phases/Ground/RunwayExitPhase.cs        # Exits to nearest exit node; emits "clear of runway"
+Phases/Ground/HoldingAfterExitPhase.cs  # Awaits taxi/delete after runway exit
+Phases/Ground/FollowingPhase.cs         # Speed-matches leader with 180ft following distance
+
+# Data/ — navigation, airport, and VNAS data
+Data/IFixLookup.cs             # Interface: GetFixPosition, GetAirportElevation
+Data/IRunwayLookup.cs          # Interface: GetRunway, GetRunways
+Data/FixDatabase.cs            # Implements both; indexed from VNAS NavDataSet protobuf + custom fixes
+                               #   AllFixNames sorted array for binary-search autocomplete
+                               #   ExpandRoute() for route-fix suggestions
+Data/CustomFixDefinition.cs    # JSON: Name, Aliases, optional Lat/Lon or Frd string
+Data/CustomFixLoader.cs        # Scans data/custom_fixes/**/*.json
+Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon via spherical projection
+
+# Data/Airport/ — ground layout graph
+Data/Airport/IAirportGroundData.cs      # Interface: GetLayout(airportId) → AirportGroundLayout?
+Data/Airport/AirportGroundLayout.cs     # Graph: Nodes (parking/spot/holdShort/intersection) + Edges
+                                        # FindNearestExit (heading-aware), GetRunwayHoldShortNodes
+Data/Airport/GroundNode.cs              # {Id, Lat, Lon, Type, Name?, RunwayId?, Edges}
+Data/Airport/GroundEdge.cs              # {From, To, TaxiwayName, DistanceNm, IntermediatePoints}
+Data/Airport/TaxiRoute.cs              # Resolved path: Segments + HoldShortPoints + completion tracking
+Data/Airport/TaxiPathfinder.cs         # ResolveExplicitPath (user-specified taxiways), FindRoute (A*)
+Data/Airport/GeoJsonParser.cs          # GeoJSON → AirportGroundLayout (7-step build with snap grid)
+
+# Data/Vnas/ — VNAS data pipeline
+Data/Vnas/VnasDataService.cs   # Downloads NavData protobuf + AircraftSpecs/CWT; serial-based cache
+Data/Vnas/AiracCycle.cs        # AIRAC cycle calculator (epoch Jan 23 2025, 28-day cycles)
+Data/Vnas/VnasConfig.cs        # DTO for configuration API response
+
+# Scenarios/ — aircraft spawning
+Scenarios/AircraftInitializer.cs  # InitializeOnRunway, InitializeAtParking, InitializeOnFinal
+                                  # Returns PhaseInitResult (phases + position/speed)
+Scenarios/AircraftGenerator.cs    # Generates AircraftState from SpawnRequest (type/airline tables)
+Scenarios/SpawnRequest.cs         # Spawn descriptor: rules, weight, engine, position type + params
+
+# Proto/
+Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet (Airports, Fixes, Sids, Stars)
+```
+
+### yaat-server — ASP.NET Core server (`X:\dev\yaat-server\`)
+
+Separate repo. References Yaat.Sim via sibling project ref (preferred) or git submodule fallback. The server provides: SignalR comms with clients, CRC protocol compatibility, scenario loading, session management, and broadcast fan-out.
+
+```
+src/Yaat.Server/
+  Program.cs                   # DI setup (all singletons), VNAS init, route mapping.
+                               #   Validates AdminPassword at startup (refuses to start without it).
+  YaatOptions.cs               # IOptions: AdminPassword from config/env
+
+  Hubs/
+    TrainingHub.cs             # Standard SignalR hub (/hubs/training, JSON). Delegates all logic
+                               #   to SimulationHostedService methods.
+    CrcWebSocketHandler.cs     # Raw WebSocket upgrade handler for /hubs/client
+    CrcClientState.cs          # Per-CRC-connection state machine: handshake → StartSession →
+                               #   ActivateSession → Subscribe(topics) → receive broadcasts.
+                               #   Topic subscriptions: StarsTracks, FlightPlans, EramTargets,
+                               #   EramDataBlocks, AsdexTargets, AsdexTracks, TowerCabAircraft
+    CrcClientManager.cs        # ConcurrentDictionary registry; BroadcastAsync fan-out
+    NegotiateHandler.cs        # POST /hubs/client/negotiate → fake negotiation JSON for CRC
+    ApiStubHandler.cs          # GET/POST /api/* → [] (satisfies CRC startup probes)
+
+  Simulation/
+    SimulationHostedService.cs # Central orchestrator. IHostedService with 1-second PeriodicTimer.
+                               #   Tick: TickScenario (with GroundConflictDetector preTick) →
+                               #   ProcessDelayedSpawns → ProcessTriggers → BroadcastUpdates
+                               #   (training group + admins + CRC clients). Also the API surface
+                               #   called by TrainingHub for all operations.
+    ScenarioSession.cs         # Per-scenario state: clients, pause, simRate, elapsed time,
+                               #   delayed spawn queue, trigger queue, cleanup timer
+    ScenarioSessionManager.cs  # Thread-safe session registry + client→scenario reverse lookup
+                               #   + admin filter tracking
+    CrcVisibilityTracker.cs    # Per-aircraft CRC visibility: STARS (100ft AGL + 5s coast),
+                               #   ASDEX (per-airport range/ceiling), TowerCab (20nm/4000ft AGL)
+    DtoConverter.cs            # AircraftState → CRC DTOs (StarsTrack, FlightPlan, EramTarget,
+                               #   EramDataBlock, TowerCab, Asdex) + training AircraftStateDto
+
+  Commands/
+    CommandParser.cs           # Server-side canonical command parsing (all verbs)
+    ServerCommands.cs          # Server-only records (DEL, PAUSE, etc.)
+
+  Scenarios/
+    ScenarioLoader.cs          # JSON → aircraft: resolves 5 position types (coordinates, fix/FRD,
+                               #   onRunway, onFinal, parking) via Yaat.Sim initializers
+    ScenarioModels.cs          # Deserialization models: Scenario, ScenarioAircraft,
+                               #   StartingConditions, ScenarioFlightPlan, PresetCommand, triggers
+
+  Spawn/
+    SpawnParser.cs             # Parses ADD command args → SpawnRequest
+
+  Protocol/                    # CRC binary wire format (raw WebSocket, not standard SignalR)
+    VarintCodec.cs             # LEB128 encode/decode
+    MessageFraming.cs          # Varint-length-prefixed framing (Frame/Parse)
+    SignalRMessageParser.cs    # MessagePack array → typed AppMessage records
+    SignalRMessageBuilder.cs   # Build binary Invocation/Response/NilAck/Ping messages
+
+  Dtos/
+    TrainingDtos.cs            # JSON DTOs: AircraftStateDto, LoadScenarioResult, CommandResultDto,
+                               #   ScenarioSessionInfoDto, DeleteAllResultDto, TerminalBroadcastDto
+    CrcDtos.cs                 # MessagePack [Key(N)] DTOs: StarsTrackDto (37 fields),
+                               #   FlightPlanDto (33 fields), EramTargetDto, EramDataBlockDto,
+                               #   TowerCabAircraftDto, AsdexTargetDto/TrackDto, SessionInfoDto
+    CrcEnums.cs                # CRC-compatible enums (StarsCoastPhase, TransponderMode, etc.)
+    TopicFormatter.cs          # Topic class + custom MessagePack formatter
+
+  Data/
+    ArtccConfig.cs             # VNAS ARTCC config models (recursive FacilityConfig tree)
+    ArtccConfigService.cs      # On-demand ARTCC download; extracts ASDEX/TowerCab airport info
+
+  Udp/
+    UdpStubServer.cs           # UDP port 6809: RegisterConnection ack + keepalive pings
+
+  Logging/
+    FileLoggerProvider.cs      # File logger to yaat-server.log (overwrites each startup)
+```
 
 **Key patterns:**
 - `ServerConnection` is the single SignalR client connecting to `/hubs/training` (JSON protocol, not MessagePack). DTOs (`AircraftDto`, `LoadScenarioResultDto`, `CommandResultDto`, etc.) are records defined in the same file.
