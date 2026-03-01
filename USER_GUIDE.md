@@ -560,6 +560,24 @@ Warning messages appear as gray system entries when the simulator detects potent
 - **Missed FRD condition**: `Missed condition at SUNOL R090 D020 (closest: 2.3 NM)` — an aircraft passed through an FRD trigger point without getting close enough (within 1.5 NM) but came within 5 NM.
 - **Illegal approach intercept**: `Illegal intercept: turned on final 5.2nm from threshold (min 9.0nm) [7110.65 §5-9-1]` — an aircraft was vectored onto the final approach course closer to the runway than the minimum intercept distance derived from the approach gate (FAA 7110.65 §5-9-1). The minimum distance is computed from FAA CIFP data as: approach gate + 2nm, where approach gate = max(FAF distance + 1nm, 5nm). Pattern traffic (base-to-final turns) is exempt.
 
+## Students Panel
+
+CRC clients (students) connect to the server independently using their own VATSIM CID. If a student's CID doesn't match any YAAT client in a room, their CRC session sits in the "lobby" — connected but not receiving any room data.
+
+Open **Room > Students...** to manage CRC clients:
+
+### In Room
+Lists CRC clients currently bound to your room. Each entry shows the client's display name (callsign + real name), position ID, and active status. Click **Kick** to remove a client from your room — they return to the lobby and stop receiving room data.
+
+### Lobby
+Lists CRC clients not currently in any room. Each entry shows display name, ARTCC ID, and position. Click **Pull** to bring a client into your room — they immediately start receiving your room's aircraft and position data.
+
+### Notes
+- CRC clients that connect with a CID matching a YAAT client in a room are automatically bound to that room
+- If all YAAT clients leave a room, any CRC clients bound to it are automatically unbound back to the lobby
+- The panel updates in real-time as CRC clients connect, disconnect, or change state
+- Use **Refresh** to manually re-fetch both lists
+
 ## Settings
 
 Open **File > Settings** to configure:

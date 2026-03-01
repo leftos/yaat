@@ -114,6 +114,9 @@ public partial class MainViewModel : ObservableObject
     private bool _showRoomList;
 
     [ObservableProperty]
+    private bool _showCrcPanel;
+
+    [ObservableProperty]
     private bool _isTerminalDocked = true;
 
     [ObservableProperty]
@@ -156,6 +159,10 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<RoomMemberDto> RoomMembers { get; } = [];
 
+    public ObservableCollection<CrcLobbyClientDto> CrcLobbyClients { get; } = [];
+
+    public ObservableCollection<CrcRoomMemberDto> CrcRoomMembers { get; } = [];
+
     public MainViewModel()
     {
         _connection.AircraftUpdated += OnAircraftUpdated;
@@ -167,6 +174,8 @@ public partial class MainViewModel : ObservableObject
         _connection.Closed += OnConnectionClosed;
         _connection.TerminalEntryReceived += OnTerminalEntry;
         _connection.RoomMemberChanged += OnRoomMemberChanged;
+        _connection.CrcLobbyChanged += OnCrcLobbyChanged;
+        _connection.CrcRoomMembersChanged += OnCrcRoomMembersChanged;
 
         RefreshCommandScheme();
 
@@ -529,6 +538,85 @@ public partial class MainViewModel : ObservableObject
     private void DismissRoomList()
     {
         ShowRoomList = false;
+    }
+
+    // --- CRC client management ---
+
+    [RelayCommand]
+    private void ToggleCrcPanel()
+    {
+        ShowCrcPanel = !ShowCrcPanel;
+        if (ShowCrcPanel)
+        {
+            _ = RefreshCrcLobbyAsync();
+        }
+    }
+
+    [RelayCommand]
+    private void DismissCrcPanel()
+    {
+        ShowCrcPanel = false;
+    }
+
+    [RelayCommand]
+    private async Task RefreshCrcLobbyAsync()
+    {
+        try
+        {
+            var lobby = await _connection.GetCrcLobbyClientsAsync();
+            CrcLobbyClients.Clear();
+            foreach (var c in lobby)
+            {
+                CrcLobbyClients.Add(c);
+            }
+
+            var members = await _connection.GetCrcRoomMembersAsync();
+            CrcRoomMembers.Clear();
+            foreach (var c in members)
+            {
+                CrcRoomMembers.Add(c);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to refresh CRC lists");
+        }
+    }
+
+    [RelayCommand]
+    private async Task PullCrcClientAsync(string clientId)
+    {
+        try
+        {
+            var ok = await _connection.PullCrcClientAsync(clientId);
+            if (!ok)
+            {
+                StatusText = "Failed to pull CRC client — may already be in a room";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "PullCrcClient failed");
+            StatusText = $"Pull error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task KickCrcClientAsync(string clientId)
+    {
+        try
+        {
+            var ok = await _connection.KickCrcClientAsync(clientId);
+            if (!ok)
+            {
+                StatusText = "Failed to kick CRC client";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "KickCrcClient failed");
+            StatusText = $"Kick error: {ex.Message}";
+        }
     }
 
     // --- Delete All ---
@@ -1241,6 +1329,36 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
+    private void OnCrcLobbyChanged(CrcLobbyChangedDto dto)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            CrcLobbyClients.Clear();
+            foreach (var c in dto.Clients)
+            {
+                CrcLobbyClients.Add(c);
+            }
+        });
+    }
+
+    private void OnCrcRoomMembersChanged(
+        CrcRoomMembersChangedDto dto)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (dto.RoomId != ActiveRoomId)
+            {
+                return;
+            }
+
+            CrcRoomMembers.Clear();
+            foreach (var c in dto.Members)
+            {
+                CrcRoomMembers.Add(c);
+            }
+        });
+    }
+
     // --- Helpers ---
 
     private void ApplyRoomState(RoomStateDto state)
@@ -1276,6 +1394,7 @@ public partial class MainViewModel : ObservableObject
 
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
+        _ = RefreshCrcLobbyAsync();
     }
 
     private void ApplyScenarioResult(LoadScenarioResultDto result)
@@ -1305,6 +1424,9 @@ public partial class MainViewModel : ObservableObject
         ActiveRoomId = null;
         ActiveRoomName = null;
         RoomMembers.Clear();
+        CrcLobbyClients.Clear();
+        CrcRoomMembers.Clear();
+        ShowCrcPanel = false;
         ClearScenarioState();
     }
 

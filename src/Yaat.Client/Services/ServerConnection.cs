@@ -21,6 +21,8 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<Exception?>? Closed;
     public event Action<TerminalBroadcastDto>? TerminalEntryReceived;
     public event Action<RoomMemberChangedDto>? RoomMemberChanged;
+    public event Action<CrcLobbyChangedDto>? CrcLobbyChanged;
+    public event Action<CrcRoomMembersChangedDto>? CrcRoomMembersChanged;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -47,6 +49,10 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<TerminalBroadcastDto>("TerminalBroadcast", dto => TerminalEntryReceived?.Invoke(dto));
 
         _connection.On<RoomMemberChangedDto>("RoomMemberChanged", dto => RoomMemberChanged?.Invoke(dto));
+
+        _connection.On<CrcLobbyChangedDto>("CrcLobbyChanged", dto => CrcLobbyChanged?.Invoke(dto));
+
+        _connection.On<CrcRoomMembersChangedDto>("CrcRoomMembersChanged", dto => CrcRoomMembersChanged?.Invoke(dto));
 
         _connection.Reconnecting += error =>
         {
@@ -223,6 +229,36 @@ public sealed class ServerConnection : IAsyncDisposable
             "AdminSetScenarioFilter", roomId);
     }
 
+    // --- CRC client management ---
+
+    public async Task<List<CrcLobbyClientDto>> GetCrcLobbyClientsAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<CrcLobbyClientDto>>(
+            "GetCrcLobbyClients");
+    }
+
+    public async Task<bool> PullCrcClientAsync(string clientId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<bool>(
+            "PullCrcClient", clientId);
+    }
+
+    public async Task<bool> KickCrcClientAsync(string clientId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<bool>(
+            "KickCrcClient", clientId);
+    }
+
+    public async Task<List<CrcRoomMemberDto>> GetCrcRoomMembersAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<CrcRoomMemberDto>>(
+            "GetCrcRoomMembers");
+    }
+
     // --- Lifecycle ---
 
     public async ValueTask DisposeAsync()
@@ -378,3 +414,17 @@ public record UnloadScenarioResultDto(
 public record TerminalBroadcastDto(
     string Initials, string Kind, string Callsign,
     string Message, DateTime Timestamp);
+
+public record CrcLobbyClientDto(
+    string ClientId, string? Cid, string? DisplayName,
+    string? ArtccId, string? PositionId, bool IsActive);
+
+public record CrcLobbyChangedDto(
+    List<CrcLobbyClientDto> Clients);
+
+public record CrcRoomMemberDto(
+    string ClientId, string? Cid, string? DisplayName,
+    string? PositionId, bool IsActive);
+
+public record CrcRoomMembersChangedDto(
+    string RoomId, List<CrcRoomMemberDto> Members);
