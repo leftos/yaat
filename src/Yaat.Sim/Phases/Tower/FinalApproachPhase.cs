@@ -26,6 +26,12 @@ public sealed class FinalApproachPhase : Phase
     private bool _interceptChecked;
     private bool _isPatternTraffic;
 
+    /// <summary>
+    /// When true, skips the illegal intercept distance check.
+    /// Set for aircraft that spawn on final (not vectored by RPO).
+    /// </summary>
+    public bool SkipInterceptCheck { get; init; }
+
     public override string Name => "FinalApproach";
 
     public override void OnStart(PhaseContext ctx)
@@ -100,7 +106,8 @@ public sealed class FinalApproachPhase : Phase
 
     private void CheckInterceptDistance(PhaseContext ctx, double distNm)
     {
-        if (_interceptChecked || _isPatternTraffic || ctx.Runway is null)
+        if (_interceptChecked || _isPatternTraffic || SkipInterceptCheck
+            || ctx.Runway is null)
         {
             return;
         }

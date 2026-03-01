@@ -101,7 +101,7 @@ public static class AircraftInitializer
             + (distNm * Math.Sin(reciprocalRad) / (nmPerDegLat * Math.Cos(latRad)));
 
         var phases = new PhaseList { AssignedRunway = runway };
-        phases.Add(new FinalApproachPhase());
+        phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
         phases.Add(new LandingPhase());
 
         return new PhaseInitResult
