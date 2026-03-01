@@ -304,6 +304,7 @@ When invoking aviation-sim-expert, always include:
 ## Rules
 
 - **User Guide**: Update `USER_GUIDE.md` before committing user-facing changes.
+- **No newlines in text strings**: Never split literal text across lines in `.axaml` or `.cs` files. The indentation whitespace becomes visible at runtime (huge gaps in UI text). Keep `Text="..."`, `Content="..."`, and interpolated strings on one line, even if long.
 - **Error Handling**: Never swallow exceptions. Log with `AppLog` (client) or `ILogger` (Sim).
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
 - **Memory Updates**: Distill Explore agent findings into auto-memory at `C:\Users\Leftos\.claude\projects\X--dev-yaat\memory\`.

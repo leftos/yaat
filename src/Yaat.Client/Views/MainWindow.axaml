@@ -378,8 +378,7 @@
                        FontSize="16"
                        FontWeight="Bold"
                        Foreground="White" />
-            <TextBlock Text="Choose the maximum difficulty level.
-                       Higher levels include all lower ones."
+            <TextBlock Text="Choose the maximum difficulty level. Higher levels include all lower ones."
                        TextWrapping="Wrap"
                        Foreground="LightGray" />
             <ListBox
@@ -421,8 +420,7 @@
                        FontSize="16"
                        FontWeight="Bold"
                        Foreground="White" />
-            <TextBlock Text="Create a new room or join an
-                       existing one."
+            <TextBlock Text="Create a new room or join an existing one."
                        Foreground="LightGray"
                        TextWrapping="Wrap" />
             <ItemsControl
