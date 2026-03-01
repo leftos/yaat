@@ -385,7 +385,7 @@ public static class GeoJsonParser
         string rwyId1 = nameParts[0].Trim();
         string rwyId2 = nameParts.Length > 1 ? nameParts[1].Trim() : rwyId1;
 
-        // For each taxiway edge, check if it crosses this runway LineString
+        // Snapshot: we mutate layout.Edges during iteration (safe because we iterate the copy)
         var edgesToCheck = new List<GroundEdge>(layout.Edges);
         foreach (var edge in edgesToCheck)
         {
@@ -395,13 +395,11 @@ public static class GeoJsonParser
                 continue;
             }
 
-            // Skip edges that are themselves on a runway
             if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            // Check each runway segment against this edge
             for (int i = 0; i < rwy.Coords.Count - 1; i++)
             {
                 var (intLat, intLon) = SegmentIntersection(
@@ -414,32 +412,35 @@ public static class GeoJsonParser
                     continue;
                 }
 
-                // Check if there's already a node near the intersection
                 int? existing = coordIndex.FindNearest(intLat, intLon);
-                if (existing is not null && layout.Nodes.TryGetValue(existing.Value, out var existingNode))
+                if (existing is not null
+                    && layout.Nodes.TryGetValue(existing.Value, out var existingNode))
                 {
-                    // Mark it as a hold-short node if it isn't already
-                    if (existingNode.Type != GroundNodeType.RunwayHoldShort)
+                    if (existingNode.Type == GroundNodeType.RunwayHoldShort)
                     {
-                        // Create a new node at this position with RunwayHoldShort type
-                        int id = nextNodeId++;
-                        var hsNode = new GroundNode
-                        {
-                            Id = id,
-                            Latitude = intLat,
-                            Longitude = intLon,
-                            Type = GroundNodeType.RunwayHoldShort,
-                            RunwayId = $"{rwyId1}/{rwyId2}",
-                            Name = existingNode.Name,
-                        };
-                        layout.Nodes[id] = hsNode;
-                        coordIndex.Add(intLat, intLon, id);
+                        break;
                     }
 
-                    continue;
+                    int id = nextNodeId++;
+                    var hsNode = new GroundNode
+                    {
+                        Id = id,
+                        Latitude = intLat,
+                        Longitude = intLon,
+                        Type = GroundNodeType.RunwayHoldShort,
+                        RunwayId = $"{rwyId1}/{rwyId2}",
+                        Name = existingNode.Name,
+                    };
+                    layout.Nodes[id] = hsNode;
+                    coordIndex.Add(intLat, intLon, id);
+                    SplitEdgeAtNode(layout, edge, hsNode);
+
+                    logger?.LogDebug(
+                        "Runway crossing: {Taxiway} crosses {Runway} near existing node at ({Lat}, {Lon})",
+                        edge.TaxiwayName, rwy.Name, intLat, intLon);
+                    break;
                 }
 
-                // Create hold-short node at intersection
                 {
                     int id = nextNodeId++;
                     var hsNode = new GroundNode
@@ -452,13 +453,47 @@ public static class GeoJsonParser
                     };
                     layout.Nodes[id] = hsNode;
                     coordIndex.Add(intLat, intLon, id);
+                    SplitEdgeAtNode(layout, edge, hsNode);
 
                     logger?.LogDebug(
-                        "Runway crossing detected: {Taxiway} crosses {Runway} at ({Lat}, {Lon})",
+                        "Runway crossing: {Taxiway} crosses {Runway} at ({Lat}, {Lon})",
                         edge.TaxiwayName, rwy.Name, intLat, intLon);
+                    break;
                 }
             }
         }
+    }
+
+    private static void SplitEdgeAtNode(
+        AirportGroundLayout layout, GroundEdge edge, GroundNode splitNode)
+    {
+        layout.Edges.Remove(edge);
+
+        var fromNode = layout.Nodes[edge.FromNodeId];
+        var toNode = layout.Nodes[edge.ToNodeId];
+
+        double dist1 = GeoMath.DistanceNm(
+            fromNode.Latitude, fromNode.Longitude,
+            splitNode.Latitude, splitNode.Longitude);
+        double dist2 = GeoMath.DistanceNm(
+            splitNode.Latitude, splitNode.Longitude,
+            toNode.Latitude, toNode.Longitude);
+
+        layout.Edges.Add(new GroundEdge
+        {
+            FromNodeId = edge.FromNodeId,
+            ToNodeId = splitNode.Id,
+            TaxiwayName = edge.TaxiwayName,
+            DistanceNm = dist1,
+        });
+
+        layout.Edges.Add(new GroundEdge
+        {
+            FromNodeId = splitNode.Id,
+            ToNodeId = edge.ToNodeId,
+            TaxiwayName = edge.TaxiwayName,
+            DistanceNm = dist2,
+        });
     }
 
     private static void ConnectParkingToTaxiway(

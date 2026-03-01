@@ -424,7 +424,7 @@ public static class CommandDispatcher
                 return TryPushback(aircraft, push, groundLayout);
 
             case TaxiCommand taxi:
-                return TryTaxi(aircraft, taxi, groundLayout);
+                return TryTaxi(aircraft, taxi, groundLayout, runways);
 
             case HoldPositionCommand:
                 return TryHoldPosition(aircraft);
@@ -914,7 +914,7 @@ public static class CommandDispatcher
 
     private static CommandResult TryTaxi(
         AircraftState aircraft, TaxiCommand taxi,
-        AirportGroundLayout? groundLayout)
+        AirportGroundLayout? groundLayout, IRunwayLookup? runways = null)
     {
         if (groundLayout is null)
         {
@@ -932,11 +932,17 @@ public static class CommandDispatcher
 
         // Resolve the taxi route using explicit path
         var route = TaxiPathfinder.ResolveExplicitPath(
-            groundLayout, startNode.Id, taxi.Path, taxi.HoldShorts,
-            taxi.DestinationRunway);
+            groundLayout, startNode.Id, taxi.Path, out string? failReason,
+            taxi.HoldShorts, taxi.DestinationRunway,
+            runways, groundLayout.AirportId);
 
         if (route is null)
         {
+            if (failReason is not null)
+            {
+                return new CommandResult(false, failReason);
+            }
+
             var pathStr = string.Join(" ", taxi.Path);
             return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
         }
