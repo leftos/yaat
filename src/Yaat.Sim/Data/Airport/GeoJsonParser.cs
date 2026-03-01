@@ -68,11 +68,7 @@ public static class GeoJsonParser
     public static AirportGroundLayout ParseMultiple(
         string airportId, IEnumerable<string> geoJsonFiles, ILogger? logger = null)
     {
-        var merged = new List<string>();
-        foreach (string json in geoJsonFiles)
-        {
-            merged.Add(json);
-        }
+        var merged = geoJsonFiles.ToList();
 
         if (merged.Count == 1)
         {
@@ -560,7 +556,8 @@ public static class GeoJsonParser
         return new SpotFeature(name, lat, lon);
     }
 
-    private static TaxiwayFeature ParseTaxiway(JsonElement props, JsonElement geom)
+    private static (string Name, List<(double Lat, double Lon)> Coords) ParseLineString(
+        JsonElement props, JsonElement geom)
     {
         string name = props.GetProperty("name").GetString() ?? "";
         var coordsArray = geom.GetProperty("coordinates");
@@ -571,22 +568,18 @@ public static class GeoJsonParser
             double lat = coord[1].GetDouble();
             coords.Add((lat, lon));
         }
+        return (name, coords);
+    }
 
+    private static TaxiwayFeature ParseTaxiway(JsonElement props, JsonElement geom)
+    {
+        var (name, coords) = ParseLineString(props, geom);
         return new TaxiwayFeature(name, coords);
     }
 
     private static RunwayFeature ParseRunway(JsonElement props, JsonElement geom)
     {
-        string name = props.GetProperty("name").GetString() ?? "";
-        var coordsArray = geom.GetProperty("coordinates");
-        var coords = new List<(double Lat, double Lon)>();
-        foreach (var coord in coordsArray.EnumerateArray())
-        {
-            double lon = coord[0].GetDouble();
-            double lat = coord[1].GetDouble();
-            coords.Add((lat, lon));
-        }
-
+        var (name, coords) = ParseLineString(props, geom);
         return new RunwayFeature(name, coords);
     }
 
