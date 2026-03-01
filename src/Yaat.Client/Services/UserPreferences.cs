@@ -26,6 +26,7 @@ public sealed class UserPreferences
     private SavedWindowGeometry? _settingsWindowGeometry;
     private SavedWindowGeometry? _terminalWindowGeometry;
     private SavedGridLayout? _gridLayout;
+    private bool _autoAcceptEnabled;
     private int _autoAcceptDelaySeconds;
 
     public UserPreferences()
@@ -39,6 +40,7 @@ public sealed class UserPreferences
         _settingsWindowGeometry = saved.SettingsWindowGeometry;
         _terminalWindowGeometry = saved.TerminalWindowGeometry;
         _gridLayout = saved.GridLayout;
+        _autoAcceptEnabled = saved.AutoAcceptEnabled;
         _autoAcceptDelaySeconds = saved.AutoAcceptDelaySeconds;
     }
 
@@ -50,11 +52,13 @@ public sealed class UserPreferences
     public SavedWindowGeometry? SettingsWindowGeometry => _settingsWindowGeometry;
     public SavedWindowGeometry? TerminalWindowGeometry => _terminalWindowGeometry;
     public SavedGridLayout? GridLayout => _gridLayout;
+    public bool AutoAcceptEnabled => _autoAcceptEnabled;
     public int AutoAcceptDelaySeconds => _autoAcceptDelaySeconds;
 
-    public void SetAutoAcceptDelaySeconds(int seconds)
+    public void SetAutoAcceptSettings(bool enabled, int delaySeconds)
     {
-        _autoAcceptDelaySeconds = Math.Clamp(seconds, 0, 60);
+        _autoAcceptEnabled = enabled;
+        _autoAcceptDelaySeconds = Math.Clamp(delaySeconds, 0, 60);
         Save();
     }
 
@@ -124,6 +128,7 @@ public sealed class UserPreferences
                 SettingsWindowGeometry = saved?.SettingsWindowGeometry,
                 TerminalWindowGeometry = saved?.TerminalWindowGeometry,
                 GridLayout = saved?.GridLayout,
+                AutoAcceptEnabled = saved?.AutoAcceptEnabled ?? true,
                 AutoAcceptDelaySeconds = saved?.AutoAcceptDelaySeconds ?? 5,
             };
         }
@@ -143,6 +148,7 @@ public sealed class UserPreferences
         public SavedWindowGeometry? SettingsWindowGeometry { get; init; }
         public SavedWindowGeometry? TerminalWindowGeometry { get; init; }
         public SavedGridLayout? GridLayout { get; init; }
+        public bool AutoAcceptEnabled { get; init; } = true;
         public int AutoAcceptDelaySeconds { get; init; } = 5;
     }
 
@@ -160,6 +166,7 @@ public sealed class UserPreferences
             SettingsWindowGeometry = _settingsWindowGeometry,
             TerminalWindowGeometry = _terminalWindowGeometry,
             GridLayout = _gridLayout,
+            AutoAcceptEnabled = _autoAcceptEnabled,
             AutoAcceptDelaySeconds = _autoAcceptDelaySeconds,
         };
 
@@ -236,6 +243,7 @@ public sealed class UserPreferences
         public SavedWindowGeometry? SettingsWindowGeometry { get; set; }
         public SavedWindowGeometry? TerminalWindowGeometry { get; set; }
         public SavedGridLayout? GridLayout { get; set; }
+        public bool AutoAcceptEnabled { get; set; } = true;
         public int AutoAcceptDelaySeconds { get; set; } = 5;
     }
 

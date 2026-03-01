@@ -44,18 +44,24 @@
                                    FontSize="11" />
                     </StackPanel>
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Auto-accept handoff delay (seconds):"
-                                   Foreground="Gray" />
-                        <NumericUpDown Value="{Binding AutoAcceptDelaySeconds}"
-                                       Minimum="0"
-                                       Maximum="60"
-                                       Increment="1"
-                                       Width="120"
-                                       HorizontalAlignment="Left" />
-                        <TextBlock Text="Handoffs to unattended positions are automatically accepted after this delay. Set to 0 for immediate acceptance."
-                                   TextWrapping="Wrap"
-                                   Foreground="Gray"
-                                   FontSize="11" />
+                        <CheckBox Content="Auto-accept handoffs to unattended positions"
+                                  IsChecked="{Binding AutoAcceptEnabled}" />
+                        <StackPanel Spacing="4"
+                                    IsVisible="{Binding AutoAcceptEnabled}"
+                                    Margin="28,0,0,0">
+                            <TextBlock Text="Delay (seconds):"
+                                       Foreground="Gray" />
+                            <NumericUpDown Value="{Binding AutoAcceptDelaySeconds}"
+                                           Minimum="0"
+                                           Maximum="60"
+                                           Increment="1"
+                                           Width="120"
+                                           HorizontalAlignment="Left" />
+                            <TextBlock Text="Handoffs are automatically accepted after this delay. Set to 0 for immediate acceptance."
+                                       TextWrapping="Wrap"
+                                       Foreground="Gray"
+                                       FontSize="11" />
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </TabItem>

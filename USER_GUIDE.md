@@ -336,7 +336,7 @@ VICE-only commands:
 
 #### Auto-Accept
 
-Handoffs to unattended positions (no CRC client logged in) are automatically accepted after a configurable delay. Set the delay in **Settings > General > Auto-accept handoff delay**.
+Handoffs to unattended positions (no CRC client logged in) can be automatically accepted after a configurable delay. Enable and configure the delay in **Settings > General > Auto-accept handoffs**. When disabled, handoffs to unattended positions remain pending until manually accepted.
 
 ### Conditional Blocks
 
@@ -534,7 +534,7 @@ Click the **Pop Out** button in the terminal header to undock the terminal into 
 
 Click **Settings** in the top-right to configure:
 
-- **General** — User initials (required before connecting) and auto-accept handoff delay (seconds)
+- **General** — User initials (required before connecting) and auto-accept handoff settings (enable/disable + delay in seconds)
 - **Command scheme** — ATCTrainer (space-separated) or VICE (concatenated)
 
 ## Autocomplete

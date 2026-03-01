@@ -947,8 +947,10 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            await _connection.SetAutoAcceptDelayAsync(
-                _preferences.AutoAcceptDelaySeconds);
+            var seconds = _preferences.AutoAcceptEnabled
+                ? _preferences.AutoAcceptDelaySeconds
+                : -1;
+            await _connection.SetAutoAcceptDelayAsync(seconds);
         }
         catch (Exception ex)
         {
