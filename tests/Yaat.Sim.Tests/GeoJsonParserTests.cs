@@ -1,5 +1,8 @@
+using System.IO;
+using System.Text.Json;
 using Yaat.Sim.Data.Airport;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Yaat.Sim.Tests;
 
@@ -217,6 +220,66 @@ public class GeoJsonParserTests
     }
 
     [Fact]
+    public void Parse_TaxiwayCrossingRunway_CreatesHoldShortNodes()
+    {
+        // Taxiway crosses a N-S runway. Runway runs from south to north.
+        // Taxiway runs E-W through the runway.
+        string json = """
+            {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "properties": { "type": "taxiway", "name": "A", "circular": false },
+                  "geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                      [ -122.2250, 37.7200 ],
+                      [ -122.2230, 37.7200 ],
+                      [ -122.2210, 37.7200 ]
+                    ]
+                  }
+                },
+                {
+                  "type": "Feature",
+                  "properties": { "type": "runway", "name": "36 - 18" },
+                  "geometry": {
+                    "type": "LineString",
+                    "coordinates": [
+                      [ -122.2230, 37.7180 ],
+                      [ -122.2230, 37.7220 ]
+                    ]
+                  }
+                }
+              ]
+            }
+            """;
+
+        var layout = GeoJsonParser.Parse("TEST", json);
+
+        // Should have hold-short nodes on both sides of the runway
+        var hsNodes = new List<GroundNode>();
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Type == GroundNodeType.RunwayHoldShort)
+            {
+                hsNodes.Add(node);
+            }
+        }
+
+        // The middle taxiway vertex sits on the runway centerline.
+        // The two outer vertices are off-runway. Each boundary edge
+        // (middle→west and middle→east) should produce one HS node.
+        Assert.True(hsNodes.Count >= 2,
+            $"Expected at least 2 hold-short nodes, got {hsNodes.Count}");
+
+        foreach (var hs in hsNodes)
+        {
+            Assert.Equal("36/18", hs.RunwayId);
+        }
+    }
+
+    [Fact]
     public void FindNearestNode_ReturnsClosestNode()
     {
         var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson);
@@ -233,5 +296,140 @@ public class GeoJsonParserTests
 
         Assert.NotNull(layout.FindParkingByName("25"));
         Assert.Null(layout.FindParkingByName("NONEXISTENT"));
+    }
+
+    /// <summary>
+    /// Regression test: load real OAK GeoJSON and verify hold-short nodes
+    /// exist on both sides of runways 28R/10L and 28L/10R for taxiway B.
+    /// </summary>
+    [Fact]
+    public void OAK_TaxiwayB_HasHoldShortNodesForBothRunways()
+    {
+        string geoJsonPath = Path.Combine(
+            "X:", "dev", "vzoa", "training-files",
+            "atctrainer-airport-files", "oak.geojson");
+        if (!File.Exists(geoJsonPath))
+        {
+            return; // Skip if file not available
+        }
+
+        string content = File.ReadAllText(geoJsonPath);
+        var layout = GeoJsonParser.Parse("oak", content);
+
+        // Collect hold-short nodes for each runway that are connected to taxiway B
+        var bHs28R = new List<GroundNode>();
+        var bHs28L = new List<GroundNode>();
+
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Type != GroundNodeType.RunwayHoldShort)
+            {
+                continue;
+            }
+
+            bool hasBEdge = false;
+            foreach (var edge in node.Edges)
+            {
+                if (string.Equals(edge.TaxiwayName, "B",
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    hasBEdge = true;
+                    break;
+                }
+            }
+
+            if (!hasBEdge)
+            {
+                continue;
+            }
+
+            if (node.RunwayId is not null
+                && node.RunwayId.Contains("28R", StringComparison.OrdinalIgnoreCase))
+            {
+                bHs28R.Add(node);
+            }
+
+            if (node.RunwayId is not null
+                && node.RunwayId.Contains("28L", StringComparison.OrdinalIgnoreCase))
+            {
+                bHs28L.Add(node);
+            }
+        }
+
+        _output.WriteLine($"B taxiway HS nodes for 28R/10L: {bHs28R.Count}");
+        foreach (var hs in bHs28R)
+        {
+            _output.WriteLine($"  Node {hs.Id}: ({hs.Latitude:F6}, {hs.Longitude:F6})");
+        }
+
+        _output.WriteLine($"B taxiway HS nodes for 28L/10R: {bHs28L.Count}");
+        foreach (var hs in bHs28L)
+        {
+            _output.WriteLine($"  Node {hs.Id}: ({hs.Latitude:F6}, {hs.Longitude:F6})");
+        }
+
+        Assert.True(bHs28R.Count >= 2,
+            $"Expected ≥2 HS nodes for 28R/10L on taxiway B, got {bHs28R.Count}");
+        Assert.True(bHs28L.Count >= 2,
+            $"Expected ≥2 HS nodes for 28L/10R on taxiway B, got {bHs28L.Count}");
+    }
+
+    [Fact]
+    public void DumpLayoutJson()
+    {
+        string geoJsonPath = Path.Combine(
+            "X:", "dev", "vzoa", "training-files",
+            "atctrainer-airport-files", "oak.geojson");
+        if (!File.Exists(geoJsonPath))
+        {
+            return;
+        }
+
+        string content = File.ReadAllText(geoJsonPath);
+        var layout = GeoJsonParser.Parse("oak", content);
+
+        var nodes = new List<object>();
+        foreach (var (id, node) in layout.Nodes)
+        {
+            nodes.Add(new
+            {
+                id,
+                lat = node.Latitude,
+                lon = node.Longitude,
+                type = node.Type.ToString(),
+                name = node.Name,
+                runwayId = node.RunwayId,
+            });
+        }
+
+        var edges = new List<object>();
+        foreach (var edge in layout.Edges)
+        {
+            edges.Add(new
+            {
+                from = edge.FromNodeId,
+                to = edge.ToNodeId,
+                taxiway = edge.TaxiwayName,
+            });
+        }
+
+        var dump = new { nodes, edges };
+        string json = JsonSerializer.Serialize(dump, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+        });
+
+        string outPath = Path.Combine(
+            "X:", "dev", "yaat", "tools", "oak_layout_dump.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
+        File.WriteAllText(outPath, json);
+        _output.WriteLine($"Wrote layout dump to {outPath}");
+    }
+
+    private readonly ITestOutputHelper _output;
+
+    public GeoJsonParserTests(ITestOutputHelper output)
+    {
+        _output = output;
     }
 }

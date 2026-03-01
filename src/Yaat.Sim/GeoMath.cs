@@ -3,6 +3,10 @@ namespace Yaat.Sim;
 public static class GeoMath
 {
     private const double EarthRadiusNm = 3440.065;
+    private const double DegToRad = Math.PI / 180.0;
+    private const double NmPerDegLat = 60.0;
+
+    public const double FeetPerNm = 6076.12;
 
     /// <summary>
     /// Haversine distance between two lat/lon points, in nautical miles.
@@ -56,5 +60,51 @@ public static class GeoMath
         }
 
         return (currentHeading + Math.Sign(diff) * maxTurnDeg + 360) % 360;
+    }
+
+    /// <summary>
+    /// Projects a point from a given lat/lon along a heading for a given distance.
+    /// </summary>
+    public static (double Lat, double Lon) ProjectPoint(
+        double lat, double lon, double headingDeg, double distanceNm)
+    {
+        double headingRad = headingDeg * DegToRad;
+        double latRad = lat * DegToRad;
+
+        double newLat = lat + (distanceNm * Math.Cos(headingRad) / NmPerDegLat);
+        double newLon = lon + (distanceNm * Math.Sin(headingRad)
+            / (NmPerDegLat * Math.Cos(latRad)));
+
+        return (newLat, newLon);
+    }
+
+    /// <summary>
+    /// Signed perpendicular distance from a point to a line defined by
+    /// a reference point and heading. Positive = right of heading, negative = left.
+    /// </summary>
+    public static double SignedCrossTrackDistanceNm(
+        double pointLat, double pointLon,
+        double refLat, double refLon,
+        double headingDeg)
+    {
+        double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
+        double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
+        double angleDiff = (bearing - headingDeg) * DegToRad;
+        return dist * Math.Sin(angleDiff);
+    }
+
+    /// <summary>
+    /// Signed distance along a heading from a reference point to a target point.
+    /// Positive = ahead (in heading direction), negative = behind.
+    /// </summary>
+    public static double AlongTrackDistanceNm(
+        double pointLat, double pointLon,
+        double refLat, double refLon,
+        double headingDeg)
+    {
+        double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
+        double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
+        double angleDiff = (bearing - headingDeg) * DegToRad;
+        return dist * Math.Cos(angleDiff);
     }
 }
