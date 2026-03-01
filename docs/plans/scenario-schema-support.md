@@ -159,6 +159,10 @@ Deserialized as stub (only `Id`). Full schema fields silently dropped:
 | Flight strip configs | 0 | 0 | 4 |
 | **Total** | **33** | **18** | **21** |
 
+### Design notes
+
+- **"Delete all aircraft" → "Unload scenario"** — The current "delete all aircraft" action should be renamed to "unload scenario." Unloading must tear down everything the scenario installed, not just aircraft — this includes online ATC positions, aircraft generators, flight strip configurations, and any other scenario-level state. The scenario is the unit of lifecycle, not individual aircraft.
+
 ### Key gaps for future milestones
 
 1. **Parking position type** (M2) — ground operations prerequisite
