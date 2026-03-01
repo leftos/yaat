@@ -83,6 +83,16 @@ public partial class MainViewModel : ObservableObject
     private bool _showScenarioSwitchConfirmation;
 
     [ObservableProperty]
+    private bool _showDifficultySelection;
+
+    [ObservableProperty]
+    private int _selectedDifficultyIndex;
+
+    private string? _pendingScenarioJson;
+
+    public ObservableCollection<DifficultyOption> DifficultyOptions { get; } = [];
+
+    [ObservableProperty]
     private bool _showRoomList;
 
     [ObservableProperty]
@@ -257,41 +267,116 @@ public partial class MainViewModel : ObservableObject
             _log.LogInformation("Loading scenario from {Path}", ScenarioFilePath);
 
             var json = await File.ReadAllTextAsync(ScenarioFilePath);
-            var result = await _connection.LoadScenarioAsync(json);
 
-            if (result.Success)
+            var difficulties = ScenarioDifficultyHelper
+                .GetAvailableDifficulties(json);
+
+            if (difficulties.Count >= 2)
             {
-                ApplyScenarioResult(result);
+                var counts = ScenarioDifficultyHelper
+                    .GetCountsPerCeiling(json, difficulties);
 
-                _log.LogInformation(
-                    "Scenario loaded: '{Name}' ({Id}), " + "{Count} aircraft, " + "{Delayed} delayed, " + "{All} total, " + "{Warnings} warnings",
-                    result.Name,
-                    result.ScenarioId,
-                    result.AircraftCount,
-                    result.DelayedCount,
-                    result.AllAircraft.Count,
-                    result.Warnings.Count
-                );
+                DifficultyOptions.Clear();
+                foreach (var level in difficulties)
+                {
+                    DifficultyOptions.Add(new DifficultyOption(
+                        level, counts[level]));
+                }
 
-                StatusText = $"Loaded '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
-                AddSystemEntry($"Scenario loaded: {result.Name} ({result.AllAircraft.Count} aircraft)");
-            }
-            else
-            {
-                _log.LogWarning("Scenario load failed");
-                StatusText = "Scenario load failed";
+                SelectedDifficultyIndex = difficulties.Count - 1;
+                _pendingScenarioJson = json;
+                ShowDifficultySelection = true;
+                return;
             }
 
-            foreach (var w in result.Warnings)
-            {
-                _log.LogWarning("Scenario: {Warning}", w);
-                AddSystemEntry($"[WARN] {w}");
-            }
+            await SendScenarioToServer(json);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Scenario load error");
             StatusText = $"Load error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task ConfirmDifficultySelectionAsync()
+    {
+        ShowDifficultySelection = false;
+        var json = _pendingScenarioJson;
+        _pendingScenarioJson = null;
+
+        if (json is null || SelectedDifficultyIndex < 0
+            || SelectedDifficultyIndex >= DifficultyOptions.Count)
+        {
+            return;
+        }
+
+        var selected = DifficultyOptions[SelectedDifficultyIndex];
+        var (filtered, warnings) = ScenarioDifficultyHelper
+            .FilterByDifficulty(json, selected.Level);
+
+        foreach (var w in warnings)
+        {
+            AddSystemEntry($"[WARN] {w}");
+        }
+
+        try
+        {
+            await SendScenarioToServer(filtered);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Scenario load error");
+            StatusText = $"Load error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void CancelDifficultySelection()
+    {
+        ShowDifficultySelection = false;
+        _pendingScenarioJson = null;
+        DifficultyOptions.Clear();
+    }
+
+    private async Task SendScenarioToServer(string json)
+    {
+        var result = await _connection.LoadScenarioAsync(json);
+
+        if (result.Success)
+        {
+            ApplyScenarioResult(result);
+
+            _log.LogInformation(
+                "Scenario loaded: '{Name}' ({Id}), "
+                + "{Count} aircraft, "
+                + "{Delayed} delayed, "
+                + "{All} total, "
+                + "{Warnings} warnings",
+                result.Name,
+                result.ScenarioId,
+                result.AircraftCount,
+                result.DelayedCount,
+                result.AllAircraft.Count,
+                result.Warnings.Count
+            );
+
+            StatusText = $"Loaded '{result.Name}': "
+                + $"{result.AllAircraft.Count} aircraft";
+            AddSystemEntry(
+                $"Scenario loaded: {result.Name}"
+                + $" ({result.AllAircraft.Count} aircraft)");
+        }
+        else
+        {
+            _log.LogWarning("Scenario load failed");
+            StatusText = "Scenario load failed";
+        }
+
+        foreach (var w in result.Warnings)
+        {
+            _log.LogWarning("Scenario: {Warning}", w);
+            AddSystemEntry($"[WARN] {w}");
         }
     }
 
@@ -1173,4 +1258,9 @@ public partial class MainViewModel : ObservableObject
         return null;
     }
 
+}
+
+public record DifficultyOption(string Level, int AircraftCount)
+{
+    public string Display => $"{Level} — {AircraftCount} aircraft";
 }
