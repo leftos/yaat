@@ -1,3 +1,5 @@
+using Yaat.Sim.Phases;
+
 namespace Yaat.Sim.Data.Airport;
 
 public enum GroundNodeType
@@ -129,6 +131,119 @@ public sealed class AirportGroundLayout
             if (score < bestScore)
             {
                 bestScore = score;
+                best = node;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Find the nearest exit on the specified side of the runway heading.
+    /// Falls back to FindNearestExit if no exits match the requested side.
+    /// </summary>
+    public GroundNode? FindExitBySide(
+        double lat, double lon, double runwayHeading, ExitSide side,
+        double maxSearchNm = 0.5)
+    {
+        GroundNode? best = null;
+        double bestScore = double.MaxValue;
+
+        foreach (var node in Nodes.Values)
+        {
+            if (node.Type == GroundNodeType.Parking)
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+            if (dist > maxSearchNm)
+            {
+                continue;
+            }
+
+            bool hasTaxiwayEdge = false;
+            foreach (var edge in node.Edges)
+            {
+                if (!IsRunwayEdge(edge))
+                {
+                    hasTaxiwayEdge = true;
+                    break;
+                }
+            }
+
+            if (!hasTaxiwayEdge)
+            {
+                continue;
+            }
+
+            double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
+            double relative = NormalizeAngle(bearing - runwayHeading);
+
+            // Left = negative relative angle, Right = positive
+            bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
+            if (!isOnRequestedSide)
+            {
+                continue;
+            }
+
+            double turnAngle = Math.Abs(relative);
+            double score = dist + (turnAngle > 90 ? 10.0 : 0.0);
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = node;
+            }
+        }
+
+        // Fall back to nearest exit if none found on the requested side
+        return best ?? FindNearestExit(lat, lon, runwayHeading, maxSearchNm);
+    }
+
+    /// <summary>
+    /// Find an exit node connected to the named taxiway.
+    /// Uses a wider search radius since the taxiway might be further ahead.
+    /// </summary>
+    public GroundNode? FindExitByTaxiway(
+        double lat, double lon, string taxiwayName,
+        double maxSearchNm = 1.0)
+    {
+        GroundNode? best = null;
+        double bestDist = double.MaxValue;
+
+        foreach (var node in Nodes.Values)
+        {
+            if (node.Type == GroundNodeType.Parking)
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+            if (dist > maxSearchNm)
+            {
+                continue;
+            }
+
+            bool hasMatchingEdge = false;
+            foreach (var edge in node.Edges)
+            {
+                if (!IsRunwayEdge(edge)
+                    && string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    hasMatchingEdge = true;
+                    break;
+                }
+            }
+
+            if (!hasMatchingEdge)
+            {
+                continue;
+            }
+
+            if (dist < bestDist)
+            {
+                bestDist = dist;
                 best = node;
             }
         }

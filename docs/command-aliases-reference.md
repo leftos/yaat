@@ -103,9 +103,9 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 | Land (heli at parking spot) | LAND | — | — | — |
 | Land and Hold Short | LAHSO | — | — | — |
 | Takeoff Roll | GO | — | — | — |
-| Exit Left | EL | — | — | — |
-| Exit Right | ER | — | — | — |
-| Exit (taxiway) | EXIT | — | — | — |
+| **Exit Left** | EL | — | EL | EL |
+| **Exit Right** | ER | — | ER | ER |
+| **Exit (taxiway)** | EXIT | — | EXIT | EXIT |
 
 > **Note:** ATCTrainer's `CTL` means "Clear Approach" (IFR approach clearance), NOT "Cleared to Land".
 >

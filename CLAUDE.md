@@ -98,6 +98,7 @@ Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, Landin
 Phases/PhaseRunner.cs          # Static lifecycle: start→tick→advance; auto-appends exit/pattern phases
 Phases/PhaseContext.cs         # Readonly tick context
 Phases/CommandAcceptance.cs    # Enum: Allowed, Rejected, ClearsPhase
+Phases/ExitPreference.cs       # ExitSide enum + ExitPreference class for exit commands
 Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff/Land/Option/TouchAndGo/StopAndGo, RunwayCrossing
 Phases/RunwayInfo.cs           # Runway geometry
 Phases/GlideSlopeGeometry.cs   # Altitude/descent rate calculations (3° default)

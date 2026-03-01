@@ -63,6 +63,9 @@ internal static class CommandDescriber
             ResumeCommand => CanonicalCommandType.Resume,
             CrossRunwayCommand => CanonicalCommandType.CrossRunway,
             FollowCommand => CanonicalCommandType.Follow,
+            ExitLeftCommand => CanonicalCommandType.ExitLeft,
+            ExitRightCommand => CanonicalCommandType.ExitRight,
+            ExitTaxiwayCommand => CanonicalCommandType.ExitTaxiway,
             _ => CanonicalCommandType.FlyHeading, // fallback
         };
     }
@@ -150,6 +153,9 @@ internal static class CommandDescriber
             ResumeCommand => "RES",
             CrossRunwayCommand cross => $"CROSS {cross.RunwayId}",
             FollowCommand follow => $"FOLLOW {follow.TargetCallsign}",
+            ExitLeftCommand => "EL",
+            ExitRightCommand => "ER",
+            ExitTaxiwayCommand et => $"EXIT {et.Taxiway}",
             _ => command.ToString() ?? "?",
         };
     }
@@ -217,6 +223,9 @@ internal static class CommandDescriber
             ResumeCommand => "Resume taxi",
             CrossRunwayCommand cross => $"Cross runway {cross.RunwayId}",
             FollowCommand follow => $"Follow {follow.TargetCallsign}",
+            ExitLeftCommand => "Exit left",
+            ExitRightCommand => "Exit right",
+            ExitTaxiwayCommand et => $"Exit at {et.Taxiway}",
             UnsupportedCommand cmd => cmd.RawText,
             _ => command.ToString() ?? "?",
         };
@@ -244,7 +253,10 @@ internal static class CommandDescriber
             or TouchAndGoCommand
             or StopAndGoCommand
             or LowApproachCommand
-            or ClearedForOptionCommand;
+            or ClearedForOptionCommand
+            or ExitLeftCommand
+            or ExitRightCommand
+            or ExitTaxiwayCommand;
     }
 
     internal static bool IsGroundCommand(ParsedCommand command)

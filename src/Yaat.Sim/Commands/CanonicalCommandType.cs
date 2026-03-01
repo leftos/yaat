@@ -63,6 +63,9 @@ public enum CanonicalCommandType
     Resume,
     CrossRunway,
     Follow,
+    ExitLeft,
+    ExitRight,
+    ExitTaxiway,
     // Spawn control
     Add,
     SpawnNow,

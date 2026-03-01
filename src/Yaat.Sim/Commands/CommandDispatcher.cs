@@ -473,6 +473,15 @@ public static class CommandDispatcher
             case FollowCommand follow:
                 return TryFollow(aircraft, follow);
 
+            case ExitLeftCommand el:
+                return TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left }, el.NoDelete);
+
+            case ExitRightCommand er:
+                return TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Right }, er.NoDelete);
+
+            case ExitTaxiwayCommand et:
+                return TryExitCommand(aircraft, new ExitPreference { Taxiway = et.Taxiway }, et.NoDelete);
+
             default:
                 return null;
         }
@@ -1099,6 +1108,28 @@ public static class CommandDispatcher
         phases.Start(BuildMinimalContext(aircraft));
 
         return Ok($"Follow {follow.TargetCallsign}");
+    }
+
+    private static CommandResult TryExitCommand(
+        AircraftState aircraft, ExitPreference preference, bool noDelete)
+    {
+        if (aircraft.Phases is null)
+        {
+            return new CommandResult(false, "Aircraft has no active phase sequence");
+        }
+
+        aircraft.Phases.RequestedExit = preference;
+        if (noDelete)
+        {
+            aircraft.AutoDeleteExempt = true;
+        }
+
+        if (preference.Taxiway is not null)
+        {
+            return Ok($"Exit at {preference.Taxiway}");
+        }
+
+        return Ok(preference.Side == ExitSide.Left ? "Exit left" : "Exit right");
     }
 
     private static void ApplyBlock(CommandBlock block, AircraftState aircraft)

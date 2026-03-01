@@ -30,6 +30,13 @@ public sealed class PhaseList
     /// </summary>
     public PatternDirection? TrafficDirection { get; set; }
 
+    /// <summary>
+    /// Controller-requested exit preference. Set by EL/ER/EXIT commands,
+    /// consumed by RunwayExitPhase. Persists across phase transitions so
+    /// the controller can issue the command during approach or rollout.
+    /// </summary>
+    public ExitPreference? RequestedExit { get; set; }
+
     public int CurrentIndex { get; private set; }
 
     /// <summary>

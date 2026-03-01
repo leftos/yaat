@@ -15,6 +15,7 @@ public sealed class RunwayExitPhase : Phase
     private GroundNode? _exitNode;
     private string? _exitTaxiway;
     private string? _runwayId;
+    private ExitPreference? _lastResolvedPreference;
 
     public override string Name => "Runway Exit";
 
@@ -24,24 +25,23 @@ public sealed class RunwayExitPhase : Phase
 
         _runwayId = ctx.Aircraft.Phases?.AssignedRunway?.RunwayId;
 
-        // Find the nearest exit using the ground layout
         if (ctx.GroundLayout is null)
         {
             return;
         }
 
-        double heading = ctx.Aircraft.Heading;
-        _exitNode = ctx.GroundLayout.FindNearestExit(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, heading);
-
-        if (_exitNode is not null)
-        {
-            _exitTaxiway = ctx.GroundLayout.GetExitTaxiwayName(_exitNode);
-        }
+        ResolveExit(ctx);
     }
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Re-resolve if the controller changed the exit preference mid-phase
+        var currentPref = ctx.Aircraft.Phases?.RequestedExit;
+        if (currentPref != _lastResolvedPreference && ctx.GroundLayout is not null)
+        {
+            ResolveExit(ctx);
+        }
+
         if (_exitNode is null)
         {
             // No ground layout or no exit found — just stop
@@ -107,10 +107,40 @@ public sealed class RunwayExitPhase : Phase
         }
     }
 
+    private void ResolveExit(PhaseContext ctx)
+    {
+        var requested = ctx.Aircraft.Phases?.RequestedExit;
+        _lastResolvedPreference = requested;
+        double heading = ctx.Aircraft.Heading;
+
+        if (requested?.Taxiway is { } taxiway)
+        {
+            _exitNode = ctx.GroundLayout!.FindExitByTaxiway(
+                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, taxiway);
+        }
+        else if (requested?.Side is { } side)
+        {
+            _exitNode = ctx.GroundLayout!.FindExitBySide(
+                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, heading, side);
+        }
+        else
+        {
+            _exitNode = ctx.GroundLayout!.FindNearestExit(
+                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, heading);
+        }
+
+        _exitTaxiway = _exitNode is not null
+            ? ctx.GroundLayout!.GetExitTaxiwayName(_exitNode)
+            : null;
+    }
+
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         return cmd switch
         {
+            CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
+            CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
+            CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,

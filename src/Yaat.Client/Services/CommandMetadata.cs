@@ -73,6 +73,9 @@ public static class CommandMetadata
         new(CanonicalCommandType.Resume, "Resume Taxi", null, false),
         new(CanonicalCommandType.CrossRunway, "Cross Runway", "28L", false),
         new(CanonicalCommandType.Follow, "Follow", "SWA123", false),
+        new(CanonicalCommandType.ExitLeft, "Exit Left", null, false),
+        new(CanonicalCommandType.ExitRight, "Exit Right", null, false),
+        new(CanonicalCommandType.ExitTaxiway, "Exit Taxiway", "A3", false),
         // Sim control
         new(CanonicalCommandType.Delete, "Delete", null, false),
         new(CanonicalCommandType.Pause, "Pause", null, true),

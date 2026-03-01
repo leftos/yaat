@@ -231,6 +231,10 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `GA` | Go around (fly runway heading, climb to 1500 AGL) |
 | `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft |
 | `GA RH 50` | Go around, fly runway heading, climb to 5,000 ft |
+| `EL` | Exit runway to the left |
+| `ER` | Exit runway to the right |
+| `EXIT A3` | Exit runway at taxiway A3 |
+| `EL NODEL` / `ER NODEL` / `EXIT A3 NODEL` | Exit with auto-delete exemption |
 
 The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments above). `RH` in the heading position means "runway heading."
 
@@ -349,7 +353,7 @@ Scenarios can define an `autoDeleteMode` that automatically removes aircraft aft
 
 Override the scenario setting in **Settings > General > Auto-Delete Aircraft**. Options: "Use Scenario Setting" (default), "Never", "On Landing", "On Parking".
 
-To exempt a specific aircraft from auto-delete, append `NODEL` to `CTL` or `TAXI` commands (e.g., `CTL NODEL`, `TAXI S T U @B12 NODEL`). This is useful when repositioning aircraft after landing or parking for reuse.
+To exempt a specific aircraft from auto-delete, append `NODEL` to `CTL`, `TAXI`, `EL`, `ER`, or `EXIT` commands (e.g., `CTL NODEL`, `TAXI S T U @B12 NODEL`, `EL NODEL`, `EXIT A3 NODEL`). This is useful when repositioning aircraft after landing or parking for reuse.
 
 ### Conditional Blocks
 

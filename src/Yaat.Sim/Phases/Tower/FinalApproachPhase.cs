@@ -176,6 +176,9 @@ public sealed class FinalApproachPhase : Phase
             CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+            CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
+            CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
+            CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

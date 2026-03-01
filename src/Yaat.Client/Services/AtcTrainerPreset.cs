@@ -71,6 +71,9 @@ internal static class AtcTrainerPreset
                 [CanonicalCommandType.Resume] = new() { Aliases = ["RES", "RESUME"], Format = "{verb}" },
                 [CanonicalCommandType.CrossRunway] = new() { Aliases = ["CROSS"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.Follow] = new() { Aliases = ["FOLLOW", "FOL"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ExitLeft] = new() { Aliases = ["EL"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.ExitRight] = new() { Aliases = ["ER"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.ExitTaxiway] = new() { Aliases = ["EXIT"], Format = "{verb} {arg}" },
                 // Sim control
                 [CanonicalCommandType.Delete] = new() { Aliases = ["DEL"], Format = "{verb}" },
                 [CanonicalCommandType.Pause] = new() { Aliases = ["PAUSE", "P"], Format = "{verb}" },

@@ -87,18 +87,24 @@ public sealed class LandingPhase : Phase
     {
         if (!_touchedDown)
         {
-            // During flare, reject most commands
+            // During flare, reject most commands (exit preference is OK)
             return cmd switch
             {
                 CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+                CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
+                CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
+                CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
                 CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
                 _ => CommandAcceptance.Rejected,
             };
         }
 
-        // During rollout, reject speed/heading changes
+        // During rollout, reject speed/heading changes (exit preference is OK)
         return cmd switch
         {
+            CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
+            CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
+            CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.GoAround => CommandAcceptance.Rejected,
             _ => CommandAcceptance.Rejected,

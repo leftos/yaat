@@ -131,6 +131,13 @@ public record CrossRunwayCommand(string RunwayId) : ParsedCommand;
 
 public record FollowCommand(string TargetCallsign) : ParsedCommand;
 
+// Exit commands
+public record ExitLeftCommand(bool NoDelete = false) : ParsedCommand;
+
+public record ExitRightCommand(bool NoDelete = false) : ParsedCommand;
+
+public record ExitTaxiwayCommand(string Taxiway, bool NoDelete = false) : ParsedCommand;
+
 /// <summary>
 /// A compound command consisting of sequential blocks,
 /// each containing parallel commands and an optional trigger.
