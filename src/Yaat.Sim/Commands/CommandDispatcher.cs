@@ -1,5 +1,7 @@
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
@@ -10,12 +12,13 @@ public record CommandResult(bool Success, string? Message = null);
 public static class CommandDispatcher
 {
     public static CommandResult DispatchCompound(
-        CompoundCommand compound, AircraftState aircraft, IRunwayLookup? runways = null)
+        CompoundCommand compound, AircraftState aircraft,
+        IRunwayLookup? runways = null, AirportGroundLayout? groundLayout = null)
     {
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways);
+            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways, groundLayout);
             if (result is not null)
             {
                 return result;
@@ -64,6 +67,11 @@ public static class CommandDispatcher
                 var atLabel = FormatAtLabel(at);
                 blockDesc = $"at {atLabel}: {blockDesc}";
                 blockMsg = $"At {atLabel}: {blockMsg}";
+            }
+            else if (parsedBlock.Condition is GiveWayCondition gw)
+            {
+                blockDesc = $"giveway {gw.TargetCallsign}: {blockDesc}";
+                blockMsg = $"After {gw.TargetCallsign} passes: {blockMsg}";
             }
 
             var waitTime = parsedBlock.Commands.OfType<WaitCommand>().FirstOrDefault();
@@ -222,14 +230,15 @@ public static class CommandDispatcher
     /// </summary>
     private static CommandResult? DispatchWithPhase(
         CompoundCommand compound, AircraftState aircraft, Phase currentPhase,
-        IRunwayLookup? runways = null)
+        IRunwayLookup? runways = null, AirportGroundLayout? groundLayout = null)
     {
         // Extract the first command to check acceptance
         var firstCmd = compound.Blocks[0].Commands[0];
         var cmdType = ToCanonicalType(firstCmd);
 
-        // Try tower-specific handling first (phase-interactive commands)
-        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, runways);
+        // Try tower/ground-specific handling first (phase-interactive commands)
+        var towerResult = TryApplyTowerCommand(
+            firstCmd, aircraft, currentPhase, runways, groundLayout);
         if (towerResult is not null)
         {
             return towerResult;
@@ -260,7 +269,7 @@ public static class CommandDispatcher
 
     private static CommandResult? TryApplyTowerCommand(
         ParsedCommand command, AircraftState aircraft, Phase currentPhase,
-        IRunwayLookup? runways = null)
+        IRunwayLookup? runways = null, AirportGroundLayout? groundLayout = null)
     {
         switch (command)
         {
@@ -460,6 +469,25 @@ public static class CommandDispatcher
 
             case HoldAtFixHoverCommand hfixH:
                 return TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null);
+
+            // Ground commands
+            case PushbackCommand push:
+                return TryPushback(aircraft, push, groundLayout);
+
+            case TaxiCommand taxi:
+                return TryTaxi(aircraft, taxi, groundLayout);
+
+            case HoldPositionCommand:
+                return TryHoldPosition(aircraft);
+
+            case ResumeCommand:
+                return TryResumeTaxi(aircraft);
+
+            case CrossRunwayCommand cross:
+                return TryCrossRunway(aircraft, cross);
+
+            case FollowCommand follow:
+                return TryFollow(aircraft, follow);
 
             default:
                 return null;
@@ -715,7 +743,8 @@ public static class CommandDispatcher
         }
     }
 
-    private static PhaseContext BuildMinimalContext(AircraftState aircraft)
+    private static PhaseContext BuildMinimalContext(
+        AircraftState aircraft, AirportGroundLayout? groundLayout = null)
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         var runway = aircraft.Phases?.AssignedRunway;
@@ -727,6 +756,7 @@ public static class CommandDispatcher
             DeltaSeconds = 0,
             Runway = runway,
             FieldElevation = runway?.ElevationFt ?? 0,
+            GroundLayout = groundLayout,
         };
     }
 
@@ -850,6 +880,185 @@ public static class CommandDispatcher
         return Ok($"Hold at {fixName}, {dirStr}");
     }
 
+    private static CommandResult TryPushback(
+        AircraftState aircraft, PushbackCommand push,
+        AirportGroundLayout? groundLayout)
+    {
+        if (aircraft.Phases?.CurrentPhase is not AtParkingPhase)
+        {
+            return new CommandResult(false, "Pushback requires aircraft to be at parking");
+        }
+
+        var ctx = BuildMinimalContext(aircraft, groundLayout);
+        aircraft.Phases.Clear(ctx);
+
+        var phase = new PushbackPhase { TargetHeading = push.Heading };
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Start(ctx);
+
+        var msg = "Pushing back";
+        if (push.Heading is not null)
+        {
+            msg += $", face heading {push.Heading:000}";
+        }
+
+        return Ok(msg);
+    }
+
+    private static CommandResult TryTaxi(
+        AircraftState aircraft, TaxiCommand taxi,
+        AirportGroundLayout? groundLayout)
+    {
+        if (groundLayout is null)
+        {
+            return new CommandResult(false, "No airport ground layout available");
+        }
+
+        // Find starting node: nearest to aircraft's current position
+        var startNode = groundLayout.FindNearestNode(
+            aircraft.Latitude, aircraft.Longitude);
+
+        if (startNode is null)
+        {
+            return new CommandResult(false, "Cannot find position on taxiway graph");
+        }
+
+        // Resolve the taxi route using explicit path
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            groundLayout, startNode.Id, taxi.Path, taxi.HoldShorts,
+            taxi.DestinationRunway);
+
+        if (route is null)
+        {
+            var pathStr = string.Join(" ", taxi.Path);
+            return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
+        }
+
+        // Clear current phases
+        var ctx = BuildMinimalContext(aircraft, groundLayout);
+        if (aircraft.Phases is not null)
+        {
+            aircraft.Phases.Clear(ctx);
+        }
+
+        // Set up the taxi route and phase
+        aircraft.AssignedTaxiRoute = route;
+        aircraft.IsHeld = false;
+
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new TaxiingPhase());
+        ctx = BuildMinimalContext(aircraft, groundLayout);
+        aircraft.Phases.Start(ctx);
+
+        return Ok($"Taxi via {route.ToSummary()}");
+    }
+
+    private static CommandResult TryHoldPosition(AircraftState aircraft)
+    {
+        bool isGround = aircraft.Phases?.CurrentPhase
+            is AtParkingPhase or PushbackPhase or TaxiingPhase
+            or HoldingShortPhase or CrossingRunwayPhase;
+
+        if (!isGround)
+        {
+            return new CommandResult(false, "Hold position requires aircraft on the ground");
+        }
+
+        aircraft.IsHeld = true;
+        return Ok("Hold position");
+    }
+
+    private static CommandResult TryResumeTaxi(AircraftState aircraft)
+    {
+        if (!aircraft.IsHeld)
+        {
+            return new CommandResult(false, "Aircraft is not held");
+        }
+
+        aircraft.IsHeld = false;
+        return Ok("Resume taxi");
+    }
+
+    private static CommandResult TryCrossRunway(
+        AircraftState aircraft, CrossRunwayCommand cross)
+    {
+        // If currently holding short, satisfy the clearance immediately
+        if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase)
+        {
+            holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
+            return Ok($"Cross runway {cross.RunwayId}");
+        }
+
+        // Otherwise, pre-clear the matching hold-short in the taxi route
+        var route = aircraft.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return new CommandResult(false, "No taxi route assigned");
+        }
+
+        bool cleared = false;
+        foreach (var hs in route.HoldShortPoints)
+        {
+            if (hs.RunwayId is not null
+                && hs.RunwayId.Equals(cross.RunwayId, StringComparison.OrdinalIgnoreCase)
+                && !hs.IsCleared)
+            {
+                hs.IsCleared = true;
+                cleared = true;
+            }
+        }
+
+        if (!cleared)
+        {
+            return new CommandResult(false,
+                $"No hold-short for runway {cross.RunwayId} in taxi route");
+        }
+
+        return Ok($"Cross runway {cross.RunwayId}");
+    }
+
+    private static CommandResult TryFollow(
+        AircraftState aircraft, FollowCommand follow)
+    {
+        var currentPhase = aircraft.Phases?.CurrentPhase;
+        if (currentPhase is null)
+        {
+            return new CommandResult(false, "Aircraft has no active phase");
+        }
+
+        // Must be on the ground in a phase that accepts Follow
+        if (!aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "Follow requires the aircraft to be on the ground");
+        }
+
+        var acceptance = currentPhase.CanAcceptCommand(CanonicalCommandType.Follow);
+        if (acceptance == CommandAcceptance.Rejected)
+        {
+            return new CommandResult(false,
+                $"Cannot follow during {currentPhase.Name}");
+        }
+
+        // Replace phases with FollowingPhase
+        var phases = aircraft.Phases!;
+        phases.Clear(BuildMinimalContext(aircraft));
+        phases.Phases.Add(new FollowingPhase(follow.TargetCallsign));
+        phases.Start(BuildMinimalContext(aircraft));
+
+        return Ok($"Follow {follow.TargetCallsign}");
+    }
+
+    private static bool IsGroundCommand(ParsedCommand command)
+    {
+        return command is PushbackCommand
+            or TaxiCommand
+            or HoldPositionCommand
+            or ResumeCommand
+            or CrossRunwayCommand
+            or FollowCommand;
+    }
+
     private static CanonicalCommandType ToCanonicalType(ParsedCommand command)
     {
         return command switch
@@ -894,6 +1103,12 @@ public static class CommandDispatcher
                 ? CanonicalCommandType.HoldAtFixLeft
                 : CanonicalCommandType.HoldAtFixRight,
             HoldAtFixHoverCommand => CanonicalCommandType.HoldAtFixHover,
+            PushbackCommand => CanonicalCommandType.Pushback,
+            TaxiCommand => CanonicalCommandType.Taxi,
+            HoldPositionCommand => CanonicalCommandType.HoldPosition,
+            ResumeCommand => CanonicalCommandType.Resume,
+            CrossRunwayCommand => CanonicalCommandType.CrossRunway,
+            FollowCommand => CanonicalCommandType.Follow,
             _ => CanonicalCommandType.FlyHeading, // fallback
         };
     }
@@ -996,6 +1211,13 @@ public static class CommandDispatcher
             HoldAtFixHoverCommand cmd => $"HFIX {cmd.FixName}",
             WaitCommand cmd => $"WAIT {cmd.Seconds}",
             WaitDistanceCommand cmd => $"WAITD {cmd.DistanceNm}",
+            PushbackCommand push => push.Heading is not null
+                ? $"PUSH {push.Heading:000}" : "PUSH",
+            TaxiCommand taxi => $"TAXI {string.Join(" ", taxi.Path)}",
+            HoldPositionCommand => "HOLD",
+            ResumeCommand => "RES",
+            CrossRunwayCommand cross => $"CROSS {cross.RunwayId}",
+            FollowCommand follow => $"FOLLOW {follow.TargetCallsign}",
             _ => command.ToString() ?? "?",
         };
     }
@@ -1025,6 +1247,11 @@ public static class CommandDispatcher
                 FixName = at.FixName,
                 FixLat = at.Lat,
                 FixLon = at.Lon,
+            },
+            GiveWayCondition gw => new BlockTrigger
+            {
+                Type = BlockTriggerType.GiveWay,
+                TargetCallsign = gw.TargetCallsign,
             },
             _ => null,
         };
@@ -1119,6 +1346,14 @@ public static class CommandDispatcher
             HoldAtFixHoverCommand cmd => $"Hold at {cmd.FixName}",
             WaitCommand cmd => $"Wait {cmd.Seconds} seconds",
             WaitDistanceCommand cmd => $"Wait {cmd.DistanceNm} nm",
+            PushbackCommand push => push.Heading is not null
+                ? $"Pushback, face heading {push.Heading:000}" : "Pushback",
+            TaxiCommand taxi =>
+                $"Taxi via {string.Join(" ", taxi.Path)}",
+            HoldPositionCommand => "Hold position",
+            ResumeCommand => "Resume taxi",
+            CrossRunwayCommand cross => $"Cross runway {cross.RunwayId}",
+            FollowCommand follow => $"Follow {follow.TargetCallsign}",
             UnsupportedCommand cmd => cmd.RawText,
             _ => command.ToString() ?? "?",
         };

@@ -60,7 +60,10 @@ public static class CommandSchemeParser
         var upper = trimmed.ToUpperInvariant();
         if (!isCompound)
         {
-            isCompound = upper.StartsWith("LV ") || upper.StartsWith("AT ");
+            isCompound = upper.StartsWith("LV ")
+                || upper.StartsWith("AT ")
+                || upper.StartsWith("GIVEWAY ")
+                || upper.StartsWith("BEHIND ");
         }
 
         if (!isCompound)
@@ -136,6 +139,17 @@ public static class CommandSchemeParser
             }
 
             parts.Add($"AT {tokens[1].ToUpperInvariant()}");
+            remaining = tokens[2];
+        }
+        else if (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND "))
+        {
+            var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 3)
+            {
+                return null;
+            }
+
+            parts.Add($"GIVEWAY {tokens[1].ToUpperInvariant()}");
             remaining = tokens[2];
         }
 
@@ -283,6 +297,17 @@ public static class CommandSchemeParser
         var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var verb = parts[0];
         var arg = parts.Length > 1 ? parts[1].Trim() : null;
+
+        // RWY {runway} [TAXI] {path} → rewrite to Taxi with RWY keyword
+        if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase)
+            && arg is not null)
+        {
+            var rewritten = RewriteRwyToTaxiArg(arg);
+            if (rewritten is not null)
+            {
+                return new ParsedInput(CanonicalCommandType.Taxi, rewritten);
+            }
+        }
 
         foreach (var (type, pattern) in scheme.Patterns)
         {
@@ -435,6 +460,46 @@ public static class CommandSchemeParser
             return new ParsedInput(CanonicalCommandType.SpawnNow, null);
         }
 
+        // Ground commands (always space-separated, even in concatenated mode)
+        if (input.StartsWith("TAXI ", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 1
+                ? new ParsedInput(CanonicalCommandType.Taxi, parts[1].Trim())
+                : null;
+        }
+
+        if (input.StartsWith("RWY ", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 1)
+            {
+                var rewritten = RewriteRwyToTaxiArg(parts[1].Trim());
+                if (rewritten is not null)
+                {
+                    return new ParsedInput(CanonicalCommandType.Taxi, rewritten);
+                }
+            }
+            return null;
+        }
+
+        if (input.StartsWith("CROSS ", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 1
+                ? new ParsedInput(CanonicalCommandType.CrossRunway, parts[1].Trim())
+                : null;
+        }
+
+        if (input.StartsWith("FOLLOW ", StringComparison.OrdinalIgnoreCase)
+            || input.StartsWith("FOL ", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 1
+                ? new ParsedInput(CanonicalCommandType.Follow, parts[1].Trim())
+                : null;
+        }
+
         if (input.StartsWith("DELAY ", StringComparison.OrdinalIgnoreCase))
         {
             var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
@@ -471,6 +536,9 @@ public static class CommandSchemeParser
                     or CanonicalCommandType.HoldAtFixHover
                     or CanonicalCommandType.SpawnNow
                     or CanonicalCommandType.SpawnDelay
+                    or CanonicalCommandType.Taxi
+                    or CanonicalCommandType.CrossRunway
+                    or CanonicalCommandType.Follow
             )
             {
                 continue;
@@ -497,6 +565,39 @@ public static class CommandSchemeParser
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Rewrites "30 [TAXI] T U W [HS ...]" → "T U W RWY 30 [HS ...]"
+    /// so the canonical form uses TAXI verb with RWY keyword.
+    /// </summary>
+    private static string? RewriteRwyToTaxiArg(string arg)
+    {
+        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length < 2)
+        {
+            return null;
+        }
+
+        // First token is the runway
+        var runway = tokens[0].ToUpperInvariant();
+        int startIdx = 1;
+
+        // Skip optional TAXI keyword
+        if (startIdx < tokens.Length
+            && tokens[startIdx].Equals("TAXI", StringComparison.OrdinalIgnoreCase))
+        {
+            startIdx++;
+        }
+
+        if (startIdx >= tokens.Length)
+        {
+            return null;
+        }
+
+        // Remaining tokens are the path [HS ...]
+        var remaining = string.Join(" ", tokens[startIdx..]);
+        return $"{remaining} RWY {runway}";
     }
 
     private static string? NormalizeDelayArg(string? arg)

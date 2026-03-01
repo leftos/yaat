@@ -8,4 +8,5 @@ public enum ClearanceType
     ClearedForOption,
     ClearedTouchAndGo,
     ClearedStopAndGo,
+    RunwayCrossing,
 }

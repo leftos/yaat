@@ -233,6 +233,15 @@ public partial class AircraftModel : ObservableObject
     }
 
     [ObservableProperty]
+    private string _taxiRoute = "";
+
+    [ObservableProperty]
+    private string _parkingSpot = "";
+
+    [ObservableProperty]
+    private string _currentTaxiway = "";
+
+    [ObservableProperty]
     private double? _distanceFromFix;
 
     [ObservableProperty]

@@ -61,6 +61,13 @@ internal static class AtcTrainerPreset
                 [CanonicalCommandType.HoldAtFixLeft] = new() { Aliases = ["HFIXL"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.HoldAtFixRight] = new() { Aliases = ["HFIXR"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.HoldAtFixHover] = new() { Aliases = ["HFIX"], Format = "{verb} {arg}" },
+                // Ground
+                [CanonicalCommandType.Pushback] = new() { Aliases = ["PUSH"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.Taxi] = new() { Aliases = ["TAXI"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldPosition] = new() { Aliases = ["HOLD", "HP"], Format = "{verb}" },
+                [CanonicalCommandType.Resume] = new() { Aliases = ["RES", "RESUME"], Format = "{verb}" },
+                [CanonicalCommandType.CrossRunway] = new() { Aliases = ["CROSS"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.Follow] = new() { Aliases = ["FOLLOW", "FOL"], Format = "{verb} {arg}" },
                 // Sim control
                 [CanonicalCommandType.Delete] = new() { Aliases = ["DEL"], Format = "{verb}" },
                 [CanonicalCommandType.Pause] = new() { Aliases = ["PAUSE", "P"], Format = "{verb}" },

@@ -33,9 +33,22 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
+            AircraftState? Lookup(string callsign)
+            {
+                foreach (var a in _aircraft)
+                {
+                    if (string.Equals(a.Callsign, callsign, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return a;
+                    }
+                }
+
+                return null;
+            }
+
             foreach (var ac in _aircraft)
             {
-                FlightPhysics.Update(ac, deltaSeconds);
+                FlightPhysics.Update(ac, deltaSeconds, Lookup);
             }
         }
     }
@@ -68,12 +81,44 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
+            AircraftState? Lookup(string callsign)
+            {
+                foreach (var a in _aircraft)
+                {
+                    if (string.Equals(a.Callsign, callsign, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return a;
+                    }
+                }
+
+                return null;
+            }
+
+            // Build scenario aircraft list for conflict detection
+            var scenarioAircraft = new List<AircraftState>();
             foreach (var ac in _aircraft)
             {
                 if (ac.ScenarioId == scenarioId)
                 {
-                    preTick?.Invoke(ac, deltaSeconds);
-                    FlightPhysics.Update(ac, deltaSeconds);
+                    scenarioAircraft.Add(ac);
+                }
+            }
+
+            // Compute ground conflict speed overrides
+            var speedOverrides = GroundConflictDetector.ComputeSpeedOverrides(
+                scenarioAircraft);
+
+            foreach (var ac in scenarioAircraft)
+            {
+                preTick?.Invoke(ac, deltaSeconds);
+                FlightPhysics.Update(ac, deltaSeconds, Lookup);
+
+                // Apply ground conflict speed caps after physics
+                if (speedOverrides.TryGetValue(ac.Callsign, out double maxSpeed)
+                    && ac.IsOnGround
+                    && ac.GroundSpeed > maxSpeed)
+                {
+                    ac.GroundSpeed = maxSpeed;
                 }
             }
         }

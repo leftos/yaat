@@ -1,8 +1,15 @@
+using Yaat.Sim.Data.Airport;
+
 namespace Yaat.Sim.Phases;
 
 public sealed class PhaseList
 {
     public RunwayInfo? AssignedRunway { get; set; }
+
+    /// <summary>
+    /// Taxi route persisted across phase transitions (set once, consumed by ground phases).
+    /// </summary>
+    public TaxiRoute? TaxiRoute { get; set; }
 
     /// <summary>
     /// Landing clearance that persists across phases.

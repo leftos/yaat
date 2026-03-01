@@ -31,7 +31,7 @@ public sealed class MidfieldCrossingPhase : Phase
         _targetLon = (Waypoints.DownwindStartLon + Waypoints.DownwindAbeamLon) / 2.0;
 
         // Set heading toward midfield target
-        double bearing = FlightPhysics.BearingTo(
+        double bearing = GeoMath.BearingTo(
             ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
             _targetLat, _targetLon);
         ctx.Targets.TargetHeading = bearing;
@@ -49,7 +49,7 @@ public sealed class MidfieldCrossingPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         // Continuously update heading toward the midfield target
-        double bearing = FlightPhysics.BearingTo(
+        double bearing = GeoMath.BearingTo(
             ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
             _targetLat, _targetLon);
         ctx.Targets.TargetHeading = bearing;

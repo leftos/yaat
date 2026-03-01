@@ -53,6 +53,13 @@ public enum CanonicalCommandType
     HoldAtFixLeft,
     HoldAtFixRight,
     HoldAtFixHover,
+    // Ground commands
+    Pushback,
+    Taxi,
+    HoldPosition,
+    Resume,
+    CrossRunway,
+    Follow,
     // Spawn control
     Add,
     SpawnNow,

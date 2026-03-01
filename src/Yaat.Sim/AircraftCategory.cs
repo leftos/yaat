@@ -351,6 +351,70 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>Taxi ground speed (knots). Simulation-pragmatic values.</summary>
+    public static double TaxiSpeed(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 18,
+            AircraftCategory.Turboprop => 15,
+            AircraftCategory.Piston => 12,
+            _ => 18,
+        };
+    }
+
+    /// <summary>Pushback speed (knots). All categories reverse at ~5 kts.</summary>
+    public static double PushbackSpeed(AircraftCategory cat)
+    {
+        _ = cat;
+        return 5;
+    }
+
+    /// <summary>Ground turn rate while taxiing (deg/sec). Simulation-pragmatic.</summary>
+    public static double GroundTurnRate(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 15,
+            AircraftCategory.Turboprop => 20,
+            AircraftCategory.Piston => 20,
+            _ => 15,
+        };
+    }
+
+    /// <summary>Taxi acceleration rate (kts/sec).</summary>
+    public static double TaxiAccelRate(AircraftCategory cat)
+    {
+        _ = cat;
+        return 2;
+    }
+
+    /// <summary>Taxi deceleration rate (kts/sec).</summary>
+    public static double TaxiDecelRate(AircraftCategory cat)
+    {
+        _ = cat;
+        return 3;
+    }
+
+    /// <summary>Speed when exiting runway onto taxiway (knots).</summary>
+    public static double RunwayExitSpeed(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 20,
+            AircraftCategory.Turboprop => 20,
+            AircraftCategory.Piston => 15,
+            _ => 20,
+        };
+    }
+
+    /// <summary>Speed when crossing a runway (knots).</summary>
+    public static double RunwayCrossingSpeed(AircraftCategory cat)
+    {
+        _ = cat;
+        return 10;
+    }
+
     public static double DefaultSpeed(AircraftCategory cat, double altitude)
     {
         return cat switch

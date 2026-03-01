@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim;
@@ -28,4 +29,10 @@ public class AircraftState
     public CommandQueue Queue { get; set; } = new();
     public PhaseList? Phases { get; set; }
     public List<string> PendingWarnings { get; } = [];
+
+    // Ground operations state
+    public TaxiRoute? AssignedTaxiRoute { get; set; }
+    public string? ParkingSpot { get; set; }
+    public string? CurrentTaxiway { get; set; }
+    public bool IsHeld { get; set; }
 }

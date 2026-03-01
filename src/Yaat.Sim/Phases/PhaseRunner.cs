@@ -1,3 +1,6 @@
+using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
+
 namespace Yaat.Sim.Phases;
 
 public static class PhaseRunner
@@ -32,7 +35,26 @@ public static class PhaseRunner
         bool complete = current.OnTick(ctx);
         if (complete)
         {
+            bool wasLanding = current is LandingPhase;
             phases.AdvanceToNext(ctx);
+
+            // After a full-stop landing (not pattern mode), auto-exit the runway
+            if (wasLanding
+                && phases.IsComplete
+                && phases.TrafficDirection is null
+                && ctx.GroundLayout is not null)
+            {
+                phases.Phases.Add(new RunwayExitPhase());
+                phases.Phases.Add(new HoldingAfterExitPhase());
+
+                if (phases.CurrentPhase is { Status: PhaseStatus.Pending } next)
+                {
+                    next.Status = PhaseStatus.Active;
+                    next.OnStart(ctx);
+                }
+
+                return;
+            }
 
             // Auto-cycle: if the phase list is complete and the aircraft is
             // in pattern mode, append the next circuit and clear clearances.

@@ -6,6 +6,7 @@ public enum BlockTriggerType
     ReachFix,
     InterceptRadial,
     ReachFrdPoint,
+    GiveWay,
 }
 
 public class BlockTrigger
@@ -19,6 +20,11 @@ public class BlockTrigger
     public int? DistanceNm { get; init; }
     public double? TargetLat { get; init; }
     public double? TargetLon { get; init; }
+
+    /// <summary>
+    /// Target aircraft callsign for GiveWay triggers.
+    /// </summary>
+    public string? TargetCallsign { get; init; }
 }
 
 public enum TrackedCommandType

@@ -128,6 +128,12 @@ YAAT supports two command schemes, switchable in Settings:
 | Squawk standby | `SQSBY` | `SQSBY` |
 | Ident | `IDENT` | `IDENT` |
 | Direct to fix | `DCT SUNOL` | `DCT SUNOL` |
+| Pushback | `PUSH` | `PUSH` |
+| Taxi | `TAXI S T U` | `TAXI S T U` |
+| Hold position | `HOLD` | `HOLD` |
+| Resume taxi | `RES` | `RES` |
+| Cross runway | `CROSS 28L` | `CROSS 28L` |
+| Follow | `FOLLOW SWA123` | `FOLLOW SWA123` |
 | Delete aircraft | `DEL` | `X` |
 
 ### Altitude Arguments
@@ -244,6 +250,26 @@ TG, SG, and LA set pattern mode — the aircraft will continue doing touch-and-g
 
 Any heading, altitude, or speed command clears the hold.
 
+### Ground Commands
+
+| Command | Effect |
+|---------|--------|
+| `PUSH` | Push back from parking (reverse at ~5 kts) |
+| `PUSH 270` | Push back facing heading 270 |
+| `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1 |
+| `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
+| `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
+| `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |
+| `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
+| `HOLD` / `HP` | Hold position (stop wherever on the ground) |
+| `RES` / `RESUME` | Resume taxi after hold |
+| `CROSS 28L` | Cross runway 28L (clears hold-short) |
+| `FOLLOW SWA123` | Follow another aircraft on the ground |
+
+Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives.
+
+Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop.
+
 ### Conditional Blocks
 
 Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific conditions instead of waiting for the previous block:
@@ -271,6 +297,15 @@ Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific con
   When reaching 20 NM on the 090 radial from SUNOL (within 1.5 NM), turn to heading 270. (Fix-Radial-Distance format: `{fix}{radial:3}{distance:3}`)
 
   If an aircraft passes through an FRD point without triggering (misses by more than 1.5 NM but came within 5 NM), a warning message appears in the terminal: `Missed condition at SUNOL R090 D020 (closest: 2.3 NM)`.
+
+- **GIVEWAY** / **BEHIND** — triggers when the named aircraft no longer conflicts (ground only):
+  ```
+  GIVEWAY SWA5456 TAXI S T U
+  ```
+  Wait for SWA5456 to pass, then taxi via S, T, U. Works with compound chains:
+  ```
+  BEHIND DAL423; TAXI S T U W
+  ```
 
 These work within compound chains:
 

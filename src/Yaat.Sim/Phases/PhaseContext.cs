@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Airport;
+
 namespace Yaat.Sim.Phases;
 
 public sealed class PhaseContext
@@ -8,4 +10,11 @@ public sealed class PhaseContext
     public required double DeltaSeconds { get; init; }
     public RunwayInfo? Runway { get; init; }
     public double FieldElevation { get; init; }
+    public AirportGroundLayout? GroundLayout { get; init; }
+
+    /// <summary>
+    /// Lookup function to find other aircraft by callsign.
+    /// Used by FollowingPhase and ground conflict detection.
+    /// </summary>
+    public Func<string, AircraftState?>? AircraftLookup { get; init; }
 }

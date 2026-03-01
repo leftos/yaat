@@ -5,5 +5,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Yaat.Client.Tests/Yaat.Client.Tests.csproj" />
+    <Project Path="tests/Yaat.Sim.Tests/Yaat.Sim.Tests.csproj" />
   </Folder>
 </Solution>

@@ -63,6 +63,13 @@ public static class CommandMetadata
         new(CanonicalCommandType.HoldAtFixLeft, "Hold at Fix (Left)", "FIX", false),
         new(CanonicalCommandType.HoldAtFixRight, "Hold at Fix (Right)", "FIX", false),
         new(CanonicalCommandType.HoldAtFixHover, "Hold at Fix", "FIX", false),
+        // Ground
+        new(CanonicalCommandType.Pushback, "Pushback", "270", false),
+        new(CanonicalCommandType.Taxi, "Taxi", "S T U W W1", false),
+        new(CanonicalCommandType.HoldPosition, "Hold Position", null, false),
+        new(CanonicalCommandType.Resume, "Resume Taxi", null, false),
+        new(CanonicalCommandType.CrossRunway, "Cross Runway", "28L", false),
+        new(CanonicalCommandType.Follow, "Follow", "SWA123", false),
         // Sim control
         new(CanonicalCommandType.Delete, "Delete", null, false),
         new(CanonicalCommandType.Pause, "Pause", null, true),

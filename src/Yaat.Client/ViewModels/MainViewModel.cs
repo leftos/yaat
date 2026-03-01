@@ -1012,6 +1012,9 @@ public partial class MainViewModel : ObservableObject
         model.EquipmentSuffix = dto.EquipmentSuffix;
         model.CruiseAltitude = dto.CruiseAltitude;
         model.CruiseSpeed = dto.CruiseSpeed;
+        model.TaxiRoute = dto.TaxiRoute;
+        model.ParkingSpot = dto.ParkingSpot;
+        model.CurrentTaxiway = dto.CurrentTaxiway;
         model.DistanceFromFix = ComputeDistance(model);
     }
 
@@ -1051,6 +1054,9 @@ public partial class MainViewModel : ObservableObject
             EquipmentSuffix = dto.EquipmentSuffix,
             CruiseAltitude = dto.CruiseAltitude,
             CruiseSpeed = dto.CruiseSpeed,
+            TaxiRoute = dto.TaxiRoute,
+            ParkingSpot = dto.ParkingSpot,
+            CurrentTaxiway = dto.CurrentTaxiway,
         };
         model.DistanceFromFix = ComputeDistance(model);
         return model;

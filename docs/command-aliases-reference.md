@@ -216,19 +216,30 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 | Radar Services Terminated | — | RST |
 | Altitude Your Discretion | — | A (no arg, VFR context) |
 
-## Ground (not implemented)
+## Ground
 
-| Command | ATCTrainer doc | VICE doc |
-|---|---|---|
-| Taxi | TAXI | — |
-| Taxi All | TAXIALL | — |
-| Runway Taxi | RWY | — |
-| Push Back | PUSH | — |
-| Hold Short | HS | — |
-| Cross | CROSS | — |
-| Give Way | GIVEWAY, GW, PB | — |
-| Break | BREAK | — |
-| Resume | RES | — |
+VICE has no ground commands. The VICE preset uses ATCTrainer verbs.
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Pushback** | PUSH | — | PUSH | PUSH |
+| **Taxi** | TAXI, RWY | — | TAXI, RWY | TAXI |
+| **Hold Position** | HOLD | — | HOLD, HP | HOLD |
+| **Resume Taxi** | RES | — | RES, RESUME | RES |
+| **Cross Runway** | CROSS | — | CROSS | CROSS |
+| **Follow** | FOLLOW | — | FOLLOW, FOL | FOLLOW |
+| Taxi All | TAXIALL | — | — | — |
+| Hold Short | HS | — | (via TAXI HS) | (via TAXI HS) |
+| **Give Way** | GIVEWAY, GW, PB | — | GIVEWAY, BEHIND | GIVEWAY, BEHIND |
+| Break | BREAK | — | — | — |
+
+> **Note:** ATCTrainer's `HS` is a standalone command for hold-short. In YAAT, hold-short is specified as part of the `TAXI` command: `TAXI S T U HS 28L` (tokens after `HS` are explicit hold-short runways). Implicit hold-shorts are added at all runway crossings automatically.
+>
+> `CROSS` can be issued before reaching the hold-short point to pre-clear it, or while holding short to satisfy the clearance immediately.
+>
+> `HOLD` and `HP` stop the aircraft wherever it is on the ground. `RES` / `RESUME` resumes taxi movement.
+>
+> `GIVEWAY` / `BEHIND` is a condition prefix (like `AT` / `LV`), not a standalone command. It delays the next command until the named aircraft no longer conflicts. Example: `GIVEWAY SWA5456; TAXI S T U` waits for SWA5456 to pass before taxiing.
 
 ## Misc
 

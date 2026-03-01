@@ -61,6 +61,13 @@ internal static class VicePreset
                 [CanonicalCommandType.HoldAtFixLeft] = new() { Aliases = ["HFIXL"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.HoldAtFixRight] = new() { Aliases = ["HFIXR"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.HoldAtFixHover] = new() { Aliases = ["HFIX"], Format = "{verb} {arg}" },
+                // Ground (VICE has no ground commands; use ATCTrainer verbs)
+                [CanonicalCommandType.Pushback] = new() { Aliases = ["PUSH"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.Taxi] = new() { Aliases = ["TAXI"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldPosition] = new() { Aliases = ["HOLD"], Format = "{verb}" },
+                [CanonicalCommandType.Resume] = new() { Aliases = ["RES"], Format = "{verb}" },
+                [CanonicalCommandType.CrossRunway] = new() { Aliases = ["CROSS"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.Follow] = new() { Aliases = ["FOLLOW"], Format = "{verb} {arg}" },
                 // Sim control
                 [CanonicalCommandType.Delete] = new() { Aliases = ["X"], Format = "{verb}" },
                 [CanonicalCommandType.Pause] = new() { Aliases = ["PAUSE"], Format = "{verb}" },

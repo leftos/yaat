@@ -1,4 +1,6 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Scenarios;
@@ -38,6 +40,28 @@ public static class AircraftInitializer
             Longitude = runway.ThresholdLongitude,
             Heading = runway.TrueHeading,
             Altitude = runway.ElevationFt,
+            Speed = 0,
+            IsOnGround = true,
+        };
+    }
+
+    /// <summary>
+    /// Creates the phase list and starting state for an aircraft
+    /// at a parking spot on the ground.
+    /// </summary>
+    public static PhaseInitResult InitializeAtParking(
+        GroundNode parkingNode, double fieldElevation)
+    {
+        var phases = new PhaseList();
+        phases.Add(new AtParkingPhase());
+
+        return new PhaseInitResult
+        {
+            Phases = phases,
+            Latitude = parkingNode.Latitude,
+            Longitude = parkingNode.Longitude,
+            Heading = parkingNode.Heading ?? 0,
+            Altitude = fieldElevation,
             Speed = 0,
             IsOnGround = true,
         };

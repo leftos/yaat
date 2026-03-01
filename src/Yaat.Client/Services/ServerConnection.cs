@@ -265,7 +265,10 @@ public record AircraftDto(
     string NavigationRoute = "",
     string EquipmentSuffix = "",
     int CruiseAltitude = 0,
-    int CruiseSpeed = 0
+    int CruiseSpeed = 0,
+    string TaxiRoute = "",
+    string ParkingSpot = "",
+    string CurrentTaxiway = ""
 );
 
 public record LoadScenarioResultDto(

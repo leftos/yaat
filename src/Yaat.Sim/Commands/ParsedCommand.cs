@@ -108,6 +108,21 @@ public record HoldAtFixOrbitCommand(
 public record HoldAtFixHoverCommand(
     string FixName, double Lat, double Lon) : ParsedCommand;
 
+// Ground commands
+public record PushbackCommand(int? Heading = null, string? Taxiway = null) : ParsedCommand;
+
+public record TaxiCommand(
+    List<string> Path, List<string> HoldShorts,
+    string? DestinationRunway = null) : ParsedCommand;
+
+public record HoldPositionCommand : ParsedCommand;
+
+public record ResumeCommand : ParsedCommand;
+
+public record CrossRunwayCommand(string RunwayId) : ParsedCommand;
+
+public record FollowCommand(string TargetCallsign) : ParsedCommand;
+
 /// <summary>
 /// A compound command consisting of sequential blocks,
 /// each containing parallel commands and an optional trigger.
@@ -127,3 +142,5 @@ public record LevelCondition(int Altitude) : BlockCondition;
 public record AtFixCondition(
     string FixName, double Lat, double Lon,
     int? Radial = null, int? Distance = null) : BlockCondition;
+
+public record GiveWayCondition(string TargetCallsign) : BlockCondition;

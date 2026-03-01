@@ -15,6 +15,13 @@ public static class FlightPhysics
 
     public static void Update(AircraftState aircraft, double deltaSeconds)
     {
+        Update(aircraft, deltaSeconds, aircraftLookup: null);
+    }
+
+    public static void Update(
+        AircraftState aircraft, double deltaSeconds,
+        Func<string, AircraftState?>? aircraftLookup)
+    {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         UpdateNavigation(aircraft);
@@ -22,7 +29,7 @@ public static class FlightPhysics
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
         UpdatePosition(aircraft, deltaSeconds);
-        UpdateCommandQueue(aircraft, deltaSeconds);
+        UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
     }
 
     private static void UpdateNavigation(AircraftState aircraft)
@@ -48,7 +55,7 @@ public static class FlightPhysics
             nav = route[0];
         }
 
-        double bearing = BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+        double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
         aircraft.Targets.TargetHeading = bearing;
         aircraft.Targets.PreferredTurnDirection = null;
     }
@@ -187,7 +194,9 @@ public static class FlightPhysics
         aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
     }
 
-    private static void UpdateCommandQueue(AircraftState aircraft, double deltaSeconds)
+    private static void UpdateCommandQueue(
+        AircraftState aircraft, double deltaSeconds,
+        Func<string, AircraftState?>? aircraftLookup = null)
     {
         if (aircraft.Phases?.CurrentPhase is not null)
         {
@@ -231,7 +240,7 @@ public static class FlightPhysics
         {
             if (block.Trigger is not null && !block.TriggerMet)
             {
-                block.TriggerMet = IsTriggerMet(aircraft, block.Trigger);
+                block.TriggerMet = IsTriggerMet(aircraft, block.Trigger, aircraftLookup);
                 if (!block.TriggerMet)
                 {
                     TrackFrdMiss(aircraft, block);
@@ -286,7 +295,9 @@ public static class FlightPhysics
         return true;
     }
 
-    private static bool IsTriggerMet(AircraftState aircraft, BlockTrigger trigger)
+    private static bool IsTriggerMet(
+        AircraftState aircraft, BlockTrigger trigger,
+        Func<string, AircraftState?>? aircraftLookup)
     {
         return trigger.Type switch
         {
@@ -308,14 +319,74 @@ public static class FlightPhysics
                 && trigger.TargetLon.HasValue
                 && DistanceNm(aircraft.Latitude, aircraft.Longitude,
                     trigger.TargetLat.Value, trigger.TargetLon.Value) < FrdArrivalNm,
+            BlockTriggerType.GiveWay =>
+                IsGiveWayMet(aircraft, trigger, aircraftLookup),
             _ => true,
         };
+    }
+
+    private static bool IsGiveWayMet(
+        AircraftState aircraft, BlockTrigger trigger,
+        Func<string, AircraftState?>? aircraftLookup)
+    {
+        if (trigger.TargetCallsign is null || aircraftLookup is null)
+        {
+            return true;
+        }
+
+        var target = aircraftLookup(trigger.TargetCallsign);
+        if (target is null || !target.IsOnGround)
+        {
+            // Target is gone or airborne — no conflict
+            return true;
+        }
+
+        double distNm = GeoMath.DistanceNm(
+            aircraft.Latitude, aircraft.Longitude,
+            target.Latitude, target.Longitude);
+
+        // If the target is far enough away, the conflict is resolved
+        if (distNm > 0.1)
+        {
+            return true;
+        }
+
+        // Check if they're still conflicting based on heading
+        double headingDiff = Math.Abs(aircraft.Heading - target.Heading);
+        if (headingDiff > 180)
+        {
+            headingDiff = 360 - headingDiff;
+        }
+
+        double bearingToTarget = GeoMath.BearingTo(
+            aircraft.Latitude, aircraft.Longitude,
+            target.Latitude, target.Longitude);
+        double diffToTarget = Math.Abs(aircraft.Heading - bearingToTarget);
+        if (diffToTarget > 180)
+        {
+            diffToTarget = 360 - diffToTarget;
+        }
+
+        // Opposite direction: conflict resolved when no longer head-on
+        if (headingDiff > 120)
+        {
+            return diffToTarget > 90;
+        }
+
+        // Same direction: conflict resolved when target is ahead of us
+        if (headingDiff < 60)
+        {
+            return diffToTarget < 90;
+        }
+
+        // Neither same nor opposite — no conflict
+        return true;
     }
 
     private static bool IsRadialIntercepted(
         AircraftState aircraft, BlockTrigger trigger)
     {
-        double bearing = BearingTo(
+        double bearing = GeoMath.BearingTo(
             trigger.FixLat!.Value, trigger.FixLon!.Value,
             aircraft.Latitude, aircraft.Longitude);
         double diff = Math.Abs(NormalizeAngle(bearing - trigger.Radial!.Value));
@@ -382,19 +453,6 @@ public static class FlightPhysics
         return c * 3440.065; // Earth radius in nm
     }
 
-    public static double BearingTo(double lat1, double lon1, double lat2, double lon2)
-    {
-        double lat1Rad = lat1 * DegToRad;
-        double lat2Rad = lat2 * DegToRad;
-        double dLonRad = (lon2 - lon1) * DegToRad;
-
-        double y = Math.Sin(dLonRad) * Math.Cos(lat2Rad);
-        double x = Math.Cos(lat1Rad) * Math.Sin(lat2Rad) - Math.Sin(lat1Rad) * Math.Cos(lat2Rad) * Math.Cos(dLonRad);
-
-        double bearing = Math.Atan2(y, x) / DegToRad;
-        return NormalizeHeading(bearing);
-    }
-
     /// <summary>
     /// Projects a point from a given lat/lon along a heading for a given distance.
     /// Returns (latitude, longitude) of the projected point.
@@ -420,7 +478,7 @@ public static class FlightPhysics
         double refLat, double refLon,
         double headingDeg)
     {
-        double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
+        double bearing = GeoMath.BearingTo(refLat, refLon, pointLat, pointLon);
         double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
         double angleDiff = (bearing - headingDeg) * DegToRad;
         return dist * Math.Sin(angleDiff);
@@ -435,7 +493,7 @@ public static class FlightPhysics
         double refLat, double refLon,
         double headingDeg)
     {
-        double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
+        double bearing = GeoMath.BearingTo(refLat, refLon, pointLat, pointLon);
         double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
         double angleDiff = (bearing - headingDeg) * DegToRad;
         return dist * Math.Cos(angleDiff);

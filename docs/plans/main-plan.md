@@ -329,54 +329,45 @@ STARS tracks only appear when aircraft altitude >= field elevation + 100ft AGL. 
 
 ---
 
-### Milestone 3: Ground Operations
+### Milestone 3: Ground Operations — IMPLEMENTATION COMPLETE, VERIFICATION PENDING
 
 **Goal:** Spawn aircraft at parking, pushback, taxi, hold short, collision avoidance.
 
-#### yaat-server
+Detailed chunk plan: [M3 Ground Operations Plan](../plans/encapsulated-crunching-sutherland.md) (6 chunks, all complete)
 
-1. **Ground phases** (see [pilot-ai-architecture.md](pilot-ai-architecture.md) §6.1):
-   - `AtParkingPhase` — clearance-gated: pushback requires clearance if into movement area
-   - `PushbackPhase` — straight back or to heading, ~5 kts
-   - `TaxiingOutPhase` / `TaxiingInPhase` — follow taxi route segments
-   - `HoldingShortPhase` — clearance-gated: runway crossing, LUAW, or takeoff
-   - `CrossingRunwayPhase` — cross and resume taxi
-   - `RunwayExitPhase` / `HoldingAfterRunwayExitPhase` — post-landing ground transition
-   - `ClearanceType.Pushback`, `TaxiClearance`, `RunwayCrossing` added
-2. **TaxiPlan sub-system**: A sub-plan within ground phases — a sequence of taxiway segments with hold-short gates at each runway intersection. Hold short readback is mandatory per AIM 4-4-7.
-3. **Taxiway graph data**: Load airport taxiway graph (nodes + edges with names)
-   - Source: airport GeoJSON files from x:/dev/vzoa or generate from vNAS data
-   - Node types: parking, taxiway intersection, hold short line, runway threshold
-4. **Ground physics**:
-   - Taxi speed management (10-20 kts typical)
-   - Turn physics on ground (slow speed turns at intersections)
-   - Pushback physics (straight back or to heading, ~5 kts)
-   - Stop/start acceleration/deceleration
-5. **Ground commands**:
-   - `PUSH [twy/spot]` - Pushback
-   - `TAXI {path} [HS ...]` - Taxi with hold shorts
-   - `RWY {rwy} TAXI {path} [HS ...]` - Taxi to runway
-   - `HS {twy/rwy}` - Hold short
-   - `CROSS {rwy/twy}` - Cross
-   - `HOLD` - Hold position
-   - `RES` - Resume
-   - `BREAK` - Break from conflicts
-   - `GIVEWAY {cs}` - Give way
-6. **Pathfinding**: A* or Dijkstra on taxiway graph
-7. **Collision avoidance**: Basic detection (stop if another aircraft is ahead on same taxiway segment)
+#### yaat-server / Yaat.Sim
 
-#### yaat client
-
-1. **Ground state display**: Show current ground phase (at parking, pushing, taxiing, hold short, etc.)
-2. **Taxi route display**: Show assigned taxi route for selected aircraft
-3. **Ground commands in command bar**: Support all ground commands
+1. **~~Airport ground data layer~~** ✓: GeoJSON parser → `AirportGroundLayout` graph (nodes, edges, intersections). A* pathfinder for explicit and auto-route taxi paths. Runtime-computed from GeoJSON — no pre-built data.
+2. **~~Ground phases~~** ✓:
+   - `AtParkingPhase` — speed=0, accepts Pushback/Taxi/Delete
+   - `PushbackPhase` — reverse at ~5 kts on parking heading
+   - `TaxiingPhase` — follow `TaxiRoute` edge-by-edge, auto-stops at hold-short points
+   - `HoldingShortPhase` — clearance-gated (`RunwayCrossing`), notifies RPOs on arrival
+   - `CrossingRunwayPhase` — cross runway at ~10 kts along taxiway alignment
+   - `RunwayExitPhase` — post-landing auto-exit to nearest taxiway, generates "clear of runway" notification
+   - `HoldingAfterExitPhase` — awaits taxi instructions after exiting runway
+   - `FollowingPhase` — trail target aircraft on ground with safe following distance
+3. **~~Ground commands~~** ✓:
+   - `PUSH [hdg]` - Pushback (optional heading)
+   - `TAXI {path} [HS {rwy}...]` - Taxi with implicit + explicit hold shorts
+   - `HOLD` / `HP` - Hold position
+   - `RES` / `RESUME` - Resume taxi
+   - `CROSS {rwy}` - Cross runway (satisfies RunwayCrossing clearance)
+   - `FOLLOW {callsign}` - Trail target aircraft
+   - `GIVEWAY {callsign}` / `BEHIND {callsign}` - Condition prefix (like AT/LV)
+4. **~~Collision avoidance~~** ✓: `GroundConflictDetector` computes speed overrides per-tick. Same-direction: trail at safe distance. Opposite-direction: both stop.
+5. **~~Post-landing runway exit~~** ✓: `PhaseRunner` auto-appends `RunwayExitPhase` + `HoldingAfterExitPhase` after full-stop landing when ground layout available.
+6. **~~Client UI~~** ✓: Ground fields (TaxiRoute, ParkingSpot, CurrentTaxiway) in DTOs and AircraftModel.
 
 #### Definition of Done
-- Spawn aircraft at parking positions
-- Pushback and taxi to runway
-- Hold short of runway, clearance-gated phase transitions
-- Cross runway on command
-- Basic collision avoidance prevents taxi-through
+- [x] Spawn aircraft at parking positions
+- [x] Pushback and taxi to runway
+- [x] Hold short of runway, clearance-gated phase transitions
+- [x] Cross runway on command
+- [x] Basic collision avoidance prevents taxi-through
+- [x] Post-landing runway exit with notification
+- [x] FOLLOW and GIVEWAY/BEHIND commands
+- [ ] End-to-end verification with running server
 
 ---
 
@@ -552,6 +543,7 @@ Entity updates are **not** sent over UDP yet; CRC receives them via WebSocket in
 - [Milestone 0: Proof of Concept](completed/milestone-0.md) — COMPLETE
 - [Milestone 1: Scenario Loading & Basic RPO Commands](completed/milestone-1.md) — COMPLETE
 - [Milestone 2: Local Control (Tower)](milestone-2.md)
+- [Milestone 3: Ground Operations](encapsulated-crunching-sutherland.md)
 
 ---
 
