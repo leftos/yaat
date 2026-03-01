@@ -371,7 +371,46 @@ Detailed chunk plan: [M3 Ground Operations Plan](../plans/encapsulated-crunching
 
 ---
 
-### Milestone 4: Approach Control
+### Milestone 4: STARS Track Operations
+
+**Goal:** Track ownership, handoffs, point-outs, scratchpads, and all documented ATCTrainer/VICE track commands via both RPO and CRC.
+
+Detailed chunk plan: [M4 STARS Track Operations](track-operations.md) (9 chunks)
+
+#### Yaat.Sim
+
+1. **Track ownership types**: `TrackOwner`, `TrackOwnerType`, `Tcp`, `StarsPointout`, `StarsPointoutStatus`
+2. **AircraftState fields**: `Owner`, `HandoffPeer`, `HandoffRedirectedBy`, `Pointout`, `Scratchpad1/2`, `TemporaryAltitude`, `IsAnnotated`, `FrequencyChangeApproved`, `ContactPosition`, `OnHandoff`
+3. **New CanonicalCommandType values**: `TrackAircraft`, `DropTrack`, `InitiateHandoff`, `AcceptHandoff`, `CancelHandoff`, `AcceptAllHandoffs`, `InitiateHandoffAll`, `PointOut`, `Acknowledge`, `Annotate`, `Scratchpad`, `TemporaryAltitude`, `Cruise`, `OnHandoff`, `FrequencyChange`, `ContactTcp`, `ContactTower`
+
+#### yaat-server
+
+4. **Position infrastructure**: `PositionRegistry` (CRC + RPO position tracking), `ArtccConfigService` extensions (resolve positionId → TrackOwner, TCP code → position)
+5. **Scenario loading**: Process `atc[]`, `studentPositionId`, `autoTrackConditions`. Spawn with Owner + immediate handoff to student.
+6. **CRC track broadcasting**: Populate `StarsTrackDto.Owner/HandoffPeer/Pointout/Scratchpad`. `StarsConsolidation` topic for TCP ownership.
+7. **RPO track command handling**: Server-side dispatch for all track commands (mutate AircraftState ownership fields)
+8. **ProcessStarsCommand handling**: Full vNAS protocol — parse `ProcessStarsCommandDto` for `Handoff`, `InitiateControl`, `TerminateControl`, `Implied`. CRC clients can initiate/accept/retract handoffs.
+9. **Auto-accept timer**: Configurable delay (YAAT Client Settings). Auto-completes handoffs to unattended positions.
+
+#### yaat client
+
+10. **DataGrid columns**: Owner, Handoff, Scratchpad, TempAlt
+11. **Settings**: Auto-accept delay (seconds), sent to server on scenario load
+12. **Command patterns**: ATCTrainer (TRACK, DROP, HO, ACCEPT, CANCEL, PO, OK, SP, TA, etc.) + VICE (FC, CT, TO)
+
+#### Definition of Done
+- [ ] Aircraft spawn with correct Owner from `autoTrackConditions`
+- [ ] Handoff flows work end-to-end (initiate → flash in CRC → accept/retract)
+- [ ] Auto-accept timer completes handoffs to unattended positions
+- [ ] All 17 track commands parsed and handled (both RPO and CRC paths)
+- [ ] CRC displays correct ownership, handoff, pointout, scratchpad in STARS data blocks
+- [ ] StarsConsolidation topic correctly reports TCP ownership
+- [ ] Training client DataGrid shows ownership columns
+- [ ] `CommandSchemeCompletenessTests` pass
+
+---
+
+### Milestone 5: Approach Control
 
 **Goal:** Vectors, approach clearances, altitude/speed management.
 
@@ -382,7 +421,7 @@ Detailed chunk plan: [M3 Ground Operations Plan](../plans/encapsulated-crunching
    - `CAPPSI [app] [apt]` / `JAPPSI [app] [apt]` - Join approach straight-in (skips hold-in-lieu at IAF)
    - `JFAC [app]` - Join final approach course
    - `JARR {star} [trans]` - Join STAR
-   - ~~`DCT {wpt}` - Direct to waypoint~~ (basic DCT done in M1; M4 adds course intercepts and procedure-based nav)
+   - ~~`DCT {wpt}` - Direct to waypoint~~ (basic DCT done in M1; M5 adds course intercepts and procedure-based nav)
    - `JRADO / JRAD {fix}{radial:3}` - Join radial outbound / join radial: fly present heading until intercepting the radial, then track outbound (away from fix). E.g., `JRADO OAK090` — fly until intercepting the OAK 090 radial, then fly heading 090 (outbound from OAK).
    - `JRADI / JICRS {fix}{radial:3}` - Join radial inbound  / join inbound course: fly present heading until intercepting the radial, then track inbound (toward the fix). E.g., `JRADI OAK090` — fly until intercepting the OAK 090 radial, then fly heading 270 (inbound to OAK on the 090 radial).
    - `HOLD {wpt} {crs} {dist} {dir} [entry]` - Holding pattern
@@ -412,26 +451,25 @@ Detailed chunk plan: [M3 Ground Operations Plan](../plans/encapsulated-crunching
 
 ---
 
-### Milestone 5: Center (Enroute) Control
+### Milestone 6: Enroute Control & ERAM
 
-**Goal:** Enroute navigation, airways, holds, Mach, sector handoffs.
+**Goal:** Enroute navigation, airways, Mach, ERAM track operations.
 
 #### yaat-server
 
 1. **Enroute navigation**: Airway following, high-altitude operations
 2. **Mach speed**: `MACH {mach}` command
-3. **ATC commands**: `HO`, `ACCEPT`, `TRACK`, `PO`, `CANCEL`, `DROP`
-4. **Handoff simulation**: Simulate sector boundaries and handoffs
-5. **ERAM DTO refinement**: Full ERAM display support
+3. **ERAM track operations**: `ProcessEramMessage` handling (HO, QD, PO tokens), `EramTrackDto` ownership population, `EramPointout` support (multiple simultaneous point-outs per track)
+4. **ERAM data block format**: Context-aware Fdb/PairedLdb/UnpairedLdb based on sector ownership and quick-look state
 
 #### Definition of Done
 - Aircraft navigate airways
-- Handoff between sectors
 - High-altitude Mach operations
+- ERAM track ownership and handoffs work in CRC
 
 ---
 
-### Milestone 6: Multi-User & Deployment
+### Milestone 7: Multi-User & Deployment
 
 **Goal:** Multiple YAAT clients, role management, public deployment.
 
@@ -455,7 +493,7 @@ Detailed chunk plan: [M3 Ground Operations Plan](../plans/encapsulated-crunching
 
 ---
 
-### Milestone 7: v2 Scenario Format
+### Milestone 8: v2 Scenario Format
 
 **Goal:** Enhanced scenario format with features ATCTrainer doesn't support.
 
@@ -465,7 +503,7 @@ Detailed chunk plan: [M3 Ground Operations Plan](../plans/encapsulated-crunching
 
 ---
 
-### Milestone 8: Automated Pilot Logic (Future)
+### Milestone 9: Automated Pilot Logic (Future)
 
 **Goal:** AI pilots for self-study (no mentor/RPO needed).
 
@@ -544,6 +582,7 @@ Entity updates are **not** sent over UDP yet; CRC receives them via WebSocket in
 - [Milestone 1: Scenario Loading & Basic RPO Commands](completed/milestone-1.md) — COMPLETE
 - [Milestone 2: Local Control (Tower)](milestone-2.md)
 - [Milestone 3: Ground Operations](encapsulated-crunching-sutherland.md)
+- [Milestone 4: STARS Track Operations](track-operations.md)
 
 ---
 
