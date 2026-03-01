@@ -98,6 +98,28 @@ public sealed class SimulationWorld
         return result;
     }
 
+    public List<(string Callsign, string Notification)> DrainAllNotifications()
+    {
+        var result = new List<(string, string)>();
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                if (ac.PendingNotifications.Count > 0)
+                {
+                    foreach (var n in ac.PendingNotifications)
+                    {
+                        result.Add((ac.Callsign, n));
+                    }
+
+                    ac.PendingNotifications.Clear();
+                }
+            }
+        }
+
+        return result;
+    }
+
     public int Clear()
     {
         lock (_lock)

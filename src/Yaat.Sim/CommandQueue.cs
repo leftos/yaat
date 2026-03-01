@@ -65,6 +65,12 @@ public class CommandBlock
     public string Description { get; init; } = "";
 
     /// <summary>
+    /// Natural-language description for broadcast when a triggered block executes
+    /// (e.g., "At 5,000 ft: Climb and maintain 5000"). Set by CommandDispatcher.
+    /// </summary>
+    public string NaturalDescription { get; init; } = "";
+
+    /// <summary>
     /// Deferred action that applies this block's commands to the aircraft.
     /// Set by the CommandDispatcher when building the queue.
     /// </summary>

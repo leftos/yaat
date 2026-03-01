@@ -33,6 +33,7 @@ public class AircraftState
     public CommandQueue Queue { get; set; } = new();
     public PhaseList? Phases { get; set; }
     public List<string> PendingWarnings { get; } = [];
+    public List<string> PendingNotifications { get; } = [];
 
     // Ground operations state
     public TaxiRoute? AssignedTaxiRoute { get; set; }

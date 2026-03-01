@@ -436,6 +436,14 @@ public static class FlightPhysics
                 cmd.IsComplete = true;
             }
         }
+
+        if (block.Trigger is not null)
+        {
+            var desc = block.NaturalDescription.Length > 0
+                ? block.NaturalDescription
+                : block.Description;
+            aircraft.PendingNotifications.Add($"[Executing] {desc}");
+        }
     }
 
     // --- Geo helpers ---

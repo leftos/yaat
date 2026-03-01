@@ -90,6 +90,7 @@ public static class CommandDispatcher
                 Trigger = ConvertCondition(parsedBlock.Condition),
                 ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes),
                 Description = blockDesc,
+                NaturalDescription = blockMsg,
                 IsWaitBlock = isWait,
                 WaitRemainingSeconds = waitTime?.Seconds ?? 0,
                 WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
