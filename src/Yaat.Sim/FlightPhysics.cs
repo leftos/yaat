@@ -516,7 +516,7 @@ public static class FlightPhysics
         return diff > 0 ? 1.0 : -1.0;
     }
 
-    private static double NormalizeAngle(double angle)
+    internal static double NormalizeAngle(double angle)
     {
         angle %= 360.0;
         if (angle > 180.0)

@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -8,16 +9,22 @@ namespace Yaat.Sim.Phases.Tower;
 /// downwind/base, well before this phase activates).
 /// Auto-triggers go-around if no clearance by 0.5nm from threshold.
 /// Completes when crossing the threshold.
+/// Checks for illegal approach intercept (7110.65 §5-9-1) on
+/// first tick when aircraft is established on the localizer.
 /// </summary>
 public sealed class FinalApproachPhase : Phase
 {
     private const double AutoGoAroundDistNm = 0.5;
+    private const double InterceptCrossTrackThresholdNm = 0.1;
+    private const double InterceptHeadingThresholdDeg = 15.0;
 
     private double _thresholdLat;
     private double _thresholdLon;
     private double _thresholdElevation;
     private double _runwayHeading;
     private bool _goAroundTriggered;
+    private bool _interceptChecked;
+    private bool _isPatternTraffic;
 
     public override string Name => "FinalApproach";
 
@@ -32,6 +39,7 @@ public sealed class FinalApproachPhase : Phase
         _thresholdLon = ctx.Runway.ThresholdLongitude;
         _thresholdElevation = ctx.Runway.ElevationFt;
         _runwayHeading = ctx.Runway.TrueHeading;
+        _isPatternTraffic = ctx.Aircraft.Phases?.TrafficDirection is not null;
 
         // Set heading toward threshold
         ctx.Targets.TargetHeading = _runwayHeading;
@@ -53,6 +61,8 @@ public sealed class FinalApproachPhase : Phase
         double distNm = FlightPhysics.DistanceNm(
             ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
             _thresholdLat, _thresholdLon);
+
+        CheckInterceptDistance(ctx, distNm);
 
         // Target: threshold elevation (descend all the way to the runway)
         ctx.Targets.TargetAltitude = _thresholdElevation;
@@ -86,6 +96,44 @@ public sealed class FinalApproachPhase : Phase
         // Phase complete at threshold
         double agl = ctx.Aircraft.Altitude - _thresholdElevation;
         return distNm < 0.05 || agl < 5;
+    }
+
+    private void CheckInterceptDistance(PhaseContext ctx, double distNm)
+    {
+        if (_interceptChecked || _isPatternTraffic || ctx.Runway is null)
+        {
+            return;
+        }
+
+        double crossTrack = Math.Abs(
+            FlightPhysics.SignedCrossTrackDistanceNm(
+                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
+                _thresholdLat, _thresholdLon, _runwayHeading));
+
+        double headingDiff = Math.Abs(
+            FlightPhysics.NormalizeAngle(
+                ctx.Aircraft.Heading - _runwayHeading));
+
+        if (crossTrack >= InterceptCrossTrackThresholdNm
+            || headingDiff >= InterceptHeadingThresholdDeg)
+        {
+            return;
+        }
+
+        // Aircraft is established on the localizer — check distance
+        _interceptChecked = true;
+
+        double minIntercept = ApproachGateDatabase
+            .GetMinInterceptDistanceNm(
+                ctx.Runway.AirportId, ctx.Runway.RunwayId);
+
+        if (distNm < minIntercept)
+        {
+            ctx.Aircraft.PendingWarnings.Add(
+                $"Illegal intercept: turned on final {distNm:F1}nm "
+                + $"from threshold (min {minIntercept:F1}nm) "
+                + "[7110.65 §5-9-1]");
+        }
     }
 
     private static bool HasLandingClearance(PhaseContext ctx)

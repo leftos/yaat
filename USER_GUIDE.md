@@ -530,6 +530,13 @@ Drag the splitter bar between the aircraft grid and terminal panel to resize the
 
 Click the **Pop Out** button in the terminal header to undock the terminal into a separate floating window. The command input bar moves to the terminal window. Click **Dock** (or close the window) to return it to the main window.
 
+### Warnings
+
+Warning messages appear as gray system entries when the simulator detects potential issues:
+
+- **Missed FRD condition**: `Missed condition at SUNOL R090 D020 (closest: 2.3 NM)` — an aircraft passed through an FRD trigger point without getting close enough (within 1.5 NM) but came within 5 NM.
+- **Illegal approach intercept**: `Illegal intercept: turned on final 5.2nm from threshold (min 9.0nm) [7110.65 §5-9-1]` — an aircraft was vectored onto the final approach course closer to the runway than the minimum intercept distance derived from the approach gate (FAA 7110.65 §5-9-1). The minimum distance is computed from FAA CIFP data as: approach gate + 2nm, where approach gate = max(FAF distance + 1nm, 5nm). Pattern traffic (base-to-final turns) is exempt.
+
 ## Settings
 
 Click **Settings** in the top-right to configure:

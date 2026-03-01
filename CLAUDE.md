@@ -161,6 +161,9 @@ Phases/Tower/LinedUpAndWaitingPhase.cs  # Holds at threshold; awaits ClearedForT
 Phases/Tower/TakeoffPhase.cs            # Ground roll → Vr liftoff → completes at 400ft AGL
 Phases/Tower/InitialClimbPhase.cs       # Climb to 1500ft AGL or assigned altitude
 Phases/Tower/FinalApproachPhase.cs      # Glideslope descent; auto-go-around at 0.5nm if no clearance
+                                        # Illegal intercept check (7110.65 §5-9-1): warns if aircraft
+                                        #   turned on final closer than ApproachGateDatabase minimum.
+                                        #   Pattern traffic exempt. One-time check when established.
 Phases/Tower/LandingPhase.cs            # Flare → touchdown → rollout to 20 kts
 Phases/Tower/GoAroundPhase.cs           # TOGA power, runway heading, climb to 1500ft AGL
 Phases/Tower/TouchAndGoPhase.cs         # Brief rollout then re-accelerate, completes at 400ft AGL
@@ -219,6 +222,12 @@ Data/Airport/GeoJsonParser.cs          # GeoJSON → AirportGroundLayout (7-step
 Data/Vnas/VnasDataService.cs   # Downloads NavData protobuf + AircraftSpecs/CWT; serial-based cache
 Data/Vnas/AiracCycle.cs        # AIRAC cycle calculator (epoch Jan 23 2025, 28-day cycles)
 Data/Vnas/VnasConfig.cs        # DTO for configuration API response
+Data/Vnas/CifpDataService.cs   # Downloads FAA CIFP zip per AIRAC cycle; extracts FAACIFP18 to cache
+Data/Vnas/CifpParser.cs        # Single-pass ARINC 424 parser: FAF fixes per (airport, runway) +
+                               #   terminal waypoint coordinates. CifpParseResult output class.
+Data/ApproachGateDatabase.cs   # Static singleton. Precomputes min intercept distances per runway
+                               #   from CIFP FAF data (7110.65 §5-9-1 approach gate concept).
+                               #   Initialize() from CifpParseResult + IFixLookup + IRunwayLookup.
 
 # Scenarios/ — aircraft spawning
 Scenarios/AircraftInitializer.cs  # InitializeOnRunway, InitializeAtParking, InitializeOnFinal
@@ -236,7 +245,7 @@ Separate repo. References Yaat.Sim via sibling project ref (preferred) or git su
 
 ```
 src/Yaat.Server/
-  Program.cs                   # DI setup (all singletons), VNAS init, route mapping.
+  Program.cs                   # DI setup (all singletons), VNAS init, CIFP init, route mapping.
                                #   Validates AdminPassword at startup (refuses to start without it).
   YaatOptions.cs               # IOptions: AdminPassword from config/env
 
