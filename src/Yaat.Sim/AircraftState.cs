@@ -27,7 +27,7 @@ public class AircraftState
     public int CruiseSpeed { get; set; }
     public string TransponderMode { get; set; } = "C";
     public bool IsIdenting { get; set; }
-    public DateTime? IdentStartedAt { get; set; }
+    public double? IdentStartedAt { get; set; }
     public bool IsOnGround { get; set; }
     public ControlTargets Targets { get; } = new();
     public CommandQueue Queue { get; set; } = new();
@@ -54,6 +54,6 @@ public class AircraftState
     public bool FrequencyChangeApproved { get; set; }
     public string? ContactPosition { get; set; }
     public bool OnHandoff { get; set; }
-    public DateTime? HandoffInitiatedAt { get; set; }
+    public double? HandoffInitiatedAt { get; set; }
     public int? AssignedAltitude { get; set; }
 }

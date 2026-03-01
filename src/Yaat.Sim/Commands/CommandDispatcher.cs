@@ -235,7 +235,6 @@ public static class CommandDispatcher
 
             case IdentCommand:
                 aircraft.IsIdenting = true;
-                aircraft.IdentStartedAt = DateTime.UtcNow;
                 return Ok("Ident");
 
             case RandomSquawkCommand:
