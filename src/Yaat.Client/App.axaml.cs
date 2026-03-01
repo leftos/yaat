@@ -7,6 +7,8 @@ namespace Yaat.Client;
 
 public class App : Application
 {
+    public static bool AutoConnect { get; set; }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);

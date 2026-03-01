@@ -85,6 +85,11 @@ public partial class MainWindow : Window
         vm.PropertyChanged += OnViewModelPropertyChanged;
 
         WireDistanceFlyout(vm);
+
+        if (App.AutoConnect)
+        {
+            _ = vm.ConnectCommand.ExecuteAsync(null);
+        }
     }
 
     private static string GetColumnKey(DataGridColumn column)
