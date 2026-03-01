@@ -105,6 +105,12 @@ public static class CommandMetadata
         new(CanonicalCommandType.FrequencyChange, "Frequency Change", null, false),
         new(CanonicalCommandType.ContactTcp, "Contact Position", "2B", false),
         new(CanonicalCommandType.ContactTower, "Contact Tower", null, false),
+        // Coordination
+        new(CanonicalCommandType.CoordinationRelease, "Release (Rundown)", "POAK", false),
+        new(CanonicalCommandType.CoordinationHold, "Hold Release", "POAK", false),
+        new(CanonicalCommandType.CoordinationRecall, "Recall Release", "POAK", false),
+        new(CanonicalCommandType.CoordinationAcknowledge, "Acknowledge Release", "POAK", false),
+        new(CanonicalCommandType.CoordinationAutoAck, "Toggle Auto-Ack", "POAK", true),
         // Broadcast
         new(CanonicalCommandType.Say, "Say", "REQUEST VFR TRANSITION", false),
     ];

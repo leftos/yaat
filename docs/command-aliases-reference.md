@@ -210,6 +210,20 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 | **Contact Tower** | — | TO | TO | TO |
 | Strip | STRIP | — | — | — |
 
+## Coordination
+
+YAAT-specific commands for STARS departure release coordination (rundown lists). Neither ATCTrainer nor VICE has native coordination commands.
+
+| Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
+|---|---|---|---|---|
+| **Release (Rundown)** | — | — | RLS | RLS |
+| **Hold Release** | — | — | RLSH | RLSH |
+| **Recall Release** | — | — | RLSR | RLSR |
+| **Acknowledge Release** | — | — | RLSACK | RLSACK |
+| **Toggle Auto-Ack** | — | — | RLSAUTO | RLSAUTO |
+
+> **Note:** `RLS`, `RLSH`, `RLSR`, and `RLSACK` take an optional list ID argument (e.g., `RLS PFAT`). When omitted, the server auto-detects the list from the sender/receiver TCP. `RLSAUTO` requires a list ID and is a global command (no callsign needed).
+
 ## VFR (not implemented)
 
 | Command | ATCTrainer doc | VICE doc |

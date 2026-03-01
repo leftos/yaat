@@ -344,6 +344,33 @@ VICE-only commands:
 | `CT3Y` | Tell pilot to contact TCP 3Y |
 | `TO` | Tell pilot to contact tower |
 
+#### Coordination (Rundown List)
+
+Coordination commands manage departure releases between tower and approach controllers. Coordination channels are loaded from the ARTCC config when a scenario is loaded.
+
+| Command | Effect |
+|---------|--------|
+| `RLS [listId]` | Send a departure release (auto-detect list if omitted) |
+| `RLSH [listId] [text]` | Hold a release without sending; or send a held release |
+| `RLSR [listId]` | Recall a sent release, or delete an unsent one |
+| `RLSACK [listId]` | Acknowledge a received release |
+| `RLSAUTO <listId>` | Toggle auto-acknowledge for a list (global — no callsign needed) |
+
+When `listId` is omitted, the server auto-detects the correct coordination list from the sender/receiver TCP. An error is returned if the TCP belongs to multiple lists.
+
+Example flow using `AS` to role-play both sides:
+```
+AAL123 AS 1T RLS PFAT      — Tower (1T) sends release on list PFAT
+AAL123 AS 1F RLSACK PFAT   — Approach (1F) acknowledges the release
+```
+
+Release lifecycle:
+- **Unsent** — created via `RLSH`, not yet sent to the receiver
+- **Unacknowledged** — sent to receiver, awaiting acknowledgment
+- **Acknowledged** — receiver has accepted; expires after 5 minutes (warning at 3 minutes)
+- **Recalled** — sender recalled the release; removed after 10 seconds
+- Coordination items are automatically removed when an aircraft is tracked (radar acquisition)
+
 #### Auto-Accept
 
 Handoffs to unattended positions (no CRC client logged in) can be automatically accepted after a configurable delay. Enable and configure the delay in **Settings > General > Auto-accept handoffs**. When disabled, handoffs to unattended positions remain pending until manually accepted.
@@ -499,6 +526,7 @@ These commands don't require an aircraft selection:
 | `SQALL` | Reset all aircraft to their assigned squawk codes |
 | `SNALL` | Set all aircraft transponders to mode C (normal) |
 | `SSALL` | Set all aircraft transponders to standby |
+| `RLSAUTO <listId>` | Toggle auto-acknowledge for a coordination list |
 
 The pause/unpause button and sim rate dropdown in the bottom bar also control these.
 

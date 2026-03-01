@@ -84,6 +84,11 @@ TrackOwnerType.cs              # Enum: Other, Eram, Stars, Caats, Atop
 Tcp.cs                         # Record: Subset, SectorId, Id, ParentTcpId
 StarsPointout.cs / StarsPointoutStatus.cs  # Pointout state
 
+# Coordination
+CoordinationChannel.cs         # Channel config: ListId, Title, SendingTcps, Receivers, Items
+CoordinationItem.cs            # Single coordination entry: status lifecycle, expiry, origin TCP
+StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→Recalled→Expiry→Void
+
 # Commands/
 Commands/CanonicalCommandType.cs  # Enum of every command type
 Commands/ParsedCommand.cs      # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition
@@ -177,8 +182,9 @@ src/Yaat.Server/
     RoomEngine.cs              # Per-room facade: tick, commands, scenario, broadcast
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
     SimulationHostedService.cs # Thin orchestrator: 1s tick loop iterating rooms
-    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, auto-accept)
+    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, auto-accept, coordination timers)
     TrackCommandHandler.cs     # Stateless track command logic (HO, ACCEPT, DROP, etc.)
+    CoordinationCommandHandler.cs # Stateless coordination logic (RLS, RLSH, RLSR, RLSACK, RLSAUTO)
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic
     TrainingBroadcastService.cs # SignalR hub context wrapper for training clients
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch
@@ -186,7 +192,7 @@ src/Yaat.Server/
     DtoConverter.cs            # AircraftState → CRC + training DTOs
 
   Commands/
-    CommandParser.cs           # Server-side canonical parsing; IsTrackCommand()
+    CommandParser.cs           # Server-side canonical parsing; IsTrackCommand(), IsCoordinationCommand()
     ServerCommands.cs          # Server-only records (DEL, PAUSE, etc.)
 
   Scenarios/
@@ -220,6 +226,8 @@ src/Yaat.Server/
 4. Server builds `CommandQueue` of `CommandBlock`s; `FlightPhysics.UpdateCommandQueue()` checks triggers each tick
 
 **Track commands** (TRACK, DROP, HO, ACCEPT, etc.) bypass CommandDispatcher — RoomEngine routes to TrackCommandHandler, mutating ownership fields. `AS` prefix resolves RPO identity.
+
+**Coordination commands** (RLS, RLSH, RLSR, RLSACK, RLSAUTO) bypass CommandDispatcher — RoomEngine routes to CoordinationCommandHandler. Coordination channels are loaded from ARTCC config on scenario load. Items auto-expire (5min after ack, 2min warning) and are removed on radar acquisition (TRACK).
 
 ### Command Rules
 

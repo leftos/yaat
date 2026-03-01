@@ -89,6 +89,12 @@ public enum CanonicalCommandType
     FrequencyChange,
     ContactTcp,
     ContactTower,
+    // Coordination
+    CoordinationRelease,
+    CoordinationHold,
+    CoordinationRecall,
+    CoordinationAcknowledge,
+    CoordinationAutoAck,
     // Broadcast
     Say,
 }

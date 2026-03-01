@@ -198,3 +198,14 @@ public record FrequencyChangeCommand : ParsedCommand;
 public record ContactTcpCommand(string TcpCode) : ParsedCommand;
 
 public record ContactTowerCommand : ParsedCommand;
+
+// Coordination commands
+public record CoordinationReleaseCommand(string? ListId) : ParsedCommand;
+
+public record CoordinationHoldCommand(string? ListId, string? Text) : ParsedCommand;
+
+public record CoordinationRecallCommand(string? ListId) : ParsedCommand;
+
+public record CoordinationAcknowledgeCommand(string? ListId) : ParsedCommand;
+
+public record CoordinationAutoAckCommand(string ListId) : ParsedCommand;
