@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text;
 using Avalonia;
+using Avalonia.Collections;
 using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -151,6 +152,18 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<AircraftModel> Aircraft { get; } = [];
 
+    public DataGridCollectionView AircraftView { get; }
+
+    [ObservableProperty]
+    private bool _filterActiveOnly;
+
+    partial void OnFilterActiveOnlyChanged(bool value)
+    {
+        AircraftView.Filter = value
+            ? obj => obj is AircraftModel ac && !ac.IsDelayedOrDeferred
+            : null;
+    }
+
     public ObservableCollection<string> CommandHistory { get; } = [];
 
     public ObservableCollection<TerminalEntry> TerminalEntries { get; } = [];
@@ -165,6 +178,8 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        AircraftView = new DataGridCollectionView(Aircraft);
+
         _connection.AircraftUpdated += OnAircraftUpdated;
         _connection.AircraftDeleted += OnAircraftDeleted;
         _connection.AircraftSpawned += OnAircraftSpawned;
@@ -1206,6 +1221,11 @@ public partial class MainViewModel : ObservableObject
             else
             {
                 Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
+            }
+
+            if (FilterActiveOnly)
+            {
+                AircraftView.Refresh();
             }
         });
     }

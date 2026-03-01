@@ -63,10 +63,17 @@
             IsVisible="{Binding IsTerminalDocked}" />
 
         <!-- Center: DataGrid + Terminal with splitter -->
-        <Grid Margin="8,4,8,0" RowDefinitions="3*,Auto,*">
-            <DataGrid Grid.Row="0"
+        <Grid Margin="8,4,8,0" RowDefinitions="Auto,3*,Auto,*">
+            <ToggleButton Grid.Row="0"
+                          IsChecked="{Binding FilterActiveOnly}"
+                          Content="Active Only"
+                          Padding="8,2"
+                          Margin="0,0,0,4"
+                          FontSize="11"
+                          HorizontalAlignment="Left" />
+            <DataGrid Grid.Row="1"
                       x:Name="AircraftGrid"
-                      ItemsSource="{Binding Aircraft}"
+                      ItemsSource="{Binding AircraftView}"
                       SelectedItem="{Binding SelectedAircraft}"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
@@ -246,12 +253,12 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <GridSplitter Grid.Row="1"
+            <GridSplitter Grid.Row="2"
                           Height="6"
                           Background="#3F3F46"
                           IsVisible="{Binding IsTerminalDocked}" />
 
-            <views:TerminalPanelView Grid.Row="2"
+            <views:TerminalPanelView Grid.Row="3"
                 IsVisible="{Binding IsTerminalDocked}" />
         </Grid>
 
