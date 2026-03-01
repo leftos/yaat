@@ -440,13 +440,19 @@ public partial class CommandInputController : ObservableObject
     private void AddNavdataFixSuggestions(
         string token, string prefix, ref int count)
     {
-        var allNames = FixDb!.AllFixNames;
-
         if (token.Length == 0)
         {
             // No prefix typed — don't show all 40k fixes
             return;
         }
+
+        AddNavdataFixSuggestionsWithBinarySearch(token, prefix, fixTextPrefix: "", ref count);
+    }
+
+    private void AddNavdataFixSuggestionsWithBinarySearch(
+        string token, string prefix, string fixTextPrefix, ref int count)
+    {
+        var allNames = FixDb!.AllFixNames;
 
         // Binary search for the first name matching the prefix
         int lo = 0, hi = allNames.Length - 1;
@@ -471,7 +477,10 @@ public partial class CommandInputController : ObservableObject
         {
             if (s.Kind == SuggestionKind.RouteFix)
             {
-                existing.Add(s.Text);
+                var rawName = fixTextPrefix.Length > 0 && s.Text.StartsWith(fixTextPrefix)
+                    ? s.Text[fixTextPrefix.Length..]
+                    : s.Text;
+                existing.Add(rawName);
             }
         }
 
@@ -488,12 +497,13 @@ public partial class CommandInputController : ObservableObject
                 continue;
             }
 
+            var displayText = fixTextPrefix + name;
             Suggestions.Add(new SuggestionItem
             {
                 Kind = SuggestionKind.Fix,
-                Text = name,
+                Text = displayText,
                 Description = "",
-                InsertText = prefix + name + " ",
+                InsertText = prefix + displayText + " ",
             });
             count++;
         }
@@ -771,60 +781,7 @@ public partial class CommandInputController : ObservableObject
         // Tier 2: All navdata fixes
         if (FixDb is not null && fixPartial.Length > 0)
         {
-            var allNames = FixDb.AllFixNames;
-
-            // Binary search for first match
-            int lo = 0, hi = allNames.Length - 1;
-            while (lo <= hi)
-            {
-                int mid = lo + (hi - lo) / 2;
-                if (string.Compare(
-                    allNames[mid], 0, fixPartial, 0, fixPartial.Length,
-                    StringComparison.OrdinalIgnoreCase) < 0)
-                {
-                    lo = mid + 1;
-                }
-                else
-                {
-                    hi = mid - 1;
-                }
-            }
-
-            // Avoid duplicates with route fixes
-            var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var s in Suggestions)
-            {
-                if (s.Kind == SuggestionKind.RouteFix)
-                {
-                    // Strip the @ prefix to get the raw fix name
-                    existing.Add(
-                        s.Text.StartsWith('@') ? s.Text[1..] : s.Text);
-                }
-            }
-
-            for (int i = lo; i < allNames.Length && count < MaxSuggestions; i++)
-            {
-                var name = allNames[i];
-                if (!name.StartsWith(
-                    fixPartial, StringComparison.OrdinalIgnoreCase))
-                {
-                    break;
-                }
-
-                if (existing.Contains(name))
-                {
-                    continue;
-                }
-
-                Suggestions.Add(new SuggestionItem
-                {
-                    Kind = SuggestionKind.Fix,
-                    Text = $"@{name}",
-                    Description = "",
-                    InsertText = prefix + $"@{name} ",
-                });
-                count++;
-            }
+            AddNavdataFixSuggestionsWithBinarySearch(fixPartial, prefix, fixTextPrefix: "@", ref count);
         }
     }
 
