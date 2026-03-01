@@ -9,6 +9,11 @@ public sealed class SimulationWorld
     {
         lock (_lock)
         {
+            if (string.IsNullOrEmpty(aircraft.Cid))
+            {
+                aircraft.Cid = GenerateUniqueCid();
+            }
+
             _aircraft.Add(aircraft);
         }
     }
@@ -153,5 +158,42 @@ public sealed class SimulationWorld
             code = (code * 10) + (uint)rng.Next(0, 8);
         }
         return code;
+    }
+
+    /// <summary>
+    /// Must be called under _lock.
+    /// </summary>
+    private string GenerateUniqueCid()
+    {
+        var usedCids = new HashSet<string>();
+        foreach (var ac in _aircraft)
+        {
+            if (!string.IsNullOrEmpty(ac.Cid))
+            {
+                usedCids.Add(ac.Cid);
+            }
+        }
+
+        var rng = Random.Shared;
+        for (int attempt = 0; attempt < 1000; attempt++)
+        {
+            var cid = rng.Next(100, 1000).ToString();
+            if (!usedCids.Contains(cid))
+            {
+                return cid;
+            }
+        }
+
+        // Fallback: sequential scan for any unused value
+        for (int i = 100; i < 1000; i++)
+        {
+            var cid = i.ToString();
+            if (!usedCids.Contains(cid))
+            {
+                return cid;
+            }
+        }
+
+        return "000";
     }
 }
