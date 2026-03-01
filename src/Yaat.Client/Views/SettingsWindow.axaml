@@ -28,22 +28,53 @@
         <!-- Tab content -->
         <TabControl>
 
-            <!-- General tab -->
-            <TabItem Header="General">
+            <!-- Identity tab -->
+            <TabItem Header="Identity">
                 <StackPanel Margin="12" Spacing="12">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Your Initials (2 letters):"
+                        <TextBlock Text="VATSIM CID:"
+                                   Foreground="Gray" />
+                        <TextBox Text="{Binding VatsimCid}"
+                                 Watermark="e.g. 1826127"
+                                 Width="120"
+                                 HorizontalAlignment="Left" />
+                        <TextBlock Text="Your VATSIM CID. Used to link your CRC client to the correct training room."
+                                   TextWrapping="Wrap"
+                                   Foreground="Gray"
+                                   FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Initials (2 letters):"
                                    Foreground="Gray" />
                         <TextBox Text="{Binding UserInitials}"
                                  MaxLength="2"
                                  Watermark="e.g. AB"
                                  Width="80"
                                  HorizontalAlignment="Left" />
-                        <TextBlock Text="Required before connecting. Shown in the terminal panel so other RPOs can see who issued each command."
+                        <TextBlock Text="Shown in the terminal panel so other RPOs can see who issued each command."
                                    TextWrapping="Wrap"
                                    Foreground="Gray"
                                    FontSize="11" />
                     </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="ARTCC:"
+                                   Foreground="Gray" />
+                        <TextBox Text="{Binding ArtccId}"
+                                 MaxLength="4"
+                                 Watermark="e.g. ZOA"
+                                 Width="80"
+                                 HorizontalAlignment="Left" />
+                        <TextBlock Text="Your ARTCC identifier. Used in room names and to determine facility data."
+                                   TextWrapping="Wrap"
+                                   Foreground="Gray"
+                                   FontSize="11" />
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+
+            <!-- Scenarios tab -->
+            <TabItem Header="Scenarios">
+                <StackPanel Margin="12" Spacing="12">
                     <StackPanel Spacing="4">
                         <CheckBox Content="Auto-accept handoffs to unattended positions"
                                   IsChecked="{Binding AutoAcceptEnabled}" />

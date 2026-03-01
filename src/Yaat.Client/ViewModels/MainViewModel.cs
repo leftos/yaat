@@ -62,13 +62,16 @@ public partial class MainViewModel : ObservableObject
     private string _commandSchemeName = "ATCTrainer";
 
     [ObservableProperty]
+    private string? _activeRoomId;
+
+    [ObservableProperty]
+    private string? _activeRoomName;
+
+    [ObservableProperty]
     private string? _activeScenarioId;
 
     [ObservableProperty]
     private string? _activeScenarioName;
-
-    [ObservableProperty]
-    private int _scenarioClientCount;
 
     [ObservableProperty]
     private bool _showUnloadScenarioConfirmation;
@@ -80,7 +83,7 @@ public partial class MainViewModel : ObservableObject
     private bool _showScenarioSwitchConfirmation;
 
     [ObservableProperty]
-    private bool _showActiveScenarios;
+    private bool _showRoomList;
 
     [ObservableProperty]
     private bool _isTerminalDocked = true;
@@ -100,7 +103,9 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<TerminalEntry> TerminalEntries { get; } = [];
 
-    public ObservableCollection<ScenarioSessionInfoDto> ActiveScenarios { get; } = [];
+    public ObservableCollection<TrainingRoomInfoDto> ActiveRooms { get; } = [];
+
+    public ObservableCollection<RoomMemberDto> RoomMembers { get; } = [];
 
     public MainViewModel()
     {
@@ -110,6 +115,7 @@ public partial class MainViewModel : ObservableObject
         _connection.SimulationStateChanged += OnSimulationStateChanged;
         _connection.Reconnected += OnReconnected;
         _connection.TerminalEntryReceived += OnTerminalEntry;
+        _connection.RoomMemberChanged += OnRoomMemberChanged;
 
         RefreshCommandScheme();
 
@@ -150,7 +156,21 @@ public partial class MainViewModel : ObservableObject
 
         if (_preferences.UserInitials.Length != 2)
         {
-            StatusText = "Set your 2-letter initials in Settings before connecting";
+            StatusText =
+                "Set your 2-letter initials in Settings before connecting";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_preferences.VatsimCid))
+        {
+            StatusText = "Set your VATSIM CID in Settings before connecting";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
+        {
+            StatusText =
+                "Set your ARTCC ID in Settings before connecting";
             return;
         }
 
@@ -159,26 +179,9 @@ public partial class MainViewModel : ObservableObject
             StatusText = "Connecting...";
             await _connection.ConnectAsync(ServerUrl);
             IsConnected = true;
-            StatusText = "Connected";
-
-            // Check for resumable scenarios
-            var scenarios = await _connection.GetActiveScenariosAsync();
-            if (scenarios.Count > 0)
-            {
-                ActiveScenarios.Clear();
-                foreach (var s in scenarios)
-                {
-                    ActiveScenarios.Add(s);
-                }
-                ShowActiveScenarios = true;
-            }
-
-            var list = await _connection.GetAircraftListAsync();
-            Aircraft.Clear();
-            foreach (var dto in list)
-            {
-                Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
-            }
+            StatusText = "Connected — select or create a room";
+            await RefreshRoomListAsync();
+            ShowRoomList = true;
         }
         catch (Exception ex)
         {
@@ -192,30 +195,33 @@ public partial class MainViewModel : ObservableObject
 
     private async Task DisconnectAsync()
     {
-        if (ActiveScenarioId is not null)
+        if (ActiveRoomId is not null)
         {
             try
             {
-                await _connection.LeaveScenarioAsync();
+                await _connection.LeaveRoomAsync();
             }
             catch (Exception ex)
             {
-                _log.LogWarning(ex, "LeaveScenario on disconnect failed");
+                _log.LogWarning(ex, "LeaveRoom on disconnect failed");
             }
         }
 
         await _connection.DisconnectAsync();
         IsConnected = false;
         StatusText = "Disconnected";
-        Aircraft.Clear();
-        ActiveScenarioId = null;
-        ActiveScenarioName = null;
-        ScenarioClientCount = 0;
+        ClearRoomState();
     }
 
     [RelayCommand(CanExecute = nameof(IsConnected))]
     private async Task LoadScenarioAsync()
     {
+        if (ActiveRoomId is null)
+        {
+            StatusText = "Join a room before loading a scenario";
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(ScenarioFilePath))
         {
             StatusText = "No scenario file selected";
@@ -235,19 +241,6 @@ public partial class MainViewModel : ObservableObject
     private async Task ConfirmScenarioSwitchAsync()
     {
         ShowScenarioSwitchConfirmation = false;
-
-        try
-        {
-            await _connection.LeaveScenarioAsync();
-            ActiveScenarioId = null;
-            ActiveScenarioName = null;
-            ScenarioClientCount = 0;
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "LeaveScenario on switch failed");
-        }
-
         await ExecuteLoadScenario();
     }
 
@@ -303,33 +296,111 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task RejoinScenarioAsync(string scenarioId)
+    private async Task CreateRoomAsync()
     {
-        ShowActiveScenarios = false;
         try
         {
-            var result = await _connection.RejoinScenarioAsync(scenarioId);
-            if (result.Success)
+            var roomId = await _connection.CreateRoomAsync(
+                _preferences.VatsimCid,
+                _preferences.UserInitials,
+                _preferences.ArtccId);
+
+            var state = await _connection.JoinRoomAsync(
+                roomId, _preferences.VatsimCid,
+                _preferences.UserInitials,
+                _preferences.ArtccId);
+
+            if (state is null)
             {
-                ApplyScenarioResult(result);
-                StatusText = $"Rejoined '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
+                StatusText = "Failed to join newly created room";
+                return;
             }
-            else
-            {
-                StatusText = "Scenario no longer active";
-            }
+
+            ApplyRoomState(state);
+            ShowRoomList = false;
+            StatusText = $"Room {roomId} created";
+            AddSystemEntry("Created and joined room");
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Rejoin failed");
-            StatusText = $"Rejoin error: {ex.Message}";
+            _log.LogError(ex, "CreateRoom failed");
+            StatusText = $"Create room error: {ex.Message}";
         }
     }
 
     [RelayCommand]
-    private void DismissActiveScenarios()
+    private async Task JoinRoomAsync(string roomId)
     {
-        ShowActiveScenarios = false;
+        try
+        {
+            var state = await _connection.JoinRoomAsync(
+                roomId, _preferences.VatsimCid,
+                _preferences.UserInitials,
+                _preferences.ArtccId);
+
+            if (state is null)
+            {
+                StatusText = "Room no longer exists";
+                await RefreshRoomListAsync();
+                return;
+            }
+
+            ApplyRoomState(state);
+            ShowRoomList = false;
+            StatusText = $"Joined room {roomId}";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "JoinRoom failed");
+            StatusText = $"Join room error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task LeaveRoomAsync()
+    {
+        if (ActiveRoomId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _connection.LeaveRoomAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "LeaveRoom failed");
+        }
+
+        ClearRoomState();
+        StatusText = "Left room";
+        await RefreshRoomListAsync();
+        ShowRoomList = true;
+    }
+
+    [RelayCommand]
+    private async Task RefreshRoomListAsync()
+    {
+        try
+        {
+            var rooms = await _connection.GetActiveRoomsAsync();
+            ActiveRooms.Clear();
+            foreach (var r in rooms)
+            {
+                ActiveRooms.Add(r);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to refresh room list");
+        }
+    }
+
+    [RelayCommand]
+    private void DismissRoomList()
+    {
+        ShowRoomList = false;
     }
 
     // --- Delete All ---
@@ -354,16 +425,13 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            Aircraft.Clear();
-            ActiveScenarioId = null;
-            ActiveScenarioName = null;
-            ScenarioClientCount = 0;
-            StatusText = "All aircraft deleted";
+            ClearScenarioState();
+            StatusText = "Scenario unloaded";
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "UnloadScenario failed");
-            StatusText = $"Delete error: {ex.Message}";
+            StatusText = $"Unload error: {ex.Message}";
         }
     }
 
@@ -374,16 +442,13 @@ public partial class MainViewModel : ObservableObject
         try
         {
             await _connection.ConfirmUnloadScenarioAsync();
-            Aircraft.Clear();
-            ActiveScenarioId = null;
-            ActiveScenarioName = null;
-            ScenarioClientCount = 0;
-            StatusText = "All aircraft deleted";
+            ClearScenarioState();
+            StatusText = "Scenario unloaded";
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "ConfirmUnloadScenario failed");
-            StatusText = $"Delete error: {ex.Message}";
+            StatusText = $"Unload error: {ex.Message}";
         }
     }
 
@@ -715,9 +780,10 @@ public partial class MainViewModel : ObservableObject
 
     public void RefreshCommandScheme()
     {
-        CommandSchemeName = CommandScheme.DetectPresetName(_preferences.CommandScheme) ?? "Custom";
+        CommandSchemeName = CommandScheme.DetectPresetName(
+            _preferences.CommandScheme) ?? "Custom";
 
-        if (ActiveScenarioId is not null)
+        if (ActiveRoomId is not null)
         {
             _ = SendAutoAcceptDelay();
             _ = SendAutoDeleteMode();
@@ -920,36 +986,97 @@ public partial class MainViewModel : ObservableObject
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
-            if (ActiveScenarioId is null)
+            if (ActiveRoomId is null)
             {
                 return;
             }
 
             try
             {
-                var result = await _connection.RejoinScenarioAsync(ActiveScenarioId);
-                if (result.Success)
+                var state = await _connection.JoinRoomAsync(
+                    ActiveRoomId, _preferences.VatsimCid,
+                    _preferences.UserInitials,
+                    _preferences.ArtccId);
+
+                if (state is not null)
                 {
-                    ApplyScenarioResult(result);
-                    StatusText = "Reconnected to scenario";
-                    AddSystemEntry("Reconnected to scenario");
+                    ApplyRoomState(state);
+                    StatusText = "Reconnected to room";
+                    AddSystemEntry("Reconnected to room");
                 }
                 else
                 {
-                    StatusText = "Scenario no longer active";
-                    ActiveScenarioId = null;
-                    ActiveScenarioName = null;
-                    ScenarioClientCount = 0;
+                    StatusText = "Room no longer active";
+                    ClearRoomState();
+                    await RefreshRoomListAsync();
+                    ShowRoomList = true;
                 }
             }
             catch (Exception ex)
             {
-                _log.LogError(ex, "Rejoin after reconnect failed");
+                _log.LogError(ex, "Rejoin room after reconnect failed");
+            }
+        });
+    }
+
+    private void OnRoomMemberChanged(RoomMemberChangedDto dto)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (dto.RoomId != ActiveRoomId)
+            {
+                return;
+            }
+
+            RoomMembers.Clear();
+            foreach (var m in dto.Members)
+            {
+                RoomMembers.Add(m);
+            }
+
+            if (dto.ScenarioName is not null)
+            {
+                ActiveScenarioName = dto.ScenarioName;
             }
         });
     }
 
     // --- Helpers ---
+
+    private void ApplyRoomState(RoomStateDto state)
+    {
+        ActiveRoomId = state.RoomId;
+        ActiveRoomName =
+            $"({state.CreatorArtccId}) {state.CreatorInitials}'s Room";
+
+        RoomMembers.Clear();
+        foreach (var m in state.Members)
+        {
+            RoomMembers.Add(m);
+        }
+
+        if (state.ScenarioId is not null)
+        {
+            ActiveScenarioId = state.ScenarioId;
+            ActiveScenarioName = state.ScenarioName;
+            _commandInput.PrimaryAirportId = state.PrimaryAirportId;
+            ApplySimState(state.IsPaused, (int)state.SimRate);
+
+            if (!string.IsNullOrEmpty(state.PrimaryAirportId))
+            {
+                SetDistanceReference(state.PrimaryAirportId);
+            }
+        }
+
+        Aircraft.Clear();
+        foreach (var dto in state.AllAircraft)
+        {
+            Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
+        }
+
+        _ = SendAutoAcceptDelay();
+        _ = SendAutoDeleteMode();
+    }
 
     private void ApplyScenarioResult(LoadScenarioResultDto result)
     {
@@ -971,6 +1098,22 @@ public partial class MainViewModel : ObservableObject
 
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
+    }
+
+    private void ClearRoomState()
+    {
+        ActiveRoomId = null;
+        ActiveRoomName = null;
+        RoomMembers.Clear();
+        ClearScenarioState();
+    }
+
+    private void ClearScenarioState()
+    {
+        ActiveScenarioId = null;
+        ActiveScenarioName = null;
+        _commandInput.PrimaryAirportId = null;
+        Aircraft.Clear();
     }
 
     private async Task SendAutoAcceptDelay()

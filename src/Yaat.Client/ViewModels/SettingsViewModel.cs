@@ -58,7 +58,13 @@ public partial class SettingsViewModel : ObservableObject
     private int _selectedPresetIndex;
 
     [ObservableProperty]
+    private string _vatsimCid = "";
+
+    [ObservableProperty]
     private string _userInitials = "";
+
+    [ObservableProperty]
+    private string _artccId = "";
 
     [ObservableProperty]
     private bool _isAdminMode;
@@ -90,7 +96,9 @@ public partial class SettingsViewModel : ObservableObject
         _preferences = preferences;
         LoadFromScheme(_preferences.CommandScheme);
         DetectAndUpdatePreset();
+        _vatsimCid = _preferences.VatsimCid;
         _userInitials = _preferences.UserInitials;
+        _artccId = _preferences.ArtccId;
         _isAdminMode = _preferences.IsAdminMode;
         _adminPassword = _preferences.AdminPassword;
         _autoAcceptEnabled = _preferences.AutoAcceptEnabled;
@@ -104,6 +112,15 @@ public partial class SettingsViewModel : ObservableObject
         if (upper != value)
         {
             UserInitials = upper;
+        }
+    }
+
+    partial void OnArtccIdChanged(string value)
+    {
+        var upper = value.ToUpperInvariant();
+        if (upper != value)
+        {
+            ArtccId = upper;
         }
     }
 
@@ -133,7 +150,9 @@ public partial class SettingsViewModel : ObservableObject
     {
         var scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
+        _preferences.SetVatsimCid(VatsimCid);
         _preferences.SetUserInitials(UserInitials);
+        _preferences.SetArtccId(ArtccId);
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));

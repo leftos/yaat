@@ -39,37 +39,67 @@
                     x:Name="SettingsButton" />
         </Grid>
 
-        <!-- Scenario bar -->
+        <!-- Room + Scenario bar -->
         <StackPanel DockPanel.Dock="Top"
                     Orientation="Horizontal"
                     Spacing="8"
                     Margin="0,0,0,8">
+            <!-- Room indicator -->
+            <TextBlock VerticalAlignment="Center"
+                       Foreground="CornflowerBlue"
+                       IsVisible="{Binding ActiveRoomName,
+                           Converter={x:Static
+                           StringConverters.IsNotNullOrEmpty}}"
+                       Text="{Binding ActiveRoomName}" />
+            <Button Content="Leave Room"
+                    Command="{Binding LeaveRoomCommand}"
+                    IsVisible="{Binding ActiveRoomName,
+                        Converter={x:Static
+                        StringConverters.IsNotNullOrEmpty}}" />
+            <Button Content="Rooms"
+                    Command="{Binding RefreshRoomListCommand}"
+                    IsVisible="{Binding ActiveRoomName,
+                        Converter={x:Static
+                        StringConverters.IsNullOrEmpty}}" />
+
+            <Border Width="1" Background="#3F3F46"
+                    Margin="4,2"
+                    IsVisible="{Binding ActiveRoomName,
+                        Converter={x:Static
+                        StringConverters.IsNotNullOrEmpty}}" />
+
+            <!-- Scenario controls -->
             <TextBox Text="{Binding ScenarioFilePath}"
                      Watermark="Scenario JSON file..."
-                     Width="400" />
+                     Width="400"
+                     IsVisible="{Binding ActiveRoomName,
+                         Converter={x:Static
+                         StringConverters.IsNotNullOrEmpty}}" />
             <Button Content="Browse"
-                    x:Name="BrowseButton" />
-            <Button Content="Load Scenario"
-                    Command="{Binding LoadScenarioCommand}" />
-            <Button Content="Unload Scenario"
-                    Command="{Binding UnloadScenarioCommand}" />
+                    x:Name="BrowseButton"
+                    IsVisible="{Binding ActiveRoomName,
+                        Converter={x:Static
+                        StringConverters.IsNotNullOrEmpty}}" />
+            <Button Content="Load"
+                    Command="{Binding LoadScenarioCommand}"
+                    IsVisible="{Binding ActiveRoomName,
+                        Converter={x:Static
+                        StringConverters.IsNotNullOrEmpty}}" />
+            <Button Content="Unload"
+                    Command="{Binding UnloadScenarioCommand}"
+                    IsVisible="{Binding ActiveScenarioName,
+                        Converter={x:Static
+                        StringConverters.IsNotNullOrEmpty}}" />
 
             <!-- Active scenario indicator -->
             <TextBlock VerticalAlignment="Center"
                        Margin="8,0,0,0"
-                       Foreground="CornflowerBlue"
+                       Foreground="LightGreen"
                        IsVisible="{Binding ActiveScenarioName,
                            Converter={x:Static
                            StringConverters.IsNotNullOrEmpty}}"
                        Text="{Binding ActiveScenarioName,
                            StringFormat='Scenario: {0}'}" />
-            <TextBlock VerticalAlignment="Center"
-                       Foreground="Gray"
-                       IsVisible="{Binding ActiveScenarioName,
-                           Converter={x:Static
-                           StringConverters.IsNotNullOrEmpty}}"
-                       Text="{Binding ScenarioClientCount,
-                           StringFormat='({0} client(s))'}" />
         </StackPanel>
 
         <!-- Bottom: Command input (visible when docked) -->
@@ -310,22 +340,22 @@
             Padding="24"
             MinWidth="350">
         <StackPanel Spacing="12">
-            <TextBlock Text="Switch Scenario?"
+            <TextBlock Text="Replace Scenario?"
                        FontSize="16"
                        FontWeight="Bold"
                        Foreground="White" />
             <TextBlock TextWrapping="Wrap"
                        Foreground="LightGray">
-                <Run Text="You are currently in scenario " />
+                <Run Text="Scenario " />
                 <Run Text="{Binding ActiveScenarioName}"
                      FontWeight="Bold" />
-                <Run Text=". Loading a new scenario will " />
-                <Run Text="leave the current one." />
+                <Run Text=" is currently loaded. Loading a " />
+                <Run Text="new scenario will replace it." />
             </TextBlock>
             <StackPanel Orientation="Horizontal"
                         Spacing="8"
                         HorizontalAlignment="Right">
-                <Button Content="Switch"
+                <Button Content="Replace"
                         Command="{Binding
                             ConfirmScenarioSwitchCommand}" />
                 <Button Content="Cancel"
@@ -335,28 +365,29 @@
         </StackPanel>
     </Border>
 
-    <!-- Active scenarios (crash recovery) overlay -->
-    <Border IsVisible="{Binding ShowActiveScenarios}"
+    <!-- Room list overlay -->
+    <Border IsVisible="{Binding ShowRoomList}"
             Background="#CC000000"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             CornerRadius="8"
             Padding="24"
-            MinWidth="400"
-            MaxHeight="400">
+            MinWidth="500"
+            MaxHeight="500">
         <StackPanel Spacing="12">
-            <TextBlock Text="Active Scenarios Found"
+            <TextBlock Text="Training Rooms"
                        FontSize="16"
                        FontWeight="Bold"
                        Foreground="White" />
-            <TextBlock Text="Resumable scenarios are
-                       running on the server."
+            <TextBlock Text="Create a new room or join an
+                       existing one."
                        Foreground="LightGray"
                        TextWrapping="Wrap" />
             <ItemsControl
-                ItemsSource="{Binding ActiveScenarios}">
+                ItemsSource="{Binding ActiveRooms}">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="svc:ScenarioSessionInfoDto">
+                    <DataTemplate
+                        x:DataType="svc:TrainingRoomInfoDto">
                         <Border Margin="0,4"
                                 Padding="8"
                                 Background="#40FFFFFF"
@@ -365,35 +396,56 @@
                                 ColumnDefinitions="*,Auto">
                                 <StackPanel Grid.Column="0">
                                     <TextBlock
-                                        Text="{Binding
-                                            ScenarioName}"
                                         FontWeight="Bold"
-                                        Foreground="White"/>
+                                        Foreground="White">
+                                        <Run Text="(" /><Run
+                                            Text="{Binding
+                                            CreatorArtccId}"
+                                        /><Run Text=") " /><Run
+                                            Text="{Binding
+                                            CreatorInitials}"
+                                        /><Run Text="'s Room" />
+                                    </TextBlock>
                                     <TextBlock
                                         Foreground="Gray"
                                         FontSize="11">
                                         <Run Text="{Binding
-                                            AircraftCount}" />
-                                        <Run Text=" aircraft," />
+                                            ScenarioName,
+                                            TargetNullValue='No scenario'}" />
+                                        <Run Text=" · " />
                                         <Run Text="{Binding
-                                            ClientCount}" />
-                                        <Run Text=" client(s)" />
+                                            AircraftCount}" />
+                                        <Run Text=" aircraft · " />
+                                        <Run Text="{Binding
+                                            MemberInitials.Count}" />
+                                        <Run Text=" member(s)" />
                                     </TextBlock>
                                 </StackPanel>
                                 <Button Grid.Column="1"
-                                    Content="Rejoin"
+                                    Content="Join"
                                     VerticalAlignment="Center"
-                                    Command="{Binding $parent[Window].DataContext.RejoinScenarioCommand}"
-                                    CommandParameter="{Binding ScenarioId}"/>
+                                    Command="{Binding
+                                        $parent[Window].DataContext.JoinRoomCommand}"
+                                    CommandParameter="{Binding
+                                        RoomId}"/>
                             </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Button Content="Dismiss"
-                    HorizontalAlignment="Right"
-                    Command="{Binding
-                        DismissActiveScenariosCommand}" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8"
+                        HorizontalAlignment="Right">
+                <Button Content="Create Room"
+                        Command="{Binding
+                            CreateRoomCommand}" />
+                <Button Content="Refresh"
+                        Command="{Binding
+                            RefreshRoomListCommand}" />
+                <Button Content="Dismiss"
+                        Command="{Binding
+                            DismissRoomListCommand}" />
+            </StackPanel>
         </StackPanel>
     </Border>
 

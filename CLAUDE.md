@@ -154,7 +154,7 @@ Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
 
 ### yaat-server — ASP.NET Core server (`X:\dev\yaat-server\`)
 
-Separate repo. References Yaat.Sim via sibling project ref. Provides: SignalR comms, CRC protocol, scenario loading, session management, broadcast fan-out.
+Separate repo. References Yaat.Sim via sibling project ref. Provides: SignalR comms, CRC protocol, training rooms, scenario loading, broadcast fan-out.
 
 ```
 src/Yaat.Server/
@@ -162,19 +162,25 @@ src/Yaat.Server/
   YaatOptions.cs               # IOptions: AdminPassword, ArtccResourcesPath
 
   Hubs/
-    TrainingHub.cs             # /hubs/training (JSON); delegates to SimulationHostedService
-    CrcWebSocketHandler.cs     # Raw WebSocket /hubs/client for CRC
-    CrcClientState.cs          # Per-CRC state machine; topic subscriptions; ProcessStarsCommand
+    TrainingHub.cs             # /hubs/training (JSON); room lifecycle + delegates to RoomEngine
+    CrcWebSocketHandler.cs     # Raw WebSocket /hubs/client for CRC; resolves room via JWT CID
+    CrcClientState.cs          # Per-CRC state machine; holds RoomEngine ref; topic subscriptions
     CrcClientManager.cs        # Client registry; BroadcastAsync fan-out
-    NegotiateHandler.cs        # POST /hubs/client/negotiate → fake negotiation for CRC
+    NegotiateHandler.cs        # POST /hubs/client/negotiate; JWT extraction → CrcNegotiateTokenStore
+    CrcNegotiateTokenStore.cs  # ConcurrentDictionary token→CID for CRC room resolution
     ApiStubHandler.cs          # GET/POST /api/* → [] (CRC startup probes)
 
   Simulation/
-    SimulationHostedService.cs # Central orchestrator: 1s tick, spawn, triggers, auto-accept, broadcast
-                               # Track commands: HandleTrack/Drop/Handoff/Accept/etc + AS identity
-    CrcBroadcastService.cs     # CRC wire-protocol broadcast; BuildInitialData; TopicFormatter
-    ScenarioSession.cs         # Per-scenario: clients, pause, simRate, spawn/trigger/generator queues, cleanup
-    ScenarioSessionManager.cs  # Thread-safe registry + reverse lookup + admin tracking
+    TrainingRoom.cs            # Room state: Members, World, ActiveScenario, Engine, GroupName
+    TrainingRoomManager.cs     # Room registry + client→room + CID→room mapping + admin tracking
+    RoomEngine.cs              # Per-room facade: tick, commands, scenario, broadcast
+    RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
+    SimulationHostedService.cs # Thin orchestrator: 1s tick loop iterating rooms
+    TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, auto-accept)
+    TrackCommandHandler.cs     # Stateless track command logic (HO, ACCEPT, DROP, etc.)
+    ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic
+    TrainingBroadcastService.cs # SignalR hub context wrapper for training clients
+    CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch
     CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules
     DtoConverter.cs            # AircraftState → CRC + training DTOs
 
@@ -212,7 +218,7 @@ src/Yaat.Server/
 3. Translated to canonical ATCTrainer format → sent to server via `SendCommand(callsign, canonical)`
 4. Server builds `CommandQueue` of `CommandBlock`s; `FlightPhysics.UpdateCommandQueue()` checks triggers each tick
 
-**Track commands** (TRACK, DROP, HO, ACCEPT, etc.) bypass CommandDispatcher — server handles directly in `SimulationHostedService`, mutating ownership fields. `AS` prefix resolves RPO identity.
+**Track commands** (TRACK, DROP, HO, ACCEPT, etc.) bypass CommandDispatcher — RoomEngine routes to TrackCommandHandler, mutating ownership fields. `AS` prefix resolves RPO identity.
 
 ### Command Rules
 
@@ -228,9 +234,13 @@ YAAT Client ──SignalR JSON──> yaat-server <──SignalR+MessagePack─�
 
 ### SignalR Hub API
 
-**Client→Server:** `GetAircraftList`, `LoadScenario`, `LeaveScenario`, `GetActiveScenarios`, `RejoinScenario`, `SendCommand`, `DeleteAircraft`, `UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `PauseSimulation`, `ResumeSimulation`, `SetSimRate`, `SetAutoAcceptDelay`, `SetAutoDeleteMode`, `AdminAuthenticate`, `AdminGetScenarios`, `AdminSetScenarioFilter`, `Heartbeat`
+**Client→Server (room lifecycle):** `CreateRoom(cid, initials, artccId)`, `JoinRoom(roomId, cid, initials, artccId)`, `LeaveRoom`, `GetActiveRooms`
 
-**Server→Client:** `AircraftUpdated`, `AircraftSpawned`, `AircraftDeleted`, `SimulationStateChanged`
+**Client→Server (scenario/sim):** `LoadScenario`, `UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `SendCommand`, `SpawnAircraft`, `DeleteAircraft`, `PauseSimulation`, `ResumeSimulation`, `SetSimRate`, `SetAutoAcceptDelay`, `SetAutoDeleteMode`, `SendChat`
+
+**Client→Server (admin):** `AdminAuthenticate`, `AdminGetScenarios`, `AdminSetScenarioFilter`, `Heartbeat`
+
+**Server→Client:** `AircraftUpdated`, `AircraftSpawned`, `AircraftDeleted`, `SimulationStateChanged`, `TerminalBroadcast`, `RoomMemberChanged`
 
 ## Tech Stack
 

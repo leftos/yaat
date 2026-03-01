@@ -19,7 +19,9 @@ public sealed class UserPreferences
     };
 
     private CommandScheme _commandScheme;
+    private string _vatsimCid = "";
     private string _userInitials = "";
+    private string _artccId = "";
     private bool _isAdminMode;
     private string _adminPassword = "";
     private SavedWindowGeometry? _mainWindowGeometry;
@@ -34,7 +36,9 @@ public sealed class UserPreferences
     {
         var saved = Load();
         _commandScheme = saved.Scheme ?? CommandScheme.AtcTrainer();
+        _vatsimCid = saved.VatsimCid;
         _userInitials = saved.UserInitials;
+        _artccId = saved.ArtccId;
         _isAdminMode = saved.IsAdmin;
         _adminPassword = saved.AdminPassword;
         _mainWindowGeometry = saved.MainWindowGeometry;
@@ -47,7 +51,9 @@ public sealed class UserPreferences
     }
 
     public CommandScheme CommandScheme => _commandScheme;
+    public string VatsimCid => _vatsimCid;
     public string UserInitials => _userInitials;
+    public string ArtccId => _artccId;
     public bool IsAdminMode => _isAdminMode;
     public string AdminPassword => _adminPassword;
     public SavedWindowGeometry? MainWindowGeometry => _mainWindowGeometry;
@@ -77,9 +83,21 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetVatsimCid(string cid)
+    {
+        _vatsimCid = cid.Trim();
+        Save();
+    }
+
     public void SetUserInitials(string initials)
     {
         _userInitials = initials.ToUpperInvariant();
+        Save();
+    }
+
+    public void SetArtccId(string artccId)
+    {
+        _artccId = artccId.ToUpperInvariant().Trim();
         Save();
     }
 
@@ -130,7 +148,9 @@ public sealed class UserPreferences
             return new LoadedPrefs
             {
                 Scheme = scheme,
+                VatsimCid = saved?.VatsimCid ?? "",
                 UserInitials = saved?.UserInitials ?? "",
+                ArtccId = saved?.ArtccId ?? "",
                 IsAdmin = saved?.IsAdminMode ?? false,
                 AdminPassword = saved?.AdminPassword ?? "",
                 MainWindowGeometry = saved?.MainWindowGeometry,
@@ -151,7 +171,9 @@ public sealed class UserPreferences
     private sealed class LoadedPrefs
     {
         public CommandScheme? Scheme { get; init; }
+        public string VatsimCid { get; init; } = "";
         public string UserInitials { get; init; } = "";
+        public string ArtccId { get; init; } = "";
         public bool IsAdmin { get; init; }
         public string AdminPassword { get; init; } = "";
         public SavedWindowGeometry? MainWindowGeometry { get; init; }
@@ -170,7 +192,9 @@ public sealed class UserPreferences
         var saved = new SavedPrefs
         {
             CommandScheme = ToSaved(_commandScheme),
+            VatsimCid = _vatsimCid,
             UserInitials = _userInitials,
+            ArtccId = _artccId,
             IsAdminMode = _isAdminMode,
             AdminPassword = _adminPassword,
             MainWindowGeometry = _mainWindowGeometry,
@@ -248,7 +272,9 @@ public sealed class UserPreferences
     private sealed class SavedPrefs
     {
         public SavedCommandScheme? CommandScheme { get; set; }
+        public string VatsimCid { get; set; } = "";
         public string UserInitials { get; set; } = "";
+        public string ArtccId { get; set; } = "";
         public bool IsAdminMode { get; set; }
         public string AdminPassword { get; set; } = "";
         public SavedWindowGeometry? MainWindowGeometry { get; set; }

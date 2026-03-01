@@ -18,6 +18,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<bool, int>? SimulationStateChanged;
     public event Action<string?>? Reconnected;
     public event Action<TerminalBroadcastDto>? TerminalEntryReceived;
+    public event Action<RoomMemberChangedDto>? RoomMemberChanged;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -42,6 +43,8 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<bool, int>("SimulationStateChanged", (paused, rate) => SimulationStateChanged?.Invoke(paused, rate));
 
         _connection.On<TerminalBroadcastDto>("TerminalBroadcast", dto => TerminalEntryReceived?.Invoke(dto));
+
+        _connection.On<RoomMemberChangedDto>("RoomMemberChanged", dto => RoomMemberChanged?.Invoke(dto));
 
         _connection.Reconnected += connectionId =>
         {
@@ -70,36 +73,46 @@ public sealed class ServerConnection : IAsyncDisposable
         _log.LogInformation("Disconnected");
     }
 
+    // --- Room lifecycle ---
+
+    public async Task<string> CreateRoomAsync(
+        string cid, string initials, string artccId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<string>(
+            "CreateRoom", cid, initials, artccId);
+    }
+
+    public async Task<RoomStateDto?> JoinRoomAsync(
+        string roomId, string cid,
+        string initials, string artccId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<RoomStateDto?>(
+            "JoinRoom", roomId, cid, initials, artccId);
+    }
+
+    public async Task LeaveRoomAsync()
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("LeaveRoom");
+    }
+
+    public async Task<List<TrainingRoomInfoDto>> GetActiveRoomsAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<List<TrainingRoomInfoDto>>(
+            "GetActiveRooms");
+    }
+
     // --- Scenario lifecycle ---
 
-    public async Task<List<AircraftDto>> GetAircraftListAsync()
+    public async Task<LoadScenarioResultDto> LoadScenarioAsync(
+        string scenarioJson)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<List<AircraftDto>>("GetAircraftList");
-    }
-
-    public async Task<LoadScenarioResultDto> LoadScenarioAsync(string scenarioJson)
-    {
-        EnsureConnected();
-        return await _connection!.InvokeAsync<LoadScenarioResultDto>("LoadScenario", scenarioJson);
-    }
-
-    public async Task LeaveScenarioAsync()
-    {
-        EnsureConnected();
-        await _connection!.InvokeAsync("LeaveScenario");
-    }
-
-    public async Task<List<ScenarioSessionInfoDto>> GetActiveScenariosAsync()
-    {
-        EnsureConnected();
-        return await _connection!.InvokeAsync<List<ScenarioSessionInfoDto>>("GetActiveScenarios");
-    }
-
-    public async Task<LoadScenarioResultDto> RejoinScenarioAsync(string scenarioId)
-    {
-        EnsureConnected();
-        return await _connection!.InvokeAsync<LoadScenarioResultDto>("RejoinScenario", scenarioId);
+        return await _connection!.InvokeAsync<LoadScenarioResultDto>(
+            "LoadScenario", scenarioJson);
     }
 
     // --- Aircraft commands ---
@@ -180,16 +193,18 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<bool>("AdminAuthenticate", password);
     }
 
-    public async Task<List<ScenarioSessionInfoDto>> AdminGetScenariosAsync()
+    public async Task<List<TrainingRoomInfoDto>> AdminGetRoomsAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<List<ScenarioSessionInfoDto>>("AdminGetScenarios");
+        return await _connection!.InvokeAsync<List<TrainingRoomInfoDto>>(
+            "AdminGetScenarios");
     }
 
-    public async Task AdminSetScenarioFilterAsync(string? scenarioId)
+    public async Task AdminSetRoomFilterAsync(string? roomId)
     {
         EnsureConnected();
-        await _connection!.InvokeAsync("AdminSetScenarioFilter", scenarioId);
+        await _connection!.InvokeAsync(
+            "AdminSetScenarioFilter", roomId);
     }
 
     // --- Lifecycle ---
@@ -306,16 +321,44 @@ public record LoadScenarioResultDto(
 
 public record CommandResultDto(bool Success, string? Message);
 
-public record ScenarioSessionInfoDto(
-    string ScenarioId,
-    string ScenarioName,
-    int ClientCount,
+public record TrainingRoomInfoDto(
+    string RoomId,
+    string CreatorInitials,
+    string CreatorArtccId,
+    string? ScenarioName,
+    List<string> MemberInitials,
     bool IsPaused,
-    int SimRate,
+    double SimRate,
     double ElapsedSeconds,
     int AircraftCount
 );
 
-public record UnloadScenarioResultDto(bool RequiresConfirmation, int OtherClientCount, string? Message);
+public record RoomStateDto(
+    string RoomId,
+    string CreatorInitials,
+    string CreatorArtccId,
+    List<RoomMemberDto> Members,
+    string? ScenarioName,
+    string? ScenarioId,
+    bool IsPaused,
+    double SimRate,
+    string? PrimaryAirportId,
+    List<AircraftDto> AllAircraft
+);
 
-public record TerminalBroadcastDto(string Initials, string Kind, string Callsign, string Message, DateTime Timestamp);
+public record RoomMemberDto(
+    string Cid, string Initials, string ArtccId);
+
+public record RoomMemberChangedDto(
+    string RoomId,
+    List<RoomMemberDto> Members,
+    string? ScenarioName
+);
+
+public record UnloadScenarioResultDto(
+    bool RequiresConfirmation, int OtherClientCount,
+    string? Message);
+
+public record TerminalBroadcastDto(
+    string Initials, string Kind, string Callsign,
+    string Message, DateTime Timestamp);
