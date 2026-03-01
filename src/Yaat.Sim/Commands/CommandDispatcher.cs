@@ -36,6 +36,12 @@ public static class CommandDispatcher
                     return new CommandResult(false,
                         $"{CommandDescriber.DescribeNatural(cmd)} requires an active runway assignment");
                 }
+
+                if (CommandDescriber.IsGroundCommand(cmd))
+                {
+                    return new CommandResult(false,
+                        $"{CommandDescriber.DescribeNatural(cmd)} requires the aircraft to be on the ground");
+                }
             }
         }
 
@@ -112,8 +118,16 @@ public static class CommandDispatcher
     }
 
     public static CommandResult Dispatch(
-        ParsedCommand command, AircraftState aircraft, IRunwayLookup? runways = null)
+        ParsedCommand command, AircraftState aircraft,
+        IRunwayLookup? runways = null, AirportGroundLayout? groundLayout = null)
     {
+        // Route ground commands through DispatchCompound for phase interaction
+        if (CommandDescriber.IsGroundCommand(command))
+        {
+            var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
+            return DispatchCompound(compound, aircraft, runways, groundLayout);
+        }
+
         // Clear any existing queue when a new single command is issued
         aircraft.Queue.Blocks.Clear();
         aircraft.Queue.CurrentBlockIndex = 0;
