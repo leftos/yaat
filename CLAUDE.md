@@ -39,6 +39,7 @@ Models/
   AircraftModel.cs             # ObservableObject wrapping AircraftDto fields
                                # Computed: StatusDisplay, PhaseSequenceDisplay, ClearanceDisplay,
                                #   DistanceFromFix; StatusSortComparer for DataGrid
+                               # FromDto() factory + UpdateFromDto() for DTO→model mapping
   TerminalEntry.cs             # Immutable entry for terminal/radio log (Kind: Command/Response/System/Say)
 
 Services/
@@ -63,6 +64,7 @@ ViewModels/
                                #   chat detection → global cmd → callsign resolve → ParseCompound → hub
                                # Nav data init (VnasDataService + FixDatabase) fire-and-forget in ctor
                                # Distance reference: resolves fix/FRD, computes per-aircraft distances
+                               # ApplyScenarioResult() shared by load/rejoin/reconnect
   SettingsViewModel.cs          # Modal: VerbMappingRow collection for alias editing; preset detection
   *Converter.cs                 # IValueConverters: Connect/Pause/Dock buttons, terminal entry colors
 
@@ -89,6 +91,7 @@ ControlTargets.cs              # Autopilot-style targets: heading, altitude, spe
 FlightPhysics.cs               # Static. 6-step Update(): navigation → heading → altitude → speed
                                #   → position → command queue. Trigger checking (ReachAltitude,
                                #   ReachFix, InterceptRadial, ReachFrdPoint, GiveWay). Geo helpers.
+                               #   NormalizeHeading/NormalizeHeadingInt (internal, shared with CommandDispatcher)
 GeoMath.cs                     # Static. DistanceNm (haversine), BearingTo, TurnHeadingToward
 SimulationWorld.cs             # Thread-safe aircraft collection. GetSnapshot/GetSnapshotByScenario,
                                #   Tick/TickScenario (with preTick callback), DrainWarnings,
@@ -111,7 +114,11 @@ Commands/ParsedCommand.cs      # Discriminated union records for all command typ
                                #   CompoundCommand/ParsedBlock/BlockCondition hierarchy
 Commands/CommandDispatcher.cs  # Static. DispatchCompound(): phase interaction (CanAcceptCommand →
                                #   Allowed/Rejected/ClearsPhase), builds CommandBlocks with closures.
-                               #   ApplyCommand: big switch setting ControlTargets per command type.
+                               #   ApplyCommand: switch setting ControlTargets per command type.
+                               #   TryApplyTowerCommand: delegates to TryXxx helpers per command.
+Commands/CommandDescriber.cs   # Static. Description/classification extracted from CommandDispatcher:
+                               #   DescribeCommand (terse), DescribeNatural (human-readable),
+                               #   ToCanonicalType, ClassifyCommand, IsTowerCommand, IsGroundCommand
 Commands/AltitudeResolver.cs   # Plain int or AGL format (KOAK010) → feet MSL via IFixLookup
 Commands/RouteChainer.cs       # After DCT to an on-route fix, appends remaining route fixes
 
@@ -214,10 +221,12 @@ src/Yaat.Server/
     TrainingHub.cs             # Standard SignalR hub (/hubs/training, JSON). Delegates all logic
                                #   to SimulationHostedService methods.
     CrcWebSocketHandler.cs     # Raw WebSocket upgrade handler for /hubs/client
+                               #   Depends on CrcBroadcastService (not SimulationHostedService)
     CrcClientState.cs          # Per-CRC-connection state machine: handshake → StartSession →
                                #   ActivateSession → Subscribe(topics) → receive broadcasts.
                                #   Topic subscriptions: StarsTracks, FlightPlans, EramTargets,
                                #   EramDataBlocks, AsdexTargets, AsdexTracks, TowerCabAircraft
+                               #   Depends on CrcBroadcastService for BuildInitialData
     CrcClientManager.cs        # ConcurrentDictionary registry; BroadcastAsync fan-out
     NegotiateHandler.cs        # POST /hubs/client/negotiate → fake negotiation JSON for CRC
     ApiStubHandler.cs          # GET/POST /api/* → [] (satisfies CRC startup probes)
@@ -226,8 +235,13 @@ src/Yaat.Server/
     SimulationHostedService.cs # Central orchestrator. IHostedService with 1-second PeriodicTimer.
                                #   Tick: TickScenario (with GroundConflictDetector preTick) →
                                #   ProcessDelayedSpawns → ProcessTriggers → BroadcastUpdates
-                               #   (training group + admins + CRC clients). Also the API surface
-                               #   called by TrainingHub for all operations.
+                               #   (training group + admins). Also the API surface called by
+                               #   TrainingHub for all operations. CRC broadcast delegated to
+                               #   CrcBroadcastService.
+    CrcBroadcastService.cs     # CRC wire-protocol broadcast (extracted from SimulationHostedService).
+                               #   BroadcastUpdatesAsync (per-tick), BroadcastDeletesAsync,
+                               #   BuildInitialData (topic subscription). Owns TopicFormatter.
+                               #   Depends on CrcClientManager + CrcVisibilityTracker.
     ScenarioSession.cs         # Per-scenario state: clients, pause, simRate, elapsed time,
                                #   delayed spawn queue, trigger queue, cleanup timer
     ScenarioSessionManager.cs  # Thread-safe session registry + client→scenario reverse lookup
@@ -243,7 +257,8 @@ src/Yaat.Server/
 
   Scenarios/
     ScenarioLoader.cs          # JSON → aircraft: resolves 5 position types (coordinates, fix/FRD,
-                               #   onRunway, onFinal, parking) via Yaat.Sim initializers
+                               #   onRunway, onFinal, parking) via Yaat.Sim initializers.
+                               #   CreateBaseState() shared across all loading methods.
     ScenarioModels.cs          # Deserialization models: Scenario, ScenarioAircraft,
                                #   StartingConditions, ScenarioFlightPlan, PresetCommand, triggers
 
