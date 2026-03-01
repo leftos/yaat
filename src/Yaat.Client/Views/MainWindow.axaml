@@ -4,6 +4,7 @@
         xmlns:svc="using:Yaat.Client.Services"
         xmlns:views="using:Yaat.Client.Views"
         x:Class="Yaat.Client.Views.MainWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
         Title="YAAT">
 
     <Design.DataContext>
