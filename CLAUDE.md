@@ -244,8 +244,10 @@ YAAT Client ──SignalR JSON──> yaat-server <──SignalR+MessagePack─�
 |------|------|---------|
 | yaat-server | `X:\dev\yaat-server` | ASP.NET Core server, simulation engine, CRC protocol |
 | vzoa | `X:\dev\vzoa` | vZOA training files; airport GeoJSON at `training-files/atctrainer-airport-files/` |
-| vatsim-server-rs | `X:\dev\vatsim-server-rs` | Rust CRC protocol reference (DTO ordering, varint) |
+| vatsim-server-rs | `X:\dev\vatsim-server-rs` | Rust CRC protocol reference (DTO ordering, varint framing) — **read-only emulation server**, see caveat below |
 | lc-trainer | `X:\dev\lc-trainer` | Previous WPF trainer (**NOT trusted** — aviation details need expert review) |
+
+> **vatsim-server-rs is a read-only emulation server.** It was designed to feed CRC with data, not to accept mutations. Many CRC→server methods (CreateFlightPlan, AmendFlightPlan, track operations, etc.) are stubbed with nil-ack responses because the Rust server never needed to implement them. YAAT's server needs full two-way interaction — students and RPOs create flight plans, amend them, drop tracks, etc. Use vatsim-server-rs as reference for wire format, DTO field ordering, and subscription/broadcast patterns, but evaluate feature needs independently. For mutation-capable methods, use the vNAS messaging-master interfaces and data-master models as the authoritative reference instead.
 
 **vNAS source reference** (`X:\dev\towercab-3d-vnas\docs\repos\`):
 - **common-master** — `GeoCalc`, `NavCalc`, `GeoPoint`, etc.

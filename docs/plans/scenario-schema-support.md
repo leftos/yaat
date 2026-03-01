@@ -19,7 +19,7 @@ Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 - [x] `aircraft[]` — loaded into simulation (see per-aircraft fields below)
 - [x] `initializationTriggers[]` — queued and fired at time offsets (SQALL supported)
 - [~] `aircraftGenerators[]` — deserialized as stub (`Id` only); emits warning "deferred to M8"
-- [~] `atc[]` — deserialized (artccId, facilityId, positionId, autoConnect, autoTrackAirportIds) but not used
+- [x] `atc[]` — resolved against ARTCC config; positions appear in CRC controller list (autoConnect controls active status)
 - [x] `primaryAirportId` — stored on session, sent to client
 - [~] `primaryApproach` — parsed but not used
 - [~] `studentPositionId` — parsed but not used
@@ -122,14 +122,14 @@ Entirely stubbed. The model only has `Id`. All other fields from ATCTrainer are 
 
 ## ATC Positions (`atc[]`)
 
-Deserialized but not used by the simulation:
+Resolved against ARTCC config and broadcast to CRC via `ReceiveOpenPositions`:
 
-- [~] `id`
-- [~] `artccId`
-- [~] `facilityId`
-- [~] `positionId`
-- [~] `autoConnect`
-- [~] `autoTrackAirportIds[]`
+- [x] `id`
+- [x] `artccId` — used to look up ARTCC facility config
+- [x] `facilityId` — used for position resolution
+- [x] `positionId` — resolved to `OpenPositionDto` via `ArtccConfigService`
+- [x] `autoConnect` — controls `IsActive` flag in controller list
+- [~] `autoTrackAirportIds[]` — parsed but not used
 
 ---
 
@@ -148,16 +148,16 @@ Deserialized as stub (only `Id`). Full schema fields silently dropped:
 
 | Category | Implemented | Parsed only | Not supported |
 |----------|:-----------:|:-----------:|:-------------:|
-| Top-level scenario | 5 | 7 | 0 |
+| Top-level scenario | 6 | 6 | 0 |
 | Per-aircraft | 7 | 4 | 0 |
 | Starting conditions | 9 | 0 | 4 |
 | Flight plan | 7 | 1 | 0 |
 | Preset commands | 2 | 0 | 1 |
 | Init triggers | 3 | 0 | 0 |
 | Aircraft generators | 0 | 0 | 12 |
-| ATC positions | 0 | 6 | 0 |
+| ATC positions | 5 | 1 | 0 |
 | Flight strip configs | 0 | 0 | 4 |
-| **Total** | **33** | **18** | **21** |
+| **Total** | **39** | **12** | **21** |
 
 ### Design notes
 
