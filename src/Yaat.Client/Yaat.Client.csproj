@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AvaloniaResource Include="Resources\icon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Yaat.Sim\Yaat.Sim.csproj" />
   </ItemGroup>
 </Project>
