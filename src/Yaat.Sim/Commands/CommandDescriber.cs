@@ -3,7 +3,7 @@ using Yaat.Sim.Phases.Pattern;
 
 namespace Yaat.Sim.Commands;
 
-internal static class CommandDescriber
+public static class CommandDescriber
 {
     internal static CanonicalCommandType ToCanonicalType(ParsedCommand command)
     {
@@ -90,7 +90,7 @@ internal static class CommandDescriber
         };
     }
 
-    internal static string DescribeCommand(ParsedCommand command)
+    public static string DescribeCommand(ParsedCommand command)
     {
         return command switch
         {
