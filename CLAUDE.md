@@ -38,7 +38,8 @@ Logging/
 Models/
   AircraftModel.cs             # ObservableObject wrapping AircraftDto fields
                                # Computed: StatusDisplay, PhaseSequenceDisplay, ClearanceDisplay,
-                               #   DistanceFromFix; StatusSortComparer for DataGrid
+                               #   DistanceFromFix, OwnerDisplay, HandoffDisplay, TempAltDisplay;
+                               #   StatusSortComparer for DataGrid
                                # FromDto() factory + UpdateFromDto() for DTO→model mapping
   TerminalEntry.cs             # Immutable entry for terminal/radio log (Kind: Command/Response/System/Say)
 
@@ -56,7 +57,8 @@ Services/
                                # History navigation (up/down with prefix filter)
                                # FixDb binary search for nav fix prefix matching
   UserPreferences.cs            # JSON persistence to %LOCALAPPDATA%/yaat/preferences.json
-                               # Fields: CommandScheme, UserInitials, admin state, window geometries, grid layout
+                               # Fields: CommandScheme, UserInitials, admin state, window geometries,
+                               #   grid layout, AutoAcceptDelaySeconds
 
 ViewModels/
   MainViewModel.cs              # Root ViewModel (no DI); owns ServerConnection, UserPreferences,
@@ -85,7 +87,8 @@ No UI dependencies. Deps: Google.Protobuf (NavData), Microsoft.Extensions.Loggin
 ```
 # Core state & physics
 AircraftState.cs               # Mutable entity per aircraft: position, flight plan, identity, control,
-                               #   ground state, PendingWarnings feedback list
+                               #   ground state, track operations (Owner, HandoffPeer, Pointout,
+                               #   Scratchpad, TemporaryAltitude, IsAnnotated, etc.), PendingWarnings
 ControlTargets.cs              # Autopilot-style targets: heading, altitude, speed, NavigationRoute
                                #   (List<NavigationTarget>); FlightPhysics reads each tick
 FlightPhysics.cs               # Static. 6-step Update(): navigation → heading → altitude → speed
@@ -107,9 +110,18 @@ AircraftCategory.cs            # AircraftCategory enum (Jet/Turboprop/Piston)
 GroundConflictDetector.cs      # Static. ComputeSpeedOverrides(): pairwise ground proximity checks,
                                #   returns max-speed dictionary; called by server preTick
 
+# Track operations types
+TrackOwner.cs                  # Record: Callsign, FacilityId, Subset, SectorId, OwnerType
+                               #   Factory methods: CreateStars(), CreateNonNas()
+TrackOwnerType.cs              # Enum: Other, Eram, Stars, Caats, Atop
+Tcp.cs                         # Record: Subset, SectorId, Id, ParentTcpId (equality by Id only)
+StarsPointout.cs               # Mutable class: Recipient (Tcp), Sender (Tcp), Status
+StarsPointoutStatus.cs         # Enum: Pending, Accepted, Rejected
+
 # Commands/
 Commands/CanonicalCommandType.cs  # Enum of every command (heading, altitude, speed, transponder,
-                               #   navigation, tower, pattern, hold, ground, spawn, sim control)
+                               #   navigation, tower, pattern, hold, ground, track operations,
+                               #   spawn, sim control)
 Commands/ParsedCommand.cs      # Discriminated union records for all command types;
                                #   CompoundCommand/ParsedBlock/BlockCondition hierarchy
 Commands/CommandDispatcher.cs  # Static. DispatchCompound(): phase interaction (CanAcceptCommand →
@@ -221,12 +233,14 @@ src/Yaat.Server/
     TrainingHub.cs             # Standard SignalR hub (/hubs/training, JSON). Delegates all logic
                                #   to SimulationHostedService methods.
     CrcWebSocketHandler.cs     # Raw WebSocket upgrade handler for /hubs/client
-                               #   Depends on CrcBroadcastService (not SimulationHostedService)
+                               #   Depends on CrcBroadcastService, SimulationWorld, PositionRegistry
     CrcClientState.cs          # Per-CRC-connection state machine: handshake → StartSession →
                                #   ActivateSession → Subscribe(topics) → receive broadcasts.
                                #   Topic subscriptions: StarsTracks, FlightPlans, EramTargets,
                                #   EramDataBlocks, AsdexTargets, AsdexTracks, TowerCabAircraft
                                #   Depends on CrcBroadcastService for BuildInitialData
+                               #   HandleProcessStarsCommand: CRC track operations (InitiateControl,
+                               #     TerminateControl, Handoff, Implied) via PositionRegistry identity
     CrcClientManager.cs        # ConcurrentDictionary registry; BroadcastAsync fan-out
     NegotiateHandler.cs        # POST /hubs/client/negotiate → fake negotiation JSON for CRC
     ApiStubHandler.cs          # GET/POST /api/* → [] (satisfies CRC startup probes)
@@ -234,33 +248,44 @@ src/Yaat.Server/
   Simulation/
     SimulationHostedService.cs # Central orchestrator. IHostedService with 1-second PeriodicTimer.
                                #   Tick: TickScenario (with GroundConflictDetector preTick) →
-                               #   ProcessDelayedSpawns → ProcessTriggers → BroadcastUpdates
-                               #   (training group + admins). Also the API surface called by
-                               #   TrainingHub for all operations. CRC broadcast delegated to
-                               #   CrcBroadcastService.
+                               #   ProcessDelayedSpawns → ProcessTriggers → ProcessAutoAccept →
+                               #   BroadcastUpdates (training group + admins). Also the API surface
+                               #   called by TrainingHub for all operations. CRC broadcast delegated
+                               #   to CrcBroadcastService.
+                               #   Track command handling: HandleTrack/Drop/Handoff/Accept/Cancel/
+                               #     PointOut/Acknowledge/Scratchpad/TempAlt/Cruise/Annotate/OnHandoff/
+                               #     FrequencyChange/ContactTcp/ContactTower + AS identity resolution
+                               #   Auto-accept: completes handoffs to unattended positions after delay
     CrcBroadcastService.cs     # CRC wire-protocol broadcast (extracted from SimulationHostedService).
                                #   BroadcastUpdatesAsync (per-tick), BroadcastDeletesAsync,
                                #   BuildInitialData (topic subscription). Owns TopicFormatter.
                                #   Depends on CrcClientManager + CrcVisibilityTracker.
     ScenarioSession.cs         # Per-scenario state: clients, pause, simRate, elapsed time,
-                               #   delayed spawn queue, trigger queue, cleanup timer
+                               #   delayed spawn queue, trigger queue, cleanup timer,
+                               #   StudentPosition (TrackOwner), AtcPositions, AutoAcceptDelay,
+                               #   ActivePositionByConnection (per-client AS override)
     ScenarioSessionManager.cs  # Thread-safe session registry + client→scenario reverse lookup
                                #   + admin filter tracking
     CrcVisibilityTracker.cs    # Per-aircraft CRC visibility: STARS (100ft AGL + 5s coast),
                                #   ASDEX (per-airport range/ceiling), TowerCab (20nm/4000ft AGL)
     DtoConverter.cs            # AircraftState → CRC DTOs (StarsTrack, FlightPlan, EramTarget,
                                #   EramDataBlock, TowerCab, Asdex) + training AircraftStateDto
+                               #   Maps Yaat.Sim TrackOwner/Tcp/Pointout → CRC MessagePack DTOs
 
   Commands/
-    CommandParser.cs           # Server-side canonical command parsing (all verbs)
+    CommandParser.cs           # Server-side canonical command parsing (all verbs incl. track ops)
+                               #   IsTrackCommand() identifies server-handled track commands
     ServerCommands.cs          # Server-only records (DEL, PAUSE, etc.)
 
   Scenarios/
     ScenarioLoader.cs          # JSON → aircraft: resolves 5 position types (coordinates, fix/FRD,
                                #   onRunway, onFinal, parking) via Yaat.Sim initializers.
                                #   CreateBaseState() shared across all loading methods.
+                               #   Processes autoTrackConditions: sets Owner, queues delayed handoffs,
+                               #   sets Scratchpad1/AssignedAltitude. autoTrackAirportIds for auto-ownership.
     ScenarioModels.cs          # Deserialization models: Scenario, ScenarioAircraft,
-                               #   StartingConditions, ScenarioFlightPlan, PresetCommand, triggers
+                               #   StartingConditions, ScenarioFlightPlan, PresetCommand, triggers,
+                               #   ScenarioAtc, AutoTrackConditions
 
   Spawn/
     SpawnParser.cs             # Parses ADD command args → SpawnRequest
@@ -272,17 +297,28 @@ src/Yaat.Server/
     SignalRMessageBuilder.cs   # Build binary Invocation/Response/NilAck/Ping messages
 
   Dtos/
-    TrainingDtos.cs            # JSON DTOs: AircraftStateDto, LoadScenarioResult, CommandResultDto,
-                               #   ScenarioSessionInfoDto, DeleteAllResultDto, TerminalBroadcastDto
+    TrainingDtos.cs            # JSON DTOs: AircraftStateDto (incl. track ownership fields),
+                               #   LoadScenarioResult, CommandResultDto, ScenarioSessionInfoDto,
+                               #   DeleteAllResultDto, TerminalBroadcastDto
     CrcDtos.cs                 # MessagePack [Key(N)] DTOs: StarsTrackDto (37 fields),
                                #   FlightPlanDto (33 fields), EramTargetDto, EramDataBlockDto,
-                               #   TowerCabAircraftDto, AsdexTargetDto/TrackDto, SessionInfoDto
-    CrcEnums.cs                # CRC-compatible enums (StarsCoastPhase, TransponderMode, etc.)
+                               #   TowerCabAircraftDto, AsdexTargetDto/TrackDto, SessionInfoDto,
+                               #   CrcTrackOwner, CrcTcp, CrcStarsPointout,
+                               #   StarsCommandProcessingResultDto
+    CrcEnums.cs                # CRC-compatible enums (StarsCoastPhase, TransponderMode,
+                               #   StarsCommandType, etc.)
     TopicFormatter.cs          # Topic class + custom MessagePack formatter
 
   Data/
     ArtccConfig.cs             # VNAS ARTCC config models (recursive FacilityConfig tree)
     ArtccConfigService.cs      # On-demand ARTCC download; extracts ASDEX/TowerCab airport info
+                               #   ResolvePosition (ULID → TrackOwner), ResolveTcpCode (TCP code →
+                               #   TrackOwner), GetTcpForPosition, GetFacilityTcps, FindTcpByCode
+    PositionRegistry.cs        # Singleton. Thread-safe CRC + RPO position tracking.
+                               #   RegisterCrcPosition/UnregisterCrcPosition (CRC StartSession/disconnect)
+                               #   RegisterTrainingPosition/UnregisterTrainingPosition (scenario load/leave)
+                               #   IsPositionAttended(Tcp), GetStudentPosition(scenarioId),
+                               #   GetCrcPosition(clientId) → CrcPositionEntry (Owner + Tcp)
 
   Udp/
     UdpStubServer.cs           # UDP port 6809: RegisterConnection ack + keepalive pings
@@ -309,6 +345,8 @@ RPO commands are parsed client-side using a configurable `CommandScheme` (ATCTra
 5. The full canonical string is sent to the server via `SendCommand(callsign, canonicalString)`
 
 The server builds a `CommandQueue` of `CommandBlock`s from the canonical string. Each block has an optional `BlockTrigger` (reach altitude, reach fix) and an `ApplyAction` that sets `ControlTargets`. `FlightPhysics.UpdateCommandQueue()` checks triggers and advances blocks each tick.
+
+**Track commands** (TRACK, DROP, HO, ACCEPT, etc.) bypass the `CommandDispatcher` pipeline entirely. The server detects them via `CommandParser.IsTrackCommand()` and handles them directly in `SimulationHostedService` — they mutate `AircraftState` ownership fields (Owner, HandoffPeer, Pointout, etc.) without building CommandBlocks. The `AS` prefix resolves the RPO's effective identity before dispatch.
 
 **Command naming convention:**
 When adding new commands, match the existing command names from ATCTrainer and/or VICE where possible. See `docs/command-aliases-reference.md` and keep it updated as you go.
@@ -338,6 +376,7 @@ The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw W
 - `SendCommand(callsign, command)` → `CommandResultDto` — issue RPO command
 - `DeleteAircraft(callsign)` / `DeleteAllAircraft()` / `ConfirmDeleteAll()`
 - `PauseSimulation()` / `ResumeSimulation()` / `SetSimRate(rate)`
+- `SetAutoAcceptDelay(seconds)` — configure auto-accept timer for unattended handoffs
 - `AdminAuthenticate(password)` / `AdminGetScenarios()` / `AdminSetScenarioFilter(scenarioId?)`
 - `Heartbeat` — 30-second keepalive
 
@@ -357,6 +396,7 @@ The training hub uses standard ASP.NET SignalR with JSON. The CRC hub uses raw W
 ## Related Repositories
 
 - **yaat-server** (`X:\dev\yaat-server`) — ASP.NET Core 10 server with simulation engine, CRC protocol, training hub
+- **vzoa** (`X:\dev\vzoa`) — vZOA training files including ATCTrainer airport GeoJSON data. Airport ground layout files at `X:\dev\vzoa\training-files\atctrainer-airport-files\` (OAK, SFO, SJC, FAT, HWD, MER, RNO — taxiways, runways, parking, spots per airport).
 - **vatsim-server-rs** (`X:\dev\vatsim-server-rs`) — Rust reference implementation for CRC protocol (DTO field ordering, varint framing)
 - **lc-trainer** (`X:\dev\lc-trainer`) — Previous WPF ATC trainer (reference for flight physics, scenario format). ATCTrainer scenario JSON examples at `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 
