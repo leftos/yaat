@@ -39,7 +39,7 @@ internal static class AtcTrainerPreset
                 [CanonicalCommandType.ClearedForTakeoff] = new() { Aliases = ["CTO"], Format = "{verb}" },
                 [CanonicalCommandType.CancelTakeoffClearance] = new() { Aliases = ["CTOC"], Format = "{verb}" },
                 [CanonicalCommandType.GoAround] = new() { Aliases = ["GA"], Format = "{verb}" },
-                [CanonicalCommandType.ClearedToLand] = new() { Aliases = ["CTL", "FS"], Format = "{verb}" },
+                [CanonicalCommandType.ClearedToLand] = new() { Aliases = ["CTL", "FS"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.CancelLandingClearance] = new() { Aliases = ["CLC", "CTLC"], Format = "{verb}" },
                 [CanonicalCommandType.TouchAndGo] = new() { Aliases = ["TG"], Format = "{verb}" },
                 [CanonicalCommandType.StopAndGo] = new() { Aliases = ["SG"], Format = "{verb}" },

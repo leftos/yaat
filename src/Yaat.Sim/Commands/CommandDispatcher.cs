@@ -13,7 +13,8 @@ public static class CommandDispatcher
 {
     public static CommandResult DispatchCompound(
         CompoundCommand compound, AircraftState aircraft,
-        IRunwayLookup? runways = null, AirportGroundLayout? groundLayout = null)
+        IRunwayLookup? runways = null, AirportGroundLayout? groundLayout = null,
+        IFixLookup? fixes = null)
     {
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
@@ -86,7 +87,7 @@ public static class CommandDispatcher
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft),
+                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes),
                 Description = blockDesc,
                 IsWaitBlock = isWait,
                 WaitRemainingSeconds = waitTime?.Seconds ?? 0,
@@ -119,23 +120,25 @@ public static class CommandDispatcher
 
     public static CommandResult Dispatch(
         ParsedCommand command, AircraftState aircraft,
-        IRunwayLookup? runways = null, AirportGroundLayout? groundLayout = null)
+        IRunwayLookup? runways = null, AirportGroundLayout? groundLayout = null,
+        IFixLookup? fixes = null)
     {
         // Route ground commands through DispatchCompound for phase interaction
         if (CommandDescriber.IsGroundCommand(command))
         {
             var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
-            return DispatchCompound(compound, aircraft, runways, groundLayout);
+            return DispatchCompound(compound, aircraft, runways, groundLayout, fixes);
         }
 
         // Clear any existing queue when a new single command is issued
         aircraft.Queue.Blocks.Clear();
         aircraft.Queue.CurrentBlockIndex = 0;
 
-        return ApplyCommand(command, aircraft);
+        return ApplyCommand(command, aircraft, fixes);
     }
 
-    private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft)
+    private static CommandResult ApplyCommand(
+        ParsedCommand command, AircraftState aircraft, IFixLookup? fixes = null)
     {
         switch (command)
         {
@@ -191,7 +194,12 @@ public static class CommandDispatcher
 
             case DirectToCommand cmd:
                 aircraft.Targets.NavigationRoute.Clear();
-                foreach (var fix in cmd.Fixes)
+                var resolved = cmd.Fixes.ToList();
+                if (fixes is not null)
+                {
+                    RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, fixes);
+                }
+                foreach (var fix in resolved)
                 {
                     aircraft.Targets.NavigationRoute.Add(new NavigationTarget
                     {
@@ -331,13 +339,17 @@ public static class CommandDispatcher
             case LineUpAndWaitCommand:
                 return new CommandResult(false, "Aircraft position set by scenario");
 
-            case ClearedToLandCommand:
+            case ClearedToLandCommand ctl:
                 if (aircraft.Phases is not null)
                 {
                     aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
                     aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.RunwayId;
                     aircraft.Phases.TrafficDirection = null;
                     ReplaceApproachEnding(aircraft.Phases, new LandingPhase());
+                    if (ctl.NoDelete)
+                    {
+                        aircraft.AutoDeleteExempt = true;
+                    }
                     return Ok($"Cleared to land{RunwayLabel(aircraft)}");
                 }
                 return new CommandResult(false, "Aircraft has no active phase sequence");
@@ -981,6 +993,11 @@ public static class CommandDispatcher
         aircraft.AssignedTaxiRoute = route;
         aircraft.IsHeld = false;
 
+        if (taxi.NoDelete)
+        {
+            aircraft.AutoDeleteExempt = true;
+        }
+
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new TaxiingPhase());
         ctx = BuildMinimalContext(aircraft, groundLayout);
@@ -1102,7 +1119,8 @@ public static class CommandDispatcher
     /// Builds a deferred action that applies all commands in a block to the aircraft.
     /// This is stored on the CommandBlock and executed when the block becomes active.
     /// </summary>
-    private static Action<AircraftState> BuildApplyAction(List<ParsedCommand> commands, AircraftState aircraft)
+    private static Action<AircraftState> BuildApplyAction(
+        List<ParsedCommand> commands, AircraftState aircraft, IFixLookup? fixes = null)
     {
         // Capture the parsed commands; they'll be applied when the block activates
         var captured = commands.ToList();
@@ -1110,7 +1128,7 @@ public static class CommandDispatcher
         {
             foreach (var cmd in captured)
             {
-                ApplyCommand(cmd, ac);
+                ApplyCommand(cmd, ac, fixes);
             }
         };
     }

@@ -64,6 +64,18 @@
                                        FontSize="11" />
                         </StackPanel>
                     </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Auto-Delete Aircraft:"
+                                   Foreground="Gray" />
+                        <ComboBox ItemsSource="{Binding AutoDeleteOptions}"
+                                  SelectedIndex="{Binding SelectedAutoDeleteIndex}"
+                                  Width="220"
+                                  HorizontalAlignment="Left" />
+                        <TextBlock Text="Controls whether aircraft are automatically removed after landing or parking. 'Use Scenario Setting' defers to the scenario's autoDeleteMode field."
+                                   TextWrapping="Wrap"
+                                   Foreground="Gray"
+                                   FontSize="11" />
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
 

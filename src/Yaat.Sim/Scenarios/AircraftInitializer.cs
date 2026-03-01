@@ -73,17 +73,22 @@ public static class AircraftInitializer
     /// </summary>
     public static PhaseInitResult InitializeOnFinal(
         RunwayInfo runway, AircraftCategory category,
-        double? requestedAltitude = null, double? requestedSpeed = null)
+        double? requestedAltitude = null, double? requestedSpeed = null,
+        double? requestedDistanceNm = null)
     {
-        // Distance from threshold (default 5nm if not specified via altitude hint)
-        double distNm = 5.0;
-        if (requestedAltitude is > 0)
+        double distNm;
+        if (requestedDistanceNm is > 0)
+        {
+            distNm = requestedDistanceNm.Value;
+        }
+        else if (requestedAltitude is > 0)
         {
             double agl = requestedAltitude.Value - runway.ElevationFt;
-            if (agl > 0)
-            {
-                distNm = agl / 300.0;
-            }
+            distNm = agl > 0 ? agl / 300.0 : 5.0;
+        }
+        else
+        {
+            distNm = 5.0;
         }
 
         double alt = GlideSlopeGeometry.AltitudeAtDistance(distNm, runway.ElevationFt);

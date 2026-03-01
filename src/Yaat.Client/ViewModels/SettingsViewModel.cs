@@ -72,6 +72,12 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _autoAcceptDelaySeconds;
 
+    [ObservableProperty]
+    private int _selectedAutoDeleteIndex;
+
+    public static IReadOnlyList<string> AutoDeleteOptions { get; } =
+        ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
+
     public static IReadOnlyList<string> PresetNames_ => PresetNames;
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
@@ -89,6 +95,7 @@ public partial class SettingsViewModel : ObservableObject
         _adminPassword = _preferences.AdminPassword;
         _autoAcceptEnabled = _preferences.AutoAcceptEnabled;
         _autoAcceptDelaySeconds = _preferences.AutoAcceptDelaySeconds;
+        _selectedAutoDeleteIndex = AutoDeleteOverrideToIndex(_preferences.AutoDeleteOverride);
     }
 
     partial void OnUserInitialsChanged(string value)
@@ -129,6 +136,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetUserInitials(UserInitials);
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
+        _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
         Saved = true;
     }
 
@@ -235,4 +243,22 @@ public partial class SettingsViewModel : ObservableObject
 
         return result.Trim();
     }
+
+    private static int AutoDeleteOverrideToIndex(string value) =>
+        value switch
+        {
+            "Never" => 1,
+            "OnLanding" => 2,
+            "Parked" => 3,
+            _ => 0,
+        };
+
+    private static string IndexToAutoDeleteOverride(int index) =>
+        index switch
+        {
+            1 => "Never",
+            2 => "OnLanding",
+            3 => "Parked",
+            _ => "",
+        };
 }

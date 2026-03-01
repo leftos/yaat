@@ -226,6 +226,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTOMLT` / `CTOMRT` | Cleared for takeoff, make left/right traffic |
 | `CTOC` | Cancel takeoff clearance |
 | `CTL` / `FS` | Cleared to land (full stop) |
+| `CTL NODEL` | Cleared to land (exempt from auto-delete after landing) |
 | `CLC` / `CTLC` | Cancel landing clearance |
 | `GA` | Go around (fly runway heading, climb to 1500 AGL) |
 | `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft |
@@ -284,6 +285,7 @@ Any heading, altitude, or speed command clears the hold.
 | `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
 | `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |
 | `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
+| `TAXI S T U @B12 NODEL` | Taxi via S, T, U to parking B12 (exempt from auto-delete) |
 | `HOLD` / `HP` | Hold position (stop wherever on the ground) |
 | `RES` / `RESUME` | Resume taxi after hold |
 | `CROSS 28L` | Cross runway 28L (clears hold-short) |
@@ -338,6 +340,16 @@ VICE-only commands:
 #### Auto-Accept
 
 Handoffs to unattended positions (no CRC client logged in) can be automatically accepted after a configurable delay. Enable and configure the delay in **Settings > General > Auto-accept handoffs**. When disabled, handoffs to unattended positions remain pending until manually accepted.
+
+#### Auto-Delete
+
+Scenarios can define an `autoDeleteMode` that automatically removes aircraft after they land or reach parking:
+- **On Landing** — aircraft deleted after clearing the runway (at hold-short point)
+- **On Parking** — aircraft deleted when they reach a parking spot
+
+Override the scenario setting in **Settings > General > Auto-Delete Aircraft**. Options: "Use Scenario Setting" (default), "Never", "On Landing", "On Parking".
+
+To exempt a specific aircraft from auto-delete, append `NODEL` to `CTL` or `TAXI` commands (e.g., `CTL NODEL`, `TAXI S T U @B12 NODEL`). This is useful when repositioning aircraft after landing or parking for reuse.
 
 ### Conditional Blocks
 
@@ -545,7 +557,7 @@ Warning messages appear as gray system entries when the simulator detects potent
 
 Click **Settings** in the top-right to configure:
 
-- **General** — User initials (required before connecting) and auto-accept handoff settings (enable/disable + delay in seconds)
+- **General** — User initials (required before connecting), auto-accept handoff settings (enable/disable + delay in seconds), and auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking)
 - **Command scheme** — ATCTrainer (space-separated) or VICE (concatenated)
 
 ## Autocomplete

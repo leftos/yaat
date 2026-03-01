@@ -166,6 +166,12 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("SetAutoAcceptDelay", seconds);
     }
 
+    public async Task SetAutoDeleteModeAsync(string? mode)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetAutoDeleteMode", mode);
+    }
+
     // --- Admin ---
 
     public async Task<bool> AdminAuthenticateAsync(string password)

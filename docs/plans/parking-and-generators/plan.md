@@ -127,7 +127,7 @@ Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 - [x] `primaryAirportId` — stored on session
 - [~] `primaryApproach` — parsed, not used
 - [~] `studentPositionId` — parsed, not used
-- [~] `autoDeleteMode` — parsed, not used
+- [x] `autoDeleteMode` — session auto-delete with client override; OnLanding/Parked modes
 - [~] `minimumRating` — parsed, not used
 - [~] `flightStripConfigurations[]` — stub (`Id` only), not used
 
@@ -135,9 +135,10 @@ Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 
 - [x] `id`, `aircraftId`, `aircraftType`, `transponderMode`
 - [x] `startingConditions`, `flightplan`
-- [x] `presetCommands[]` — timeOffset=0 only
+- [x] `presetCommands[]` — all timeOffsets supported (0=immediate, >0=timed queue)
 - [x] `spawnDelay`, `airportId`
-- [~] `onAltitudeProfile`, `difficulty`, `autoTrackConditions`, `expectedApproach`
+- [x] `autoTrackConditions` — resolved at load; handoff/scratchpad/altitude
+- [~] `onAltitudeProfile`, `difficulty`, `expectedApproach`
 
 ### Starting Conditions
 
@@ -146,10 +147,11 @@ Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 - [x] `Parking` — resolves via ground layout, defers gracefully if no data
 
 **Fields:**
-- [x] `type`, `fix`, `coordinates`, `runway`, `altitude`, `speed`, `navigationPath`
+- [x] `type`, `fix`, `coordinates`, `runway`, `altitude`, `speed`
+- [x] `navigationPath` — resolves fixes, populates NavigationRoute, chains filed route via RouteChainer
 - [x] `heading` — used directly when set, falls back to nav-path bearing
 - [x] `parking` — parking node name for Parking position type
-- [ ] `distanceFromRunway` — not in this sprint
+- [x] `distanceFromRunway` — OnFinal spawn distance override; altitude derived from glideslope
 
 ### Aircraft Generators (`aircraftGenerators[]`)
 
@@ -159,38 +161,38 @@ Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 - [x] `randomizeInterval`, `randomizeWeightCategory`
 - [x] `autoTrackConfiguration`
 
-### Other (unchanged by this sprint)
+### Other
 
-- **Flight plan:** 7 implemented, 1 parsed (`remarks`)
-- **Preset commands:** 2 implemented, 1 not supported (`timeOffset > 0`)
+- **Flight plan:** 8 implemented (including `remarks`)
+- **Preset commands:** 3 implemented (immediate + timed)
 - **Init triggers:** all implemented
-- **ATC positions:** 5 implemented, 1 parsed (`autoTrackAirportIds`)
+- **ATC positions:** 6 implemented (including `autoTrackAirportIds`)
 - **Flight strip configs:** all not supported
 
-### Summary (after sprint)
+### Summary (after schema gaps sprint)
 
 | Category | Implemented | Parsed only | Not supported |
 |----------|:-----------:|:-----------:|:-------------:|
-| Top-level scenario | 7 | 5 | 0 |
-| Per-aircraft | 7 | 4 | 0 |
-| Starting conditions | 12 | 0 | 1 |
-| Flight plan | 7 | 1 | 0 |
-| Preset commands | 2 | 0 | 1 |
+| Top-level scenario | 8 | 4 | 0 |
+| Per-aircraft | 8 | 3 | 0 |
+| Starting conditions | 14 | 0 | 0 |
+| Flight plan | 8 | 0 | 0 |
+| Preset commands | 3 | 0 | 0 |
 | Init triggers | 3 | 0 | 0 |
 | Aircraft generators | 12 | 0 | 0 |
-| ATC positions | 5 | 1 | 0 |
+| ATC positions | 6 | 0 | 0 |
 | Flight strip configs | 0 | 0 | 4 |
-| **Total** | **55** | **11** | **6** |
+| **Total** | **62** | **7** | **4** |
 
 ---
 
-## Gaps Remaining After Sprint
+## Gaps Remaining
 
-1. `distanceFromRunway` — OnFinal spawn distance from threshold
-2. Navigation path as route — aircraft should fly the path, not just point toward first fix
-3. `onAltitudeProfile` — VNAV descent along STAR altitude constraints
-4. Timed preset commands (`timeOffset > 0`)
-5. `remarks` — flight plan remarks
-6. ATC `autoTrackAirportIds` / per-aircraft `autoTrackConditions`
-7. Auto-delete mode — auto-remove aircraft on landing or parking
-8. Flight strip configurations
+1. ~~`distanceFromRunway`~~ — **resolved**
+2. ~~Navigation path as route~~ — **resolved** (NavigationRoute populated + RouteChainer wired to DCT)
+3. `onAltitudeProfile` — **deferred** (needs CIFP STAR constraints + new physics mode; aviation-sim-expert required)
+4. ~~Timed preset commands~~ — **resolved**
+5. ~~`remarks`~~ — **resolved**
+6. ~~`autoTrackAirportIds` / `autoTrackConditions`~~ — **already done** (ApplyAutoTrackConditions)
+7. ~~Auto-delete mode~~ — **resolved** (session flag + client override + NODEL on TAXI)
+8. Flight strip configurations — **deferred** (needs client UI design)

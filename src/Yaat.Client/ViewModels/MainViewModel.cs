@@ -720,6 +720,7 @@ public partial class MainViewModel : ObservableObject
         if (ActiveScenarioId is not null)
         {
             _ = SendAutoAcceptDelay();
+            _ = SendAutoDeleteMode();
         }
     }
 
@@ -969,6 +970,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         _ = SendAutoAcceptDelay();
+        _ = SendAutoDeleteMode();
     }
 
     private async Task SendAutoAcceptDelay()
@@ -983,6 +985,20 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to set auto-accept delay");
+        }
+    }
+
+    private async Task SendAutoDeleteMode()
+    {
+        try
+        {
+            var override_ = _preferences.AutoDeleteOverride;
+            string? mode = string.IsNullOrEmpty(override_) ? null : override_;
+            await _connection.SetAutoDeleteModeAsync(mode);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set auto-delete mode");
         }
     }
 

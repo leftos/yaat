@@ -20,7 +20,8 @@ public class AircraftState
     public string Departure { get; set; } = "";
     public string Destination { get; set; } = "";
     public string Route { get; set; } = "";
-    public string EquipmentSuffix { get; set; } = "/L";
+    public string Remarks { get; set; } = "";
+    public string EquipmentSuffix { get; set; } = "A";
     public string FlightRules { get; set; } = "IFR";
     public int CruiseAltitude { get; set; }
     public int CruiseSpeed { get; set; }
@@ -38,6 +39,7 @@ public class AircraftState
     public string? ParkingSpot { get; set; }
     public string? CurrentTaxiway { get; set; }
     public bool IsHeld { get; set; }
+    public bool AutoDeleteExempt { get; set; }
 
     // Track operations state
     public TrackOwner? Owner { get; set; }

@@ -64,7 +64,7 @@ public record CancelTakeoffClearanceCommand : ParsedCommand;
 public record GoAroundCommand(
     int? AssignedHeading = null, int? TargetAltitude = null) : ParsedCommand;
 
-public record ClearedToLandCommand : ParsedCommand;
+public record ClearedToLandCommand(bool NoDelete = false) : ParsedCommand;
 
 public record CancelLandingClearanceCommand : ParsedCommand;
 
@@ -121,7 +121,7 @@ public record PushbackCommand(int? Heading = null, string? Taxiway = null) : Par
 
 public record TaxiCommand(
     List<string> Path, List<string> HoldShorts,
-    string? DestinationRunway = null) : ParsedCommand;
+    string? DestinationRunway = null, bool NoDelete = false) : ParsedCommand;
 
 public record HoldPositionCommand : ParsedCommand;
 

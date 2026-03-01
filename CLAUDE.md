@@ -17,7 +17,7 @@ dotnet run --project src/Yaat.Client    # Run client (needs yaat-server at local
 
 Read log files first before speculating about runtime errors:
 - **Client**: `%LOCALAPPDATA%/yaat/yaat-client.log`
-- **Server**: `yaat-server.log` in server working directory
+- **Server**: `src/Yaat.Server/bin/Debug/net10.0/yaat-server.log` (relative to yaat-server repo root)
 
 ## Architecture
 
@@ -228,7 +228,7 @@ YAAT Client ──SignalR JSON──> yaat-server <──SignalR+MessagePack─�
 
 ### SignalR Hub API
 
-**Client→Server:** `GetAircraftList`, `LoadScenario`, `LeaveScenario`, `GetActiveScenarios`, `RejoinScenario`, `SendCommand`, `DeleteAircraft`, `UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `PauseSimulation`, `ResumeSimulation`, `SetSimRate`, `SetAutoAcceptDelay`, `AdminAuthenticate`, `AdminGetScenarios`, `AdminSetScenarioFilter`, `Heartbeat`
+**Client→Server:** `GetAircraftList`, `LoadScenario`, `LeaveScenario`, `GetActiveScenarios`, `RejoinScenario`, `SendCommand`, `DeleteAircraft`, `UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `PauseSimulation`, `ResumeSimulation`, `SetSimRate`, `SetAutoAcceptDelay`, `SetAutoDeleteMode`, `AdminAuthenticate`, `AdminGetScenarios`, `AdminSetScenarioFilter`, `Heartbeat`
 
 **Server→Client:** `AircraftUpdated`, `AircraftSpawned`, `AircraftDeleted`, `SimulationStateChanged`
 

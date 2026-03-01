@@ -504,7 +504,36 @@ Detailed chunk plan: [M4 STARS Track Operations](track-operations.md) (9 chunks)
 
 ---
 
-### Milestone 9: Automated Pilot Logic (Future)
+### Milestone 9: Helicopter Operations
+
+**Goal:** Full rotary-wing tower control — hover, air taxi, CTOPP, LAND at designated spots.
+
+#### Yaat.Sim
+
+1. **Helicopter detection**: Category/engine-type-based detection for rotary-wing behavior
+2. **Hover physics**: Stationary hover, hover taxi at ~10 kts, stable altitude hold
+3. **Air taxi**: Low-altitude taxi at ~30-60 kts, avoid runway/taxiway conflicts
+4. **LAND command**: Direct landing at a named parking/helipad spot (bypasses runway/pattern)
+5. **CTOPP**: Cleared to operate (hover ops, repositioning within the airport)
+6. **Helicopter pattern**: Modified traffic pattern (tighter, lower, different speeds)
+
+#### Commands
+
+- `LAND {spot}` — Land at named parking/helipad position
+- `CTOPP` — Cleared to operate (helicopter-specific)
+- `AIRTAXI {path}` — Air taxi via route (low altitude, off taxiway graph)
+- `HOVER` — Hold position in hover
+- NODEL suffix support for LAND (exempts from auto-delete)
+
+#### Definition of Done
+- Helicopters hover at parking spots
+- Air taxi between helipads/parking
+- LAND at designated spot
+- Full tower control workflow for rotary-wing
+
+---
+
+### Milestone 10: Automated Pilot Logic (Future)
 
 **Goal:** AI pilots for self-study (no mentor/RPO needed).
 

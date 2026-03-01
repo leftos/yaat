@@ -28,6 +28,7 @@ public sealed class UserPreferences
     private SavedGridLayout? _gridLayout;
     private bool _autoAcceptEnabled;
     private int _autoAcceptDelaySeconds;
+    private string _autoDeleteOverride;
 
     public UserPreferences()
     {
@@ -42,6 +43,7 @@ public sealed class UserPreferences
         _gridLayout = saved.GridLayout;
         _autoAcceptEnabled = saved.AutoAcceptEnabled;
         _autoAcceptDelaySeconds = saved.AutoAcceptDelaySeconds;
+        _autoDeleteOverride = saved.AutoDeleteOverride;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -54,11 +56,18 @@ public sealed class UserPreferences
     public SavedGridLayout? GridLayout => _gridLayout;
     public bool AutoAcceptEnabled => _autoAcceptEnabled;
     public int AutoAcceptDelaySeconds => _autoAcceptDelaySeconds;
+    public string AutoDeleteOverride => _autoDeleteOverride;
 
     public void SetAutoAcceptSettings(bool enabled, int delaySeconds)
     {
         _autoAcceptEnabled = enabled;
         _autoAcceptDelaySeconds = Math.Clamp(delaySeconds, 0, 60);
+        Save();
+    }
+
+    public void SetAutoDeleteOverride(string value)
+    {
+        _autoDeleteOverride = value;
         Save();
     }
 
@@ -130,6 +139,7 @@ public sealed class UserPreferences
                 GridLayout = saved?.GridLayout,
                 AutoAcceptEnabled = saved?.AutoAcceptEnabled ?? true,
                 AutoAcceptDelaySeconds = saved?.AutoAcceptDelaySeconds ?? 5,
+                AutoDeleteOverride = saved?.AutoDeleteOverride ?? "",
             };
         }
         catch (JsonException)
@@ -150,6 +160,7 @@ public sealed class UserPreferences
         public SavedGridLayout? GridLayout { get; init; }
         public bool AutoAcceptEnabled { get; init; } = true;
         public int AutoAcceptDelaySeconds { get; init; } = 5;
+        public string AutoDeleteOverride { get; init; } = "";
     }
 
     private void Save()
@@ -168,6 +179,7 @@ public sealed class UserPreferences
             GridLayout = _gridLayout,
             AutoAcceptEnabled = _autoAcceptEnabled,
             AutoAcceptDelaySeconds = _autoAcceptDelaySeconds,
+            AutoDeleteOverride = _autoDeleteOverride,
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
@@ -245,6 +257,7 @@ public sealed class UserPreferences
         public SavedGridLayout? GridLayout { get; set; }
         public bool AutoAcceptEnabled { get; set; } = true;
         public int AutoAcceptDelaySeconds { get; set; } = 5;
+        public string AutoDeleteOverride { get; set; } = "";
     }
 
     private sealed class SavedCommandScheme
