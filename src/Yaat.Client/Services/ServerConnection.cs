@@ -128,16 +128,16 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("DeleteAircraft", callsign);
     }
 
-    public async Task<DeleteAllResultDto> DeleteAllAircraftAsync()
+    public async Task<UnloadScenarioResultDto> UnloadScenarioAircraftAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<DeleteAllResultDto>("DeleteAllAircraft");
+        return await _connection!.InvokeAsync<UnloadScenarioResultDto>("UnloadScenarioAircraft");
     }
 
-    public async Task ConfirmDeleteAllAsync()
+    public async Task ConfirmUnloadScenarioAsync()
     {
         EnsureConnected();
-        await _connection!.InvokeAsync("ConfirmDeleteAll");
+        await _connection!.InvokeAsync("ConfirmUnloadScenario");
     }
 
     // --- Simulation state ---
@@ -310,6 +310,6 @@ public record ScenarioSessionInfoDto(
     int AircraftCount
 );
 
-public record DeleteAllResultDto(bool RequiresConfirmation, int OtherClientCount, string? Message);
+public record UnloadScenarioResultDto(bool RequiresConfirmation, int OtherClientCount, string? Message);
 
 public record TerminalBroadcastDto(string Initials, string Kind, string Callsign, string Message, DateTime Timestamp);

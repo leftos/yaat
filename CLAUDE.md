@@ -227,7 +227,7 @@ YAAT Client ──SignalR JSON──> yaat-server <──SignalR+MessagePack─�
 
 ### SignalR Hub API
 
-**Client→Server:** `GetAircraftList`, `LoadScenario`, `LeaveScenario`, `GetActiveScenarios`, `RejoinScenario`, `SendCommand`, `DeleteAircraft`, `DeleteAllAircraft`, `ConfirmDeleteAll`, `PauseSimulation`, `ResumeSimulation`, `SetSimRate`, `SetAutoAcceptDelay`, `AdminAuthenticate`, `AdminGetScenarios`, `AdminSetScenarioFilter`, `Heartbeat`
+**Client→Server:** `GetAircraftList`, `LoadScenario`, `LeaveScenario`, `GetActiveScenarios`, `RejoinScenario`, `SendCommand`, `DeleteAircraft`, `UnloadScenarioAircraft`, `ConfirmUnloadScenario`, `PauseSimulation`, `ResumeSimulation`, `SetSimRate`, `SetAutoAcceptDelay`, `AdminAuthenticate`, `AdminGetScenarios`, `AdminSetScenarioFilter`, `Heartbeat`
 
 **Server→Client:** `AircraftUpdated`, `AircraftSpawned`, `AircraftDeleted`, `SimulationStateChanged`
 

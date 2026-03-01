@@ -51,8 +51,8 @@
                     x:Name="BrowseButton" />
             <Button Content="Load Scenario"
                     Command="{Binding LoadScenarioCommand}" />
-            <Button Content="Delete All"
-                    Command="{Binding DeleteAllCommand}" />
+            <Button Content="Unload Scenario"
+                    Command="{Binding UnloadScenarioCommand}" />
 
             <!-- Active scenario indicator -->
             <TextBlock VerticalAlignment="Center"
@@ -272,7 +272,7 @@
     </DockPanel>
 
     <!-- Delete-all confirmation overlay -->
-    <Border IsVisible="{Binding ShowDeleteAllConfirmation}"
+    <Border IsVisible="{Binding ShowUnloadScenarioConfirmation}"
             Background="#CC000000"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
@@ -284,7 +284,7 @@
                        FontSize="16"
                        FontWeight="Bold"
                        Foreground="White" />
-            <TextBlock Text="{Binding PendingDeleteAllWarning}"
+            <TextBlock Text="{Binding PendingUnloadScenarioWarning}"
                        TextWrapping="Wrap"
                        Foreground="Orange" />
             <StackPanel Orientation="Horizontal"
@@ -292,10 +292,10 @@
                         HorizontalAlignment="Right">
                 <Button Content="Delete Anyway"
                         Command="{Binding
-                            ConfirmDeleteAllCommand}" />
+                            ConfirmUnloadScenarioCommand}" />
                 <Button Content="Cancel"
                         Command="{Binding
-                            CancelDeleteAllCommand}" />
+                            CancelUnloadScenarioCommand}" />
             </StackPanel>
         </StackPanel>
     </Border>

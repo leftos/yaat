@@ -29,7 +29,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(LoadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(SendCommandCommand))]
     [NotifyCanExecuteChangedFor(nameof(TogglePauseCommand))]
-    [NotifyCanExecuteChangedFor(nameof(DeleteAllCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
     private bool _isConnected;
 
     [ObservableProperty]
@@ -71,10 +71,10 @@ public partial class MainViewModel : ObservableObject
     private int _scenarioClientCount;
 
     [ObservableProperty]
-    private bool _showDeleteAllConfirmation;
+    private bool _showUnloadScenarioConfirmation;
 
     [ObservableProperty]
-    private string? _pendingDeleteAllWarning;
+    private string? _pendingUnloadScenarioWarning;
 
     [ObservableProperty]
     private bool _showScenarioSwitchConfirmation;
@@ -335,7 +335,7 @@ public partial class MainViewModel : ObservableObject
     // --- Delete All ---
 
     [RelayCommand(CanExecute = nameof(IsConnected))]
-    private async Task DeleteAllAsync()
+    private async Task UnloadScenarioAsync()
     {
         if (ActiveScenarioId is null)
         {
@@ -345,12 +345,12 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var result = await _connection.DeleteAllAircraftAsync();
+            var result = await _connection.UnloadScenarioAircraftAsync();
 
             if (result.RequiresConfirmation)
             {
-                PendingDeleteAllWarning = result.Message;
-                ShowDeleteAllConfirmation = true;
+                PendingUnloadScenarioWarning = result.Message;
+                ShowUnloadScenarioConfirmation = true;
                 return;
             }
 
@@ -362,18 +362,18 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "DeleteAll failed");
+            _log.LogError(ex, "UnloadScenario failed");
             StatusText = $"Delete error: {ex.Message}";
         }
     }
 
     [RelayCommand]
-    private async Task ConfirmDeleteAllAsync()
+    private async Task ConfirmUnloadScenarioAsync()
     {
-        ShowDeleteAllConfirmation = false;
+        ShowUnloadScenarioConfirmation = false;
         try
         {
-            await _connection.ConfirmDeleteAllAsync();
+            await _connection.ConfirmUnloadScenarioAsync();
             Aircraft.Clear();
             ActiveScenarioId = null;
             ActiveScenarioName = null;
@@ -382,16 +382,16 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "ConfirmDeleteAll failed");
+            _log.LogError(ex, "ConfirmUnloadScenario failed");
             StatusText = $"Delete error: {ex.Message}";
         }
     }
 
     [RelayCommand]
-    private void CancelDeleteAll()
+    private void CancelUnloadScenario()
     {
-        ShowDeleteAllConfirmation = false;
-        PendingDeleteAllWarning = null;
+        ShowUnloadScenarioConfirmation = false;
+        PendingUnloadScenarioWarning = null;
     }
 
     partial void OnCommandTextChanged(string value)
