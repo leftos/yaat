@@ -399,14 +399,14 @@ Detailed chunk plan: [M4 STARS Track Operations](track-operations.md) (9 chunks)
 12. **Command patterns**: ATCTrainer (TRACK, DROP, HO, ACCEPT, CANCEL, PO, OK, SP, TA, etc.) + VICE (FC, CT, TO)
 
 #### Definition of Done
-- [ ] Aircraft spawn with correct Owner from `autoTrackConditions`
-- [ ] Handoff flows work end-to-end (initiate → flash in CRC → accept/retract)
-- [ ] Auto-accept timer completes handoffs to unattended positions
-- [ ] All 17 track commands parsed and handled (both RPO and CRC paths)
-- [ ] CRC displays correct ownership, handoff, pointout, scratchpad in STARS data blocks
-- [ ] StarsConsolidation topic correctly reports TCP ownership
-- [ ] Training client DataGrid shows ownership columns
-- [ ] `CommandSchemeCompletenessTests` pass
+- [x] Aircraft spawn with correct Owner from `autoTrackConditions`
+- [x] Handoff flows work end-to-end (initiate → flash in CRC → accept/retract)
+- [x] Auto-accept timer completes handoffs to unattended positions
+- [x] All 17 track commands parsed and handled (both RPO and CRC paths)
+- [x] CRC displays correct ownership, handoff, pointout, scratchpad in STARS data blocks
+- [ ] StarsConsolidation topic correctly reports TCP ownership — **DEFERRED**
+- [x] Training client DataGrid shows ownership columns
+- [x] `CommandSchemeCompletenessTests` pass
 
 ---
 

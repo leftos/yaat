@@ -243,6 +243,48 @@ public partial class AircraftModel : ObservableObject
     private string _currentTaxiway = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OwnerDisplay))]
+    private string? _owner;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OwnerDisplay))]
+    private string? _ownerSectorCode;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HandoffDisplay))]
+    private string? _handoffPeer;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HandoffDisplay))]
+    private string? _handoffPeerSectorCode;
+
+    [ObservableProperty]
+    private string? _pointoutStatus;
+
+    [ObservableProperty]
+    private string? _scratchpad1;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TempAltDisplay))]
+    private int? _temporaryAltitude;
+
+    [ObservableProperty]
+    private bool _isAnnotated;
+
+    public string OwnerDisplay =>
+        OwnerSectorCode ?? Owner ?? "";
+
+    public string HandoffDisplay =>
+        HandoffPeerSectorCode ?? HandoffPeer ?? "";
+
+    public string TempAltDisplay =>
+        TemporaryAltitude.HasValue
+            ? (TemporaryAltitude.Value >= 180
+                ? $"FL{TemporaryAltitude.Value}"
+                : $"{TemporaryAltitude.Value}")
+            : "";
+
+    [ObservableProperty]
     private double? _distanceFromFix;
 
     [ObservableProperty]
@@ -287,6 +329,14 @@ public partial class AircraftModel : ObservableObject
             TaxiRoute = dto.TaxiRoute,
             ParkingSpot = dto.ParkingSpot,
             CurrentTaxiway = dto.CurrentTaxiway,
+            Owner = dto.Owner,
+            OwnerSectorCode = dto.OwnerSectorCode,
+            HandoffPeer = dto.HandoffPeer,
+            HandoffPeerSectorCode = dto.HandoffPeerSectorCode,
+            PointoutStatus = dto.PointoutStatus,
+            Scratchpad1 = dto.Scratchpad1,
+            TemporaryAltitude = dto.TemporaryAltitude,
+            IsAnnotated = dto.IsAnnotated,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         return model;
@@ -327,6 +377,14 @@ public partial class AircraftModel : ObservableObject
         TaxiRoute = dto.TaxiRoute;
         ParkingSpot = dto.ParkingSpot;
         CurrentTaxiway = dto.CurrentTaxiway;
+        Owner = dto.Owner;
+        OwnerSectorCode = dto.OwnerSectorCode;
+        HandoffPeer = dto.HandoffPeer;
+        HandoffPeerSectorCode = dto.HandoffPeerSectorCode;
+        PointoutStatus = dto.PointoutStatus;
+        Scratchpad1 = dto.Scratchpad1;
+        TemporaryAltitude = dto.TemporaryAltitude;
+        IsAnnotated = dto.IsAnnotated;
         DistanceFromFix = computeDistance?.Invoke(this);
     }
 

@@ -688,6 +688,11 @@ public partial class MainViewModel : ObservableObject
     public void RefreshCommandScheme()
     {
         CommandSchemeName = CommandScheme.DetectPresetName(_preferences.CommandScheme) ?? "Custom";
+
+        if (ActiveScenarioId is not null)
+        {
+            _ = SendAutoAcceptDelay();
+        }
     }
 
     public void SetDistanceReference(string fixOrFrd)
@@ -933,6 +938,21 @@ public partial class MainViewModel : ObservableObject
         foreach (var dto in result.AllAircraft)
         {
             Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
+        }
+
+        _ = SendAutoAcceptDelay();
+    }
+
+    private async Task SendAutoAcceptDelay()
+    {
+        try
+        {
+            await _connection.SetAutoAcceptDelayAsync(
+                _preferences.AutoAcceptDelaySeconds);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set auto-accept delay");
         }
     }
 

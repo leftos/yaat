@@ -160,6 +160,12 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("SetSimRate", rate);
     }
 
+    public async Task SetAutoAcceptDelayAsync(int seconds)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetAutoAcceptDelay", seconds);
+    }
+
     // --- Admin ---
 
     public async Task<bool> AdminAuthenticateAsync(string password)
@@ -268,7 +274,15 @@ public record AircraftDto(
     int CruiseSpeed = 0,
     string TaxiRoute = "",
     string ParkingSpot = "",
-    string CurrentTaxiway = ""
+    string CurrentTaxiway = "",
+    string? Owner = null,
+    string? OwnerSectorCode = null,
+    string? HandoffPeer = null,
+    string? HandoffPeerSectorCode = null,
+    string? PointoutStatus = null,
+    string? Scratchpad1 = null,
+    int? TemporaryAltitude = null,
+    bool IsAnnotated = false
 );
 
 public record LoadScenarioResultDto(

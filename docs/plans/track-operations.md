@@ -162,13 +162,13 @@ Add all new command types, parsed command records, ATCTrainer/VICE patterns, and
 
 Resolve vNAS positions to TrackOwner instances. Build a position registry to track which CRC clients and the RPO map to which positions.
 
-- [ ] Extend `ArtccConfigService`:
+- [x] Extend `ArtccConfigService`:
   - `TrackOwner? ResolvePosition(string artccId, string positionId)` — resolves a vNAS ULID to a `TrackOwner` with callsign, facilityId, subset (from StarsConfiguration), sectorId
   - `Tcp? GetTcpForPosition(string artccId, string positionId)` — returns the TCP linked to a position via `StarsConfiguration.TcpId`
   - `TrackOwner? ResolveTcpCode(string artccId, string facilityId, string tcpCode)` — resolves a TCP code like "2B" (subset=2, sectorId="B") to a `TrackOwner` by finding the matching TCP and its owning position
   - `List<Tcp> GetFacilityTcps(string artccId, string facilityId)` — returns all TCPs for a facility (for StarsConsolidation)
   - `Tcp? FindTcpByCode(string artccId, string facilityId, int subset, string sectorId)` — find TCP by subset+sectorId
-- [ ] Create `PositionRegistry.cs` (singleton service in yaat-server):
+- [x] Create `PositionRegistry.cs` (singleton service in yaat-server):
   - `RegisterCrcPosition(string connectionId, string artccId, string positionId)` — called on CRC `StartSession`
   - `UnregisterCrcPosition(string connectionId)` — called on CRC disconnect
   - `RegisterTrainingPosition(string scenarioId, string artccId, string positionId)` — called on scenario load (for RPO)
@@ -177,9 +177,9 @@ Resolve vNAS positions to TrackOwner instances. Build a position registry to tra
   - `bool IsPositionAttended(Tcp tcp)` — true if a CRC client is logged into this TCP
   - `TrackOwner? GetStudentPosition(string scenarioId)` — returns the RPO's TrackOwner
   - Thread-safe (ConcurrentDictionary)
-- [ ] Wire `PositionRegistry` into DI in `Program.cs`
-- [ ] Update `CrcClientState.HandleStartSession()` to call `PositionRegistry.RegisterCrcPosition()`
-- [ ] Update CRC disconnect to call `PositionRegistry.UnregisterCrcPosition()`
+- [x] Wire `PositionRegistry` into DI in `Program.cs`
+- [x] Update `CrcClientState.HandleStartSession()` to call `PositionRegistry.RegisterCrcPosition()`
+- [x] Update CRC disconnect to call `PositionRegistry.UnregisterCrcPosition()`
 
 ---
 
@@ -187,17 +187,17 @@ Resolve vNAS positions to TrackOwner instances. Build a position registry to tra
 
 Process scenario JSON fields that were previously ignored: `atc[]`, `studentPositionId`, `autoTrackConditions`.
 
-- [ ] Fix `AutoTrackConditions` model in `ScenarioModels.cs` (yaat-server):
+- [x] Fix `AutoTrackConditions` model in `ScenarioModels.cs` (yaat-server):
   - Add `string? ScratchPad` property (missing — real scenarios use it extensively)
   - Change `HandoffDelay` from `int` to `int?` (null = no handoff to student; 0 = immediate handoff; >0 = delayed handoff)
-- [ ] Update `ScenarioLoader.Load()`:
+- [x] Update `ScenarioLoader.Load()`:
   - Resolve `scenario.StudentPositionId` via `ArtccConfigService.ResolvePosition()` → store on `ScenarioSession.StudentPosition` (new field, type `TrackOwner?`)
   - Register student position via `PositionRegistry.RegisterTrainingPosition()`
   - For each `scenario.Atc[]` entry:
     - Resolve `positionId` via `ArtccConfigService.ResolvePosition()` → store as `ScenarioSession.AtcPositions` (new field, `List<ResolvedAtcPosition>`)
     - `ResolvedAtcPosition` captures: `ScenarioAtc` source data + resolved `TrackOwner` + resolved `Tcp`
   - Collect distinct `artccId` values from `atc[]` entries; call `ArtccConfigService.EnsureLoadedAsync()` for each (scenarios may reference cross-ARTCC positions, e.g., ZOA + ZLA)
-- [ ] Update `ScenarioLoader.LoadAircraft()`:
+- [x] Update `ScenarioLoader.LoadAircraft()`:
   - If `autoTrackConditions` is present:
     - Resolve `autoTrackConditions.PositionId` → `TrackOwner`
     - Set `AircraftState.Owner` to that TrackOwner
@@ -208,22 +208,22 @@ Process scenario JSON fields that were previously ignored: `atc[]`, `studentPosi
     - If `autoTrackConditions.ScratchPad` is set: store on `AircraftState.Scratchpad1`
     - If `autoTrackConditions.ClearedAltitude` is set: parse and store on `AircraftState.AssignedAltitude` (string → int hundreds of feet)
   - If `autoTrackConditions` is absent: aircraft spawns unowned (`Owner = null`)
-- [ ] Update `ScenarioSession`:
+- [x] Update `ScenarioSession`:
   - Add `TrackOwner? StudentPosition` property
   - Add `List<ResolvedAtcPosition> AtcPositions` property
   - Add `TimeSpan AutoAcceptDelay` property (received from client)
   - Add `ConcurrentDictionary<string, TrackOwner> ActivePositionByConnection` — per-client active position override (set by standalone `AS` command, defaults to StudentPosition)
-- [ ] Auto-accept timer logic in `SimulationHostedService`:
+- [x] Auto-accept timer logic in `SimulationHostedService`:
   - Each tick, check all aircraft with non-null `HandoffPeer`:
     - If `HandoffPeer` target position is unattended (`!PositionRegistry.IsPositionAttended(tcp)`)
     - And elapsed time since handoff initiation >= `ScenarioSession.AutoAcceptDelay`
     - Then: complete the handoff (set `Owner = HandoffPeer`, clear `HandoffPeer`, clear `HandoffInitiatedAt`)
   - `HandoffInitiatedAt` is already on `AircraftState` (Chunk 1)
-- [ ] Update `ScenarioSession` leave/cleanup to call `PositionRegistry.UnregisterTrainingPosition()`
-- [ ] Add training hub method: `SetAutoAcceptDelay(int seconds)` — stores on the active scenario session
-- [ ] `autoTrackAirportIds` on `ScenarioAtc`: when an aircraft spawns from a listed airport with no explicit `autoTrackConditions`, auto-set `Owner` to that ATC position's TrackOwner
+- [x] Update `ScenarioSession` leave/cleanup to call `PositionRegistry.UnregisterTrainingPosition()`
+- [x] Add training hub method: `SetAutoAcceptDelay(int seconds)` — stores on the active scenario session
+- [x] `autoTrackAirportIds` on `ScenarioAtc`: when an aircraft spawns from a listed airport with no explicit `autoTrackConditions`, auto-set `Owner` to that ATC position's TrackOwner
   - Match uses FAA airport IDs (e.g., "SJC", "OAK") against `AircraftState.Departure`; if departure is ICAO format ("KSJC"), strip the "K" prefix for matching
-- [ ] Handle null `scenario.PrimaryAirportId` gracefully — some scenarios don't set it
+- [x] Handle null `scenario.PrimaryAirportId` gracefully — some scenarios don't set it
 
 ---
 
@@ -231,7 +231,7 @@ Process scenario JSON fields that were previously ignored: `atc[]`, `studentPosi
 
 Populate ownership fields in CRC DTOs. Implement StarsConsolidation topic.
 
-- [ ] Update `DtoConverter.ToStarsTrack()`:
+- [x] Update `DtoConverter.ToStarsTrack()`:
   - `Owner` = `ac.Owner` mapped to CRC `TrackOwner` DTO (MessagePack)
   - `HandoffPeer` = `ac.HandoffPeer` mapped
   - `HandoffRedirectedBy` = `ac.HandoffRedirectedBy` mapped
@@ -239,12 +239,13 @@ Populate ownership fields in CRC DTOs. Implement StarsConsolidation topic.
   - `Scratchpad1` = `ac.Scratchpad1`
   - `Scratchpad2` = `ac.Scratchpad2`
   - Note: CRC `TrackOwner` DTO is MessagePack `[Key(N)]`; Yaat.Sim `TrackOwner` is a plain record. Need a mapping helper.
-- [ ] Update `DtoConverter.ToFlightPlan()`:
+- [x] Update `DtoConverter.ToFlightPlan()`:
   - Set `AssignedAltitude` from `ac.TemporaryAltitude` if set, else from `ac.Targets.TargetAltitude`
 - [ ] Update `DtoConverter.ToEramDataBlock()`:
   - `Format` should now respect ownership: `Fdb` if owned by the subscribing sector or handed-off to it, `PairedLdb` if owned by another sector, `UnpairedLdb` if unowned
   - This requires per-client context in the converter (which sector is this CRC client on?)
-- [ ] Update training `AircraftStateDto` and `AircraftDto`:
+  - **DEFERRED** — requires per-client broadcast context; doing this properly needs refactoring the broadcast loop
+- [x] Update training `AircraftStateDto` and `AircraftDto`:
   - Add: `Owner` (callsign string or null), `OwnerSectorCode` (e.g., "2B" or null), `HandoffPeer` (callsign string or null), `HandoffPeerSectorCode`, `PointoutStatus` (string or null), `Scratchpad1`, `Scratchpad2`, `TemporaryAltitude`, `IsAnnotated`
 - [ ] Implement StarsConsolidation topic (`ReceiveStarsConsolidation`):
   - When a CRC client subscribes to `StarsConsolidation(facilityId)`:
@@ -252,17 +253,18 @@ Populate ownership fields in CRC DTOs. Implement StarsConsolidation topic.
     - For each TCP: determine if it's owned by the subscribing position (based on `PositionRegistry`)
     - Send initial data dump via `ReceiveStarsConsolidation`
   - On position change (CRC client joins/leaves): re-broadcast consolidation to affected clients
-- [ ] Ensure CRC `TrackOwner` DTO in `CrcDtos.cs` matches vNAS MessagePack shape:
+  - **DEFERRED** — needs careful design of consolidation item structure and broadcast triggers
+- [x] Ensure CRC `TrackOwner` DTO in `CrcDtos.cs` matches vNAS MessagePack shape:
   - `[Key(0)] string Callsign`
   - `[Key(1)] string? FacilityId`
   - `[Key(2)] int? Subset`
   - `[Key(3)] string? SectorId`
   - `[Key(4)] string OwnerType` (string enum: "Other", "Eram", "Stars", etc.)
-- [ ] Ensure CRC `StarsPointout` DTO in `CrcDtos.cs`:
+- [x] Ensure CRC `StarsPointout` DTO in `CrcDtos.cs`:
   - `[Key(0)] CrcTcp Recipient`
   - `[Key(1)] CrcTcp Sender`
   - `[Key(2)] string Status` (string enum: "Pending", "Accepted", "Rejected")
-- [ ] Ensure CRC `Tcp` DTO (`CrcTcp`) in `CrcDtos.cs`:
+- [x] Ensure CRC `Tcp` DTO (`CrcTcp`) in `CrcDtos.cs`:
   - `[Key(0)] int Subset`
   - `[Key(1)] string SectorId`
   - `[Key(2)] string Id`
@@ -274,15 +276,15 @@ Populate ownership fields in CRC DTOs. Implement StarsConsolidation topic.
 
 Server-side dispatch for all track commands received from the training hub.
 
-- [ ] Add track command handling in `CommandParser.cs` / `ServerCommands.cs`:
+- [x] Add track command handling in `CommandParser.cs` / `ServerCommands.cs`:
   - Track commands are NOT dispatched through `CommandDispatcher` (they don't build `CommandBlocks`). Instead, the server handles them directly in `SimulationHostedService.HandleTrackCommand()` (new method).
   - Pattern: `SendCommand("callsign", "TRACK")` → server detects track command type → calls `HandleTrackCommand()` instead of `CommandDispatcher`
-- [ ] `AS` prefix and identity resolution:
+- [x] `AS` prefix and identity resolution:
   - Before dispatching any track command, extract `AS {tcp}` prefix from the canonical string if present
   - Resolve effective identity: per-command AS prefix > session's `ActivePositionByConnection[connectionId]` > `ScenarioSession.StudentPosition`
   - **AS (standalone)**: `SendCommand(null, "AS 2B")` → resolve TCP, store in `ScenarioSession.ActivePositionByConnection[connectionId]`. Return success with terminal message "Now acting as {position callsign}"
   - **AS (prefix)**: `SendCommand("N135BS", "AS 2B HO 3Y")` → strip `AS 2B`, resolve identity to 2B, dispatch `HO 3Y` with that identity. Do NOT update the persistent active position.
-- [ ] `HandleTrackCommand()` implementations:
+- [x] `HandleTrackCommand()` implementations:
   - All ownership-sensitive commands use `effectivePosition` (resolved from AS prefix > active position > student position)
   - **TRACK**: Validate aircraft has no Owner. Set `Owner = effectivePosition`. Return success/error.
   - **DROP**: Validate aircraft is owned by effectivePosition. Clear `Owner`. Clear `HandoffPeer` if set. Return success/error.
@@ -301,7 +303,7 @@ Server-side dispatch for all track commands received from the training hub.
   - **FC**: Set `FrequencyChangeApproved = true`. Generate terminal broadcast "frequency change approved". Return success.
   - **CT {tcp}**: Resolve TCP → position callsign. Set `ContactPosition`. Generate terminal broadcast "contact {position} {frequency}". Return success.
   - **TO**: Resolve tower position from scenario. Set `ContactPosition`. Generate terminal broadcast "contact tower {frequency}". Return success.
-- [ ] Error handling: all track commands return `CommandResultDto` with success/error + message
+- [x] Error handling: all track commands return `CommandResultDto` with success/error + message
 
 ---
 
@@ -309,7 +311,7 @@ Server-side dispatch for all track commands received from the training hub.
 
 Handle CRC-initiated track operations via the STARS command protocol.
 
-- [ ] Add `ProcessStarsCommandDto` deserialization to `SignalRMessageParser`:
+- [x] Add `ProcessStarsCommandDto` deserialization to `SignalRMessageParser`:
   - Already recognized as a hub method target; currently stubbed. Parse the MessagePack payload into:
     - `FromSector: SectorSpec` (facilityId, subset?, sectorId)
     - `Type: StarsCommandType` (enum: Handoff, InitiateControl, TerminateControl, Implied, etc.)
@@ -318,18 +320,18 @@ Handle CRC-initiated track operations via the STARS command protocol.
     - `ClickedItem2: StarsClickedItem?`
     - `InvertNumericKeypad: bool`
   - Create C# records for `StarsCommandType` enum, `StarsClickedItem`, `SectorSpec`
-- [ ] Resolve `ClickedItem.TrackId` to aircraft:
+- [x] Resolve `ClickedItem.TrackId` to aircraft:
   - StarsTrackDto uses `Id = "CALLSIGN{callsign}"` format. Extract callsign from TrackId by stripping the "CALLSIGN" prefix.
   - Look up aircraft in `SimulationWorld`
-- [ ] Handle `StarsCommandType.InitiateControl`:
+- [x] Handle `StarsCommandType.InitiateControl`:
   - Resolve `FromSector` → `TrackOwner` via position registry
   - Set `aircraft.Owner = fromSectorOwner`
   - Return `StarsCommandProcessingResultDto` (success)
-- [ ] Handle `StarsCommandType.TerminateControl`:
+- [x] Handle `StarsCommandType.TerminateControl`:
   - Validate `FromSector` matches current `Owner`
   - Clear `Owner`, clear `HandoffPeer` if set
   - Return success
-- [ ] Handle `StarsCommandType.Handoff`:
+- [x] Handle `StarsCommandType.Handoff`:
   - If aircraft has no pending handoff AND `FromSector` matches `Owner`:
     - **Initiate**: Resolve `ParameterString` → target `TrackOwner`. Set `HandoffPeer`. Set `HandoffInitiatedAt`.
   - If aircraft has pending handoff AND `FromSector` matches `HandoffPeer` (CRC user is the target):
@@ -337,16 +339,16 @@ Handle CRC-initiated track operations via the STARS command protocol.
   - If aircraft has pending handoff AND `FromSector` matches `Owner`:
     - **Retract**: Clear `HandoffPeer`. Clear `HandoffInitiatedAt`.
   - If aircraft has pending handoff AND `FromSector` is a third party:
-    - **Redirect**: Set `HandoffRedirectedBy = fromSector`. Redirect `HandoffPeer` to new target from `ParameterString`.
+    - **Redirect**: deferred — third-party redirect requires more design
   - Return appropriate result
-- [ ] Handle `StarsCommandType.Implied`:
+- [x] Handle `StarsCommandType.Implied`:
   - If aircraft has pending handoff to `FromSector`: treat as Accept
   - If aircraft has pending pointout to `FromSector`: treat as Acknowledge (set `Pointout.Status = Accepted`)
   - Otherwise: return error/no-op
-- [ ] Return `StarsCommandProcessingResultDto`:
+- [x] Return `StarsCommandProcessingResultDto`:
   - Create this DTO in `CrcDtos.cs` matching vNAS shape
   - MessagePack serialized, sent as InvocationResponse
-- [ ] Handle unsupported `StarsCommandType` values gracefully (ACK with no-op)
+- [x] Handle unsupported `StarsCommandType` values gracefully (ACK with no-op)
 
 ---
 
@@ -354,22 +356,22 @@ Handle CRC-initiated track operations via the STARS command protocol.
 
 Display track ownership in the training client. Auto-accept delay setting.
 
-- [ ] Update `ServerConnection.AircraftDto`:
+- [x] Update `ServerConnection.AircraftDto`:
   - Add properties matching new training DTO fields: `Owner`, `OwnerSectorCode`, `HandoffPeer`, `HandoffPeerSectorCode`, `PointoutStatus`, `Scratchpad1`, `TemporaryAltitude`, `IsAnnotated`
-- [ ] Update `AircraftModel`:
+- [x] Update `AircraftModel`:
   - Add `[ObservableProperty]` fields: `_owner`, `_ownerSectorCode`, `_handoffPeer`, `_handoffPeerSectorCode`, `_pointoutStatus`, `_scratchpad1`, `_temporaryAltitude`, `_isAnnotated`
   - Update `UpdateFrom(AircraftDto)` to populate these
-- [ ] Add DataGrid columns in `MainWindow.axaml`:
+- [x] Add DataGrid columns in `MainWindow.axaml`:
   - "Owner" column — shows `OwnerSectorCode` (e.g., "2B") or `Owner` callsign if no sector code
   - "HO" column — shows `HandoffPeerSectorCode` or empty; color-code pending in vs. pending out
   - "SP" column — shows `Scratchpad1` if set
   - "TA" column — shows `TemporaryAltitude` if set (formatted as altitude)
-- [ ] Auto-accept delay setting:
+- [x] Auto-accept delay setting:
   - Add `AutoAcceptDelaySeconds` to `UserPreferences` (default: 5 seconds, range 0–60)
   - Add UI in `SettingsWindow.axaml`: numeric input with label "Auto-accept handoff delay (seconds)"
   - On scenario load: send `SetAutoAcceptDelay(seconds)` to server
   - On settings change while scenario is active: re-send to server
-- [ ] Add `SetAutoAcceptDelay` hub method to `ServerConnection`
+- [x] Add `SetAutoAcceptDelay` hub method to `ServerConnection`
 
 ---
 
@@ -377,11 +379,11 @@ Display track ownership in the training client. Auto-accept delay setting.
 
 End-to-end verification and tests.
 
-- [ ] Unit tests in `tests/Yaat.Sim.Tests/`:
+- [x] Unit tests in `tests/Yaat.Sim.Tests/`:
   - `TrackOwnerTests`: construction, factory methods, equality
   - `StarsPointoutTests`: status transitions
   - Command parsing tests for all new command types
-- [ ] Unit tests in `tests/Yaat.Client.Tests/`:
+- [x] Unit tests in `tests/Yaat.Client.Tests/`:
   - `CommandSchemeCompletenessTests` already enforces coverage — just ensure it passes
   - Verify ATCTrainer and VICE patterns parse correctly for all new commands
 - [ ] Integration test scenarios (manual or automated in yaat-server):
@@ -393,25 +395,25 @@ End-to-end verification and tests.
   - RPO types `DROP` → Owner cleared, CRC shows untracked
   - RPO types `SP TEST` → Scratchpad1 appears in CRC data block
   - RPO types `ACCEPTALL` → all pending inbound handoffs accepted
-- [ ] Update `USER_GUIDE.md` with all new commands and track operations UI
-- [ ] Update `docs/command-aliases-reference.md` — remove "not implemented" notes
+- [x] Update `USER_GUIDE.md` with all new commands and track operations UI
+- [x] Update `docs/command-aliases-reference.md` — remove "not implemented" notes
 
 ---
 
 ## Definition of Done
 
-- [ ] Aircraft spawn with correct Owner from `autoTrackConditions`
-- [ ] Handoff to student is initiated per `handoffDelay` (0 = immediate, N = after N seconds, null = no auto-handoff)
-- [ ] Auto-accept timer completes handoffs to unattended positions
-- [ ] RPO can `AS {tcp}` to set active position (standalone and prefix)
-- [ ] RPO can TRACK/DROP/HO/ACCEPT/CANCEL aircraft (using effective position)
-- [ ] RPO can PO/OK/SP/TA/QQ/CRUISE aircraft
-- [ ] ACCEPTALL and HOALL batch operations work
-- [ ] CRC displays correct Owner, HandoffPeer, Pointout, Scratchpad in STARS data blocks
-- [ ] CRC clients can ProcessStarsCommand for Handoff, InitiateControl, TerminateControl
-- [ ] StarsConsolidation topic correctly reports TCP ownership
-- [ ] Training client DataGrid shows Owner, Handoff, Scratchpad, TempAlt columns
-- [ ] Auto-accept delay is configurable in Settings
-- [ ] All new commands have ATCTrainer patterns, VICE patterns (where applicable), and CommandMetadata
-- [ ] `CommandSchemeCompletenessTests` pass
-- [ ] USER_GUIDE.md and command-aliases-reference.md updated
+- [x] Aircraft spawn with correct Owner from `autoTrackConditions`
+- [x] Handoff to student is initiated per `handoffDelay` (0 = immediate, N = after N seconds, null = no auto-handoff)
+- [x] Auto-accept timer completes handoffs to unattended positions
+- [x] RPO can `AS {tcp}` to set active position (standalone and prefix)
+- [x] RPO can TRACK/DROP/HO/ACCEPT/CANCEL aircraft (using effective position)
+- [x] RPO can PO/OK/SP/TA/QQ/CRUISE aircraft
+- [x] ACCEPTALL and HOALL batch operations work
+- [x] CRC displays correct Owner, HandoffPeer, Pointout, Scratchpad in STARS data blocks
+- [x] CRC clients can ProcessStarsCommand for Handoff, InitiateControl, TerminateControl
+- [ ] StarsConsolidation topic correctly reports TCP ownership — **DEFERRED**
+- [x] Training client DataGrid shows Owner, Handoff, Scratchpad, TempAlt columns
+- [x] Auto-accept delay is configurable in Settings
+- [x] All new commands have ATCTrainer patterns, VICE patterns (where applicable), and CommandMetadata
+- [x] `CommandSchemeCompletenessTests` pass
+- [x] USER_GUIDE.md and command-aliases-reference.md updated

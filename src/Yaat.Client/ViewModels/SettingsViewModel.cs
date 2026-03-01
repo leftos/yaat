@@ -66,6 +66,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _adminPassword = "";
 
+    [ObservableProperty]
+    private int _autoAcceptDelaySeconds;
+
     public static IReadOnlyList<string> PresetNames_ => PresetNames;
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
@@ -81,6 +84,7 @@ public partial class SettingsViewModel : ObservableObject
         _userInitials = _preferences.UserInitials;
         _isAdminMode = _preferences.IsAdminMode;
         _adminPassword = _preferences.AdminPassword;
+        _autoAcceptDelaySeconds = _preferences.AutoAcceptDelaySeconds;
     }
 
     partial void OnUserInitialsChanged(string value)
@@ -120,6 +124,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetCommandScheme(scheme);
         _preferences.SetUserInitials(UserInitials);
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
+        _preferences.SetAutoAcceptDelaySeconds(AutoAcceptDelaySeconds);
         Saved = true;
     }
 

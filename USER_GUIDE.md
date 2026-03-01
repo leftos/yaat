@@ -55,6 +55,10 @@ The main grid shows all aircraft in your scenario:
 | Alt | Current altitude (ft) |
 | Spd | Current ground speed (kts) |
 | VS | Vertical speed (fpm) |
+| Owner | Track owner (sector code, e.g., "2B", or callsign) |
+| HO | Pending handoff target (sector code or callsign) |
+| SP | Scratchpad text |
+| TA | Temporary altitude assignment |
 | Phase | Current phase name (e.g., Downwind, FinalApproach, TakeoffRoll) |
 | Rwy | Assigned runway |
 | AHdg / AAlt / ASpd | Assigned targets — AHdg shows the next fix name when navigating, or heading when under vectors |
@@ -134,6 +138,24 @@ YAAT supports two command schemes, switchable in Settings:
 | Resume taxi | `RES` | `RES` |
 | Cross runway | `CROSS 28L` | `CROSS 28L` |
 | Follow | `FOLLOW SWA123` | `FOLLOW SWA123` |
+| Track | `TRACK` | `TRACK` |
+| Drop | `DROP` | `DROP` |
+| Handoff | `HO 3Y` | `HO 3Y` |
+| Accept | `ACCEPT` / `A` | `ACCEPT` / `A` |
+| Cancel | `CANCEL` | `CANCEL` |
+| Accept all | `ACCEPTALL` | `ACCEPTALL` |
+| Handoff all | `HOALL 3Y` | `HOALL 3Y` |
+| Pointout | `PO 3Y` | `PO 3Y` |
+| Acknowledge | `OK` | `OK` |
+| Annotate | `ANNOTATE` / `AN` | `ANNOTATE` / `AN` |
+| Scratchpad | `SP TEST` | `SP TEST` |
+| Temp altitude | `TA 120` / `QQ 120` | `TA 120` / `QQ 120` |
+| Cruise | `CRUISE 240` / `QZ 240` | `CRUISE 240` / `QZ 240` |
+| On-handoff | `ONHO` / `ONH` | `ONHO` / `ONH` |
+| Freq change | — | `FC` |
+| Contact TCP | — | `CT3Y` |
+| Contact tower | — | `TO` |
+| Active position | `AS 2B` | `AS 2B` |
 | Delete aircraft | `DEL` | `X` |
 
 ### Altitude Arguments
@@ -269,6 +291,52 @@ Any heading, altitude, or speed command clears the hold.
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives.
 
 Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop.
+
+### Track Operations
+
+Track operations control aircraft ownership, handoffs, and coordination. These commands use STARS-style TCP codes (e.g., "2B" = subset 2, sector B).
+
+#### Active Position
+
+By default, you operate as the scenario's student position. Use `AS` to act as a different position:
+
+| Command | Effect |
+|---------|--------|
+| `AS 2B` | Set your active position to TCP 2B (persistent until changed) |
+| `N135BS AS 2B HO 3Y` | Act as 2B for this command only (prefix mode) |
+
+Resolution order: per-command `AS` prefix > persistent active position > student position default.
+
+#### Track Commands
+
+| Command | Effect |
+|---------|--------|
+| `TRACK` | Initiate control — take ownership of the aircraft |
+| `DROP` | Terminate control — release ownership |
+| `HO 3Y` | Handoff to TCP 3Y |
+| `ACCEPT` / `A` | Accept a pending inbound handoff |
+| `CANCEL` | Retract a pending outbound handoff |
+| `ACCEPTALL` | Accept all pending inbound handoffs (global — no callsign needed) |
+| `HOALL 3Y` | Handoff all your aircraft to TCP 3Y (global — no callsign needed) |
+| `PO 3Y` | Point out to TCP 3Y |
+| `OK` | Acknowledge a pending pointout |
+| `ANNOTATE` / `AN` / `BOX` | Toggle annotation flag |
+| `SP TEST` / `SCRATCHPAD TEST` | Set scratchpad text |
+| `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |
+| `CRUISE 240` / `QZ 240` | Set cruise altitude |
+| `ONHO` / `ONH` | Toggle on-handoff status |
+
+VICE-only commands:
+
+| Command | Effect |
+|---------|--------|
+| `FC` | Approve frequency change |
+| `CT3Y` | Tell pilot to contact TCP 3Y |
+| `TO` | Tell pilot to contact tower |
+
+#### Auto-Accept
+
+Handoffs to unattended positions (no CRC client logged in) are automatically accepted after a configurable delay. Set the delay in **Settings > General > Auto-accept handoff delay**.
 
 ### Conditional Blocks
 
@@ -466,7 +534,7 @@ Click the **Pop Out** button in the terminal header to undock the terminal into 
 
 Click **Settings** in the top-right to configure:
 
-- **General** — User initials (required before connecting)
+- **General** — User initials (required before connecting) and auto-accept handoff delay (seconds)
 - **Command scheme** — ATCTrainer (space-separated) or VICE (concatenated)
 
 ## Autocomplete
