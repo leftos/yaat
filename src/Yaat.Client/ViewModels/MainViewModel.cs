@@ -162,7 +162,9 @@ public partial class MainViewModel : ObservableObject
         _connection.AircraftDeleted += OnAircraftDeleted;
         _connection.AircraftSpawned += OnAircraftSpawned;
         _connection.SimulationStateChanged += OnSimulationStateChanged;
+        _connection.Reconnecting += OnReconnecting;
         _connection.Reconnected += OnReconnected;
+        _connection.Closed += OnConnectionClosed;
         _connection.TerminalEntryReceived += OnTerminalEntry;
         _connection.RoomMemberChanged += OnRoomMemberChanged;
 
@@ -1156,6 +1158,15 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
+    private void OnReconnecting(Exception? error)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            StatusText = "Connection lost — reconnecting...";
+            AddSystemEntry("Connection lost, attempting to reconnect");
+        });
+    }
+
     private void OnReconnected(string? connectionId)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
@@ -1190,6 +1201,21 @@ public partial class MainViewModel : ObservableObject
             {
                 _log.LogError(ex, "Rejoin room after reconnect failed");
             }
+        });
+    }
+
+    private void OnConnectionClosed(Exception? error)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            var reason = error is not null
+                ? $"Server connection lost — {error.Message}"
+                : "Server connection closed";
+            _log.LogWarning(error, "Connection closed permanently");
+            IsConnected = false;
+            StatusText = reason;
+            AddSystemEntry(reason);
+            ClearRoomState();
         });
     }
 

@@ -17,6 +17,8 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<AircraftDto>? AircraftSpawned;
     public event Action<bool, int>? SimulationStateChanged;
     public event Action<string?>? Reconnected;
+    public event Action<Exception?>? Reconnecting;
+    public event Action<Exception?>? Closed;
     public event Action<TerminalBroadcastDto>? TerminalEntryReceived;
     public event Action<RoomMemberChangedDto>? RoomMemberChanged;
 
@@ -46,10 +48,24 @@ public sealed class ServerConnection : IAsyncDisposable
 
         _connection.On<RoomMemberChangedDto>("RoomMemberChanged", dto => RoomMemberChanged?.Invoke(dto));
 
+        _connection.Reconnecting += error =>
+        {
+            _log.LogWarning(error, "Connection lost, reconnecting");
+            Reconnecting?.Invoke(error);
+            return Task.CompletedTask;
+        };
+
         _connection.Reconnected += connectionId =>
         {
             _log.LogInformation("Reconnected with id {Id}", connectionId);
             Reconnected?.Invoke(connectionId);
+            return Task.CompletedTask;
+        };
+
+        _connection.Closed += error =>
+        {
+            _log.LogWarning(error, "Connection closed permanently");
+            Closed?.Invoke(error);
             return Task.CompletedTask;
         };
 
