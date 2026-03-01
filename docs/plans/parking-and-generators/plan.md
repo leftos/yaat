@@ -14,12 +14,12 @@ All three remove stale deferral messages and close schema gaps. Work is split in
 
 Shared foundation — every subsequent phase depends on this.
 
-- [ ] `ScenarioModels.cs` — add `Heading` (double?) and `Parking` (string?) to `StartingConditions`
-- [ ] `ScenarioModels.cs` — expand `AircraftGenerator` stub to full 13-field model
-- [ ] `YaatOptions.cs` — add `AirportFilesPath` (optional string, no `ValidateOnStart`)
-- [ ] New `Data/AirportGroundDataService.cs` — `IAirportGroundData` impl with lazy GeoJSON loading + cache
-- [ ] `Program.cs` — register `IAirportGroundData` singleton in DI
-- [ ] `SimulationHostedService.cs` — inject `IAirportGroundData` in constructor
+- [x] `ScenarioModels.cs` — add `Heading` (double?) and `Parking` (string?) to `StartingConditions`
+- [x] `ScenarioModels.cs` — expand `AircraftGenerator` stub to full 13-field model
+- [x] `YaatOptions.cs` — add `ArtccResourcesPath` (optional string, no `ValidateOnStart`)
+- [x] New `Data/AirportGroundDataService.cs` — `IAirportGroundData` impl with lazy GeoJSON loading + cache
+- [x] `Program.cs` — register `IAirportGroundData` singleton in DI
+- [x] `SimulationHostedService.cs` — inject `IAirportGroundData` in constructor
 
 Details: [ground-infrastructure.md](ground-infrastructure.md)
 
@@ -28,22 +28,22 @@ Details: [ground-infrastructure.md](ground-infrastructure.md)
 Depends on Phase 1. Makes ground-level aircraft spawn correctly and respond to commands.
 
 **Scenario loading:**
-- [ ] `ScenarioLoader.cs` — implement `LoadAtParking()` (resolve airport → layout → parking node → `AircraftInitializer.InitializeAtParking`)
-- [ ] `ScenarioLoader.cs` — Coordinates/FixOrFrd ground detection: `speed <= 0 && alt < 200` → set `IsOnGround`, create `AtParkingPhase`
-- [ ] `ScenarioLoader.cs` — heading resolution: check `cond.Heading` first, fall back to `NavigationPath`
-- [ ] `ScenarioLoader.cs` — thread `IAirportGroundData?` through `Load()` → `LoadAircraft()` → `LoadAtParking()`
-- [ ] `ScenarioLoader.cs` — remove parking deferral message
+- [x] `ScenarioLoader.cs` — implement `LoadAtParking()` (resolve airport → layout → parking node → `AircraftInitializer.InitializeAtParking`)
+- [x] `ScenarioLoader.cs` — Coordinates/FixOrFrd ground detection: `speed <= 0 && alt < 200` → set `IsOnGround`, create `AtParkingPhase`
+- [x] `ScenarioLoader.cs` — heading resolution: check `cond.Heading` first, fall back to `NavigationPath`
+- [x] `ScenarioLoader.cs` — thread `IAirportGroundData?` through `Load()` → `LoadAircraft()` → `LoadAtParking()`
+- [x] `ScenarioLoader.cs` — remove parking deferral message
 
 **Runtime wiring:**
-- [ ] `SimulationHostedService.cs` — add `ResolveGroundLayout(AircraftState)` helper
-- [ ] `SimulationHostedService.cs` — pass ground layout in `SendCommandAsync` → `DispatchCompound`
-- [ ] `SimulationHostedService.cs` — pass ground layout in `DispatchPresetCommands` → `Dispatch`
-- [ ] `SimulationHostedService.cs` — add `GroundLayout` to `PhaseContext` in PreTick when `IsOnGround`
-- [ ] `SimulationHostedService.cs` — pass `_groundData` to `ScenarioLoader.Load` call
+- [x] `SimulationHostedService.cs` — add `ResolveGroundLayout(AircraftState)` helper
+- [x] `SimulationHostedService.cs` — pass ground layout in `SendCommandAsync` → `DispatchCompound`
+- [x] `SimulationHostedService.cs` — pass ground layout in `DispatchPresetCommands` → `Dispatch`
+- [x] `SimulationHostedService.cs` — add `GroundLayout` to `PhaseContext` in PreTick when `IsOnGround`
+- [x] `SimulationHostedService.cs` — pass `_groundData` to `ScenarioLoader.Load` call
 
 **Yaat.Sim fix:**
-- [ ] `CommandDispatcher.cs` — add `groundLayout` param to `Dispatch`; route ground commands through `DispatchCompound`
-- [ ] `CommandDispatcher.cs` — reject ground commands in no-phase path with clear error (defense-in-depth)
+- [x] `CommandDispatcher.cs` — add `groundLayout` param to `Dispatch`; route ground commands through `DispatchCompound`
+- [x] `CommandDispatcher.cs` — reject ground commands in no-phase path with clear error (defense-in-depth)
 
 Details: [parking-and-ground-ops.md](parking-and-ground-ops.md)
 
@@ -51,21 +51,21 @@ Details: [parking-and-ground-ops.md](parking-and-ground-ops.md)
 
 Depends on Phase 1. Independent of Phase 2.
 
-- [ ] `ScenarioSession.cs` — add `GeneratorState` class + `Generators` list
-- [ ] `ScenarioLoader.cs` — add `Generators` to `ScenarioLoadResult`; remove generator deferral message
-- [ ] `SimulationHostedService.cs` — initialize generators in `LoadScenario` (validate runway, resolve `RunwayInfo`, create state)
-- [ ] `SimulationHostedService.cs` — add `ProcessGenerators` to tick loop after `ProcessDelayedSpawns`
-- [ ] `SimulationHostedService.cs` — add `AdvanceGenerator` (interval timing with jitter, distance wrapping)
-- [ ] `SimulationHostedService.cs` — clean up generators in `ExecuteUnloadScenario`
+- [x] `ScenarioSession.cs` — add `GeneratorState` class + `Generators` list
+- [x] `ScenarioLoader.cs` — add `Generators` to `ScenarioLoadResult`; remove generator deferral message
+- [x] `SimulationHostedService.cs` — initialize generators in `LoadScenario` (validate runway, resolve `RunwayInfo`, create state)
+- [x] `SimulationHostedService.cs` — add `ProcessGenerators` to tick loop after `ProcessDelayedSpawns`
+- [x] `SimulationHostedService.cs` — add `AdvanceGenerator` (interval timing with jitter, distance wrapping)
+- [x] `SimulationHostedService.cs` — clean up generators in `ExecuteUnloadScenario`
 
 Details: [generators.md](generators.md)
 
 ## Verification
 
-- [ ] `dotnet build` — zero warnings (both repos)
-- [ ] `dotnet test` — no regressions (both repos)
-- [ ] Parking: load scenario with Parking aircraft + `AirportFilesPath` → aircraft at parking with `AtParkingPhase`
-- [ ] Parking: verify graceful fallback without `AirportFilesPath` (warning + defer)
+- [x] `dotnet build` — zero warnings (both repos)
+- [x] `dotnet test` — no regressions (both repos)
+- [ ] Parking: load scenario with Parking aircraft + `ArtccResourcesPath` → aircraft at parking with `AtParkingPhase`
+- [ ] Parking: verify graceful fallback without `ArtccResourcesPath` (warning + defer)
 - [ ] Ground spawn: load scenario with ground-level Coordinates aircraft → `IsOnGround` + `AtParkingPhase`, heading matches `heading` field
 - [ ] Ground commands: `TAXI B 28R` on ground aircraft → aircraft moves
 - [ ] Generators: load scenario with `aircraftGenerators` → timed spawns on final for configured runway
@@ -83,7 +83,7 @@ Details: [generators.md](generators.md)
 | File | Repo | Phase | Changes |
 |------|------|:-----:|---------|
 | `Scenarios/ScenarioModels.cs` | server | 1 | `Heading` + `Parking` on StartingConditions; full `AircraftGenerator` model |
-| `YaatOptions.cs` | server | 1 | `AirportFilesPath` |
+| `YaatOptions.cs` | server | 1 | `ArtccResourcesPath` |
 | `Data/AirportGroundDataService.cs` | server | 1 | **New** — `IAirportGroundData` impl |
 | `Program.cs` | server | 1 | DI registration |
 | `Scenarios/ScenarioLoader.cs` | server | 1+2+3 | `LoadAtParking`; ground detection; heading; `groundData` param; generators passthrough; remove deferrals |
@@ -98,7 +98,7 @@ Details: [generators.md](generators.md)
 | `AircraftInitializer.InitializeAtParking()` | `Yaat.Sim/Scenarios/AircraftInitializer.cs` | Parking |
 | `IAirportGroundData` interface | `Yaat.Sim/Data/Airport/IAirportGroundData.cs` | All |
 | `AirportGroundLayout.FindParkingByName()` | `Yaat.Sim/Data/Airport/AirportGroundLayout.cs` | Parking |
-| `GeoJsonParser.Parse()` / `ParseMultiple()` | `Yaat.Sim/Data/Airport/GeoJsonParser.cs` | Ground data service |
+| `GeoJsonParser.Parse()` | `Yaat.Sim/Data/Airport/GeoJsonParser.cs` | Ground data service |
 | `FixDatabase.GetAirportElevation()` | `Yaat.Sim/Data/FixDatabase.cs` | Parking |
 | `AircraftGenerator.Generate()` | `Yaat.Sim/Scenarios/AircraftGenerator.cs` | Generators |
 | `SpawnRequest` (OnFinal variant) | `Yaat.Sim/Scenarios/SpawnRequest.cs` | Generators |
@@ -122,7 +122,7 @@ Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 - [x] `artccId` — VNAS data context
 - [x] `aircraft[]` — loaded into simulation
 - [x] `initializationTriggers[]` — queued at time offsets (SQALL supported)
-- [~] `aircraftGenerators[]` — stub (`Id` only) → **Phase 3 implements**
+- [x] `aircraftGenerators[]` — full model deserialized, generators initialized at load
 - [x] `atc[]` — resolved against ARTCC config
 - [x] `primaryAirportId` — stored on session
 - [~] `primaryApproach` — parsed, not used
@@ -143,22 +143,21 @@ Reference examples: `X:\dev\lc-trainer\docs\atctrainer-scenario-examples\`
 
 **Position types:**
 - [x] `Coordinates`, `FixOrFrd`, `OnRunway`, `OnFinal`
-- [ ] `Parking` → **Phase 2 implements**
+- [x] `Parking` — resolves via ground layout, defers gracefully if no data
 
 **Fields:**
 - [x] `type`, `fix`, `coordinates`, `runway`, `altitude`, `speed`, `navigationPath`
-- [ ] `heading` → **Phase 2 implements**
-- [ ] `parking` → **Phase 2 implements**
+- [x] `heading` — used directly when set, falls back to nav-path bearing
+- [x] `parking` — parking node name for Parking position type
 - [ ] `distanceFromRunway` — not in this sprint
 
 ### Aircraft Generators (`aircraftGenerators[]`)
 
-All stubbed → **Phase 3 implements all:**
-- [ ] `runway`, `engineType`, `weightCategory`
-- [ ] `initialDistance`, `maxDistance`, `intervalDistance`
-- [ ] `startTimeOffset`, `maxTime`, `intervalTime`
-- [ ] `randomizeInterval`, `randomizeWeightCategory`
-- [ ] `autoTrackConfiguration`
+- [x] `runway`, `engineType`, `weightCategory`
+- [x] `initialDistance`, `maxDistance`, `intervalDistance`
+- [x] `startTimeOffset`, `maxTime`, `intervalTime`
+- [x] `randomizeInterval`, `randomizeWeightCategory`
+- [x] `autoTrackConfiguration`
 
 ### Other (unchanged by this sprint)
 
@@ -168,20 +167,20 @@ All stubbed → **Phase 3 implements all:**
 - **ATC positions:** 5 implemented, 1 parsed (`autoTrackAirportIds`)
 - **Flight strip configs:** all not supported
 
-### Summary (current → after sprint)
+### Summary (after sprint)
 
 | Category | Implemented | Parsed only | Not supported |
 |----------|:-----------:|:-----------:|:-------------:|
-| Top-level scenario | 6 → 7 | 6 → 5 | 0 |
+| Top-level scenario | 7 | 5 | 0 |
 | Per-aircraft | 7 | 4 | 0 |
-| Starting conditions | 9 → 12 | 0 | 4 → 1 |
+| Starting conditions | 12 | 0 | 1 |
 | Flight plan | 7 | 1 | 0 |
 | Preset commands | 2 | 0 | 1 |
 | Init triggers | 3 | 0 | 0 |
-| Aircraft generators | 0 → 12 | 0 | 12 → 0 |
+| Aircraft generators | 12 | 0 | 0 |
 | ATC positions | 5 | 1 | 0 |
 | Flight strip configs | 0 | 0 | 4 |
-| **Total** | **39 → 53** | **12 → 11** | **21 → 6** |
+| **Total** | **55** | **11** | **6** |
 
 ---
 

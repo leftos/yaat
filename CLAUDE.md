@@ -159,7 +159,7 @@ Separate repo. References Yaat.Sim via sibling project ref. Provides: SignalR co
 ```
 src/Yaat.Server/
   Program.cs                   # DI setup, VNAS/CIFP init, route mapping, AdminPassword validation
-  YaatOptions.cs               # IOptions: AdminPassword
+  YaatOptions.cs               # IOptions: AdminPassword, ArtccResourcesPath
 
   Hubs/
     TrainingHub.cs             # /hubs/training (JSON); delegates to SimulationHostedService
@@ -173,7 +173,7 @@ src/Yaat.Server/
     SimulationHostedService.cs # Central orchestrator: 1s tick, spawn, triggers, auto-accept, broadcast
                                # Track commands: HandleTrack/Drop/Handoff/Accept/etc + AS identity
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; BuildInitialData; TopicFormatter
-    ScenarioSession.cs         # Per-scenario: clients, pause, simRate, spawn/trigger queues, cleanup
+    ScenarioSession.cs         # Per-scenario: clients, pause, simRate, spawn/trigger/generator queues, cleanup
     ScenarioSessionManager.cs  # Thread-safe registry + reverse lookup + admin tracking
     CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules
     DtoConverter.cs            # AircraftState → CRC + training DTOs
@@ -183,13 +183,14 @@ src/Yaat.Server/
     ServerCommands.cs          # Server-only records (DEL, PAUSE, etc.)
 
   Scenarios/
-    ScenarioLoader.cs          # JSON→aircraft (5 position types); autoTrackConditions
+    ScenarioLoader.cs          # JSON→aircraft (5 position types + Parking); ground detection; generators passthrough
     ScenarioModels.cs          # Deserialization models
 
   Spawn/SpawnParser.cs         # ADD command → SpawnRequest
   Protocol/                    # CRC binary: VarintCodec, MessageFraming, SignalR MessagePack parser/builder
   Dtos/                        # TrainingDtos (JSON), CrcDtos (MessagePack), CrcEnums, TopicFormatter
   Data/
+    AirportGroundDataService.cs  # IAirportGroundData impl; lazy GeoJSON load from ArtccResources/
     ArtccConfig.cs / ArtccConfigService.cs  # VNAS ARTCC config; position/TCP resolution
     PositionRegistry.cs        # Thread-safe CRC + RPO position tracking
   Udp/UdpStubServer.cs        # UDP port 6809 stub
