@@ -12,7 +12,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class TaxiingPhase : Phase
 {
-    private const double NodeArrivalThresholdNm = 0.005;
+    private const double NodeArrivalThresholdNm = 0.015;
+    private const double OvershootDetectionNm = 0.03;
     private const double LogIntervalSeconds = 3.0;
 
     private int _targetNodeId;
@@ -20,6 +21,7 @@ public sealed class TaxiingPhase : Phase
     private double _targetLon;
     private bool _initialized;
     private double _timeSinceLastLog;
+    private double _prevDistToTarget = double.MaxValue;
 
     public override string Name => "Taxiing";
 
@@ -68,7 +70,7 @@ public sealed class TaxiingPhase : Phase
         // Check if held
         if (ctx.Aircraft.IsHeld)
         {
-            Decelerate(ctx);
+            AdjustSpeed(ctx, 0);
             return false;
         }
 
@@ -77,8 +79,20 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
             _targetLat, _targetLon);
 
-        if (dist <= NodeArrivalThresholdNm)
+        bool overshot = dist > _prevDistToTarget
+            && _prevDistToTarget < OvershootDetectionNm;
+        _prevDistToTarget = dist;
+
+        if (dist <= NodeArrivalThresholdNm || overshot)
         {
+            if (overshot)
+            {
+                ctx.Logger.LogDebug(
+                    "[Taxi] {Callsign}: overshoot detected at node {NodeId} (dist={Dist:F4}nm, prev={Prev:F4}nm)",
+                    ctx.Aircraft.Callsign, _targetNodeId, dist, _prevDistToTarget);
+            }
+
+            _prevDistToTarget = double.MaxValue;
             return ArriveAtNode(ctx, route);
         }
 
@@ -88,8 +102,12 @@ public sealed class TaxiingPhase : Phase
             _targetLat, _targetLon);
         TurnToward(ctx, bearing);
 
-        // Accelerate toward taxi speed
-        Accelerate(ctx);
+        // Speed scales with turn sharpness: straight = full, sharp turn = crawl
+        double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(
+            bearing - ctx.Aircraft.Heading));
+        double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
+        double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.15, 1.0);
+        AdjustSpeed(ctx, maxSpeed * speedFraction);
 
         // Update current taxiway name
         var seg = route.CurrentSegment;
@@ -173,6 +191,7 @@ public sealed class TaxiingPhase : Phase
         }
 
         _initialized = true;
+        _prevDistToTarget = double.MaxValue;
     }
 
     private bool ArriveAtNode(PhaseContext ctx, TaxiRoute route)
@@ -223,27 +242,21 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.Heading, targetBearing, maxTurn);
     }
 
-    private static void Accelerate(PhaseContext ctx)
+    private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
     {
-        double targetSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
-        double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-
-        if (ctx.Aircraft.GroundSpeed < targetSpeed)
+        double current = ctx.Aircraft.GroundSpeed;
+        if (current < targetSpeed)
         {
+            double rate = CategoryPerformance.TaxiAccelRate(ctx.Category);
             ctx.Aircraft.GroundSpeed = Math.Min(
-                targetSpeed,
-                ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
+                targetSpeed, current + rate * ctx.DeltaSeconds);
         }
-
-        ctx.Targets.TargetSpeed = targetSpeed;
-    }
-
-    private static void Decelerate(PhaseContext ctx)
-    {
-        double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-        ctx.Aircraft.GroundSpeed = Math.Max(
-            0, ctx.Aircraft.GroundSpeed - decelRate * ctx.DeltaSeconds);
-        ctx.Targets.TargetSpeed = 0;
+        else if (current > targetSpeed)
+        {
+            double rate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+            ctx.Aircraft.GroundSpeed = Math.Max(
+                targetSpeed, current - rate * ctx.DeltaSeconds);
+        }
     }
 
 }

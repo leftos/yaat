@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
 
@@ -18,8 +19,21 @@ public static class GeoJsonParser
     /// <summary>Max distance to connect a parking spot to a taxiway (nm).</summary>
     private const double ParkingConnectMaxNm = 0.15;
 
+    /// <summary>Feet per nautical mile.</summary>
+    private const double FeetPerNm = 6076.12;
+
+    /// <summary>
+    /// Default hold-short distance from runway centerline (ft) when navdata is unavailable.
+    /// Per AC 150/5300-13B, 200ft covers ADG II (regional airports).
+    /// </summary>
+    private const double DefaultHoldShortFromCenterlineFt = 200.0;
+
+    /// <summary>Max hold-short offset along taxiway (nm) to prevent extreme values at shallow crossing angles.</summary>
+    private const double MaxHoldShortOffsetNm = 0.15;
+
     public static AirportGroundLayout Parse(
-        string airportId, string geoJson, ILogger? logger = null)
+        string airportId, string geoJson, ILogger? logger = null,
+        IRunwayLookup? runwayLookup = null, string? runwayAirportCode = null)
     {
         var doc = JsonDocument.Parse(geoJson);
         var root = doc.RootElement;
@@ -59,20 +73,22 @@ public static class GeoJsonParser
 
         return BuildLayout(
             airportId, parkingFeatures, spotFeatures,
-            taxiwayFeatures, runwayFeatures, logger);
+            taxiwayFeatures, runwayFeatures, logger,
+            runwayLookup, runwayAirportCode);
     }
 
     /// <summary>
     /// Parse from multiple GeoJSON files (separate parking, taxiways, spots, runways).
     /// </summary>
     public static AirportGroundLayout ParseMultiple(
-        string airportId, IEnumerable<string> geoJsonFiles, ILogger? logger = null)
+        string airportId, IEnumerable<string> geoJsonFiles, ILogger? logger = null,
+        IRunwayLookup? runwayLookup = null, string? runwayAirportCode = null)
     {
         var merged = geoJsonFiles.ToList();
 
         if (merged.Count == 1)
         {
-            return Parse(airportId, merged[0], logger);
+            return Parse(airportId, merged[0], logger, runwayLookup, runwayAirportCode);
         }
 
         var allFeatures = new List<JsonElement>();
@@ -88,7 +104,7 @@ public static class GeoJsonParser
 
         // Rebuild as single FeatureCollection
         string combined = BuildCombinedJson(allFeatures);
-        return Parse(airportId, combined, logger);
+        return Parse(airportId, combined, logger, runwayLookup, runwayAirportCode);
     }
 
     private static AirportGroundLayout BuildLayout(
@@ -97,7 +113,9 @@ public static class GeoJsonParser
         List<SpotFeature> spots,
         List<TaxiwayFeature> taxiways,
         List<RunwayFeature> runways,
-        ILogger? logger)
+        ILogger? logger,
+        IRunwayLookup? runwayLookup = null,
+        string? runwayAirportCode = null)
     {
         var layout = new AirportGroundLayout { AirportId = airportId };
         int nextNodeId = 0;
@@ -143,7 +161,9 @@ public static class GeoJsonParser
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
         foreach (var rwy in runways)
         {
-            DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, logger);
+            DetectRunwayCrossings(
+                rwy, layout, coordIndex, ref nextNodeId, logger,
+                runwayLookup, runwayAirportCode);
         }
 
         // Step 6: Create parking nodes and connect to nearest taxiway
@@ -379,11 +399,30 @@ public static class GeoJsonParser
     private static void DetectRunwayCrossings(
         RunwayFeature rwy, AirportGroundLayout layout,
         CoordinateIndex coordIndex, ref int nextNodeId,
-        ILogger? logger)
+        ILogger? logger,
+        IRunwayLookup? runwayLookup, string? runwayAirportCode)
     {
         string[] nameParts = rwy.Name.Split(" - ");
         string rwyId1 = nameParts[0].Trim();
         string rwyId2 = nameParts.Length > 1 ? nameParts[1].Trim() : rwyId1;
+        string combinedId = $"{rwyId1}/{rwyId2}";
+
+        // Look up runway width from navdata to determine hold-short distance
+        double holdShortFromCenterlineFt = DefaultHoldShortFromCenterlineFt;
+        if (runwayLookup is not null && runwayAirportCode is not null)
+        {
+            var rwyInfo = runwayLookup.GetRunway(runwayAirportCode, rwyId1)
+                ?? runwayLookup.GetRunway(runwayAirportCode, rwyId2);
+            if (rwyInfo is not null)
+            {
+                holdShortFromCenterlineFt = HoldShortDistanceForWidth(rwyInfo.WidthFt);
+            }
+        }
+
+        // Compute runway bearing from GeoJSON coords
+        double rwyBearing = GeoMath.BearingTo(
+            rwy.Coords[0].Lat, rwy.Coords[0].Lon,
+            rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
 
         // Snapshot: we mutate layout.Edges during iteration (safe because we iterate the copy)
         var edgesToCheck = new List<GroundEdge>(layout.Edges);
@@ -414,85 +453,155 @@ public static class GeoJsonParser
 
                 int? existing = coordIndex.FindNearest(intLat, intLon);
                 if (existing is not null
-                    && layout.Nodes.TryGetValue(existing.Value, out var existingNode))
+                    && layout.Nodes.TryGetValue(existing.Value, out var existingNode)
+                    && existingNode.Type == GroundNodeType.RunwayHoldShort)
                 {
-                    if (existingNode.Type == GroundNodeType.RunwayHoldShort)
-                    {
-                        break;
-                    }
-
-                    int id = nextNodeId++;
-                    var hsNode = new GroundNode
-                    {
-                        Id = id,
-                        Latitude = intLat,
-                        Longitude = intLon,
-                        Type = GroundNodeType.RunwayHoldShort,
-                        RunwayId = $"{rwyId1}/{rwyId2}",
-                        Name = existingNode.Name,
-                    };
-                    layout.Nodes[id] = hsNode;
-                    coordIndex.Add(intLat, intLon, id);
-                    SplitEdgeAtNode(layout, edge, hsNode);
-
-                    logger?.LogDebug(
-                        "Runway crossing: {Taxiway} crosses {Runway} near existing node at ({Lat}, {Lon})",
-                        edge.TaxiwayName, rwy.Name, intLat, intLon);
                     break;
                 }
 
-                {
-                    int id = nextNodeId++;
-                    var hsNode = new GroundNode
-                    {
-                        Id = id,
-                        Latitude = intLat,
-                        Longitude = intLon,
-                        Type = GroundNodeType.RunwayHoldShort,
-                        RunwayId = $"{rwyId1}/{rwyId2}",
-                    };
-                    layout.Nodes[id] = hsNode;
-                    coordIndex.Add(intLat, intLon, id);
-                    SplitEdgeAtNode(layout, edge, hsNode);
+                // Compute taxiway bearing and crossing angle
+                double taxiBearing = GeoMath.BearingTo(
+                    fromNode.Latitude, fromNode.Longitude,
+                    toNode.Latitude, toNode.Longitude);
 
-                    logger?.LogDebug(
-                        "Runway crossing: {Taxiway} crosses {Runway} at ({Lat}, {Lon})",
-                        edge.TaxiwayName, rwy.Name, intLat, intLon);
-                    break;
-                }
+                double holdShortOffsetNm = ComputeHoldShortOffset(
+                    taxiBearing, rwyBearing, holdShortFromCenterlineFt);
+
+                // Clamp offset so nodes don't land beyond the edge endpoints
+                double distToFrom = GeoMath.DistanceNm(
+                    intLat, intLon, fromNode.Latitude, fromNode.Longitude);
+                double distToTo = GeoMath.DistanceNm(
+                    intLat, intLon, toNode.Latitude, toNode.Longitude);
+                double fromSideOffset = Math.Min(holdShortOffsetNm, distToFrom * 0.8);
+                double toSideOffset = Math.Min(holdShortOffsetNm, distToTo * 0.8);
+
+                // Hold-short node on the from-node side (approach from fromNode direction)
+                var (hsALat, hsALon) = FlightPhysics.ProjectPoint(
+                    intLat, intLon, taxiBearing + 180.0, fromSideOffset);
+                // Hold-short node on the to-node side (approach from toNode direction)
+                var (hsBLat, hsBLon) = FlightPhysics.ProjectPoint(
+                    intLat, intLon, taxiBearing, toSideOffset);
+
+                int hsAId = nextNodeId++;
+                var hsANode = new GroundNode
+                {
+                    Id = hsAId,
+                    Latitude = hsALat,
+                    Longitude = hsALon,
+                    Type = GroundNodeType.RunwayHoldShort,
+                    RunwayId = combinedId,
+                    Name = existing is not null
+                        && layout.Nodes.TryGetValue(existing.Value, out var namedNode)
+                        ? namedNode.Name : null,
+                };
+                layout.Nodes[hsAId] = hsANode;
+                coordIndex.Add(hsALat, hsALon, hsAId);
+
+                int hsBId = nextNodeId++;
+                var hsBNode = new GroundNode
+                {
+                    Id = hsBId,
+                    Latitude = hsBLat,
+                    Longitude = hsBLon,
+                    Type = GroundNodeType.RunwayHoldShort,
+                    RunwayId = combinedId,
+                };
+                layout.Nodes[hsBId] = hsBNode;
+                coordIndex.Add(hsBLat, hsBLon, hsBId);
+
+                // Split original edge into 3: from→hsA, hsA→hsB, hsB→to
+                SplitEdgeAtTwoNodes(layout, edge, hsANode, hsBNode);
+
+                logger?.LogDebug(
+                    "Runway crossing: {Taxiway} crosses {Runway} — hold-short nodes at ({HsALat:F6}, {HsALon:F6}) and ({HsBLat:F6}, {HsBLon:F6}), offset {OffsetFt:F0}ft from centerline",
+                    edge.TaxiwayName, rwy.Name,
+                    hsALat, hsALon, hsBLat, hsBLon,
+                    holdShortFromCenterlineFt);
+                break;
             }
         }
     }
 
-    private static void SplitEdgeAtNode(
-        AirportGroundLayout layout, GroundEdge edge, GroundNode splitNode)
+    /// <summary>
+    /// Determines the hold-short distance from runway centerline (ft) based on
+    /// runway width as a proxy for Airplane Design Group (ADG).
+    /// Per AC 150/5300-13B Table 3-2.
+    /// </summary>
+    private static double HoldShortDistanceForWidth(double runwayWidthFt)
+    {
+        return runwayWidthFt switch
+        {
+            < 75 => 125,   // ADG I: small GA (e.g., Cessna 172, Beechcraft Baron)
+            < 100 => 200,  // ADG II: regional (e.g., King Air, CRJ-200)
+            < 150 => 250,  // ADG III: commercial (e.g., B737, A320)
+            _ => 300,      // ADG IV-VI: major (e.g., B777, A380)
+        };
+    }
+
+    /// <summary>
+    /// Computes the hold-short node offset distance (nm) from the runway centerline
+    /// along the taxiway direction, accounting for the crossing angle.
+    /// </summary>
+    private static double ComputeHoldShortOffset(
+        double taxiBearing, double rwyBearing, double holdShortFromCenterlineFt)
+    {
+        // Acute crossing angle between taxiway and runway
+        double angleDiff = Math.Abs(taxiBearing - rwyBearing) % 180.0;
+        if (angleDiff > 90.0)
+        {
+            angleDiff = 180.0 - angleDiff;
+        }
+
+        // Prevent extreme offsets at shallow crossing angles
+        double sinAngle = Math.Max(Math.Sin(angleDiff * Math.PI / 180.0), 0.15);
+
+        double offsetFt = holdShortFromCenterlineFt / sinAngle;
+        double offsetNm = offsetFt / FeetPerNm;
+
+        return Math.Min(offsetNm, MaxHoldShortOffsetNm);
+    }
+
+    /// <summary>
+    /// Splits an edge into three segments through two intermediate nodes.
+    /// Replaces: from→to with from→nodeA, nodeA→nodeB, nodeB→to.
+    /// </summary>
+    private static void SplitEdgeAtTwoNodes(
+        AirportGroundLayout layout, GroundEdge edge,
+        GroundNode nodeA, GroundNode nodeB)
     {
         layout.Edges.Remove(edge);
 
         var fromNode = layout.Nodes[edge.FromNodeId];
         var toNode = layout.Nodes[edge.ToNodeId];
 
-        double dist1 = GeoMath.DistanceNm(
-            fromNode.Latitude, fromNode.Longitude,
-            splitNode.Latitude, splitNode.Longitude);
-        double dist2 = GeoMath.DistanceNm(
-            splitNode.Latitude, splitNode.Longitude,
-            toNode.Latitude, toNode.Longitude);
-
         layout.Edges.Add(new GroundEdge
         {
             FromNodeId = edge.FromNodeId,
-            ToNodeId = splitNode.Id,
+            ToNodeId = nodeA.Id,
             TaxiwayName = edge.TaxiwayName,
-            DistanceNm = dist1,
+            DistanceNm = GeoMath.DistanceNm(
+                fromNode.Latitude, fromNode.Longitude,
+                nodeA.Latitude, nodeA.Longitude),
         });
 
         layout.Edges.Add(new GroundEdge
         {
-            FromNodeId = splitNode.Id,
+            FromNodeId = nodeA.Id,
+            ToNodeId = nodeB.Id,
+            TaxiwayName = edge.TaxiwayName,
+            DistanceNm = GeoMath.DistanceNm(
+                nodeA.Latitude, nodeA.Longitude,
+                nodeB.Latitude, nodeB.Longitude),
+        });
+
+        layout.Edges.Add(new GroundEdge
+        {
+            FromNodeId = nodeB.Id,
             ToNodeId = edge.ToNodeId,
             TaxiwayName = edge.TaxiwayName,
-            DistanceNm = dist2,
+            DistanceNm = GeoMath.DistanceNm(
+                nodeB.Latitude, nodeB.Longitude,
+                toNode.Latitude, toNode.Longitude),
         });
     }
 

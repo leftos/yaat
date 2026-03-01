@@ -433,6 +433,153 @@ public static class TaxiPathfinder
         return false;
     }
 
+    /// <summary>
+    /// BFS from startNodeId (max 3 hops) to find the nearest graph-connected
+    /// node that has an edge on the target taxiway. Adds connecting segments.
+    /// Returns (-1, null) if no path found.
+    /// </summary>
+    private static (int FoundId, GroundEdge? FoundEdge) BfsToTaxiway(
+        AirportGroundLayout layout,
+        int startNodeId,
+        string taxiwayName,
+        List<TaxiRouteSegment> segments)
+    {
+        const int maxHops = 3;
+        var visited = new HashSet<int> { startNodeId };
+        var queue = new Queue<(int NodeId, int Depth)>();
+        var cameFrom = new Dictionary<int, (int ParentId, GroundEdge Edge)>();
+        queue.Enqueue((startNodeId, 0));
+
+        int foundId = -1;
+        GroundEdge? foundEdge = null;
+
+        while (queue.Count > 0 && foundId == -1)
+        {
+            var (nodeId, depth) = queue.Dequeue();
+            if (!layout.Nodes.TryGetValue(nodeId, out var node))
+            {
+                continue;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                int neighborId = edge.FromNodeId == nodeId
+                    ? edge.ToNodeId : edge.FromNodeId;
+
+                if (!visited.Add(neighborId))
+                {
+                    continue;
+                }
+
+                cameFrom[neighborId] = (nodeId, edge);
+
+                if (layout.Nodes.TryGetValue(neighborId, out var neighborNode))
+                {
+                    foreach (var nEdge in neighborNode.Edges)
+                    {
+                        if (string.Equals(nEdge.TaxiwayName, taxiwayName,
+                            StringComparison.OrdinalIgnoreCase))
+                        {
+                            foundId = neighborId;
+                            foundEdge = nEdge;
+                            break;
+                        }
+                    }
+                }
+
+                if (foundId != -1)
+                {
+                    break;
+                }
+
+                if (depth + 1 < maxHops)
+                {
+                    queue.Enqueue((neighborId, depth + 1));
+                }
+            }
+        }
+
+        if (foundId == -1)
+        {
+            return (-1, null);
+        }
+
+        // Reconstruct path and add connecting segments
+        var pathNodes = new List<int>();
+        int traceId = foundId;
+        while (traceId != startNodeId)
+        {
+            pathNodes.Add(traceId);
+            traceId = cameFrom[traceId].ParentId;
+        }
+
+        pathNodes.Reverse();
+
+        int prevId = startNodeId;
+        foreach (int id in pathNodes)
+        {
+            var (_, connectEdge) = cameFrom[id];
+            segments.Add(new TaxiRouteSegment
+            {
+                FromNodeId = prevId,
+                ToNodeId = id,
+                TaxiwayName = connectEdge.TaxiwayName,
+                Edge = connectEdge,
+            });
+            prevId = id;
+        }
+
+        return (foundId, foundEdge);
+    }
+
+    /// <summary>
+    /// Straight-line search: find the geographically nearest node that has
+    /// an edge on the target taxiway. Used for parking/ramp areas where
+    /// graph connectivity to the taxiway may be missing.
+    /// </summary>
+    private static (int NodeId, double DistNm, GroundEdge? Edge)
+        FindNearestNodeOnTaxiway(
+            AirportGroundLayout layout,
+            GroundNode fromNode,
+            string taxiwayName)
+    {
+        int nearestId = -1;
+        double nearestDist = double.MaxValue;
+        GroundEdge? nearestEdge = null;
+
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Id == fromNode.Id)
+            {
+                continue;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                if (!string.Equals(edge.TaxiwayName, taxiwayName,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                double dist = GeoMath.DistanceNm(
+                    fromNode.Latitude, fromNode.Longitude,
+                    node.Latitude, node.Longitude);
+
+                if (dist < nearestDist)
+                {
+                    nearestDist = dist;
+                    nearestId = node.Id;
+                    nearestEdge = edge;
+                }
+
+                break;
+            }
+        }
+
+        return (nearestId, nearestDist, nearestEdge);
+    }
+
     private static bool WalkTaxiway(
         AirportGroundLayout layout,
         int startNodeId,
@@ -446,11 +593,6 @@ public static class TaxiPathfinder
         {
             return false;
         }
-
-        // Find any edge from the current node on the named taxiway
-        var visited = new HashSet<int> { startNodeId };
-        var queue = new Queue<int>();
-        queue.Enqueue(startNodeId);
 
         // First, check if any edge directly from current node is on this taxiway
         GroundEdge? startEdge = null;
@@ -466,53 +608,49 @@ public static class TaxiPathfinder
 
         if (startEdge is null)
         {
-            // Need to find a path to reach this taxiway
-            // For now, try immediate neighbors
-            foreach (var edge in currentNode.Edges)
+            // Try short BFS first (handles normal taxiway-to-taxiway transitions)
+            (int foundId, GroundEdge? foundEdge) = BfsToTaxiway(
+                layout, startNodeId, taxiwayName, segments);
+
+            if (foundId != -1)
             {
-                int neighborId = edge.FromNodeId == startNodeId
-                    ? edge.ToNodeId : edge.FromNodeId;
-
-                if (!layout.Nodes.TryGetValue(neighborId, out var neighborNode))
-                {
-                    continue;
-                }
-
-                foreach (var nEdge in neighborNode.Edges)
-                {
-                    if (string.Equals(nEdge.TaxiwayName, taxiwayName,
-                        StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Add connecting segment
-                        segments.Add(new TaxiRouteSegment
-                        {
-                            FromNodeId = startNodeId,
-                            ToNodeId = neighborId,
-                            TaxiwayName = edge.TaxiwayName,
-                            Edge = edge,
-                        });
-                        startNodeId = neighborId;
-                        startEdge = nEdge;
-                        break;
-                    }
-                }
-
-                if (startEdge is not null)
-                {
-                    break;
-                }
+                startNodeId = foundId;
+                startEdge = foundEdge;
             }
-
-            if (startEdge is null)
+            else
             {
-                return false;
+                // BFS failed — straight-line search for parking/ramp areas
+                // where graph connectivity may be missing
+                (int nearestId, double nearestDist, GroundEdge? nearestEdge) =
+                    FindNearestNodeOnTaxiway(layout, currentNode, taxiwayName);
+
+                if (nearestId == -1)
+                {
+                    return false;
+                }
+
+                segments.Add(new TaxiRouteSegment
+                {
+                    FromNodeId = startNodeId,
+                    ToNodeId = nearestId,
+                    TaxiwayName = "RAMP",
+                    Edge = new GroundEdge
+                    {
+                        FromNodeId = startNodeId,
+                        ToNodeId = nearestId,
+                        TaxiwayName = "RAMP",
+                        DistanceNm = nearestDist,
+                    },
+                });
+
+                startNodeId = nearestId;
+                startEdge = nearestEdge;
             }
         }
 
         // Walk along the taxiway to the end
         int currentId = startNodeId;
-        visited.Clear();
-        visited.Add(currentId);
+        var visited = new HashSet<int> { currentId };
 
         while (true)
         {
@@ -585,19 +723,31 @@ public static class TaxiPathfinder
     {
         foreach (var seg in segments)
         {
-            if (layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
-                && node.Type == GroundNodeType.RunwayHoldShort
-                && node.RunwayId is not null)
+            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
+                || node.Type != GroundNodeType.RunwayHoldShort
+                || node.RunwayId is null)
             {
-                if (!HoldShortExists(holdShorts, node.Id))
+                continue;
+            }
+
+            // Skip exit-side hold-short: if approaching from another hold-short
+            // node for the same runway, this is the far side of a crossing
+            if (layout.Nodes.TryGetValue(seg.FromNodeId, out var fromNode)
+                && fromNode.Type == GroundNodeType.RunwayHoldShort
+                && string.Equals(fromNode.RunwayId, node.RunwayId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!HoldShortExists(holdShorts, node.Id))
+            {
+                holdShorts.Add(new HoldShortPoint
                 {
-                    holdShorts.Add(new HoldShortPoint
-                    {
-                        NodeId = node.Id,
-                        Reason = HoldShortReason.RunwayCrossing,
-                        RunwayId = node.RunwayId,
-                    });
-                }
+                    NodeId = node.Id,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    RunwayId = node.RunwayId,
+                });
             }
         }
     }
