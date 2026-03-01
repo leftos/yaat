@@ -92,7 +92,21 @@ public static class AircraftInitializer
         }
 
         double alt = GlideSlopeGeometry.AltitudeAtDistance(distNm, runway.ElevationFt);
-        double speed = requestedSpeed ?? CategoryPerformance.ApproachSpeed(category);
+        double speed;
+        if (requestedSpeed.HasValue)
+        {
+            speed = requestedSpeed.Value;
+        }
+        else
+        {
+            double fas = CategoryPerformance.ApproachSpeed(category);
+            speed = distNm switch
+            {
+                <= 5 => fas,
+                <= 10 => fas * 1.4,
+                _ => fas * 1.6,
+            };
+        }
 
         // Position aircraft on extended centerline
         double reciprocalHeading = (runway.TrueHeading + 180.0) % 360.0;
