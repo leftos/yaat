@@ -368,6 +368,12 @@ This project simulates real-world air traffic control. **Every feature touching 
 - Modeling aircraft performance (speed constraints by altitude/phase, VNAV/LNAV profiles, weight-based performance)
 - Designing airspace rules (classification, transition altitudes, SIDs/STARs, restricted areas)
 - Creating or editing scenario data (realistic routes, waypoints, procedures, airline callsigns)
+- Designing or modifying **phase transitions** (tower phases, pattern legs, ground operations) — phase sequencing, clearance gating, and state machine logic must reflect real-world procedures
+- Adding or changing **command dispatch logic** that affects aviation behavior — e.g., how commands interact with phases (Allowed/Rejected/ClearsPhase), what happens when a pilot receives conflicting instructions
+- Implementing **ground operations** (taxi routing, hold-short logic, runway crossing, pushback, following) — surface movement rules are just as regulated as airborne operations
+- Designing **conflict detection** logic (separation, wake turbulence, ground proximity) — incorrect thresholds or missing cases undermine training value
+- Setting **trigger conditions** for command blocks (reach altitude, reach fix, intercept radial) — these must match how real pilots anticipate and execute clearances
+- Any logic that determines **when an aircraft should do something automatically** (go-around decision, pattern re-entry, speed reduction on approach) — pilot AI behavior is aviation logic
 
 **How to invoke:** Use `Task` with `subagent_type: "aviation-sim-expert"` and a clear description of what needs review or design. The agent has access to all tools and can read the codebase.
 
@@ -381,6 +387,23 @@ The full text of the FAA 7110.65 and AIM are available locally as markdown. Use 
 
 When invoking the aviation-sim-expert agent, always include this instruction in the prompt:
 > "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files. Read them directly via the Read/Grep/Glob tools at `C:\Users\Leftos\.claude\reference\faa\7110.65/` and `C:\Users\Leftos\.claude\reference\faa\aim/`. Do NOT use web search tools (Exa, WebSearch, WebFetch) to look up 7110.65 or AIM content."
+
+## Recommended Agents
+
+Beyond aviation-sim-expert, use these specialized agents proactively when the task matches:
+
+| Agent | When to use |
+|-------|-------------|
+| `csharp-developer` | C# implementation: async patterns, nullable annotations, LINQ optimization, collection expressions, pattern matching. Use for non-trivial C# code in Yaat.Sim or Yaat.Client. |
+| `code-reviewer` | Before committing significant changes. Catches architecture issues, security problems, and missed edge cases. |
+| `debugger` | Diagnosing runtime failures, SignalR connection issues, simulation tick bugs, phase state machine problems. |
+| `test-automator` | Building test fixtures for command parsing, phase transitions, flight physics, geo math. |
+| `refactoring-specialist` | Restructuring code while preserving behavior — e.g., extracting from CommandDispatcher, simplifying phase logic. |
+| `architect-reviewer` | Evaluating design decisions: new phase types, command queue changes, DTO shape changes, Yaat.Sim API surface. |
+| `performance-engineer` | Profiling simulation tick performance, SignalR broadcast throughput, ground conflict detection scaling. |
+| `websocket-engineer` | SignalR connection lifecycle, reconnection logic, CRC raw WebSocket protocol, real-time broadcast patterns. |
+| `game-developer` | Simulation loop design, tick-based state updates, real-time entity management — the sim engine is structurally a game loop. |
+| `documentation-engineer` | USER_GUIDE.md updates, scenario format documentation, command reference docs. |
 
 ## User Guide
 
