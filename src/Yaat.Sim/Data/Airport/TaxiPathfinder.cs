@@ -265,6 +265,18 @@ public static class TaxiPathfinder
         return segments.Count > 0;
     }
 
+    private static bool HoldShortExists(List<HoldShortPoint> holdShorts, int nodeId)
+    {
+        foreach (var hs in holdShorts)
+        {
+            if (hs.NodeId == nodeId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void AddImplicitRunwayHoldShorts(
         AirportGroundLayout layout,
         List<TaxiRouteSegment> segments,
@@ -276,18 +288,7 @@ public static class TaxiPathfinder
                 && node.Type == GroundNodeType.RunwayHoldShort
                 && node.RunwayId is not null)
             {
-                // Don't add duplicate
-                bool exists = false;
-                foreach (var hs in holdShorts)
-                {
-                    if (hs.NodeId == node.Id)
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
-
-                if (!exists)
+                if (!HoldShortExists(holdShorts, node.Id))
                 {
                     holdShorts.Add(new HoldShortPoint
                     {
@@ -325,17 +326,7 @@ public static class TaxiPathfinder
                 continue;
             }
 
-            bool exists = false;
-            foreach (var hs in holdShorts)
-            {
-                if (hs.NodeId == node.Id)
-                {
-                    exists = true;
-                    break;
-                }
-            }
-
-            if (!exists)
+            if (!HoldShortExists(holdShorts, node.Id))
             {
                 holdShorts.Add(new HoldShortPoint
                 {
