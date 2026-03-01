@@ -268,15 +268,7 @@ public partial class MainViewModel : ObservableObject
 
             if (result.Success)
             {
-                ActiveScenarioId = result.ScenarioId;
-                ActiveScenarioName = result.Name;
-                _commandInput.PrimaryAirportId = result.PrimaryAirportId;
-                ApplySimState(result.IsPaused, result.SimRate);
-
-                if (!string.IsNullOrEmpty(result.PrimaryAirportId))
-                {
-                    SetDistanceReference(result.PrimaryAirportId);
-                }
+                ApplyScenarioResult(result);
 
                 _log.LogInformation(
                     "Scenario loaded: '{Name}' ({Id}), " + "{Count} aircraft, " + "{Delayed} delayed, " + "{All} total, " + "{Warnings} warnings",
@@ -287,12 +279,6 @@ public partial class MainViewModel : ObservableObject
                     result.AllAircraft.Count,
                     result.Warnings.Count
                 );
-
-                Aircraft.Clear();
-                foreach (var dto in result.AllAircraft)
-                {
-                    Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
-                }
 
                 StatusText = $"Loaded '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
                 AddSystemEntry($"Scenario loaded: {result.Name} ({result.AllAircraft.Count} aircraft)");
@@ -325,22 +311,7 @@ public partial class MainViewModel : ObservableObject
             var result = await _connection.RejoinScenarioAsync(scenarioId);
             if (result.Success)
             {
-                ActiveScenarioId = result.ScenarioId;
-                ActiveScenarioName = result.Name;
-                _commandInput.PrimaryAirportId = result.PrimaryAirportId;
-                ApplySimState(result.IsPaused, result.SimRate);
-
-                if (!string.IsNullOrEmpty(result.PrimaryAirportId))
-                {
-                    SetDistanceReference(result.PrimaryAirportId);
-                }
-
-                Aircraft.Clear();
-                foreach (var dto in result.AllAircraft)
-                {
-                    Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
-                }
-
+                ApplyScenarioResult(result);
                 StatusText = $"Rejoined '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
             }
             else
@@ -925,13 +896,7 @@ public partial class MainViewModel : ObservableObject
                 var result = await _connection.RejoinScenarioAsync(ActiveScenarioId);
                 if (result.Success)
                 {
-                    ApplySimState(result.IsPaused, result.SimRate);
-
-                    Aircraft.Clear();
-                    foreach (var dto in result.AllAircraft)
-                    {
-                        Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
-                    }
+                    ApplyScenarioResult(result);
                     StatusText = "Reconnected to scenario";
                     AddSystemEntry("Reconnected to scenario");
                 }
@@ -951,6 +916,25 @@ public partial class MainViewModel : ObservableObject
     }
 
     // --- Helpers ---
+
+    private void ApplyScenarioResult(LoadScenarioResultDto result)
+    {
+        ActiveScenarioId = result.ScenarioId;
+        ActiveScenarioName = result.Name;
+        _commandInput.PrimaryAirportId = result.PrimaryAirportId;
+        ApplySimState(result.IsPaused, result.SimRate);
+
+        if (!string.IsNullOrEmpty(result.PrimaryAirportId))
+        {
+            SetDistanceReference(result.PrimaryAirportId);
+        }
+
+        Aircraft.Clear();
+        foreach (var dto in result.AllAircraft)
+        {
+            Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
+        }
+    }
 
     private void ApplySimState(bool paused, int rate)
     {
