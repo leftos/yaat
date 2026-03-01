@@ -233,6 +233,7 @@ public static class CommandSchemeParser
         CanonicalCommandType.HoldAtFixRight,
         CanonicalCommandType.HoldAtFixHover,
         CanonicalCommandType.DirectTo,
+        CanonicalCommandType.Say,
     ];
 
     private static ParsedInput? ParseTextArgCommand(string input, CommandScheme scheme)

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Phases;
@@ -17,4 +18,9 @@ public sealed class PhaseContext
     /// Used by FollowingPhase and ground conflict detection.
     /// </summary>
     public Func<string, AircraftState?>? AircraftLookup { get; init; }
+
+    /// <summary>
+    /// Logger for phase diagnostics. Provided by the server tick loop.
+    /// </summary>
+    public required ILogger Logger { get; init; }
 }

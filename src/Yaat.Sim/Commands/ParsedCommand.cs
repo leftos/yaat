@@ -46,6 +46,8 @@ public record DirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
 
 public record ResolvedFix(string Name, double Lat, double Lon);
 
+public record SayCommand(string Text) : ParsedCommand;
+
 public record UnsupportedCommand(string RawText) : ParsedCommand;
 
 // Tower commands

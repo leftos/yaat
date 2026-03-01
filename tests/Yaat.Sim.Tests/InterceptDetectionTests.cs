@@ -158,6 +158,7 @@ public class InterceptDetectionTests
             DeltaSeconds = 1.0,
             Runway = TestRunway,
             FieldElevation = TestRunway.ElevationFt,
+            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
         };
     }
 }

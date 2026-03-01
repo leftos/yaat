@@ -105,5 +105,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.FrequencyChange, "Frequency Change", null, false),
         new(CanonicalCommandType.ContactTcp, "Contact Position", "2B", false),
         new(CanonicalCommandType.ContactTower, "Contact Tower", null, false),
+        // Broadcast
+        new(CanonicalCommandType.Say, "Say", "REQUEST VFR TRANSITION", false),
     ];
 }

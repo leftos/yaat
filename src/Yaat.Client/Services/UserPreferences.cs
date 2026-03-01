@@ -19,6 +19,7 @@ public sealed class UserPreferences
     };
 
     private CommandScheme _commandScheme;
+    private string _serverUrl = "http://localhost:5000";
     private string _vatsimCid = "";
     private string _userInitials = "";
     private string _artccId = "";
@@ -36,6 +37,7 @@ public sealed class UserPreferences
     {
         var saved = Load();
         _commandScheme = saved.Scheme ?? CommandScheme.AtcTrainer();
+        _serverUrl = saved.ServerUrl;
         _vatsimCid = saved.VatsimCid;
         _userInitials = saved.UserInitials;
         _artccId = saved.ArtccId;
@@ -51,6 +53,7 @@ public sealed class UserPreferences
     }
 
     public CommandScheme CommandScheme => _commandScheme;
+    public string ServerUrl => _serverUrl;
     public string VatsimCid => _vatsimCid;
     public string UserInitials => _userInitials;
     public string ArtccId => _artccId;
@@ -63,6 +66,12 @@ public sealed class UserPreferences
     public bool AutoAcceptEnabled => _autoAcceptEnabled;
     public int AutoAcceptDelaySeconds => _autoAcceptDelaySeconds;
     public string AutoDeleteOverride => _autoDeleteOverride;
+
+    public void SetServerUrl(string url)
+    {
+        _serverUrl = url.Trim();
+        Save();
+    }
 
     public void SetAutoAcceptSettings(bool enabled, int delaySeconds)
     {
@@ -148,6 +157,7 @@ public sealed class UserPreferences
             return new LoadedPrefs
             {
                 Scheme = scheme,
+                ServerUrl = saved?.ServerUrl ?? "http://localhost:5000",
                 VatsimCid = saved?.VatsimCid ?? "",
                 UserInitials = saved?.UserInitials ?? "",
                 ArtccId = saved?.ArtccId ?? "",
@@ -171,6 +181,7 @@ public sealed class UserPreferences
     private sealed class LoadedPrefs
     {
         public CommandScheme? Scheme { get; init; }
+        public string ServerUrl { get; init; } = "http://localhost:5000";
         public string VatsimCid { get; init; } = "";
         public string UserInitials { get; init; } = "";
         public string ArtccId { get; init; } = "";
@@ -192,6 +203,7 @@ public sealed class UserPreferences
         var saved = new SavedPrefs
         {
             CommandScheme = ToSaved(_commandScheme),
+            ServerUrl = _serverUrl,
             VatsimCid = _vatsimCid,
             UserInitials = _userInitials,
             ArtccId = _artccId,
@@ -272,6 +284,7 @@ public sealed class UserPreferences
     private sealed class SavedPrefs
     {
         public SavedCommandScheme? CommandScheme { get; set; }
+        public string ServerUrl { get; set; } = "http://localhost:5000";
         public string VatsimCid { get; set; } = "";
         public string UserInitials { get; set; } = "";
         public string ArtccId { get; set; } = "";

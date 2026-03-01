@@ -5,7 +5,7 @@
         xmlns:views="using:Yaat.Client.Views"
         x:Class="Yaat.Client.Views.MainWindow"
         Icon="avares://Yaat.Client/Resources/icon.png"
-        Title="YAAT">
+        Title="{Binding WindowTitle, FallbackValue='YAAT'}">
 
     <Design.DataContext>
         <vm:MainViewModel />
@@ -13,101 +13,53 @@
 
     <Panel>
 
-    <DockPanel Margin="12">
+    <DockPanel>
 
-        <!-- Top bar: URL + Connect + Settings -->
-        <Grid DockPanel.Dock="Top"
-              Margin="0,0,0,8"
-              ColumnDefinitions="Auto,Auto,*,Auto">
-            <TextBox Grid.Column="0"
-                     Text="{Binding ServerUrl}"
-                     Watermark="Server URL"
-                     Width="300" />
-            <Button Grid.Column="1"
-                    Margin="8,0,0,0"
-                    Content="{Binding IsConnected,
-                    Converter={x:Static
-                    vm:ConnectButtonConverter.Instance}}"
-                    Command="{Binding ConnectCommand}" />
-            <TextBlock Grid.Column="2"
-                       Text="{Binding StatusText}"
-                       VerticalAlignment="Center"
-                       Margin="12,0,0,0"
-                       Foreground="Gray" />
-            <Button Grid.Column="3"
-                    Content="Settings"
-                    x:Name="SettingsButton" />
-        </Grid>
+        <!-- Menu bar -->
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="{Binding ConnectMenuText, FallbackValue='_Connect'}"
+                          Command="{Binding ConnectCommand}" />
+                <Separator />
+                <MenuItem Header="_Settings..."
+                          x:Name="SettingsMenuItem" />
+                <Separator />
+                <MenuItem Header="E_xit"
+                          Command="{Binding ExitCommand}" />
+            </MenuItem>
+            <MenuItem Header="_Room">
+                <MenuItem Header="_Create Room"
+                          Command="{Binding CreateRoomCommand}" />
+                <MenuItem Header="_Join Room..."
+                          Command="{Binding ShowRoomsCommand}" />
+                <Separator />
+                <MenuItem Header="_Leave Room"
+                          Command="{Binding LeaveRoomCommand}" />
+            </MenuItem>
+            <MenuItem Header="_Scenario">
+                <MenuItem Header="_Load Scenario..."
+                          x:Name="LoadScenarioMenuItem" />
+                <MenuItem Header="_Unload Scenario"
+                          Command="{Binding UnloadScenarioCommand}" />
+            </MenuItem>
+        </Menu>
 
-        <!-- Room + Scenario bar -->
-        <StackPanel DockPanel.Dock="Top"
-                    Orientation="Horizontal"
-                    Spacing="8"
-                    Margin="0,0,0,8">
-            <!-- Room indicator -->
-            <TextBlock VerticalAlignment="Center"
-                       Foreground="CornflowerBlue"
-                       IsVisible="{Binding ActiveRoomName,
-                           Converter={x:Static
-                           StringConverters.IsNotNullOrEmpty}}"
-                       Text="{Binding ActiveRoomName}" />
-            <Button Content="Leave Room"
-                    Command="{Binding LeaveRoomCommand}"
-                    IsVisible="{Binding ActiveRoomName,
-                        Converter={x:Static
-                        StringConverters.IsNotNullOrEmpty}}" />
-            <Button Content="Rooms"
-                    Command="{Binding RefreshRoomListCommand}"
-                    IsVisible="{Binding ActiveRoomName,
-                        Converter={x:Static
-                        StringConverters.IsNullOrEmpty}}" />
-
-            <Border Width="1" Background="#3F3F46"
-                    Margin="4,2"
-                    IsVisible="{Binding ActiveRoomName,
-                        Converter={x:Static
-                        StringConverters.IsNotNullOrEmpty}}" />
-
-            <!-- Scenario controls -->
-            <TextBox Text="{Binding ScenarioFilePath}"
-                     Watermark="Scenario JSON file..."
-                     Width="400"
-                     IsVisible="{Binding ActiveRoomName,
-                         Converter={x:Static
-                         StringConverters.IsNotNullOrEmpty}}" />
-            <Button Content="Browse"
-                    x:Name="BrowseButton"
-                    IsVisible="{Binding ActiveRoomName,
-                        Converter={x:Static
-                        StringConverters.IsNotNullOrEmpty}}" />
-            <Button Content="Load"
-                    Command="{Binding LoadScenarioCommand}"
-                    IsVisible="{Binding ActiveRoomName,
-                        Converter={x:Static
-                        StringConverters.IsNotNullOrEmpty}}" />
-            <Button Content="Unload"
-                    Command="{Binding UnloadScenarioCommand}"
-                    IsVisible="{Binding ActiveScenarioName,
-                        Converter={x:Static
-                        StringConverters.IsNotNullOrEmpty}}" />
-
-            <!-- Active scenario indicator -->
-            <TextBlock VerticalAlignment="Center"
-                       Margin="8,0,0,0"
-                       Foreground="LightGreen"
-                       IsVisible="{Binding ActiveScenarioName,
-                           Converter={x:Static
-                           StringConverters.IsNotNullOrEmpty}}"
-                       Text="{Binding ActiveScenarioName,
-                           StringFormat='Scenario: {0}'}" />
-        </StackPanel>
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom"
+                BorderBrush="#3F3F46"
+                BorderThickness="0,1,0,0"
+                Padding="8,2">
+            <TextBlock Text="{Binding StatusText}"
+                       Foreground="Gray"
+                       FontSize="11" />
+        </Border>
 
         <!-- Bottom: Command input (visible when docked) -->
         <views:CommandInputView DockPanel.Dock="Bottom"
             IsVisible="{Binding IsTerminalDocked}" />
 
         <!-- Center: DataGrid + Terminal with splitter -->
-        <Grid RowDefinitions="3*,Auto,*">
+        <Grid Margin="8,4,8,0" RowDefinitions="3*,Auto,*">
             <DataGrid Grid.Row="0"
                       x:Name="AircraftGrid"
                       ItemsSource="{Binding Aircraft}"

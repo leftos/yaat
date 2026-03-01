@@ -16,28 +16,31 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
 dotnet run --project src/Yaat.Client
 ```
 
-### User Initials
+### Configuration
 
-Before connecting, open **Settings** and enter your 2-letter initials (e.g., "AB") in the **General** tab. Initials are required — you cannot connect without them. They appear in the terminal panel so all RPOs can see who issued each command.
+Before connecting, open **File > Settings** and configure:
+
+- **Connection** tab: Server URL (default `http://localhost:5000`)
+- **Identity** tab: VATSIM CID, 2-letter initials (required), and ARTCC ID
+
+Initials and ARTCC ID are required — you cannot connect without them.
 
 ### Connecting
 
-1. Set your initials in Settings (required)
-2. Enter the server URL (default `http://localhost:5000`)
-3. Click **Connect**
-4. If the server has active scenarios from a previous session, a **rejoin** dialog appears
+1. Configure your identity in **File > Settings** (required)
+2. **File > Connect** (or **Disconnect** to close the connection)
+3. After connecting, the room list appears — create or join a room
 
 ### Loading a Scenario
 
-1. Click **Browse** and select an ATCTrainer-format JSON scenario file
-2. Click **Load Scenario**
-3. Aircraft spawn at their configured starting positions
-4. The active scenario name and client count appear in the scenario bar
-5. To switch scenarios, load a new one — a confirmation dialog appears if one is already active
+1. **Scenario > Load Scenario...** — opens a file picker for ATCTrainer-format JSON scenarios
+2. Aircraft spawn at their configured starting positions
+3. The window title shows the room name and scenario name
+4. To switch scenarios, load a new one — a confirmation dialog appears if one is already active
 
-### Deleting Aircraft
+### Unloading a Scenario
 
-Click **Delete All** to remove all aircraft from the current scenario. A confirmation dialog appears if multiple clients are connected.
+**Scenario > Unload Scenario** removes all aircraft from the current scenario. A confirmation dialog appears if multiple clients are connected.
 
 ## Aircraft List
 
@@ -559,10 +562,13 @@ Warning messages appear as gray system entries when the simulator detects potent
 
 ## Settings
 
-Click **Settings** in the top-right to configure:
+Open **File > Settings** to configure:
 
-- **General** — User initials (required before connecting), auto-accept handoff settings (enable/disable + delay in seconds), and auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking)
-- **Command scheme** — ATCTrainer (space-separated) or VICE (concatenated)
+- **Connection** — Server URL for the yaat-server instance
+- **Identity** — VATSIM CID, user initials (required before connecting), and ARTCC ID
+- **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), and auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking)
+- **Commands** — Command scheme: ATCTrainer (space-separated) or VICE (concatenated)
+- **Advanced** — Server admin mode
 
 ## Autocomplete
 

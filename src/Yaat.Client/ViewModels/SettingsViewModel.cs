@@ -58,6 +58,9 @@ public partial class SettingsViewModel : ObservableObject
     private int _selectedPresetIndex;
 
     [ObservableProperty]
+    private string _serverUrl = "http://localhost:5000";
+
+    [ObservableProperty]
     private string _vatsimCid = "";
 
     [ObservableProperty]
@@ -96,6 +99,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences = preferences;
         LoadFromScheme(_preferences.CommandScheme);
         DetectAndUpdatePreset();
+        _serverUrl = _preferences.ServerUrl;
         _vatsimCid = _preferences.VatsimCid;
         _userInitials = _preferences.UserInitials;
         _artccId = _preferences.ArtccId;
@@ -150,6 +154,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         var scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
+        _preferences.SetServerUrl(ServerUrl);
         _preferences.SetVatsimCid(VatsimCid);
         _preferences.SetUserInitials(UserInitials);
         _preferences.SetArtccId(ArtccId);

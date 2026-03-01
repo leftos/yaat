@@ -24,10 +24,16 @@ public partial class MainWindow : Window
 
         new WindowGeometryHelper(this, vm.Preferences, "Main", 1200, 700).Restore();
 
-        var browseBtn = this.FindControl<Button>("BrowseButton");
-        if (browseBtn is not null)
+        var settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
+        if (settingsItem is not null)
         {
-            browseBtn.Click += OnBrowseClick;
+            settingsItem.Click += OnSettingsClick;
+        }
+
+        var loadItem = this.FindControl<MenuItem>("LoadScenarioMenuItem");
+        if (loadItem is not null)
+        {
+            loadItem.Click += OnLoadScenarioClick;
         }
 
         var dataGrid = this.FindControl<DataGrid>("AircraftGrid");
@@ -74,12 +80,6 @@ public partial class MainWindow : Window
 
                 SaveGridLayout(dataGrid, vm.Preferences);
             };
-        }
-
-        var settingsBtn = this.FindControl<Button>("SettingsButton");
-        if (settingsBtn is not null)
-        {
-            settingsBtn.Click += OnSettingsClick;
         }
 
         vm.PropertyChanged += OnViewModelPropertyChanged;
@@ -385,8 +385,13 @@ public partial class MainWindow : Window
         _terminalWindow = null;
     }
 
-    private async void OnBrowseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnLoadScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
         var files = await StorageProvider.OpenFilePickerAsync(
             new FilePickerOpenOptions
             {
@@ -396,12 +401,13 @@ public partial class MainWindow : Window
             }
         );
 
-        if (files.Count > 0 && DataContext is MainViewModel vm)
+        if (files.Count > 0)
         {
             var path = files[0].TryGetLocalPath();
             if (path is not null)
             {
                 vm.ScenarioFilePath = path;
+                await vm.LoadScenarioCommand.ExecuteAsync(null);
             }
         }
     }

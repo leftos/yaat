@@ -66,6 +66,7 @@ public static class CommandDescriber
             ExitLeftCommand => CanonicalCommandType.ExitLeft,
             ExitRightCommand => CanonicalCommandType.ExitRight,
             ExitTaxiwayCommand => CanonicalCommandType.ExitTaxiway,
+            SayCommand => CanonicalCommandType.Say,
             _ => CanonicalCommandType.FlyHeading, // fallback
         };
     }
@@ -156,6 +157,7 @@ public static class CommandDescriber
             ExitLeftCommand => "EL",
             ExitRightCommand => "ER",
             ExitTaxiwayCommand et => $"EXIT {et.Taxiway}",
+            SayCommand say => $"SAY {say.Text}",
             _ => command.ToString() ?? "?",
         };
     }
@@ -226,6 +228,7 @@ public static class CommandDescriber
             ExitLeftCommand => "Exit left",
             ExitRightCommand => "Exit right",
             ExitTaxiwayCommand et => $"Exit at {et.Taxiway}",
+            SayCommand say => say.Text,
             UnsupportedCommand cmd => cmd.RawText,
             _ => command.ToString() ?? "?",
         };

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
@@ -12,11 +13,13 @@ namespace Yaat.Sim.Phases.Ground;
 public sealed class TaxiingPhase : Phase
 {
     private const double NodeArrivalThresholdNm = 0.005;
+    private const double LogIntervalSeconds = 3.0;
 
     private int _targetNodeId;
     private double _targetLat;
     private double _targetLon;
     private bool _initialized;
+    private double _timeSinceLastLog;
 
     public override string Name => "Taxiing";
 
@@ -25,11 +28,20 @@ public sealed class TaxiingPhase : Phase
         var route = ctx.Aircraft.AssignedTaxiRoute;
         if (route is null || route.IsComplete)
         {
+            ctx.Logger.LogWarning(
+                "[Taxi] {Callsign}: OnStart but route is {State}",
+                ctx.Aircraft.Callsign,
+                route is null ? "null" : "already complete");
             return;
         }
 
         ctx.Aircraft.IsOnGround = true;
         SetupCurrentSegment(ctx);
+
+        ctx.Logger.LogDebug(
+            "[Taxi] {Callsign}: started, {SegCount} segments, first target node {NodeId} at ({Lat:F6}, {Lon:F6})",
+            ctx.Aircraft.Callsign, route.Segments.Count,
+            _targetNodeId, _targetLat, _targetLon);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -37,11 +49,19 @@ public sealed class TaxiingPhase : Phase
         var route = ctx.Aircraft.AssignedTaxiRoute;
         if (route is null || route.IsComplete)
         {
+            ctx.Logger.LogDebug(
+                "[Taxi] {Callsign}: OnTick exit — route {State}",
+                ctx.Aircraft.Callsign,
+                route is null ? "null" : "complete");
             return true;
         }
 
         if (!_initialized)
         {
+            ctx.Logger.LogDebug(
+                "[Taxi] {Callsign}: late init in OnTick (groundLayout {HasLayout})",
+                ctx.Aircraft.Callsign,
+                ctx.GroundLayout is not null ? "present" : "NULL");
             SetupCurrentSegment(ctx);
         }
 
@@ -78,11 +98,31 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.CurrentTaxiway = seg.TaxiwayName;
         }
 
+        // Periodic logging
+        _timeSinceLastLog += ctx.DeltaSeconds;
+        if (_timeSinceLastLog >= LogIntervalSeconds)
+        {
+            _timeSinceLastLog = 0;
+            ctx.Logger.LogDebug(
+                "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}, bearing={Brg:F0}, pos=({Lat:F6},{Lon:F6})",
+                ctx.Aircraft.Callsign,
+                route.CurrentSegmentIndex, route.Segments.Count,
+                seg?.TaxiwayName ?? "?",
+                _targetNodeId, dist,
+                ctx.Aircraft.GroundSpeed, ctx.Aircraft.Heading,
+                bearing,
+                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+        }
+
         return false;
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
+        ctx.Logger.LogDebug(
+            "[Taxi] {Callsign}: OnEnd ({Status})",
+            ctx.Aircraft.Callsign, endStatus);
+
         if (endStatus == PhaseStatus.Completed)
         {
             ctx.Aircraft.GroundSpeed = 0;
@@ -108,6 +148,10 @@ public sealed class TaxiingPhase : Phase
         var route = ctx.Aircraft.AssignedTaxiRoute;
         if (route?.CurrentSegment is null)
         {
+            ctx.Logger.LogWarning(
+                "[Taxi] {Callsign}: SetupCurrentSegment — no current segment (index={Idx})",
+                ctx.Aircraft.Callsign,
+                route?.CurrentSegmentIndex ?? -1);
             return;
         }
 
@@ -120,16 +164,33 @@ public sealed class TaxiingPhase : Phase
             _targetLat = targetNode.Latitude;
             _targetLon = targetNode.Longitude;
         }
+        else
+        {
+            ctx.Logger.LogWarning(
+                "[Taxi] {Callsign}: cannot resolve node {NodeId} — groundLayout {HasLayout}",
+                ctx.Aircraft.Callsign, _targetNodeId,
+                ctx.GroundLayout is not null ? "present but node missing" : "NULL");
+        }
 
         _initialized = true;
     }
 
     private bool ArriveAtNode(PhaseContext ctx, TaxiRoute route)
     {
+        ctx.Logger.LogDebug(
+            "[Taxi] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount})",
+            ctx.Aircraft.Callsign, _targetNodeId,
+            route.CurrentSegmentIndex, route.Segments.Count);
+
         // Check if this node is a hold-short point
         var holdShort = route.GetHoldShortAt(_targetNodeId);
         if (holdShort is not null && !holdShort.IsCleared)
         {
+            ctx.Logger.LogDebug(
+                "[Taxi] {Callsign}: hold short at node {NodeId} (rwy {Rwy}, reason {Reason})",
+                ctx.Aircraft.Callsign, _targetNodeId,
+                holdShort.RunwayId, holdShort.Reason);
+
             // Insert a HoldingShortPhase before continuing
             ctx.Aircraft.GroundSpeed = 0;
             ctx.Targets.TargetSpeed = 0;
@@ -144,6 +205,9 @@ public sealed class TaxiingPhase : Phase
 
         if (route.IsComplete)
         {
+            ctx.Logger.LogDebug(
+                "[Taxi] {Callsign}: route complete after {SegCount} segments",
+                ctx.Aircraft.Callsign, route.Segments.Count);
             return true;
         }
 

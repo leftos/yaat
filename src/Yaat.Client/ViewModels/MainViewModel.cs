@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -30,10 +32,22 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(SendCommandCommand))]
     [NotifyCanExecuteChangedFor(nameof(TogglePauseCommand))]
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
     private bool _isConnected;
 
-    [ObservableProperty]
-    private string _serverUrl = "http://localhost:5000";
+    public string ServerUrl
+    {
+        get => _preferences.ServerUrl;
+        set
+        {
+            if (_preferences.ServerUrl != value)
+            {
+                _preferences.SetServerUrl(value);
+                OnPropertyChanged();
+            }
+        }
+    }
 
     [ObservableProperty]
     private string _statusText = "Disconnected";
@@ -62,12 +76,16 @@ public partial class MainViewModel : ObservableObject
     private string _commandSchemeName = "ATCTrainer";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LeaveRoomCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
     private string? _activeRoomId;
 
     [ObservableProperty]
     private string? _activeRoomName;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
     private string? _activeScenarioId;
 
     [ObservableProperty]
@@ -103,6 +121,27 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _distanceReferenceFix = "";
+
+    public string WindowTitle
+    {
+        get
+        {
+            if (ActiveRoomName is null)
+            {
+                return "YAAT";
+            }
+
+            return ActiveScenarioName is not null
+                ? $"{ActiveRoomName} ({ActiveScenarioName}) - YAAT"
+                : $"{ActiveRoomName} - YAAT";
+        }
+    }
+
+    public string ConnectMenuText => IsConnected ? "_Disconnect" : "_Connect";
+
+    public bool IsInRoom => ActiveRoomId is not null;
+
+    public bool HasScenario => ActiveScenarioId is not null;
 
     private double? _distanceRefLat;
     private double? _distanceRefLon;
@@ -380,7 +419,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanCreateRoom))]
     private async Task CreateRoomAsync()
     {
         try
@@ -413,6 +452,8 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private bool CanCreateRoom() => IsConnected && !IsInRoom;
+
     [RelayCommand]
     private async Task JoinRoomAsync(string roomId)
     {
@@ -441,7 +482,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(IsInRoom))]
     private async Task LeaveRoomAsync()
     {
         if (ActiveRoomId is null)
@@ -490,7 +531,7 @@ public partial class MainViewModel : ObservableObject
 
     // --- Delete All ---
 
-    [RelayCommand(CanExecute = nameof(IsConnected))]
+    [RelayCommand(CanExecute = nameof(CanUnloadScenario))]
     private async Task UnloadScenarioAsync()
     {
         if (ActiveScenarioId is null)
@@ -520,6 +561,8 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private bool CanUnloadScenario() => IsConnected && HasScenario;
+
     [RelayCommand]
     private async Task ConfirmUnloadScenarioAsync()
     {
@@ -542,6 +585,33 @@ public partial class MainViewModel : ObservableObject
     {
         ShowUnloadScenarioConfirmation = false;
         PendingUnloadScenarioWarning = null;
+    }
+
+    partial void OnIsConnectedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ConnectMenuText));
+    }
+
+    partial void OnActiveRoomIdChanged(string? value)
+    {
+        OnPropertyChanged(nameof(IsInRoom));
+        OnPropertyChanged(nameof(WindowTitle));
+    }
+
+    partial void OnActiveRoomNameChanged(string? value)
+    {
+        OnPropertyChanged(nameof(WindowTitle));
+    }
+
+    partial void OnActiveScenarioIdChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasScenario));
+        OnPropertyChanged(nameof(WindowTitle));
+    }
+
+    partial void OnActiveScenarioNameChanged(string? value)
+    {
+        OnPropertyChanged(nameof(WindowTitle));
     }
 
     partial void OnCommandTextChanged(string value)
@@ -942,6 +1012,25 @@ public partial class MainViewModel : ObservableObject
             model.Latitude, model.Longitude,
             _distanceRefLat.Value, _distanceRefLon.Value);
     }
+
+    [RelayCommand]
+    private void Exit()
+    {
+        if (Application.Current?.ApplicationLifetime
+            is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Shutdown();
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanShowRooms))]
+    private async Task ShowRoomsAsync()
+    {
+        await RefreshRoomListAsync();
+        ShowRoomList = true;
+    }
+
+    private bool CanShowRooms() => IsConnected && !IsInRoom;
 
     [RelayCommand]
     private void ToggleTerminalDock()

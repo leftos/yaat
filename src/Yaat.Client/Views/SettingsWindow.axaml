@@ -28,6 +28,24 @@
         <!-- Tab content -->
         <TabControl>
 
+            <!-- Connection tab -->
+            <TabItem Header="Connection">
+                <StackPanel Margin="12" Spacing="12">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Server URL:"
+                                   Foreground="Gray" />
+                        <TextBox Text="{Binding ServerUrl}"
+                                 Watermark="http://localhost:5000"
+                                 Width="400"
+                                 HorizontalAlignment="Left" />
+                        <TextBlock Text="The URL of the yaat-server instance to connect to. Default is http://localhost:5000 for a local server."
+                                   TextWrapping="Wrap"
+                                   Foreground="Gray"
+                                   FontSize="11" />
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+
             <!-- Identity tab -->
             <TabItem Header="Identity">
                 <StackPanel Margin="12" Spacing="12">

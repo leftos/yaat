@@ -103,6 +103,8 @@ internal static class AtcTrainerPreset
                 [CanonicalCommandType.FrequencyChange] = new() { Aliases = ["FC"], Format = "{verb}" },
                 [CanonicalCommandType.ContactTcp] = new() { Aliases = ["CT"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ContactTower] = new() { Aliases = ["TO"], Format = "{verb}" },
+                // Broadcast
+                [CanonicalCommandType.Say] = new() { Aliases = ["SAY"], Format = "{verb} {arg}" },
             },
         };
     }

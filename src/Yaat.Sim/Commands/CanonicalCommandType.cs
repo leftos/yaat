@@ -89,4 +89,6 @@ public enum CanonicalCommandType
     FrequencyChange,
     ContactTcp,
     ContactTower,
+    // Broadcast
+    Say,
 }
