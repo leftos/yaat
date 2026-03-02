@@ -269,7 +269,7 @@ public class TaxiPathfinderTests
                 {
                     NodeId = 2,
                     Reason = HoldShortReason.ExplicitHoldShort,
-                    RunwayId = "28L",
+                    TargetName = "28L",
                 },
             ],
         };

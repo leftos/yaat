@@ -757,7 +757,7 @@ public static class TaxiPathfinder
                 {
                     NodeId = node.Id,
                     Reason = HoldShortReason.RunwayCrossing,
-                    RunwayId = node.RunwayId,
+                    TargetName = node.RunwayId,
                 });
             }
         }
@@ -794,7 +794,7 @@ public static class TaxiPathfinder
                 {
                     NodeId = node.Id,
                     Reason = HoldShortReason.ExplicitHoldShort,
-                    RunwayId = runwayId,
+                    TargetName = runwayId,
                 });
             }
         }
@@ -816,7 +816,7 @@ public static class TaxiPathfinder
         {
             NodeId = lastNodeId,
             Reason = HoldShortReason.DestinationRunway,
-            RunwayId = runwayId,
+            TargetName = runwayId,
         });
     }
 

@@ -154,6 +154,8 @@ public record ResumeCommand : ParsedCommand;
 
 public record CrossRunwayCommand(string RunwayId) : ParsedCommand;
 
+public record HoldShortCommand(string Target) : ParsedCommand;
+
 public record FollowCommand(string TargetCallsign) : ParsedCommand;
 
 // Exit commands

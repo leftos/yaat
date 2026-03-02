@@ -158,6 +158,7 @@ public sealed class TaxiingPhase : Phase
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.CrossRunway => CommandAcceptance.Allowed,
+            CanonicalCommandType.HoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };
@@ -214,9 +215,9 @@ public sealed class TaxiingPhase : Phase
         if (holdShort is not null && !holdShort.IsCleared)
         {
             ctx.Logger.LogDebug(
-                "[Taxi] {Callsign}: hold short at node {NodeId} (rwy {Rwy}, reason {Reason})",
+                "[Taxi] {Callsign}: hold short at node {NodeId} (target {Target}, reason {Reason})",
                 ctx.Aircraft.Callsign, _targetNodeId,
-                holdShort.RunwayId, holdShort.Reason);
+                holdShort.TargetName, holdShort.Reason);
 
             // Insert a HoldingShortPhase before continuing
             ctx.Aircraft.GroundSpeed = 0;

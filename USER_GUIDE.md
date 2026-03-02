@@ -141,6 +141,7 @@ YAAT supports two command schemes, switchable in Settings:
 | Hold position | `HOLD` | `HOLD` |
 | Resume taxi | `RES` | `RES` |
 | Cross runway | `CROSS 28L` | `CROSS 28L` |
+| Hold short | `HS B` | `HS B` |
 | Follow | `FOLLOW SWA123` | `FOLLOW SWA123` |
 | Track | `TRACK` | `TRACK` |
 | Drop | `DROP` | `DROP` |
@@ -334,9 +335,14 @@ Any heading, altitude, or speed command clears the hold.
 | `HOLD` / `HP` | Hold position (stop wherever on the ground) |
 | `RES` / `RESUME` | Resume taxi after hold |
 | `CROSS 28L` | Cross runway 28L (clears hold-short) |
+| `CROSS B` | Cross taxiway B (clears hold-short) |
+| `HS B` | Hold short at the next intersection with taxiway B |
+| `HS 28L` | Hold short at the next runway 28L crossing |
 | `FOLLOW SWA123` | Follow another aircraft on the ground |
 
-Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives.
+Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts.
+
+`HS` can be issued to a taxiing aircraft to add a hold-short point at the first upcoming intersection with the given taxiway or runway along the remaining route.
 
 Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop.
 

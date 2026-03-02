@@ -505,6 +505,9 @@ public static class CommandDispatcher
             case CrossRunwayCommand cross:
                 return TryCrossRunway(aircraft, cross);
 
+            case HoldShortCommand hs:
+                return TryHoldShort(aircraft, hs, groundLayout, logger);
+
             case FollowCommand follow:
                 return TryFollow(aircraft, follow, logger);
 
@@ -621,7 +624,7 @@ public static class CommandDispatcher
         DepartureInstruction departure, int? assignedAltitude,
         IRunwayLookup? runways, IFixLookup? fixes, ILogger logger)
     {
-        var runwayId = holding.HoldShort.RunwayId;
+        var runwayId = holding.HoldShort.TargetName;
         if (runwayId is null)
         {
             return new CommandResult(false,
@@ -671,17 +674,17 @@ public static class CommandDispatcher
             }
         }
 
-        if (depHoldShort?.RunwayId is null)
+        if (depHoldShort?.TargetName is null)
         {
             return new CommandResult(false,
                 "No departure runway hold-short in taxi route");
         }
 
-        var runway = ResolveRunway(aircraft, depHoldShort.RunwayId, runways);
+        var runway = ResolveRunway(aircraft, depHoldShort.TargetName, runways);
         if (runway is null)
         {
             return new CommandResult(false,
-                $"Cannot resolve runway {depHoldShort.RunwayId}");
+                $"Cannot resolve runway {depHoldShort.TargetName}");
         }
 
         // Pre-clear so aircraft doesn't stop at the hold-short
@@ -1536,7 +1539,7 @@ public static class CommandDispatcher
         if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase)
         {
             holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
-            return Ok($"Cross runway {cross.RunwayId}");
+            return Ok($"Cross {cross.RunwayId}");
         }
 
         // Otherwise, pre-clear the matching hold-short in the taxi route
@@ -1549,8 +1552,8 @@ public static class CommandDispatcher
         bool cleared = false;
         foreach (var hs in route.HoldShortPoints)
         {
-            if (hs.RunwayId is not null
-                && hs.RunwayId.Equals(cross.RunwayId, StringComparison.OrdinalIgnoreCase)
+            if (hs.TargetName is not null
+                && hs.TargetName.Equals(cross.RunwayId, StringComparison.OrdinalIgnoreCase)
                 && !hs.IsCleared)
             {
                 hs.IsCleared = true;
@@ -1561,10 +1564,43 @@ public static class CommandDispatcher
         if (!cleared)
         {
             return new CommandResult(false,
-                $"No hold-short for runway {cross.RunwayId} in taxi route");
+                $"No hold-short for {cross.RunwayId} in taxi route");
         }
 
-        return Ok($"Cross runway {cross.RunwayId}");
+        return Ok($"Cross {cross.RunwayId}");
+    }
+
+    private static CommandResult TryHoldShort(
+        AircraftState aircraft, HoldShortCommand hs,
+        AirportGroundLayout? groundLayout, ILogger logger)
+    {
+        if (!aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "Hold short requires aircraft on the ground");
+        }
+
+        var route = aircraft.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return new CommandResult(false, "No taxi route assigned");
+        }
+
+        if (groundLayout is null)
+        {
+            return new CommandResult(false, "No ground layout available");
+        }
+
+        bool added = route.AddHoldShortAtIntersection(hs.Target, groundLayout);
+        if (!added)
+        {
+            return new CommandResult(false,
+                $"No intersection with {hs.Target} along remaining taxi route");
+        }
+
+        logger.LogDebug(
+            "[HS] {Callsign}: added hold short of {Target}",
+            aircraft.Callsign, hs.Target);
+        return Ok($"Hold short of {hs.Target}");
     }
 
     private static CommandResult TryFollow(

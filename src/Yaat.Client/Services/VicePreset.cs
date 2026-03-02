@@ -70,6 +70,7 @@ internal static class VicePreset
                 [CanonicalCommandType.HoldPosition] = new() { Aliases = ["HOLD"], Format = "{verb}" },
                 [CanonicalCommandType.Resume] = new() { Aliases = ["RES"], Format = "{verb}" },
                 [CanonicalCommandType.CrossRunway] = new() { Aliases = ["CROSS"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldShort] = new() { Aliases = ["HS"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.Follow] = new() { Aliases = ["FOLLOW"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ExitLeft] = new() { Aliases = ["EL"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.ExitRight] = new() { Aliases = ["ER"], Format = "{verb} {arg?}" },

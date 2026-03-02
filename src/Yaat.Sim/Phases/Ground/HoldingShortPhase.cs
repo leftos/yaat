@@ -20,8 +20,8 @@ public sealed class HoldingShortPhase : Phase
 
     public HoldShortPoint HoldShort => _holdShort;
 
-    public override string Name => _holdShort.RunwayId is not null
-        ? $"Holding Short {_holdShort.RunwayId}"
+    public override string Name => _holdShort.TargetName is not null
+        ? $"Holding Short {_holdShort.TargetName}"
         : "Holding Short";
 
     public override void OnStart(PhaseContext ctx)
@@ -30,10 +30,13 @@ public sealed class HoldingShortPhase : Phase
         ctx.Targets.TargetSpeed = 0;
 
         // Generate notification
-        string rwy = _holdShort.RunwayId ?? "unknown";
+        string target = _holdShort.TargetName ?? "unknown";
         string taxiway = ctx.Aircraft.CurrentTaxiway ?? "taxiway";
+        string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort
+            ? $"holding short of {target}"
+            : $"holding short runway {target}";
         ctx.Aircraft.PendingWarnings.Add(
-            $"{ctx.Aircraft.Callsign} holding short runway {rwy} at {taxiway}");
+            $"{ctx.Aircraft.Callsign} {label} at {taxiway}");
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -61,6 +64,7 @@ public sealed class HoldingShortPhase : Phase
             CanonicalCommandType.LineUpAndWait => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedForTakeoff => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.HoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };

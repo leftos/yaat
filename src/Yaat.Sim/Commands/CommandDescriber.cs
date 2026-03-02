@@ -62,6 +62,7 @@ public static class CommandDescriber
             HoldPositionCommand => CanonicalCommandType.HoldPosition,
             ResumeCommand => CanonicalCommandType.Resume,
             CrossRunwayCommand => CanonicalCommandType.CrossRunway,
+            HoldShortCommand => CanonicalCommandType.HoldShort,
             FollowCommand => CanonicalCommandType.Follow,
             ExitLeftCommand => CanonicalCommandType.ExitLeft,
             ExitRightCommand => CanonicalCommandType.ExitRight,
@@ -150,6 +151,7 @@ public static class CommandDescriber
             HoldPositionCommand => "HOLD",
             ResumeCommand => "RES",
             CrossRunwayCommand cross => $"CROSS {cross.RunwayId}",
+            HoldShortCommand hs => $"HS {hs.Target}",
             FollowCommand follow => $"FOLLOW {follow.TargetCallsign}",
             ExitLeftCommand => "EL",
             ExitRightCommand => "ER",
@@ -221,6 +223,7 @@ public static class CommandDescriber
             HoldPositionCommand => "Hold position",
             ResumeCommand => "Resume taxi",
             CrossRunwayCommand cross => $"Cross runway {cross.RunwayId}",
+            HoldShortCommand hs => $"Hold short of {hs.Target}",
             FollowCommand follow => $"Follow {follow.TargetCallsign}",
             ExitLeftCommand => "Exit left",
             ExitRightCommand => "Exit right",
@@ -266,6 +269,7 @@ public static class CommandDescriber
             or HoldPositionCommand
             or ResumeCommand
             or CrossRunwayCommand
+            or HoldShortCommand
             or FollowCommand;
     }
 

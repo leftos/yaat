@@ -35,6 +35,61 @@ public sealed class TaxiRoute
     }
 
     /// <summary>
+    /// Scans remaining segments for the first intersection with the given target
+    /// (taxiway name or runway ID) and inserts a hold-short point there.
+    /// Returns true if a hold-short was added.
+    /// </summary>
+    public bool AddHoldShortAtIntersection(string target, AirportGroundLayout layout)
+    {
+        for (int segIdx = CurrentSegmentIndex; segIdx < Segments.Count; segIdx++)
+        {
+            var seg = Segments[segIdx];
+            int nodeId = seg.ToNodeId;
+
+            if (GetHoldShortAt(nodeId) is not null)
+            {
+                continue;
+            }
+
+            if (!layout.Nodes.TryGetValue(nodeId, out var node))
+            {
+                continue;
+            }
+
+            // Check if this is a RunwayHoldShort node matching the target
+            if (node.Type == GroundNodeType.RunwayHoldShort
+                && node.RunwayId is not null
+                && node.RunwayId.Contains(target, StringComparison.OrdinalIgnoreCase))
+            {
+                HoldShortPoints.Add(new HoldShortPoint
+                {
+                    NodeId = nodeId,
+                    Reason = HoldShortReason.ExplicitHoldShort,
+                    TargetName = node.RunwayId,
+                });
+                return true;
+            }
+
+            // Check if any adjacent edge has a matching taxiway name
+            foreach (var edge in node.Edges)
+            {
+                if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
+                {
+                    HoldShortPoints.Add(new HoldShortPoint
+                    {
+                        NodeId = nodeId,
+                        Reason = HoldShortReason.ExplicitHoldShort,
+                        TargetName = target.ToUpperInvariant(),
+                    });
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L").
     /// </summary>
     public string ToSummary()
@@ -52,10 +107,10 @@ public sealed class TaxiRoute
 
         foreach (var hs in HoldShortPoints)
         {
-            if (hs.Reason == HoldShortReason.ExplicitHoldShort && hs.RunwayId is not null)
+            if (hs.Reason == HoldShortReason.ExplicitHoldShort && hs.TargetName is not null)
             {
                 parts.Add("HS");
-                parts.Add(hs.RunwayId);
+                parts.Add(hs.TargetName);
             }
         }
 
@@ -82,7 +137,8 @@ public sealed class HoldShortPoint
 {
     public required int NodeId { get; init; }
     public required HoldShortReason Reason { get; init; }
-    public string? RunwayId { get; init; }
+    /// <summary>Runway ID or taxiway name this hold-short protects.</summary>
+    public string? TargetName { get; init; }
 
     /// <summary>Whether this hold-short has been cleared (e.g., CROSS command issued).</summary>
     public bool IsCleared { get; set; }

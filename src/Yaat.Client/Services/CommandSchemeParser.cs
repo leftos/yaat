@@ -511,6 +511,14 @@ public static class CommandSchemeParser
                 : null;
         }
 
+        if (input.StartsWith("HS ", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 1
+                ? new ParsedInput(CanonicalCommandType.HoldShort, parts[1].Trim())
+                : null;
+        }
+
         if (input.StartsWith("FOLLOW ", StringComparison.OrdinalIgnoreCase)
             || input.StartsWith("FOL ", StringComparison.OrdinalIgnoreCase))
         {
@@ -558,6 +566,7 @@ public static class CommandSchemeParser
                     or CanonicalCommandType.SpawnDelay
                     or CanonicalCommandType.Taxi
                     or CanonicalCommandType.CrossRunway
+                    or CanonicalCommandType.HoldShort
                     or CanonicalCommandType.Follow
             )
             {
