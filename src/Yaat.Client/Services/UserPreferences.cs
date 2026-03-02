@@ -28,10 +28,16 @@ public sealed class UserPreferences
     private SavedWindowGeometry? _mainWindowGeometry;
     private SavedWindowGeometry? _settingsWindowGeometry;
     private SavedWindowGeometry? _terminalWindowGeometry;
+    private SavedWindowGeometry? _groundViewWindowGeometry;
+    private SavedWindowGeometry? _radarViewWindowGeometry;
+    private SavedWindowGeometry? _dataGridWindowGeometry;
     private SavedGridLayout? _gridLayout;
     private bool _autoAcceptEnabled;
     private int _autoAcceptDelaySeconds;
     private string _autoDeleteOverride;
+    private bool _isDataGridPoppedOut;
+    private bool _isGroundViewPoppedOut;
+    private bool _isRadarViewPoppedOut;
 
     public UserPreferences()
     {
@@ -46,10 +52,16 @@ public sealed class UserPreferences
         _mainWindowGeometry = saved.MainWindowGeometry;
         _settingsWindowGeometry = saved.SettingsWindowGeometry;
         _terminalWindowGeometry = saved.TerminalWindowGeometry;
+        _groundViewWindowGeometry = saved.GroundViewWindowGeometry;
+        _radarViewWindowGeometry = saved.RadarViewWindowGeometry;
+        _dataGridWindowGeometry = saved.DataGridWindowGeometry;
         _gridLayout = saved.GridLayout;
         _autoAcceptEnabled = saved.AutoAcceptEnabled;
         _autoAcceptDelaySeconds = saved.AutoAcceptDelaySeconds;
         _autoDeleteOverride = saved.AutoDeleteOverride;
+        _isDataGridPoppedOut = saved.IsDataGridPoppedOut;
+        _isGroundViewPoppedOut = saved.IsGroundViewPoppedOut;
+        _isRadarViewPoppedOut = saved.IsRadarViewPoppedOut;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -62,10 +74,16 @@ public sealed class UserPreferences
     public SavedWindowGeometry? MainWindowGeometry => _mainWindowGeometry;
     public SavedWindowGeometry? SettingsWindowGeometry => _settingsWindowGeometry;
     public SavedWindowGeometry? TerminalWindowGeometry => _terminalWindowGeometry;
+    public SavedWindowGeometry? GroundViewWindowGeometry => _groundViewWindowGeometry;
+    public SavedWindowGeometry? RadarViewWindowGeometry => _radarViewWindowGeometry;
+    public SavedWindowGeometry? DataGridWindowGeometry => _dataGridWindowGeometry;
     public SavedGridLayout? GridLayout => _gridLayout;
     public bool AutoAcceptEnabled => _autoAcceptEnabled;
     public int AutoAcceptDelaySeconds => _autoAcceptDelaySeconds;
     public string AutoDeleteOverride => _autoDeleteOverride;
+    public bool IsDataGridPoppedOut => _isDataGridPoppedOut;
+    public bool IsGroundViewPoppedOut => _isGroundViewPoppedOut;
+    public bool IsRadarViewPoppedOut => _isRadarViewPoppedOut;
 
     public void SetServerUrl(string url)
     {
@@ -130,6 +148,32 @@ public sealed class UserPreferences
             case "Terminal":
                 _terminalWindowGeometry = geometry;
                 break;
+            case "GroundView":
+                _groundViewWindowGeometry = geometry;
+                break;
+            case "RadarView":
+                _radarViewWindowGeometry = geometry;
+                break;
+            case "DataGrid":
+                _dataGridWindowGeometry = geometry;
+                break;
+        }
+        Save();
+    }
+
+    public void SetPoppedOut(string tabName, bool poppedOut)
+    {
+        switch (tabName)
+        {
+            case "DataGrid":
+                _isDataGridPoppedOut = poppedOut;
+                break;
+            case "GroundView":
+                _isGroundViewPoppedOut = poppedOut;
+                break;
+            case "RadarView":
+                _isRadarViewPoppedOut = poppedOut;
+                break;
         }
         Save();
     }
@@ -166,10 +210,16 @@ public sealed class UserPreferences
                 MainWindowGeometry = saved?.MainWindowGeometry,
                 SettingsWindowGeometry = saved?.SettingsWindowGeometry,
                 TerminalWindowGeometry = saved?.TerminalWindowGeometry,
+                GroundViewWindowGeometry = saved?.GroundViewWindowGeometry,
+                RadarViewWindowGeometry = saved?.RadarViewWindowGeometry,
+                DataGridWindowGeometry = saved?.DataGridWindowGeometry,
                 GridLayout = saved?.GridLayout,
                 AutoAcceptEnabled = saved?.AutoAcceptEnabled ?? true,
                 AutoAcceptDelaySeconds = saved?.AutoAcceptDelaySeconds ?? 5,
                 AutoDeleteOverride = saved?.AutoDeleteOverride ?? "",
+                IsDataGridPoppedOut = saved?.IsDataGridPoppedOut ?? false,
+                IsGroundViewPoppedOut = saved?.IsGroundViewPoppedOut ?? false,
+                IsRadarViewPoppedOut = saved?.IsRadarViewPoppedOut ?? false,
             };
         }
         catch (JsonException)
@@ -190,10 +240,16 @@ public sealed class UserPreferences
         public SavedWindowGeometry? MainWindowGeometry { get; init; }
         public SavedWindowGeometry? SettingsWindowGeometry { get; init; }
         public SavedWindowGeometry? TerminalWindowGeometry { get; init; }
+        public SavedWindowGeometry? GroundViewWindowGeometry { get; init; }
+        public SavedWindowGeometry? RadarViewWindowGeometry { get; init; }
+        public SavedWindowGeometry? DataGridWindowGeometry { get; init; }
         public SavedGridLayout? GridLayout { get; init; }
         public bool AutoAcceptEnabled { get; init; } = true;
         public int AutoAcceptDelaySeconds { get; init; } = 5;
         public string AutoDeleteOverride { get; init; } = "";
+        public bool IsDataGridPoppedOut { get; init; }
+        public bool IsGroundViewPoppedOut { get; init; }
+        public bool IsRadarViewPoppedOut { get; init; }
     }
 
     private void Save()
@@ -212,10 +268,16 @@ public sealed class UserPreferences
             MainWindowGeometry = _mainWindowGeometry,
             SettingsWindowGeometry = _settingsWindowGeometry,
             TerminalWindowGeometry = _terminalWindowGeometry,
+            GroundViewWindowGeometry = _groundViewWindowGeometry,
+            RadarViewWindowGeometry = _radarViewWindowGeometry,
+            DataGridWindowGeometry = _dataGridWindowGeometry,
             GridLayout = _gridLayout,
             AutoAcceptEnabled = _autoAcceptEnabled,
             AutoAcceptDelaySeconds = _autoAcceptDelaySeconds,
             AutoDeleteOverride = _autoDeleteOverride,
+            IsDataGridPoppedOut = _isDataGridPoppedOut,
+            IsGroundViewPoppedOut = _isGroundViewPoppedOut,
+            IsRadarViewPoppedOut = _isRadarViewPoppedOut,
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
@@ -293,10 +355,16 @@ public sealed class UserPreferences
         public SavedWindowGeometry? MainWindowGeometry { get; set; }
         public SavedWindowGeometry? SettingsWindowGeometry { get; set; }
         public SavedWindowGeometry? TerminalWindowGeometry { get; set; }
+        public SavedWindowGeometry? GroundViewWindowGeometry { get; set; }
+        public SavedWindowGeometry? RadarViewWindowGeometry { get; set; }
+        public SavedWindowGeometry? DataGridWindowGeometry { get; set; }
         public SavedGridLayout? GridLayout { get; set; }
         public bool AutoAcceptEnabled { get; set; } = true;
         public int AutoAcceptDelaySeconds { get; set; } = 5;
         public string AutoDeleteOverride { get; set; } = "";
+        public bool IsDataGridPoppedOut { get; set; }
+        public bool IsGroundViewPoppedOut { get; set; }
+        public bool IsRadarViewPoppedOut { get; set; }
     }
 
     private sealed class SavedCommandScheme

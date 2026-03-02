@@ -5,6 +5,8 @@ using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Ground;
+using Yaat.Client.Views.Radar;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
@@ -12,6 +14,9 @@ namespace Yaat.Client.Views;
 public partial class MainWindow : Window
 {
     private TerminalWindow? _terminalWindow;
+    private DataGridWindow? _dataGridWindow;
+    private GroundViewWindow? _groundViewWindow;
+    private RadarViewWindow? _radarViewWindow;
     private bool _restoringGrid;
     private string? _sortColumnKey;
     private ListSortDirection? _sortDirection;
@@ -22,7 +27,8 @@ public partial class MainWindow : Window
         var vm = new MainViewModel();
         DataContext = vm;
 
-        new WindowGeometryHelper(this, vm.Preferences, "Main", 1200, 700).Restore();
+        new WindowGeometryHelper(
+            this, vm.Preferences, "Main", 1200, 700).Restore();
 
         var settingsItem = this.FindControl<MenuItem>("SettingsMenuItem");
         if (settingsItem is not null)
@@ -36,60 +42,83 @@ public partial class MainWindow : Window
             loadItem.Click += OnLoadScenarioClick;
         }
 
-        var dataGrid = this.FindControl<DataGrid>("AircraftGrid");
+        var embeddedView =
+            this.FindControl<DataGridView>("EmbeddedDataGridView");
+        var dataGrid = embeddedView?.GetDataGrid();
         if (dataGrid is not null)
         {
-            foreach (var col in dataGrid.Columns)
-            {
-                if (col.Header is string header && header == "Status")
-                {
-                    col.CustomSortComparer = StatusSortComparer.Instance;
-                    break;
-                }
-            }
-
-            RestoreGridLayout(dataGrid, vm.Preferences);
-
-            dataGrid.ColumnReordered += (_, _) =>
-                SaveGridLayout(dataGrid, vm.Preferences);
-            dataGrid.Sorting += (_, e) =>
-            {
-                if (_restoringGrid)
-                {
-                    return;
-                }
-
-                var clickedKey = GetColumnKey(e.Column);
-                if (clickedKey == _sortColumnKey)
-                {
-                    _sortDirection = _sortDirection switch
-                    {
-                        ListSortDirection.Ascending => ListSortDirection.Descending,
-                        _ => null,
-                    };
-                    if (_sortDirection is null)
-                    {
-                        _sortColumnKey = null;
-                    }
-                }
-                else
-                {
-                    _sortColumnKey = clickedKey;
-                    _sortDirection = ListSortDirection.Ascending;
-                }
-
-                SaveGridLayout(dataGrid, vm.Preferences);
-            };
+            SetupDataGrid(dataGrid, vm);
         }
 
         vm.PropertyChanged += OnViewModelPropertyChanged;
 
-        WireDistanceFlyout(vm);
+        if (vm.IsDataGridPoppedOut)
+        {
+            OpenDataGridWindow(vm);
+        }
+
+        if (vm.IsGroundViewPoppedOut)
+        {
+            OpenGroundViewWindow(vm);
+        }
+
+        if (vm.IsRadarViewPoppedOut)
+        {
+            OpenRadarViewWindow(vm);
+        }
 
         if (App.AutoConnect)
         {
             _ = vm.ConnectCommand.ExecuteAsync(null);
         }
+    }
+
+    private void SetupDataGrid(DataGrid dataGrid, MainViewModel vm)
+    {
+        foreach (var col in dataGrid.Columns)
+        {
+            if (col.Header is string header && header == "Status")
+            {
+                col.CustomSortComparer = StatusSortComparer.Instance;
+                break;
+            }
+        }
+
+        RestoreGridLayout(dataGrid, vm.Preferences);
+
+        dataGrid.ColumnReordered += (_, _) =>
+            SaveGridLayout(dataGrid, vm.Preferences);
+        dataGrid.Sorting += (_, e) =>
+        {
+            if (_restoringGrid)
+            {
+                return;
+            }
+
+            var clickedKey = GetColumnKey(e.Column);
+            if (clickedKey == _sortColumnKey)
+            {
+                _sortDirection = _sortDirection switch
+                {
+                    ListSortDirection.Ascending =>
+                        ListSortDirection.Descending,
+                    _ => null,
+                };
+                if (_sortDirection is null)
+                {
+                    _sortColumnKey = null;
+                }
+            }
+            else
+            {
+                _sortColumnKey = clickedKey;
+                _sortDirection = ListSortDirection.Ascending;
+            }
+
+            SaveGridLayout(dataGrid, vm.Preferences);
+        };
+
+        WireDistanceFlyout(vm, dataGrid);
     }
 
     private static string GetColumnKey(DataGridColumn column)
@@ -107,7 +136,8 @@ public partial class MainWindow : Window
         return column.DisplayIndex.ToString();
     }
 
-    private void RestoreGridLayout(DataGrid dataGrid, UserPreferences prefs)
+    private void RestoreGridLayout(
+        DataGrid dataGrid, UserPreferences prefs)
     {
         var layout = prefs.GridLayout;
         if (layout is null)
@@ -120,7 +150,8 @@ public partial class MainWindow : Window
         {
             if (layout.ColumnOrder is { Count: > 0 })
             {
-                var keyToColumn = new Dictionary<string, DataGridColumn>();
+                var keyToColumn =
+                    new Dictionary<string, DataGridColumn>();
                 foreach (var col in dataGrid.Columns)
                 {
                     keyToColumn[GetColumnKey(col)] = col;
@@ -137,7 +168,8 @@ public partial class MainWindow : Window
                 }
             }
 
-            if (layout.SortColumn is not null && layout.SortDirection is not null)
+            if (layout.SortColumn is not null
+                && layout.SortDirection is not null)
             {
                 foreach (var col in dataGrid.Columns)
                 {
@@ -157,7 +189,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SaveGridLayout(DataGrid dataGrid, UserPreferences prefs)
+    private void SaveGridLayout(
+        DataGrid dataGrid, UserPreferences prefs)
     {
         if (_restoringGrid)
         {
@@ -177,18 +210,22 @@ public partial class MainWindow : Window
         });
     }
 
-    private void WireDistanceFlyout(MainViewModel vm)
+    private static void WireDistanceFlyout(
+        MainViewModel vm, DataGrid dataGrid)
     {
-        var dataGrid = this.FindControl<DataGrid>("AircraftGrid");
-        if (dataGrid is null)
-        {
-            return;
-        }
-
-        // Defer until the grid is fully loaded so column headers exist
         dataGrid.Loaded += (_, _) =>
         {
-            var header = this.FindControl<TextBlock>("DistanceHeader");
+            TextBlock? header = null;
+            foreach (var col in dataGrid.Columns)
+            {
+                if (col.SortMemberPath == "DistanceFromFix"
+                    && col.Header is TextBlock tb)
+                {
+                    header = tb;
+                    break;
+                }
+            }
+
             if (header is null)
             {
                 return;
@@ -203,8 +240,10 @@ public partial class MainWindow : Window
                 MaxHeight = 160,
                 IsVisible = false,
                 Padding = new Avalonia.Thickness(2),
-                Background = Avalonia.Media.Brush.Parse("#2D2D30"),
-                BorderBrush = Avalonia.Media.Brush.Parse("#3F3F46"),
+                Background =
+                    Avalonia.Media.Brush.Parse("#2D2D30"),
+                BorderBrush =
+                    Avalonia.Media.Brush.Parse("#3F3F46"),
                 BorderThickness = new Avalonia.Thickness(1),
             };
 
@@ -217,8 +256,10 @@ public partial class MainWindow : Window
                     new TextBlock
                     {
                         Text = "Reference Fix",
-                        FontWeight = Avalonia.Media.FontWeight.Bold,
-                        Margin = new Avalonia.Thickness(0, 0, 0, 4),
+                        FontWeight =
+                            Avalonia.Media.FontWeight.Bold,
+                        Margin =
+                            new Avalonia.Thickness(0, 0, 0, 4),
                     },
                     input,
                     listBox,
@@ -258,7 +299,8 @@ public partial class MainWindow : Window
                     flyout.Hide();
                     e.Handled = true;
                 }
-                else if (e.Key == Key.Down && listBox.IsVisible
+                else if (e.Key == Key.Down
+                         && listBox.IsVisible
                          && listBox.ItemCount > 0)
                 {
                     listBox.SelectedIndex = 0;
@@ -349,18 +391,33 @@ public partial class MainWindow : Window
         flyout.Hide();
     }
 
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnViewModelPropertyChanged(
+        object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(MainViewModel.IsTerminalDocked))
-        {
-            return;
-        }
-
         if (DataContext is not MainViewModel vm)
         {
             return;
         }
 
+        switch (e.PropertyName)
+        {
+            case nameof(MainViewModel.IsTerminalDocked):
+                HandleTerminalPopOut(vm);
+                break;
+            case nameof(MainViewModel.IsDataGridPoppedOut):
+                HandleDataGridPopOut(vm);
+                break;
+            case nameof(MainViewModel.IsGroundViewPoppedOut):
+                HandleGroundViewPopOut(vm);
+                break;
+            case nameof(MainViewModel.IsRadarViewPoppedOut):
+                HandleRadarViewPopOut(vm);
+                break;
+        }
+    }
+
+    private void HandleTerminalPopOut(MainViewModel vm)
+    {
         if (!vm.IsTerminalDocked)
         {
             _terminalWindow = new TerminalWindow
@@ -374,14 +431,105 @@ public partial class MainWindow : Window
         {
             if (_terminalWindow is not null)
             {
-                _terminalWindow.Closing -= OnTerminalWindowClosing;
+                _terminalWindow.Closing -=
+                    OnTerminalWindowClosing;
                 _terminalWindow.Close();
                 _terminalWindow = null;
             }
         }
     }
 
-    private void OnTerminalWindowClosing(object? sender, WindowClosingEventArgs e)
+    private void HandleDataGridPopOut(MainViewModel vm)
+    {
+        if (vm.IsDataGridPoppedOut)
+        {
+            OpenDataGridWindow(vm);
+        }
+        else
+        {
+            CloseDataGridWindow();
+        }
+    }
+
+    private void HandleGroundViewPopOut(MainViewModel vm)
+    {
+        if (vm.IsGroundViewPoppedOut)
+        {
+            OpenGroundViewWindow(vm);
+        }
+        else
+        {
+            CloseGroundViewWindow();
+        }
+    }
+
+    private void HandleRadarViewPopOut(MainViewModel vm)
+    {
+        if (vm.IsRadarViewPoppedOut)
+        {
+            OpenRadarViewWindow(vm);
+        }
+        else
+        {
+            CloseRadarViewWindow();
+        }
+    }
+
+    private void OpenDataGridWindow(MainViewModel vm)
+    {
+        _dataGridWindow = new DataGridWindow { DataContext = vm };
+        _dataGridWindow.Closing += OnDataGridWindowClosing;
+        _dataGridWindow.Show();
+    }
+
+    private void CloseDataGridWindow()
+    {
+        if (_dataGridWindow is not null)
+        {
+            _dataGridWindow.Closing -= OnDataGridWindowClosing;
+            _dataGridWindow.Close();
+            _dataGridWindow = null;
+        }
+    }
+
+    private void OpenGroundViewWindow(MainViewModel vm)
+    {
+        _groundViewWindow = new GroundViewWindow { DataContext = vm };
+        _groundViewWindow.Closing += OnGroundViewWindowClosing;
+        _groundViewWindow.Show();
+    }
+
+    private void CloseGroundViewWindow()
+    {
+        if (_groundViewWindow is not null)
+        {
+            _groundViewWindow.Closing -=
+                OnGroundViewWindowClosing;
+            _groundViewWindow.Close();
+            _groundViewWindow = null;
+        }
+    }
+
+    private void OpenRadarViewWindow(MainViewModel vm)
+    {
+        _radarViewWindow = new RadarViewWindow { DataContext = vm };
+        _radarViewWindow.Closing += OnRadarViewWindowClosing;
+        _radarViewWindow.Show();
+    }
+
+    private void CloseRadarViewWindow()
+    {
+        if (_radarViewWindow is not null)
+        {
+            _radarViewWindow.Closing -=
+                OnRadarViewWindowClosing;
+            _radarViewWindow.Close();
+            _radarViewWindow = null;
+        }
+    }
+
+    private void OnTerminalWindowClosing(
+        object? sender, WindowClosingEventArgs e)
     {
         if (DataContext is MainViewModel vm)
         {
@@ -390,7 +538,41 @@ public partial class MainWindow : Window
         _terminalWindow = null;
     }
 
-    private async void OnLoadScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnDataGridWindowClosing(
+        object? sender, WindowClosingEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.IsDataGridPoppedOut = false;
+            vm.Preferences.SetPoppedOut("DataGrid", false);
+        }
+        _dataGridWindow = null;
+    }
+
+    private void OnGroundViewWindowClosing(
+        object? sender, WindowClosingEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.IsGroundViewPoppedOut = false;
+            vm.Preferences.SetPoppedOut("GroundView", false);
+        }
+        _groundViewWindow = null;
+    }
+
+    private void OnRadarViewWindowClosing(
+        object? sender, WindowClosingEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.IsRadarViewPoppedOut = false;
+            vm.Preferences.SetPoppedOut("RadarView", false);
+        }
+        _radarViewWindow = null;
+    }
+
+    private async void OnLoadScenarioClick(
+        object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm)
         {
@@ -402,7 +584,12 @@ public partial class MainWindow : Window
             {
                 Title = "Open Scenario",
                 AllowMultiple = false,
-                FileTypeFilter = [new FilePickerFileType("JSON Files") { Patterns = ["*.json"] }, FilePickerFileTypes.All],
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("JSON Files")
+                        { Patterns = ["*.json"] },
+                    FilePickerFileTypes.All,
+                ],
             }
         );
 
@@ -417,7 +604,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnSettingsClick(
+        object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel vm)
         {

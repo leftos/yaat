@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ground="using:Yaat.Client.Views.Ground"
+             xmlns:vm="using:Yaat.Client.ViewModels"
+             x:Class="Yaat.Client.Views.Ground.GroundView"
+             x:DataType="vm:GroundViewModel">
+
+    <Panel>
+        <ground:GroundCanvas x:Name="Canvas"
+                             Layout="{Binding Layout}"
+                             SelectedAircraft="{Binding SelectedAircraft}"
+                             ActiveRoute="{Binding ActiveRoute}"
+                             Aircraft="{Binding $parent[Window].DataContext.Aircraft}" />
+
+        <!-- No layout message -->
+        <TextBlock Text="No airport layout loaded"
+                   Foreground="Gray"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNull}}" />
+    </Panel>
+
+</UserControl>

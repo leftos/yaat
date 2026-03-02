@@ -1,0 +1,10 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ground="using:Yaat.Client.Views.Ground"
+        x:Class="Yaat.Client.Views.Ground.GroundViewWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Ground View">
+
+    <ground:GroundView DataContext="{Binding Ground}" />
+
+</Window>

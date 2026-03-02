@@ -1,0 +1,10 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:radar="using:Yaat.Client.Views.Radar"
+        x:Class="Yaat.Client.Views.Radar.RadarViewWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Radar View">
+
+    <radar:RadarView DataContext="{Binding Radar}" />
+
+</Window>

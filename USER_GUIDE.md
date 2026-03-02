@@ -583,9 +583,58 @@ At the bottom-right of the window:
 
 Pause and sim rate are scoped to your scenario — they don't affect other clients' scenarios.
 
+## Views
+
+The main window uses a tabbed layout with three views: **Aircraft List**, **Ground View**, and **Radar View**. The terminal panel sits below the tab area.
+
+### Tabs and Pop-Out
+
+Each view can be popped out into its own window via **View > Pop Out Aircraft List / Ground View / Radar View**. When a view is popped out, its tab disappears from the main window and a separate window opens. Close the pop-out window (or uncheck the menu item) to dock it back as a tab.
+
+All three views can be popped out simultaneously. Pop-out state and window positions are remembered across sessions.
+
+### Aircraft List
+
+The default tab. Shows the aircraft data grid described above.
+
+### Ground View
+
+An interactive airport surface map showing taxiways, runways, and aircraft positions. Useful for tower operations (taxi, hold short, cross runway).
+
+- **Pan**: left-click and drag
+- **Zoom**: mouse wheel
+- **Select aircraft**: click an aircraft triangle on the map (syncs with the grid selection)
+
+**Right-click context menus:**
+- **On a node** (with aircraft selected): "Taxi here", "Taxi here (cross all)", "Park here" (parking nodes), "Hold short" (hold-short nodes)
+- **On an aircraft**: "Hold position" / "Resume", "Pushback" (at parking), "Cross runway", "Line up and wait", "Cleared for takeoff", "Go around", "Delete"
+- **On empty space** (with aircraft selected): "Taxi here" (finds nearest node, computes A* path)
+
+The ground layout loads automatically when a scenario is loaded for an airport with ground data.
+
+### Radar View
+
+A simplified STARS-style radar display showing aircraft targets, video maps, and navigation fixes. Useful for approach/departure operations.
+
+- **Pan**: left-click and drag
+- **Zoom**: mouse wheel
+- **Select aircraft**: click a target on the display (syncs with the grid selection)
+
+**DCB bar** (top of the radar view):
+- **RNG +/-**: increase/decrease display range
+- **RR**: toggle range rings
+- **FIX**: toggle fix overlay
+- Range display shows current range in NM
+
+**Right-click context menus:**
+- **On an aircraft**: Heading (fly/present/turn left/turn right), Altitude (common values), Speed, Approach (ILS/RNAV/VIS per runway), Track operations, Delete
+- **On the map** (with aircraft selected): "Fly heading" (computed bearing to click point), "Direct to" (nearest fix within 5nm)
+
+Video maps load automatically from the vNAS data API based on your ARTCC ID. Map lines render in green with brightness categories A/B.
+
 ## Terminal Panel
 
-The terminal panel sits below the aircraft grid. It shows a scrolling history of all commands and server feedback for your scenario, visible to all connected RPOs.
+The terminal panel sits below the tab area. It shows a scrolling history of all commands and server feedback for your scenario, visible to all connected RPOs.
 
 ### Entry Format
 
@@ -700,4 +749,4 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 
 ## Window State
 
-YAAT remembers your window size and position across sessions.
+YAAT remembers window size and position for the main window and all pop-out windows (Aircraft List, Ground View, Radar View, Terminal) across sessions. Pop-out state (which views are in separate windows vs. tabbed) is also persisted.

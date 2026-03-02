@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:radar="using:Yaat.Client.Views.Radar"
+             xmlns:vm="using:Yaat.Client.ViewModels"
+             x:Class="Yaat.Client.Views.Radar.RadarView"
+             x:DataType="vm:RadarViewModel">
+
+    <DockPanel>
+        <!-- DCB bar (Display Control Bar) -->
+        <StackPanel DockPanel.Dock="Top"
+                    Orientation="Horizontal"
+                    Spacing="4"
+                    Margin="4"
+                    Background="#1A1A1A">
+            <Button Content="RNG+"
+                    Command="{Binding IncreaseRangeCommand}"
+                    Padding="6,2" FontSize="11" />
+            <Button Content="RNG-"
+                    Command="{Binding DecreaseRangeCommand}"
+                    Padding="6,2" FontSize="11" />
+            <Button Content="RR"
+                    Command="{Binding ToggleRangeRingsCommand}"
+                    Padding="6,2" FontSize="11" />
+            <Button Content="FIX"
+                    Command="{Binding ToggleFixesCommand}"
+                    Padding="6,2" FontSize="11" />
+            <TextBlock Text="{Binding RangeNm, StringFormat='Range: {0:F0}nm'}"
+                       VerticalAlignment="Center"
+                       Foreground="#00B800"
+                       FontFamily="Consolas"
+                       FontSize="11"
+                       Margin="8,0" />
+        </StackPanel>
+
+        <!-- Radar canvas -->
+        <radar:RadarCanvas x:Name="Canvas"
+                           Aircraft="{Binding $parent[Window].DataContext.Aircraft}"
+                           SelectedAircraft="{Binding SelectedAircraft}"
+                           VideoMaps="{Binding ActiveVideoMaps}"
+                           ShowRangeRings="{Binding ShowRangeRings}"
+                           RangeNm="{Binding RangeNm}"
+                           RadarCenterLat="{Binding CenterLat}"
+                           RadarCenterLon="{Binding CenterLon}"
+                           ShowFixes="{Binding ShowFixes}"
+                           Fixes="{Binding Fixes}" />
+    </DockPanel>
+
+</UserControl>

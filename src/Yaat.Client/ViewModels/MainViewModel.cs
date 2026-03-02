@@ -22,9 +22,13 @@ public partial class MainViewModel : ObservableObject
     private readonly ServerConnection _connection = new();
     private readonly UserPreferences _preferences = new();
     private readonly CommandInputController _commandInput = new();
+    private readonly VideoMapService _videoMapService = new();
 
     public UserPreferences Preferences => _preferences;
     public CommandInputController CommandInput => _commandInput;
+
+    public GroundViewModel Ground { get; }
+    public RadarViewModel Radar { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
@@ -120,6 +124,18 @@ public partial class MainViewModel : ObservableObject
     private bool _isTerminalDocked = true;
 
     [ObservableProperty]
+    private bool _isDataGridPoppedOut;
+
+    [ObservableProperty]
+    private bool _isGroundViewPoppedOut;
+
+    [ObservableProperty]
+    private bool _isRadarViewPoppedOut;
+
+    [ObservableProperty]
+    private int _selectedTabIndex;
+
+    [ObservableProperty]
     private string _distanceReferenceFix = "";
 
     public string WindowTitle
@@ -175,6 +191,13 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         AircraftView = new DataGridCollectionView(Aircraft);
+        Ground = new GroundViewModel(_connection, SendCommandForViewAsync);
+        Radar = new RadarViewModel(
+            _connection, _videoMapService, SendCommandForViewAsync);
+
+        IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
+        IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
+        IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;
 
         _connection.AircraftUpdated += OnAircraftUpdated;
         _connection.AircraftDeleted += OnAircraftDeleted;
@@ -715,6 +738,12 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(WindowTitle));
     }
 
+    partial void OnSelectedAircraftChanged(AircraftModel? value)
+    {
+        Ground.SelectedAircraft = value;
+        Radar.SelectedAircraft = value;
+    }
+
     partial void OnCommandTextChanged(string value)
     {
         _commandInput.UpdateSuggestions(
@@ -1139,6 +1168,41 @@ public partial class MainViewModel : ObservableObject
         IsTerminalDocked = !IsTerminalDocked;
     }
 
+    [RelayCommand]
+    private void ToggleDataGridPopOut()
+    {
+        IsDataGridPoppedOut = !IsDataGridPoppedOut;
+        _preferences.SetPoppedOut("DataGrid", IsDataGridPoppedOut);
+    }
+
+    [RelayCommand]
+    private void ToggleGroundViewPopOut()
+    {
+        IsGroundViewPoppedOut = !IsGroundViewPoppedOut;
+        _preferences.SetPoppedOut("GroundView", IsGroundViewPoppedOut);
+    }
+
+    [RelayCommand]
+    private void ToggleRadarViewPopOut()
+    {
+        IsRadarViewPoppedOut = !IsRadarViewPoppedOut;
+        _preferences.SetPoppedOut("RadarView", IsRadarViewPoppedOut);
+    }
+
+    private async Task SendCommandForViewAsync(
+        string callsign, string command, string initials)
+    {
+        try
+        {
+            await _connection.SendCommandAsync(callsign, command, initials);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "View command failed: {Cmd}", command);
+            StatusText = $"Command error: {ex.Message}";
+        }
+    }
+
     private void AddTerminalEntry(TerminalEntry entry)
     {
         TerminalEntries.Add(entry);
@@ -1384,6 +1448,13 @@ public partial class MainViewModel : ObservableObject
             if (!string.IsNullOrEmpty(state.PrimaryAirportId))
             {
                 SetDistanceReference(state.PrimaryAirportId);
+                _ = Ground.LoadLayoutAsync(state.PrimaryAirportId);
+            }
+
+            if (!string.IsNullOrEmpty(_preferences.ArtccId))
+            {
+                _ = Radar.LoadVideoMapsAsync(
+                    _preferences.ArtccId, "");
             }
         }
 
@@ -1418,6 +1489,17 @@ public partial class MainViewModel : ObservableObject
 
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
+
+        if (!string.IsNullOrEmpty(result.PrimaryAirportId))
+        {
+            _ = Ground.LoadLayoutAsync(result.PrimaryAirportId);
+        }
+
+        if (!string.IsNullOrEmpty(_preferences.ArtccId))
+        {
+            _ = Radar.LoadVideoMapsAsync(
+                _preferences.ArtccId, "");
+        }
     }
 
     private void ClearRoomState()
@@ -1437,6 +1519,8 @@ public partial class MainViewModel : ObservableObject
         ActiveScenarioName = null;
         _commandInput.PrimaryAirportId = null;
         Aircraft.Clear();
+        Ground.ClearLayout();
+        Radar.ClearVideoMaps();
     }
 
     private async Task SendAutoAcceptDelay()

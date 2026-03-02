@@ -207,6 +207,24 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("SetAutoDeleteMode", mode);
     }
 
+    // --- Data queries ---
+
+    public async Task<GroundLayoutDto?> GetAirportGroundLayoutAsync(
+        string airportId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<GroundLayoutDto?>(
+            "GetAirportGroundLayout", airportId);
+    }
+
+    public async Task<FacilityVideoMapsDto?> GetFacilityVideoMapsAsync(
+        string artccId, string facilityId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<FacilityVideoMapsDto?>(
+            "GetFacilityVideoMaps", artccId, facilityId);
+    }
+
     // --- Admin ---
 
     public async Task<bool> AdminAuthenticateAsync(string password)
@@ -428,3 +446,33 @@ public record CrcRoomMemberDto(
 
 public record CrcRoomMembersChangedDto(
     string RoomId, List<CrcRoomMemberDto> Members);
+
+public record GroundLayoutDto(
+    string AirportId,
+    List<GroundNodeDto> Nodes,
+    List<GroundEdgeDto> Edges);
+
+public record GroundNodeDto(
+    int Id, double Latitude, double Longitude,
+    string Type,
+    string? Name, double? Heading, string? RunwayId);
+
+public record GroundEdgeDto(
+    int FromNodeId, int ToNodeId, string TaxiwayName,
+    double DistanceNm, List<double[]>? IntermediatePoints);
+
+public record VideoMapInfoDto(
+    string Id, string Name, string ShortName,
+    List<string> Tags, string BrightnessCategory,
+    int StarsId, bool AlwaysVisible, bool TdmOnly);
+
+public record StarsAreaDto(
+    string Id, string Name,
+    double CenterLat, double CenterLon,
+    double SurveillanceRange,
+    List<string> VideoMapIds);
+
+public record FacilityVideoMapsDto(
+    string ArtccId, string FacilityId,
+    List<StarsAreaDto> Areas,
+    List<VideoMapInfoDto> VideoMaps);
