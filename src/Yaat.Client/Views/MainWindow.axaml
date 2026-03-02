@@ -40,9 +40,8 @@
                           Command="{Binding LeaveRoomCommand}" />
             </MenuItem>
             <MenuItem Header="_View">
-                <MenuItem Header="Collapse _Delayed Group"
-                          ToggleType="CheckBox"
-                          IsChecked="{Binding IsDelayedGroupCollapsed, Mode=TwoWay}" />
+                <MenuItem Header="_Reset Aircraft List Layout"
+                          Command="{Binding ResetGridLayoutCommand}" />
                 <Separator />
                 <MenuItem Header="Pop Out Aircraft _List"
                           ToggleType="CheckBox"

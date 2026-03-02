@@ -46,6 +46,7 @@ public partial class MainWindow : Window
         if (dataGrid is not null)
         {
             SetupDataGrid(dataGrid, vm);
+            vm.GridLayoutReset += () => ResetLiveGrid(dataGrid);
         }
 
         vm.PropertyChanged += OnViewModelPropertyChanged;
@@ -229,6 +230,28 @@ public partial class MainWindow : Window
                 ColumnWidths = columnWidths,
             }
         );
+    }
+
+    private void ResetLiveGrid(DataGrid dataGrid)
+    {
+        _restoringGrid = true;
+        try
+        {
+            _sortColumnKey = null;
+            _sortDirection = null;
+
+            for (int i = 0; i < dataGrid.Columns.Count; i++)
+            {
+                var col = dataGrid.Columns[i];
+                col.DisplayIndex = i;
+                col.Width = DataGridLength.Auto;
+                col.ClearSort();
+            }
+        }
+        finally
+        {
+            _restoringGrid = false;
+        }
     }
 
     private static void WireDistanceFlyout(MainViewModel vm, DataGrid dataGrid)

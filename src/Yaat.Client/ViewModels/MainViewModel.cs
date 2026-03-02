@@ -184,6 +184,16 @@ public partial class MainViewModel : ObservableObject
         _preferences.SetDelayedGroupCollapsed(value);
     }
 
+    [RelayCommand]
+    private void ResetGridLayout()
+    {
+        _preferences.ResetGridLayout();
+        IsDelayedGroupCollapsed = false;
+        GridLayoutReset?.Invoke();
+    }
+
+    public event Action? GridLayoutReset;
+
     public ObservableCollection<string> CommandHistory { get; } = [];
 
     public ObservableCollection<TerminalEntry> TerminalEntries { get; } = [];

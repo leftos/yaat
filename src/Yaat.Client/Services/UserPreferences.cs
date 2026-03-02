@@ -195,6 +195,13 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void ResetGridLayout()
+    {
+        _gridLayout = null;
+        _isDelayedGroupCollapsed = false;
+        Save();
+    }
+
     public SavedRadarSettings? GetRadarSettings(string scenarioId)
     {
         _radarSettings.TryGetValue(scenarioId, out var settings);

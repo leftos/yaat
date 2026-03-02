@@ -44,7 +44,7 @@ Initials and ARTCC ID are required — you cannot connect without them.
 
 ## Aircraft List
 
-The main grid shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Use **View > Collapse Delayed Group** to hide delayed aircraft that haven't spawned yet. This setting is persisted across sessions.
+The main grid shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Click the group header row to collapse or expand each section. Use **View > Reset Aircraft List Layout** to restore default column order, widths, and sorting.
 
 | Column | Description |
 |--------|-------------|
