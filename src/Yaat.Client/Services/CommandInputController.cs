@@ -495,8 +495,8 @@ public partial class CommandInputController : ObservableObject
             }
 
             var argHint = cmd.SampleArg is not null ? $" {{{cmd.SampleArg}}}" : "";
-            var aliasHint = pattern.Aliases.Count > 1 ? $" ({string.Join(", ", pattern.Aliases)})" : "";
-            var desc = $"{cmd.Label}{argHint}{aliasHint}";
+            var desc = $"{cmd.Label}{argHint}";
+            var aliasText = string.Join(", ", pattern.Aliases);
             var needsArg = pattern.Format.Contains("{arg}");
             var prefix = GetTextBeforeCurrentToken(fullText);
             var insertText = prefix + pattern.PrimaryVerb + (needsArg ? " " : "");
@@ -505,7 +505,7 @@ public partial class CommandInputController : ObservableObject
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Command,
-                    Text = pattern.PrimaryVerb,
+                    Text = aliasText,
                     Description = desc,
                     InsertText = insertText,
                 }
