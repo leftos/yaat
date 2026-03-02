@@ -35,8 +35,7 @@ public sealed class FollowingPhase : Phase
         if (ctx.Aircraft.IsHeld)
         {
             double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Max(
-                0, ctx.Aircraft.GroundSpeed - decelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.GroundSpeed = Math.Max(0, ctx.Aircraft.GroundSpeed - decelRate * ctx.DeltaSeconds);
             ctx.Targets.TargetSpeed = 0;
             return false;
         }
@@ -49,18 +48,12 @@ public sealed class FollowingPhase : Phase
             return true;
         }
 
-        double dist = GeoMath.DistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            target.Latitude, target.Longitude);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
 
         // Turn toward the target
-        double bearing = GeoMath.BearingTo(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            target.Latitude, target.Longitude);
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category)
-            * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(
-            ctx.Aircraft.Heading, bearing, maxTurn);
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
+        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
 
         // Speed: match target with distance-based adjustment
         double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
@@ -68,23 +61,18 @@ public sealed class FollowingPhase : Phase
 
         if (dist <= StopDistanceNm)
         {
-            ctx.Aircraft.GroundSpeed = Math.Max(
-                0, ctx.Aircraft.GroundSpeed - decelRate2 * ctx.DeltaSeconds);
+            ctx.Aircraft.GroundSpeed = Math.Max(0, ctx.Aircraft.GroundSpeed - decelRate2 * ctx.DeltaSeconds);
         }
         else if (dist <= FollowDistanceNm)
         {
             double targetSpeed = target.GroundSpeed;
             if (ctx.Aircraft.GroundSpeed > targetSpeed)
             {
-                ctx.Aircraft.GroundSpeed = Math.Max(
-                    targetSpeed,
-                    ctx.Aircraft.GroundSpeed - decelRate2 * ctx.DeltaSeconds);
+                ctx.Aircraft.GroundSpeed = Math.Max(targetSpeed, ctx.Aircraft.GroundSpeed - decelRate2 * ctx.DeltaSeconds);
             }
             else if (ctx.Aircraft.GroundSpeed < targetSpeed)
             {
-                ctx.Aircraft.GroundSpeed = Math.Min(
-                    targetSpeed,
-                    ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
+                ctx.Aircraft.GroundSpeed = Math.Min(targetSpeed, ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
             }
         }
         else
@@ -92,9 +80,7 @@ public sealed class FollowingPhase : Phase
             double taxiSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
             if (ctx.Aircraft.GroundSpeed < taxiSpeed)
             {
-                ctx.Aircraft.GroundSpeed = Math.Min(
-                    taxiSpeed,
-                    ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
+                ctx.Aircraft.GroundSpeed = Math.Min(taxiSpeed, ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
             }
         }
 

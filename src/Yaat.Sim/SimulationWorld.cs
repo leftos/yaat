@@ -47,9 +47,7 @@ public sealed class SimulationWorld
             {
                 foreach (var a in _aircraft)
                 {
-                    if (string.Equals(
-                        a.Callsign, callsign,
-                        StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(a.Callsign, callsign, StringComparison.OrdinalIgnoreCase))
                     {
                         return a;
                     }

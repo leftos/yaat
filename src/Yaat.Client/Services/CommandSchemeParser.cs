@@ -51,10 +51,7 @@ public static class CommandSchemeParser
         var upper = trimmed.ToUpperInvariant();
         if (!isCompound)
         {
-            isCompound = upper.StartsWith("LV ")
-                || upper.StartsWith("AT ")
-                || upper.StartsWith("GIVEWAY ")
-                || upper.StartsWith("BEHIND ");
+            isCompound = upper.StartsWith("LV ") || upper.StartsWith("AT ") || upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ");
         }
 
         if (!isCompound)
@@ -231,15 +228,13 @@ public static class CommandSchemeParser
     private static ParsedInput? ParseTextArgCommand(string input, CommandScheme scheme)
     {
         // Handle CTOMRT/CTOMLT legacy merged forms
-        if (input.StartsWith("CTOMRT", StringComparison.OrdinalIgnoreCase)
-            && (input.Length == 6 || input[6] == ' '))
+        if (input.StartsWith("CTOMRT", StringComparison.OrdinalIgnoreCase) && (input.Length == 6 || input[6] == ' '))
         {
             var suffix = input.Length > 7 ? " " + input[7..].Trim() : "";
             var arg = "MRT" + suffix;
             return new ParsedInput(CanonicalCommandType.ClearedForTakeoff, arg.Trim());
         }
-        if (input.StartsWith("CTOMLT", StringComparison.OrdinalIgnoreCase)
-            && (input.Length == 6 || input[6] == ' '))
+        if (input.StartsWith("CTOMLT", StringComparison.OrdinalIgnoreCase) && (input.Length == 6 || input[6] == ' '))
         {
             var suffix = input.Length > 7 ? " " + input[7..].Trim() : "";
             var arg = "MLT" + suffix;
@@ -310,8 +305,7 @@ public static class CommandSchemeParser
         var arg = parts.Length > 1 ? parts[1].Trim() : null;
 
         // RWY {runway} [TAXI] {path} → rewrite to Taxi with RWY keyword
-        if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase)
-            && arg is not null)
+        if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase) && arg is not null)
         {
             var rewritten = RewriteRwyToTaxiArg(arg);
             if (rewritten is not null)
@@ -352,8 +346,7 @@ public static class CommandSchemeParser
         return null;
     }
 
-    private static bool StartsWithAnyAlias(
-        string input, CommandPattern pattern, out string matchedAlias)
+    private static bool StartsWithAnyAlias(string input, CommandPattern pattern, out string matchedAlias)
     {
         foreach (var alias in pattern.Aliases)
         {
@@ -376,9 +369,11 @@ public static class CommandSchemeParser
         {
             foreach (var alias in relLeftPattern.Aliases)
             {
-                if (input.Length > alias.Length + 1
+                if (
+                    input.Length > alias.Length + 1
                     && input.StartsWith(alias, StringComparison.OrdinalIgnoreCase)
-                    && char.IsDigit(input[alias.Length]))
+                    && char.IsDigit(input[alias.Length])
+                )
                 {
                     var lastChar = input[^1];
                     if (lastChar is 'L' or 'R')
@@ -386,9 +381,7 @@ public static class CommandSchemeParser
                         var deg = input[alias.Length..^1];
                         if (int.TryParse(deg, out _))
                         {
-                            var type = lastChar == 'L'
-                                ? CanonicalCommandType.RelativeLeft
-                                : CanonicalCommandType.RelativeRight;
+                            var type = lastChar == 'L' ? CanonicalCommandType.RelativeLeft : CanonicalCommandType.RelativeRight;
                             return new ParsedInput(type, deg);
                         }
                     }
@@ -404,9 +397,15 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            if (type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause
-                or CanonicalCommandType.SimRate or CanonicalCommandType.Add
-                or CanonicalCommandType.SpawnNow or CanonicalCommandType.SpawnDelay)
+            if (
+                type
+                is CanonicalCommandType.Pause
+                    or CanonicalCommandType.Unpause
+                    or CanonicalCommandType.SimRate
+                    or CanonicalCommandType.Add
+                    or CanonicalCommandType.SpawnNow
+                    or CanonicalCommandType.SpawnDelay
+            )
             {
                 continue;
             }
@@ -418,10 +417,12 @@ public static class CommandSchemeParser
             }
 
             // Optional-arg commands: check for space-separated arg after verb
-            if (pattern.Format.Contains("{arg?}")
+            if (
+                pattern.Format.Contains("{arg?}")
                 && StartsWithAnyAlias(input, pattern, out var optAlias)
                 && input.Length > optAlias.Length
-                && input[optAlias.Length] == ' ')
+                && input[optAlias.Length] == ' '
+            )
             {
                 var optArg = input[(optAlias.Length + 1)..].Trim();
                 if (optArg.Length > 0)
@@ -475,9 +476,7 @@ public static class CommandSchemeParser
         if (input.StartsWith("TAXI ", StringComparison.OrdinalIgnoreCase))
         {
             var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1
-                ? new ParsedInput(CanonicalCommandType.Taxi, parts[1].Trim())
-                : null;
+            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.Taxi, parts[1].Trim()) : null;
         }
 
         if (input.StartsWith("RWY ", StringComparison.OrdinalIgnoreCase))
@@ -497,26 +496,19 @@ public static class CommandSchemeParser
         if (input.StartsWith("CROSS ", StringComparison.OrdinalIgnoreCase))
         {
             var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1
-                ? new ParsedInput(CanonicalCommandType.CrossRunway, parts[1].Trim())
-                : null;
+            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.CrossRunway, parts[1].Trim()) : null;
         }
 
         if (input.StartsWith("HS ", StringComparison.OrdinalIgnoreCase))
         {
             var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1
-                ? new ParsedInput(CanonicalCommandType.HoldShort, parts[1].Trim())
-                : null;
+            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.HoldShort, parts[1].Trim()) : null;
         }
 
-        if (input.StartsWith("FOLLOW ", StringComparison.OrdinalIgnoreCase)
-            || input.StartsWith("FOL ", StringComparison.OrdinalIgnoreCase))
+        if (input.StartsWith("FOLLOW ", StringComparison.OrdinalIgnoreCase) || input.StartsWith("FOL ", StringComparison.OrdinalIgnoreCase))
         {
             var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1
-                ? new ParsedInput(CanonicalCommandType.Follow, parts[1].Trim())
-                : null;
+            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.Follow, parts[1].Trim()) : null;
         }
 
         if (input.StartsWith("DELAY ", StringComparison.OrdinalIgnoreCase))
@@ -604,8 +596,7 @@ public static class CommandSchemeParser
         int startIdx = 1;
 
         // Skip optional TAXI keyword
-        if (startIdx < tokens.Length
-            && tokens[startIdx].Equals("TAXI", StringComparison.OrdinalIgnoreCase))
+        if (startIdx < tokens.Length && tokens[startIdx].Equals("TAXI", StringComparison.OrdinalIgnoreCase))
         {
             startIdx++;
         }
@@ -633,10 +624,15 @@ public static class CommandSchemeParser
         }
 
         var colonIdx = arg.IndexOf(':');
-        if (colonIdx > 0 && colonIdx < arg.Length - 1
+        if (
+            colonIdx > 0
+            && colonIdx < arg.Length - 1
             && int.TryParse(arg[..colonIdx], out var minutes)
             && int.TryParse(arg[(colonIdx + 1)..], out var seconds)
-            && minutes >= 0 && seconds >= 0 && seconds < 60)
+            && minutes >= 0
+            && seconds >= 0
+            && seconds < 60
+        )
         {
             return (minutes * 60 + seconds).ToString();
         }

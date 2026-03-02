@@ -7,8 +7,7 @@ public class AircraftState
 {
     public required string Callsign { get; set; }
     public required string AircraftType { get; set; }
-    public string BaseAircraftType => AircraftType.Contains('/')
-        ? AircraftType.Split('/')[0] : AircraftType;
+    public string BaseAircraftType => AircraftType.Contains('/') ? AircraftType.Split('/')[0] : AircraftType;
     public string? ScenarioId { get; set; }
     public string Cid { get; set; } = "";
     public double Latitude { get; set; }

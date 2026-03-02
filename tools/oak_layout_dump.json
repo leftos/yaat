@@ -334,7 +334,10 @@
       "lon": -122.21375087695223,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "30/12"
+      "runwayId": {
+        "End1": "30",
+        "End2": "12"
+      }
     },
     {
       "id": 42,
@@ -414,7 +417,10 @@
       "lon": -122.21506807178135,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "30/12"
+      "runwayId": {
+        "End1": "30",
+        "End2": "12"
+      }
     },
     {
       "id": 52,
@@ -478,7 +484,10 @@
       "lon": -122.24008748507804,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "30/12"
+      "runwayId": {
+        "End1": "30",
+        "End2": "12"
+      }
     },
     {
       "id": 60,
@@ -574,7 +583,10 @@
       "lon": -122.24140514512783,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "30/12"
+      "runwayId": {
+        "End1": "30",
+        "End2": "12"
+      }
     },
     {
       "id": 72,
@@ -822,7 +834,10 @@
       "lon": -122.22617327718301,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "30/12"
+      "runwayId": {
+        "End1": "30",
+        "End2": "12"
+      }
     },
     {
       "id": 103,
@@ -1478,7 +1493,10 @@
       "lon": -122.20581692586937,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28L/10R"
+      "runwayId": {
+        "End1": "28L",
+        "End2": "10R"
+      }
     },
     {
       "id": 185,
@@ -1494,7 +1512,10 @@
       "lon": -122.20517554161998,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 187,
@@ -1510,7 +1531,10 @@
       "lon": -122.20452175148566,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 189,
@@ -2814,7 +2838,10 @@
       "lon": -122.21391998466777,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 352,
@@ -2854,7 +2881,10 @@
       "lon": -122.22160271668709,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 357,
@@ -3966,7 +3996,10 @@
       "lon": -122.22016908203291,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "30/12"
+      "runwayId": {
+        "End1": "30",
+        "End2": "12"
+      }
     },
     {
       "id": 496,
@@ -3974,7 +4007,10 @@
       "lon": -122.23112932616449,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "30/12"
+      "runwayId": {
+        "End1": "30",
+        "End2": "12"
+      }
     },
     {
       "id": 497,
@@ -3982,7 +4018,10 @@
       "lon": -122.20630885022044,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28L/10R"
+      "runwayId": {
+        "End1": "28L",
+        "End2": "10R"
+      }
     },
     {
       "id": 498,
@@ -3990,7 +4029,10 @@
       "lon": -122.21377068048915,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28L/10R"
+      "runwayId": {
+        "End1": "28L",
+        "End2": "10R"
+      }
     },
     {
       "id": 499,
@@ -3998,7 +4040,10 @@
       "lon": -122.21529110299316,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28L/10R"
+      "runwayId": {
+        "End1": "28L",
+        "End2": "10R"
+      }
     },
     {
       "id": 500,
@@ -4006,7 +4051,10 @@
       "lon": -122.21819547426848,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28L/10R"
+      "runwayId": {
+        "End1": "28L",
+        "End2": "10R"
+      }
     },
     {
       "id": 501,
@@ -4014,7 +4062,10 @@
       "lon": -122.22540467445272,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28L/10R"
+      "runwayId": {
+        "End1": "28L",
+        "End2": "10R"
+      }
     },
     {
       "id": 502,
@@ -4022,7 +4073,10 @@
       "lon": -122.21272387127492,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 503,
@@ -4030,7 +4084,10 @@
       "lon": -122.20951001513832,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 504,
@@ -4038,7 +4095,10 @@
       "lon": -122.21917291856886,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 505,
@@ -4046,7 +4106,10 @@
       "lon": -122.21918224469283,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 506,
@@ -4054,7 +4117,10 @@
       "lon": -122.22154695850683,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 507,
@@ -4062,7 +4128,10 @@
       "lon": -122.21324898651459,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 508,
@@ -4070,7 +4139,10 @@
       "lon": -122.21476872026008,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 509,
@@ -4078,7 +4150,10 @@
       "lon": -122.21866512439001,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "28R/10L"
+      "runwayId": {
+        "End1": "28R",
+        "End2": "10L"
+      }
     },
     {
       "id": 510,
@@ -4086,7 +4161,10 @@
       "lon": -122.21865929012199,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "15/33"
+      "runwayId": {
+        "End1": "15",
+        "End2": "33"
+      }
     },
     {
       "id": 511,
@@ -4094,7 +4172,10 @@
       "lon": -122.2202040367937,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "15/33"
+      "runwayId": {
+        "End1": "15",
+        "End2": "33"
+      }
     },
     {
       "id": 512,
@@ -4102,7 +4183,10 @@
       "lon": -122.22220170681611,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "15/33"
+      "runwayId": {
+        "End1": "15",
+        "End2": "33"
+      }
     },
     {
       "id": 513,
@@ -4110,7 +4194,10 @@
       "lon": -122.2223789892355,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "15/33"
+      "runwayId": {
+        "End1": "15",
+        "End2": "33"
+      }
     },
     {
       "id": 514,
@@ -4118,7 +4205,10 @@
       "lon": -122.22054416110903,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "15/33"
+      "runwayId": {
+        "End1": "15",
+        "End2": "33"
+      }
     },
     {
       "id": 515,
@@ -4126,7 +4216,10 @@
       "lon": -122.22318840577041,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "15/33"
+      "runwayId": {
+        "End1": "15",
+        "End2": "33"
+      }
     },
     {
       "id": 516,
@@ -4134,7 +4227,10 @@
       "lon": -122.22111593136381,
       "type": "RunwayHoldShort",
       "name": null,
-      "runwayId": "15/33"
+      "runwayId": {
+        "End1": "15",
+        "End2": "33"
+      }
     },
     {
       "id": 517,

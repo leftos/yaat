@@ -64,8 +64,7 @@ public sealed class PatternWaypoints
 /// </summary>
 public static class PatternGeometry
 {
-    public static PatternWaypoints Compute(
-        RunwayInfo runway, AircraftCategory category, PatternDirection direction)
+    public static PatternWaypoints Compute(RunwayInfo runway, AircraftCategory category, PatternDirection direction)
     {
         double rwyHdg = runway.TrueHeading;
         double reciprocal = NormalizeHeading(rwyHdg + 180.0);
@@ -90,26 +89,20 @@ public static class PatternGeometry
         double depEndLon = runway.EndLongitude;
 
         // Crosswind turn point: departure end + extension along upwind
-        var crosswindTurn = FlightPhysics.ProjectPoint(
-            depEndLat, depEndLon, upwindHdg, crosswindExt);
+        var crosswindTurn = FlightPhysics.ProjectPoint(depEndLat, depEndLon, upwindHdg, crosswindExt);
 
         // Downwind start: crosswind turn + offset perpendicular to runway
-        var downwindStart = FlightPhysics.ProjectPoint(
-            crosswindTurn.Lat, crosswindTurn.Lon, crosswindHdg, patternSize);
+        var downwindStart = FlightPhysics.ProjectPoint(crosswindTurn.Lat, crosswindTurn.Lon, crosswindHdg, patternSize);
 
         // Downwind abeam: threshold offset perpendicular
-        var downwindAbeam = FlightPhysics.ProjectPoint(
-            runway.ThresholdLatitude, runway.ThresholdLongitude, crosswindHdg, patternSize);
+        var downwindAbeam = FlightPhysics.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, crosswindHdg, patternSize);
 
         // Base turn point: downwind abeam + extension along downwind heading
-        var baseTurn = FlightPhysics.ProjectPoint(
-            downwindAbeam.Lat, downwindAbeam.Lon, downwindHdg, baseExt);
+        var baseTurn = FlightPhysics.ProjectPoint(downwindAbeam.Lat, downwindAbeam.Lon, downwindHdg, baseExt);
 
         // Final turn point: threshold offset perpendicular at pattern distance
         // This is where the aircraft turns from base onto final
-        var finalTurn = FlightPhysics.ProjectPoint(
-            runway.ThresholdLatitude, runway.ThresholdLongitude,
-            crosswindHdg, patternSize);
+        var finalTurn = FlightPhysics.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, crosswindHdg, patternSize);
 
         return new PatternWaypoints
         {

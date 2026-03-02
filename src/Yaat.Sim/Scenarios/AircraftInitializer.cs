@@ -49,8 +49,7 @@ public static class AircraftInitializer
     /// Creates the phase list and starting state for an aircraft
     /// at a parking spot on the ground.
     /// </summary>
-    public static PhaseInitResult InitializeAtParking(
-        GroundNode parkingNode, double fieldElevation)
+    public static PhaseInitResult InitializeAtParking(GroundNode parkingNode, double fieldElevation)
     {
         var phases = new PhaseList();
         phases.Add(new AtParkingPhase());
@@ -72,9 +71,12 @@ public static class AircraftInitializer
     /// on final approach at a distance derived from altitude or defaulting to 5nm.
     /// </summary>
     public static PhaseInitResult InitializeOnFinal(
-        RunwayInfo runway, AircraftCategory category,
-        double? requestedAltitude = null, double? requestedSpeed = null,
-        double? requestedDistanceNm = null)
+        RunwayInfo runway,
+        AircraftCategory category,
+        double? requestedAltitude = null,
+        double? requestedSpeed = null,
+        double? requestedDistanceNm = null
+    )
     {
         double distNm;
         if (requestedDistanceNm is > 0)
@@ -114,10 +116,8 @@ public static class AircraftInitializer
         double latRad = runway.ThresholdLatitude * Math.PI / 180.0;
         double nmPerDegLat = 60.0;
 
-        double lat = runway.ThresholdLatitude
-            + (distNm * Math.Cos(reciprocalRad) / nmPerDegLat);
-        double lon = runway.ThresholdLongitude
-            + (distNm * Math.Sin(reciprocalRad) / (nmPerDegLat * Math.Cos(latRad)));
+        double lat = runway.ThresholdLatitude + (distNm * Math.Cos(reciprocalRad) / nmPerDegLat);
+        double lon = runway.ThresholdLongitude + (distNm * Math.Sin(reciprocalRad) / (nmPerDegLat * Math.Cos(latRad)));
 
         var phases = new PhaseList { AssignedRunway = runway };
         phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });

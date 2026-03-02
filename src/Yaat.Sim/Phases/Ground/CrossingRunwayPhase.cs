@@ -24,8 +24,7 @@ public sealed class CrossingRunwayPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        if (ctx.GroundLayout is not null
-            && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var node))
+        if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var node))
         {
             _targetLat = node.Latitude;
             _targetLon = node.Longitude;
@@ -50,25 +49,17 @@ public sealed class CrossingRunwayPhase : Phase
         double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
         if (ctx.Aircraft.GroundSpeed < crossSpeed)
         {
-            ctx.Aircraft.GroundSpeed = Math.Min(
-                crossSpeed,
-                ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.GroundSpeed = Math.Min(crossSpeed, ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
         }
 
         // Turn toward target
-        double bearing = GeoMath.BearingTo(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _targetLat, _targetLon);
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category)
-            * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(
-            ctx.Aircraft.Heading, bearing, maxTurn);
+        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
 
         // Check arrival
-        double dist = GeoMath.DistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _targetLat, _targetLon);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
         return dist <= ArrivalThresholdNm;
     }
@@ -90,5 +81,4 @@ public sealed class CrossingRunwayPhase : Phase
             _ => CommandAcceptance.Rejected,
         };
     }
-
 }

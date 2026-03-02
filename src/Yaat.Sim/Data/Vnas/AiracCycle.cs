@@ -38,9 +38,7 @@ public static class AiracCycle
     /// </summary>
     public static DateOnly GetCycleDate(string cycleId)
     {
-        if (cycleId.Length != 4
-            || !int.TryParse(cycleId[..2], out int yy)
-            || !int.TryParse(cycleId[2..], out int nn))
+        if (cycleId.Length != 4 || !int.TryParse(cycleId[..2], out int yy) || !int.TryParse(cycleId[2..], out int nn))
         {
             return Epoch;
         }

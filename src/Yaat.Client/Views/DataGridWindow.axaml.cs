@@ -17,8 +17,7 @@ public partial class DataGridWindow : Window
 
         if (DataContext is MainViewModel vm)
         {
-            new WindowGeometryHelper(
-                this, vm.Preferences, "DataGrid", 1000, 600).Restore();
+            new WindowGeometryHelper(this, vm.Preferences, "DataGrid", 1000, 600).Restore();
         }
     }
 }

@@ -17,8 +17,7 @@ public partial class GroundViewWindow : Window
 
         if (DataContext is MainViewModel vm)
         {
-            new WindowGeometryHelper(
-                this, vm.Preferences, "GroundView", 800, 600).Restore();
+            new WindowGeometryHelper(this, vm.Preferences, "GroundView", 800, 600).Restore();
         }
     }
 }

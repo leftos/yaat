@@ -137,16 +137,13 @@ public static class CommandDescriber
             StopAndGoCommand => "SG",
             LowApproachCommand => "LA",
             ClearedForOptionCommand => "COPT",
-            HoldPresentPosition360Command cmd =>
-                cmd.Direction == TurnDirection.Left ? "HPPL" : "HPPR",
+            HoldPresentPosition360Command cmd => cmd.Direction == TurnDirection.Left ? "HPPL" : "HPPR",
             HoldPresentPositionHoverCommand => "HPP",
-            HoldAtFixOrbitCommand cmd =>
-                $"HFIX{(cmd.Direction == TurnDirection.Left ? "L" : "R")} {cmd.FixName}",
+            HoldAtFixOrbitCommand cmd => $"HFIX{(cmd.Direction == TurnDirection.Left ? "L" : "R")} {cmd.FixName}",
             HoldAtFixHoverCommand cmd => $"HFIX {cmd.FixName}",
             WaitCommand cmd => $"WAIT {cmd.Seconds}",
             WaitDistanceCommand cmd => $"WAITD {cmd.DistanceNm}",
-            PushbackCommand push => push.Heading is not null
-                ? $"PUSH {push.Heading:000}" : "PUSH",
+            PushbackCommand push => push.Heading is not null ? $"PUSH {push.Heading:000}" : "PUSH",
             TaxiCommand taxi => $"TAXI {string.Join(" ", taxi.Path)}",
             HoldPositionCommand => "HOLD",
             ResumeCommand => "RES",
@@ -173,10 +170,8 @@ public static class CommandDescriber
             FlyPresentHeadingCommand => "Fly present heading",
             ClimbMaintainCommand cmd => $"Climb and maintain {cmd.Altitude:N0}",
             DescendMaintainCommand cmd => $"Descend and maintain {cmd.Altitude:N0}",
-            SpeedCommand cmd => cmd.Speed == 0
-                ? "Resume normal speed" : $"Speed {cmd.Speed} knots",
-            DirectToCommand cmd =>
-                $"Proceed direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
+            SpeedCommand cmd => cmd.Speed == 0 ? "Resume normal speed" : $"Speed {cmd.Speed} knots",
+            DirectToCommand cmd => $"Proceed direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             SquawkCommand cmd => $"Squawk {cmd.Code:D4}",
             SquawkResetCommand => "Squawk assigned",
             SquawkVfrCommand => "Squawk VFR",
@@ -211,15 +206,12 @@ public static class CommandDescriber
                 ? "Hold present position, left 360s"
                 : "Hold present position, right 360s",
             HoldPresentPositionHoverCommand => "Hold present position",
-            HoldAtFixOrbitCommand cmd =>
-                $"Hold at {cmd.FixName}, {(cmd.Direction == TurnDirection.Left ? "left" : "right")} orbits",
+            HoldAtFixOrbitCommand cmd => $"Hold at {cmd.FixName}, {(cmd.Direction == TurnDirection.Left ? "left" : "right")} orbits",
             HoldAtFixHoverCommand cmd => $"Hold at {cmd.FixName}",
             WaitCommand cmd => $"Wait {cmd.Seconds} seconds",
             WaitDistanceCommand cmd => $"Wait {cmd.DistanceNm} nm",
-            PushbackCommand push => push.Heading is not null
-                ? $"Pushback, face heading {push.Heading:000}" : "Pushback",
-            TaxiCommand taxi =>
-                $"Taxi via {string.Join(" ", taxi.Path)}",
+            PushbackCommand push => push.Heading is not null ? $"Pushback, face heading {push.Heading:000}" : "Pushback",
+            TaxiCommand taxi => $"Taxi via {string.Join(" ", taxi.Path)}",
             HoldPositionCommand => "Hold position",
             ResumeCommand => "Resume taxi",
             CrossRunwayCommand cross => $"Cross runway {cross.RunwayId}",
@@ -236,41 +228,43 @@ public static class CommandDescriber
 
     internal static bool IsTowerCommand(ParsedCommand command)
     {
-        return command is ClearedForTakeoffCommand
-            or CancelTakeoffClearanceCommand
-            or LineUpAndWaitCommand
-            or ClearedToLandCommand
-            or CancelLandingClearanceCommand
-            or GoAroundCommand
-            or EnterLeftDownwindCommand
-            or EnterRightDownwindCommand
-            or EnterLeftBaseCommand
-            or EnterRightBaseCommand
-            or EnterFinalCommand
-            or MakeLeftTrafficCommand
-            or MakeRightTrafficCommand
-            or TurnCrosswindCommand
-            or TurnDownwindCommand
-            or TurnBaseCommand
-            or ExtendDownwindCommand
-            or TouchAndGoCommand
-            or StopAndGoCommand
-            or LowApproachCommand
-            or ClearedForOptionCommand
-            or ExitLeftCommand
-            or ExitRightCommand
-            or ExitTaxiwayCommand;
+        return command
+            is ClearedForTakeoffCommand
+                or CancelTakeoffClearanceCommand
+                or LineUpAndWaitCommand
+                or ClearedToLandCommand
+                or CancelLandingClearanceCommand
+                or GoAroundCommand
+                or EnterLeftDownwindCommand
+                or EnterRightDownwindCommand
+                or EnterLeftBaseCommand
+                or EnterRightBaseCommand
+                or EnterFinalCommand
+                or MakeLeftTrafficCommand
+                or MakeRightTrafficCommand
+                or TurnCrosswindCommand
+                or TurnDownwindCommand
+                or TurnBaseCommand
+                or ExtendDownwindCommand
+                or TouchAndGoCommand
+                or StopAndGoCommand
+                or LowApproachCommand
+                or ClearedForOptionCommand
+                or ExitLeftCommand
+                or ExitRightCommand
+                or ExitTaxiwayCommand;
     }
 
     internal static bool IsGroundCommand(ParsedCommand command)
     {
-        return command is PushbackCommand
-            or TaxiCommand
-            or HoldPositionCommand
-            or ResumeCommand
-            or CrossRunwayCommand
-            or HoldShortCommand
-            or FollowCommand;
+        return command
+            is PushbackCommand
+                or TaxiCommand
+                or HoldPositionCommand
+                or ResumeCommand
+                or CrossRunwayCommand
+                or HoldShortCommand
+                or FollowCommand;
     }
 
     private static string FormatCtoCanonical(ClearedForTakeoffCommand cto)
@@ -279,13 +273,10 @@ public static class CommandDescriber
         {
             DefaultDeparture => "",
             RunwayHeadingDeparture => " MRH",
-            RelativeTurnDeparture { Direction: TurnDirection.Right } rel =>
-                $" MR{rel.Degrees}",
+            RelativeTurnDeparture { Direction: TurnDirection.Right } rel => $" MR{rel.Degrees}",
             RelativeTurnDeparture rel => $" ML{rel.Degrees}",
-            FlyHeadingDeparture { Direction: TurnDirection.Right } fh =>
-                $" RH{fh.Heading:000}",
-            FlyHeadingDeparture { Direction: TurnDirection.Left } fh =>
-                $" LH{fh.Heading:000}",
+            FlyHeadingDeparture { Direction: TurnDirection.Right } fh => $" RH{fh.Heading:000}",
+            FlyHeadingDeparture { Direction: TurnDirection.Left } fh => $" LH{fh.Heading:000}",
             FlyHeadingDeparture fh => $" H{fh.Heading:000}",
             OnCourseDeparture => " OC",
             DirectFixDeparture dfd => $" DCT {dfd.FixName}",
@@ -294,8 +285,7 @@ public static class CommandDescriber
             _ => "",
         };
 
-        var alt = cto.AssignedAltitude is not null
-            ? $" {cto.AssignedAltitude}" : "";
+        var alt = cto.AssignedAltitude is not null ? $" {cto.AssignedAltitude}" : "";
 
         return $"CTO{suffix}{alt}";
     }
@@ -307,25 +297,17 @@ public static class CommandDescriber
         {
             DefaultDeparture => "",
             RunwayHeadingDeparture => ", fly runway heading",
-            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } =>
-                ", right crosswind departure",
-            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } =>
-                ", left crosswind departure",
-            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } =>
-                ", right downwind departure",
-            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } =>
-                ", left downwind departure",
-            RelativeTurnDeparture rel =>
-                $", turn {(rel.Direction == TurnDirection.Right ? "right" : "left")} {rel.Degrees} degrees",
-            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right =>
-                $", turn right heading {fh.Heading:000}",
-            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left =>
-                $", turn left heading {fh.Heading:000}",
+            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } => ", right crosswind departure",
+            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } => ", left crosswind departure",
+            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } => ", right downwind departure",
+            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } => ", left downwind departure",
+            RelativeTurnDeparture rel => $", turn {(rel.Direction == TurnDirection.Right ? "right" : "left")} {rel.Degrees} degrees",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right => $", turn right heading {fh.Heading:000}",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left => $", turn left heading {fh.Heading:000}",
             FlyHeadingDeparture fh => $", fly heading {fh.Heading:000}",
             OnCourseDeparture => ", on course",
             DirectFixDeparture dfd => $", direct {dfd.FixName}",
-            ClosedTrafficDeparture ct =>
-                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
+            ClosedTrafficDeparture ct => $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
             _ => "",
         };
         if (cto.AssignedAltitude is not null)
@@ -390,8 +372,7 @@ public static class CommandDescriber
         return string.Join(' ', parts);
     }
 
-    private static string DescribePatternEntryNatural(
-        string legName, string? runwayId, double? distNm)
+    private static string DescribePatternEntryNatural(string legName, string? runwayId, double? distNm)
     {
         var msg = $"Enter {legName}";
         if (runwayId is not null)

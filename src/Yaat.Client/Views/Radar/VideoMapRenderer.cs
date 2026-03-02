@@ -29,21 +29,15 @@ public sealed class VideoMapRenderer : IDisposable
     public float BrightnessA { get; set; } = 1.0f;
     public float BrightnessB { get; set; } = 0.6f;
 
-    public void Render(
-        SKCanvas canvas,
-        MapViewport vp,
-        IReadOnlyList<VideoMapData> maps,
-        IReadOnlyDictionary<string, string> brightnessLookup)
+    public void Render(SKCanvas canvas, MapViewport vp, IReadOnlyList<VideoMapData> maps, IReadOnlyDictionary<string, string> brightnessLookup)
     {
         foreach (var map in maps)
         {
-            var category = brightnessLookup.GetValueOrDefault(
-                map.MapId, "A");
+            var category = brightnessLookup.GetValueOrDefault(map.MapId, "A");
             var paint = category == "B" ? _mapPaintB : _mapPaintA;
 
             var brightness = category == "B" ? BrightnessB : BrightnessA;
-            paint.Color = new SKColor(0, 184, 0,
-                (byte)(brightness * 255));
+            paint.Color = new SKColor(0, 184, 0, (byte)(brightness * 255));
 
             foreach (var line in map.Lines)
             {
@@ -53,14 +47,12 @@ public sealed class VideoMapRenderer : IDisposable
                 }
 
                 using var path = new SKPath();
-                var (sx, sy) = vp.LatLonToScreen(
-                    line.Points[0].Lat, line.Points[0].Lon);
+                var (sx, sy) = vp.LatLonToScreen(line.Points[0].Lat, line.Points[0].Lon);
                 path.MoveTo(sx, sy);
 
                 for (int i = 1; i < line.Points.Count; i++)
                 {
-                    (sx, sy) = vp.LatLonToScreen(
-                        line.Points[i].Lat, line.Points[i].Lon);
+                    (sx, sy) = vp.LatLonToScreen(line.Points[i].Lat, line.Points[i].Lon);
                     path.LineTo(sx, sy);
                 }
 

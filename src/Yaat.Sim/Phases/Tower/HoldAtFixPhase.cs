@@ -37,21 +37,21 @@ public sealed class HoldAtFixPhase : Phase
 
         // Navigate to the fix
         ctx.Targets.NavigationRoute.Clear();
-        ctx.Targets.NavigationRoute.Add(new NavigationTarget
-        {
-            Name = FixName,
-            Latitude = FixLat,
-            Longitude = FixLon,
-        });
+        ctx.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = FixName,
+                Latitude = FixLat,
+                Longitude = FixLon,
+            }
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
     {
         if (!_atFix)
         {
-            double dist = FlightPhysics.DistanceNm(
-                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-                FixLat, FixLon);
+            double dist = FlightPhysics.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, FixLat, FixLon);
 
             if (dist < ArrivalNm)
             {
@@ -91,8 +91,14 @@ public sealed class HoldAtFixPhase : Phase
         // Track cumulative turn
         double currentHeading = ctx.Aircraft.Heading;
         double delta = currentHeading - _lastHeading;
-        if (delta > 180) { delta -= 360; }
-        if (delta < -180) { delta += 360; }
+        if (delta > 180)
+        {
+            delta -= 360;
+        }
+        if (delta < -180)
+        {
+            delta += 360;
+        }
         _cumulativeTurn += Math.Abs(delta);
         _lastHeading = currentHeading;
 

@@ -14,81 +14,66 @@ namespace Yaat.Client.Views.Radar;
 /// </summary>
 public sealed class RadarCanvas : MapCanvasBase, IDisposable
 {
-    public static readonly StyledProperty<IReadOnlyList<AircraftModel>?>
-        AircraftProperty = AvaloniaProperty.Register<
-            RadarCanvas, IReadOnlyList<AircraftModel>?>(
-            nameof(Aircraft));
+    public static readonly StyledProperty<IReadOnlyList<AircraftModel>?> AircraftProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<AircraftModel>?
+    >(nameof(Aircraft));
 
-    public static readonly StyledProperty<AircraftModel?>
-        SelectedAircraftProperty = AvaloniaProperty.Register<
-            RadarCanvas, AircraftModel?>(
-            nameof(SelectedAircraft));
+    public static readonly StyledProperty<AircraftModel?> SelectedAircraftProperty = AvaloniaProperty.Register<RadarCanvas, AircraftModel?>(
+        nameof(SelectedAircraft)
+    );
 
-    public static readonly StyledProperty<IReadOnlyList<VideoMapData>?>
-        VideoMapsProperty = AvaloniaProperty.Register<
-            RadarCanvas, IReadOnlyList<VideoMapData>?>(
-            nameof(VideoMaps));
+    public static readonly StyledProperty<IReadOnlyList<VideoMapData>?> VideoMapsProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<VideoMapData>?
+    >(nameof(VideoMaps));
 
-    public static readonly StyledProperty<bool>
-        ShowRangeRingsProperty = AvaloniaProperty.Register<
-            RadarCanvas, bool>(
-            nameof(ShowRangeRings), defaultValue: true);
+    public static readonly StyledProperty<bool> ShowRangeRingsProperty = AvaloniaProperty.Register<RadarCanvas, bool>(
+        nameof(ShowRangeRings),
+        defaultValue: true
+    );
 
-    public static readonly StyledProperty<double>
-        RangeNmProperty = AvaloniaProperty.Register<
-            RadarCanvas, double>(
-            nameof(RangeNm), defaultValue: 60);
+    public static readonly StyledProperty<double> RangeNmProperty = AvaloniaProperty.Register<RadarCanvas, double>(nameof(RangeNm), defaultValue: 60);
 
-    public static readonly StyledProperty<double>
-        RadarCenterLatProperty = AvaloniaProperty.Register<
-            RadarCanvas, double>(
-            nameof(RadarCenterLat));
+    public static readonly StyledProperty<double> RadarCenterLatProperty = AvaloniaProperty.Register<RadarCanvas, double>(nameof(RadarCenterLat));
 
-    public static readonly StyledProperty<double>
-        RadarCenterLonProperty = AvaloniaProperty.Register<
-            RadarCanvas, double>(
-            nameof(RadarCenterLon));
+    public static readonly StyledProperty<double> RadarCenterLonProperty = AvaloniaProperty.Register<RadarCanvas, double>(nameof(RadarCenterLon));
 
-    public static readonly StyledProperty<bool>
-        ShowFixesProperty = AvaloniaProperty.Register<
-            RadarCanvas, bool>(nameof(ShowFixes));
+    public static readonly StyledProperty<bool> ShowFixesProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(ShowFixes));
 
-    public static readonly StyledProperty<
-        IReadOnlyList<(string Name, double Lat, double Lon)>?>
-        FixesProperty = AvaloniaProperty.Register<RadarCanvas,
-            IReadOnlyList<(string Name, double Lat, double Lon)>?>(
-            nameof(Fixes));
+    public static readonly StyledProperty<IReadOnlyList<(string Name, double Lat, double Lon)>?> FixesProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<(string Name, double Lat, double Lon)>?
+    >(nameof(Fixes));
 
-    public static readonly StyledProperty<double>
-        RangeRingCenterLatProperty = AvaloniaProperty.Register<
-            RadarCanvas, double>(nameof(RangeRingCenterLat));
+    public static readonly StyledProperty<double> RangeRingCenterLatProperty = AvaloniaProperty.Register<RadarCanvas, double>(
+        nameof(RangeRingCenterLat)
+    );
 
-    public static readonly StyledProperty<double>
-        RangeRingCenterLonProperty = AvaloniaProperty.Register<
-            RadarCanvas, double>(nameof(RangeRingCenterLon));
+    public static readonly StyledProperty<double> RangeRingCenterLonProperty = AvaloniaProperty.Register<RadarCanvas, double>(
+        nameof(RangeRingCenterLon)
+    );
 
-    public static readonly StyledProperty<double>
-        RangeRingSizeNmProperty = AvaloniaProperty.Register<
-            RadarCanvas, double>(
-            nameof(RangeRingSizeNm), defaultValue: 5);
+    public static readonly StyledProperty<double> RangeRingSizeNmProperty = AvaloniaProperty.Register<RadarCanvas, double>(
+        nameof(RangeRingSizeNm),
+        defaultValue: 5
+    );
 
-    public static readonly StyledProperty<bool>
-        IsPanZoomLockedProperty = AvaloniaProperty.Register<
-            RadarCanvas, bool>(
-            nameof(IsPanZoomLocked), defaultValue: true);
+    public static readonly StyledProperty<bool> IsPanZoomLockedProperty = AvaloniaProperty.Register<RadarCanvas, bool>(
+        nameof(IsPanZoomLocked),
+        defaultValue: true
+    );
 
-    public static readonly StyledProperty<bool>
-        IsPlacingRangeRingProperty = AvaloniaProperty.Register<
-            RadarCanvas, bool>(nameof(IsPlacingRangeRing));
+    public static readonly StyledProperty<bool> IsPlacingRangeRingProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(IsPlacingRangeRing));
 
-    public static readonly StyledProperty<double>
-        ViewRangeNmProperty = AvaloniaProperty.Register<
-            RadarCanvas, double>(
-            nameof(ViewRangeNm), defaultValue: 60);
+    public static readonly StyledProperty<double> ViewRangeNmProperty = AvaloniaProperty.Register<RadarCanvas, double>(
+        nameof(ViewRangeNm),
+        defaultValue: 60
+    );
 
-    public static readonly StyledProperty<bool>
-        IsAdjustingRangeRingSizeProperty = AvaloniaProperty.Register<
-            RadarCanvas, bool>(nameof(IsAdjustingRangeRingSize));
+    public static readonly StyledProperty<bool> IsAdjustingRangeRingSizeProperty = AvaloniaProperty.Register<RadarCanvas, bool>(
+        nameof(IsAdjustingRangeRingSize)
+    );
 
     private readonly RadarRenderer _renderer = new();
     private bool _initialFitDone;
@@ -213,8 +198,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>
     /// Sets the brightness category lookup (mapId → "A"/"B").
     /// </summary>
-    public void SetBrightnessLookup(
-        Dictionary<string, string> lookup)
+    public void SetBrightnessLookup(Dictionary<string, string> lookup)
     {
         _brightnessLookup = lookup;
         MarkDirty();
@@ -232,12 +216,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when a range ring is placed via click.</summary>
     public event Action<double, double>? RangeRingPlaced;
 
-    protected override void OnPropertyChanged(
-        AvaloniaPropertyChangedEventArgs change)
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
 
-        if (change.Property == VideoMapsProperty
+        if (
+            change.Property == VideoMapsProperty
             || change.Property == AircraftProperty
             || change.Property == SelectedAircraftProperty
             || change.Property == ShowRangeRingsProperty
@@ -246,16 +230,19 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == FixesProperty
             || change.Property == RangeRingCenterLatProperty
             || change.Property == RangeRingCenterLonProperty
-            || change.Property == RangeRingSizeNmProperty)
+            || change.Property == RangeRingSizeNmProperty
+        )
         {
             MarkDirty();
         }
 
         // Only FitToRange on initial load (center set for first time)
-        if ((change.Property == RadarCenterLatProperty
-            || change.Property == RadarCenterLonProperty)
+        if (
+            (change.Property == RadarCenterLatProperty || change.Property == RadarCenterLonProperty)
             && !_initialFitDone
-            && RadarCenterLat != 0 && RadarCenterLon != 0)
+            && RadarCenterLat != 0
+            && RadarCenterLon != 0
+        )
         {
             _initialFitDone = true;
             FitToRange();
@@ -280,7 +267,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<(string Name, double Lat, double Lon)>? Fixes,
         double RangeRingCenterLat,
         double RangeRingCenterLon,
-        double RangeRingSizeNm);
+        double RangeRingSizeNm
+    );
 
     protected override object? CreateRenderSnapshot()
     {
@@ -297,11 +285,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             Fixes,
             RangeRingCenterLat,
             RangeRingCenterLon,
-            RangeRingSizeNm);
+            RangeRingSizeNm
+        );
     }
 
-    protected override void RenderFromSnapshot(
-        SKCanvas canvas, MapViewport viewport, object? snapshot)
+    protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot)
     {
         if (snapshot is not RenderSnapshot s)
         {
@@ -309,18 +297,25 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         _renderer.Render(
-            canvas, viewport,
-            s.VideoMaps, s.BrightnessLookup,
-            s.Aircraft, s.SelectedAircraft,
-            s.ShowRangeRings, s.RangeNm,
-            s.RadarCenterLat, s.RadarCenterLon,
-            s.ShowFixes, s.Fixes,
-            s.RangeRingCenterLat, s.RangeRingCenterLon,
-            s.RangeRingSizeNm);
+            canvas,
+            viewport,
+            s.VideoMaps,
+            s.BrightnessLookup,
+            s.Aircraft,
+            s.SelectedAircraft,
+            s.ShowRangeRings,
+            s.RangeNm,
+            s.RadarCenterLat,
+            s.RadarCenterLon,
+            s.ShowFixes,
+            s.Fixes,
+            s.RangeRingCenterLat,
+            s.RangeRingCenterLon,
+            s.RangeRingSizeNm
+        );
     }
 
-    protected override void OnPointerPressed(
-        PointerPressedEventArgs e)
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         var pos = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
@@ -337,8 +332,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             // Range ring placement mode
             if (IsPlacingRangeRing)
             {
-                var (lat, lon) = Viewport.ScreenToLatLon(
-                    (float)pos.X, (float)pos.Y);
+                var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
                 RangeRingPlaced?.Invoke(lat, lon);
                 IsPlacingRangeRing = false;
                 e.Handled = true;
@@ -366,8 +360,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        var (lat, lon) = Viewport.ScreenToLatLon(
-            (float)screenPos.X, (float)screenPos.Y);
+        var (lat, lon) = Viewport.ScreenToLatLon((float)screenPos.X, (float)screenPos.Y);
         MapRightClicked?.Invoke(lat, lon, screenPos);
     }
 
@@ -384,8 +377,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         foreach (var ac in Aircraft)
         {
-            var (sx, sy) = Viewport.LatLonToScreen(
-                ac.Latitude, ac.Longitude);
+            var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
             var dx = (float)screenPos.X - sx;
             var dy = (float)screenPos.Y - sy;
             var dist = MathF.Sqrt(dx * dx + dy * dy);
@@ -417,11 +409,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         // Range in degrees latitude (1 nm = 1/60 degree)
         var rangeDeg = RangeNm / 60.0;
-        Viewport.FitBounds(
-            RadarCenterLat - rangeDeg,
-            RadarCenterLat + rangeDeg,
-            RadarCenterLon - rangeDeg,
-            RadarCenterLon + rangeDeg);
+        Viewport.FitBounds(RadarCenterLat - rangeDeg, RadarCenterLat + rangeDeg, RadarCenterLon - rangeDeg, RadarCenterLon + rangeDeg);
         InvalidateVisual();
     }
 
@@ -443,14 +431,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         UpdateViewRangeNm();
     }
 
-    protected override void OnPointerWheelChanged(
-        PointerWheelEventArgs e)
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         if (IsAdjustingRangeRingSize)
         {
             var delta = e.Delta.Y > 0 ? 5.0 : -5.0;
-            RangeRingSizeNm = Math.Clamp(
-                RangeRingSizeNm + delta, 1, 200);
+            RangeRingSizeNm = Math.Clamp(RangeRingSizeNm + delta, 1, 200);
             MarkDirty();
             e.Handled = true;
             return;
@@ -461,8 +447,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (IsAdjustingRangeRingSize
-            && (e.Key == Key.Enter || e.Key == Key.Escape))
+        if (IsAdjustingRangeRingSize && (e.Key == Key.Enter || e.Key == Key.Escape))
         {
             IsAdjustingRangeRingSize = false;
             e.Handled = true;
@@ -480,10 +465,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         const double defaultPixelsPerDeg = 5000.0;
-        var maxPixels = Math.Max(
-            Viewport.PixelWidth, Viewport.PixelHeight);
-        var rangeNm = maxPixels * 60.0
-            / (defaultPixelsPerDeg * Viewport.Zoom);
+        var maxPixels = Math.Max(Viewport.PixelWidth, Viewport.PixelHeight);
+        var rangeNm = maxPixels * 60.0 / (defaultPixelsPerDeg * Viewport.Zoom);
         ViewRangeNm = rangeNm;
     }
 

@@ -53,9 +53,7 @@ public sealed class UpwindPhase : Phase
             return false;
         }
 
-        double dist = FlightPhysics.DistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _targetLat, _targetLon);
+        double dist = FlightPhysics.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
         return dist < ArrivalNm;
     }

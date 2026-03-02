@@ -9,8 +9,7 @@ public static class RouteChainer
     /// appends all subsequent route fixes. This is how "DCT SUNOL"
     /// automatically picks up the rest of the filed route after SUNOL.
     /// </summary>
-    public static void AppendRouteRemainder(
-        List<ResolvedFix> resolved, string aircraftRoute, IFixLookup fixes)
+    public static void AppendRouteRemainder(List<ResolvedFix> resolved, string aircraftRoute, IFixLookup fixes)
     {
         if (resolved.Count == 0)
         {

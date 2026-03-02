@@ -20,9 +20,7 @@ public sealed class HoldingShortPhase : Phase
 
     public HoldShortPoint HoldShort => _holdShort;
 
-    public override string Name => _holdShort.TargetName is not null
-        ? $"Holding Short {_holdShort.TargetName}"
-        : "Holding Short";
+    public override string Name => _holdShort.TargetName is not null ? $"Holding Short {_holdShort.TargetName}" : "Holding Short";
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -32,11 +30,8 @@ public sealed class HoldingShortPhase : Phase
         // Generate notification
         string target = _holdShort.TargetName ?? "unknown";
         string taxiway = ctx.Aircraft.CurrentTaxiway ?? "taxiway";
-        string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort
-            ? $"holding short of {target}"
-            : $"holding short runway {target}";
-        ctx.Aircraft.PendingWarnings.Add(
-            $"{ctx.Aircraft.Callsign} {label} at {taxiway}");
+        string label = _holdShort.Reason == HoldShortReason.ExplicitHoldShort ? $"holding short of {target}" : $"holding short runway {target}";
+        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} {label} at {taxiway}");
     }
 
     public override bool OnTick(PhaseContext ctx)

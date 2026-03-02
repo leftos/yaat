@@ -12,10 +12,7 @@ public class ExpandRouteTests
         // OAK6 is a radar-vectors SID with body [OAK] (colocated VOR)
         // Route: "OAK6 OAK SYRAH" should produce only [SYRAH]
         var navData = BuildNavData(
-            sids:
-            [
-                new Sid { Id = "OAK6", Body = { "OAK" } },
-            ],
+            sids: [new Sid { Id = "OAK6", Body = { "OAK" } }],
             airports:
             [
                 new Airport
@@ -27,9 +24,18 @@ public class ExpandRouteTests
             ],
             fixes:
             [
-                new Fix { Id = "OAK", Location = new GeoPoint { Lat = 37.7213, Lon = -122.2208 } },
-                new Fix { Id = "SYRAH", Location = new GeoPoint { Lat = 38.0, Lon = -121.5 } },
-            ]);
+                new Fix
+                {
+                    Id = "OAK",
+                    Location = new GeoPoint { Lat = 37.7213, Lon = -122.2208 },
+                },
+                new Fix
+                {
+                    Id = "SYRAH",
+                    Location = new GeoPoint { Lat = 38.0, Lon = -121.5 },
+                },
+            ]
+        );
 
         var db = new FixDatabase(navData);
 
@@ -45,17 +51,31 @@ public class ExpandRouteTests
         // Route: "CNDEL5 PORTE FFOIL" → [LEJAY, CNDEL, PORTE, FFOIL]
         // (PORTE deduped: last body fix = next route token)
         var navData = BuildNavData(
-            sids:
-            [
-                new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } },
-            ],
+            sids: [new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } }],
             fixes:
             [
-                new Fix { Id = "LEJAY", Location = new GeoPoint { Lat = 37.9, Lon = -122.0 } },
-                new Fix { Id = "CNDEL", Location = new GeoPoint { Lat = 38.0, Lon = -121.9 } },
-                new Fix { Id = "PORTE", Location = new GeoPoint { Lat = 38.1, Lon = -121.8 } },
-                new Fix { Id = "FFOIL", Location = new GeoPoint { Lat = 38.2, Lon = -121.7 } },
-            ]);
+                new Fix
+                {
+                    Id = "LEJAY",
+                    Location = new GeoPoint { Lat = 37.9, Lon = -122.0 },
+                },
+                new Fix
+                {
+                    Id = "CNDEL",
+                    Location = new GeoPoint { Lat = 38.0, Lon = -121.9 },
+                },
+                new Fix
+                {
+                    Id = "PORTE",
+                    Location = new GeoPoint { Lat = 38.1, Lon = -121.8 },
+                },
+                new Fix
+                {
+                    Id = "FFOIL",
+                    Location = new GeoPoint { Lat = 38.2, Lon = -121.7 },
+                },
+            ]
+        );
 
         var db = new FixDatabase(navData);
 
@@ -70,10 +90,23 @@ public class ExpandRouteTests
         var navData = BuildNavData(
             fixes:
             [
-                new Fix { Id = "OAK", Location = new GeoPoint { Lat = 37.7, Lon = -122.2 } },
-                new Fix { Id = "SYRAH", Location = new GeoPoint { Lat = 38.0, Lon = -121.5 } },
-                new Fix { Id = "SUNOL", Location = new GeoPoint { Lat = 37.6, Lon = -121.9 } },
-            ]);
+                new Fix
+                {
+                    Id = "OAK",
+                    Location = new GeoPoint { Lat = 37.7, Lon = -122.2 },
+                },
+                new Fix
+                {
+                    Id = "SYRAH",
+                    Location = new GeoPoint { Lat = 38.0, Lon = -121.5 },
+                },
+                new Fix
+                {
+                    Id = "SUNOL",
+                    Location = new GeoPoint { Lat = 37.6, Lon = -121.9 },
+                },
+            ]
+        );
 
         var db = new FixDatabase(navData);
 
@@ -88,8 +121,13 @@ public class ExpandRouteTests
         var navData = BuildNavData(
             fixes:
             [
-                new Fix { Id = "SUNOL", Location = new GeoPoint { Lat = 37.6, Lon = -121.9 } },
-            ]);
+                new Fix
+                {
+                    Id = "SUNOL",
+                    Location = new GeoPoint { Lat = 37.6, Lon = -121.9 },
+                },
+            ]
+        );
 
         var db = new FixDatabase(navData);
 
@@ -109,17 +147,23 @@ public class ExpandRouteTests
                 {
                     Id = "OAK6",
                     Body = { "OAK" },
-                    Transitions =
-                    {
-                        new Transition { Fixes = { "PORTE", "CNDEL" } },
-                    },
+                    Transitions = { new Transition { Fixes = { "PORTE", "CNDEL" } } },
                 },
             ],
             fixes:
             [
-                new Fix { Id = "OAK", Location = new GeoPoint { Lat = 37.7, Lon = -122.2 } },
-                new Fix { Id = "SYRAH", Location = new GeoPoint { Lat = 38.0, Lon = -121.5 } },
-            ]);
+                new Fix
+                {
+                    Id = "OAK",
+                    Location = new GeoPoint { Lat = 37.7, Lon = -122.2 },
+                },
+                new Fix
+                {
+                    Id = "SYRAH",
+                    Location = new GeoPoint { Lat = 38.0, Lon = -121.5 },
+                },
+            ]
+        );
 
         var db = new FixDatabase(navData);
 
@@ -136,11 +180,7 @@ public class ExpandRouteTests
     public void ExpandRoute_Autocomplete_PreservesOrder()
     {
         // Published SID with ordered body
-        var navData = BuildNavData(
-            sids:
-            [
-                new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } },
-            ]);
+        var navData = BuildNavData(sids: [new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } }]);
 
         var db = new FixDatabase(navData);
 
@@ -164,15 +204,21 @@ public class ExpandRouteTests
     {
         // STAR with single body fix (radar vectors) should be skipped
         var navData = BuildNavData(
-            stars:
-            [
-                new Star { Id = "BDEGA2", Body = { "BDEGA" } },
-            ],
+            stars: [new Star { Id = "BDEGA2", Body = { "BDEGA" } }],
             fixes:
             [
-                new Fix { Id = "BDEGA", Location = new GeoPoint { Lat = 38.3, Lon = -123.0 } },
-                new Fix { Id = "SUNOL", Location = new GeoPoint { Lat = 37.6, Lon = -121.9 } },
-            ]);
+                new Fix
+                {
+                    Id = "BDEGA",
+                    Location = new GeoPoint { Lat = 38.3, Lon = -123.0 },
+                },
+                new Fix
+                {
+                    Id = "SUNOL",
+                    Location = new GeoPoint { Lat = 37.6, Lon = -121.9 },
+                },
+            ]
+        );
 
         var db = new FixDatabase(navData);
 
@@ -185,7 +231,8 @@ public class ExpandRouteTests
         IEnumerable<Sid>? sids = null,
         IEnumerable<Star>? stars = null,
         IEnumerable<Airport>? airports = null,
-        IEnumerable<Fix>? fixes = null)
+        IEnumerable<Fix>? fixes = null
+    )
     {
         var navData = new NavDataSet();
 

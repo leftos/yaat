@@ -52,8 +52,7 @@ public static class ScenarioDifficultyHelper
     /// each possible difficulty ceiling. Only includes ceilings
     /// that are in <paramref name="availableDifficulties"/>.
     /// </summary>
-    public static Dictionary<string, int> GetCountsPerCeiling(
-        string json, List<string> availableDifficulties)
+    public static Dictionary<string, int> GetCountsPerCeiling(string json, List<string> availableDifficulties)
     {
         var root = JsonNode.Parse(json);
         var aircraft = root?["aircraft"]?.AsArray();
@@ -87,8 +86,7 @@ public static class ScenarioDifficultyHelper
     /// the given difficulty ceiling. Returns the filtered JSON and any
     /// warnings about unrecognized difficulty values.
     /// </summary>
-    public static (string Json, List<string> Warnings) FilterByDifficulty(
-        string json, string maxDifficulty)
+    public static (string Json, List<string> Warnings) FilterByDifficulty(string json, string maxDifficulty)
     {
         var root = JsonNode.Parse(json)!;
         var aircraft = root["aircraft"]?.AsArray();
@@ -107,11 +105,9 @@ public static class ScenarioDifficultyHelper
             var diff = ac?["difficulty"]?.GetValue<string>();
             int rank = GetRank(diff);
 
-            if (rank == -1 && !string.IsNullOrEmpty(diff)
-                && unknownValues.Add(diff))
+            if (rank == -1 && !string.IsNullOrEmpty(diff) && unknownValues.Add(diff))
             {
-                warnings.Add(
-                    $"Unknown difficulty \"{diff}\" — aircraft included anyway");
+                warnings.Add($"Unknown difficulty \"{diff}\" — aircraft included anyway");
             }
 
             if (rank > maxRank)
@@ -120,8 +116,7 @@ public static class ScenarioDifficultyHelper
             }
         }
 
-        return (root.ToJsonString(
-            new JsonSerializerOptions { WriteIndented = false }), warnings);
+        return (root.ToJsonString(new JsonSerializerOptions { WriteIndented = false }), warnings);
     }
 
     /// <summary>
@@ -138,8 +133,7 @@ public static class ScenarioDifficultyHelper
 
         for (int i = 0; i < DifficultyOrder.Length; i++)
         {
-            if (string.Equals(difficulty, DifficultyOrder[i],
-                StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(difficulty, DifficultyOrder[i], StringComparison.OrdinalIgnoreCase))
             {
                 return i;
             }

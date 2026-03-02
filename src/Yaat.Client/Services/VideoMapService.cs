@@ -10,21 +10,18 @@ namespace Yaat.Client.Services;
 /// </summary>
 public sealed class VideoMapService
 {
-    private const string DataApiBase =
-        "https://data-api.vnas.vatsim.net/Files/VideoMaps";
+    private const string DataApiBase = "https://data-api.vnas.vatsim.net/Files/VideoMaps";
 
     private static readonly string CacheDir = Path.Combine(
-        Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData),
-        "yaat", "cache", "videomaps");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "yaat",
+        "cache",
+        "videomaps"
+    );
 
-    private readonly ILogger _log =
-        AppLog.CreateLogger<VideoMapService>();
+    private readonly ILogger _log = AppLog.CreateLogger<VideoMapService>();
 
-    private readonly HttpClient _http = new()
-    {
-        Timeout = TimeSpan.FromSeconds(30),
-    };
+    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     private readonly Dictionary<string, VideoMapData> _cache = [];
 
@@ -40,8 +37,7 @@ public sealed class VideoMapService
     /// Loads a batch of video maps for an ARTCC. Downloads any
     /// missing maps, parses them, and caches the results.
     /// </summary>
-    public async Task<List<VideoMapData>> LoadMapsAsync(
-        string artccId, IReadOnlyList<VideoMapInfoDto> maps)
+    public async Task<List<VideoMapData>> LoadMapsAsync(string artccId, IReadOnlyList<VideoMapInfoDto> maps)
     {
         var artccCacheDir = Path.Combine(CacheDir, artccId);
         Directory.CreateDirectory(artccCacheDir);
@@ -58,31 +54,31 @@ public sealed class VideoMapService
             }
 
             var localMap = map;
-            tasks.Add(Task.Run(async () =>
-            {
-                var data = await LoadSingleMapAsync(
-                    artccId, localMap.Id, artccCacheDir);
-                if (data is not null)
+            tasks.Add(
+                Task.Run(async () =>
                 {
-                    lock (_cache)
+                    var data = await LoadSingleMapAsync(artccId, localMap.Id, artccCacheDir);
+                    if (data is not null)
                     {
-                        _cache[localMap.Id] = data;
-                    }
+                        lock (_cache)
+                        {
+                            _cache[localMap.Id] = data;
+                        }
 
-                    lock (results)
-                    {
-                        results.Add(data);
+                        lock (results)
+                        {
+                            results.Add(data);
+                        }
                     }
-                }
-            }));
+                })
+            );
         }
 
         await Task.WhenAll(tasks);
         return results;
     }
 
-    private async Task<VideoMapData?> LoadSingleMapAsync(
-        string artccId, string mapId, string artccCacheDir)
+    private async Task<VideoMapData?> LoadSingleMapAsync(string artccId, string mapId, string artccCacheDir)
     {
         var cachePath = Path.Combine(artccCacheDir, $"{mapId}.geojson");
 
@@ -98,8 +94,7 @@ public sealed class VideoMapService
             }
             catch (Exception ex)
             {
-                _log.LogWarning(ex,
-                    "Failed to download video map {Id}", mapId);
+                _log.LogWarning(ex, "Failed to download video map {Id}", mapId);
             }
         }
 

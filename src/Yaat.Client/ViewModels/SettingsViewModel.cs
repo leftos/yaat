@@ -21,9 +21,7 @@ public partial class VerbMappingRow : ObservableObject
 
     public event Action? AliasesEdited;
 
-    public List<string> AliasesList =>
-        Aliases.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .ToList();
+    public List<string> AliasesList => Aliases.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
 
     partial void OnAliasesChanged(string value)
     {
@@ -51,8 +49,9 @@ public partial class SettingsViewModel : ObservableObject
 
     private static readonly string[] PresetNames = ["ATCTrainer", "VICE"];
 
-    private static readonly IReadOnlyList<CommandMetadata.CommandInfo> DisplayCommands =
-        CommandMetadata.AllCommands.Where(c => !c.IsGlobal && c.Type != CanonicalCommandType.DirectTo).ToArray();
+    private static readonly IReadOnlyList<CommandMetadata.CommandInfo> DisplayCommands = CommandMetadata
+        .AllCommands.Where(c => !c.IsGlobal && c.Type != CanonicalCommandType.DirectTo)
+        .ToArray();
 
     [ObservableProperty]
     private int _selectedPresetIndex;
@@ -84,8 +83,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedAutoDeleteIndex;
 
-    public static IReadOnlyList<string> AutoDeleteOptions { get; } =
-        ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
+    public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
 
     public static IReadOnlyList<string> PresetNames_ => PresetNames;
 

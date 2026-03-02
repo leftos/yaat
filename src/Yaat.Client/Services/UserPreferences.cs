@@ -192,8 +192,7 @@ public sealed class UserPreferences
         return settings;
     }
 
-    public void SetRadarSettings(
-        string scenarioId, SavedRadarSettings settings)
+    public void SetRadarSettings(string scenarioId, SavedRadarSettings settings)
     {
         _radarSettings[scenarioId] = settings;
         Save();
@@ -321,9 +320,7 @@ public sealed class UserPreferences
             }
 
             // Read aliases: prefer Aliases list, fall back to legacy Verb field
-            var aliases = sp.Aliases is { Count: > 0 }
-                ? sp.Aliases
-                : (!string.IsNullOrWhiteSpace(sp.Verb) ? [sp.Verb] : null);
+            var aliases = sp.Aliases is { Count: > 0 } ? sp.Aliases : (!string.IsNullOrWhiteSpace(sp.Verb) ? [sp.Verb] : null);
 
             if (aliases is null)
             {

@@ -64,8 +64,7 @@ public abstract class MapCanvasBase : Control
     /// Called on the render thread with the snapshot from
     /// <see cref="CreateRenderSnapshot"/>. Do not access StyledProperties here.
     /// </summary>
-    protected abstract void RenderFromSnapshot(
-        SKCanvas canvas, MapViewport viewport, object? snapshot);
+    protected abstract void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot);
 
     /// <summary>Called when the viewport changes (pan/zoom). Override to react.</summary>
     protected virtual void OnViewportChanged() { }
@@ -76,9 +75,7 @@ public abstract class MapCanvasBase : Control
         // Capture property values on the UI thread
         var snapshot = CreateRenderSnapshot();
         var viewportCopy = _viewport.Clone();
-        var op = new MapDrawOperation(
-            this, new Rect(0, 0, Bounds.Width, Bounds.Height),
-            snapshot, viewportCopy);
+        var op = new MapDrawOperation(this, new Rect(0, 0, Bounds.Width, Bounds.Height), snapshot, viewportCopy);
         context.Custom(op);
     }
 
@@ -168,9 +165,7 @@ public abstract class MapCanvasBase : Control
         private readonly object? _snapshot;
         private readonly MapViewport _viewport;
 
-        public MapDrawOperation(
-            MapCanvasBase owner, Rect bounds,
-            object? snapshot, MapViewport viewport)
+        public MapDrawOperation(MapCanvasBase owner, Rect bounds, object? snapshot, MapViewport viewport)
         {
             _owner = owner;
             _snapshot = snapshot;
@@ -188,8 +183,7 @@ public abstract class MapCanvasBase : Control
 
         public void Render(ImmediateDrawingContext context)
         {
-            if (context.TryGetFeature(typeof(ISkiaSharpApiLeaseFeature))
-                is not ISkiaSharpApiLeaseFeature feature)
+            if (context.TryGetFeature(typeof(ISkiaSharpApiLeaseFeature)) is not ISkiaSharpApiLeaseFeature feature)
             {
                 return;
             }

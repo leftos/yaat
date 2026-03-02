@@ -11,17 +11,14 @@ public static class GeoMath
     /// <summary>
     /// Haversine distance between two lat/lon points, in nautical miles.
     /// </summary>
-    public static double DistanceNm(
-        double lat1, double lon1, double lat2, double lon2)
+    public static double DistanceNm(double lat1, double lon1, double lat2, double lon2)
     {
         double dLat = (lat2 - lat1) * Math.PI / 180.0;
         double dLon = (lon2 - lon1) * Math.PI / 180.0;
         double rLat1 = lat1 * Math.PI / 180.0;
         double rLat2 = lat2 * Math.PI / 180.0;
 
-        double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2)
-            + Math.Cos(rLat1) * Math.Cos(rLat2)
-            * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) + Math.Cos(rLat1) * Math.Cos(rLat2) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
         double c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
 
         return EarthRadiusNm * c;
@@ -30,15 +27,13 @@ public static class GeoMath
     /// <summary>
     /// Initial bearing (degrees true, 0-360) from point 1 to point 2.
     /// </summary>
-    public static double BearingTo(
-        double lat1, double lon1, double lat2, double lon2)
+    public static double BearingTo(double lat1, double lon1, double lat2, double lon2)
     {
         double dLon = (lon2 - lon1) * Math.PI / 180.0;
         double rLat1 = lat1 * Math.PI / 180.0;
         double rLat2 = lat2 * Math.PI / 180.0;
         double y = Math.Sin(dLon) * Math.Cos(rLat2);
-        double x = Math.Cos(rLat1) * Math.Sin(rLat2)
-            - Math.Sin(rLat1) * Math.Cos(rLat2) * Math.Cos(dLon);
+        double x = Math.Cos(rLat1) * Math.Sin(rLat2) - Math.Sin(rLat1) * Math.Cos(rLat2) * Math.Cos(dLon);
         double bearing = Math.Atan2(y, x) * 180.0 / Math.PI;
         return (bearing + 360.0) % 360.0;
     }
@@ -47,12 +42,18 @@ public static class GeoMath
     /// Turn current heading toward target bearing by at most maxTurnDeg.
     /// Returns the new heading (0-360).
     /// </summary>
-    public static double TurnHeadingToward(
-        double currentHeading, double targetBearing, double maxTurnDeg)
+    public static double TurnHeadingToward(double currentHeading, double targetBearing, double maxTurnDeg)
     {
         double diff = targetBearing - currentHeading;
-        while (diff > 180) diff -= 360;
-        while (diff < -180) diff += 360;
+        while (diff > 180)
+        {
+            diff -= 360;
+        }
+
+        while (diff < -180)
+        {
+            diff += 360;
+        }
 
         if (Math.Abs(diff) <= maxTurnDeg)
         {
@@ -65,15 +66,13 @@ public static class GeoMath
     /// <summary>
     /// Projects a point from a given lat/lon along a heading for a given distance.
     /// </summary>
-    public static (double Lat, double Lon) ProjectPoint(
-        double lat, double lon, double headingDeg, double distanceNm)
+    public static (double Lat, double Lon) ProjectPoint(double lat, double lon, double headingDeg, double distanceNm)
     {
         double headingRad = headingDeg * DegToRad;
         double latRad = lat * DegToRad;
 
         double newLat = lat + (distanceNm * Math.Cos(headingRad) / NmPerDegLat);
-        double newLon = lon + (distanceNm * Math.Sin(headingRad)
-            / (NmPerDegLat * Math.Cos(latRad)));
+        double newLon = lon + (distanceNm * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad)));
 
         return (newLat, newLon);
     }
@@ -82,10 +81,7 @@ public static class GeoMath
     /// Signed perpendicular distance from a point to a line defined by
     /// a reference point and heading. Positive = right of heading, negative = left.
     /// </summary>
-    public static double SignedCrossTrackDistanceNm(
-        double pointLat, double pointLon,
-        double refLat, double refLon,
-        double headingDeg)
+    public static double SignedCrossTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
     {
         double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
         double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
@@ -97,10 +93,7 @@ public static class GeoMath
     /// Signed distance along a heading from a reference point to a target point.
     /// Positive = ahead (in heading direction), negative = behind.
     /// </summary>
-    public static double AlongTrackDistanceNm(
-        double pointLat, double pointLon,
-        double refLat, double refLon,
-        double headingDeg)
+    public static double AlongTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
     {
         double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
         double dist = DistanceNm(refLat, refLon, pointLat, pointLon);

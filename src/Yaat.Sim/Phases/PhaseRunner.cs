@@ -39,10 +39,7 @@ public static class PhaseRunner
             phases.AdvanceToNext(ctx);
 
             // After a full-stop landing (not pattern mode), auto-exit the runway
-            if (wasLanding
-                && phases.IsComplete
-                && phases.TrafficDirection is null
-                && ctx.GroundLayout is not null)
+            if (wasLanding && phases.IsComplete && phases.TrafficDirection is null && ctx.GroundLayout is not null)
             {
                 phases.Phases.Add(new RunwayExitPhase());
                 phases.Phases.Add(new HoldingAfterExitPhase());
@@ -58,12 +55,9 @@ public static class PhaseRunner
 
             // Auto-cycle: if the phase list is complete and the aircraft is
             // in pattern mode, append the next circuit and clear clearances.
-            if (phases.IsComplete
-                && phases.TrafficDirection is { } dir
-                && phases.AssignedRunway is { } runway)
+            if (phases.IsComplete && phases.TrafficDirection is { } dir && phases.AssignedRunway is { } runway)
             {
-                var nextCircuit = PatternBuilder.BuildNextCircuit(
-                    runway, ctx.Category, dir);
+                var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir);
                 phases.Phases.AddRange(nextCircuit);
 
                 // Clear landing clearance — RPO must re-clear each approach

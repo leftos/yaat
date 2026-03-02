@@ -46,11 +46,9 @@ public partial class AircraftModel : ObservableObject
     private string _navigatingTo = "";
 
     public string AssignedHeadingDisplay =>
-        !string.IsNullOrEmpty(NavigatingTo)
-            ? NavigatingTo
-            : AssignedHeading.HasValue
-                ? AssignedHeading.Value.ToString("F0")
-                : "";
+        !string.IsNullOrEmpty(NavigatingTo) ? NavigatingTo
+        : AssignedHeading.HasValue ? AssignedHeading.Value.ToString("F0")
+        : "";
 
     [ObservableProperty]
     private double? _assignedAltitude;
@@ -77,13 +75,11 @@ public partial class AircraftModel : ObservableObject
     public string StatusDisplay => FormatStatus(Status);
 
     public bool IsDelayedOrDeferred =>
-        Status.StartsWith("Delayed", StringComparison.Ordinal)
-        || Status.StartsWith("Deferred", StringComparison.Ordinal);
+        Status.StartsWith("Delayed", StringComparison.Ordinal) || Status.StartsWith("Deferred", StringComparison.Ordinal);
 
     private static string FormatStatus(string status)
     {
-        if (status.StartsWith("Delayed (", StringComparison.Ordinal)
-            && status.EndsWith("s)", StringComparison.Ordinal))
+        if (status.StartsWith("Delayed (", StringComparison.Ordinal) && status.EndsWith("s)", StringComparison.Ordinal))
         {
             var numStr = status.AsSpan(9, status.Length - 11);
             if (int.TryParse(numStr, out var seconds))
@@ -203,10 +199,7 @@ public partial class AircraftModel : ObservableObject
 
     public bool HasPattern => !string.IsNullOrEmpty(PatternDirection);
 
-    public string PatternDisplay =>
-        string.IsNullOrEmpty(PatternDirection)
-            ? ""
-            : $"{PatternDirection} traffic";
+    public string PatternDisplay => string.IsNullOrEmpty(PatternDirection) ? "" : $"{PatternDirection} traffic";
 
     public bool HasNavigationRoute => !string.IsNullOrEmpty(NavigationRoute);
 
@@ -221,9 +214,7 @@ public partial class AircraftModel : ObservableObject
                 return "";
             }
 
-            var altStr = CruiseAltitude >= 18000
-                ? $"FL{CruiseAltitude / 100}"
-                : $"{CruiseAltitude}";
+            var altStr = CruiseAltitude >= 18000 ? $"FL{CruiseAltitude / 100}" : $"{CruiseAltitude}";
 
             if (CruiseSpeed > 0)
             {
@@ -271,18 +262,12 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private bool _isAnnotated;
 
-    public string OwnerDisplay =>
-        OwnerSectorCode ?? Owner ?? "";
+    public string OwnerDisplay => OwnerSectorCode ?? Owner ?? "";
 
-    public string HandoffDisplay =>
-        HandoffPeerSectorCode ?? HandoffPeer ?? "";
+    public string HandoffDisplay => HandoffPeerSectorCode ?? HandoffPeer ?? "";
 
     public string TempAltDisplay =>
-        TemporaryAltitude.HasValue
-            ? (TemporaryAltitude.Value >= 180
-                ? $"FL{TemporaryAltitude.Value}"
-                : $"{TemporaryAltitude.Value}")
-            : "";
+        TemporaryAltitude.HasValue ? (TemporaryAltitude.Value >= 180 ? $"FL{TemporaryAltitude.Value}" : $"{TemporaryAltitude.Value}") : "";
 
     [ObservableProperty]
     private double? _distanceFromFix;
@@ -390,8 +375,7 @@ public partial class AircraftModel : ObservableObject
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)
     {
-        if (status.StartsWith("Delayed (", StringComparison.Ordinal)
-            && status.EndsWith("s)", StringComparison.Ordinal))
+        if (status.StartsWith("Delayed (", StringComparison.Ordinal) && status.EndsWith("s)", StringComparison.Ordinal))
         {
             var numStr = status.AsSpan(9, status.Length - 11);
             if (int.TryParse(numStr, out var seconds))

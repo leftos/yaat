@@ -35,7 +35,8 @@ public sealed class TaxiingPhase : Phase
             ctx.Logger.LogWarning(
                 "[Taxi] {Callsign}: OnStart but route is {State}",
                 ctx.Aircraft.Callsign,
-                route is null ? "null" : "already complete");
+                route is null ? "null" : "already complete"
+            );
             return;
         }
 
@@ -44,8 +45,12 @@ public sealed class TaxiingPhase : Phase
 
         ctx.Logger.LogDebug(
             "[Taxi] {Callsign}: started, {SegCount} segments, first target node {NodeId} at ({Lat:F6}, {Lon:F6})",
-            ctx.Aircraft.Callsign, route.Segments.Count,
-            _targetNodeId, _targetLat, _targetLon);
+            ctx.Aircraft.Callsign,
+            route.Segments.Count,
+            _targetNodeId,
+            _targetLat,
+            _targetLon
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -53,10 +58,7 @@ public sealed class TaxiingPhase : Phase
         var route = ctx.Aircraft.AssignedTaxiRoute;
         if (route is null || route.IsComplete)
         {
-            ctx.Logger.LogDebug(
-                "[Taxi] {Callsign}: OnTick exit — route {State}",
-                ctx.Aircraft.Callsign,
-                route is null ? "null" : "complete");
+            ctx.Logger.LogDebug("[Taxi] {Callsign}: OnTick exit — route {State}", ctx.Aircraft.Callsign, route is null ? "null" : "complete");
             return true;
         }
 
@@ -65,7 +67,8 @@ public sealed class TaxiingPhase : Phase
             ctx.Logger.LogDebug(
                 "[Taxi] {Callsign}: late init in OnTick (groundLayout {HasLayout})",
                 ctx.Aircraft.Callsign,
-                ctx.GroundLayout is not null ? "present" : "NULL");
+                ctx.GroundLayout is not null ? "present" : "NULL"
+            );
             SetupCurrentSegment(ctx);
         }
 
@@ -77,12 +80,9 @@ public sealed class TaxiingPhase : Phase
         }
 
         // Navigate toward the current target node
-        double dist = GeoMath.DistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _targetLat, _targetLon);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
-        bool overshot = dist > _prevDistToTarget
-            && _prevDistToTarget < OvershootDetectionNm;
+        bool overshot = dist > _prevDistToTarget && _prevDistToTarget < OvershootDetectionNm;
         _prevDistToTarget = dist;
 
         if (dist <= NodeArrivalThresholdNm || overshot)
@@ -91,7 +91,11 @@ public sealed class TaxiingPhase : Phase
             {
                 ctx.Logger.LogDebug(
                     "[Taxi] {Callsign}: overshoot detected at node {NodeId} (dist={Dist:F4}nm, prev={Prev:F4}nm)",
-                    ctx.Aircraft.Callsign, _targetNodeId, dist, _prevDistToTarget);
+                    ctx.Aircraft.Callsign,
+                    _targetNodeId,
+                    dist,
+                    _prevDistToTarget
+                );
             }
 
             _prevDistToTarget = double.MaxValue;
@@ -99,14 +103,11 @@ public sealed class TaxiingPhase : Phase
         }
 
         // Turn toward target
-        double bearing = GeoMath.BearingTo(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _targetLat, _targetLon);
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
         TurnToward(ctx, bearing);
 
         // Speed scales with turn sharpness: straight = full, sharp turn = crawl
-        double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(
-            bearing - ctx.Aircraft.Heading));
+        double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - ctx.Aircraft.Heading));
         double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
         double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.15, 1.0);
         AdjustSpeed(ctx, maxSpeed * speedFraction);
@@ -126,12 +127,17 @@ public sealed class TaxiingPhase : Phase
             ctx.Logger.LogDebug(
                 "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}, bearing={Brg:F0}, pos=({Lat:F6},{Lon:F6})",
                 ctx.Aircraft.Callsign,
-                route.CurrentSegmentIndex, route.Segments.Count,
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
                 seg?.TaxiwayName ?? "?",
-                _targetNodeId, dist,
-                ctx.Aircraft.GroundSpeed, ctx.Aircraft.Heading,
+                _targetNodeId,
+                dist,
+                ctx.Aircraft.GroundSpeed,
+                ctx.Aircraft.Heading,
                 bearing,
-                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude
+            );
         }
 
         return false;
@@ -139,9 +145,7 @@ public sealed class TaxiingPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        ctx.Logger.LogDebug(
-            "[Taxi] {Callsign}: OnEnd ({Status})",
-            ctx.Aircraft.Callsign, endStatus);
+        ctx.Logger.LogDebug("[Taxi] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
 
         if (endStatus == PhaseStatus.Completed)
         {
@@ -172,15 +176,15 @@ public sealed class TaxiingPhase : Phase
             ctx.Logger.LogWarning(
                 "[Taxi] {Callsign}: SetupCurrentSegment — no current segment (index={Idx})",
                 ctx.Aircraft.Callsign,
-                route?.CurrentSegmentIndex ?? -1);
+                route?.CurrentSegmentIndex ?? -1
+            );
             return;
         }
 
         var seg = route.CurrentSegment;
         _targetNodeId = seg.ToNodeId;
 
-        if (ctx.GroundLayout is not null
-            && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var targetNode))
+        if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var targetNode))
         {
             _targetLat = targetNode.Latitude;
             _targetLon = targetNode.Longitude;
@@ -189,8 +193,10 @@ public sealed class TaxiingPhase : Phase
         {
             ctx.Logger.LogWarning(
                 "[Taxi] {Callsign}: cannot resolve node {NodeId} — groundLayout {HasLayout}",
-                ctx.Aircraft.Callsign, _targetNodeId,
-                ctx.GroundLayout is not null ? "present but node missing" : "NULL");
+                ctx.Aircraft.Callsign,
+                _targetNodeId,
+                ctx.GroundLayout is not null ? "present but node missing" : "NULL"
+            );
         }
 
         _initialized = true;
@@ -201,8 +207,11 @@ public sealed class TaxiingPhase : Phase
     {
         ctx.Logger.LogDebug(
             "[Taxi] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount})",
-            ctx.Aircraft.Callsign, _targetNodeId,
-            route.CurrentSegmentIndex, route.Segments.Count);
+            ctx.Aircraft.Callsign,
+            _targetNodeId,
+            route.CurrentSegmentIndex,
+            route.Segments.Count
+        );
 
         // Update taxiway name from the segment that brought us here
         if (route.CurrentSegment is { } arrivedSeg)
@@ -216,8 +225,11 @@ public sealed class TaxiingPhase : Phase
         {
             ctx.Logger.LogDebug(
                 "[Taxi] {Callsign}: hold short at node {NodeId} (target {Target}, reason {Reason})",
-                ctx.Aircraft.Callsign, _targetNodeId,
-                holdShort.TargetName, holdShort.Reason);
+                ctx.Aircraft.Callsign,
+                _targetNodeId,
+                holdShort.TargetName,
+                holdShort.Reason
+            );
 
             // Insert a HoldingShortPhase before continuing
             ctx.Aircraft.GroundSpeed = 0;
@@ -233,9 +245,7 @@ public sealed class TaxiingPhase : Phase
 
         if (route.IsComplete)
         {
-            ctx.Logger.LogDebug(
-                "[Taxi] {Callsign}: route complete after {SegCount} segments",
-                ctx.Aircraft.Callsign, route.Segments.Count);
+            ctx.Logger.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
 
             ApplyDepartureClearanceIfPending(ctx);
             return true;
@@ -247,10 +257,8 @@ public sealed class TaxiingPhase : Phase
 
     private static void TurnToward(PhaseContext ctx, double targetBearing)
     {
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category)
-            * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(
-            ctx.Aircraft.Heading, targetBearing, maxTurn);
+        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, targetBearing, maxTurn);
     }
 
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
@@ -259,14 +267,12 @@ public sealed class TaxiingPhase : Phase
         if (current < targetSpeed)
         {
             double rate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Min(
-                targetSpeed, current + rate * ctx.DeltaSeconds);
+            ctx.Aircraft.GroundSpeed = Math.Min(targetSpeed, current + rate * ctx.DeltaSeconds);
         }
         else if (current > targetSpeed)
         {
             double rate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Max(
-                targetSpeed, current - rate * ctx.DeltaSeconds);
+            ctx.Aircraft.GroundSpeed = Math.Max(targetSpeed, current - rate * ctx.DeltaSeconds);
         }
     }
 
@@ -286,8 +292,7 @@ public sealed class TaxiingPhase : Phase
         {
             foreach (var hs in route.HoldShortPoints)
             {
-                if (hs.Reason is HoldShortReason.DestinationRunway
-                    or HoldShortReason.ExplicitHoldShort)
+                if (hs.Reason is HoldShortReason.DestinationRunway or HoldShortReason.ExplicitHoldShort)
                 {
                     holdShortNodeId = hs.NodeId;
                 }
@@ -314,22 +319,16 @@ public sealed class TaxiingPhase : Phase
             luaw.AssignedAltitude = dep.AssignedAltitude;
             takeoff.SetAssignedDeparture(dep.Departure);
 
-            if (dep.Departure is ClosedTrafficDeparture ct
-                && phases.AssignedRunway is { } rwy)
+            if (dep.Departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
             {
                 phases.TrafficDirection = ct.Direction;
-                var cat = AircraftCategorization.Categorize(
-                    ctx.Aircraft.AircraftType);
-                var circuit = PatternBuilder.BuildCircuit(
-                    rwy, cat, ct.Direction, PatternEntryLeg.Upwind, true);
+                var cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
+                var circuit = PatternBuilder.BuildCircuit(rwy, cat, ct.Direction, PatternEntryLeg.Upwind, true);
                 phases.Phases.AddRange(circuit);
             }
         }
 
         phases.DepartureClearance = null;
-        ctx.Logger.LogDebug(
-            "[Taxi] {Callsign}: departure clearance {Type} applied at route end",
-            ctx.Aircraft.Callsign, dep.Type);
+        ctx.Logger.LogDebug("[Taxi] {Callsign}: departure clearance {Type} applied at route end", ctx.Aircraft.Callsign, dep.Type);
     }
-
 }

@@ -43,9 +43,7 @@ public static class GroundConflictDetector
                     continue;
                 }
 
-                double distNm = GeoMath.DistanceNm(
-                    a.Latitude, a.Longitude,
-                    b.Latitude, b.Longitude);
+                double distNm = GeoMath.DistanceNm(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
 
                 if (distNm > SearchRangeNm)
                 {
@@ -67,16 +65,11 @@ public static class GroundConflictDetector
         }
     }
 
-    private static void ResolveSameDirection(
-        AircraftState a, AircraftState b, double distFt)
+    private static void ResolveSameDirection(AircraftState a, AircraftState b, double distFt)
     {
         // Determine which aircraft is ahead
-        double bearingAtoB = GeoMath.BearingTo(
-            a.Latitude, a.Longitude,
-            b.Latitude, b.Longitude);
-        double bearingBtoA = GeoMath.BearingTo(
-            b.Latitude, b.Longitude,
-            a.Latitude, a.Longitude);
+        double bearingAtoB = GeoMath.BearingTo(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
+        double bearingBtoA = GeoMath.BearingTo(b.Latitude, b.Longitude, a.Latitude, a.Longitude);
 
         double diffAtoB = HeadingDifference(a.Heading, bearingAtoB);
         double diffBtoA = HeadingDifference(b.Heading, bearingBtoA);
@@ -94,8 +87,7 @@ public static class GroundConflictDetector
         }
     }
 
-    private static void ApplyTrailLimit(
-        AircraftState trailer, AircraftState leader, double distFt)
+    private static void ApplyTrailLimit(AircraftState trailer, AircraftState leader, double distFt)
     {
         double maxSpeed;
         if (distFt <= StopDistanceFt)
@@ -114,8 +106,7 @@ public static class GroundConflictDetector
         ApplyMinLimit(trailer, maxSpeed);
     }
 
-    private static void ResolveOppositeDirection(
-        AircraftState a, AircraftState b, double distFt)
+    private static void ResolveOppositeDirection(AircraftState a, AircraftState b, double distFt)
     {
         if (distFt > OppositeStopDistanceFt)
         {
@@ -123,9 +114,7 @@ public static class GroundConflictDetector
         }
 
         // Both aircraft are head-on; check if they're closing
-        double bearingAtoB = GeoMath.BearingTo(
-            a.Latitude, a.Longitude,
-            b.Latitude, b.Longitude);
+        double bearingAtoB = GeoMath.BearingTo(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
         double diffA = HeadingDifference(a.Heading, bearingAtoB);
 
         // A is closing on B if bearing to B is within 90 degrees of A's heading

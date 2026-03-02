@@ -49,12 +49,14 @@ public sealed class InitialClimbPhase : Phase
             ctx.Targets.NavigationRoute.Clear();
             foreach (var target in DepartureRoute)
             {
-                ctx.Targets.NavigationRoute.Add(new NavigationTarget
-                {
-                    Name = target.Name,
-                    Latitude = target.Latitude,
-                    Longitude = target.Longitude,
-                });
+                ctx.Targets.NavigationRoute.Add(
+                    new NavigationTarget
+                    {
+                        Name = target.Name,
+                        Latitude = target.Latitude,
+                        Longitude = target.Longitude,
+                    }
+                );
             }
         }
     }

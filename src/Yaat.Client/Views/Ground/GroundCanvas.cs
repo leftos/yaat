@@ -14,20 +14,24 @@ namespace Yaat.Client.Views.Ground;
 /// </summary>
 public sealed class GroundCanvas : MapCanvasBase, IDisposable
 {
-    public static readonly StyledProperty<GroundLayoutDto?> LayoutProperty =
-        AvaloniaProperty.Register<GroundCanvas, GroundLayoutDto?>(nameof(Layout));
+    public static readonly StyledProperty<GroundLayoutDto?> LayoutProperty = AvaloniaProperty.Register<GroundCanvas, GroundLayoutDto?>(
+        nameof(Layout)
+    );
 
-    public static readonly StyledProperty<IReadOnlyList<AircraftModel>?> AircraftProperty =
-        AvaloniaProperty.Register<GroundCanvas, IReadOnlyList<AircraftModel>?>(nameof(Aircraft));
+    public static readonly StyledProperty<IReadOnlyList<AircraftModel>?> AircraftProperty = AvaloniaProperty.Register<
+        GroundCanvas,
+        IReadOnlyList<AircraftModel>?
+    >(nameof(Aircraft));
 
-    public static readonly StyledProperty<AircraftModel?> SelectedAircraftProperty =
-        AvaloniaProperty.Register<GroundCanvas, AircraftModel?>(nameof(SelectedAircraft));
+    public static readonly StyledProperty<AircraftModel?> SelectedAircraftProperty = AvaloniaProperty.Register<GroundCanvas, AircraftModel?>(
+        nameof(SelectedAircraft)
+    );
 
-    public static readonly StyledProperty<TaxiRoute?> ActiveRouteProperty =
-        AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(nameof(ActiveRoute));
+    public static readonly StyledProperty<TaxiRoute?> ActiveRouteProperty = AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(nameof(ActiveRoute));
 
-    public static readonly StyledProperty<TaxiRoute?> PreviewRouteProperty =
-        AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(nameof(PreviewRoute));
+    public static readonly StyledProperty<TaxiRoute?> PreviewRouteProperty = AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(
+        nameof(PreviewRoute)
+    );
 
     private readonly GroundRenderer _renderer = new();
     private int? _hoveredNodeId;
@@ -87,10 +91,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             FitToLayout();
             InvalidateVisual();
         }
-        else if (change.Property == AircraftProperty
+        else if (
+            change.Property == AircraftProperty
             || change.Property == SelectedAircraftProperty
             || change.Property == ActiveRouteProperty
-            || change.Property == PreviewRouteProperty)
+            || change.Property == PreviewRouteProperty
+        )
         {
             MarkDirty();
         }
@@ -102,30 +108,22 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         AircraftModel? SelectedAircraft,
         int? HoveredNodeId,
         TaxiRoute? ActiveRoute,
-        TaxiRoute? PreviewRoute);
+        TaxiRoute? PreviewRoute
+    );
 
     protected override object? CreateRenderSnapshot()
     {
-        return new RenderSnapshot(
-            Layout,
-            Aircraft ?? Array.Empty<AircraftModel>(),
-            SelectedAircraft,
-            _hoveredNodeId,
-            ActiveRoute,
-            PreviewRoute);
+        return new RenderSnapshot(Layout, Aircraft ?? Array.Empty<AircraftModel>(), SelectedAircraft, _hoveredNodeId, ActiveRoute, PreviewRoute);
     }
 
-    protected override void RenderFromSnapshot(
-        SKCanvas canvas, MapViewport viewport, object? snapshot)
+    protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot)
     {
         if (snapshot is not RenderSnapshot s)
         {
             return;
         }
 
-        _renderer.Render(canvas, viewport, s.Layout,
-            s.Aircraft, s.SelectedAircraft,
-            s.HoveredNodeId, s.ActiveRoute, s.PreviewRoute);
+        _renderer.Render(canvas, viewport, s.Layout, s.Aircraft, s.SelectedAircraft, s.HoveredNodeId, s.ActiveRoute, s.PreviewRoute);
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
@@ -199,8 +197,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         foreach (var node in Layout.Nodes)
         {
-            var (sx, sy) = Viewport.LatLonToScreen(
-                node.Latitude, node.Longitude);
+            var (sx, sy) = Viewport.LatLonToScreen(node.Latitude, node.Longitude);
             var dx = (float)screenPos.X - sx;
             var dy = (float)screenPos.Y - sy;
             var dist = MathF.Sqrt(dx * dx + dy * dy);
@@ -233,8 +230,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 continue;
             }
 
-            var (sx, sy) = Viewport.LatLonToScreen(
-                ac.Latitude, ac.Longitude);
+            var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
             var dx = (float)screenPos.X - sx;
             var dy = (float)screenPos.Y - sy;
             var dist = MathF.Sqrt(dx * dx + dy * dy);
@@ -272,8 +268,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        double minLat = double.MaxValue, maxLat = double.MinValue;
-        double minLon = double.MaxValue, maxLon = double.MinValue;
+        double minLat = double.MaxValue,
+            maxLat = double.MinValue;
+        double minLon = double.MaxValue,
+            maxLon = double.MinValue;
 
         foreach (var node in Layout.Nodes)
         {

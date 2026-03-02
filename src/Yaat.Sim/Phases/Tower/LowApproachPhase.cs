@@ -49,16 +49,12 @@ public sealed class LowApproachPhase : Phase
         if (!_climbingOut)
         {
             // Descend toward go-around altitude using proportional rate
-            double distNm = FlightPhysics.DistanceNm(
-                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-                _thresholdLat, _thresholdLon);
+            double distNm = FlightPhysics.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
 
             double goAroundAlt = _fieldElevation + _goAroundAgl;
             ctx.Targets.TargetAltitude = goAroundAlt;
 
-            double timeToThresholdSec = ctx.Aircraft.GroundSpeed > 1
-                ? distNm / (ctx.Aircraft.GroundSpeed / 3600.0)
-                : 1.0;
+            double timeToThresholdSec = ctx.Aircraft.GroundSpeed > 1 ? distNm / (ctx.Aircraft.GroundSpeed / 3600.0) : 1.0;
             double altToLose = ctx.Aircraft.Altitude - goAroundAlt;
             if (altToLose > 0 && timeToThresholdSec > 1)
             {

@@ -43,26 +43,27 @@ public sealed class GroundRenderer : IDisposable
         Callsign,
     }
 
-    private record struct LabelCandidate(
-        string Text, float X, float Y,
-        LabelPriority Priority, SKPaint Paint,
-        SKColor? ColorOverride);
+    private record struct LabelCandidate(string Text, float X, float Y, LabelPriority Priority, SKPaint Paint, SKColor? ColorOverride);
 
     private readonly SKPaint _runwayFillPaint = new()
     {
-        Color = RunwayFillColor, Style = SKPaintStyle.Fill,
+        Color = RunwayFillColor,
+        Style = SKPaintStyle.Fill,
         IsAntialias = true,
     };
 
     private readonly SKPaint _runwayOutlinePaint = new()
     {
-        Color = RunwayOutlineColor, StrokeWidth = 1,
-        Style = SKPaintStyle.Stroke, IsAntialias = true,
+        Color = RunwayOutlineColor,
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
     };
 
     private readonly SKPaint _runwayLabelPaint = new()
     {
-        Color = new SKColor(180, 180, 180), TextSize = 15,
+        Color = new SKColor(180, 180, 180),
+        TextSize = 15,
         IsAntialias = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
         TextAlign = SKTextAlign.Center,
@@ -70,69 +71,78 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _runwayPaint = new()
     {
-        Color = RunwayColor, StrokeWidth = 6, Style = SKPaintStyle.Stroke,
-        IsAntialias = true, StrokeCap = SKStrokeCap.Round,
+        Color = RunwayColor,
+        StrokeWidth = 6,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
     };
 
     private readonly SKPaint _taxiwayPaint = new()
     {
-        Color = TaxiwayColor, StrokeWidth = 2, Style = SKPaintStyle.Stroke,
-        IsAntialias = true, StrokeCap = SKStrokeCap.Round,
+        Color = TaxiwayColor,
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
     };
 
     private readonly SKPaint _taxiLabelPaint = new()
     {
-        Color = TaxiLabelColor, TextSize = 13, IsAntialias = true,
+        Color = TaxiLabelColor,
+        TextSize = 13,
+        IsAntialias = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
     private readonly SKPaint _activeRoutePaint = new()
     {
-        Color = ActiveRouteColor, StrokeWidth = 4, Style = SKPaintStyle.Stroke,
-        IsAntialias = true, StrokeCap = SKStrokeCap.Round,
+        Color = ActiveRouteColor,
+        StrokeWidth = 4,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
     };
 
     private readonly SKPaint _previewRoutePaint = new()
     {
-        Color = PreviewRouteColor, StrokeWidth = 5,
-        Style = SKPaintStyle.Stroke, IsAntialias = true,
+        Color = PreviewRouteColor,
+        StrokeWidth = 5,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
         StrokeCap = SKStrokeCap.Round,
         PathEffect = SKPathEffect.CreateDash([10f, 6f], 0),
     };
 
-    private readonly SKPaint _nodePaint = new()
-    {
-        Style = SKPaintStyle.Fill, IsAntialias = true,
-    };
+    private readonly SKPaint _nodePaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
 
     private readonly SKPaint _nodeLabelPaint = new()
     {
-        Color = new SKColor(200, 200, 200), TextSize = 12,
+        Color = new SKColor(200, 200, 200),
+        TextSize = 12,
         IsAntialias = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
-    private readonly SKPaint _aircraftPaint = new()
-    {
-        Style = SKPaintStyle.Fill, IsAntialias = true,
-    };
+    private readonly SKPaint _aircraftPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
 
     private readonly SKPaint _callsignPaint = new()
     {
-        Color = CallsignColor, TextSize = 13, IsAntialias = true,
+        Color = CallsignColor,
+        TextSize = 13,
+        IsAntialias = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
     private readonly SKPaint _hoverPaint = new()
     {
-        Color = HoverRingColor, StrokeWidth = 2, Style = SKPaintStyle.Stroke,
+        Color = HoverRingColor,
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
         IsAntialias = true,
     };
 
-    private readonly SKPaint _bgPaint = new()
-    {
-        Color = BackgroundColor, Style = SKPaintStyle.Fill,
-    };
+    private readonly SKPaint _bgPaint = new() { Color = BackgroundColor, Style = SKPaintStyle.Fill };
 
     private readonly List<LabelCandidate> _labelCandidates = new(256);
 
@@ -144,7 +154,8 @@ public sealed class GroundRenderer : IDisposable
         AircraftModel? selectedAircraft,
         int? hoveredNodeId,
         TaxiRoute? activeRoute,
-        TaxiRoute? previewRoute)
+        TaxiRoute? previewRoute
+    )
     {
         canvas.Clear(BackgroundColor);
 
@@ -164,8 +175,7 @@ public sealed class GroundRenderer : IDisposable
         DrawLabels(canvas);
     }
 
-    private void DrawRunways(
-        SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
+    private void DrawRunways(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
     {
         if (layout.Runways is null)
         {
@@ -186,25 +196,19 @@ public sealed class GroundRenderer : IDisposable
                 continue;
             }
 
-            double heading = GeoMath.BearingTo(
-                first[0], first[1], last[0], last[1]);
+            double heading = GeoMath.BearingTo(first[0], first[1], last[0], last[1]);
             double halfWidthNm = (rwy.WidthFt / 2.0) / GeoMath.FeetPerNm;
 
             // Perpendicular angle (heading + 90)
             double perpRad = (heading + 90.0) * Math.PI / 180.0;
             double dLat = halfWidthNm / 60.0 * Math.Cos(perpRad);
-            double dLon = halfWidthNm / 60.0 * Math.Sin(perpRad)
-                / Math.Cos(first[0] * Math.PI / 180.0);
+            double dLon = halfWidthNm / 60.0 * Math.Sin(perpRad) / Math.Cos(first[0] * Math.PI / 180.0);
 
             // Build the 4 corners of the runway rectangle
-            var (x1, y1) = vp.LatLonToScreen(
-                first[0] + dLat, first[1] + dLon);
-            var (x2, y2) = vp.LatLonToScreen(
-                first[0] - dLat, first[1] - dLon);
-            var (x3, y3) = vp.LatLonToScreen(
-                last[0] - dLat, last[1] - dLon);
-            var (x4, y4) = vp.LatLonToScreen(
-                last[0] + dLat, last[1] + dLon);
+            var (x1, y1) = vp.LatLonToScreen(first[0] + dLat, first[1] + dLon);
+            var (x2, y2) = vp.LatLonToScreen(first[0] - dLat, first[1] - dLon);
+            var (x3, y3) = vp.LatLonToScreen(last[0] - dLat, last[1] - dLon);
+            var (x4, y4) = vp.LatLonToScreen(last[0] + dLat, last[1] + dLon);
 
             using var path = new SKPath();
             path.MoveTo(x1, y1);
@@ -227,37 +231,29 @@ public sealed class GroundRenderer : IDisposable
             var (mx, my) = vp.LatLonToScreen(midLat, midLon);
 
             string label = rwy.Name.Replace(" - ", "/");
-            _labelCandidates.Add(new LabelCandidate(
-                label, mx, my + 4,
-                LabelPriority.Runway, _runwayLabelPaint, null));
+            _labelCandidates.Add(new LabelCandidate(label, mx, my + 4, LabelPriority.Runway, _runwayLabelPaint, null));
         }
     }
 
-    private void DrawEdges(
-        SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
+    private void DrawEdges(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
     {
-        var nodeScreenPos = new Dictionary<int, (float X, float Y)>(
-            layout.Nodes.Count);
+        var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
         foreach (var node in layout.Nodes)
         {
-            nodeScreenPos[node.Id] = vp.LatLonToScreen(
-                node.Latitude, node.Longitude);
+            nodeScreenPos[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
         }
 
         // Track placed taxiway label positions for deduplication
-        var taxiLabelPositions = new Dictionary<string, List<(float X, float Y)>>(
-            StringComparer.OrdinalIgnoreCase);
+        var taxiLabelPositions = new Dictionary<string, List<(float X, float Y)>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var edge in layout.Edges)
         {
-            if (!nodeScreenPos.TryGetValue(edge.FromNodeId, out var from)
-                || !nodeScreenPos.TryGetValue(edge.ToNodeId, out var to))
+            if (!nodeScreenPos.TryGetValue(edge.FromNodeId, out var from) || !nodeScreenPos.TryGetValue(edge.ToNodeId, out var to))
             {
                 continue;
             }
 
-            bool isRunway = edge.TaxiwayName.StartsWith(
-                "RWY", StringComparison.OrdinalIgnoreCase);
+            bool isRunway = edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
             var paint = isRunway ? _runwayPaint : _taxiwayPaint;
 
             if (edge.IntermediatePoints is { Count: > 0 })
@@ -299,16 +295,12 @@ public sealed class GroundRenderer : IDisposable
                 }
 
                 positions.Add((mx, my));
-                _labelCandidates.Add(new LabelCandidate(
-                    edge.TaxiwayName, mx + 3, my - 3,
-                    LabelPriority.Taxiway, _taxiLabelPaint, null));
+                _labelCandidates.Add(new LabelCandidate(edge.TaxiwayName, mx + 3, my - 3, LabelPriority.Taxiway, _taxiLabelPaint, null));
             }
         }
     }
 
-    private static bool IsTaxiLabelTooClose(
-        Dictionary<string, List<(float X, float Y)>> positions,
-        string name, float x, float y)
+    private static bool IsTaxiLabelTooClose(Dictionary<string, List<(float X, float Y)>> positions, string name, float x, float y)
     {
         const float minDistSq = 100f * 100f;
 
@@ -330,23 +322,17 @@ public sealed class GroundRenderer : IDisposable
         return false;
     }
 
-    private void DrawActiveRoute(
-        SKCanvas canvas, MapViewport vp, GroundLayoutDto layout,
-        TaxiRoute? route)
+    private void DrawActiveRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
     {
         DrawRoute(canvas, vp, layout, route, _activeRoutePaint);
     }
 
-    private void DrawPreviewRoute(
-        SKCanvas canvas, MapViewport vp, GroundLayoutDto layout,
-        TaxiRoute? route)
+    private void DrawPreviewRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
     {
         DrawRoute(canvas, vp, layout, route, _previewRoutePaint);
     }
 
-    private static void DrawRoute(
-        SKCanvas canvas, MapViewport vp, GroundLayoutDto layout,
-        TaxiRoute? route, SKPaint paint)
+    private static void DrawRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route, SKPaint paint)
     {
         if (route is null)
         {
@@ -356,14 +342,12 @@ public sealed class GroundRenderer : IDisposable
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>();
         foreach (var node in layout.Nodes)
         {
-            nodeScreenPos[node.Id] = vp.LatLonToScreen(
-                node.Latitude, node.Longitude);
+            nodeScreenPos[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
         }
 
         foreach (var seg in route.Segments)
         {
-            if (!nodeScreenPos.TryGetValue(seg.FromNodeId, out var from)
-                || !nodeScreenPos.TryGetValue(seg.ToNodeId, out var to))
+            if (!nodeScreenPos.TryGetValue(seg.FromNodeId, out var from) || !nodeScreenPos.TryGetValue(seg.ToNodeId, out var to))
             {
                 continue;
             }
@@ -388,14 +372,11 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawNodes(
-        SKCanvas canvas, MapViewport vp, GroundLayoutDto layout,
-        int? hoveredNodeId)
+    private void DrawNodes(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, int? hoveredNodeId)
     {
         foreach (var node in layout.Nodes)
         {
-            var (sx, sy) = vp.LatLonToScreen(
-                node.Latitude, node.Longitude);
+            var (sx, sy) = vp.LatLonToScreen(node.Latitude, node.Longitude);
 
             _nodePaint.Color = node.Type switch
             {
@@ -414,19 +395,13 @@ public sealed class GroundRenderer : IDisposable
 
             canvas.DrawCircle(sx, sy, radius, _nodePaint);
 
-            if (node.Name is not null
-                && node.Type is "Parking" or "Spot")
+            if (node.Name is not null && node.Type is "Parking" or "Spot")
             {
-                _labelCandidates.Add(new LabelCandidate(
-                    node.Name, sx + 5, sy - 3,
-                    LabelPriority.ParkingSpot, _nodeLabelPaint, null));
+                _labelCandidates.Add(new LabelCandidate(node.Name, sx + 5, sy - 3, LabelPriority.ParkingSpot, _nodeLabelPaint, null));
             }
-            else if (node.RunwayId is not null
-                && node.Type == "RunwayHoldShort")
+            else if (node.RunwayId is not null && node.Type == "RunwayHoldShort")
             {
-                _labelCandidates.Add(new LabelCandidate(
-                    $"HS {node.RunwayId}", sx + 5, sy - 3,
-                    LabelPriority.HoldShort, _nodeLabelPaint, null));
+                _labelCandidates.Add(new LabelCandidate($"HS {node.RunwayId}", sx + 5, sy - 3, LabelPriority.HoldShort, _nodeLabelPaint, null));
             }
 
             if (hoveredNodeId == node.Id)
@@ -436,10 +411,7 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawAircraft(
-        SKCanvas canvas, MapViewport vp,
-        IReadOnlyList<AircraftModel> aircraft,
-        AircraftModel? selectedAircraft)
+    private void DrawAircraft(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, AircraftModel? selectedAircraft)
     {
         foreach (var ac in aircraft)
         {
@@ -451,21 +423,15 @@ public sealed class GroundRenderer : IDisposable
             var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
             bool isSelected = ac == selectedAircraft;
 
-            _aircraftPaint.Color = isSelected
-                ? AircraftSelected
-                : selectedAircraft is not null
-                    ? AircraftDimmed
-                    : GetAircraftColor(ac);
+            _aircraftPaint.Color =
+                isSelected ? AircraftSelected
+                : selectedAircraft is not null ? AircraftDimmed
+                : GetAircraftColor(ac);
 
-            DrawTriangle(canvas, sx, sy, (float)ac.Heading,
-                isSelected ? 14f : 11f, _aircraftPaint);
+            DrawTriangle(canvas, sx, sy, (float)ac.Heading, isSelected ? 14f : 11f, _aircraftPaint);
 
-            var callsignColor = isSelected
-                ? SKColors.White
-                : new SKColor(180, 180, 180);
-            _labelCandidates.Add(new LabelCandidate(
-                ac.Callsign, sx + 16, sy + 4,
-                LabelPriority.Callsign, _callsignPaint, callsignColor));
+            var callsignColor = isSelected ? SKColors.White : new SKColor(180, 180, 180);
+            _labelCandidates.Add(new LabelCandidate(ac.Callsign, sx + 16, sy + 4, LabelPriority.Callsign, _callsignPaint, callsignColor));
         }
     }
 
@@ -479,21 +445,15 @@ public sealed class GroundRenderer : IDisposable
         };
     }
 
-    private static void DrawTriangle(
-        SKCanvas canvas, float cx, float cy, float headingDeg,
-        float size, SKPaint paint)
+    private static void DrawTriangle(SKCanvas canvas, float cx, float cy, float headingDeg, float size, SKPaint paint)
     {
         var rad = (headingDeg - 90) * MathF.PI / 180f;
         var cos = MathF.Cos(rad);
         var sin = MathF.Sin(rad);
 
         var tip = new SKPoint(cx + cos * size, cy + sin * size);
-        var left = new SKPoint(
-            cx + MathF.Cos(rad + 2.5f) * size * 0.6f,
-            cy + MathF.Sin(rad + 2.5f) * size * 0.6f);
-        var right = new SKPoint(
-            cx + MathF.Cos(rad - 2.5f) * size * 0.6f,
-            cy + MathF.Sin(rad - 2.5f) * size * 0.6f);
+        var left = new SKPoint(cx + MathF.Cos(rad + 2.5f) * size * 0.6f, cy + MathF.Sin(rad + 2.5f) * size * 0.6f);
+        var right = new SKPoint(cx + MathF.Cos(rad - 2.5f) * size * 0.6f, cy + MathF.Sin(rad - 2.5f) * size * 0.6f);
 
         using var path = new SKPath();
         path.MoveTo(tip);
@@ -515,12 +475,8 @@ public sealed class GroundRenderer : IDisposable
             float textWidth = paint.MeasureText(label.Text);
             float textHeight = paint.TextSize;
 
-            float left = paint.TextAlign == SKTextAlign.Center
-                ? label.X - textWidth / 2f - 2
-                : label.X - 2;
-            var rect = new SKRect(
-                left, label.Y - textHeight - 1,
-                left + textWidth + 4, label.Y + 1);
+            float left = paint.TextAlign == SKTextAlign.Center ? label.X - textWidth / 2f - 2 : label.X - 2;
+            var rect = new SKRect(left, label.Y - textHeight - 1, left + textWidth + 4, label.Y + 1);
 
             bool overlaps = false;
             foreach (var placed in placedRects)

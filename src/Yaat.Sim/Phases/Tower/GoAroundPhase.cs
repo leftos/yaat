@@ -46,9 +46,7 @@ public sealed class GoAroundPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         double agl = ctx.Aircraft.Altitude - _fieldElevation;
-        double targetAgl = TargetAltitude.HasValue
-            ? TargetAltitude.Value - _fieldElevation
-            : SelfClearAgl;
+        double targetAgl = TargetAltitude.HasValue ? TargetAltitude.Value - _fieldElevation : SelfClearAgl;
 
         return agl >= targetAgl;
     }

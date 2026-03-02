@@ -11,8 +11,7 @@ namespace Yaat.Client.ViewModels;
 
 public partial class RadarViewModel : ObservableObject
 {
-    private readonly ILogger _log =
-        AppLog.CreateLogger<RadarViewModel>();
+    private readonly ILogger _log = AppLog.CreateLogger<RadarViewModel>();
 
     private readonly ServerConnection _connection;
     private readonly VideoMapService _videoMapService;
@@ -52,8 +51,7 @@ public partial class RadarViewModel : ObservableObject
     private IReadOnlyList<VideoMapData>? _activeVideoMaps;
 
     [ObservableProperty]
-    private IReadOnlyList<(string Name, double Lat, double Lon)>?
-        _fixes;
+    private IReadOnlyList<(string Name, double Lat, double Lon)>? _fixes;
 
     [ObservableProperty]
     private bool _isPanZoomLocked = true;
@@ -73,21 +71,16 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private bool _isAdjustingRangeRingSize;
 
-    public ObservableCollection<VideoMapToggleItem> MapToggles { get; }
-        = [];
+    public ObservableCollection<VideoMapToggleItem> MapToggles { get; } = [];
 
-    public ObservableCollection<MapShortcutItem> MapShortcuts { get; }
-        = [];
+    public ObservableCollection<MapShortcutItem> MapShortcuts { get; } = [];
 
     /// <summary>
     /// Brightness category by map ID ("A" or "B").
     /// </summary>
     public Dictionary<string, string> BrightnessLookup { get; } = [];
 
-    public RadarViewModel(
-        ServerConnection connection,
-        VideoMapService videoMapService,
-        Func<string, string, string, Task> sendCommand)
+    public RadarViewModel(ServerConnection connection, VideoMapService videoMapService, Func<string, string, string, Task> sendCommand)
     {
         _connection = connection;
         _videoMapService = videoMapService;
@@ -137,17 +130,14 @@ public partial class RadarViewModel : ObservableObject
         return 0;
     }
 
-    public async Task LoadVideoMapsForArtccAsync(
-        string artccId, string? scenarioId = null)
+    public async Task LoadVideoMapsForArtccAsync(string artccId, string? scenarioId = null)
     {
         try
         {
-            var dto = await _connection
-                .GetFacilityVideoMapsForArtccAsync(artccId);
+            var dto = await _connection.GetFacilityVideoMapsForArtccAsync(artccId);
             if (dto is null)
             {
-                _log.LogWarning(
-                    "No video maps for {Artcc}", artccId);
+                _log.LogWarning("No video maps for {Artcc}", artccId);
                 return;
             }
 
@@ -155,8 +145,7 @@ public partial class RadarViewModel : ObservableObject
             ApplyVideoMapsDto(artccId, dto);
 
             // Download all referenced maps
-            var data = await _videoMapService
-                .LoadMapsAsync(artccId, dto.VideoMaps);
+            var data = await _videoMapService.LoadMapsAsync(artccId, dto.VideoMaps);
 
             // Restore per-scenario settings if available
             RestoreSettings();
@@ -164,20 +153,15 @@ public partial class RadarViewModel : ObservableObject
             // Initially enable always-visible maps (unless restored)
             UpdateActiveMaps();
 
-            _log.LogInformation(
-                "Video maps loaded: {Count} maps for {Facility}",
-                data.Count, dto.FacilityId);
+            _log.LogInformation("Video maps loaded: {Count} maps for {Facility}", data.Count, dto.FacilityId);
         }
         catch (Exception ex)
         {
-            _log.LogError(ex,
-                "Failed to load video maps for {Artcc}",
-                artccId);
+            _log.LogError(ex, "Failed to load video maps for {Artcc}", artccId);
         }
     }
 
-    private void ApplyVideoMapsDto(
-        string artccId, FacilityVideoMapsDto dto)
+    private void ApplyVideoMapsDto(string artccId, FacilityVideoMapsDto dto)
     {
         // Build brightness lookup
         BrightnessLookup.Clear();
@@ -253,8 +237,7 @@ public partial class RadarViewModel : ObservableObject
         _videoMapService.ClearMemoryCache();
     }
 
-    public void SetFixes(
-        IReadOnlyList<(string Name, double Lat, double Lon)> fixes)
+    public void SetFixes(IReadOnlyList<(string Name, double Lat, double Lon)> fixes)
     {
         Fixes = fixes;
     }
@@ -434,238 +417,199 @@ public partial class RadarViewModel : ObservableObject
 
     // --- Command methods for context menus ---
 
-    public async Task FlyHeadingAsync(
-        string callsign, string initials, int heading)
+    public async Task FlyHeadingAsync(string callsign, string initials, int heading)
     {
         await _sendCommand(callsign, $"FH {heading}", initials);
     }
 
-    public async Task TurnLeftAsync(
-        string callsign, string initials, int heading)
+    public async Task TurnLeftAsync(string callsign, string initials, int heading)
     {
         await _sendCommand(callsign, $"TL {heading}", initials);
     }
 
-    public async Task TurnRightAsync(
-        string callsign, string initials, int heading)
+    public async Task TurnRightAsync(string callsign, string initials, int heading)
     {
         await _sendCommand(callsign, $"TR {heading}", initials);
     }
 
-    public async Task ClimbAndMaintainAsync(
-        string callsign, string initials, int altitude)
+    public async Task ClimbAndMaintainAsync(string callsign, string initials, int altitude)
     {
         await _sendCommand(callsign, $"CM {altitude}", initials);
     }
 
-    public async Task DescendAndMaintainAsync(
-        string callsign, string initials, int altitude)
+    public async Task DescendAndMaintainAsync(string callsign, string initials, int altitude)
     {
         await _sendCommand(callsign, $"DM {altitude}", initials);
     }
 
-    public async Task SpeedAsync(
-        string callsign, string initials, int speed)
+    public async Task SpeedAsync(string callsign, string initials, int speed)
     {
         await _sendCommand(callsign, $"SPD {speed}", initials);
     }
 
-    public async Task SpeedNormalAsync(
-        string callsign, string initials)
+    public async Task SpeedNormalAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "SPD 0", initials);
     }
 
-    public async Task DirectToAsync(
-        string callsign, string initials, string fix)
+    public async Task DirectToAsync(string callsign, string initials, string fix)
     {
         await _sendCommand(callsign, $"DCT {fix}", initials);
     }
 
-    public async Task TrackAsync(
-        string callsign, string initials)
+    public async Task TrackAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "TRACK", initials);
     }
 
-    public async Task DropTrackAsync(
-        string callsign, string initials)
+    public async Task DropTrackAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "DROP", initials);
     }
 
-    public async Task AcceptHandoffAsync(
-        string callsign, string initials)
+    public async Task AcceptHandoffAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "ACCEPT", initials);
     }
 
-    public async Task DeleteAsync(
-        string callsign, string initials)
+    public async Task DeleteAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "DEL", initials);
     }
 
-    public async Task IdentAsync(
-        string callsign, string initials)
+    public async Task IdentAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "ID", initials);
     }
 
-    public async Task PresentHeadingAsync(
-        string callsign, string initials)
+    public async Task PresentHeadingAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "FPH", initials);
     }
 
     // --- Track operations ---
 
-    public async Task InitiateHandoffAsync(
-        string callsign, string initials, string position)
+    public async Task InitiateHandoffAsync(string callsign, string initials, string position)
     {
         await _sendCommand(callsign, $"HO {position}", initials);
     }
 
-    public async Task CancelHandoffAsync(
-        string callsign, string initials)
+    public async Task CancelHandoffAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "CANCEL", initials);
     }
 
-    public async Task PointOutAsync(
-        string callsign, string initials, string position)
+    public async Task PointOutAsync(string callsign, string initials, string position)
     {
         await _sendCommand(callsign, $"PO {position}", initials);
     }
 
-    public async Task AcknowledgeAsync(
-        string callsign, string initials)
+    public async Task AcknowledgeAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "OK", initials);
     }
 
     // --- Data block ---
 
-    public async Task ScratchpadAsync(
-        string callsign, string initials, string text)
+    public async Task ScratchpadAsync(string callsign, string initials, string text)
     {
         await _sendCommand(callsign, $"SP {text}", initials);
     }
 
-    public async Task TemporaryAltitudeAsync(
-        string callsign, string initials, int altitude)
+    public async Task TemporaryAltitudeAsync(string callsign, string initials, int altitude)
     {
-        await _sendCommand(
-            callsign, $"TEMPALT {altitude}", initials);
+        await _sendCommand(callsign, $"TEMPALT {altitude}", initials);
     }
 
-    public async Task CruiseAsync(
-        string callsign, string initials, int altitude)
+    public async Task CruiseAsync(string callsign, string initials, int altitude)
     {
-        await _sendCommand(
-            callsign, $"CRUISE {altitude}", initials);
+        await _sendCommand(callsign, $"CRUISE {altitude}", initials);
     }
 
-    public async Task AnnotateAsync(
-        string callsign, string initials)
+    public async Task AnnotateAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "ANNOTATE", initials);
     }
 
     // --- Communication ---
 
-    public async Task FrequencyChangeAsync(
-        string callsign, string initials)
+    public async Task FrequencyChangeAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "FC", initials);
     }
 
-    public async Task ContactTcpAsync(
-        string callsign, string initials, string tcp)
+    public async Task ContactTcpAsync(string callsign, string initials, string tcp)
     {
         await _sendCommand(callsign, $"CT {tcp}", initials);
     }
 
-    public async Task ContactTowerAsync(
-        string callsign, string initials)
+    public async Task ContactTowerAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "TO", initials);
     }
 
     // --- Hold ---
 
-    public async Task HoldPresentLeftAsync(
-        string callsign, string initials)
+    public async Task HoldPresentLeftAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "HPPL", initials);
     }
 
-    public async Task HoldPresentRightAsync(
-        string callsign, string initials)
+    public async Task HoldPresentRightAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "HPPR", initials);
     }
 
-    public async Task HoldAtFixLeftAsync(
-        string callsign, string initials, string fix)
+    public async Task HoldAtFixLeftAsync(string callsign, string initials, string fix)
     {
         await _sendCommand(callsign, $"HFIXL {fix}", initials);
     }
 
-    public async Task HoldAtFixRightAsync(
-        string callsign, string initials, string fix)
+    public async Task HoldAtFixRightAsync(string callsign, string initials, string fix)
     {
         await _sendCommand(callsign, $"HFIXR {fix}", initials);
     }
 
     // --- Squawk ---
 
-    public async Task SquawkAsync(
-        string callsign, string initials, int code)
+    public async Task SquawkAsync(string callsign, string initials, int code)
     {
         await _sendCommand(callsign, $"SQ {code}", initials);
     }
 
-    public async Task SquawkVfrAsync(
-        string callsign, string initials)
+    public async Task SquawkVfrAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "SQVFR", initials);
     }
 
-    public async Task SquawkNormalAsync(
-        string callsign, string initials)
+    public async Task SquawkNormalAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "SQNORM", initials);
     }
 
-    public async Task SquawkStandbyAsync(
-        string callsign, string initials)
+    public async Task SquawkStandbyAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "SQSBY", initials);
     }
 
     // --- Coordination ---
 
-    public async Task CoordinationReleaseAsync(
-        string callsign, string initials)
+    public async Task CoordinationReleaseAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "RD", initials);
     }
 
-    public async Task CoordinationHoldAsync(
-        string callsign, string initials)
+    public async Task CoordinationHoldAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "RDH", initials);
     }
 
-    public async Task CoordinationRecallAsync(
-        string callsign, string initials)
+    public async Task CoordinationRecallAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "RDR", initials);
     }
 
-    public async Task CoordinationAcknowledgeAsync(
-        string callsign, string initials)
+    public async Task CoordinationAcknowledgeAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "RDACK", initials);
     }

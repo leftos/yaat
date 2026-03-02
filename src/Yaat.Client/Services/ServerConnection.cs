@@ -97,21 +97,16 @@ public sealed class ServerConnection : IAsyncDisposable
 
     // --- Room lifecycle ---
 
-    public async Task<string> CreateRoomAsync(
-        string cid, string initials, string artccId)
+    public async Task<string> CreateRoomAsync(string cid, string initials, string artccId)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<string>(
-            "CreateRoom", cid, initials, artccId);
+        return await _connection!.InvokeAsync<string>("CreateRoom", cid, initials, artccId);
     }
 
-    public async Task<RoomStateDto?> JoinRoomAsync(
-        string roomId, string cid,
-        string initials, string artccId)
+    public async Task<RoomStateDto?> JoinRoomAsync(string roomId, string cid, string initials, string artccId)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<RoomStateDto?>(
-            "JoinRoom", roomId, cid, initials, artccId);
+        return await _connection!.InvokeAsync<RoomStateDto?>("JoinRoom", roomId, cid, initials, artccId);
     }
 
     public async Task LeaveRoomAsync()
@@ -123,18 +118,15 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task<List<TrainingRoomInfoDto>> GetActiveRoomsAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<List<TrainingRoomInfoDto>>(
-            "GetActiveRooms");
+        return await _connection!.InvokeAsync<List<TrainingRoomInfoDto>>("GetActiveRooms");
     }
 
     // --- Scenario lifecycle ---
 
-    public async Task<LoadScenarioResultDto> LoadScenarioAsync(
-        string scenarioJson)
+    public async Task<LoadScenarioResultDto> LoadScenarioAsync(string scenarioJson)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<LoadScenarioResultDto>(
-            "LoadScenario", scenarioJson);
+        return await _connection!.InvokeAsync<LoadScenarioResultDto>("LoadScenario", scenarioJson);
     }
 
     // --- Aircraft commands ---
@@ -163,12 +155,10 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("DeleteAircraft", callsign);
     }
 
-    public async Task WarpAircraftAsync(
-        string callsign, double latitude, double longitude, double heading)
+    public async Task WarpAircraftAsync(string callsign, double latitude, double longitude, double heading)
     {
         EnsureConnected();
-        await _connection!.InvokeAsync(
-            "WarpAircraft", callsign, latitude, longitude, heading);
+        await _connection!.InvokeAsync("WarpAircraft", callsign, latitude, longitude, heading);
     }
 
     public async Task<UnloadScenarioResultDto> UnloadScenarioAircraftAsync()
@@ -217,28 +207,22 @@ public sealed class ServerConnection : IAsyncDisposable
 
     // --- Data queries ---
 
-    public async Task<GroundLayoutDto?> GetAirportGroundLayoutAsync(
-        string airportId)
+    public async Task<GroundLayoutDto?> GetAirportGroundLayoutAsync(string airportId)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<GroundLayoutDto?>(
-            "GetAirportGroundLayout", airportId);
+        return await _connection!.InvokeAsync<GroundLayoutDto?>("GetAirportGroundLayout", airportId);
     }
 
-    public async Task<FacilityVideoMapsDto?> GetFacilityVideoMapsAsync(
-        string artccId, string facilityId)
+    public async Task<FacilityVideoMapsDto?> GetFacilityVideoMapsAsync(string artccId, string facilityId)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<FacilityVideoMapsDto?>(
-            "GetFacilityVideoMaps", artccId, facilityId);
+        return await _connection!.InvokeAsync<FacilityVideoMapsDto?>("GetFacilityVideoMaps", artccId, facilityId);
     }
 
-    public async Task<FacilityVideoMapsDto?> GetFacilityVideoMapsForArtccAsync(
-        string artccId)
+    public async Task<FacilityVideoMapsDto?> GetFacilityVideoMapsForArtccAsync(string artccId)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<FacilityVideoMapsDto?>(
-            "GetFacilityVideoMapsForArtcc", artccId);
+        return await _connection!.InvokeAsync<FacilityVideoMapsDto?>("GetFacilityVideoMapsForArtcc", artccId);
     }
 
     // --- Admin ---
@@ -252,15 +236,13 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task<List<TrainingRoomInfoDto>> AdminGetRoomsAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<List<TrainingRoomInfoDto>>(
-            "AdminGetScenarios");
+        return await _connection!.InvokeAsync<List<TrainingRoomInfoDto>>("AdminGetScenarios");
     }
 
     public async Task AdminSetRoomFilterAsync(string? roomId)
     {
         EnsureConnected();
-        await _connection!.InvokeAsync(
-            "AdminSetScenarioFilter", roomId);
+        await _connection!.InvokeAsync("AdminSetScenarioFilter", roomId);
     }
 
     // --- CRC client management ---
@@ -268,29 +250,25 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task<List<CrcLobbyClientDto>> GetCrcLobbyClientsAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<List<CrcLobbyClientDto>>(
-            "GetCrcLobbyClients");
+        return await _connection!.InvokeAsync<List<CrcLobbyClientDto>>("GetCrcLobbyClients");
     }
 
     public async Task<bool> PullCrcClientAsync(string clientId)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<bool>(
-            "PullCrcClient", clientId);
+        return await _connection!.InvokeAsync<bool>("PullCrcClient", clientId);
     }
 
     public async Task<bool> KickCrcClientAsync(string clientId)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<bool>(
-            "KickCrcClient", clientId);
+        return await _connection!.InvokeAsync<bool>("KickCrcClient", clientId);
     }
 
     public async Task<List<CrcRoomMemberDto>> GetCrcRoomMembersAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<List<CrcRoomMemberDto>>(
-            "GetCrcRoomMembers");
+        return await _connection!.InvokeAsync<List<CrcRoomMemberDto>>("GetCrcRoomMembers");
     }
 
     // --- Lifecycle ---
@@ -432,72 +410,49 @@ public record RoomStateDto(
     List<AircraftDto> AllAircraft
 );
 
-public record RoomMemberDto(
-    string Cid, string Initials, string ArtccId);
+public record RoomMemberDto(string Cid, string Initials, string ArtccId);
 
-public record RoomMemberChangedDto(
-    string RoomId,
-    List<RoomMemberDto> Members,
-    string? ScenarioName
-);
+public record RoomMemberChangedDto(string RoomId, List<RoomMemberDto> Members, string? ScenarioName);
 
-public record UnloadScenarioResultDto(
-    bool RequiresConfirmation, int OtherClientCount,
-    string? Message);
+public record UnloadScenarioResultDto(bool RequiresConfirmation, int OtherClientCount, string? Message);
 
-public record TerminalBroadcastDto(
-    string Initials, string Kind, string Callsign,
-    string Message, DateTime Timestamp);
+public record TerminalBroadcastDto(string Initials, string Kind, string Callsign, string Message, DateTime Timestamp);
 
-public record CrcLobbyClientDto(
-    string ClientId, string? Cid, string? DisplayName,
-    string? ArtccId, string? PositionId, bool IsActive);
+public record CrcLobbyClientDto(string ClientId, string? Cid, string? DisplayName, string? ArtccId, string? PositionId, bool IsActive);
 
-public record CrcLobbyChangedDto(
-    List<CrcLobbyClientDto> Clients);
+public record CrcLobbyChangedDto(List<CrcLobbyClientDto> Clients);
 
-public record CrcRoomMemberDto(
-    string ClientId, string? Cid, string? DisplayName,
-    string? PositionId, bool IsActive);
+public record CrcRoomMemberDto(string ClientId, string? Cid, string? DisplayName, string? PositionId, bool IsActive);
 
-public record CrcRoomMembersChangedDto(
-    string RoomId, List<CrcRoomMemberDto> Members);
+public record CrcRoomMembersChangedDto(string RoomId, List<CrcRoomMemberDto> Members);
 
-public record GroundLayoutDto(
-    string AirportId,
-    List<GroundNodeDto> Nodes,
-    List<GroundEdgeDto> Edges,
-    List<GroundRunwayDto>? Runways);
+public record GroundLayoutDto(string AirportId, List<GroundNodeDto> Nodes, List<GroundEdgeDto> Edges, List<GroundRunwayDto>? Runways);
 
-public record GroundNodeDto(
-    int Id, double Latitude, double Longitude,
-    string Type,
-    string? Name, double? Heading, string? RunwayId);
+public record GroundNodeDto(int Id, double Latitude, double Longitude, string Type, string? Name, double? Heading, string? RunwayId);
 
-public record GroundEdgeDto(
-    int FromNodeId, int ToNodeId, string TaxiwayName,
-    double DistanceNm, List<double[]>? IntermediatePoints);
+public record GroundEdgeDto(int FromNodeId, int ToNodeId, string TaxiwayName, double DistanceNm, List<double[]>? IntermediatePoints);
 
-public record GroundRunwayDto(
-    string Name, List<double[]> Coordinates, double WidthFt);
+public record GroundRunwayDto(string Name, List<double[]> Coordinates, double WidthFt);
 
 public record VideoMapInfoDto(
-    string Id, string Name, string ShortName,
-    List<string> Tags, string BrightnessCategory,
-    int StarsId, bool AlwaysVisible, bool TdmOnly);
+    string Id,
+    string Name,
+    string ShortName,
+    List<string> Tags,
+    string BrightnessCategory,
+    int StarsId,
+    bool AlwaysVisible,
+    bool TdmOnly
+);
 
-public record StarsAreaDto(
-    string Id, string Name,
-    double CenterLat, double CenterLon,
-    double SurveillanceRange,
-    List<string> VideoMapIds);
+public record StarsAreaDto(string Id, string Name, double CenterLat, double CenterLon, double SurveillanceRange, List<string> VideoMapIds);
 
-public record MapGroupDto(
-    List<int?> MapIds,
-    List<string> TcpCodes);
+public record MapGroupDto(List<int?> MapIds, List<string> TcpCodes);
 
 public record FacilityVideoMapsDto(
-    string ArtccId, string FacilityId,
+    string ArtccId,
+    string FacilityId,
     List<StarsAreaDto> Areas,
     List<VideoMapInfoDto> VideoMaps,
-    List<MapGroupDto> MapGroups);
+    List<MapGroupDto> MapGroups
+);

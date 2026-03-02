@@ -45,15 +45,22 @@ public sealed class DownwindPhase : Phase
         _pastAbeam = false;
 
         _abeamAlongTrack = FlightPhysics.AlongTrackDistanceNm(
-            Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon,
-            _thresholdLat, _thresholdLon, _downwindHeading);
+            Waypoints.DownwindAbeamLat,
+            Waypoints.DownwindAbeamLon,
+            _thresholdLat,
+            _thresholdLon,
+            _downwindHeading
+        );
 
         _baseTurnAlongTrack = FlightPhysics.AlongTrackDistanceNm(
-            Waypoints.BaseTurnLat, Waypoints.BaseTurnLon,
-            _thresholdLat, _thresholdLon, _downwindHeading);
+            Waypoints.BaseTurnLat,
+            Waypoints.BaseTurnLon,
+            _thresholdLat,
+            _thresholdLon,
+            _downwindHeading
+        );
 
-        var turnDir = Waypoints.Direction == PatternDirection.Left
-            ? TurnDirection.Left : TurnDirection.Right;
+        var turnDir = Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
 
         ctx.Targets.TargetHeading = Waypoints.DownwindHeading;
         ctx.Targets.PreferredTurnDirection = turnDir;
@@ -70,8 +77,12 @@ public sealed class DownwindPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         double aircraftAlongTrack = FlightPhysics.AlongTrackDistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _thresholdLat, _thresholdLon, _downwindHeading);
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            _thresholdLat,
+            _thresholdLon,
+            _downwindHeading
+        );
 
         // Begin descent when abeam the approach end of the runway
         if (!_pastAbeam && Waypoints is not null)
@@ -79,32 +90,24 @@ public sealed class DownwindPhase : Phase
             if (aircraftAlongTrack >= _abeamAlongTrack - AlongTrackToleranceNm)
             {
                 _pastAbeam = true;
-                double descentRate = CategoryPerformance.PatternDescentRate(
-                    ctx.Category);
+                double descentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
                 ctx.Targets.DesiredVerticalRate = -descentRate;
 
                 // Target: 60% of the way from threshold to pattern altitude
-                double thresholdElev =
-                    ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
-                double midAlt = thresholdElev
-                    + (Waypoints.PatternAltitude - thresholdElev) * 0.6;
+                double thresholdElev = ctx.Runway?.ElevationFt ?? ctx.FieldElevation;
+                double midAlt = thresholdElev + (Waypoints.PatternAltitude - thresholdElev) * 0.6;
                 ctx.Targets.TargetAltitude = midAlt;
 
                 // Compute altitude floor for extended downwind: the altitude
                 // at which the aircraft would intercept a 3° glideslope from
                 // the approximate final approach distance to the threshold.
-                double patternSize =
-                    CategoryPerformance.PatternSizeNm(ctx.Category);
-                double baseExt =
-                    CategoryPerformance.BaseExtensionNm(ctx.Category);
-                double finalApproachDist = Math.Sqrt(
-                    patternSize * patternSize + baseExt * baseExt);
-                _altitudeFloor =
-                    thresholdElev + finalApproachDist * GlideslopeFtPerNm;
+                double patternSize = CategoryPerformance.PatternSizeNm(ctx.Category);
+                double baseExt = CategoryPerformance.BaseExtensionNm(ctx.Category);
+                double finalApproachDist = Math.Sqrt(patternSize * patternSize + baseExt * baseExt);
+                _altitudeFloor = thresholdElev + finalApproachDist * GlideslopeFtPerNm;
 
                 // Begin decelerating toward base speed
-                ctx.Targets.TargetSpeed =
-                    CategoryPerformance.BaseSpeed(ctx.Category);
+                ctx.Targets.TargetSpeed = CategoryPerformance.BaseSpeed(ctx.Category);
             }
         }
 

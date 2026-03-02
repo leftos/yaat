@@ -13,11 +13,9 @@ public static class AircraftGenerator
         [(WeightClass.Heavy, EngineKind.Jet)] = ["B77L", "B772", "A332", "B789", "B744", "A359"],
     };
 
-    private static readonly string[] Airlines =
-        ["UAL", "AAL", "DAL", "SWA", "JBU", "ASA", "NKS", "SKW", "ENY", "RPA"];
+    private static readonly string[] Airlines = ["UAL", "AAL", "DAL", "SWA", "JBU", "ASA", "NKS", "SKW", "ENY", "RPA"];
 
-    public static string[]? GetTypesForCombo(WeightClass weight, EngineKind engine)
-        => TypeTable.GetValueOrDefault((weight, engine));
+    public static string[]? GetTypesForCombo(WeightClass weight, EngineKind engine) => TypeTable.GetValueOrDefault((weight, engine));
 
     public static IReadOnlyList<string> GetAirlines() => Airlines;
 
@@ -26,7 +24,8 @@ public static class AircraftGenerator
         string? primaryAirportId,
         IFixLookup fixes,
         IRunwayLookup runways,
-        IReadOnlyCollection<AircraftState> existingAircraft)
+        IReadOnlyCollection<AircraftState> existingAircraft
+    )
     {
         var aircraftType = ResolveType(request);
         if (aircraftType is null)
@@ -43,24 +42,26 @@ public static class AircraftGenerator
         switch (request.PositionType)
         {
             case SpawnPositionType.Bearing:
-                return GenerateBearing(
-                    request, primaryAirportId, fixes, callsign,
-                    aircraftType, category, beaconCode, transponderMode, flightRules);
+                return GenerateBearing(request, primaryAirportId, fixes, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
 
             case SpawnPositionType.Runway:
-                return GenerateOnRunway(
-                    request, primaryAirportId, runways, callsign,
-                    aircraftType, beaconCode, transponderMode, flightRules);
+                return GenerateOnRunway(request, primaryAirportId, runways, callsign, aircraftType, beaconCode, transponderMode, flightRules);
 
             case SpawnPositionType.OnFinal:
                 return GenerateOnFinal(
-                    request, primaryAirportId, runways, callsign,
-                    aircraftType, category, beaconCode, transponderMode, flightRules);
+                    request,
+                    primaryAirportId,
+                    runways,
+                    callsign,
+                    aircraftType,
+                    category,
+                    beaconCode,
+                    transponderMode,
+                    flightRules
+                );
 
             case SpawnPositionType.AtFix:
-                return GenerateAtFix(
-                    request, primaryAirportId, fixes, callsign,
-                    aircraftType, category, beaconCode, transponderMode, flightRules);
+                return GenerateAtFix(request, primaryAirportId, fixes, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
 
             default:
                 return (null, $"Unknown position type: {request.PositionType}");
@@ -68,9 +69,16 @@ public static class AircraftGenerator
     }
 
     private static (AircraftState? State, string? Error) GenerateBearing(
-        SpawnRequest request, string? primaryAirportId, IFixLookup fixes,
-        string callsign, string aircraftType, AircraftCategory category,
-        uint beaconCode, string transponderMode, string flightRules)
+        SpawnRequest request,
+        string? primaryAirportId,
+        IFixLookup fixes,
+        string callsign,
+        string aircraftType,
+        AircraftCategory category,
+        uint beaconCode,
+        string transponderMode,
+        string flightRules
+    )
     {
         if (string.IsNullOrEmpty(primaryAirportId))
         {
@@ -83,9 +91,7 @@ public static class AircraftGenerator
             return (null, $"Could not find primary airport '{primaryAirportId}' in navdata");
         }
 
-        var (lat, lon) = ComputePosition(
-            airportPos.Value.Lat, airportPos.Value.Lon,
-            request.Bearing, request.DistanceNm);
+        var (lat, lon) = ComputePosition(airportPos.Value.Lat, airportPos.Value.Lon, request.Bearing, request.DistanceNm);
 
         // Heading toward the airport
         var heading = ComputeBearing(lat, lon, airportPos.Value.Lat, airportPos.Value.Lon);
@@ -110,9 +116,16 @@ public static class AircraftGenerator
     }
 
     private static (AircraftState? State, string? Error) GenerateAtFix(
-        SpawnRequest request, string? primaryAirportId, IFixLookup fixes,
-        string callsign, string aircraftType, AircraftCategory category,
-        uint beaconCode, string transponderMode, string flightRules)
+        SpawnRequest request,
+        string? primaryAirportId,
+        IFixLookup fixes,
+        string callsign,
+        string aircraftType,
+        AircraftCategory category,
+        uint beaconCode,
+        string transponderMode,
+        string flightRules
+    )
     {
         var resolved = FrdResolver.Resolve(request.FixId, fixes);
         if (resolved is null)
@@ -127,9 +140,7 @@ public static class AircraftGenerator
             var airportPos = fixes.GetFixPosition(primaryAirportId);
             if (airportPos is not null)
             {
-                heading = ComputeBearing(
-                    resolved.Latitude, resolved.Longitude,
-                    airportPos.Value.Lat, airportPos.Value.Lon);
+                heading = ComputeBearing(resolved.Latitude, resolved.Longitude, airportPos.Value.Lat, airportPos.Value.Lon);
             }
         }
 
@@ -154,9 +165,15 @@ public static class AircraftGenerator
     }
 
     private static (AircraftState? State, string? Error) GenerateOnRunway(
-        SpawnRequest request, string? primaryAirportId, IRunwayLookup runways,
-        string callsign, string aircraftType,
-        uint beaconCode, string transponderMode, string flightRules)
+        SpawnRequest request,
+        string? primaryAirportId,
+        IRunwayLookup runways,
+        string callsign,
+        string aircraftType,
+        uint beaconCode,
+        string transponderMode,
+        string flightRules
+    )
     {
         var airportId = primaryAirportId ?? "";
         if (string.IsNullOrEmpty(airportId))
@@ -193,9 +210,16 @@ public static class AircraftGenerator
     }
 
     private static (AircraftState? State, string? Error) GenerateOnFinal(
-        SpawnRequest request, string? primaryAirportId, IRunwayLookup runways,
-        string callsign, string aircraftType, AircraftCategory category,
-        uint beaconCode, string transponderMode, string flightRules)
+        SpawnRequest request,
+        string? primaryAirportId,
+        IRunwayLookup runways,
+        string callsign,
+        string aircraftType,
+        AircraftCategory category,
+        uint beaconCode,
+        string transponderMode,
+        string flightRules
+    )
     {
         var airportId = primaryAirportId ?? "";
         if (string.IsNullOrEmpty(airportId))
@@ -249,13 +273,9 @@ public static class AircraftGenerator
         return types[Random.Shared.Next(types.Length)];
     }
 
-    private static string GenerateCallsign(
-        SpawnRequest request,
-        IReadOnlyCollection<AircraftState> existingAircraft)
+    private static string GenerateCallsign(SpawnRequest request, IReadOnlyCollection<AircraftState> existingAircraft)
     {
-        var existing = new HashSet<string>(
-            existingAircraft.Select(a => a.Callsign),
-            StringComparer.OrdinalIgnoreCase);
+        var existing = new HashSet<string>(existingAircraft.Select(a => a.Callsign), StringComparer.OrdinalIgnoreCase);
 
         if (request.Rules == FlightRulesKind.Vfr)
         {
@@ -271,9 +291,7 @@ public static class AircraftGenerator
         for (int attempt = 0; attempt < 100; attempt++)
         {
             int digits = Random.Shared.Next(3, 5); // 3 or 4 digits
-            var number = Random.Shared.Next(
-                (int)Math.Pow(10, digits - 1),
-                (int)Math.Pow(10, digits));
+            var number = Random.Shared.Next((int)Math.Pow(10, digits - 1), (int)Math.Pow(10, digits));
             var callsign = $"{airline}{number}";
             if (!existing.Contains(callsign))
             {
@@ -306,9 +324,7 @@ public static class AircraftGenerator
         return $"N{Random.Shared.Next(10000, 99999)}";
     }
 
-    private static (double Lat, double Lon) ComputePosition(
-        double originLat, double originLon,
-        double bearingDeg, double distanceNm)
+    private static (double Lat, double Lon) ComputePosition(double originLat, double originLon, double bearingDeg, double distanceNm)
     {
         double bearingRad = bearingDeg * Math.PI / 180.0;
         double latRad = originLat * Math.PI / 180.0;
@@ -320,17 +336,14 @@ public static class AircraftGenerator
         return (lat, lon);
     }
 
-    private static double ComputeBearing(
-        double lat1, double lon1,
-        double lat2, double lon2)
+    private static double ComputeBearing(double lat1, double lon1, double lat2, double lon2)
     {
         double lat1R = lat1 * Math.PI / 180.0;
         double lat2R = lat2 * Math.PI / 180.0;
         double dLon = (lon2 - lon1) * Math.PI / 180.0;
 
         double y = Math.Sin(dLon) * Math.Cos(lat2R);
-        double x = Math.Cos(lat1R) * Math.Sin(lat2R)
-            - Math.Sin(lat1R) * Math.Cos(lat2R) * Math.Cos(dLon);
+        double x = Math.Cos(lat1R) * Math.Sin(lat2R) - Math.Sin(lat1R) * Math.Cos(lat2R) * Math.Cos(dLon);
 
         double bearing = Math.Atan2(y, x) * 180.0 / Math.PI;
         return ((bearing % 360.0) + 360.0) % 360.0;

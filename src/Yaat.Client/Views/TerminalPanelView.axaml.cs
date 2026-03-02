@@ -51,9 +51,7 @@ public partial class TerminalPanelView : UserControl
 
         if (_isNearBottom)
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(
-                () => TerminalScrollViewer.ScrollToEnd(),
-                Avalonia.Threading.DispatcherPriority.Background);
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => TerminalScrollViewer.ScrollToEnd(), Avalonia.Threading.DispatcherPriority.Background);
         }
     }
 
@@ -70,18 +68,14 @@ public partial class TerminalPanelView : UserControl
                 inlines.Add(new LineBreak());
             }
 
-            inlines.Add(new Run(FormatEntry(entry))
-            {
-                Foreground = GetBrush(entry.Kind),
-            });
+            inlines.Add(new Run(FormatEntry(entry)) { Foreground = GetBrush(entry.Kind) });
             first = false;
         }
     }
 
     private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        _isNearBottom = TerminalScrollViewer.Offset.Y
-            >= TerminalScrollViewer.ScrollBarMaximum.Y - 20;
+        _isNearBottom = TerminalScrollViewer.Offset.Y >= TerminalScrollViewer.ScrollBarMaximum.Y - 20;
     }
 
     private static string FormatEntry(TerminalEntry entry)
@@ -105,14 +99,15 @@ public partial class TerminalPanelView : UserControl
         return sb.ToString();
     }
 
-    private static IBrush GetBrush(TerminalEntryKind kind) => kind switch
-    {
-        TerminalEntryKind.Command => Brushes.White,
-        TerminalEntryKind.Response => Brushes.LightGray,
-        TerminalEntryKind.System => Brushes.Gray,
-        TerminalEntryKind.Say => Brushes.Green,
-        TerminalEntryKind.Warning => Brushes.Orange,
-        TerminalEntryKind.Error => Brushes.Red,
-        _ => Brushes.White,
-    };
+    private static IBrush GetBrush(TerminalEntryKind kind) =>
+        kind switch
+        {
+            TerminalEntryKind.Command => Brushes.White,
+            TerminalEntryKind.Response => Brushes.LightGray,
+            TerminalEntryKind.System => Brushes.Gray,
+            TerminalEntryKind.Say => Brushes.Green,
+            TerminalEntryKind.Warning => Brushes.Orange,
+            TerminalEntryKind.Error => Brushes.Red,
+            _ => Brushes.White,
+        };
 }

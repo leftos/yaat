@@ -15,9 +15,11 @@ public static class VideoMapParser
         using var doc = JsonDocument.Parse(geoJson);
         var root = doc.RootElement;
 
-        if (root.TryGetProperty("type", out var typeProp)
+        if (
+            root.TryGetProperty("type", out var typeProp)
             && typeProp.GetString() == "FeatureCollection"
-            && root.TryGetProperty("features", out var features))
+            && root.TryGetProperty("features", out var features)
+        )
         {
             foreach (var feature in features.EnumerateArray())
             {
@@ -38,8 +40,7 @@ public static class VideoMapParser
         return new VideoMapData { MapId = mapId, Lines = lines };
     }
 
-    private static void ExtractLines(
-        JsonElement geometry, List<VideoMapLine> lines)
+    private static void ExtractLines(JsonElement geometry, List<VideoMapLine> lines)
     {
         if (!geometry.TryGetProperty("type", out var geoType))
         {
@@ -129,8 +130,6 @@ public static class VideoMapParser
             points.Add((lat, lon));
         }
 
-        return points.Count >= 2
-            ? new VideoMapLine { Points = points }
-            : null;
+        return points.Count >= 2 ? new VideoMapLine { Points = points } : null;
     }
 }

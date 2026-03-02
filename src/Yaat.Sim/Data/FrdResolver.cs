@@ -27,13 +27,10 @@ public static class FrdResolver
             return new ResolvedPosition(fixPos.Value.Lat, fixPos.Value.Lon);
         }
 
-        return ProjectPosition(
-            fixPos.Value.Lat, fixPos.Value.Lon,
-            radial.Value, distance.Value);
+        return ProjectPosition(fixPos.Value.Lat, fixPos.Value.Lon, radial.Value, distance.Value);
     }
 
-    public static (string Fix, int? Radial, int? Distance)? ParseFrd(
-        string frdString)
+    public static (string Fix, int? Radial, int? Distance)? ParseFrd(string frdString)
     {
         if (string.IsNullOrWhiteSpace(frdString))
         {
@@ -77,25 +74,18 @@ public static class FrdResolver
         return (s, null, null);
     }
 
-    private static ResolvedPosition ProjectPosition(
-        double latDeg, double lonDeg,
-        int radialDeg, int distanceNm)
+    private static ResolvedPosition ProjectPosition(double latDeg, double lonDeg, int radialDeg, int distanceNm)
     {
         double lat1 = latDeg * Math.PI / 180.0;
         double lon1 = lonDeg * Math.PI / 180.0;
         double bearing = radialDeg * Math.PI / 180.0;
         double angularDist = distanceNm * NmToRadians;
 
-        double lat2 = Math.Asin(
-            Math.Sin(lat1) * Math.Cos(angularDist)
-            + Math.Cos(lat1) * Math.Sin(angularDist) * Math.Cos(bearing));
+        double lat2 = Math.Asin(Math.Sin(lat1) * Math.Cos(angularDist) + Math.Cos(lat1) * Math.Sin(angularDist) * Math.Cos(bearing));
 
-        double lon2 = lon1 + Math.Atan2(
-            Math.Sin(bearing) * Math.Sin(angularDist) * Math.Cos(lat1),
-            Math.Cos(angularDist) - Math.Sin(lat1) * Math.Sin(lat2));
+        double lon2 =
+            lon1 + Math.Atan2(Math.Sin(bearing) * Math.Sin(angularDist) * Math.Cos(lat1), Math.Cos(angularDist) - Math.Sin(lat1) * Math.Sin(lat2));
 
-        return new ResolvedPosition(
-            lat2 * 180.0 / Math.PI,
-            lon2 * 180.0 / Math.PI);
+        return new ResolvedPosition(lat2 * 180.0 / Math.PI, lon2 * 180.0 / Math.PI);
     }
 }

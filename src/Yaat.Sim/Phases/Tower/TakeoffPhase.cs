@@ -89,9 +89,10 @@ public sealed class TakeoffPhase : Phase
         switch (_departure)
         {
             case RelativeTurnDeparture rel:
-                int relHdg = rel.Direction == TurnDirection.Right
-                    ? FlightPhysics.NormalizeHeadingInt(_runwayHeading + rel.Degrees)
-                    : FlightPhysics.NormalizeHeadingInt(_runwayHeading - rel.Degrees);
+                int relHdg =
+                    rel.Direction == TurnDirection.Right
+                        ? FlightPhysics.NormalizeHeadingInt(_runwayHeading + rel.Degrees)
+                        : FlightPhysics.NormalizeHeadingInt(_runwayHeading - rel.Degrees);
                 ctx.Targets.TargetHeading = relHdg;
                 ctx.Targets.PreferredTurnDirection = rel.Direction;
                 break;
@@ -101,9 +102,9 @@ public sealed class TakeoffPhase : Phase
                 ctx.Targets.PreferredTurnDirection = fh.Direction;
                 break;
 
-            // DefaultDeparture, RunwayHeadingDeparture, OnCourseDeparture,
-            // DirectFixDeparture, ClosedTrafficDeparture: keep runway heading.
-            // Navigation is set up by InitialClimbPhase.
+                // DefaultDeparture, RunwayHeadingDeparture, OnCourseDeparture,
+                // DirectFixDeparture, ClosedTrafficDeparture: keep runway heading.
+                // Navigation is set up by InitialClimbPhase.
         }
     }
 

@@ -18,9 +18,7 @@ public static class FlightPhysics
         Update(aircraft, deltaSeconds, aircraftLookup: null);
     }
 
-    public static void Update(
-        AircraftState aircraft, double deltaSeconds,
-        Func<string, AircraftState?>? aircraftLookup)
+    public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
@@ -191,9 +189,7 @@ public static class FlightPhysics
     private static void UpdatePosition(AircraftState aircraft, double deltaSeconds)
     {
         // Enforce ground conflict speed limit before computing displacement
-        if (aircraft.IsOnGround
-            && aircraft.GroundSpeedLimit is { } limit
-            && aircraft.GroundSpeed > limit)
+        if (aircraft.IsOnGround && aircraft.GroundSpeedLimit is { } limit && aircraft.GroundSpeed > limit)
         {
             aircraft.GroundSpeed = limit;
         }
@@ -207,9 +203,7 @@ public static class FlightPhysics
         aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
     }
 
-    private static void UpdateCommandQueue(
-        AircraftState aircraft, double deltaSeconds,
-        Func<string, AircraftState?>? aircraftLookup = null)
+    private static void UpdateCommandQueue(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup = null)
     {
         if (aircraft.Phases?.CurrentPhase is not null)
         {
@@ -266,8 +260,7 @@ public static class FlightPhysics
         }
     }
 
-    private static void UpdateBlockCompletion(
-        AircraftState aircraft, CommandBlock block, double deltaSeconds)
+    private static void UpdateBlockCompletion(AircraftState aircraft, CommandBlock block, double deltaSeconds)
     {
         foreach (var cmd in block.Commands)
         {
@@ -305,8 +298,7 @@ public static class FlightPhysics
         return Math.Abs(diff) < HeadingSnapDeg;
     }
 
-    private static bool CheckWaitComplete(
-        CommandBlock block, AircraftState aircraft, double deltaSeconds)
+    private static bool CheckWaitComplete(CommandBlock block, AircraftState aircraft, double deltaSeconds)
     {
         if (block.WaitRemainingSeconds > 0)
         {
@@ -324,39 +316,27 @@ public static class FlightPhysics
         return true;
     }
 
-    private static bool IsTriggerMet(
-        AircraftState aircraft, BlockTrigger trigger,
-        Func<string, AircraftState?>? aircraftLookup)
+    private static bool IsTriggerMet(AircraftState aircraft, BlockTrigger trigger, Func<string, AircraftState?>? aircraftLookup)
     {
         return trigger.Type switch
         {
-            BlockTriggerType.ReachAltitude =>
-                trigger.Altitude.HasValue
-                && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < AltitudeSnapFt,
-            BlockTriggerType.ReachFix =>
-                trigger.FixLat.HasValue
+            BlockTriggerType.ReachAltitude => trigger.Altitude.HasValue && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < AltitudeSnapFt,
+            BlockTriggerType.ReachFix => trigger.FixLat.HasValue
                 && trigger.FixLon.HasValue
-                && DistanceNm(aircraft.Latitude, aircraft.Longitude,
-                    trigger.FixLat.Value, trigger.FixLon.Value) < NavArrivalNm,
-            BlockTriggerType.InterceptRadial =>
-                trigger.FixLat.HasValue
+                && DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.FixLat.Value, trigger.FixLon.Value) < NavArrivalNm,
+            BlockTriggerType.InterceptRadial => trigger.FixLat.HasValue
                 && trigger.FixLon.HasValue
                 && trigger.Radial.HasValue
                 && IsRadialIntercepted(aircraft, trigger),
-            BlockTriggerType.ReachFrdPoint =>
-                trigger.TargetLat.HasValue
+            BlockTriggerType.ReachFrdPoint => trigger.TargetLat.HasValue
                 && trigger.TargetLon.HasValue
-                && DistanceNm(aircraft.Latitude, aircraft.Longitude,
-                    trigger.TargetLat.Value, trigger.TargetLon.Value) < FrdArrivalNm,
-            BlockTriggerType.GiveWay =>
-                IsGiveWayMet(aircraft, trigger, aircraftLookup),
+                && DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.TargetLat.Value, trigger.TargetLon.Value) < FrdArrivalNm,
+            BlockTriggerType.GiveWay => IsGiveWayMet(aircraft, trigger, aircraftLookup),
             _ => true,
         };
     }
 
-    private static bool IsGiveWayMet(
-        AircraftState aircraft, BlockTrigger trigger,
-        Func<string, AircraftState?>? aircraftLookup)
+    private static bool IsGiveWayMet(AircraftState aircraft, BlockTrigger trigger, Func<string, AircraftState?>? aircraftLookup)
     {
         if (trigger.TargetCallsign is null || aircraftLookup is null)
         {
@@ -370,9 +350,7 @@ public static class FlightPhysics
             return true;
         }
 
-        double distNm = GeoMath.DistanceNm(
-            aircraft.Latitude, aircraft.Longitude,
-            target.Latitude, target.Longitude);
+        double distNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, target.Latitude, target.Longitude);
 
         // If the target is far enough away, the conflict is resolved
         if (distNm > 0.1)
@@ -387,9 +365,7 @@ public static class FlightPhysics
             headingDiff = 360 - headingDiff;
         }
 
-        double bearingToTarget = GeoMath.BearingTo(
-            aircraft.Latitude, aircraft.Longitude,
-            target.Latitude, target.Longitude);
+        double bearingToTarget = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, target.Latitude, target.Longitude);
         double diffToTarget = Math.Abs(aircraft.Heading - bearingToTarget);
         if (diffToTarget > 180)
         {
@@ -412,44 +388,38 @@ public static class FlightPhysics
         return true;
     }
 
-    private static bool IsRadialIntercepted(
-        AircraftState aircraft, BlockTrigger trigger)
+    private static bool IsRadialIntercepted(AircraftState aircraft, BlockTrigger trigger)
     {
-        double bearing = GeoMath.BearingTo(
-            trigger.FixLat!.Value, trigger.FixLon!.Value,
-            aircraft.Latitude, aircraft.Longitude);
+        double bearing = GeoMath.BearingTo(trigger.FixLat!.Value, trigger.FixLon!.Value, aircraft.Latitude, aircraft.Longitude);
         double diff = Math.Abs(NormalizeAngle(bearing - trigger.Radial!.Value));
         return diff < RadialInterceptDeg;
     }
 
     private static void TrackFrdMiss(AircraftState aircraft, CommandBlock block)
     {
-        if (block.TriggerMissed
+        if (
+            block.TriggerMissed
             || block.Trigger?.Type is not BlockTriggerType.ReachFrdPoint
             || !block.Trigger.TargetLat.HasValue
-            || !block.Trigger.TargetLon.HasValue)
+            || !block.Trigger.TargetLon.HasValue
+        )
         {
             return;
         }
 
-        double dist = DistanceNm(
-            aircraft.Latitude, aircraft.Longitude,
-            block.Trigger.TargetLat.Value, block.Trigger.TargetLon.Value);
+        double dist = DistanceNm(aircraft.Latitude, aircraft.Longitude, block.Trigger.TargetLat.Value, block.Trigger.TargetLon.Value);
 
         if (dist < block.TriggerClosestApproach)
         {
             block.TriggerClosestApproach = dist;
         }
-        else if (block.TriggerClosestApproach < FrdMissThresholdNm
-                 && dist > block.TriggerClosestApproach + FrdMissDepartureNm)
+        else if (block.TriggerClosestApproach < FrdMissThresholdNm && dist > block.TriggerClosestApproach + FrdMissDepartureNm)
         {
             block.TriggerMissed = true;
             var fixName = block.Trigger.FixName ?? "?";
             var radial = block.Trigger.Radial?.ToString("D3") ?? "???";
             var distNm = block.Trigger.DistanceNm?.ToString("D3") ?? "???";
-            aircraft.PendingWarnings.Add(
-                $"Missed condition at {fixName} R{radial} D{distNm} " +
-                $"(closest: {block.TriggerClosestApproach:F1} NM)");
+            aircraft.PendingWarnings.Add($"Missed condition at {fixName} R{radial} D{distNm} " + $"(closest: {block.TriggerClosestApproach:F1} NM)");
         }
     }
 
@@ -468,9 +438,7 @@ public static class FlightPhysics
 
         if (block.Trigger is not null)
         {
-            var desc = block.NaturalDescription.Length > 0
-                ? block.NaturalDescription
-                : block.Description;
+            var desc = block.NaturalDescription.Length > 0 ? block.NaturalDescription : block.Description;
             aircraft.PendingNotifications.Add($"[Executing] {desc}");
         }
     }
@@ -494,8 +462,7 @@ public static class FlightPhysics
     /// Projects a point from a given lat/lon along a heading for a given distance.
     /// Returns (latitude, longitude) of the projected point.
     /// </summary>
-    public static (double Lat, double Lon) ProjectPoint(
-        double lat, double lon, double headingDeg, double distanceNm)
+    public static (double Lat, double Lon) ProjectPoint(double lat, double lon, double headingDeg, double distanceNm)
     {
         double headingRad = headingDeg * DegToRad;
         double latRad = lat * DegToRad;
@@ -510,10 +477,7 @@ public static class FlightPhysics
     /// Signed perpendicular distance from a point to a line defined by
     /// a reference point and heading. Positive = right of heading, negative = left.
     /// </summary>
-    public static double SignedCrossTrackDistanceNm(
-        double pointLat, double pointLon,
-        double refLat, double refLon,
-        double headingDeg)
+    public static double SignedCrossTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
     {
         double bearing = GeoMath.BearingTo(refLat, refLon, pointLat, pointLon);
         double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
@@ -525,10 +489,7 @@ public static class FlightPhysics
     /// Signed distance along a heading from a reference point to a target point.
     /// Positive = ahead (in heading direction), negative = behind.
     /// </summary>
-    public static double AlongTrackDistanceNm(
-        double pointLat, double pointLon,
-        double refLat, double refLon,
-        double headingDeg)
+    public static double AlongTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
     {
         double bearing = GeoMath.BearingTo(refLat, refLon, pointLat, pointLon);
         double dist = DistanceNm(refLat, refLon, pointLat, pointLon);

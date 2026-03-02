@@ -11,24 +11,21 @@ public static partial class CifpParser
 {
     // Approach type priority: ILS > LOC > RNAV > everything else.
     // Lower value = higher priority.
-    private static readonly Dictionary<char, int> ApproachTypePriority =
-        new()
-        {
-            ['I'] = 0, // ILS
-            ['L'] = 1, // LOC
-            ['H'] = 2, // RNAV (GPS)
-            ['R'] = 3, // RNAV
-            ['P'] = 4, // GPS
-        };
+    private static readonly Dictionary<char, int> ApproachTypePriority = new()
+    {
+        ['I'] = 0, // ILS
+        ['L'] = 1, // LOC
+        ['H'] = 2, // RNAV (GPS)
+        ['R'] = 3, // RNAV
+        ['P'] = 4, // GPS
+    };
 
     private const int DefaultPriority = 10;
 
-    public static CifpParseResult Parse(
-        string cifpFilePath, ILogger? logger = null)
+    public static CifpParseResult Parse(string cifpFilePath, ILogger? logger = null)
     {
         var fafByApproach = new Dictionary<string, FafCandidate>();
-        var terminalWaypoints = new Dictionary<string, (double Lat, double Lon)>(
-            StringComparer.OrdinalIgnoreCase);
+        var terminalWaypoints = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
 
         int approachRecords = 0;
         int waypointRecords = 0;
@@ -70,13 +67,10 @@ public static partial class CifpParser
             if (fafFixes.ContainsKey(key))
             {
                 // Only replace if this approach has higher priority
-                var existingKey = fafByApproach.Values
-                    .FirstOrDefault(c =>
-                        c.Airport == candidate.Airport
-                        && c.Runway == candidate.Runway
-                        && c.FafFix == fafFixes[key]);
-                if (existingKey is not null
-                    && candidate.Priority < existingKey.Priority)
+                var existingKey = fafByApproach.Values.FirstOrDefault(c =>
+                    c.Airport == candidate.Airport && c.Runway == candidate.Runway && c.FafFix == fafFixes[key]
+                );
+                if (existingKey is not null && candidate.Priority < existingKey.Priority)
                 {
                     fafFixes[key] = candidate.FafFix;
                 }
@@ -89,18 +83,19 @@ public static partial class CifpParser
 
         logger?.LogInformation(
             "CIFP parsed: {Approaches} approach records, "
-            + "{Waypoints} waypoint records, "
-            + "{FafCount} FAF fixes, "
-            + "{WpCount} terminal waypoints",
-            approachRecords, waypointRecords,
-            fafFixes.Count, terminalWaypoints.Count);
+                + "{Waypoints} waypoint records, "
+                + "{FafCount} FAF fixes, "
+                + "{WpCount} terminal waypoints",
+            approachRecords,
+            waypointRecords,
+            fafFixes.Count,
+            terminalWaypoints.Count
+        );
 
         return new CifpParseResult(fafFixes, terminalWaypoints);
     }
 
-    private static void ProcessApproachRecord(
-        string line,
-        Dictionary<string, FafCandidate> fafByApproach)
+    private static void ProcessApproachRecord(string line, Dictionary<string, FafCandidate> fafByApproach)
     {
         // Waypoint description code at position 43 (0-indexed: 42)
         char waypointDesc = line[42];
@@ -136,23 +131,18 @@ public static partial class CifpParser
 
         // Approach type priority from first char of approach ID
         char typeCode = approachId[0];
-        int priority = ApproachTypePriority.GetValueOrDefault(
-            typeCode, DefaultPriority);
+        int priority = ApproachTypePriority.GetValueOrDefault(typeCode, DefaultPriority);
 
         string key = $"{airport}:{approachId}";
 
         // Keep the last FAF in each approach (highest sequence wins)
-        if (!fafByApproach.TryGetValue(key, out var existing)
-            || existing.Priority > priority)
+        if (!fafByApproach.TryGetValue(key, out var existing) || existing.Priority > priority)
         {
-            fafByApproach[key] = new FafCandidate(
-                airport, runway, fixId, priority);
+            fafByApproach[key] = new FafCandidate(airport, runway, fixId, priority);
         }
     }
 
-    private static void ProcessTerminalWaypoint(
-        string line,
-        Dictionary<string, (double Lat, double Lon)> waypoints)
+    private static void ProcessTerminalWaypoint(string line, Dictionary<string, (double Lat, double Lon)> waypoints)
     {
         // Waypoint identifier at positions 14-18 (0-indexed: 13-17)
         string ident = line[13..18].Trim();
@@ -178,10 +168,8 @@ public static partial class CifpParser
             return;
         }
 
-        var lat = ParseArinc424Latitude(
-            line.AsSpan(latStart, 9));
-        var lon = ParseArinc424Longitude(
-            line.AsSpan(latStart + 9, 10));
+        var lat = ParseArinc424Latitude(line.AsSpan(latStart, 9));
+        var lon = ParseArinc424Longitude(line.AsSpan(latStart + 9, 10));
 
         if (lat is not null && lon is not null)
         {
@@ -202,16 +190,17 @@ public static partial class CifpParser
             return null;
         }
 
-        if (!int.TryParse(s[1..3], out int deg)
+        if (
+            !int.TryParse(s[1..3], out int deg)
             || !int.TryParse(s[3..5], out int min)
             || !int.TryParse(s[5..7], out int sec)
-            || !int.TryParse(s[7..9], out int hundredths))
+            || !int.TryParse(s[7..9], out int hundredths)
+        )
         {
             return null;
         }
 
-        double result = deg + min / 60.0
-            + (sec + hundredths / 100.0) / 3600.0;
+        double result = deg + min / 60.0 + (sec + hundredths / 100.0) / 3600.0;
         return hemisphere == 'S' ? -result : result;
     }
 
@@ -228,16 +217,17 @@ public static partial class CifpParser
             return null;
         }
 
-        if (!int.TryParse(s[1..4], out int deg)
+        if (
+            !int.TryParse(s[1..4], out int deg)
             || !int.TryParse(s[4..6], out int min)
             || !int.TryParse(s[6..8], out int sec)
-            || !int.TryParse(s[8..10], out int hundredths))
+            || !int.TryParse(s[8..10], out int hundredths)
+        )
         {
             return null;
         }
 
-        double result = deg + min / 60.0
-            + (sec + hundredths / 100.0) / 3600.0;
+        double result = deg + min / 60.0 + (sec + hundredths / 100.0) / 3600.0;
         return hemisphere == 'W' ? -result : result;
     }
 
@@ -258,8 +248,7 @@ public static partial class CifpParser
     [GeneratedRegex(@"^(\d{1,2}[LRC]?)")]
     private static partial Regex RunwayPattern();
 
-    private sealed record FafCandidate(
-        string Airport, string Runway, string FafFix, int Priority);
+    private sealed record FafCandidate(string Airport, string Runway, string FafFix, int Priority);
 }
 
 /// <summary>
@@ -280,7 +269,8 @@ public sealed class CifpParseResult
 
     public CifpParseResult(
         Dictionary<(string Airport, string Runway), string> fafFixes,
-        Dictionary<string, (double Lat, double Lon)> terminalWaypoints)
+        Dictionary<string, (double Lat, double Lon)> terminalWaypoints
+    )
     {
         FafFixes = fafFixes;
         TerminalWaypoints = terminalWaypoints;

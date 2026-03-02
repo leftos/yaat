@@ -48,8 +48,14 @@ public sealed class HoldPresentPositionPhase : Phase
 
         double currentHeading = ctx.Aircraft.Heading;
         double delta = currentHeading - _lastHeading;
-        if (delta > 180) { delta -= 360; }
-        if (delta < -180) { delta += 360; }
+        if (delta > 180)
+        {
+            delta -= 360;
+        }
+        if (delta < -180)
+        {
+            delta += 360;
+        }
         _cumulativeTurn += Math.Abs(delta);
         _lastHeading = currentHeading;
 

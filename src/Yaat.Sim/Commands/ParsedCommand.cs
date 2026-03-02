@@ -80,14 +80,11 @@ public record LineUpAndWaitCommand : ParsedCommand;
 /// <summary>
 /// CTO with departure instruction and optional altitude override.
 /// </summary>
-public record ClearedForTakeoffCommand(
-    DepartureInstruction Departure, int? AssignedAltitude = null) : ParsedCommand;
+public record ClearedForTakeoffCommand(DepartureInstruction Departure, int? AssignedAltitude = null) : ParsedCommand;
 
 public record CancelTakeoffClearanceCommand : ParsedCommand;
 
-public record GoAroundCommand(
-    int? AssignedHeading = null, int? TargetAltitude = null,
-    PatternDirection? TrafficPattern = null) : ParsedCommand;
+public record GoAroundCommand(int? AssignedHeading = null, int? TargetAltitude = null, PatternDirection? TrafficPattern = null) : ParsedCommand;
 
 public record ClearedToLandCommand(bool NoDelete = false) : ParsedCommand;
 
@@ -134,19 +131,15 @@ public record HoldPresentPosition360Command(TurnDirection Direction) : ParsedCom
 public record HoldPresentPositionHoverCommand : ParsedCommand;
 
 /// <summary>HFIXL / HFIXR: fly to fix, then orbit with 360-degree turns.</summary>
-public record HoldAtFixOrbitCommand(
-    string FixName, double Lat, double Lon, TurnDirection Direction) : ParsedCommand;
+public record HoldAtFixOrbitCommand(string FixName, double Lat, double Lon, TurnDirection Direction) : ParsedCommand;
 
 /// <summary>HFIX: helicopter fly to fix and hover.</summary>
-public record HoldAtFixHoverCommand(
-    string FixName, double Lat, double Lon) : ParsedCommand;
+public record HoldAtFixHoverCommand(string FixName, double Lat, double Lon) : ParsedCommand;
 
 // Ground commands
 public record PushbackCommand(int? Heading = null, string? Taxiway = null) : ParsedCommand;
 
-public record TaxiCommand(
-    List<string> Path, List<string> HoldShorts,
-    string? DestinationRunway = null, bool NoDelete = false) : ParsedCommand;
+public record TaxiCommand(List<string> Path, List<string> HoldShorts, string? DestinationRunway = null, bool NoDelete = false) : ParsedCommand;
 
 public record HoldPositionCommand : ParsedCommand;
 
@@ -181,9 +174,7 @@ public abstract record BlockCondition;
 
 public record LevelCondition(int Altitude) : BlockCondition;
 
-public record AtFixCondition(
-    string FixName, double Lat, double Lon,
-    int? Radial = null, int? Distance = null) : BlockCondition;
+public record AtFixCondition(string FixName, double Lat, double Lon, int? Radial = null, int? Distance = null) : BlockCondition;
 
 public record GiveWayCondition(string TargetCallsign) : BlockCondition;
 

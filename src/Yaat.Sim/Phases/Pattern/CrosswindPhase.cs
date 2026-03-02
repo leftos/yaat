@@ -34,8 +34,7 @@ public sealed class CrosswindPhase : Phase
         _targetLat = Waypoints.DownwindStartLat;
         _targetLon = Waypoints.DownwindStartLon;
 
-        var turnDir = Waypoints.Direction == PatternDirection.Left
-            ? TurnDirection.Left : TurnDirection.Right;
+        var turnDir = Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
 
         ctx.Targets.TargetHeading = Waypoints.CrosswindHeading;
         ctx.Targets.PreferredTurnDirection = turnDir;
@@ -56,9 +55,7 @@ public sealed class CrosswindPhase : Phase
             return false;
         }
 
-        double dist = FlightPhysics.DistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _targetLat, _targetLon);
+        double dist = FlightPhysics.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
         return dist < ArrivalNm;
     }

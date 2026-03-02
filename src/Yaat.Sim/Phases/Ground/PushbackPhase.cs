@@ -57,8 +57,7 @@ public sealed class PushbackPhase : Phase
         double nmPerDegLat = 60.0;
 
         ctx.Aircraft.Latitude += distThisTick * Math.Cos(pushRad) / nmPerDegLat;
-        ctx.Aircraft.Longitude +=
-            distThisTick * Math.Sin(pushRad) / (nmPerDegLat * Math.Cos(latRad));
+        ctx.Aircraft.Longitude += distThisTick * Math.Sin(pushRad) / (nmPerDegLat * Math.Cos(latRad));
         ctx.Aircraft.GroundSpeed = pushSpeed;
 
         // If we have a target heading, rotate the aircraft toward it
@@ -66,8 +65,15 @@ public sealed class PushbackPhase : Phase
         {
             double current = ctx.Aircraft.Heading;
             double diff = tgt - current;
-            while (diff > 180) diff -= 360;
-            while (diff < -180) diff += 360;
+            while (diff > 180)
+            {
+                diff -= 360;
+            }
+
+            while (diff < -180)
+            {
+                diff += 360;
+            }
 
             double maxTurn = turnRate * ctx.DeltaSeconds;
             if (Math.Abs(diff) <= maxTurn)
@@ -81,9 +87,7 @@ public sealed class PushbackPhase : Phase
         }
 
         // Default: push back a fixed distance
-        double distPushed = GeoMath.DistanceNm(
-            _startLat, _startLon,
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+        double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
 
         return distPushed >= DefaultPushbackDistanceNm;
     }

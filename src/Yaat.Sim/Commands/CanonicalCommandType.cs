@@ -37,6 +37,7 @@ public enum CanonicalCommandType
     StopAndGo,
     LowApproach,
     ClearedForOption,
+
     // Pattern commands
     EnterLeftDownwind,
     EnterRightDownwind,
@@ -49,6 +50,7 @@ public enum CanonicalCommandType
     TurnDownwind,
     TurnBase,
     ExtendDownwind,
+
     // Hold commands
     HoldPresentPosition360Left,
     HoldPresentPosition360Right,
@@ -56,6 +58,7 @@ public enum CanonicalCommandType
     HoldAtFixLeft,
     HoldAtFixRight,
     HoldAtFixHover,
+
     // Ground commands
     Pushback,
     Taxi,
@@ -67,10 +70,12 @@ public enum CanonicalCommandType
     ExitLeft,
     ExitRight,
     ExitTaxiway,
+
     // Spawn control
     Add,
     SpawnNow,
     SpawnDelay,
+
     // Track operations
     SetActivePosition,
     TrackAircraft,
@@ -90,12 +95,14 @@ public enum CanonicalCommandType
     FrequencyChange,
     ContactTcp,
     ContactTower,
+
     // Coordination
     CoordinationRelease,
     CoordinationHold,
     CoordinationRecall,
     CoordinationAcknowledge,
     CoordinationAutoAck,
+
     // Broadcast
     Say,
 }

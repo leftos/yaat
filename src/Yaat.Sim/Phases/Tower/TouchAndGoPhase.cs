@@ -36,8 +36,7 @@ public sealed class TouchAndGoPhase : Phase
         ctx.Targets.DesiredVerticalRate = null;
 
         // Decelerate briefly
-        double minSpeed = CategoryPerformance.TouchdownSpeed(ctx.Category)
-            - CategoryPerformance.RolloutDecelRate(ctx.Category) * _rolloutDuration;
+        double minSpeed = CategoryPerformance.TouchdownSpeed(ctx.Category) - CategoryPerformance.RolloutDecelRate(ctx.Category) * _rolloutDuration;
         ctx.Targets.TargetSpeed = Math.Max(minSpeed, 40);
     }
 

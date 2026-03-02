@@ -162,9 +162,7 @@ public partial class MainViewModel : ObservableObject
                 return "YAAT";
             }
 
-            return ActiveScenarioName is not null
-                ? $"{ActiveRoomName} ({ActiveScenarioName}) - YAAT"
-                : $"{ActiveRoomName} - YAAT";
+            return ActiveScenarioName is not null ? $"{ActiveRoomName} ({ActiveScenarioName}) - YAAT" : $"{ActiveRoomName} - YAAT";
         }
     }
 
@@ -186,9 +184,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnFilterActiveOnlyChanged(bool value)
     {
-        AircraftView.Filter = value
-            ? obj => obj is AircraftModel ac && !ac.IsDelayedOrDeferred
-            : null;
+        AircraftView.Filter = value ? obj => obj is AircraftModel ac && !ac.IsDelayedOrDeferred : null;
     }
 
     public ObservableCollection<string> CommandHistory { get; } = [];
@@ -207,8 +203,7 @@ public partial class MainViewModel : ObservableObject
     {
         AircraftView = new DataGridCollectionView(Aircraft);
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync);
-        Radar = new RadarViewModel(
-            _connection, _videoMapService, SendCommandForViewAsync);
+        Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync);
         Radar.SetPreferences(_preferences);
 
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
@@ -240,15 +235,11 @@ public partial class MainViewModel : ObservableObject
             using var vnasData = new VnasDataService(logger);
             await vnasData.InitializeAsync();
 
-            var fixDb = new FixDatabase(
-                vnasData.NavData,
-                logger: AppLog.CreateLogger<FixDatabase>());
+            var fixDb = new FixDatabase(vnasData.NavData, logger: AppLog.CreateLogger<FixDatabase>());
 
             _commandInput.FixDb = fixDb;
             Radar.SetElevationLookup(fixDb.GetAirportElevation);
-            _log.LogInformation(
-                "Navdata loaded: {Count} fixes available for autocomplete",
-                fixDb.Count);
+            _log.LogInformation("Navdata loaded: {Count} fixes available for autocomplete", fixDb.Count);
         }
         catch (Exception ex)
         {
@@ -267,8 +258,7 @@ public partial class MainViewModel : ObservableObject
 
         if (_preferences.UserInitials.Length != 2)
         {
-            StatusText =
-                "Set your 2-letter initials in Settings before connecting";
+            StatusText = "Set your 2-letter initials in Settings before connecting";
             return;
         }
 
@@ -280,8 +270,7 @@ public partial class MainViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
         {
-            StatusText =
-                "Set your ARTCC ID in Settings before connecting";
+            StatusText = "Set your ARTCC ID in Settings before connecting";
             return;
         }
 
@@ -369,19 +358,16 @@ public partial class MainViewModel : ObservableObject
 
             var json = await File.ReadAllTextAsync(ScenarioFilePath);
 
-            var difficulties = ScenarioDifficultyHelper
-                .GetAvailableDifficulties(json);
+            var difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(json);
 
             if (difficulties.Count >= 2)
             {
-                var counts = ScenarioDifficultyHelper
-                    .GetCountsPerCeiling(json, difficulties);
+                var counts = ScenarioDifficultyHelper.GetCountsPerCeiling(json, difficulties);
 
                 DifficultyOptions.Clear();
                 foreach (var level in difficulties)
                 {
-                    DifficultyOptions.Add(new DifficultyOption(
-                        level, counts[level]));
+                    DifficultyOptions.Add(new DifficultyOption(level, counts[level]));
                 }
 
                 SelectedDifficultyIndex = difficulties.Count - 1;
@@ -406,15 +392,13 @@ public partial class MainViewModel : ObservableObject
         var json = _pendingScenarioJson;
         _pendingScenarioJson = null;
 
-        if (json is null || SelectedDifficultyIndex < 0
-            || SelectedDifficultyIndex >= DifficultyOptions.Count)
+        if (json is null || SelectedDifficultyIndex < 0 || SelectedDifficultyIndex >= DifficultyOptions.Count)
         {
             return;
         }
 
         var selected = DifficultyOptions[SelectedDifficultyIndex];
-        var (filtered, warnings) = ScenarioDifficultyHelper
-            .FilterByDifficulty(json, selected.Level);
+        var (filtered, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(json, selected.Level);
 
         foreach (var w in warnings)
         {
@@ -449,11 +433,7 @@ public partial class MainViewModel : ObservableObject
             ApplyScenarioResult(result);
 
             _log.LogInformation(
-                "Scenario loaded: '{Name}' ({Id}), "
-                + "{Count} aircraft, "
-                + "{Delayed} delayed, "
-                + "{All} total, "
-                + "{Warnings} warnings",
+                "Scenario loaded: '{Name}' ({Id}), " + "{Count} aircraft, " + "{Delayed} delayed, " + "{All} total, " + "{Warnings} warnings",
                 result.Name,
                 result.ScenarioId,
                 result.AircraftCount,
@@ -462,11 +442,8 @@ public partial class MainViewModel : ObservableObject
                 result.Warnings.Count
             );
 
-            StatusText = $"Loaded '{result.Name}': "
-                + $"{result.AllAircraft.Count} aircraft";
-            AddSystemEntry(
-                $"Scenario loaded: {result.Name}"
-                + $" ({result.AllAircraft.Count} aircraft)");
+            StatusText = $"Loaded '{result.Name}': " + $"{result.AllAircraft.Count} aircraft";
+            AddSystemEntry($"Scenario loaded: {result.Name}" + $" ({result.AllAircraft.Count} aircraft)");
         }
         else
         {
@@ -486,15 +463,9 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var roomId = await _connection.CreateRoomAsync(
-                _preferences.VatsimCid,
-                _preferences.UserInitials,
-                _preferences.ArtccId);
+            var roomId = await _connection.CreateRoomAsync(_preferences.VatsimCid, _preferences.UserInitials, _preferences.ArtccId);
 
-            var state = await _connection.JoinRoomAsync(
-                roomId, _preferences.VatsimCid,
-                _preferences.UserInitials,
-                _preferences.ArtccId);
+            var state = await _connection.JoinRoomAsync(roomId, _preferences.VatsimCid, _preferences.UserInitials, _preferences.ArtccId);
 
             if (state is null)
             {
@@ -521,10 +492,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var state = await _connection.JoinRoomAsync(
-                roomId, _preferences.VatsimCid,
-                _preferences.UserInitials,
-                _preferences.ArtccId);
+            var state = await _connection.JoinRoomAsync(roomId, _preferences.VatsimCid, _preferences.UserInitials, _preferences.ArtccId);
 
             if (state is null)
             {
@@ -763,8 +731,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnCommandTextChanged(string value)
     {
-        _commandInput.UpdateSuggestions(
-            value, Aircraft, _preferences.CommandScheme, SelectedAircraft);
+        _commandInput.UpdateSuggestions(value, Aircraft, _preferences.CommandScheme, SelectedAircraft);
     }
 
     // --- Commands ---
@@ -852,8 +819,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var result = await _connection.SendCommandAsync(
-                target.Callsign, compound.CanonicalString, _preferences.UserInitials);
+            var result = await _connection.SendCommandAsync(target.Callsign, compound.CanonicalString, _preferences.UserInitials);
 
             AddHistory(commandText);
 
@@ -894,9 +860,7 @@ public partial class MainViewModel : ObservableObject
             CommandText = "";
             return;
         }
-        if (parsed.Type is CanonicalCommandType.SquawkAll
-            or CanonicalCommandType.SquawkNormalAll
-            or CanonicalCommandType.SquawkStandbyAll)
+        if (parsed.Type is CanonicalCommandType.SquawkAll or CanonicalCommandType.SquawkNormalAll or CanonicalCommandType.SquawkStandbyAll)
         {
             var verb = parsed.Type switch
             {
@@ -953,10 +917,14 @@ public partial class MainViewModel : ObservableObject
 
     private static bool IsGlobalCommand(CanonicalCommandType type)
     {
-        return type is CanonicalCommandType.Pause or CanonicalCommandType.Unpause
-            or CanonicalCommandType.SimRate or CanonicalCommandType.Add
-            or CanonicalCommandType.SquawkAll or CanonicalCommandType.SquawkNormalAll
-            or CanonicalCommandType.SquawkStandbyAll;
+        return type
+            is CanonicalCommandType.Pause
+                or CanonicalCommandType.Unpause
+                or CanonicalCommandType.SimRate
+                or CanonicalCommandType.Add
+                or CanonicalCommandType.SquawkAll
+                or CanonicalCommandType.SquawkNormalAll
+                or CanonicalCommandType.SquawkStandbyAll;
     }
 
     /// <summary>
@@ -964,10 +932,7 @@ public partial class MainViewModel : ObservableObject
     /// Returns the matched aircraft and the remainder of the input (the command part).
     /// Returns null if no unique match is found.
     /// </summary>
-    private (AircraftModel Aircraft, string Remainder)? TryResolveCallsignPrefix(
-        string input,
-        CommandScheme scheme
-    )
+    private (AircraftModel Aircraft, string Remainder)? TryResolveCallsignPrefix(string input, CommandScheme scheme)
     {
         // Split into first token (potential callsign) and remainder (the command)
         var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
@@ -1002,18 +967,14 @@ public partial class MainViewModel : ObservableObject
     private AircraftModel? ResolveAircraft(string token)
     {
         // Exact match first (case-insensitive)
-        var exact = Aircraft.FirstOrDefault(
-            a => string.Equals(a.Callsign, token, StringComparison.OrdinalIgnoreCase)
-        );
+        var exact = Aircraft.FirstOrDefault(a => string.Equals(a.Callsign, token, StringComparison.OrdinalIgnoreCase));
         if (exact is not null)
         {
             return exact;
         }
 
         // Partial match: substring anywhere in callsign
-        var matches = Aircraft
-            .Where(a => a.Callsign.Contains(token, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var matches = Aircraft.Where(a => a.Callsign.Contains(token, StringComparison.OrdinalIgnoreCase)).ToList();
 
         if (matches.Count == 1)
         {
@@ -1082,8 +1043,7 @@ public partial class MainViewModel : ObservableObject
 
     public void RefreshCommandScheme()
     {
-        CommandSchemeName = CommandScheme.DetectPresetName(
-            _preferences.CommandScheme) ?? "Custom";
+        CommandSchemeName = CommandScheme.DetectPresetName(_preferences.CommandScheme) ?? "Custom";
 
         if (ActiveRoomId is not null)
         {
@@ -1106,24 +1066,21 @@ public partial class MainViewModel : ObservableObject
         var fixDb = _commandInput.FixDb;
         if (fixDb is null)
         {
-            _log.LogWarning(
-                "Cannot set distance reference — navdata not loaded");
+            _log.LogWarning("Cannot set distance reference — navdata not loaded");
             return;
         }
 
         var resolved = FrdResolver.Resolve(fixOrFrd, fixDb);
         if (resolved is null)
         {
-            _log.LogWarning(
-                "Distance reference '{Fix}' could not be resolved", fixOrFrd);
+            _log.LogWarning("Distance reference '{Fix}' could not be resolved", fixOrFrd);
             StatusText = $"Unknown fix: {fixOrFrd}";
             return;
         }
 
         _distanceRefLat = resolved.Latitude;
         _distanceRefLon = resolved.Longitude;
-        DistanceReferenceFix = FrdResolver.ParseFrd(fixOrFrd)?.Fix
-            ?? fixOrFrd.Trim().ToUpperInvariant();
+        DistanceReferenceFix = FrdResolver.ParseFrd(fixOrFrd)?.Fix ?? fixOrFrd.Trim().ToUpperInvariant();
         RecalculateAllDistances();
     }
 
@@ -1155,16 +1112,13 @@ public partial class MainViewModel : ObservableObject
             return null;
         }
 
-        return GeoMath.DistanceNm(
-            model.Latitude, model.Longitude,
-            _distanceRefLat.Value, _distanceRefLon.Value);
+        return GeoMath.DistanceNm(model.Latitude, model.Longitude, _distanceRefLat.Value, _distanceRefLon.Value);
     }
 
     [RelayCommand]
     private void Exit()
     {
-        if (Application.Current?.ApplicationLifetime
-            is IClassicDesktopStyleApplicationLifetime desktop)
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.Shutdown();
         }
@@ -1185,9 +1139,7 @@ public partial class MainViewModel : ObservableObject
         IsTerminalDocked = !IsTerminalDocked;
     }
 
-
-    private async Task SendCommandForViewAsync(
-        string callsign, string command, string initials)
+    private async Task SendCommandForViewAsync(string callsign, string command, string initials)
     {
         try
         {
@@ -1211,26 +1163,30 @@ public partial class MainViewModel : ObservableObject
 
     public void AddSystemEntry(string message)
     {
-        AddTerminalEntry(new TerminalEntry
-        {
-            Timestamp = DateTime.Now,
-            Initials = "",
-            Kind = TerminalEntryKind.System,
-            Callsign = "",
-            Message = message,
-        });
+        AddTerminalEntry(
+            new TerminalEntry
+            {
+                Timestamp = DateTime.Now,
+                Initials = "",
+                Kind = TerminalEntryKind.System,
+                Callsign = "",
+                Message = message,
+            }
+        );
     }
 
     public void AddWarningEntry(string message)
     {
-        AddTerminalEntry(new TerminalEntry
-        {
-            Timestamp = DateTime.Now,
-            Initials = "",
-            Kind = TerminalEntryKind.Warning,
-            Callsign = "",
-            Message = message,
-        });
+        AddTerminalEntry(
+            new TerminalEntry
+            {
+                Timestamp = DateTime.Now,
+                Initials = "",
+                Kind = TerminalEntryKind.Warning,
+                Callsign = "",
+                Message = message,
+            }
+        );
     }
 
     private void OnTerminalEntry(TerminalBroadcastDto dto)
@@ -1238,14 +1194,16 @@ public partial class MainViewModel : ObservableObject
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             var kind = Enum.TryParse<TerminalEntryKind>(dto.Kind, out var k) ? k : TerminalEntryKind.System;
-            AddTerminalEntry(new TerminalEntry
-            {
-                Timestamp = dto.Timestamp.ToLocalTime(),
-                Initials = dto.Initials,
-                Kind = kind,
-                Callsign = dto.Callsign,
-                Message = dto.Message,
-            });
+            AddTerminalEntry(
+                new TerminalEntry
+                {
+                    Timestamp = dto.Timestamp.ToLocalTime(),
+                    Initials = dto.Initials,
+                    Kind = kind,
+                    Callsign = dto.Callsign,
+                    Message = dto.Message,
+                }
+            );
         });
     }
 
@@ -1328,10 +1286,7 @@ public partial class MainViewModel : ObservableObject
 
             try
             {
-                var state = await _connection.JoinRoomAsync(
-                    ActiveRoomId, _preferences.VatsimCid,
-                    _preferences.UserInitials,
-                    _preferences.ArtccId);
+                var state = await _connection.JoinRoomAsync(ActiveRoomId, _preferences.VatsimCid, _preferences.UserInitials, _preferences.ArtccId);
 
                 if (state is not null)
                 {
@@ -1358,9 +1313,7 @@ public partial class MainViewModel : ObservableObject
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var reason = error is not null
-                ? $"Server connection lost — {error.Message}"
-                : "Server connection closed";
+            var reason = error is not null ? $"Server connection lost — {error.Message}" : "Server connection closed";
             _log.LogWarning(error, "Connection closed permanently");
             IsConnected = false;
             StatusText = reason;
@@ -1403,8 +1356,7 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
-    private void OnCrcRoomMembersChanged(
-        CrcRoomMembersChangedDto dto)
+    private void OnCrcRoomMembersChanged(CrcRoomMembersChangedDto dto)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
@@ -1426,8 +1378,7 @@ public partial class MainViewModel : ObservableObject
     private void ApplyRoomState(RoomStateDto state)
     {
         ActiveRoomId = state.RoomId;
-        ActiveRoomName =
-            $"({state.CreatorArtccId}) {state.CreatorInitials}'s Room";
+        ActiveRoomName = $"({state.CreatorArtccId}) {state.CreatorInitials}'s Room";
 
         RoomMembers.Clear();
         foreach (var m in state.Members)
@@ -1451,8 +1402,7 @@ public partial class MainViewModel : ObservableObject
 
             if (!string.IsNullOrEmpty(_preferences.ArtccId))
             {
-                _ = Radar.LoadVideoMapsForArtccAsync(
-                    _preferences.ArtccId, state.ScenarioId);
+                _ = Radar.LoadVideoMapsForArtccAsync(_preferences.ArtccId, state.ScenarioId);
             }
         }
 
@@ -1496,8 +1446,7 @@ public partial class MainViewModel : ObservableObject
 
         if (!string.IsNullOrEmpty(_preferences.ArtccId))
         {
-            _ = Radar.LoadVideoMapsForArtccAsync(
-                _preferences.ArtccId, result.ScenarioId);
+            _ = Radar.LoadVideoMapsForArtccAsync(_preferences.ArtccId, result.ScenarioId);
         }
     }
 
@@ -1527,9 +1476,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var seconds = _preferences.AutoAcceptEnabled
-                ? _preferences.AutoAcceptDelaySeconds
-                : -1;
+            var seconds = _preferences.AutoAcceptEnabled ? _preferences.AutoAcceptDelaySeconds : -1;
             await _connection.SetAutoAcceptDelayAsync(seconds);
         }
         catch (Exception ex)
@@ -1579,7 +1526,6 @@ public partial class MainViewModel : ObservableObject
         }
         return null;
     }
-
 }
 
 public record DifficultyOption(string Level, int AircraftCount)

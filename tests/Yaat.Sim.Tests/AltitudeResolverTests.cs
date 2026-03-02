@@ -24,16 +24,17 @@ public class AltitudeResolverTests
 
         public IReadOnlyList<string> ExpandRoute(string route) => [];
 
-        public IReadOnlyList<string> ExpandRouteForNavigation(
-            string route, string? departureAirport) => [];
+        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
     }
 
-    private static readonly IFixLookup Fixes = new FakeFixLookup(new Dictionary<string, double>
-    {
-        ["KOAK"] = 9.0,
-        ["OAK"] = 9.0,
-        ["KSFO"] = 13.0,
-    });
+    private static readonly IFixLookup Fixes = new FakeFixLookup(
+        new Dictionary<string, double>
+        {
+            ["KOAK"] = 9.0,
+            ["OAK"] = 9.0,
+            ["KSFO"] = 13.0,
+        }
+    );
 
     // --- Numeric formats (unchanged behavior) ---
 

@@ -43,9 +43,7 @@ public sealed class BasePhase : Phase
         if (FinalDistanceNm is not null)
         {
             double reciprocal = ((Waypoints.FinalHeading + 180.0) % 360.0 + 360.0) % 360.0;
-            var target = FlightPhysics.ProjectPoint(
-                Waypoints.ThresholdLat, Waypoints.ThresholdLon,
-                reciprocal, FinalDistanceNm.Value);
+            var target = FlightPhysics.ProjectPoint(Waypoints.ThresholdLat, Waypoints.ThresholdLon, reciprocal, FinalDistanceNm.Value);
             _thresholdLat = target.Lat;
             _thresholdLon = target.Lon;
         }
@@ -55,8 +53,7 @@ public sealed class BasePhase : Phase
             _thresholdLon = Waypoints.ThresholdLon;
         }
 
-        var turnDir = Waypoints.Direction == PatternDirection.Left
-            ? TurnDirection.Left : TurnDirection.Right;
+        var turnDir = Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
 
         ctx.Targets.TargetHeading = Waypoints.BaseHeading;
         ctx.Targets.PreferredTurnDirection = turnDir;
@@ -82,9 +79,9 @@ public sealed class BasePhase : Phase
             return false;
         }
 
-        double crossTrack = Math.Abs(FlightPhysics.SignedCrossTrackDistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _thresholdLat, _thresholdLon, _finalHeading));
+        double crossTrack = Math.Abs(
+            FlightPhysics.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _finalHeading)
+        );
 
         return crossTrack < CrossTrackToleranceNm;
     }

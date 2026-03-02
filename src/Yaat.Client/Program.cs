@@ -13,8 +13,7 @@ public static class Program
         var log = AppLog.CreateLogger("Program");
         log.LogInformation("Log file: {LogPath}", AppLog.LogPath);
 
-        App.AutoConnect = args.Contains(
-            "--autoconnect", StringComparer.OrdinalIgnoreCase);
+        App.AutoConnect = args.Contains("--autoconnect", StringComparer.OrdinalIgnoreCase);
 
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }

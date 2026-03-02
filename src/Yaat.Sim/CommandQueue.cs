@@ -82,10 +82,7 @@ public class CommandQueue
     public List<CommandBlock> Blocks { get; } = [];
     public int CurrentBlockIndex { get; set; }
 
-    public CommandBlock? CurrentBlock =>
-        CurrentBlockIndex >= 0 && CurrentBlockIndex < Blocks.Count
-            ? Blocks[CurrentBlockIndex]
-            : null;
+    public CommandBlock? CurrentBlock => CurrentBlockIndex >= 0 && CurrentBlockIndex < Blocks.Count ? Blocks[CurrentBlockIndex] : null;
 
     public bool IsComplete => CurrentBlockIndex >= Blocks.Count;
 }

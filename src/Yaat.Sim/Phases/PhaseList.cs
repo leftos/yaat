@@ -70,10 +70,7 @@ public sealed class PhaseList
     /// </summary>
     public List<Phase> Phases { get; } = [];
 
-    public Phase? CurrentPhase =>
-        CurrentIndex >= 0 && CurrentIndex < Phases.Count
-            ? Phases[CurrentIndex]
-            : null;
+    public Phase? CurrentPhase => CurrentIndex >= 0 && CurrentIndex < Phases.Count ? Phases[CurrentIndex] : null;
 
     public bool IsComplete => CurrentIndex >= Phases.Count;
 
@@ -152,7 +149,8 @@ public sealed class PhaseList
     /// Skip forward to the first pending phase of type T.
     /// All intermediate phases get Skipped status.
     /// </summary>
-    public void SkipTo<T>(PhaseContext ctx) where T : Phase
+    public void SkipTo<T>(PhaseContext ctx)
+        where T : Phase
     {
         while (CurrentPhase is not null && CurrentPhase is not T)
         {

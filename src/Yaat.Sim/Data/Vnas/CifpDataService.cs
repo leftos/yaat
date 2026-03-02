@@ -10,8 +10,7 @@ namespace Yaat.Sim.Data.Vnas;
 /// </summary>
 public sealed class CifpDataService : IDisposable
 {
-    private const string CifpBaseUrl =
-        "https://aeronav.faa.gov/Upload_313-d/cifp/";
+    private const string CifpBaseUrl = "https://aeronav.faa.gov/Upload_313-d/cifp/";
 
     private readonly HttpClient _http;
     private readonly ILogger? _logger;
@@ -28,8 +27,7 @@ public sealed class CifpDataService : IDisposable
         _logger = logger;
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
 
-        var localAppData = Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData);
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         _cacheDir = Path.Combine(localAppData, "yaat", "cache", "cifp");
     }
 
@@ -38,13 +36,11 @@ public sealed class CifpDataService : IDisposable
         Directory.CreateDirectory(_cacheDir);
 
         var cycleId = AiracCycle.GetCurrentCycleId();
-        var cachePath = Path.Combine(
-            _cacheDir, $"FAACIFP18-{cycleId}");
+        var cachePath = Path.Combine(_cacheDir, $"FAACIFP18-{cycleId}");
 
         if (File.Exists(cachePath))
         {
-            _logger?.LogInformation(
-                "CIFP data cached for cycle {Cycle}", cycleId);
+            _logger?.LogInformation("CIFP data cached for cycle {Cycle}", cycleId);
             CifpFilePath = cachePath;
             return;
         }
@@ -55,21 +51,18 @@ public sealed class CifpDataService : IDisposable
 
         try
         {
-            _logger?.LogInformation(
-                "Downloading CIFP data from {Url}", url);
+            _logger?.LogInformation("Downloading CIFP data from {Url}", url);
 
             var zipBytes = await _http.GetByteArrayAsync(url);
 
             using var zipStream = new MemoryStream(zipBytes);
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
 
-            var cifpEntry = archive.Entries.FirstOrDefault(
-                e => e.Name.StartsWith("FAACIFP", StringComparison.Ordinal));
+            var cifpEntry = archive.Entries.FirstOrDefault(e => e.Name.StartsWith("FAACIFP", StringComparison.Ordinal));
 
             if (cifpEntry is null)
             {
-                _logger?.LogWarning(
-                    "FAACIFP file not found in zip archive");
+                _logger?.LogWarning("FAACIFP file not found in zip archive");
                 return;
             }
 
@@ -78,15 +71,11 @@ public sealed class CifpDataService : IDisposable
             await entryStream.CopyToAsync(fileStream);
 
             CifpFilePath = cachePath;
-            _logger?.LogInformation(
-                "CIFP data cached for cycle {Cycle} ({Size:N0} bytes)",
-                cycleId, new FileInfo(cachePath).Length);
+            _logger?.LogInformation("CIFP data cached for cycle {Cycle} ({Size:N0} bytes)", cycleId, new FileInfo(cachePath).Length);
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex,
-                "Failed to download CIFP data; "
-                + "approach gate warnings will use defaults");
+            _logger?.LogWarning(ex, "Failed to download CIFP data; " + "approach gate warnings will use defaults");
         }
     }
 

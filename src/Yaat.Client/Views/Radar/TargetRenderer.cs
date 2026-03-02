@@ -47,16 +47,11 @@ public sealed class TargetRenderer : IDisposable
     private const float SymbolSize = 5f;
     private const float LeaderLength = 40f;
 
-    public void Render(
-        SKCanvas canvas,
-        MapViewport vp,
-        IReadOnlyList<AircraftModel> aircraft,
-        AircraftModel? selectedAircraft)
+    public void Render(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, AircraftModel? selectedAircraft)
     {
         foreach (var ac in aircraft)
         {
-            var (sx, sy) = vp.LatLonToScreen(
-                ac.Latitude, ac.Longitude);
+            var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
 
             bool isSelected = ac == selectedAircraft;
             var color = GetTargetColor(ac, isSelected);
@@ -66,8 +61,7 @@ public sealed class TargetRenderer : IDisposable
         }
     }
 
-    private static SKColor GetTargetColor(
-        AircraftModel ac, bool isSelected)
+    private static SKColor GetTargetColor(AircraftModel ac, bool isSelected)
     {
         if (isSelected)
         {
@@ -88,8 +82,7 @@ public sealed class TargetRenderer : IDisposable
         return UnownedColor;
     }
 
-    private void DrawPositionSymbol(
-        SKCanvas canvas, float cx, float cy, SKColor color)
+    private void DrawPositionSymbol(SKCanvas canvas, float cx, float cy, SKColor color)
     {
         _symbolPaint.Color = color;
 
@@ -97,9 +90,7 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawCircle(cx, cy, SymbolSize, _symbolPaint);
     }
 
-    private void DrawLeaderAndDataBlock(
-        SKCanvas canvas, float cx, float cy,
-        AircraftModel ac, SKColor color)
+    private void DrawLeaderAndDataBlock(SKCanvas canvas, float cx, float cy, AircraftModel ac, SKColor color)
     {
         // Leader line: default to upper-right (NE direction)
         float angle = -MathF.PI / 4f; // 45 degrees up-right
@@ -113,14 +104,12 @@ public sealed class TargetRenderer : IDisposable
         _dataBlockPaint.Color = color;
 
         // Line 1: Callsign
-        canvas.DrawText(ac.Callsign, endX + 2, endY,
-            _dataBlockPaint);
+        canvas.DrawText(ac.Callsign, endX + 2, endY, _dataBlockPaint);
 
         // Line 2: Altitude (hundreds) + groundspeed (tens)
         var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
         var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
-        canvas.DrawText($"{altHundreds} {spdTens}", endX + 2,
-            endY + 14, _dataBlockPaint);
+        canvas.DrawText($"{altHundreds} {spdTens}", endX + 2, endY + 14, _dataBlockPaint);
     }
 
     public void Dispose()

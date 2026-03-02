@@ -30,7 +30,8 @@ public static class PatternBuilder
         PatternDirection direction,
         PatternEntryLeg entryLeg,
         bool touchAndGo,
-        double? finalDistanceNm = null)
+        double? finalDistanceNm = null
+    )
     {
         var waypoints = PatternGeometry.Compute(runway, category, direction);
         var phases = new List<Phase>();
@@ -51,11 +52,7 @@ public static class PatternBuilder
 
             case PatternEntryLeg.Base:
                 phases.Add(new DownwindPhase { Waypoints = waypoints });
-                phases.Add(new BasePhase
-                {
-                    Waypoints = waypoints,
-                    FinalDistanceNm = finalDistanceNm,
-                });
+                phases.Add(new BasePhase { Waypoints = waypoints, FinalDistanceNm = finalDistanceNm });
                 break;
 
             case PatternEntryLeg.Final:
@@ -73,8 +70,7 @@ public static class PatternBuilder
     /// that is cycling in the pattern after a touch-and-go or similar.
     /// Always ends in TouchAndGoPhase since the aircraft is in pattern mode.
     /// </summary>
-    public static List<Phase> BuildNextCircuit(
-        RunwayInfo runway, AircraftCategory category, PatternDirection direction)
+    public static List<Phase> BuildNextCircuit(RunwayInfo runway, AircraftCategory category, PatternDirection direction)
     {
         return BuildCircuit(runway, category, direction, PatternEntryLeg.Upwind, true);
     }

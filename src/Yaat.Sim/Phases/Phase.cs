@@ -11,8 +11,7 @@ public abstract class Phase
 
     public abstract string Name { get; }
 
-    public IReadOnlyList<ClearanceRequirement> Requirements =>
-        _requirements ??= CreateRequirements();
+    public IReadOnlyList<ClearanceRequirement> Requirements => _requirements ??= CreateRequirements();
 
     /// <summary>
     /// Called once when the phase becomes active.

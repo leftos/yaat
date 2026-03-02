@@ -1,12 +1,32 @@
 namespace Yaat.Sim.Scenarios;
 
-public enum FlightRulesKind { Ifr, Vfr }
+public enum FlightRulesKind
+{
+    Ifr,
+    Vfr,
+}
 
-public enum WeightClass { Small, Large, Heavy }
+public enum WeightClass
+{
+    Small,
+    Large,
+    Heavy,
+}
 
-public enum EngineKind { Piston, Turboprop, Jet }
+public enum EngineKind
+{
+    Piston,
+    Turboprop,
+    Jet,
+}
 
-public enum SpawnPositionType { Bearing, Runway, OnFinal, AtFix }
+public enum SpawnPositionType
+{
+    Bearing,
+    Runway,
+    OnFinal,
+    AtFix,
+}
 
 public sealed class SpawnRequest
 {

@@ -17,8 +17,7 @@ public partial class RadarViewWindow : Window
 
         if (DataContext is MainViewModel vm)
         {
-            new WindowGeometryHelper(
-                this, vm.Preferences, "RadarView", 800, 600).Restore();
+            new WindowGeometryHelper(this, vm.Preferences, "RadarView", 800, 600).Restore();
         }
     }
 }

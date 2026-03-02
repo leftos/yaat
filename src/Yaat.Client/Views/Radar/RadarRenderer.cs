@@ -68,22 +68,20 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlyList<(string Name, double Lat, double Lon)>? fixes,
         double rangeRingCenterLat = 0,
         double rangeRingCenterLon = 0,
-        double rangeRingSizeNm = 5)
+        double rangeRingSizeNm = 5
+    )
     {
         canvas.Clear(BackgroundColor);
 
         // Video maps
-        _videoMapRenderer.Render(canvas, vp, videoMaps,
-            brightnessLookup);
+        _videoMapRenderer.Render(canvas, vp, videoMaps, brightnessLookup);
 
         // Range rings
         if (showRangeRings)
         {
             // Range ring at dedicated center + size
-            var rrLat = rangeRingCenterLat != 0
-                ? rangeRingCenterLat : centerLat;
-            var rrLon = rangeRingCenterLon != 0
-                ? rangeRingCenterLon : centerLon;
+            var rrLat = rangeRingCenterLat != 0 ? rangeRingCenterLat : centerLat;
+            var rrLon = rangeRingCenterLon != 0 ? rangeRingCenterLon : centerLon;
             DrawRangeRing(canvas, vp, rrLat, rrLon, rangeRingSizeNm);
         }
 
@@ -97,10 +95,7 @@ public sealed class RadarRenderer : IDisposable
         _targetRenderer.Render(canvas, vp, aircraft, selectedAircraft);
     }
 
-    private void DrawRangeRing(
-        SKCanvas canvas, MapViewport vp,
-        double centerLat, double centerLon,
-        double rangeRingSizeNm)
+    private void DrawRangeRing(SKCanvas canvas, MapViewport vp, double centerLat, double centerLon, double rangeRingSizeNm)
     {
         if (rangeRingSizeNm <= 0)
         {
@@ -112,16 +107,13 @@ public sealed class RadarRenderer : IDisposable
         // Convert nautical miles to approximate screen pixels
         // 1 nm = 1/60 degree latitude
         var degreesLat = rangeRingSizeNm / 60.0;
-        var (_, edgeY) = vp.LatLonToScreen(
-            centerLat + degreesLat, centerLon);
+        var (_, edgeY) = vp.LatLonToScreen(centerLat + degreesLat, centerLon);
         float radiusPx = MathF.Abs(cy - edgeY);
 
         canvas.DrawCircle(cx, cy, radiusPx, _rangeRingPaint);
     }
 
-    private void DrawFixes(
-        SKCanvas canvas, MapViewport vp,
-        IReadOnlyList<(string Name, double Lat, double Lon)> fixes)
+    private void DrawFixes(SKCanvas canvas, MapViewport vp, IReadOnlyList<(string Name, double Lat, double Lon)> fixes)
     {
         const float crossSize = 4f;
 
@@ -130,10 +122,8 @@ public sealed class RadarRenderer : IDisposable
             var (sx, sy) = vp.LatLonToScreen(fix.Lat, fix.Lon);
 
             // Draw small + symbol
-            canvas.DrawLine(
-                sx - crossSize, sy, sx + crossSize, sy, _fixPaint);
-            canvas.DrawLine(
-                sx, sy - crossSize, sx, sy + crossSize, _fixPaint);
+            canvas.DrawLine(sx - crossSize, sy, sx + crossSize, sy, _fixPaint);
+            canvas.DrawLine(sx, sy - crossSize, sx, sy + crossSize, _fixPaint);
 
             // Label
             canvas.DrawText(fix.Name, sx + 6, sy - 2, _fixLabelPaint);

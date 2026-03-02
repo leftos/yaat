@@ -18,6 +18,5 @@ public interface IFixLookup
     /// Skips radar-vector SIDs/STARs entirely (body ≤ 1 fix).
     /// Deduplicates adjacent identical fix names.
     /// </summary>
-    IReadOnlyList<string> ExpandRouteForNavigation(
-        string route, string? departureAirport);
+    IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport);
 }

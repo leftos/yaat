@@ -17,16 +17,11 @@ public static class ApproachGateDatabase
     private const double GatePaddingNm = 1.0;
     private const double InterceptPaddingNm = 2.0;
 
-    private static Dictionary<(string Airport, string Runway), double>
-        _minIntercepts = [];
+    private static Dictionary<(string Airport, string Runway), double> _minIntercepts = [];
 
     private static bool _initialized;
 
-    public static void Initialize(
-        CifpParseResult cifpData,
-        IFixLookup fixLookup,
-        IRunwayLookup runwayLookup,
-        ILogger? logger = null)
+    public static void Initialize(CifpParseResult cifpData, IFixLookup fixLookup, IRunwayLookup runwayLookup, ILogger? logger = null)
     {
         var result = new Dictionary<(string Airport, string Runway), double>();
         int computed = 0;
@@ -35,12 +30,9 @@ public static class ApproachGateDatabase
         foreach (var ((airport, runway), fafFixName) in cifpData.FafFixes)
         {
             // Resolve FAF fix position
-            (double Lat, double Lon)? fafPos =
-                fixLookup.GetFixPosition(fafFixName);
+            (double Lat, double Lon)? fafPos = fixLookup.GetFixPosition(fafFixName);
 
-            if (fafPos is null
-                && cifpData.TerminalWaypoints.TryGetValue(
-                    fafFixName, out var terminalPos))
+            if (fafPos is null && cifpData.TerminalWaypoints.TryGetValue(fafFixName, out var terminalPos))
             {
                 fafPos = terminalPos;
             }
@@ -52,8 +44,7 @@ public static class ApproachGateDatabase
             }
 
             // Get runway threshold
-            var runwayInfo = runwayLookup.GetRunway(airport, runway)
-                ?? runwayLookup.GetRunway($"K{airport}", runway);
+            var runwayInfo = runwayLookup.GetRunway(airport, runway) ?? runwayLookup.GetRunway($"K{airport}", runway);
             if (runwayInfo is null)
             {
                 skipped++;
@@ -61,14 +52,10 @@ public static class ApproachGateDatabase
             }
 
             // Compute FAF → threshold distance
-            double fafDist = GeoMath.DistanceNm(
-                fafPos.Value.Lat, fafPos.Value.Lon,
-                runwayInfo.ThresholdLatitude,
-                runwayInfo.ThresholdLongitude);
+            double fafDist = GeoMath.DistanceNm(fafPos.Value.Lat, fafPos.Value.Lon, runwayInfo.ThresholdLatitude, runwayInfo.ThresholdLongitude);
 
             // Approach gate = max(FAF + 1nm, 5nm)
-            double approachGate = Math.Max(
-                fafDist + GatePaddingNm, MinGateFloorNm);
+            double approachGate = Math.Max(fafDist + GatePaddingNm, MinGateFloorNm);
 
             // Min intercept = gate + 2nm
             double minIntercept = approachGate + InterceptPaddingNm;
@@ -80,18 +67,14 @@ public static class ApproachGateDatabase
         _minIntercepts = result;
         _initialized = true;
 
-        logger?.LogInformation(
-            "Approach gate database: {Computed} runways computed, "
-            + "{Skipped} skipped (missing data)",
-            computed, skipped);
+        logger?.LogInformation("Approach gate database: {Computed} runways computed, " + "{Skipped} skipped (missing data)", computed, skipped);
     }
 
     /// <summary>
     /// Returns the minimum intercept distance for the given airport
     /// and runway. Returns 7.0nm default if not found.
     /// </summary>
-    public static double GetMinInterceptDistanceNm(
-        string airportId, string runwayId)
+    public static double GetMinInterceptDistanceNm(string airportId, string runwayId)
     {
         if (!_initialized)
         {
@@ -110,8 +93,6 @@ public static class ApproachGateDatabase
 
     private static string NormalizeAirport(string airportId)
     {
-        return airportId.StartsWith('K')
-            ? airportId[1..]
-            : airportId;
+        return airportId.StartsWith('K') ? airportId[1..] : airportId;
     }
 }

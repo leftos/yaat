@@ -13,8 +13,7 @@ public static class GlideSlopeGeometry
     /// Target altitude (MSL) at a given distance from the threshold
     /// on the specified glideslope angle.
     /// </summary>
-    public static double AltitudeAtDistance(
-        double distanceNm, double thresholdElevation, double angleDeg = StandardAngleDeg)
+    public static double AltitudeAtDistance(double distanceNm, double thresholdElevation, double angleDeg = StandardAngleDeg)
     {
         double angleFt = Math.Tan(angleDeg * DegToRad) * distanceNm * 6076.12;
         return thresholdElevation + angleFt;

@@ -4,12 +4,7 @@ namespace Yaat.Client.Services;
 
 public static class CommandMetadata
 {
-    public record CommandInfo(
-        CanonicalCommandType Type,
-        string Label,
-        string? SampleArg,
-        bool IsGlobal
-    );
+    public record CommandInfo(CanonicalCommandType Type, string Label, string? SampleArg, bool IsGlobal);
 
     public static readonly IReadOnlyList<CommandInfo> AllCommands =
     [

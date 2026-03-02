@@ -9,8 +9,7 @@ public class CifpParserTests
     [InlineData("N38573910", 38.960861)]
     [InlineData("N37424600", 37.712778)]
     [InlineData("S33525000", -33.880556)]
-    public void ParseArinc424Latitude_ValidInput_ReturnsDecimalDegrees(
-        string input, double expected)
+    public void ParseArinc424Latitude_ValidInput_ReturnsDecimalDegrees(string input, double expected)
     {
         var result = CifpParser.ParseArinc424Latitude(input);
 
@@ -22,8 +21,7 @@ public class CifpParserTests
     [InlineData("W121292540", -121.490389)]
     [InlineData("W122131200", -122.220000)]
     [InlineData("E002174200", 2.295000)]
-    public void ParseArinc424Longitude_ValidInput_ReturnsDecimalDegrees(
-        string input, double expected)
+    public void ParseArinc424Longitude_ValidInput_ReturnsDecimalDegrees(string input, double expected)
     {
         var result = CifpParser.ParseArinc424Longitude(input);
 
@@ -112,10 +110,7 @@ public class CifpParserTests
     [Fact]
     public void Parse_TerminalWaypoints_ExtractsCoordinates()
     {
-        var lines = new[]
-        {
-            BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200"),
-        };
+        var lines = new[] { BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200") };
 
         var tmpFile = Path.GetTempFileName();
         try
@@ -138,10 +133,7 @@ public class CifpParserTests
     public void Parse_RunwayExtraction_HandlesVariants()
     {
         // I28LY = ILS 28L variant Y
-        var lines = new[]
-        {
-            BuildApproachLine("KSFO", "I28LY ", "DUMOS", 'F'),
-        };
+        var lines = new[] { BuildApproachLine("KSFO", "I28LY ", "DUMOS", 'F') };
 
         var tmpFile = Path.GetTempFileName();
         try
@@ -161,8 +153,7 @@ public class CifpParserTests
     /// Builds a minimal ARINC 424 approach record line (subsection F).
     /// Positions are 0-indexed; the record must be at least 50 chars.
     /// </summary>
-    private static string BuildApproachLine(
-        string icao, string approachId, string fixId, char waypointDesc)
+    private static string BuildApproachLine(string icao, string approachId, string fixId, char waypointDesc)
     {
         // Positions (0-indexed):
         // 0-4: "SUSAP"
@@ -195,8 +186,7 @@ public class CifpParserTests
     /// <summary>
     /// Builds a minimal ARINC 424 terminal waypoint record (subsection C).
     /// </summary>
-    private static string BuildTerminalWaypointLine(
-        string icao, string ident, string latArinc, string lonArinc)
+    private static string BuildTerminalWaypointLine(string icao, string ident, string latArinc, string lonArinc)
     {
         // Positions (0-indexed):
         // 0-4: "SUSAP"

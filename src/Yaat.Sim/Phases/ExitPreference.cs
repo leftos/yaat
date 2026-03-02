@@ -1,6 +1,10 @@
 namespace Yaat.Sim.Phases;
 
-public enum ExitSide { Left, Right }
+public enum ExitSide
+{
+    Left,
+    Right,
+}
 
 public sealed class ExitPreference
 {
