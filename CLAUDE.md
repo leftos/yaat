@@ -387,6 +387,7 @@ When invoking aviation-sim-expert, always include:
 
 ## Rules
 
+- **Unreleased software**: YAAT has no public release and no external users. Do not add backwards-compatibility shims, migration paths, deprecated aliases, or dual config formats. There is nothing to stay compatible with. Delete and replace freely.
 - **User Guide**: Update `USER_GUIDE.md` before committing user-facing changes.
 - **No newlines in text strings**: Never split literal text across lines in `.axaml` or `.cs` files. The indentation whitespace becomes visible at runtime (huge gaps in UI text). Keep `Text="..."`, `Content="..."`, and interpolated strings on one line, even if long.
 - **Error Handling**: Never swallow exceptions. Log with `AppLog` (client) or `ILogger` (Sim).
