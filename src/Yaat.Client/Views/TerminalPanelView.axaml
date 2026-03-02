@@ -23,18 +23,15 @@
                     Padding="6,2" />
         </Grid>
 
-        <!-- Scrolling terminal text (read-only, selectable) -->
-        <TextBox x:Name="TerminalTextBox"
-                 Text="{Binding TerminalText, Mode=OneWay}"
-                 IsReadOnly="True"
-                 AcceptsReturn="True"
-                 FontFamily="Consolas"
-                 FontSize="12"
-                 Foreground="LightGray"
-                 Background="#1A1A1E"
-                 BorderThickness="0"
-                 TextWrapping="Wrap"
-                 Padding="4" />
+        <!-- Scrolling terminal text (read-only, selectable, colorized per entry kind) -->
+        <ScrollViewer x:Name="TerminalScrollViewer"
+                      Background="#1A1A1E">
+            <SelectableTextBlock x:Name="TerminalTextBlock"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 TextWrapping="Wrap"
+                                 Padding="4" />
+        </ScrollViewer>
 
     </DockPanel>
 </UserControl>

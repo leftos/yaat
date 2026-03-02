@@ -1,12 +1,15 @@
-using System.ComponentModel;
+using System.Collections.Specialized;
+using System.Text;
 using Avalonia.Controls;
-using Avalonia.VisualTree;
+using Avalonia.Controls.Documents;
+using Avalonia.Media;
+using Yaat.Client.Models;
+using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
 
 public partial class TerminalPanelView : UserControl
 {
-    private ScrollViewer? _scrollViewer;
     private bool _isNearBottom = true;
 
     public TerminalPanelView()
@@ -18,67 +21,96 @@ public partial class TerminalPanelView : UserControl
     {
         base.OnLoaded(e);
 
-        if (DataContext is ViewModels.MainViewModel vm)
+        if (DataContext is MainViewModel vm)
         {
-            vm.PropertyChanged += OnViewModelPropertyChanged;
+            vm.TerminalEntries.CollectionChanged += OnEntriesChanged;
+            RebuildInlines(vm);
         }
+
+        TerminalScrollViewer.ScrollChanged += OnScrollChanged;
     }
 
     protected override void OnUnloaded(Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (DataContext is ViewModels.MainViewModel vm)
+        if (DataContext is MainViewModel vm)
         {
-            vm.PropertyChanged -= OnViewModelPropertyChanged;
+            vm.TerminalEntries.CollectionChanged -= OnEntriesChanged;
         }
 
-        if (_scrollViewer is not null)
-        {
-            _scrollViewer.ScrollChanged -= OnScrollChanged;
-        }
+        TerminalScrollViewer.ScrollChanged -= OnScrollChanged;
 
         base.OnUnloaded(e);
     }
 
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(ViewModels.MainViewModel.TerminalText))
+        if (DataContext is MainViewModel vm)
         {
-            return;
+            RebuildInlines(vm);
         }
 
-        var sv = GetScrollViewer();
-        if (_isNearBottom && sv is not null)
+        if (_isNearBottom)
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(
-                () => sv.ScrollToEnd(),
+                () => TerminalScrollViewer.ScrollToEnd(),
                 Avalonia.Threading.DispatcherPriority.Background);
         }
     }
 
-    private ScrollViewer? GetScrollViewer()
+    private void RebuildInlines(MainViewModel vm)
     {
-        if (_scrollViewer is not null)
+        var tb = TerminalTextBlock;
+        tb.Inlines?.Clear();
+        var inlines = tb.Inlines ??= [];
+        var first = true;
+        foreach (var entry in vm.TerminalEntries)
         {
-            return _scrollViewer;
-        }
+            if (!first)
+            {
+                inlines.Add(new LineBreak());
+            }
 
-        var textBox = this.FindControl<TextBox>("TerminalTextBox");
-        _scrollViewer = textBox?.FindDescendantOfType<ScrollViewer>();
-        if (_scrollViewer is not null)
-        {
-            _scrollViewer.ScrollChanged += OnScrollChanged;
+            inlines.Add(new Run(FormatEntry(entry))
+            {
+                Foreground = GetBrush(entry.Kind),
+            });
+            first = false;
         }
-
-        return _scrollViewer;
     }
 
     private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        if (_scrollViewer is null)
+        _isNearBottom = TerminalScrollViewer.Offset.Y
+            >= TerminalScrollViewer.ScrollBarMaximum.Y - 20;
+    }
+
+    private static string FormatEntry(TerminalEntry entry)
+    {
+        var sb = new StringBuilder();
+        sb.Append(entry.Timestamp.ToString("HH:mm:ss"));
+        if (!string.IsNullOrEmpty(entry.Initials))
         {
-            return;
+            sb.Append("  ");
+            sb.Append(entry.Initials);
         }
 
-        _isNearBottom = _scrollViewer.Offset.Y >= _scrollViewer.ScrollBarMaximum.Y - 20;
+        if (!string.IsNullOrEmpty(entry.Callsign))
+        {
+            sb.Append("  ");
+            sb.Append(entry.Callsign);
+        }
+
+        sb.Append("  ");
+        sb.Append(entry.Message);
+        return sb.ToString();
     }
+
+    private static IBrush GetBrush(TerminalEntryKind kind) => kind switch
+    {
+        TerminalEntryKind.Command => Brushes.White,
+        TerminalEntryKind.Response => Brushes.LightGreen,
+        TerminalEntryKind.System => Brushes.Gray,
+        TerminalEntryKind.Say => Brushes.Orange,
+        _ => Brushes.White,
+    };
 }
