@@ -78,7 +78,7 @@ public partial class FavoritesBarView : UserControl
             FontSize = 12,
         };
 
-        ToolTip.SetTip(btn, "Left-click: execute | Ctrl+click: append to input | Right-click: edit");
+        ToolTip.SetTip(btn, $"{fav.CommandText}\nLeft-click: execute\nCtrl+click: append to input\nRight-click: edit");
 
         btn.AddHandler(PointerPressedEvent, OnFavoritePointerPressed, RoutingStrategies.Tunnel);
         btn.Click += OnFavoriteClick;
