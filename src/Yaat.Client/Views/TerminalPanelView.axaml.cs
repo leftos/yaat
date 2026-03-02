@@ -108,9 +108,11 @@ public partial class TerminalPanelView : UserControl
     private static IBrush GetBrush(TerminalEntryKind kind) => kind switch
     {
         TerminalEntryKind.Command => Brushes.White,
-        TerminalEntryKind.Response => Brushes.LightGreen,
+        TerminalEntryKind.Response => Brushes.LightGray,
         TerminalEntryKind.System => Brushes.Gray,
-        TerminalEntryKind.Say => Brushes.Orange,
+        TerminalEntryKind.Say => Brushes.Green,
+        TerminalEntryKind.Warning => Brushes.Orange,
+        TerminalEntryKind.Error => Brushes.Red,
         _ => Brushes.White,
     };
 }

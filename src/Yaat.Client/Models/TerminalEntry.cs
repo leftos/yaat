@@ -1,6 +1,6 @@
 namespace Yaat.Client.Models;
 
-public enum TerminalEntryKind { Command, Response, System, Say }
+public enum TerminalEntryKind { Command, Response, System, Say, Warning, Error }
 
 public sealed class TerminalEntry
 {

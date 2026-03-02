@@ -378,7 +378,7 @@ public partial class MainViewModel : ObservableObject
 
         foreach (var w in warnings)
         {
-            AddSystemEntry($"[WARN] {w}");
+            AddWarningEntry($"[WARN] {w}");
         }
 
         try
@@ -437,7 +437,7 @@ public partial class MainViewModel : ObservableObject
         foreach (var w in result.Warnings)
         {
             _log.LogWarning("Scenario: {Warning}", w);
-            AddSystemEntry($"[WARN] {w}");
+            AddWarningEntry($"[WARN] {w}");
         }
     }
 
@@ -1155,6 +1155,18 @@ public partial class MainViewModel : ObservableObject
             Timestamp = DateTime.Now,
             Initials = "",
             Kind = TerminalEntryKind.System,
+            Callsign = "",
+            Message = message,
+        });
+    }
+
+    public void AddWarningEntry(string message)
+    {
+        AddTerminalEntry(new TerminalEntry
+        {
+            Timestamp = DateTime.Now,
+            Initials = "",
+            Kind = TerminalEntryKind.Warning,
             Callsign = "",
             Message = message,
         });
