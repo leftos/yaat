@@ -194,6 +194,7 @@ public partial class MainViewModel : ObservableObject
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync);
         Radar = new RadarViewModel(
             _connection, _videoMapService, SendCommandForViewAsync);
+        Radar.SetPreferences(_preferences);
 
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
@@ -1453,8 +1454,8 @@ public partial class MainViewModel : ObservableObject
 
             if (!string.IsNullOrEmpty(_preferences.ArtccId))
             {
-                _ = Radar.LoadVideoMapsAsync(
-                    _preferences.ArtccId, "");
+                _ = Radar.LoadVideoMapsForArtccAsync(
+                    _preferences.ArtccId, state.ScenarioId);
             }
         }
 
@@ -1497,8 +1498,8 @@ public partial class MainViewModel : ObservableObject
 
         if (!string.IsNullOrEmpty(_preferences.ArtccId))
         {
-            _ = Radar.LoadVideoMapsAsync(
-                _preferences.ArtccId, "");
+            _ = Radar.LoadVideoMapsForArtccAsync(
+                _preferences.ArtccId, result.ScenarioId);
         }
     }
 

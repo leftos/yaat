@@ -18,12 +18,79 @@
             <Button Content="RNG-"
                     Command="{Binding DecreaseRangeCommand}"
                     Padding="6,2" FontSize="11" />
+
+            <Rectangle Width="1" Fill="#444" Margin="2,2" />
+
+            <!-- Map shortcut buttons (populated in code-behind) -->
+            <ItemsControl x:Name="MapShortcutsPanel"
+                          ItemsSource="{Binding MapShortcuts}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MapShortcutItem">
+                        <Button Content="{Binding ShortName}"
+                                Tag="{Binding}"
+                                Click="OnMapShortcutClick"
+                                Padding="6,2" FontSize="11"
+                                Foreground="{Binding IsEnabled, Converter={x:Static radar:RadarView.BoolToMapColor}}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Rectangle Width="1" Fill="#444" Margin="2,2" />
+
+            <Button x:Name="MapButton"
+                    Content="MAP"
+                    Click="OnMapButtonClick"
+                    Padding="6,2" FontSize="11" />
+            <Popup x:Name="MapPopup"
+                   IsLightDismissEnabled="True"
+                   PlacementTarget="{Binding #MapButton}"
+                   Placement="Bottom">
+                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="4">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBox x:Name="MapIdInput"
+                                 Watermark="Map #"
+                                 Width="60" FontSize="11" />
+                        <Button Content="OK"
+                                Click="OnMapIdSubmit"
+                                Padding="6,2" FontSize="11" />
+                    </StackPanel>
+                </Border>
+            </Popup>
+
+            <Rectangle Width="1" Fill="#444" Margin="2,2" />
+
             <Button Content="RR"
                     Command="{Binding ToggleRangeRingsCommand}"
                     Padding="6,2" FontSize="11" />
+            <Button x:Name="RrSizeButton"
+                    Click="OnRrSizeClick"
+                    Padding="6,2" FontSize="11">
+                <Button.Content>
+                    <TextBlock Text="{Binding RangeRingSizeNm, StringFormat='RR {0:F0}'}" />
+                </Button.Content>
+            </Button>
+            <Button Content="RR POS"
+                    Command="{Binding StartPlaceRangeRingCommand}"
+                    Padding="6,2" FontSize="11" />
+
+            <Rectangle Width="1" Fill="#444" Margin="2,2" />
+
             <Button Content="FIX"
                     Command="{Binding ToggleFixesCommand}"
                     Padding="6,2" FontSize="11" />
+
+            <Rectangle Width="1" Fill="#444" Margin="2,2" />
+
+            <Button Content="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockLabel}}"
+                    Command="{Binding TogglePanZoomLockCommand}"
+                    Foreground="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockColor}}"
+                    Padding="6,2" FontSize="11" />
+
             <TextBlock Text="{Binding RangeNm, StringFormat='Range: {0:F0}nm'}"
                        VerticalAlignment="Center"
                        Foreground="#00B800"
@@ -42,7 +109,12 @@
                            RadarCenterLat="{Binding CenterLat}"
                            RadarCenterLon="{Binding CenterLon}"
                            ShowFixes="{Binding ShowFixes}"
-                           Fixes="{Binding Fixes}" />
+                           Fixes="{Binding Fixes}"
+                           RangeRingCenterLat="{Binding RangeRingCenterLat}"
+                           RangeRingCenterLon="{Binding RangeRingCenterLon}"
+                           RangeRingSizeNm="{Binding RangeRingSizeNm}"
+                           IsPanZoomLocked="{Binding IsPanZoomLocked}"
+                           IsPlacingRangeRing="{Binding IsPlacingRangeRing}" />
     </DockPanel>
 
 </UserControl>

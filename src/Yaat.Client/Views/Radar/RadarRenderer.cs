@@ -75,7 +75,10 @@ public sealed class RadarRenderer : IDisposable
         double centerLat,
         double centerLon,
         bool showFixes,
-        IReadOnlyList<(string Name, double Lat, double Lon)>? fixes)
+        IReadOnlyList<(string Name, double Lat, double Lon)>? fixes,
+        double rangeRingCenterLat = 0,
+        double rangeRingCenterLon = 0,
+        double rangeRingSizeNm = 5)
     {
         canvas.Clear(BackgroundColor);
 
@@ -86,7 +89,15 @@ public sealed class RadarRenderer : IDisposable
         // Range rings
         if (showRangeRings)
         {
-            DrawRangeRings(canvas, vp, centerLat, centerLon, rangeNm);
+            // Compass rose at radar center
+            DrawCompassRose(canvas, vp, centerLat, centerLon);
+
+            // Range ring at dedicated center + size
+            var rrLat = rangeRingCenterLat != 0
+                ? rangeRingCenterLat : centerLat;
+            var rrLon = rangeRingCenterLon != 0
+                ? rangeRingCenterLon : centerLon;
+            DrawRangeRing(canvas, vp, rrLat, rrLon, rangeRingSizeNm);
         }
 
         // Fix overlay
@@ -99,41 +110,39 @@ public sealed class RadarRenderer : IDisposable
         _targetRenderer.Render(canvas, vp, aircraft, selectedAircraft);
     }
 
-    private void DrawRangeRings(
+    private void DrawCompassRose(
         SKCanvas canvas, MapViewport vp,
-        double centerLat, double centerLon, double rangeNm)
+        double centerLat, double centerLon)
     {
         var (cx, cy) = vp.LatLonToScreen(centerLat, centerLon);
-
-        // Draw compass rose (N/S/E/W lines)
         float compassRadius = Math.Max(
             vp.PixelWidth, vp.PixelHeight);
         canvas.DrawLine(cx, cy - compassRadius, cx, cy + compassRadius,
             _compassPaint);
         canvas.DrawLine(cx - compassRadius, cy, cx + compassRadius, cy,
             _compassPaint);
+    }
 
-        // Draw range rings at intervals
-        double intervalNm = rangeNm switch
+    private void DrawRangeRing(
+        SKCanvas canvas, MapViewport vp,
+        double centerLat, double centerLon,
+        double rangeRingSizeNm)
+    {
+        if (rangeRingSizeNm <= 0)
         {
-            <= 10 => 2,
-            <= 30 => 5,
-            <= 60 => 10,
-            <= 120 => 20,
-            _ => 50,
-        };
-
-        for (double r = intervalNm; r <= rangeNm; r += intervalNm)
-        {
-            // Convert nautical miles to approximate screen pixels
-            // 1 nm = 1/60 degree latitude
-            var degreesLat = r / 60.0;
-            var (_, edgeY) = vp.LatLonToScreen(
-                centerLat + degreesLat, centerLon);
-            float radiusPx = MathF.Abs(cy - edgeY);
-
-            canvas.DrawCircle(cx, cy, radiusPx, _rangeRingPaint);
+            return;
         }
+
+        var (cx, cy) = vp.LatLonToScreen(centerLat, centerLon);
+
+        // Convert nautical miles to approximate screen pixels
+        // 1 nm = 1/60 degree latitude
+        var degreesLat = rangeRingSizeNm / 60.0;
+        var (_, edgeY) = vp.LatLonToScreen(
+            centerLat + degreesLat, centerLon);
+        float radiusPx = MathF.Abs(cy - edgeY);
+
+        canvas.DrawCircle(cx, cy, radiusPx, _rangeRingPaint);
     }
 
     private void DrawFixes(

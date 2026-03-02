@@ -18,6 +18,9 @@ public partial class RadarViewModel : ObservableObject
     private readonly VideoMapService _videoMapService;
     private readonly Func<string, string, string, Task> _sendCommand;
 
+    private string? _activeScenarioId;
+    private UserPreferences? _preferences;
+
     [ObservableProperty]
     private double _rangeNm = 60;
 
@@ -49,7 +52,25 @@ public partial class RadarViewModel : ObservableObject
     private IReadOnlyList<(string Name, double Lat, double Lon)>?
         _fixes;
 
+    [ObservableProperty]
+    private bool _isPanZoomLocked = true;
+
+    [ObservableProperty]
+    private double _rangeRingCenterLat;
+
+    [ObservableProperty]
+    private double _rangeRingCenterLon;
+
+    [ObservableProperty]
+    private double _rangeRingSizeNm = 5;
+
+    [ObservableProperty]
+    private bool _isPlacingRangeRing;
+
     public ObservableCollection<VideoMapToggleItem> MapToggles { get; }
+        = [];
+
+    public ObservableCollection<MapShortcutItem> MapShortcuts { get; }
         = [];
 
     /// <summary>
@@ -67,70 +88,118 @@ public partial class RadarViewModel : ObservableObject
         _sendCommand = sendCommand;
     }
 
-    public async Task LoadVideoMapsAsync(
-        string artccId, string facilityId)
+    public void SetPreferences(UserPreferences prefs)
+    {
+        _preferences = prefs;
+    }
+
+    public async Task LoadVideoMapsForArtccAsync(
+        string artccId, string? scenarioId = null)
     {
         try
         {
             var dto = await _connection
-                .GetFacilityVideoMapsAsync(artccId, facilityId);
+                .GetFacilityVideoMapsForArtccAsync(artccId);
             if (dto is null)
             {
                 _log.LogWarning(
-                    "No video maps for {Artcc}/{Facility}",
-                    artccId, facilityId);
+                    "No video maps for {Artcc}", artccId);
                 return;
             }
 
-            // Build brightness lookup
-            BrightnessLookup.Clear();
-            foreach (var map in dto.VideoMaps)
-            {
-                BrightnessLookup[map.Id] = map.BrightnessCategory;
-            }
-
-            // Set center from first area
-            if (dto.Areas.Count > 0)
-            {
-                var area = dto.Areas[0];
-                CenterLat = area.CenterLat;
-                CenterLon = area.CenterLon;
-                RangeNm = area.SurveillanceRange;
-            }
+            _activeScenarioId = scenarioId;
+            ApplyVideoMapsDto(artccId, dto);
 
             // Download all referenced maps
             var data = await _videoMapService
                 .LoadMapsAsync(artccId, dto.VideoMaps);
 
-            // Build toggle list
-            MapToggles.Clear();
-            foreach (var map in dto.VideoMaps)
-            {
-                var item = new VideoMapToggleItem
-                {
-                    MapId = map.Id,
-                    ShortName = map.ShortName,
-                    Name = map.Name,
-                    BrightnessCategory = map.BrightnessCategory,
-                    StarsId = map.StarsId,
-                    IsEnabled = map.AlwaysVisible,
-                };
-                item.PropertyChanged += (_, _) => UpdateActiveMaps();
-                MapToggles.Add(item);
-            }
+            // Restore per-scenario settings if available
+            RestoreSettings();
 
-            // Initially enable always-visible maps
+            // Initially enable always-visible maps (unless restored)
             UpdateActiveMaps();
 
             _log.LogInformation(
                 "Video maps loaded: {Count} maps for {Facility}",
-                data.Count, facilityId);
+                data.Count, dto.FacilityId);
         }
         catch (Exception ex)
         {
             _log.LogError(ex,
-                "Failed to load video maps for {Artcc}/{Facility}",
-                artccId, facilityId);
+                "Failed to load video maps for {Artcc}",
+                artccId);
+        }
+    }
+
+    private void ApplyVideoMapsDto(
+        string artccId, FacilityVideoMapsDto dto)
+    {
+        // Build brightness lookup
+        BrightnessLookup.Clear();
+        foreach (var map in dto.VideoMaps)
+        {
+            BrightnessLookup[map.Id] = map.BrightnessCategory;
+        }
+
+        // Set center from first area
+        if (dto.Areas.Count > 0)
+        {
+            var area = dto.Areas[0];
+            CenterLat = area.CenterLat;
+            CenterLon = area.CenterLon;
+            RangeNm = area.SurveillanceRange;
+            RangeRingCenterLat = area.CenterLat;
+            RangeRingCenterLon = area.CenterLon;
+        }
+
+        // Build toggle list
+        MapToggles.Clear();
+        foreach (var map in dto.VideoMaps)
+        {
+            var item = new VideoMapToggleItem
+            {
+                MapId = map.Id,
+                ShortName = map.ShortName,
+                Name = map.Name,
+                BrightnessCategory = map.BrightnessCategory,
+                StarsId = map.StarsId,
+                IsEnabled = map.AlwaysVisible,
+            };
+            item.PropertyChanged += (_, _) =>
+            {
+                UpdateActiveMaps();
+                SaveSettings();
+            };
+            MapToggles.Add(item);
+        }
+
+        // Build map shortcuts from first mapGroup (indices 0-5)
+        MapShortcuts.Clear();
+        if (dto.MapGroups.Count > 0)
+        {
+            var group = dto.MapGroups[0];
+            for (var i = 0; i < Math.Min(6, group.MapIds.Count); i++)
+            {
+                var starsId = group.MapIds[i];
+                if (starsId is null)
+                {
+                    continue;
+                }
+
+                var toggle = FindToggleByStarsId(starsId.Value);
+                var shortName = toggle?.ShortName ?? $"M{starsId}";
+                var shortcut = new MapShortcutItem
+                {
+                    Index = i,
+                    StarsId = starsId.Value,
+                    ShortName = shortName.Length > 5
+                        ? shortName[..5]
+                        : shortName,
+                    IsEnabled = toggle?.IsEnabled ?? false,
+                };
+                MapShortcuts.Add(shortcut);
+            }
         }
     }
 
@@ -148,28 +217,185 @@ public partial class RadarViewModel : ObservableObject
         Fixes = fixes;
     }
 
+    public VideoMapToggleItem? FindToggleByStarsId(int starsId)
+    {
+        foreach (var t in MapToggles)
+        {
+            if (t.StarsId == starsId)
+            {
+                return t;
+            }
+        }
+
+        return null;
+    }
+
+    public void ToggleMapByStarsId(int starsId)
+    {
+        var toggle = FindToggleByStarsId(starsId);
+        if (toggle is not null)
+        {
+            toggle.IsEnabled = !toggle.IsEnabled;
+            SyncShortcutState(starsId, toggle.IsEnabled);
+        }
+        else
+        {
+            _log.LogWarning("No map with starsId {StarsId}", starsId);
+        }
+    }
+
+    public void ToggleMapShortcut(MapShortcutItem shortcut)
+    {
+        var toggle = FindToggleByStarsId(shortcut.StarsId);
+        if (toggle is not null)
+        {
+            toggle.IsEnabled = !toggle.IsEnabled;
+            shortcut.IsEnabled = toggle.IsEnabled;
+        }
+    }
+
+    private void SyncShortcutState(int starsId, bool enabled)
+    {
+        foreach (var sc in MapShortcuts)
+        {
+            if (sc.StarsId == starsId)
+            {
+                sc.IsEnabled = enabled;
+            }
+        }
+    }
+
+    public void PlaceRangeRing(double lat, double lon)
+    {
+        RangeRingCenterLat = lat;
+        RangeRingCenterLon = lon;
+        IsPlacingRangeRing = false;
+        SaveSettings();
+    }
+
     [RelayCommand]
     private void IncreaseRange()
     {
         RangeNm = Math.Min(RangeNm * 1.25, 300);
+        SaveSettings();
     }
 
     [RelayCommand]
     private void DecreaseRange()
     {
         RangeNm = Math.Max(RangeNm / 1.25, 5);
+        SaveSettings();
     }
 
     [RelayCommand]
     private void ToggleRangeRings()
     {
         ShowRangeRings = !ShowRangeRings;
+        SaveSettings();
     }
 
     [RelayCommand]
     private void ToggleFixes()
     {
         ShowFixes = !ShowFixes;
+        SaveSettings();
+    }
+
+    [RelayCommand]
+    private void TogglePanZoomLock()
+    {
+        IsPanZoomLocked = !IsPanZoomLocked;
+        SaveSettings();
+    }
+
+    [RelayCommand]
+    private void IncrementRangeRingSize()
+    {
+        RangeRingSizeNm = Math.Min(RangeRingSizeNm + 5, 100);
+        SaveSettings();
+    }
+
+    [RelayCommand]
+    private void DecrementRangeRingSize()
+    {
+        RangeRingSizeNm = Math.Max(RangeRingSizeNm - 5, 5);
+        SaveSettings();
+    }
+
+    [RelayCommand]
+    private void StartPlaceRangeRing()
+    {
+        IsPlacingRangeRing = true;
+    }
+
+    private void SaveSettings()
+    {
+        if (_preferences is null || _activeScenarioId is null)
+        {
+            return;
+        }
+
+        var enabledIds = new List<int>();
+        foreach (var t in MapToggles)
+        {
+            if (t.IsEnabled)
+            {
+                enabledIds.Add(t.StarsId);
+            }
+        }
+
+        var settings = new SavedRadarSettings
+        {
+            EnabledStarsIds = enabledIds,
+            CenterLat = CenterLat,
+            CenterLon = CenterLon,
+            RangeNm = RangeNm,
+            RangeRingCenterLat = RangeRingCenterLat,
+            RangeRingCenterLon = RangeRingCenterLon,
+            RangeRingSizeNm = RangeRingSizeNm,
+            ShowRangeRings = ShowRangeRings,
+            ShowFixes = ShowFixes,
+            IsPanZoomLocked = IsPanZoomLocked,
+        };
+
+        _preferences.SetRadarSettings(_activeScenarioId, settings);
+    }
+
+    private void RestoreSettings()
+    {
+        if (_preferences is null || _activeScenarioId is null)
+        {
+            return;
+        }
+
+        var saved = _preferences.GetRadarSettings(_activeScenarioId);
+        if (saved is null)
+        {
+            return;
+        }
+
+        // Restore map toggles
+        var enabledSet = new HashSet<int>(saved.EnabledStarsIds);
+        foreach (var t in MapToggles)
+        {
+            t.IsEnabled = enabledSet.Contains(t.StarsId);
+        }
+
+        // Sync shortcut states
+        foreach (var sc in MapShortcuts)
+        {
+            sc.IsEnabled = enabledSet.Contains(sc.StarsId);
+        }
+
+        CenterLat = saved.CenterLat;
+        CenterLon = saved.CenterLon;
+        RangeNm = saved.RangeNm;
+        RangeRingCenterLat = saved.RangeRingCenterLat;
+        RangeRingCenterLon = saved.RangeRingCenterLon;
+        RangeRingSizeNm = saved.RangeRingSizeNm;
+        ShowRangeRings = saved.ShowRangeRings;
+        ShowFixes = saved.ShowFixes;
+        IsPanZoomLocked = saved.IsPanZoomLocked;
     }
 
     private void UpdateActiveMaps()
@@ -295,6 +521,19 @@ public partial class VideoMapToggleItem : ObservableObject
     public required string Name { get; init; }
     public required string BrightnessCategory { get; init; }
     public required int StarsId { get; init; }
+
+    [ObservableProperty]
+    private bool _isEnabled;
+}
+
+/// <summary>
+/// A DCB map shortcut button (from mapGroups[0].mapIds[0..5]).
+/// </summary>
+public partial class MapShortcutItem : ObservableObject
+{
+    public required int Index { get; init; }
+    public required int StarsId { get; init; }
+    public required string ShortName { get; init; }
 
     [ObservableProperty]
     private bool _isEnabled;

@@ -23,6 +23,7 @@ public abstract class MapCanvasBase : Control
     private bool _isDirty;
     private bool _isPanning;
     private Point _lastPanPoint;
+    private bool _isPanZoomEnabled = true;
 
     protected MapCanvasBase()
     {
@@ -34,6 +35,16 @@ public abstract class MapCanvasBase : Control
     }
 
     public MapViewport Viewport => _viewport;
+
+    /// <summary>
+    /// When false, mouse pan and scroll-zoom are disabled.
+    /// Subclasses can still handle clicks for selection.
+    /// </summary>
+    public bool IsPanZoomEnabled
+    {
+        get => _isPanZoomEnabled;
+        set => _isPanZoomEnabled = value;
+    }
 
     /// <summary>Marks the canvas as needing a repaint on the next timer tick.</summary>
     public void MarkDirty()
@@ -90,7 +101,7 @@ public abstract class MapCanvasBase : Control
         base.OnPointerPressed(e);
         var props = e.GetCurrentPoint(this).Properties;
 
-        if (props.IsLeftButtonPressed)
+        if (props.IsLeftButtonPressed && _isPanZoomEnabled)
         {
             _isPanning = true;
             _lastPanPoint = e.GetPosition(this);
@@ -129,6 +140,12 @@ public abstract class MapCanvasBase : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
+
+        if (!_isPanZoomEnabled)
+        {
+            return;
+        }
+
         var pos = e.GetPosition(this);
         var factor = e.Delta.Y > 0 ? 1.2 : 1.0 / 1.2;
         _viewport.ZoomAt((float)pos.X, (float)pos.Y, factor);

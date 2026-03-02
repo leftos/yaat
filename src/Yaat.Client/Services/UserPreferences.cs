@@ -38,6 +38,7 @@ public sealed class UserPreferences
     private bool _isDataGridPoppedOut;
     private bool _isGroundViewPoppedOut;
     private bool _isRadarViewPoppedOut;
+    private Dictionary<string, SavedRadarSettings> _radarSettings;
 
     public UserPreferences()
     {
@@ -62,6 +63,7 @@ public sealed class UserPreferences
         _isDataGridPoppedOut = saved.IsDataGridPoppedOut;
         _isGroundViewPoppedOut = saved.IsGroundViewPoppedOut;
         _isRadarViewPoppedOut = saved.IsRadarViewPoppedOut;
+        _radarSettings = saved.RadarSettings;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -184,6 +186,19 @@ public sealed class UserPreferences
         Save();
     }
 
+    public SavedRadarSettings? GetRadarSettings(string scenarioId)
+    {
+        _radarSettings.TryGetValue(scenarioId, out var settings);
+        return settings;
+    }
+
+    public void SetRadarSettings(
+        string scenarioId, SavedRadarSettings settings)
+    {
+        _radarSettings[scenarioId] = settings;
+        Save();
+    }
+
     private static LoadedPrefs Load()
     {
         if (!File.Exists(ConfigPath))
@@ -220,6 +235,7 @@ public sealed class UserPreferences
                 IsDataGridPoppedOut = saved?.IsDataGridPoppedOut ?? false,
                 IsGroundViewPoppedOut = saved?.IsGroundViewPoppedOut ?? false,
                 IsRadarViewPoppedOut = saved?.IsRadarViewPoppedOut ?? false,
+                RadarSettings = saved?.RadarSettings ?? [],
             };
         }
         catch (JsonException)
@@ -250,6 +266,7 @@ public sealed class UserPreferences
         public bool IsDataGridPoppedOut { get; init; }
         public bool IsGroundViewPoppedOut { get; init; }
         public bool IsRadarViewPoppedOut { get; init; }
+        public Dictionary<string, SavedRadarSettings> RadarSettings { get; init; } = [];
     }
 
     private void Save()
@@ -278,6 +295,7 @@ public sealed class UserPreferences
             IsDataGridPoppedOut = _isDataGridPoppedOut,
             IsGroundViewPoppedOut = _isGroundViewPoppedOut,
             IsRadarViewPoppedOut = _isRadarViewPoppedOut,
+            RadarSettings = _radarSettings,
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
@@ -365,6 +383,7 @@ public sealed class UserPreferences
         public bool IsDataGridPoppedOut { get; set; }
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }
+        public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
     }
 
     private sealed class SavedCommandScheme
@@ -396,4 +415,18 @@ public sealed class SavedGridLayout
     public List<string>? ColumnOrder { get; set; }
     public string? SortColumn { get; set; }
     public ListSortDirection? SortDirection { get; set; }
+}
+
+public sealed class SavedRadarSettings
+{
+    public List<int> EnabledStarsIds { get; set; } = [];
+    public double CenterLat { get; set; }
+    public double CenterLon { get; set; }
+    public double RangeNm { get; set; } = 60;
+    public double RangeRingCenterLat { get; set; }
+    public double RangeRingCenterLon { get; set; }
+    public double RangeRingSizeNm { get; set; } = 5;
+    public bool ShowRangeRings { get; set; } = true;
+    public bool ShowFixes { get; set; }
+    public bool IsPanZoomLocked { get; set; } = true;
 }

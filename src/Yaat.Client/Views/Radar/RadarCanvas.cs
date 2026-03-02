@@ -59,6 +59,28 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             IReadOnlyList<(string Name, double Lat, double Lon)>?>(
             nameof(Fixes));
 
+    public static readonly StyledProperty<double>
+        RangeRingCenterLatProperty = AvaloniaProperty.Register<
+            RadarCanvas, double>(nameof(RangeRingCenterLat));
+
+    public static readonly StyledProperty<double>
+        RangeRingCenterLonProperty = AvaloniaProperty.Register<
+            RadarCanvas, double>(nameof(RangeRingCenterLon));
+
+    public static readonly StyledProperty<double>
+        RangeRingSizeNmProperty = AvaloniaProperty.Register<
+            RadarCanvas, double>(
+            nameof(RangeRingSizeNm), defaultValue: 5);
+
+    public static readonly StyledProperty<bool>
+        IsPanZoomLockedProperty = AvaloniaProperty.Register<
+            RadarCanvas, bool>(
+            nameof(IsPanZoomLocked), defaultValue: true);
+
+    public static readonly StyledProperty<bool>
+        IsPlacingRangeRingProperty = AvaloniaProperty.Register<
+            RadarCanvas, bool>(nameof(IsPlacingRangeRing));
+
     private readonly RadarRenderer _renderer = new();
     private Dictionary<string, string> _brightnessLookup = [];
 
@@ -116,6 +138,36 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(FixesProperty, value);
     }
 
+    public double RangeRingCenterLat
+    {
+        get => GetValue(RangeRingCenterLatProperty);
+        set => SetValue(RangeRingCenterLatProperty, value);
+    }
+
+    public double RangeRingCenterLon
+    {
+        get => GetValue(RangeRingCenterLonProperty);
+        set => SetValue(RangeRingCenterLonProperty, value);
+    }
+
+    public double RangeRingSizeNm
+    {
+        get => GetValue(RangeRingSizeNmProperty);
+        set => SetValue(RangeRingSizeNmProperty, value);
+    }
+
+    public bool IsPanZoomLocked
+    {
+        get => GetValue(IsPanZoomLockedProperty);
+        set => SetValue(IsPanZoomLockedProperty, value);
+    }
+
+    public bool IsPlacingRangeRing
+    {
+        get => GetValue(IsPlacingRangeRingProperty);
+        set => SetValue(IsPlacingRangeRingProperty, value);
+    }
+
     public float BrightnessA
     {
         get => _renderer.BrightnessA;
@@ -155,6 +207,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when an aircraft is left-clicked.</summary>
     public event Action<string>? AircraftLeftClicked;
 
+    /// <summary>Fired when a range ring is placed via click.</summary>
+    public event Action<double, double>? RangeRingPlaced;
+
     protected override void OnPropertyChanged(
         AvaloniaPropertyChangedEventArgs change)
     {
@@ -166,7 +221,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == ShowRangeRingsProperty
             || change.Property == RangeNmProperty
             || change.Property == ShowFixesProperty
-            || change.Property == FixesProperty)
+            || change.Property == FixesProperty
+            || change.Property == RangeRingCenterLatProperty
+            || change.Property == RangeRingCenterLonProperty
+            || change.Property == RangeRingSizeNmProperty)
         {
             MarkDirty();
         }
@@ -176,6 +234,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == RangeNmProperty)
         {
             FitToRange();
+        }
+
+        if (change.Property == IsPanZoomLockedProperty)
+        {
+            IsPanZoomEnabled = !IsPanZoomLocked;
         }
     }
 
@@ -189,7 +252,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         double RadarCenterLat,
         double RadarCenterLon,
         bool ShowFixes,
-        IReadOnlyList<(string Name, double Lat, double Lon)>? Fixes);
+        IReadOnlyList<(string Name, double Lat, double Lon)>? Fixes,
+        double RangeRingCenterLat,
+        double RangeRingCenterLon,
+        double RangeRingSizeNm);
 
     protected override object? CreateRenderSnapshot()
     {
@@ -203,7 +269,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             RadarCenterLat,
             RadarCenterLon,
             ShowFixes,
-            Fixes);
+            Fixes,
+            RangeRingCenterLat,
+            RangeRingCenterLon,
+            RangeRingSizeNm);
     }
 
     protected override void RenderFromSnapshot(
@@ -220,7 +289,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.Aircraft, s.SelectedAircraft,
             s.ShowRangeRings, s.RangeNm,
             s.RadarCenterLat, s.RadarCenterLon,
-            s.ShowFixes, s.Fixes);
+            s.ShowFixes, s.Fixes,
+            s.RangeRingCenterLat, s.RangeRingCenterLon,
+            s.RangeRingSizeNm);
     }
 
     protected override void OnPointerPressed(
@@ -238,6 +309,17 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         if (props.IsLeftButtonPressed)
         {
+            // Range ring placement mode
+            if (IsPlacingRangeRing)
+            {
+                var (lat, lon) = Viewport.ScreenToLatLon(
+                    (float)pos.X, (float)pos.Y);
+                RangeRingPlaced?.Invoke(lat, lon);
+                IsPlacingRangeRing = false;
+                e.Handled = true;
+                return;
+            }
+
             var ac = FindAircraftAtPoint(pos);
             if (ac is not null)
             {

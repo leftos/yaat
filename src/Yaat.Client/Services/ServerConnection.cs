@@ -225,6 +225,14 @@ public sealed class ServerConnection : IAsyncDisposable
             "GetFacilityVideoMaps", artccId, facilityId);
     }
 
+    public async Task<FacilityVideoMapsDto?> GetFacilityVideoMapsForArtccAsync(
+        string artccId)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<FacilityVideoMapsDto?>(
+            "GetFacilityVideoMapsForArtcc", artccId);
+    }
+
     // --- Admin ---
 
     public async Task<bool> AdminAuthenticateAsync(string password)
@@ -476,7 +484,12 @@ public record StarsAreaDto(
     double SurveillanceRange,
     List<string> VideoMapIds);
 
+public record MapGroupDto(
+    List<int?> MapIds,
+    List<string> TcpCodes);
+
 public record FacilityVideoMapsDto(
     string ArtccId, string FacilityId,
     List<StarsAreaDto> Areas,
-    List<VideoMapInfoDto> VideoMaps);
+    List<VideoMapInfoDto> VideoMaps,
+    List<MapGroupDto> MapGroups);

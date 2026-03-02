@@ -1,7 +1,11 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
@@ -12,6 +16,19 @@ public partial class RadarView : UserControl
 {
     private RadarCanvas? _canvas;
     private ContextMenu? _activeContextMenu;
+
+    public static readonly FuncValueConverter<bool, IBrush>
+        BoolToMapColor = new(v => v
+            ? Brushes.Lime
+            : new SolidColorBrush(Color.Parse("#888")));
+
+    public static readonly FuncValueConverter<bool, string>
+        BoolToLockLabel = new(v => v ? "LOCK" : "UNLK");
+
+    public static readonly FuncValueConverter<bool, IBrush>
+        BoolToLockColor = new(v => v
+            ? new SolidColorBrush(Color.Parse("#888"))
+            : Brushes.Yellow);
 
     public RadarView()
     {
@@ -32,6 +49,7 @@ public partial class RadarView : UserControl
         _canvas.MapRightClicked += OnMapRightClicked;
         _canvas.AircraftLeftClicked += OnAircraftLeftClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
+        _canvas.RangeRingPlaced += OnRangeRingPlaced;
 
         // Sync brightness from ViewModel
         if (DataContext is RadarViewModel vm)
@@ -52,8 +70,84 @@ public partial class RadarView : UserControl
             _canvas.MapRightClicked -= OnMapRightClicked;
             _canvas.AircraftLeftClicked -= OnAircraftLeftClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
+            _canvas.RangeRingPlaced -= OnRangeRingPlaced;
         }
     }
+
+    // --- DCB button handlers ---
+
+    private void OnMapShortcutClick(
+        object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: MapShortcutItem shortcut })
+        {
+            return;
+        }
+
+        if (DataContext is RadarViewModel vm)
+        {
+            vm.ToggleMapShortcut(shortcut);
+        }
+    }
+
+    private void OnMapButtonClick(
+        object? sender, RoutedEventArgs e)
+    {
+        var popup = this.FindControl<Popup>("MapPopup");
+        if (popup is not null)
+        {
+            popup.IsOpen = !popup.IsOpen;
+            if (popup.IsOpen)
+            {
+                var input = this.FindControl<TextBox>("MapIdInput");
+                input?.Focus();
+            }
+        }
+    }
+
+    private void OnMapIdSubmit(
+        object? sender, RoutedEventArgs e)
+    {
+        var input = this.FindControl<TextBox>("MapIdInput");
+        var popup = this.FindControl<Popup>("MapPopup");
+
+        if (input?.Text is not null
+            && int.TryParse(input.Text, CultureInfo.InvariantCulture,
+                out var starsId)
+            && DataContext is RadarViewModel vm)
+        {
+            vm.ToggleMapByStarsId(starsId);
+            input.Text = "";
+        }
+
+        if (popup is not null)
+        {
+            popup.IsOpen = false;
+        }
+    }
+
+    private void OnRrSizeClick(
+        object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        // Left-click increments; handled here since we need
+        // pointer info for right-click (below)
+        vm.IncrementRangeRingSizeCommand.Execute(null);
+    }
+
+    private void OnRangeRingPlaced(double lat, double lon)
+    {
+        if (DataContext is RadarViewModel vm)
+        {
+            vm.PlaceRangeRing(lat, lon);
+        }
+    }
+
+    // --- Aircraft/map interactions ---
 
     private void OnAircraftLeftClicked(string callsign)
     {
