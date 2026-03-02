@@ -240,7 +240,7 @@ public partial class MainViewModel
 
         if (!string.IsNullOrEmpty(_preferences.ArtccId))
         {
-            _ = Radar.LoadVideoMapsForArtccAsync(_preferences.ArtccId, result.ScenarioId);
+            _ = Radar.LoadVideoMapsForArtccAsync(_preferences.ArtccId, result.PrimaryAirportId, result.ScenarioId);
         }
     }
 

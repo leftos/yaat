@@ -71,6 +71,12 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private bool _isAdjustingRangeRingSize;
 
+    [ObservableProperty]
+    private string _mapSearchText = "";
+
+    [ObservableProperty]
+    private bool _showTopDown;
+
     public ObservableCollection<VideoMapToggleItem> MapToggles { get; } = [];
 
     public ObservableCollection<MapShortcutItem> MapShortcuts { get; } = [];
@@ -130,11 +136,11 @@ public partial class RadarViewModel : ObservableObject
         return 0;
     }
 
-    public async Task LoadVideoMapsForArtccAsync(string artccId, string? scenarioId = null)
+    public async Task LoadVideoMapsForArtccAsync(string artccId, string? airportId = null, string? scenarioId = null)
     {
         try
         {
-            var dto = await _connection.GetFacilityVideoMapsForArtccAsync(artccId);
+            var dto = await _connection.GetFacilityVideoMapsForArtccAsync(artccId, airportId);
             if (dto is null)
             {
                 _log.LogWarning("No video maps for {Artcc}", artccId);
@@ -229,6 +235,30 @@ public partial class RadarViewModel : ObservableObject
         }
     }
 
+    public void SortMapTogglesEnabledFirst()
+    {
+        var sorted = MapToggles.OrderByDescending(t => t.IsEnabled).ThenBy(t => t.StarsId).ToList();
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            int current = MapToggles.IndexOf(sorted[i]);
+            if (current != i)
+            {
+                MapToggles.Move(current, i);
+            }
+        }
+    }
+
+    partial void OnMapSearchTextChanged(string value)
+    {
+        var filter = value.Trim();
+        foreach (var toggle in MapToggles)
+        {
+            toggle.IsVisible = filter.Length == 0
+                || toggle.DisplayLabel.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                || toggle.Name.Contains(filter, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     public void ClearVideoMaps()
     {
         MapToggles.Clear();
@@ -317,6 +347,12 @@ public partial class RadarViewModel : ObservableObject
     {
         IsPanZoomLocked = !IsPanZoomLocked;
         SaveSettings();
+    }
+
+    [RelayCommand]
+    private void ToggleTopDown()
+    {
+        ShowTopDown = !ShowTopDown;
     }
 
     [RelayCommand]
@@ -626,8 +662,13 @@ public partial class VideoMapToggleItem : ObservableObject
     public required string BrightnessCategory { get; init; }
     public required int StarsId { get; init; }
 
+    public string DisplayLabel => $"{StarsId} {ShortName}";
+
     [ObservableProperty]
     private bool _isEnabled;
+
+    [ObservableProperty]
+    private bool _isVisible = true;
 }
 
 /// <summary>

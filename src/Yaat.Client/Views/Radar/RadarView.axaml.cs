@@ -94,8 +94,11 @@ public partial class RadarView : UserControl
             popup.IsOpen = !popup.IsOpen;
             if (popup.IsOpen)
             {
-                var input = this.FindControl<TextBox>("MapIdInput");
-                input?.Focus();
+                if (DataContext is RadarViewModel vm)
+                {
+                    vm.MapSearchText = "";
+                    vm.SortMapTogglesEnabledFirst();
+                }
             }
         }
     }

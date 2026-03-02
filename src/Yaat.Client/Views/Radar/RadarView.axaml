@@ -42,17 +42,19 @@
                    PlacementTarget="{Binding #MapButton}"
                    Placement="Bottom">
                 <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="6">
-                    <StackPanel Spacing="4" Width="220">
+                    <StackPanel Spacing="4" Width="240">
+                        <TextBox Watermark="Search maps..." Text="{Binding MapSearchText}" FontSize="11" />
                         <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding MapToggles}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:VideoMapToggleItem">
                                         <CheckBox IsChecked="{Binding IsEnabled}"
+                                                  IsVisible="{Binding IsVisible}"
                                                   Click="OnMapToggleClick"
                                                   Margin="0,1"
                                                   FontSize="11"
                                                   Foreground="#CCC">
-                                            <TextBlock Text="{Binding ShortName}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
                                         </CheckBox>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -93,6 +95,10 @@
             <Button Content="FIX"
                     Command="{Binding ToggleFixesCommand}"
                     Padding="6,2" FontSize="11" />
+            <Button Content="TOP-DOWN"
+                    Command="{Binding ToggleTopDownCommand}"
+                    Foreground="{Binding ShowTopDown, Converter={x:Static radar:RadarView.BoolToMapColor}}"
+                    Padding="6,2" FontSize="11" />
 
             <Rectangle Width="1" Fill="#444" Margin="2,2" />
 
@@ -126,7 +132,8 @@
                                RangeRingSizeNm="{Binding RangeRingSizeNm, Mode=TwoWay}"
                                IsPanZoomLocked="{Binding IsPanZoomLocked}"
                                IsPlacingRangeRing="{Binding IsPlacingRangeRing}"
-                               IsAdjustingRangeRingSize="{Binding IsAdjustingRangeRingSize, Mode=TwoWay}" />
+                               IsAdjustingRangeRingSize="{Binding IsAdjustingRangeRingSize, Mode=TwoWay}"
+                               ShowTopDown="{Binding ShowTopDown}" />
 
             <!-- Input popup (free-text entry for commands) -->
             <Popup x:Name="InputPopup"

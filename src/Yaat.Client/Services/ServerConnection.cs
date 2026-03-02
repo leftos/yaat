@@ -219,10 +219,10 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<FacilityVideoMapsDto?>("GetFacilityVideoMaps", artccId, facilityId);
     }
 
-    public async Task<FacilityVideoMapsDto?> GetFacilityVideoMapsForArtccAsync(string artccId)
+    public async Task<FacilityVideoMapsDto?> GetFacilityVideoMapsForArtccAsync(string artccId, string? airportId = null)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<FacilityVideoMapsDto?>("GetFacilityVideoMapsForArtcc", artccId);
+        return await _connection!.InvokeAsync<FacilityVideoMapsDto?>("GetFacilityVideoMapsForArtcc", artccId, airportId);
     }
 
     // --- Admin ---

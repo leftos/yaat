@@ -75,6 +75,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         nameof(IsAdjustingRangeRingSize)
     );
 
+    public static readonly StyledProperty<bool> ShowTopDownProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(ShowTopDown));
+
     private readonly RadarRenderer _renderer = new();
     private bool _initialFitDone;
     private Dictionary<string, string> _brightnessLookup = [];
@@ -175,6 +177,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(IsAdjustingRangeRingSizeProperty, value);
     }
 
+    public bool ShowTopDown
+    {
+        get => GetValue(ShowTopDownProperty);
+        set => SetValue(ShowTopDownProperty, value);
+    }
+
     public float BrightnessA
     {
         get => _renderer.BrightnessA;
@@ -231,17 +239,22 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == RangeRingCenterLatProperty
             || change.Property == RangeRingCenterLonProperty
             || change.Property == RangeRingSizeNmProperty
+            || change.Property == ShowTopDownProperty
         )
         {
             MarkDirty();
         }
 
-        // Only FitToRange on initial load (center set for first time)
+        // Only FitToRange on initial load (center set for first time).
+        // Don't mark as done unless the viewport has pixel dimensions;
+        // otherwise OnSizeChanged will handle it when the tab becomes visible.
         if (
             (change.Property == RadarCenterLatProperty || change.Property == RadarCenterLonProperty)
             && !_initialFitDone
             && RadarCenterLat != 0
             && RadarCenterLon != 0
+            && Viewport.PixelWidth >= 1
+            && Viewport.PixelHeight >= 1
         )
         {
             _initialFitDone = true;
@@ -275,7 +288,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return new RenderSnapshot(
             VideoMaps ?? Array.Empty<VideoMapData>(),
             _brightnessLookup,
-            Aircraft ?? Array.Empty<AircraftModel>(),
+            FilterAircraft(Aircraft, ShowTopDown),
             SelectedAircraft,
             ShowRangeRings,
             RangeNm,
@@ -375,7 +388,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         AircraftModel? closest = null;
         float closestDist = hitRadius;
 
-        foreach (var ac in Aircraft)
+        foreach (var ac in FilterAircraft(Aircraft, ShowTopDown))
         {
             var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
             var dx = (float)screenPos.X - sx;
@@ -420,8 +433,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         {
             UpdateViewRangeNm();
         }
-        else
+        else if (RadarCenterLat != 0 || RadarCenterLon != 0)
         {
+            _initialFitDone = true;
             FitToRange();
         }
     }
@@ -468,6 +482,32 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var maxPixels = Math.Max(Viewport.PixelWidth, Viewport.PixelHeight);
         var rangeNm = maxPixels * 60.0 / (defaultPixelsPerDeg * Viewport.Zoom);
         ViewRangeNm = rangeNm;
+    }
+
+    private static IReadOnlyList<AircraftModel> FilterAircraft(IReadOnlyList<AircraftModel>? aircraft, bool showTopDown)
+    {
+        if (aircraft is null || aircraft.Count == 0)
+        {
+            return Array.Empty<AircraftModel>();
+        }
+
+        var result = new List<AircraftModel>(aircraft.Count);
+        foreach (var ac in aircraft)
+        {
+            if (ac.IsDelayed)
+            {
+                continue;
+            }
+
+            if (ac.IsOnGround && !showTopDown)
+            {
+                continue;
+            }
+
+            result.Add(ac);
+        }
+
+        return result;
     }
 
     public void Dispose()
