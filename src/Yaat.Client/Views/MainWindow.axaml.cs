@@ -418,8 +418,15 @@ public partial class MainWindow : Window
 
     private void HandleTerminalPopOut(MainViewModel vm)
     {
+        var grid = this.FindControl<Grid>("ContentGrid");
+
         if (!vm.IsTerminalDocked)
         {
+            if (grid is { RowDefinitions.Count: >= 3 })
+            {
+                grid.RowDefinitions[2].Height = GridLength.Auto;
+            }
+
             _terminalWindow = new TerminalWindow
             {
                 DataContext = vm,
@@ -429,6 +436,12 @@ public partial class MainWindow : Window
         }
         else
         {
+            if (grid is { RowDefinitions.Count: >= 3 })
+            {
+                grid.RowDefinitions[2].Height =
+                    new GridLength(1, GridUnitType.Star);
+            }
+
             if (_terminalWindow is not null)
             {
                 _terminalWindow.Closing -=
@@ -544,7 +557,6 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             vm.IsDataGridPoppedOut = false;
-            vm.Preferences.SetPoppedOut("DataGrid", false);
         }
         _dataGridWindow = null;
     }
@@ -555,7 +567,6 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             vm.IsGroundViewPoppedOut = false;
-            vm.Preferences.SetPoppedOut("GroundView", false);
         }
         _groundViewWindow = null;
     }
@@ -566,7 +577,6 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             vm.IsRadarViewPoppedOut = false;
-            vm.Preferences.SetPoppedOut("RadarView", false);
         }
         _radarViewWindow = null;
     }

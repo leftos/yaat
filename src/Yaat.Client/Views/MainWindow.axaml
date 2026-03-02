@@ -45,17 +45,17 @@
             <MenuItem Header="_View">
                 <MenuItem Header="_Active Only"
                           ToggleType="CheckBox"
-                          IsChecked="{Binding FilterActiveOnly}" />
+                          IsChecked="{Binding FilterActiveOnly, Mode=TwoWay}" />
                 <Separator />
                 <MenuItem Header="Pop Out _Aircraft List"
                           ToggleType="CheckBox"
-                          IsChecked="{Binding IsDataGridPoppedOut}" />
+                          IsChecked="{Binding IsDataGridPoppedOut, Mode=TwoWay}" />
                 <MenuItem Header="Pop Out _Ground View"
                           ToggleType="CheckBox"
-                          IsChecked="{Binding IsGroundViewPoppedOut}" />
+                          IsChecked="{Binding IsGroundViewPoppedOut, Mode=TwoWay}" />
                 <MenuItem Header="Pop Out _Radar View"
                           ToggleType="CheckBox"
-                          IsChecked="{Binding IsRadarViewPoppedOut}" />
+                          IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}" />
             </MenuItem>
             <MenuItem Header="_Scenario">
                 <MenuItem Header="_Load Scenario..."
@@ -80,7 +80,7 @@
             IsVisible="{Binding IsTerminalDocked}" />
 
         <!-- Center: TabControl + Terminal with splitter -->
-        <Grid Margin="8,4,8,0" RowDefinitions="3*,Auto,*">
+        <Grid x:Name="ContentGrid" Margin="8,4,8,0" RowDefinitions="3*,Auto,*">
             <TabControl Grid.Row="0"
                         x:Name="MainTabControl"
                         SelectedIndex="{Binding SelectedTabIndex}">

@@ -132,6 +132,21 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isRadarViewPoppedOut;
 
+    partial void OnIsDataGridPoppedOutChanged(bool value)
+    {
+        _preferences.SetPoppedOut("DataGrid", value);
+    }
+
+    partial void OnIsGroundViewPoppedOutChanged(bool value)
+    {
+        _preferences.SetPoppedOut("GroundView", value);
+    }
+
+    partial void OnIsRadarViewPoppedOutChanged(bool value)
+    {
+        _preferences.SetPoppedOut("RadarView", value);
+    }
+
     [ObservableProperty]
     private int _selectedTabIndex;
 
@@ -1170,26 +1185,6 @@ public partial class MainViewModel : ObservableObject
         IsTerminalDocked = !IsTerminalDocked;
     }
 
-    [RelayCommand]
-    private void ToggleDataGridPopOut()
-    {
-        IsDataGridPoppedOut = !IsDataGridPoppedOut;
-        _preferences.SetPoppedOut("DataGrid", IsDataGridPoppedOut);
-    }
-
-    [RelayCommand]
-    private void ToggleGroundViewPopOut()
-    {
-        IsGroundViewPoppedOut = !IsGroundViewPoppedOut;
-        _preferences.SetPoppedOut("GroundView", IsGroundViewPoppedOut);
-    }
-
-    [RelayCommand]
-    private void ToggleRadarViewPopOut()
-    {
-        IsRadarViewPoppedOut = !IsRadarViewPoppedOut;
-        _preferences.SetPoppedOut("RadarView", IsRadarViewPoppedOut);
-    }
 
     private async Task SendCommandForViewAsync(
         string callsign, string command, string initials)
