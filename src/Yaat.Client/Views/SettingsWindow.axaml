@@ -18,6 +18,11 @@
                     Command="{Binding ResetCommandsToDefaultsCommand}"
                     DockPanel.Dock="Left"
                     IsVisible="{Binding IsSelected, ElementName=CommandsTab}" />
+            <Button Content="Clear All Macros"
+                    Command="{Binding ClearAllMacrosCommand}"
+                    DockPanel.Dock="Left"
+                    IsVisible="{Binding IsSelected, ElementName=MacrosTab}"
+                    Margin="8,0,0,0" />
             <StackPanel Orientation="Horizontal"
                         HorizontalAlignment="Right"
                         Spacing="8">
@@ -182,6 +187,71 @@
                                 Binding="{Binding Example}"
                                 IsReadOnly="True"
                                 Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                </DockPanel>
+            </TabItem>
+
+            <!-- Macros tab -->
+            <TabItem Header="Macros" x:Name="MacrosTab">
+                <DockPanel Margin="12">
+
+                    <TextBlock DockPanel.Dock="Top"
+                               TextWrapping="Wrap"
+                               Foreground="Gray"
+                               FontSize="11"
+                               Margin="0,0,0,8"
+                               Text="Define reusable command shortcuts. Use #NAME to invoke a macro. Use $1, $2, etc. for positional parameters. Example: Name=HC, Expansion=FH $1, CM $2 → type #HC 270 5000" />
+
+                    <!-- Bottom buttons for macros -->
+                    <StackPanel DockPanel.Dock="Bottom"
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                Margin="0,8,0,0">
+                        <Button Content="Add Macro"
+                                Command="{Binding AddMacroCommand}" />
+                        <Button Content="Import..."
+                                x:Name="ImportMacrosButton" />
+                        <Button Content="Export Selected"
+                                x:Name="ExportSelectedMacrosButton" />
+                        <Button Content="Export All"
+                                x:Name="ExportAllMacrosButton" />
+                    </StackPanel>
+
+                    <!-- Macro table -->
+                    <DataGrid x:Name="MacroDataGrid"
+                              ItemsSource="{Binding MacroRows}"
+                              AutoGenerateColumns="False"
+                              GridLinesVisibility="Horizontal"
+                              CanUserResizeColumns="True"
+                              CanUserSortColumns="False"
+                              SelectionMode="Extended"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name"
+                                Binding="{Binding Name}"
+                                Width="120" />
+                            <DataGridTextColumn Header="Expansion"
+                                Binding="{Binding Expansion}"
+                                Width="*" />
+                            <DataGridTextColumn Header="Preview"
+                                Binding="{Binding Preview}"
+                                IsReadOnly="True"
+                                Width="250" />
+                            <DataGridTemplateColumn Header="" Width="40">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="X"
+                                                Command="{Binding $parent[DataGrid].((vm:SettingsViewModel)DataContext).RemoveMacroCommand}"
+                                                CommandParameter="{Binding}"
+                                                Padding="4,0"
+                                                FontSize="11"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
 

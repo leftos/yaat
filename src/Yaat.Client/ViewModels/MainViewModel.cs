@@ -232,6 +232,7 @@ public partial class MainViewModel : ObservableObject
         _connection.CrcRoomMembersChanged += OnCrcRoomMembersChanged;
 
         RefreshCommandScheme();
+        _commandInput.Macros = _preferences.Macros;
 
         _ = InitializeNavDataAsync();
     }
@@ -349,6 +350,19 @@ public partial class MainViewModel : ObservableObject
             commandText = resolved.Value.Remainder;
         }
 
+        // Expand macros before parsing
+        var originalCommand = commandText;
+        var expandedCommand = MacroExpander.TryExpand(commandText, _preferences.Macros, out var macroError);
+        if (macroError is not null)
+        {
+            StatusText = macroError;
+            return;
+        }
+        if (expandedCommand is not null)
+        {
+            commandText = expandedCommand;
+        }
+
         // Parse as compound command (handles single and multi-block)
         var compound = CommandSchemeParser.ParseCompound(commandText, scheme);
         if (compound is null)
@@ -381,7 +395,7 @@ public partial class MainViewModel : ObservableObject
         {
             var result = await _connection.SendCommandAsync(target.Callsign, compound.CanonicalString, _preferences.UserInitials);
 
-            AddHistory(commandText);
+            AddHistory(originalCommand);
 
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
@@ -603,6 +617,7 @@ public partial class MainViewModel : ObservableObject
 
     public void RefreshCommandScheme()
     {
+        _commandInput.Macros = _preferences.Macros;
         if (ActiveRoomId is not null)
         {
             _ = SendAutoAcceptDelay();

@@ -43,13 +43,15 @@ Services/
   CommandScheme.cs              # CanonicalCommandType → CommandPattern; Default() unified scheme
   CommandSchemeParser.cs        # Parse/ParseCompound (;/, syntax); concatenation fallback; ToCanonical()
   CommandMetadata.cs            # Static CommandInfo registry per type
-  CommandInputController.cs     # Autocomplete (callsign/command/fix), history nav, FixDb binary search
+  CommandInputController.cs     # Autocomplete (callsign/command/fix/macro), history nav, FixDb binary search
+  MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional $1 or named $hdg)
+  MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
   FixSuggester.cs               # Fix name suggestions from FixDb
   AddCommandSuggester.cs        # ADD command callsign/model suggestions
   SuggestionItem.cs             # Suggestion display model (text, kind, description)
   ScenarioDifficultyHelper.cs   # Scenario difficulty classification
   VideoMapService.cs            # Video map download/cache/parse
-  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json
+  UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. SavedMacro list)
 
 ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
@@ -68,7 +70,8 @@ Views/
   DataGridWindow.axaml.cs       # Pop-out data grid window
   TerminalPanelView.axaml.cs    # Auto-scroll with user-scroll detection
   TerminalWindow.axaml.cs       # Pop-out terminal (shares MainViewModel)
-  SettingsWindow.axaml.cs       # Modal settings (Identity/Scenarios tabs)
+  SettingsWindow.axaml.cs       # Modal settings (Identity/Scenarios/Macros tabs)
+  MacroImportWindow.axaml.cs    # Macro import selection dialog
   WindowGeometryHelper.cs       # Save/restore window position+size
 
 Views/Map/

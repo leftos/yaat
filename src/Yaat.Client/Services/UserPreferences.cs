@@ -11,7 +11,7 @@ public sealed class UserPreferences
 
     private static readonly string ConfigPath = Path.Combine(ConfigDir, "preferences.json");
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -40,6 +40,7 @@ public sealed class UserPreferences
     private bool _isRadarViewPoppedOut;
     private Dictionary<string, SavedRadarSettings> _radarSettings;
     private bool _isDelayedGroupCollapsed;
+    private List<MacroDefinition> _macros;
 
     public UserPreferences()
     {
@@ -66,6 +67,7 @@ public sealed class UserPreferences
         _isRadarViewPoppedOut = saved.IsRadarViewPoppedOut;
         _radarSettings = saved.RadarSettings;
         _isDelayedGroupCollapsed = saved.IsDelayedGroupCollapsed;
+        _macros = saved.Macros;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -89,6 +91,7 @@ public sealed class UserPreferences
     public bool IsGroundViewPoppedOut => _isGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _isRadarViewPoppedOut;
     public bool IsDelayedGroupCollapsed => _isDelayedGroupCollapsed;
+    public IReadOnlyList<MacroDefinition> Macros => _macros;
 
     public void SetServerUrl(string url)
     {
@@ -195,6 +198,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetMacros(List<MacroDefinition> macros)
+    {
+        _macros = macros;
+        Save();
+    }
+
     public void ResetGridLayout()
     {
         _gridLayout = null;
@@ -252,6 +261,7 @@ public sealed class UserPreferences
                 IsRadarViewPoppedOut = saved?.IsRadarViewPoppedOut ?? false,
                 RadarSettings = saved?.RadarSettings ?? [],
                 IsDelayedGroupCollapsed = saved?.IsDelayedGroupCollapsed ?? false,
+                Macros = saved?.Macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
             };
         }
         catch (JsonException)
@@ -284,6 +294,7 @@ public sealed class UserPreferences
         public bool IsRadarViewPoppedOut { get; init; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; init; } = [];
         public bool IsDelayedGroupCollapsed { get; init; }
+        public List<MacroDefinition> Macros { get; init; } = [];
     }
 
     private void Save()
@@ -314,6 +325,7 @@ public sealed class UserPreferences
             IsRadarViewPoppedOut = _isRadarViewPoppedOut,
             RadarSettings = _radarSettings,
             IsDelayedGroupCollapsed = _isDelayedGroupCollapsed,
+            Macros = _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList(),
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
@@ -397,6 +409,7 @@ public sealed class UserPreferences
         public bool IsRadarViewPoppedOut { get; set; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public bool IsDelayedGroupCollapsed { get; set; }
+        public List<SavedMacro> Macros { get; set; } = [];
     }
 
     private sealed class SavedCommandScheme
@@ -427,6 +440,12 @@ public sealed class SavedGridLayout
     public string? SortColumn { get; set; }
     public ListSortDirection? SortDirection { get; set; }
     public Dictionary<string, double>? ColumnWidths { get; set; }
+}
+
+public sealed class SavedMacro
+{
+    public string Name { get; set; } = "";
+    public string Expansion { get; set; } = "";
 }
 
 public sealed class SavedRadarSettings

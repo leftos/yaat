@@ -717,6 +717,7 @@ Open **File > Settings** to configure:
 - **Identity** — VATSIM CID, user initials (required before connecting), and ARTCC ID
 - **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), and auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking)
 - **Commands** — Alias editor for customizing command verbs
+- **Macros** — Define reusable command shortcuts (see [Macros](#macros) below)
 - **Advanced** — Server admin mode
 
 ## Autocomplete
@@ -726,6 +727,7 @@ As you type in the command bar, a popup appears with matching suggestions:
 - **Command verbs** — matching verbs from your active command scheme with syntax hints (e.g., `FH  Fly Heading {270}`)
 - **Callsigns** — aircraft whose callsign matches what you've typed, showing type and route
 - **Fix names** (for DCT and AT arguments) — all VNAS navdata fixes (~40k airports, navaids, waypoints) plus custom scenario fixes
+- **Macros** (yellow) — when typing `#`, matching macro names with parameter hints (e.g., `#HC $1 $2` or `#FC $hdg $alt`)
 - After accepting a callsign, the popup immediately shows all available command verbs
 
 Suggestions are context-aware: after a `;` or `,` separator in compound commands, suggestions reset for the new command. Conditions (`LV`, `AT`) are also suggested.
@@ -738,6 +740,43 @@ When typing a fix argument (after `DCT` or `AT`), suggestions use two tiers:
 2. **Navdata fixes** (white) — all other navdata fixes matching your prefix.
 
 If no aircraft is selected, only navdata fixes are shown. Route fixes always appear first.
+
+## Macros
+
+Macros let you define reusable command shortcuts. A macro maps a `#NAME` to a command expansion, optionally with positional parameters.
+
+### Defining Macros
+
+Open **Settings > Macros** to create, edit, and manage macros. Each macro has:
+
+- **Name** — alphanumeric identifier (e.g., `BAYTOUR`, `HC`). The `#` prefix is added automatically when you type it.
+- **Expansion** — the command(s) to expand to. Can include parameter placeholders.
+
+### Parameters
+
+Macros support two parameter styles:
+
+| Style | Expansion | Invocation | Result |
+|-------|-----------|------------|--------|
+| Positional | `FH $1, CM $2` | `#HC 270 5000` | `FH 270, CM 5000` |
+| Named | `FH $hdg, CM $alt` | `#FC 270 5000` | `FH 270, CM 5000` |
+
+Named parameters serve as documentation — the autocomplete popup shows `#FC $hdg $alt` instead of `#FC $1 $2`, making it clear what each argument means. Arguments are always supplied positionally (in the order they first appear in the expansion).
+
+### Usage
+
+Type `#` followed by the macro name in the command bar:
+
+- `#BAYTOUR` → expands to `DCT VPCOL VPCHA VPMID`
+- `#HC 270 5000` → expands to `FH 270, CM 5000`
+- `#HC 270 5000; DCT SUNOL` → macro + compound: `FH 270, CM 5000; DCT SUNOL`
+
+Macros work anywhere in a compound command (after `;` or `,` separators). The command history records the original macro text, not the expansion.
+
+### Import / Export
+
+- **Export All** / **Export Selected** — save macros to a `.yaat-macros.json` file
+- **Import** — load macros from a file, with a selection dialog showing which macros will overwrite existing ones
 
 ## Command History
 

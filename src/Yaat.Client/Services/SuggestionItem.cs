@@ -6,6 +6,7 @@ public enum SuggestionKind
     Command,
     Fix,
     RouteFix,
+    Macro,
 }
 
 public sealed class SuggestionItem

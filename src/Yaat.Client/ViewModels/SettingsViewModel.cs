@@ -41,6 +41,42 @@ public partial class VerbMappingRow : ObservableObject
     }
 }
 
+public partial class MacroRow : ObservableObject
+{
+    [ObservableProperty]
+    private string _name = "";
+
+    [ObservableProperty]
+    private string _expansion = "";
+
+    [ObservableProperty]
+    private string _preview = "";
+
+    partial void OnNameChanged(string value)
+    {
+        UpdatePreview();
+    }
+
+    partial void OnExpansionChanged(string value)
+    {
+        UpdatePreview();
+    }
+
+    private void UpdatePreview()
+    {
+        if (string.IsNullOrWhiteSpace(Name) || string.IsNullOrWhiteSpace(Expansion))
+        {
+            Preview = "";
+            return;
+        }
+
+        var def = new MacroDefinition { Name = Name, Expansion = Expansion };
+        var paramNames = def.ParameterNames;
+        var paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"${n}")) : "";
+        Preview = $"#{Name}{paramHint} → {Expansion}";
+    }
+}
+
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly UserPreferences _preferences;
@@ -89,6 +125,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
     public DataGridCollectionView GroupedVerbMappings { get; }
+    public ObservableCollection<MacroRow> MacroRows { get; } = [];
 
     public SettingsViewModel()
         : this(new UserPreferences()) { }
@@ -108,6 +145,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoAcceptEnabled = _preferences.AutoAcceptEnabled;
         _autoAcceptDelaySeconds = _preferences.AutoAcceptDelaySeconds;
         _selectedAutoDeleteIndex = AutoDeleteOverrideToIndex(_preferences.AutoDeleteOverride);
+        LoadMacros();
     }
 
     partial void OnUserInitialsChanged(string value)
@@ -140,6 +178,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAdminSettings(IsAdminMode, AdminPassword);
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
+        SaveMacros();
         Saved = true;
     }
 
@@ -216,6 +255,69 @@ public partial class SettingsViewModel : ObservableObject
         return result.Trim();
     }
 
+    [RelayCommand]
+    private void AddMacro()
+    {
+        MacroRows.Add(new MacroRow());
+    }
+
+    [RelayCommand]
+    private void RemoveMacro(MacroRow row)
+    {
+        MacroRows.Remove(row);
+    }
+
+    [RelayCommand]
+    private void ClearAllMacros()
+    {
+        MacroRows.Clear();
+    }
+
+    public void ImportMacros(IEnumerable<SavedMacro> macros)
+    {
+        var existingNames = new HashSet<string>(MacroRows.Select(r => r.Name), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var m in macros)
+        {
+            if (existingNames.Contains(m.Name))
+            {
+                // Overwrite existing
+                var existing = MacroRows.First(r => string.Equals(r.Name, m.Name, StringComparison.OrdinalIgnoreCase));
+                existing.Expansion = m.Expansion;
+            }
+            else
+            {
+                MacroRows.Add(new MacroRow { Name = m.Name, Expansion = m.Expansion });
+            }
+        }
+    }
+
+    public List<SavedMacro> ExportMacros(IEnumerable<MacroRow>? rows = null)
+    {
+        return (rows ?? MacroRows)
+            .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
+            .Select(r => new SavedMacro { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() })
+            .ToList();
+    }
+
+    private void LoadMacros()
+    {
+        MacroRows.Clear();
+        foreach (var m in _preferences.Macros)
+        {
+            MacroRows.Add(new MacroRow { Name = m.Name, Expansion = m.Expansion });
+        }
+    }
+
+    private void SaveMacros()
+    {
+        var macros = MacroRows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
+            .Select(r => new MacroDefinition { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() })
+            .ToList();
+        _preferences.SetMacros(macros);
+    }
+
     partial void OnTestCommandInputChanged(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -226,7 +328,26 @@ public partial class SettingsViewModel : ObservableObject
         }
 
         var scheme = BuildSchemeFromRows();
-        var compoundResult = CommandSchemeParser.ParseCompound(value, scheme);
+
+        // Expand macros before parsing
+        var testInput = value;
+        var macros = MacroRows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Name) && !string.IsNullOrWhiteSpace(r.Expansion))
+            .Select(r => new MacroDefinition { Name = r.Name.Trim(), Expansion = r.Expansion.Trim() })
+            .ToList();
+        var expanded = MacroExpander.TryExpand(testInput, macros, out var macroError);
+        if (macroError is not null)
+        {
+            TestCommandResult = macroError;
+            TestCommandIsError = true;
+            return;
+        }
+        if (expanded is not null)
+        {
+            testInput = expanded;
+        }
+
+        var compoundResult = CommandSchemeParser.ParseCompound(testInput, scheme);
 
         if (compoundResult is null)
         {
@@ -235,7 +356,7 @@ public partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        var labels = CollectCommandLabels(value, scheme);
+        var labels = CollectCommandLabels(testInput, scheme);
         var labelSuffix = labels.Count > 0 ? $"  ({string.Join(", ", labels)})" : "";
 
         TestCommandResult = $"→ {compoundResult.CanonicalString}{labelSuffix}";

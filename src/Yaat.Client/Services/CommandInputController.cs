@@ -25,6 +25,7 @@ public partial class CommandInputController : ObservableObject
 
     public FixDatabase? FixDb { get; set; }
     public string? PrimaryAirportId { get; set; }
+    public IReadOnlyList<MacroDefinition>? Macros { get; set; }
 
     public void UpdateSuggestions(
         string text,
@@ -91,10 +92,17 @@ public partial class CommandInputController : ObservableObject
 
         if (!hasSpace)
         {
-            // Single token: could be callsign or command verb
-            AddCallsignSuggestions(firstToken, text, aircraft);
-            AddCommandVerbSuggestions(firstToken, text, scheme, targetAircraft);
-            AddConditionSuggestions(firstToken);
+            if (firstToken.StartsWith('#'))
+            {
+                AddMacroSuggestions(firstToken, text);
+            }
+            else
+            {
+                // Single token: could be callsign or command verb
+                AddCallsignSuggestions(firstToken, text, aircraft);
+                AddCommandVerbSuggestions(firstToken, text, scheme, targetAircraft);
+                AddConditionSuggestions(firstToken);
+            }
         }
         else if (
             AddCommandSuggester.TryAddAddArgumentSuggestions(
@@ -387,6 +395,48 @@ public partial class CommandInputController : ObservableObject
                 }
             );
         }
+    }
+
+    private void AddMacroSuggestions(string token, string fullText)
+    {
+        if (Macros is null || Macros.Count == 0)
+        {
+            return;
+        }
+
+        var namePrefix = token[1..]; // strip #
+        var prefix = GetTextBeforeCurrentToken(fullText);
+
+        foreach (var macro in Macros)
+        {
+            if (Suggestions.Count >= MaxSuggestions)
+            {
+                break;
+            }
+
+            if (!macro.Name.StartsWith(namePrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var paramNames = macro.ParameterNames;
+            var paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"${n}")) : "";
+
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Macro,
+                    Text = $"#{macro.Name}{paramHint}",
+                    Description = BuildMacroDescription(macro),
+                    InsertText = prefix + "#" + macro.Name + " ",
+                }
+            );
+        }
+    }
+
+    private static string BuildMacroDescription(MacroDefinition macro)
+    {
+        return macro.Expansion;
     }
 
     private void AddCallsignSuggestions(string token, string fullText, IReadOnlyCollection<AircraftModel> aircraft)
