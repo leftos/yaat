@@ -20,7 +20,7 @@ public static class CommandDispatcher
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways, groundLayout, logger);
+            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways, groundLayout, fixes, logger);
             if (result is not null)
             {
                 return result;
@@ -266,7 +266,7 @@ public static class CommandDispatcher
     private static CommandResult? DispatchWithPhase(
         CompoundCommand compound, AircraftState aircraft, Phase currentPhase,
         IRunwayLookup? runways, AirportGroundLayout? groundLayout,
-        ILogger logger)
+        IFixLookup? fixes, ILogger logger)
     {
         // Extract the first command to check acceptance
         var firstCmd = compound.Blocks[0].Commands[0];
@@ -274,7 +274,7 @@ public static class CommandDispatcher
 
         // Try tower/ground-specific handling first (phase-interactive commands)
         var towerResult = TryApplyTowerCommand(
-            firstCmd, aircraft, currentPhase, runways, groundLayout, logger);
+            firstCmd, aircraft, currentPhase, runways, groundLayout, fixes, logger);
         if (towerResult is not null)
         {
             return towerResult;
@@ -306,19 +306,19 @@ public static class CommandDispatcher
     private static CommandResult? TryApplyTowerCommand(
         ParsedCommand command, AircraftState aircraft, Phase currentPhase,
         IRunwayLookup? runways, AirportGroundLayout? groundLayout,
-        ILogger logger)
+        IFixLookup? fixes, ILogger logger)
     {
         switch (command)
         {
             case ClearedForTakeoffCommand cto:
                 if (currentPhase is LinedUpAndWaitingPhase luaw)
                 {
-                    return TryClearedForTakeoff(cto, aircraft, luaw);
+                    return TryClearedForTakeoff(cto, aircraft, luaw, fixes);
                 }
                 return TryDepartureClearance(
                     aircraft, currentPhase, ClearanceType.ClearedForTakeoff,
-                    cto.AssignedHeading, cto.Turn, cto.TrafficPattern,
-                    runways, logger);
+                    cto.Departure, cto.AssignedAltitude,
+                    runways, fixes, logger);
 
             case CancelTakeoffClearanceCommand:
                 if (currentPhase is LinedUpAndWaitingPhase luawCancel)
@@ -330,8 +330,8 @@ public static class CommandDispatcher
                             req.IsSatisfied = false;
                         }
                     }
-                    luawCancel.AssignedHeading = null;
-                    luawCancel.AssignedTurn = null;
+                    luawCancel.Departure = null;
+                    luawCancel.AssignedAltitude = null;
                     return Ok($"Takeoff clearance cancelled, hold position{RunwayLabel(aircraft)}");
                 }
                 if (currentPhase is TakeoffPhase && aircraft.IsOnGround)
@@ -348,7 +348,8 @@ public static class CommandDispatcher
             case LineUpAndWaitCommand:
                 return TryDepartureClearance(
                     aircraft, currentPhase, ClearanceType.LineUpAndWait,
-                    null, null, null, runways, logger);
+                    new DefaultDeparture(), null,
+                    runways, fixes, logger);
 
             case ClearedToLandCommand ctl:
                 if (aircraft.Phases is not null)
@@ -522,7 +523,8 @@ public static class CommandDispatcher
     }
 
     private static CommandResult TryClearedForTakeoff(
-        ClearedForTakeoffCommand cto, AircraftState aircraft, LinedUpAndWaitingPhase luaw)
+        ClearedForTakeoffCommand cto, AircraftState aircraft,
+        LinedUpAndWaitingPhase luaw, IFixLookup? fixes)
     {
         if (aircraft.Phases?.AssignedRunway is null)
         {
@@ -530,73 +532,70 @@ public static class CommandDispatcher
                 "No runway assigned — cannot clear for takeoff");
         }
 
-        luaw.AssignedHeading = cto.AssignedHeading;
-        luaw.AssignedTurn = cto.Turn;
+        luaw.Departure = cto.Departure;
+        luaw.AssignedAltitude = cto.AssignedAltitude;
         luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
 
-        // Propagate heading/turn to TakeoffPhase
+        // Propagate departure to TakeoffPhase and InitialClimbPhase
         if (aircraft.Phases is not null)
         {
+            var departureRoute = ResolveDepartureRoute(
+                cto.Departure, aircraft, fixes);
+
             foreach (var p in aircraft.Phases.Phases)
             {
                 if (p is TakeoffPhase tkoff)
                 {
-                    tkoff.SetAssignedDeparture(
-                        cto.AssignedHeading, cto.Turn);
-                    break;
+                    tkoff.SetAssignedDeparture(cto.Departure);
+                }
+                else if (p is InitialClimbPhase climb && p.Status == PhaseStatus.Pending)
+                {
+                    SetInitialClimbProperties(climb, cto.Departure,
+                        cto.AssignedAltitude, departureRoute, aircraft);
                 }
             }
 
-            // CTOMLT/CTOMRT: establish pattern mode and append circuit
-            if (cto.TrafficPattern is { } patDir)
+            // ClosedTrafficDeparture: establish pattern mode and append circuit
+            if (cto.Departure is ClosedTrafficDeparture ct)
             {
-                aircraft.Phases.TrafficDirection = patDir;
+                aircraft.Phases.TrafficDirection = ct.Direction;
                 var runway = aircraft.Phases.AssignedRunway;
                 if (runway is not null)
                 {
                     var cat = AircraftCategorization.Categorize(
                         aircraft.AircraftType);
                     var circuit = PatternBuilder.BuildCircuit(
-                        runway, cat, patDir,
+                        runway, cat, ct.Direction,
                         PatternEntryLeg.Upwind, true);
                     aircraft.Phases.Phases.AddRange(circuit);
                 }
             }
         }
 
-        var msg = $"Cleared for takeoff{RunwayLabel(aircraft)}";
-        if (cto.AssignedHeading is not null)
-        {
-            msg += $", fly heading {cto.AssignedHeading:000}";
-        }
-        if (cto.TrafficPattern is not null)
-        {
-            var dir = cto.TrafficPattern == PatternDirection.Left
-                ? "left" : "right";
-            msg += $", make {dir} traffic";
-        }
-        return Ok(msg);
+        return BuildDepartureMessage(
+            ClearanceType.ClearedForTakeoff,
+            aircraft.Phases?.AssignedRunway?.RunwayId ?? "unknown",
+            cto.Departure, cto.AssignedAltitude);
     }
 
     private static CommandResult TryDepartureClearance(
         AircraftState aircraft, Phase currentPhase, ClearanceType clearanceType,
-        int? assignedHeading, TurnDirection? assignedTurn,
-        PatternDirection? trafficPattern,
-        IRunwayLookup? runways, ILogger logger)
+        DepartureInstruction departure, int? assignedAltitude,
+        IRunwayLookup? runways, IFixLookup? fixes, ILogger logger)
     {
         if (currentPhase is HoldingShortPhase holding)
         {
             return LineUpFromHoldShort(
                 aircraft, holding, clearanceType,
-                assignedHeading, assignedTurn, trafficPattern,
-                runways, logger);
+                departure, assignedAltitude,
+                runways, fixes, logger);
         }
 
         if (currentPhase is TaxiingPhase)
         {
             return StoreDepartureClearanceDuringTaxi(
                 aircraft, clearanceType,
-                assignedHeading, assignedTurn, trafficPattern, runways);
+                departure, assignedAltitude, runways, fixes);
         }
 
         // Aircraft is lining up — CTO can pre-satisfy the upcoming LUAW phase
@@ -604,8 +603,7 @@ public static class CommandDispatcher
             && clearanceType == ClearanceType.ClearedForTakeoff)
         {
             return SatisfyUpcomingTakeoffClearance(
-                aircraft, assignedHeading, assignedTurn, trafficPattern,
-                logger);
+                aircraft, departure, assignedAltitude, fixes, logger);
         }
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
@@ -620,9 +618,8 @@ public static class CommandDispatcher
     private static CommandResult LineUpFromHoldShort(
         AircraftState aircraft, HoldingShortPhase holding,
         ClearanceType clearanceType,
-        int? assignedHeading, TurnDirection? assignedTurn,
-        PatternDirection? trafficPattern,
-        IRunwayLookup? runways, ILogger logger)
+        DepartureInstruction departure, int? assignedAltitude,
+        IRunwayLookup? runways, IFixLookup? fixes, ILogger logger)
     {
         var runwayId = holding.HoldShort.RunwayId;
         if (runwayId is null)
@@ -645,18 +642,17 @@ public static class CommandDispatcher
         aircraft.Phases!.AssignedRunway = runway;
         InsertTowerPhasesAfterCurrent(
             aircraft, clearanceType,
-            assignedHeading, assignedTurn, trafficPattern,
-            runway, holding.HoldShort.NodeId, logger);
+            departure, assignedAltitude,
+            runway, fixes, holding.HoldShort.NodeId, logger);
 
         return BuildDepartureMessage(
-            clearanceType, runway.RunwayId, assignedHeading, trafficPattern);
+            clearanceType, runway.RunwayId, departure, assignedAltitude);
     }
 
     private static CommandResult StoreDepartureClearanceDuringTaxi(
         AircraftState aircraft, ClearanceType clearanceType,
-        int? assignedHeading, TurnDirection? assignedTurn,
-        PatternDirection? trafficPattern,
-        IRunwayLookup? runways)
+        DepartureInstruction departure, int? assignedAltitude,
+        IRunwayLookup? runways, IFixLookup? fixes)
     {
         var route = aircraft.AssignedTaxiRoute;
         if (route is null)
@@ -691,48 +687,60 @@ public static class CommandDispatcher
         // Pre-clear so aircraft doesn't stop at the hold-short
         depHoldShort.IsCleared = true;
 
+        // Pre-resolve navigation targets for route-based departures
+        var departureRoute = ResolveDepartureRoute(departure, aircraft, fixes);
+
         // Set runway and store departure clearance for TaxiingPhase to consume
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Phases.DepartureClearance = new DepartureClearanceInfo
         {
             Type = clearanceType,
-            AssignedHeading = assignedHeading,
-            AssignedTurn = assignedTurn,
-            TrafficPattern = trafficPattern,
+            Departure = departure,
+            AssignedAltitude = assignedAltitude,
+            DepartureRoute = departureRoute,
         };
 
         return BuildDepartureMessage(
             clearanceType, runway.RunwayId,
-            assignedHeading, trafficPattern);
+            departure, assignedAltitude);
     }
 
     private static void InsertTowerPhasesAfterCurrent(
         AircraftState aircraft, ClearanceType clearanceType,
-        int? assignedHeading, TurnDirection? assignedTurn,
-        PatternDirection? trafficPattern,
-        RunwayInfo runway, int? holdShortNodeId, ILogger logger)
+        DepartureInstruction departure, int? assignedAltitude,
+        RunwayInfo runway, IFixLookup? fixes, int? holdShortNodeId,
+        ILogger logger)
     {
+        var departureRoute = ResolveDepartureRoute(departure, aircraft, fixes);
+
         var lineup = new LineUpPhase(holdShortNodeId);
         var luawPhase = new LinedUpAndWaitingPhase();
         var takeoff = new TakeoffPhase();
-        var climb = new InitialClimbPhase();
+        var climb = new InitialClimbPhase
+        {
+            Departure = departure,
+            AssignedAltitude = assignedAltitude,
+            DepartureRoute = departureRoute,
+            IsVfr = aircraft.IsVfr,
+            CruiseAltitude = aircraft.CruiseAltitude,
+        };
         aircraft.Phases!.InsertAfterCurrent(
             new Phase[] { lineup, luawPhase, takeoff, climb });
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
         {
             luawPhase.SatisfyClearance(ClearanceType.ClearedForTakeoff);
-            luawPhase.AssignedHeading = assignedHeading;
-            luawPhase.AssignedTurn = assignedTurn;
-            takeoff.SetAssignedDeparture(assignedHeading, assignedTurn);
+            luawPhase.Departure = departure;
+            luawPhase.AssignedAltitude = assignedAltitude;
+            takeoff.SetAssignedDeparture(departure);
 
-            if (trafficPattern is { } patDir)
+            if (departure is ClosedTrafficDeparture ct)
             {
-                aircraft.Phases.TrafficDirection = patDir;
+                aircraft.Phases.TrafficDirection = ct.Direction;
                 var cat = AircraftCategorization.Categorize(
                     aircraft.AircraftType);
                 var circuit = PatternBuilder.BuildCircuit(
-                    runway, cat, patDir, PatternEntryLeg.Upwind, true);
+                    runway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
                 aircraft.Phases.Phases.AddRange(circuit);
             }
         }
@@ -744,8 +752,8 @@ public static class CommandDispatcher
 
     private static CommandResult SatisfyUpcomingTakeoffClearance(
         AircraftState aircraft,
-        int? assignedHeading, TurnDirection? assignedTurn,
-        PatternDirection? trafficPattern, ILogger logger)
+        DepartureInstruction departure, int? assignedAltitude,
+        IFixLookup? fixes, ILogger logger)
     {
         var phases = aircraft.Phases;
         if (phases is null)
@@ -753,9 +761,10 @@ public static class CommandDispatcher
             return new CommandResult(false, "No active phase sequence");
         }
 
-        // Find the pending LinedUpAndWaitingPhase and TakeoffPhase
+        // Find the pending LinedUpAndWaitingPhase, TakeoffPhase, InitialClimbPhase
         LinedUpAndWaitingPhase? luaw = null;
         TakeoffPhase? takeoff = null;
+        InitialClimbPhase? climb = null;
         foreach (var p in phases.Phases)
         {
             if (p.Status != PhaseStatus.Pending)
@@ -771,6 +780,10 @@ public static class CommandDispatcher
             {
                 takeoff = t;
             }
+            else if (climb is null && p is InitialClimbPhase c)
+            {
+                climb = c;
+            }
         }
 
         if (luaw is null)
@@ -779,18 +792,26 @@ public static class CommandDispatcher
                 "Aircraft is not lined up and waiting");
         }
 
-        luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
-        luaw.AssignedHeading = assignedHeading;
-        luaw.AssignedTurn = assignedTurn;
-        takeoff?.SetAssignedDeparture(assignedHeading, assignedTurn);
+        var departureRoute = ResolveDepartureRoute(departure, aircraft, fixes);
 
-        if (trafficPattern is { } patDir && phases.AssignedRunway is { } rwy)
+        luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
+        luaw.Departure = departure;
+        luaw.AssignedAltitude = assignedAltitude;
+        takeoff?.SetAssignedDeparture(departure);
+
+        if (climb is not null)
         {
-            phases.TrafficDirection = patDir;
+            SetInitialClimbProperties(climb, departure,
+                assignedAltitude, departureRoute, aircraft);
+        }
+
+        if (departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
+        {
+            phases.TrafficDirection = ct.Direction;
             var cat = AircraftCategorization.Categorize(
                 aircraft.AircraftType);
             var circuit = PatternBuilder.BuildCircuit(
-                rwy, cat, patDir, PatternEntryLeg.Upwind, true);
+                rwy, cat, ct.Direction, PatternEntryLeg.Upwind, true);
             phases.Phases.AddRange(circuit);
         }
 
@@ -801,30 +822,159 @@ public static class CommandDispatcher
         return BuildDepartureMessage(
             ClearanceType.ClearedForTakeoff,
             phases.AssignedRunway?.RunwayId ?? "unknown",
-            assignedHeading, trafficPattern);
+            departure, assignedAltitude);
     }
 
     private static CommandResult BuildDepartureMessage(
         ClearanceType clearanceType, string runwayId,
-        int? assignedHeading, PatternDirection? trafficPattern)
+        DepartureInstruction departure, int? assignedAltitude)
     {
         if (clearanceType == ClearanceType.ClearedForTakeoff)
         {
             var msg = $"Cleared for takeoff runway {runwayId}";
-            if (assignedHeading is not null)
+            msg += FormatDepartureInstructionSuffix(departure);
+            if (assignedAltitude is not null)
             {
-                msg += $", fly heading {assignedHeading:000}";
-            }
-            if (trafficPattern is not null)
-            {
-                var dir = trafficPattern == PatternDirection.Left
-                    ? "left" : "right";
-                msg += $", make {dir} traffic";
+                msg += $", climb and maintain {assignedAltitude:N0}";
             }
             return Ok(msg);
         }
 
         return Ok($"Line up and wait runway {runwayId}");
+    }
+
+    private static string FormatDepartureInstructionSuffix(DepartureInstruction departure)
+    {
+        return departure switch
+        {
+            DefaultDeparture => "",
+            RunwayHeadingDeparture => ", fly runway heading",
+            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } =>
+                ", right crosswind departure",
+            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } =>
+                ", left crosswind departure",
+            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } =>
+                ", right downwind departure",
+            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } =>
+                ", left downwind departure",
+            RelativeTurnDeparture rel =>
+                $", turn {(rel.Direction == TurnDirection.Right ? "right" : "left")} {rel.Degrees} degrees",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right =>
+                $", turn right heading {fh.Heading:000}",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left =>
+                $", turn left heading {fh.Heading:000}",
+            FlyHeadingDeparture fh => $", fly heading {fh.Heading:000}",
+            OnCourseDeparture => ", on course",
+            DirectFixDeparture dfd => $", direct {dfd.FixName}",
+            ClosedTrafficDeparture ct =>
+                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
+            _ => "",
+        };
+    }
+
+    /// <summary>
+    /// Pre-resolves navigation targets for route-based departure instructions.
+    /// Keeps IFixLookup out of the phase layer.
+    /// </summary>
+    private static List<NavigationTarget>? ResolveDepartureRoute(
+        DepartureInstruction departure, AircraftState aircraft, IFixLookup? fixes)
+    {
+        if (fixes is null)
+        {
+            return null;
+        }
+
+        switch (departure)
+        {
+            case DirectFixDeparture dfd:
+                return
+                [
+                    new NavigationTarget
+                    {
+                        Name = dfd.FixName,
+                        Latitude = dfd.Lat,
+                        Longitude = dfd.Lon,
+                    },
+                ];
+
+            case OnCourseDeparture when aircraft.Destination is not null:
+            {
+                var pos = fixes.GetFixPosition(aircraft.Destination);
+                if (pos is null)
+                {
+                    return null;
+                }
+                return
+                [
+                    new NavigationTarget
+                    {
+                        Name = aircraft.Destination,
+                        Latitude = pos.Value.Lat,
+                        Longitude = pos.Value.Lon,
+                    },
+                ];
+            }
+
+            case DefaultDeparture when !aircraft.IsVfr && aircraft.Route is not null:
+            {
+                var expanded = fixes.ExpandRoute(aircraft.Route);
+                var targets = new List<NavigationTarget>();
+                foreach (var name in expanded)
+                {
+                    var pos = fixes.GetFixPosition(name);
+                    if (pos is not null)
+                    {
+                        targets.Add(new NavigationTarget
+                        {
+                            Name = name,
+                            Latitude = pos.Value.Lat,
+                            Longitude = pos.Value.Lon,
+                        });
+                    }
+                }
+                return targets.Count > 0 ? targets : null;
+            }
+
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// Sets properties on a pending InitialClimbPhase. Since init properties
+    /// are set via object initializer, we use reflection-free approach by
+    /// replacing the phase in the list.
+    /// </summary>
+    private static void SetInitialClimbProperties(
+        InitialClimbPhase existing, DepartureInstruction departure,
+        int? assignedAltitude, List<NavigationTarget>? departureRoute,
+        AircraftState aircraft)
+    {
+        // InitialClimbPhase uses init properties, so we can't set them after
+        // construction. However, since the phase hasn't started yet (Pending),
+        // we find it in the phase list and replace it with a new instance.
+        if (aircraft.Phases is null)
+        {
+            return;
+        }
+
+        var newClimb = new InitialClimbPhase
+        {
+            Departure = departure,
+            AssignedAltitude = assignedAltitude,
+            DepartureRoute = departureRoute,
+            IsVfr = aircraft.IsVfr,
+            CruiseAltitude = aircraft.CruiseAltitude,
+        };
+
+        for (int i = 0; i < aircraft.Phases.Phases.Count; i++)
+        {
+            if (ReferenceEquals(aircraft.Phases.Phases[i], existing))
+            {
+                aircraft.Phases.Phases[i] = newClimb;
+                break;
+            }
+        }
     }
 
     private static RunwayInfo? ResolveRunway(

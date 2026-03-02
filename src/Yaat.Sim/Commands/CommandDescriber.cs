@@ -116,8 +116,7 @@ public static class CommandDescriber
             SquawkNormalAllCommand => "SNALL",
             SquawkStandbyAllCommand => "SSALL",
             LineUpAndWaitCommand => "LUAW",
-            ClearedForTakeoffCommand cto => cto.AssignedHeading is not null
-                ? $"CTO {cto.AssignedHeading:000}" : "CTO",
+            ClearedForTakeoffCommand cto => FormatCtoCanonical(cto),
             CancelTakeoffClearanceCommand => "CTOC",
             ClearedToLandCommand => "CTL",
             CancelLandingClearanceCommand => "CLC",
@@ -270,18 +269,64 @@ public static class CommandDescriber
             or FollowCommand;
     }
 
+    private static string FormatCtoCanonical(ClearedForTakeoffCommand cto)
+    {
+        var suffix = cto.Departure switch
+        {
+            DefaultDeparture => "",
+            RunwayHeadingDeparture => " MRH",
+            RelativeTurnDeparture { Direction: TurnDirection.Right } rel =>
+                $" MR{rel.Degrees}",
+            RelativeTurnDeparture rel => $" ML{rel.Degrees}",
+            FlyHeadingDeparture { Direction: TurnDirection.Right } fh =>
+                $" RH{fh.Heading:000}",
+            FlyHeadingDeparture { Direction: TurnDirection.Left } fh =>
+                $" LH{fh.Heading:000}",
+            FlyHeadingDeparture fh => $" H{fh.Heading:000}",
+            OnCourseDeparture => " OC",
+            DirectFixDeparture dfd => $" DCT {dfd.FixName}",
+            ClosedTrafficDeparture { Direction: PatternDirection.Right } => " MRT",
+            ClosedTrafficDeparture => " MLT",
+            _ => "",
+        };
+
+        var alt = cto.AssignedAltitude is not null
+            ? $" {cto.AssignedAltitude}" : "";
+
+        return $"CTO{suffix}{alt}";
+    }
+
     private static string DescribeCtoNatural(ClearedForTakeoffCommand cto)
     {
         var msg = "Cleared for takeoff";
-        if (cto.AssignedHeading is not null)
+        msg += cto.Departure switch
         {
-            msg += $", fly heading {cto.AssignedHeading:000}";
-        }
-        if (cto.TrafficPattern is not null)
+            DefaultDeparture => "",
+            RunwayHeadingDeparture => ", fly runway heading",
+            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } =>
+                ", right crosswind departure",
+            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } =>
+                ", left crosswind departure",
+            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } =>
+                ", right downwind departure",
+            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } =>
+                ", left downwind departure",
+            RelativeTurnDeparture rel =>
+                $", turn {(rel.Direction == TurnDirection.Right ? "right" : "left")} {rel.Degrees} degrees",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right =>
+                $", turn right heading {fh.Heading:000}",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left =>
+                $", turn left heading {fh.Heading:000}",
+            FlyHeadingDeparture fh => $", fly heading {fh.Heading:000}",
+            OnCourseDeparture => ", on course",
+            DirectFixDeparture dfd => $", direct {dfd.FixName}",
+            ClosedTrafficDeparture ct =>
+                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
+            _ => "",
+        };
+        if (cto.AssignedAltitude is not null)
         {
-            var dir = cto.TrafficPattern == PatternDirection.Left
-                ? "left" : "right";
-            msg += $", make {dir} traffic";
+            msg += $", climb and maintain {cto.AssignedAltitude:N0}";
         }
         return msg;
     }

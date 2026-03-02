@@ -233,11 +233,28 @@ public static class CommandSchemeParser
         CanonicalCommandType.HoldAtFixRight,
         CanonicalCommandType.HoldAtFixHover,
         CanonicalCommandType.DirectTo,
+        CanonicalCommandType.ClearedForTakeoff,
         CanonicalCommandType.Say,
     ];
 
     private static ParsedInput? ParseTextArgCommand(string input, CommandScheme scheme)
     {
+        // Handle CTOMRT/CTOMLT legacy merged forms
+        if (input.StartsWith("CTOMRT", StringComparison.OrdinalIgnoreCase)
+            && (input.Length == 6 || input[6] == ' '))
+        {
+            var suffix = input.Length > 7 ? " " + input[7..].Trim() : "";
+            var arg = "MRT" + suffix;
+            return new ParsedInput(CanonicalCommandType.ClearedForTakeoff, arg.Trim());
+        }
+        if (input.StartsWith("CTOMLT", StringComparison.OrdinalIgnoreCase)
+            && (input.Length == 6 || input[6] == ' '))
+        {
+            var suffix = input.Length > 7 ? " " + input[7..].Trim() : "";
+            var arg = "MLT" + suffix;
+            return new ParsedInput(CanonicalCommandType.ClearedForTakeoff, arg.Trim());
+        }
+
         // Build (alias, type) pairs from the scheme, longest alias first so
         // HFIXL matches before HFIX.
         var candidates = new List<(string Alias, CanonicalCommandType Type)>();
@@ -265,6 +282,8 @@ public static class CommandSchemeParser
 
             if (input.Length == alias.Length)
             {
+                // Bare command with no arg — return null so the normal
+                // parser handles {arg?} commands (like CTO with no modifier)
                 return null;
             }
 

@@ -296,24 +296,31 @@ public sealed class TaxiingPhase : Phase
         var lineup = new LineUpPhase(holdShortNodeId);
         var luaw = new LinedUpAndWaitingPhase();
         var takeoff = new TakeoffPhase();
-        var climb = new InitialClimbPhase();
+        var climb = new InitialClimbPhase
+        {
+            Departure = dep.Departure,
+            AssignedAltitude = dep.AssignedAltitude,
+            DepartureRoute = dep.DepartureRoute,
+            IsVfr = ctx.Aircraft.IsVfr,
+            CruiseAltitude = ctx.Aircraft.CruiseAltitude,
+        };
         phases.InsertAfterCurrent(new Phase[] { lineup, luaw, takeoff, climb });
 
         if (dep.Type == ClearanceType.ClearedForTakeoff)
         {
             luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
-            luaw.AssignedHeading = dep.AssignedHeading;
-            luaw.AssignedTurn = dep.AssignedTurn;
-            takeoff.SetAssignedDeparture(dep.AssignedHeading, dep.AssignedTurn);
+            luaw.Departure = dep.Departure;
+            luaw.AssignedAltitude = dep.AssignedAltitude;
+            takeoff.SetAssignedDeparture(dep.Departure);
 
-            if (dep.TrafficPattern is { } patDir
+            if (dep.Departure is ClosedTrafficDeparture ct
                 && phases.AssignedRunway is { } rwy)
             {
-                phases.TrafficDirection = patDir;
+                phases.TrafficDirection = ct.Direction;
                 var cat = AircraftCategorization.Categorize(
                     ctx.Aircraft.AircraftType);
                 var circuit = PatternBuilder.BuildCircuit(
-                    rwy, cat, patDir, PatternEntryLeg.Upwind, true);
+                    rwy, cat, ct.Direction, PatternEntryLeg.Upwind, true);
                 phases.Phases.AddRange(circuit);
             }
         }

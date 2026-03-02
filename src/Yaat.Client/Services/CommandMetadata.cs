@@ -38,7 +38,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.DirectTo, "Direct To", "FIX", false),
         // Tower
         new(CanonicalCommandType.LineUpAndWait, "Line Up and Wait", null, false),
-        new(CanonicalCommandType.ClearedForTakeoff, "Cleared for Takeoff", null, false),
+        new(CanonicalCommandType.ClearedForTakeoff, "Cleared for Takeoff", "MRC 014", false),
         new(CanonicalCommandType.CancelTakeoffClearance, "Cancel Takeoff Clearance", null, false),
         new(CanonicalCommandType.GoAround, "Go Around", null, false),
         new(CanonicalCommandType.ClearedToLand, "Cleared to Land", null, false),

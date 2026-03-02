@@ -10,9 +10,14 @@ namespace Yaat.Sim.Phases;
 public sealed class DepartureClearanceInfo
 {
     public required ClearanceType Type { get; init; }
-    public int? AssignedHeading { get; init; }
-    public TurnDirection? AssignedTurn { get; init; }
-    public PatternDirection? TrafficPattern { get; init; }
+    public required DepartureInstruction Departure { get; init; }
+    public int? AssignedAltitude { get; init; }
+
+    /// <summary>
+    /// Pre-resolved navigation targets for route-based departures.
+    /// Set by the dispatcher so phases don't need IFixLookup.
+    /// </summary>
+    public List<NavigationTarget>? DepartureRoute { get; init; }
 }
 
 public sealed class PhaseList

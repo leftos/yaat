@@ -5,17 +5,17 @@ namespace Yaat.Sim.Phases.Tower;
 /// <summary>
 /// Aircraft holds at runway threshold, speed=0, heading=runway heading.
 /// Requires ClearedForTakeoff clearance to advance to TakeoffPhase.
-/// Stores assigned heading and turn direction from CTO for TakeoffPhase.
+/// Stores departure instruction from CTO for TakeoffPhase.
 /// </summary>
 public sealed class LinedUpAndWaitingPhase : Phase
 {
     public override string Name => "LinedUpAndWaiting";
 
-    /// <summary>Heading assigned by CTO command (null = fly runway heading).</summary>
-    public int? AssignedHeading { get; set; }
+    /// <summary>Departure instruction from CTO command.</summary>
+    public DepartureInstruction? Departure { get; set; }
 
-    /// <summary>Turn direction from CTOR/CTOL/CTOMLT/CTOMRT.</summary>
-    public TurnDirection? AssignedTurn { get; set; }
+    /// <summary>Altitude override from CTO command.</summary>
+    public int? AssignedAltitude { get; set; }
 
     public override void OnStart(PhaseContext ctx)
     {

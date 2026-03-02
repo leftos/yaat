@@ -50,16 +50,38 @@ public record SayCommand(string Text) : ParsedCommand;
 
 public record UnsupportedCommand(string RawText) : ParsedCommand;
 
+// Departure instruction hierarchy for CTO commands
+public abstract record DepartureInstruction;
+
+/// <summary>VFR: fly runway heading. IFR: navigate to first route fix.</summary>
+public record DefaultDeparture : DepartureInstruction;
+
+/// <summary>Fly runway heading (explicit instruction).</summary>
+public record RunwayHeadingDeparture : DepartureInstruction;
+
+/// <summary>Turn a relative number of degrees after takeoff (e.g., crosswind = 90°).</summary>
+public record RelativeTurnDeparture(int Degrees, TurnDirection Direction) : DepartureInstruction;
+
+/// <summary>Fly a specific heading after takeoff, with optional turn direction.</summary>
+public record FlyHeadingDeparture(int Heading, TurnDirection? Direction) : DepartureInstruction;
+
+/// <summary>On course: fly direct to destination airport.</summary>
+public record OnCourseDeparture : DepartureInstruction;
+
+/// <summary>Direct to a named fix after takeoff.</summary>
+public record DirectFixDeparture(string FixName, double Lat, double Lon) : DepartureInstruction;
+
+/// <summary>Closed traffic: re-enter the pattern after takeoff.</summary>
+public record ClosedTrafficDeparture(PatternDirection Direction) : DepartureInstruction;
+
 // Tower commands
 public record LineUpAndWaitCommand : ParsedCommand;
 
 /// <summary>
-/// CTO [hdg]: cleared for takeoff, optionally with assigned heading.
-/// TurnDirection is set by CTOR/CTOL variants.
-/// TrafficPattern is set by CTOMLT/CTOMRT to establish pattern mode.
+/// CTO with departure instruction and optional altitude override.
 /// </summary>
 public record ClearedForTakeoffCommand(
-    int? AssignedHeading, TurnDirection? Turn, PatternDirection? TrafficPattern = null) : ParsedCommand;
+    DepartureInstruction Departure, int? AssignedAltitude = null) : ParsedCommand;
 
 public record CancelTakeoffClearanceCommand : ParsedCommand;
 

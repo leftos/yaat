@@ -222,11 +222,20 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | Command | Effect |
 |---------|--------|
 | `LUAW` | Line up and wait — aircraft holds on runway |
-| `CTO` | Cleared for takeoff |
-| `CTO 270` | Cleared for takeoff, fly heading 270 |
-| `CTOR 270` / `CTOL 270` | Cleared for takeoff, turn right/left to heading 270 |
-| `CTOR45` / `CTOL45` | Cleared for takeoff, turn right/left 45° from runway heading (no space) |
-| `CTOMLT` / `CTOMRT` | Cleared for takeoff, make left/right traffic |
+| `CTO` | Cleared for takeoff (default departure) |
+| `CTO 050` | Cleared for takeoff, climb and maintain 5,000 ft |
+| `CTO MRC` | Cleared for takeoff, right crosswind departure (90° right turn) |
+| `CTO MRD` | Cleared for takeoff, right downwind departure (180° right turn) |
+| `CTO MR45` | Cleared for takeoff, turn right 45° from runway heading |
+| `CTO MLC` / `MLD` / `ML45` | Left-turn equivalents of MRC/MRD/MR{N} |
+| `CTO MRH` / `RH` / `MSO` | Cleared for takeoff, fly runway heading |
+| `CTO H270` | Cleared for takeoff, fly heading 270 (shortest turn) |
+| `CTO RH270` / `RT270` | Cleared for takeoff, turn right heading 270 |
+| `CTO LH270` / `LT270` | Cleared for takeoff, turn left heading 270 |
+| `CTO OC` | Cleared for takeoff, on course (direct to destination) |
+| `CTO DCT SUNOL` | Cleared for takeoff, direct to fix SUNOL |
+| `CTO MRT` / `CTOMRT` | Cleared for takeoff, make right traffic (closed pattern) |
+| `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) |
 | `CTOC` | Cancel takeoff clearance |
 | `CTL` / `FS` | Cleared to land (full stop) |
 | `CTL NODEL` | Cleared to land (exempt from auto-delete after landing) |
@@ -240,6 +249,33 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `ER` | Exit runway to the right |
 | `EXIT A3` | Exit runway at taxiway A3 |
 | `EL NODEL` / `ER NODEL` / `EXIT A3 NODEL` | Exit with auto-delete exemption |
+
+#### CTO Departure Modifiers
+
+All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see Altitude Arguments above). Examples: `CTO MRC 014` (right crosswind, climb to 1,400 ft), `CTO RH 050` (runway heading, climb to 5,000 ft), `CTO DCT SUNOL 050` (direct SUNOL, climb to 5,000 ft).
+
+| Modifier | Departure type |
+|----------|----------------|
+| *(none)* | Default departure — VFR: runway heading; IFR: navigates filed route (SID expansion) |
+| `MRC` / `MLC` | Right/left crosswind (90° turn from runway heading) |
+| `MRD` / `MLD` | Right/left downwind (180° turn) |
+| `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading |
+| `MRH` / `MSO` / `RH` | Fly runway heading (straight out) |
+| `H{N}` | Fly heading N (shortest turn) |
+| `RH{N}` / `RT{N}` | Turn right heading N |
+| `LH{N}` / `LT{N}` | Turn left heading N |
+| `OC` | On course — navigate direct to destination airport |
+| `DCT {fix}` | Direct to named fix |
+| `MRT` / `MLT` | Make right/left closed traffic (enter pattern) |
+
+**Altitude resolution** — when no altitude is specified, the target depends on flight rules and departure type:
+
+1. Closed traffic → pattern altitude (1,000 ft AGL for props, 1,500 ft AGL for jets)
+2. VFR with filed cruise altitude → cruise altitude
+3. VFR without cruise → pattern altitude
+4. IFR → self-clear at 1,500 ft AGL
+
+**Navigation** — IFR `CTO` (default departure) automatically expands the filed route including SID waypoints and navigates the aircraft along it. `CTO DCT {fix}` turns the aircraft toward the fix after liftoff. `CTO OC` navigates toward the destination airport.
 
 The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments above). `RH` in the heading position means "runway heading." `GA MRT`/`GA MLT` sets the aircraft into pattern mode (make right/left traffic) and climbs to pattern altitude. Auto go-around (no landing clearance by 0.5nm) broadcasts a warning; VFR and pattern traffic re-enter the pattern automatically, while IFR non-pattern traffic flies runway heading at 2,000 AGL.
 

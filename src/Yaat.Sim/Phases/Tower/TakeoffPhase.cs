@@ -13,32 +13,26 @@ public sealed class TakeoffPhase : Phase
     private bool _airborne;
     private double _fieldElevation;
     private double _runwayHeading;
-    private int? _assignedHeading;
-    private TurnDirection? _assignedTurn;
+    private DepartureInstruction? _departure;
 
     public override string Name => "Takeoff";
 
-    /// <summary>Heading assigned by CTO (null = fly runway heading).</summary>
-    public int? AssignedHeading { get; private set; }
-
-    /// <summary>Turn direction from CTOR/CTOL variants.</summary>
-    public TurnDirection? AssignedTurn { get; private set; }
+    /// <summary>Departure instruction from CTO command.</summary>
+    public DepartureInstruction? Departure { get; private set; }
 
     /// <summary>
-    /// Called by the dispatcher when CTO is issued during LinedUpAndWaiting.
+    /// Called by the dispatcher when CTO is issued.
     /// </summary>
-    public void SetAssignedDeparture(int? heading, TurnDirection? turn)
+    public void SetAssignedDeparture(DepartureInstruction? departure)
     {
-        AssignedHeading = heading;
-        AssignedTurn = turn;
+        Departure = departure;
     }
 
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
         _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
-        _assignedHeading = AssignedHeading;
-        _assignedTurn = AssignedTurn;
+        _departure = Departure;
 
         ctx.Aircraft.IsOnGround = true;
         ctx.Targets.TargetHeading = _runwayHeading;
@@ -84,18 +78,36 @@ public sealed class TakeoffPhase : Phase
             ctx.Targets.DesiredVerticalRate = climbRate;
             ctx.Targets.TargetSpeed = climbSpeed;
 
-            // Apply assigned heading if given
-            if (_assignedHeading is not null)
-            {
-                ctx.Targets.TargetHeading = _assignedHeading.Value;
-                ctx.Targets.PreferredTurnDirection = _assignedTurn;
-            }
+            ApplyDepartureHeading(ctx);
         }
 
         return false;
     }
 
-    private bool TickAirborneClimb(PhaseContext ctx, double agl)
+    private void ApplyDepartureHeading(PhaseContext ctx)
+    {
+        switch (_departure)
+        {
+            case RelativeTurnDeparture rel:
+                int relHdg = rel.Direction == TurnDirection.Right
+                    ? FlightPhysics.NormalizeHeadingInt(_runwayHeading + rel.Degrees)
+                    : FlightPhysics.NormalizeHeadingInt(_runwayHeading - rel.Degrees);
+                ctx.Targets.TargetHeading = relHdg;
+                ctx.Targets.PreferredTurnDirection = rel.Direction;
+                break;
+
+            case FlyHeadingDeparture fh:
+                ctx.Targets.TargetHeading = fh.Heading;
+                ctx.Targets.PreferredTurnDirection = fh.Direction;
+                break;
+
+            // DefaultDeparture, RunwayHeadingDeparture, OnCourseDeparture,
+            // DirectFixDeparture, ClosedTrafficDeparture: keep runway heading.
+            // Navigation is set up by InitialClimbPhase.
+        }
+    }
+
+    private static bool TickAirborneClimb(PhaseContext ctx, double agl)
     {
         return agl >= CompletionAgl;
     }
