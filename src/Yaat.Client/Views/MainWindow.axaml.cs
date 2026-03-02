@@ -41,6 +41,12 @@ public partial class MainWindow : Window
             loadItem.Click += OnLoadScenarioClick;
         }
 
+        var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
+        if (recentItem is not null)
+        {
+            recentItem.SubmenuOpened += OnRecentScenariosSubmenuOpened;
+        }
+
         var embeddedView = this.FindControl<DataGridView>("EmbeddedDataGridView");
         var dataGrid = embeddedView?.GetDataGrid();
         if (dataGrid is not null)
@@ -618,6 +624,47 @@ public partial class MainWindow : Window
                 await vm.LoadScenarioCommand.ExecuteAsync(null);
             }
         }
+    }
+
+    private void OnRecentScenariosSubmenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        menu.Items.Clear();
+        var recent = vm.Preferences.RecentScenarios;
+        if (recent.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "(No recent scenarios)", IsEnabled = false });
+            return;
+        }
+
+        foreach (var path in recent)
+        {
+            var item = new MenuItem { Header = Path.GetFileNameWithoutExtension(path), Tag = path };
+            item.Click += OnRecentScenarioClick;
+            ToolTip.SetTip(item, path);
+            menu.Items.Add(item);
+        }
+    }
+
+    private async void OnRecentScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string path } || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            vm.StatusText = $"File not found: {path}";
+            return;
+        }
+
+        vm.ScenarioFilePath = path;
+        await vm.LoadScenarioCommand.ExecuteAsync(null);
     }
 
     private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

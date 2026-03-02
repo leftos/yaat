@@ -128,6 +128,7 @@ public partial class MainViewModel
         if (result.Success)
         {
             ApplyScenarioResult(result);
+            _preferences.AddRecentScenario(ScenarioFilePath);
 
             _log.LogInformation(
                 "Scenario loaded: '{Name}' ({Id}), " + "{Count} aircraft, " + "{Delayed} delayed, " + "{All} total, " + "{Warnings} warnings",

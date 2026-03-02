@@ -42,6 +42,7 @@ public sealed class UserPreferences
     private bool _isDelayedGroupCollapsed;
     private List<MacroDefinition> _macros;
     private List<FavoriteCommand> _favoriteCommands;
+    private List<string> _recentScenarios;
 
     public UserPreferences()
     {
@@ -70,6 +71,7 @@ public sealed class UserPreferences
         _isDelayedGroupCollapsed = saved.IsDelayedGroupCollapsed;
         _macros = saved.Macros;
         _favoriteCommands = saved.FavoriteCommands;
+        _recentScenarios = saved.RecentScenarios;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -95,6 +97,7 @@ public sealed class UserPreferences
     public bool IsDelayedGroupCollapsed => _isDelayedGroupCollapsed;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _favoriteCommands;
+    public IReadOnlyList<string> RecentScenarios => _recentScenarios;
 
     public void SetServerUrl(string url)
     {
@@ -213,6 +216,17 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void AddRecentScenario(string filePath)
+    {
+        _recentScenarios.Remove(filePath);
+        _recentScenarios.Insert(0, filePath);
+        if (_recentScenarios.Count > 10)
+        {
+            _recentScenarios.RemoveRange(10, _recentScenarios.Count - 10);
+        }
+        Save();
+    }
+
     public void ResetGridLayout()
     {
         _gridLayout = null;
@@ -272,6 +286,7 @@ public sealed class UserPreferences
                 IsDelayedGroupCollapsed = saved?.IsDelayedGroupCollapsed ?? false,
                 Macros = saved?.Macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
                 FavoriteCommands = saved?.FavoriteCommands ?? [],
+                RecentScenarios = saved?.RecentScenarios ?? [],
             };
         }
         catch (JsonException)
@@ -306,6 +321,7 @@ public sealed class UserPreferences
         public bool IsDelayedGroupCollapsed { get; init; }
         public List<MacroDefinition> Macros { get; init; } = [];
         public List<FavoriteCommand> FavoriteCommands { get; init; } = [];
+        public List<string> RecentScenarios { get; init; } = [];
     }
 
     private void Save()
@@ -338,6 +354,7 @@ public sealed class UserPreferences
             IsDelayedGroupCollapsed = _isDelayedGroupCollapsed,
             Macros = _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList(),
             FavoriteCommands = [.. _favoriteCommands],
+            RecentScenarios = [.. _recentScenarios],
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
@@ -423,6 +440,7 @@ public sealed class UserPreferences
         public bool IsDelayedGroupCollapsed { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
+        public List<string> RecentScenarios { get; set; } = [];
     }
 
     private sealed class SavedCommandScheme
