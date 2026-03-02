@@ -499,7 +499,7 @@ public class TaxiPathfinderTests
     [InlineData("A", "AB", false)]
     public void IsNumberedVariant_ReturnsExpected(string candidate, string baseName, bool expected)
     {
-        Assert.Equal(expected, TaxiPathfinder.IsNumberedVariant(candidate, baseName));
+        Assert.Equal(expected, TaxiVariantResolver.IsNumberedVariant(candidate, baseName));
     }
 
     // --- RunwayIdMatches helper tests ---
@@ -1366,7 +1366,7 @@ public class TaxiPathfinderTests
         Assert.Null(failReason);
 
         // Route should have auto-inferred a W-variant (W1 or W2)
-        bool hasVariant = route.Segments.Any(s => TaxiPathfinder.IsNumberedVariant(s.TaxiwayName, "W"));
+        bool hasVariant = route.Segments.Any(s => TaxiVariantResolver.IsNumberedVariant(s.TaxiwayName, "W"));
         Assert.True(hasVariant, $"Expected W-variant segment, got: {string.Join(" -> ", route.Segments.Select(s => s.TaxiwayName))}");
 
         // Route should pass through a hold-short for runway 30 (the variant walk
