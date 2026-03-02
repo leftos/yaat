@@ -101,11 +101,10 @@ public abstract class MapCanvasBase : Control
         base.OnPointerPressed(e);
         var props = e.GetCurrentPoint(this).Properties;
 
-        if (props.IsLeftButtonPressed && _isPanZoomEnabled)
+        if (props.IsRightButtonPressed && _isPanZoomEnabled)
         {
             _isPanning = true;
             _lastPanPoint = e.GetPosition(this);
-            e.Handled = true;
         }
     }
 

@@ -71,11 +71,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when an aircraft is right-clicked. Args: callsign, screen position.</summary>
     public event Action<string, Point>? AircraftRightClicked;
 
-    /// <summary>Fired when empty space is right-clicked. Args: lat, lon, screen position.</summary>
-    public event Action<double, double, Point>? MapRightClicked;
-
     /// <summary>Fired when an aircraft is left-clicked. Args: callsign.</summary>
     public event Action<string>? AircraftLeftClicked;
+
+    /// <summary>Fired when empty space is left-clicked (deselect).</summary>
+    public event Action? EmptySpaceClicked;
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -141,9 +141,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         if (props.IsRightButtonPressed)
         {
-            HandleRightClick(pos);
-            e.Handled = true;
-            return;
+            if (HandleRightClick(pos))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            // No target hit — fall through to base for panning
         }
 
         if (props.IsLeftButtonPressed)
@@ -155,33 +159,31 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 e.Handled = true;
                 return;
             }
+
+            EmptySpaceClicked?.Invoke();
         }
 
         base.OnPointerPressed(e);
     }
 
-    private void HandleRightClick(Point screenPos)
+    /// <summary>Returns true if a context menu target was hit.</summary>
+    private bool HandleRightClick(Point screenPos)
     {
-        // Check aircraft first
         var ac = FindAircraftAtPoint(screenPos);
         if (ac is not null)
         {
             AircraftRightClicked?.Invoke(ac.Callsign, screenPos);
-            return;
+            return true;
         }
 
-        // Check node
         var node = FindNodeAtPoint(screenPos);
         if (node is not null)
         {
             NodeRightClicked?.Invoke(node.Id, screenPos);
-            return;
+            return true;
         }
 
-        // Empty map space
-        var (lat, lon) = Viewport.ScreenToLatLon(
-            (float)screenPos.X, (float)screenPos.Y);
-        MapRightClicked?.Invoke(lat, lon, screenPos);
+        return false;
     }
 
     public GroundNodeDto? FindNodeAtPoint(Point screenPos)

@@ -163,6 +163,14 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("DeleteAircraft", callsign);
     }
 
+    public async Task WarpAircraftAsync(
+        string callsign, double latitude, double longitude, double heading)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync(
+            "WarpAircraft", callsign, latitude, longitude, heading);
+    }
+
     public async Task<UnloadScenarioResultDto> UnloadScenarioAircraftAsync()
     {
         EnsureConnected();
