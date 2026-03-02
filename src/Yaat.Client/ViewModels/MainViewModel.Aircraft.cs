@@ -70,16 +70,16 @@ public partial class MainViewModel
             var existing = FindAircraft(dto.Callsign);
             if (existing is not null)
             {
+                var wasDelayed = existing.IsDelayed;
                 existing.UpdateFromDto(dto, ComputeDistance);
+                if (existing.IsDelayed != wasDelayed)
+                {
+                    AircraftView.Refresh();
+                }
             }
             else
             {
                 Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
-            }
-
-            if (FilterActiveOnly)
-            {
-                AircraftView.Refresh();
             }
         });
     }

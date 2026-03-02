@@ -39,6 +39,7 @@ public sealed class UserPreferences
     private bool _isGroundViewPoppedOut;
     private bool _isRadarViewPoppedOut;
     private Dictionary<string, SavedRadarSettings> _radarSettings;
+    private bool _isDelayedGroupCollapsed;
 
     public UserPreferences()
     {
@@ -64,6 +65,7 @@ public sealed class UserPreferences
         _isGroundViewPoppedOut = saved.IsGroundViewPoppedOut;
         _isRadarViewPoppedOut = saved.IsRadarViewPoppedOut;
         _radarSettings = saved.RadarSettings;
+        _isDelayedGroupCollapsed = saved.IsDelayedGroupCollapsed;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -86,6 +88,7 @@ public sealed class UserPreferences
     public bool IsDataGridPoppedOut => _isDataGridPoppedOut;
     public bool IsGroundViewPoppedOut => _isGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _isRadarViewPoppedOut;
+    public bool IsDelayedGroupCollapsed => _isDelayedGroupCollapsed;
 
     public void SetServerUrl(string url)
     {
@@ -186,6 +189,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetDelayedGroupCollapsed(bool collapsed)
+    {
+        _isDelayedGroupCollapsed = collapsed;
+        Save();
+    }
+
     public SavedRadarSettings? GetRadarSettings(string scenarioId)
     {
         _radarSettings.TryGetValue(scenarioId, out var settings);
@@ -235,6 +244,7 @@ public sealed class UserPreferences
                 IsGroundViewPoppedOut = saved?.IsGroundViewPoppedOut ?? false,
                 IsRadarViewPoppedOut = saved?.IsRadarViewPoppedOut ?? false,
                 RadarSettings = saved?.RadarSettings ?? [],
+                IsDelayedGroupCollapsed = saved?.IsDelayedGroupCollapsed ?? false,
             };
         }
         catch (JsonException)
@@ -266,6 +276,7 @@ public sealed class UserPreferences
         public bool IsGroundViewPoppedOut { get; init; }
         public bool IsRadarViewPoppedOut { get; init; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; init; } = [];
+        public bool IsDelayedGroupCollapsed { get; init; }
     }
 
     private void Save()
@@ -295,6 +306,7 @@ public sealed class UserPreferences
             IsGroundViewPoppedOut = _isGroundViewPoppedOut,
             IsRadarViewPoppedOut = _isRadarViewPoppedOut,
             RadarSettings = _radarSettings,
+            IsDelayedGroupCollapsed = _isDelayedGroupCollapsed,
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
@@ -377,6 +389,7 @@ public sealed class UserPreferences
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
+        public bool IsDelayedGroupCollapsed { get; set; }
     }
 
     private sealed class SavedCommandScheme

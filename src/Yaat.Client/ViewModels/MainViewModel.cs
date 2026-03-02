@@ -177,11 +177,11 @@ public partial class MainViewModel : ObservableObject
     public DataGridCollectionView AircraftView { get; }
 
     [ObservableProperty]
-    private bool _filterActiveOnly;
+    private bool _isDelayedGroupCollapsed;
 
-    partial void OnFilterActiveOnlyChanged(bool value)
+    partial void OnIsDelayedGroupCollapsedChanged(bool value)
     {
-        AircraftView.Filter = value ? obj => obj is AircraftModel ac && !ac.IsDelayedOrDeferred : null;
+        _preferences.SetDelayedGroupCollapsed(value);
     }
 
     public ObservableCollection<string> CommandHistory { get; } = [];
@@ -199,6 +199,8 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         AircraftView = new DataGridCollectionView(Aircraft);
+        AircraftView.GroupDescriptions.Add(new DataGridPathGroupDescription("GroupLabel"));
+        _isDelayedGroupCollapsed = _preferences.IsDelayedGroupCollapsed;
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync);
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync);
         Radar.SetPreferences(_preferences);
@@ -653,7 +655,7 @@ public partial class MainViewModel : ObservableObject
             return null;
         }
 
-        if (model.IsDelayedOrDeferred)
+        if (model.IsDelayed)
         {
             return null;
         }

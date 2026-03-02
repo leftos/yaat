@@ -14,6 +14,11 @@
               CanUserReorderColumns="True"
               SelectionMode="Single"
               RowDetailsVisibilityMode="VisibleWhenSelected">
+        <DataGrid.Styles>
+            <Style Selector="DataGridRowGroupHeader">
+                <Setter Property="IsItemCountVisible" Value="False" />
+            </Style>
+        </DataGrid.Styles>
         <DataGrid.RowDetailsTemplate>
             <DataTemplate>
                 <Border Padding="12,6"

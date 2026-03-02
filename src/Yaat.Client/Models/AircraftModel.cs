@@ -70,12 +70,15 @@ public partial class AircraftModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusDisplay))]
+    [NotifyPropertyChangedFor(nameof(IsDelayed))]
+    [NotifyPropertyChangedFor(nameof(GroupLabel))]
     private string _status = "";
 
     public string StatusDisplay => FormatStatus(Status);
 
-    public bool IsDelayedOrDeferred =>
-        Status.StartsWith("Delayed", StringComparison.Ordinal) || Status.StartsWith("Deferred", StringComparison.Ordinal);
+    public bool IsDelayed => Status.StartsWith("Delayed", StringComparison.Ordinal);
+
+    public string GroupLabel => IsDelayed ? "Delayed" : "Active";
 
     private static string FormatStatus(string status)
     {
@@ -382,10 +385,6 @@ public partial class AircraftModel : ObservableObject
             {
                 return (1, seconds);
             }
-        }
-        if (status.StartsWith("Deferred", StringComparison.Ordinal))
-        {
-            return (2, 0);
         }
         return (0, 0); // Active
     }

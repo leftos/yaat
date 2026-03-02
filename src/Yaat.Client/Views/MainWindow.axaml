@@ -40,9 +40,9 @@
                           Command="{Binding LeaveRoomCommand}" />
             </MenuItem>
             <MenuItem Header="_View">
-                <MenuItem Header="Filter Aircraft List to _Active Only"
+                <MenuItem Header="Collapse _Delayed Group"
                           ToggleType="CheckBox"
-                          IsChecked="{Binding FilterActiveOnly, Mode=TwoWay}" />
+                          IsChecked="{Binding IsDelayedGroupCollapsed, Mode=TwoWay}" />
                 <Separator />
                 <MenuItem Header="Pop Out Aircraft _List"
                           ToggleType="CheckBox"

@@ -44,7 +44,7 @@ Initials and ARTCC ID are required — you cannot connect without them.
 
 ## Aircraft List
 
-The main grid shows all aircraft in your scenario:
+The main grid shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Use **View > Collapse Delayed Group** to hide delayed aircraft that haven't spawned yet. This setting is persisted across sessions.
 
 | Column | Description |
 |--------|-------------|
@@ -93,7 +93,7 @@ The **Dist** column shows each aircraft's distance in nautical miles from a refe
 
 To change the reference fix, **right-click** the "Dist" column header. A flyout appears where you can type a fix name or FRD (fix-radial-distance) string. Autocomplete suggestions appear as you type. Press **Enter** or click a suggestion to apply, **Escape** to cancel.
 
-Delayed and deferred aircraft (not yet spawned) show a blank distance.
+Delayed aircraft (not yet spawned) show a blank distance.
 
 ## Commands
 

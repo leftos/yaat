@@ -440,7 +440,7 @@ public partial class CommandInputController : ObservableObject
 
     private void AddCommandVerbSuggestions(string token, string fullText, CommandScheme scheme, AircraftModel? targetAircraft = null)
     {
-        var isDelayed = targetAircraft?.IsDelayedOrDeferred == true;
+        var isDelayed = targetAircraft?.IsDelayed == true;
 
         // Collect candidates with match quality so exact alias matches sort first.
         // 0 = exact alias match, 1 = alias prefix match, 2 = label substring match
