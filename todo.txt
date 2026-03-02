@@ -5,5 +5,3 @@ approach evaluator
 visual approach 
 expect approach 
 direct failure if not programmed
-
-one control scheme inspired by both 
