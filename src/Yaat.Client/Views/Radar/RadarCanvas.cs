@@ -179,11 +179,21 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
-    protected override void RenderContent(
-        SKCanvas canvas, MapViewport viewport)
+    private sealed record RenderSnapshot(
+        IReadOnlyList<VideoMapData> VideoMaps,
+        Dictionary<string, string> BrightnessLookup,
+        IReadOnlyList<AircraftModel> Aircraft,
+        AircraftModel? SelectedAircraft,
+        bool ShowRangeRings,
+        double RangeNm,
+        double RadarCenterLat,
+        double RadarCenterLon,
+        bool ShowFixes,
+        IReadOnlyList<(string Name, double Lat, double Lon)>? Fixes);
+
+    protected override object? CreateRenderSnapshot()
     {
-        _renderer.Render(
-            canvas, viewport,
+        return new RenderSnapshot(
             VideoMaps ?? Array.Empty<VideoMapData>(),
             _brightnessLookup,
             Aircraft ?? Array.Empty<AircraftModel>(),
@@ -194,6 +204,23 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             RadarCenterLon,
             ShowFixes,
             Fixes);
+    }
+
+    protected override void RenderFromSnapshot(
+        SKCanvas canvas, MapViewport viewport, object? snapshot)
+    {
+        if (snapshot is not RenderSnapshot s)
+        {
+            return;
+        }
+
+        _renderer.Render(
+            canvas, viewport,
+            s.VideoMaps, s.BrightnessLookup,
+            s.Aircraft, s.SelectedAircraft,
+            s.ShowRangeRings, s.RangeNm,
+            s.RadarCenterLat, s.RadarCenterLon,
+            s.ShowFixes, s.Fixes);
     }
 
     protected override void OnPointerPressed(

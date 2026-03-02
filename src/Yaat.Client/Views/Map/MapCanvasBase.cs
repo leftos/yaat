@@ -41,7 +41,20 @@ public abstract class MapCanvasBase : Control
         _isDirty = true;
     }
 
-    protected abstract void RenderContent(SKCanvas canvas, MapViewport viewport);
+    /// <summary>
+    /// Called on the UI thread to capture styled property values into a
+    /// snapshot object. The snapshot is then passed to
+    /// <see cref="RenderFromSnapshot"/> on the render thread,
+    /// avoiding cross-thread access to Avalonia properties.
+    /// </summary>
+    protected abstract object? CreateRenderSnapshot();
+
+    /// <summary>
+    /// Called on the render thread with the snapshot from
+    /// <see cref="CreateRenderSnapshot"/>. Do not access StyledProperties here.
+    /// </summary>
+    protected abstract void RenderFromSnapshot(
+        SKCanvas canvas, MapViewport viewport, object? snapshot);
 
     /// <summary>Called when the viewport changes (pan/zoom). Override to react.</summary>
     protected virtual void OnViewportChanged() { }
@@ -49,7 +62,12 @@ public abstract class MapCanvasBase : Control
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        var op = new MapDrawOperation(this, new Rect(0, 0, Bounds.Width, Bounds.Height));
+        // Capture property values on the UI thread
+        var snapshot = CreateRenderSnapshot();
+        var viewportCopy = _viewport.Clone();
+        var op = new MapDrawOperation(
+            this, new Rect(0, 0, Bounds.Width, Bounds.Height),
+            snapshot, viewportCopy);
         context.Custom(op);
     }
 
@@ -131,10 +149,16 @@ public abstract class MapCanvasBase : Control
     private sealed class MapDrawOperation : ICustomDrawOperation
     {
         private readonly MapCanvasBase _owner;
+        private readonly object? _snapshot;
+        private readonly MapViewport _viewport;
 
-        public MapDrawOperation(MapCanvasBase owner, Rect bounds)
+        public MapDrawOperation(
+            MapCanvasBase owner, Rect bounds,
+            object? snapshot, MapViewport viewport)
         {
             _owner = owner;
+            _snapshot = snapshot;
+            _viewport = viewport;
             Bounds = bounds;
         }
 
@@ -156,7 +180,7 @@ public abstract class MapCanvasBase : Control
 
             using var lease = feature.Lease();
             var canvas = lease.SkCanvas;
-            _owner.RenderContent(canvas, _owner._viewport);
+            _owner.RenderFromSnapshot(canvas, _viewport, _snapshot);
         }
     }
 }

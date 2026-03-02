@@ -86,11 +86,34 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
     }
 
-    protected override void RenderContent(SKCanvas canvas, MapViewport viewport)
+    private sealed record RenderSnapshot(
+        GroundLayoutDto? Layout,
+        IReadOnlyList<AircraftModel> Aircraft,
+        AircraftModel? SelectedAircraft,
+        int? HoveredNodeId,
+        TaxiRoute? ActiveRoute);
+
+    protected override object? CreateRenderSnapshot()
     {
-        _renderer.Render(canvas, viewport, Layout,
+        return new RenderSnapshot(
+            Layout,
             Aircraft ?? Array.Empty<AircraftModel>(),
-            SelectedAircraft, _hoveredNodeId, ActiveRoute);
+            SelectedAircraft,
+            _hoveredNodeId,
+            ActiveRoute);
+    }
+
+    protected override void RenderFromSnapshot(
+        SKCanvas canvas, MapViewport viewport, object? snapshot)
+    {
+        if (snapshot is not RenderSnapshot s)
+        {
+            return;
+        }
+
+        _renderer.Render(canvas, viewport, s.Layout,
+            s.Aircraft, s.SelectedAircraft,
+            s.HoveredNodeId, s.ActiveRoute);
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)

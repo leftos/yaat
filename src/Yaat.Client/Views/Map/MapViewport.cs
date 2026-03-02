@@ -71,6 +71,18 @@ public sealed class MapViewport
         CenterLat = lat + (screenY - PixelHeight / 2.0) / ppd;
     }
 
+    public MapViewport Clone()
+    {
+        return new MapViewport
+        {
+            CenterLat = CenterLat,
+            CenterLon = CenterLon,
+            Zoom = Zoom,
+            PixelWidth = PixelWidth,
+            PixelHeight = PixelHeight,
+        };
+    }
+
     public void FitBounds(double minLat, double maxLat, double minLon, double maxLon)
     {
         CenterLat = (minLat + maxLat) / 2.0;
