@@ -337,9 +337,17 @@ public sealed class UserPreferences
 
     private static SavedCommandScheme ToSaved(CommandScheme scheme)
     {
+        var defaults = CommandScheme.Default();
         var patterns = new Dictionary<string, SavedPattern>();
         foreach (var (type, pattern) in scheme.Patterns)
         {
+            // Only persist aliases that differ from defaults — unmodified commands
+            // always pick up the latest default aliases on next load.
+            if (defaults.Patterns.TryGetValue(type, out var defaultPattern) && pattern.Aliases.SequenceEqual(defaultPattern.Aliases))
+            {
+                continue;
+            }
+
             patterns[type.ToString()] = new SavedPattern { Aliases = pattern.Aliases, Format = pattern.Format };
         }
 

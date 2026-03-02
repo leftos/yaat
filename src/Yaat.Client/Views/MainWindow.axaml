@@ -23,9 +23,6 @@
                 <MenuItem Header="{Binding ConnectMenuText, FallbackValue='_Connect'}"
                           Command="{Binding ConnectCommand}" />
                 <Separator />
-                <MenuItem Header="_Settings..."
-                          x:Name="SettingsMenuItem" />
-                <Separator />
                 <MenuItem Header="E_xit"
                           Command="{Binding ExitCommand}" />
             </MenuItem>
@@ -43,11 +40,11 @@
                           Command="{Binding LeaveRoomCommand}" />
             </MenuItem>
             <MenuItem Header="_View">
-                <MenuItem Header="_Active Only"
+                <MenuItem Header="Filter Aircraft List to _Active Only"
                           ToggleType="CheckBox"
                           IsChecked="{Binding FilterActiveOnly, Mode=TwoWay}" />
                 <Separator />
-                <MenuItem Header="Pop Out _Aircraft List"
+                <MenuItem Header="Pop Out Aircraft _List"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsDataGridPoppedOut, Mode=TwoWay}" />
                 <MenuItem Header="Pop Out _Ground View"
@@ -63,6 +60,8 @@
                 <MenuItem Header="_Unload Scenario"
                           Command="{Binding UnloadScenarioCommand}" />
             </MenuItem>
+            <MenuItem Header="_Settings"
+                        x:Name="SettingsMenuItem" />
         </Menu>
 
         <!-- Status bar -->

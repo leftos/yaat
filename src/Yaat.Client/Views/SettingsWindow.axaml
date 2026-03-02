@@ -12,18 +12,23 @@
     <DockPanel Margin="12">
 
         <!-- Bottom buttons -->
-        <StackPanel DockPanel.Dock="Bottom"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Spacing="8"
-                    Margin="0,12,0,0">
-            <Button Content="Save"
-                    x:Name="SaveButton"
-                    Width="80" />
-            <Button Content="Cancel"
-                    x:Name="CancelButton"
-                    Width="80" />
-        </StackPanel>
+        <DockPanel DockPanel.Dock="Bottom"
+                   Margin="0,12,0,0">
+            <Button Content="Reset to Defaults"
+                    Command="{Binding ResetCommandsToDefaultsCommand}"
+                    DockPanel.Dock="Left"
+                    IsVisible="{Binding IsSelected, ElementName=CommandsTab}" />
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="8">
+                <Button Content="Save"
+                        x:Name="SaveButton"
+                        Width="80" />
+                <Button Content="Cancel"
+                        x:Name="CancelButton"
+                        Width="80" />
+            </StackPanel>
+        </DockPanel>
 
         <!-- Tab content -->
         <TabControl>
@@ -129,17 +134,42 @@
             </TabItem>
 
             <!-- Commands tab -->
-            <TabItem Header="Commands">
+            <TabItem Header="Commands" x:Name="CommandsTab">
                 <DockPanel Margin="12">
 
+                    <!-- Try it out -->
+                    <StackPanel DockPanel.Dock="Bottom" Spacing="4" Margin="0,12,0,0">
+                        <TextBlock Text="Try it out:" Foreground="Gray" />
+                        <TextBox Text="{Binding TestCommandInput}"
+                                 Watermark="Type a command to test (e.g., FH 270, H270, T30L)" />
+                        <TextBlock Text="{Binding TestCommandResult}"
+                                   IsVisible="{Binding TestCommandResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                   FontFamily="Consolas,Menlo,monospace"
+                                   Classes.error="{Binding TestCommandIsError}">
+                            <TextBlock.Styles>
+                                <Style Selector="TextBlock">
+                                    <Setter Property="Foreground" Value="#4EC9B0" />
+                                </Style>
+                                <Style Selector="TextBlock.error">
+                                    <Setter Property="Foreground" Value="#F44747" />
+                                </Style>
+                            </TextBlock.Styles>
+                        </TextBlock>
+                    </StackPanel>
+
                     <!-- Verb mapping table -->
-                    <DataGrid ItemsSource="{Binding VerbMappings}"
+                    <DataGrid ItemsSource="{Binding GroupedVerbMappings}"
                               AutoGenerateColumns="False"
                               GridLinesVisibility="Horizontal"
                               CanUserResizeColumns="False"
                               CanUserSortColumns="False"
                               SelectionMode="Single"
                               HeadersVisibility="Column">
+                        <DataGrid.Styles>
+                            <Style Selector="DataGridRowGroupHeader">
+                                <Setter Property="IsItemCountVisible" Value="False" />
+                            </Style>
+                        </DataGrid.Styles>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Command"
                                 Binding="{Binding CommandName}"

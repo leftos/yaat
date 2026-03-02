@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Collections;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Services;
@@ -10,6 +11,7 @@ public partial class VerbMappingRow : ObservableObject
 {
     public required CanonicalCommandType CommandType { get; init; }
     public required string CommandName { get; init; }
+    public required string Category { get; init; }
     public required string Format { get; init; }
     public required string? SampleArg { get; init; }
 
@@ -60,6 +62,15 @@ public partial class SettingsViewModel : ObservableObject
     private string _artccId = "";
 
     [ObservableProperty]
+    private string _testCommandInput = "";
+
+    [ObservableProperty]
+    private string _testCommandResult = "";
+
+    [ObservableProperty]
+    private bool _testCommandIsError;
+
+    [ObservableProperty]
     private bool _isAdminMode;
 
     [ObservableProperty]
@@ -77,6 +88,7 @@ public partial class SettingsViewModel : ObservableObject
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
+    public DataGridCollectionView GroupedVerbMappings { get; }
 
     public SettingsViewModel()
         : this(new UserPreferences()) { }
@@ -84,6 +96,8 @@ public partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(UserPreferences preferences)
     {
         _preferences = preferences;
+        GroupedVerbMappings = new DataGridCollectionView(VerbMappings);
+        GroupedVerbMappings.GroupDescriptions.Add(new DataGridPathGroupDescription("Category"));
         LoadFromScheme(_preferences.CommandScheme);
         _serverUrl = _preferences.ServerUrl;
         _vatsimCid = _preferences.VatsimCid;
@@ -131,6 +145,15 @@ public partial class SettingsViewModel : ObservableObject
 
     public bool Saved { get; private set; }
 
+    [RelayCommand]
+    private void ResetCommandsToDefaults()
+    {
+        LoadFromScheme(CommandScheme.Default());
+
+        // Re-run the test input against the reset scheme
+        OnTestCommandInputChanged(TestCommandInput);
+    }
+
     private void LoadFromScheme(CommandScheme scheme)
     {
         VerbMappings.Clear();
@@ -146,6 +169,7 @@ public partial class SettingsViewModel : ObservableObject
             {
                 CommandType = cmd.Type,
                 CommandName = cmd.Label,
+                Category = cmd.Category,
                 Format = pattern.Format,
                 SampleArg = cmd.SampleArg,
                 Aliases = string.Join(", ", pattern.Aliases),
@@ -190,6 +214,91 @@ public partial class SettingsViewModel : ObservableObject
         }
 
         return result.Trim();
+    }
+
+    partial void OnTestCommandInputChanged(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            TestCommandResult = "";
+            TestCommandIsError = false;
+            return;
+        }
+
+        var scheme = BuildSchemeFromRows();
+        var compoundResult = CommandSchemeParser.ParseCompound(value, scheme);
+
+        if (compoundResult is null)
+        {
+            TestCommandResult = "Unrecognized command";
+            TestCommandIsError = true;
+            return;
+        }
+
+        var labels = CollectCommandLabels(value, scheme);
+        var labelSuffix = labels.Count > 0 ? $"  ({string.Join(", ", labels)})" : "";
+
+        TestCommandResult = $"→ {compoundResult.CanonicalString}{labelSuffix}";
+        TestCommandIsError = false;
+    }
+
+    private static List<string> CollectCommandLabels(string input, CommandScheme scheme)
+    {
+        var labels = new List<string>();
+        var blocks = input.Split(';');
+
+        foreach (var blockStr in blocks)
+        {
+            var block = blockStr.Trim();
+            if (string.IsNullOrEmpty(block))
+            {
+                continue;
+            }
+
+            // Strip condition prefixes (LV/AT/GIVEWAY/BEHIND + argument)
+            var upper = block.ToUpperInvariant();
+            var remaining = block;
+            if (upper.StartsWith("LV ") || upper.StartsWith("AT ") || upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND "))
+            {
+                var tokens = block.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+                remaining = tokens.Length >= 3 ? tokens[2] : "";
+            }
+
+            var commands = remaining.Split(',');
+            foreach (var cmdStr in commands)
+            {
+                var cmd = cmdStr.Trim();
+                if (string.IsNullOrEmpty(cmd))
+                {
+                    continue;
+                }
+
+                var parsed = CommandSchemeParser.Parse(cmd, scheme);
+                if (parsed is not null)
+                {
+                    var label = LabelForType(parsed.Type);
+                    if (label is not null)
+                    {
+                        labels.Add(label);
+                    }
+                }
+            }
+        }
+
+        return labels;
+    }
+
+    private static string? LabelForType(CanonicalCommandType type)
+    {
+        foreach (var cmd in CommandMetadata.AllCommands)
+        {
+            if (cmd.Type == type)
+            {
+                return cmd.Label;
+            }
+        }
+
+        return null;
     }
 
     private static int AutoDeleteOverrideToIndex(string value) =>
