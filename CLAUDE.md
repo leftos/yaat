@@ -391,7 +391,7 @@ When invoking aviation-sim-expert, always include:
 - **No newlines in text strings**: Never split literal text across lines in `.axaml` or `.cs` files. The indentation whitespace becomes visible at runtime (huge gaps in UI text). Keep `Text="..."`, `Content="..."`, and interpolated strings on one line, even if long.
 - **Error Handling**: Never swallow exceptions. Log with `AppLog` (client) or `ILogger` (Sim).
 - **Line width**: 150 characters, not 80 or 120. CSharpier is configured accordingly.
-- **Pre-commit formatting**: Run `dotnet format` then `dotnet csharpier format .` before each commit, followed by a final `dotnet build` to verify neither tool broke anything.
+- **Pre-commit formatting**: Run `dotnet format style`, `dotnet format analyzers`, then `dotnet csharpier format .` before each commit, followed by a final `dotnet build` to verify nothing broke. Do NOT run bare `dotnet format` (its whitespace rules fight with CSharpier).
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
 - **Memory Updates**: Distill Explore agent findings into auto-memory at `C:\Users\Leftos\.claude\projects\X--dev-yaat\memory\`.
 - **Milestone Roadmap**: See `docs/plans/main-plan.md`. M0/M1 complete; M2 (tower ops) next.
