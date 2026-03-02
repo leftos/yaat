@@ -69,7 +69,7 @@
                 BorderThickness="0,1,0,0"
                 Padding="8,2">
             <TextBlock Text="{Binding StatusText}"
-                       Foreground="Gray"
+                       Foreground="{DynamicResource SubtleTextBrush}"
                        FontSize="11" />
         </Border>
 
@@ -256,7 +256,7 @@
                                         /><Run Text="'s Room" />
                                     </TextBlock>
                                     <TextBlock
-                                        Foreground="Gray"
+                                        Foreground="{DynamicResource SubtleTextBrush}"
                                         FontSize="11">
                                         <Run Text="{Binding
                                             ScenarioName,
@@ -335,7 +335,7 @@
                                         Foreground="White"
                                         Text="{Binding DisplayName, TargetNullValue='(connecting...)'}" />
                                     <TextBlock
-                                        Foreground="Gray"
+                                        Foreground="{DynamicResource SubtleTextBrush}"
                                         FontSize="11">
                                         <Run Text="{Binding PositionId, TargetNullValue='No position'}" />
                                         <Run Text=" · " />
@@ -353,7 +353,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
             <TextBlock Text="No CRC clients in room"
-                       Foreground="Gray"
+                       Foreground="{DynamicResource SubtleTextBrush}"
                        FontSize="11"
                        IsVisible="{Binding !CrcRoomMembers.Count}" />
 
@@ -380,7 +380,7 @@
                                         Foreground="White"
                                         Text="{Binding DisplayName, TargetNullValue='(connecting...)'}" />
                                     <TextBlock
-                                        Foreground="Gray"
+                                        Foreground="{DynamicResource SubtleTextBrush}"
                                         FontSize="11">
                                         <Run Text="{Binding ArtccId, TargetNullValue='Unknown'}" />
                                         <Run Text=" · " />
@@ -398,7 +398,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
             <TextBlock Text="No CRC clients in lobby"
-                       Foreground="Gray"
+                       Foreground="{DynamicResource SubtleTextBrush}"
                        FontSize="11"
                        IsVisible="{Binding !CrcLobbyClients.Count}" />
 

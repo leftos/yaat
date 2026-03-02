@@ -14,7 +14,7 @@
                        FontWeight="Bold"
                        FontSize="12"
                        VerticalAlignment="Center"
-                       Foreground="Gray" />
+                       Foreground="{DynamicResource SubtleTextBrush}" />
             <Button Grid.Column="1"
                     Content="{Binding IsTerminalDocked,
                         Converter={x:Static vm:DockButtonConverter.Instance}}"

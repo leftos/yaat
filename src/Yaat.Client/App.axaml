@@ -2,6 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Yaat.Client.App"
              RequestedThemeVariant="Dark">
+    <Application.Resources>
+        <SolidColorBrush x:Key="SubtleTextBrush" Color="#B0B0B0" />
+    </Application.Resources>
+
     <Application.Styles>
         <FluentTheme DensityStyle="Compact" />
         <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
@@ -52,7 +56,7 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="TextBlock.subtle">
-            <Setter Property="Foreground" Value="Gray" />
+            <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}" />
             <Setter Property="FontSize" Value="11" />
         </Style>
     </Application.Styles>

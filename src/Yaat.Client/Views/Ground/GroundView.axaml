@@ -15,7 +15,7 @@
 
         <!-- No layout message -->
         <TextBlock Text="No airport layout loaded"
-                   Foreground="Gray"
+                   Foreground="{DynamicResource SubtleTextBrush}"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNull}}" />

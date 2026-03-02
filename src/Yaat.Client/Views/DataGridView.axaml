@@ -31,7 +31,7 @@
                                     IsVisible="{Binding HasPhases}">
                             <TextBlock Text="Phases"
                                        Width="80"
-                                       Foreground="Gray"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding PhaseSequenceDisplay}"
                                        FontFamily="Consolas"
@@ -42,7 +42,7 @@
                                     IsVisible="{Binding HasPattern}">
                             <TextBlock Text="Pattern"
                                        Width="80"
-                                       Foreground="Gray"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding PatternDisplay}"
                                        FontSize="12" />
@@ -52,7 +52,7 @@
                                     IsVisible="{Binding HasClearance}">
                             <TextBlock Text="Clearance"
                                        Width="80"
-                                       Foreground="Gray"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding ClearanceDisplay}"
                                        Foreground="LightGreen"
@@ -63,7 +63,7 @@
                                     IsVisible="{Binding HasNavigationRoute}">
                             <TextBlock Text="Route"
                                        Width="80"
-                                       Foreground="Gray"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding NavigationRoute}"
                                        FontSize="12" />
@@ -73,7 +73,7 @@
                                     IsVisible="{Binding HasCruise}">
                             <TextBlock Text="Cruise"
                                        Width="80"
-                                       Foreground="Gray"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding CruiseDisplay}"
                                        FontSize="12" />
@@ -83,7 +83,7 @@
                                     IsVisible="{Binding PendingCommands, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                             <TextBlock Text="Pending"
                                        Width="80"
-                                       Foreground="Gray"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding PendingCommands}"
                                        FontSize="12"

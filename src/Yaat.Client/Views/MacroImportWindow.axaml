@@ -12,7 +12,7 @@
 
         <TextBlock DockPanel.Dock="Top"
                    Text="Select macros to import:"
-                   Foreground="Gray"
+                   Foreground="{DynamicResource SubtleTextBrush}"
                    Margin="0,0,0,8" />
 
         <!-- Bottom buttons -->
