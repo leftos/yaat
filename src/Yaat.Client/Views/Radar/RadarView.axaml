@@ -99,22 +99,60 @@
                        Margin="8,0" />
         </StackPanel>
 
-        <!-- Radar canvas -->
-        <radar:RadarCanvas x:Name="Canvas"
-                           Aircraft="{Binding $parent[Window].DataContext.Aircraft}"
-                           SelectedAircraft="{Binding SelectedAircraft}"
-                           VideoMaps="{Binding ActiveVideoMaps}"
-                           ShowRangeRings="{Binding ShowRangeRings}"
-                           RangeNm="{Binding RangeNm}"
-                           RadarCenterLat="{Binding CenterLat}"
-                           RadarCenterLon="{Binding CenterLon}"
-                           ShowFixes="{Binding ShowFixes}"
-                           Fixes="{Binding Fixes}"
-                           RangeRingCenterLat="{Binding RangeRingCenterLat}"
-                           RangeRingCenterLon="{Binding RangeRingCenterLon}"
-                           RangeRingSizeNm="{Binding RangeRingSizeNm}"
-                           IsPanZoomLocked="{Binding IsPanZoomLocked}"
-                           IsPlacingRangeRing="{Binding IsPlacingRangeRing}" />
+        <!-- Radar canvas + overlay popups -->
+        <Grid>
+            <radar:RadarCanvas x:Name="Canvas"
+                               Aircraft="{Binding $parent[Window].DataContext.Aircraft}"
+                               SelectedAircraft="{Binding SelectedAircraft}"
+                               VideoMaps="{Binding ActiveVideoMaps}"
+                               ShowRangeRings="{Binding ShowRangeRings}"
+                               RangeNm="{Binding RangeNm}"
+                               RadarCenterLat="{Binding CenterLat}"
+                               RadarCenterLon="{Binding CenterLon}"
+                               ShowFixes="{Binding ShowFixes}"
+                               Fixes="{Binding Fixes}"
+                               RangeRingCenterLat="{Binding RangeRingCenterLat}"
+                               RangeRingCenterLon="{Binding RangeRingCenterLon}"
+                               RangeRingSizeNm="{Binding RangeRingSizeNm}"
+                               IsPanZoomLocked="{Binding IsPanZoomLocked}"
+                               IsPlacingRangeRing="{Binding IsPlacingRangeRing}" />
+
+            <!-- Input popup (free-text entry for commands) -->
+            <Popup x:Name="InputPopup"
+                   IsLightDismissEnabled="True"
+                   PlacementTarget="{Binding #Canvas}"
+                   Placement="Pointer">
+                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="6" CornerRadius="2">
+                    <StackPanel Spacing="4">
+                        <TextBox x:Name="InputPopupText"
+                                 Width="160" FontSize="12"
+                                 KeyDown="OnInputPopupKeyDown" />
+                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                            <Button Content="OK"
+                                    Click="OnInputPopupSubmit"
+                                    Padding="8,2" FontSize="11" />
+                            <Button Content="Cancel"
+                                    Click="OnInputPopupCancel"
+                                    Padding="8,2" FontSize="11" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Popup>
+
+            <!-- List popup (scrollable value picker for heading, altitude, DCT) -->
+            <Popup x:Name="ListPopup"
+                   IsLightDismissEnabled="True"
+                   PlacementTarget="{Binding #Canvas}"
+                   Placement="Pointer">
+                <Border Background="#222" BorderBrush="#555" BorderThickness="1" CornerRadius="2">
+                    <ListBox x:Name="ListPopupItems"
+                             MaxHeight="300" Width="120"
+                             FontSize="12" FontFamily="Consolas"
+                             Background="#222" Foreground="#CCC"
+                             SelectionChanged="OnListPopupSelectionChanged" />
+                </Border>
+            </Popup>
+        </Grid>
     </DockPanel>
 
 </UserControl>

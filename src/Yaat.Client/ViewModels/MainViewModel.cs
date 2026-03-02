@@ -230,6 +230,7 @@ public partial class MainViewModel : ObservableObject
                 logger: AppLog.CreateLogger<FixDatabase>());
 
             _commandInput.FixDb = fixDb;
+            Radar.SetElevationLookup(fixDb.GetAirportElevation);
             _log.LogInformation(
                 "Navdata loaded: {Count} fixes available for autocomplete",
                 fixDb.Count);
@@ -1444,6 +1445,7 @@ public partial class MainViewModel : ObservableObject
             ActiveScenarioId = state.ScenarioId;
             ActiveScenarioName = state.ScenarioName;
             _commandInput.PrimaryAirportId = state.PrimaryAirportId;
+            Radar.SetPrimaryAirportId(state.PrimaryAirportId);
             ApplySimState(state.IsPaused, (int)state.SimRate);
 
             if (!string.IsNullOrEmpty(state.PrimaryAirportId))
@@ -1475,6 +1477,7 @@ public partial class MainViewModel : ObservableObject
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.Name;
         _commandInput.PrimaryAirportId = result.PrimaryAirportId;
+        Radar.SetPrimaryAirportId(result.PrimaryAirportId);
         ApplySimState(result.IsPaused, result.SimRate);
 
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
@@ -1519,6 +1522,7 @@ public partial class MainViewModel : ObservableObject
         ActiveScenarioId = null;
         ActiveScenarioName = null;
         _commandInput.PrimaryAirportId = null;
+        Radar.SetPrimaryAirportId(null);
         Aircraft.Clear();
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
