@@ -168,8 +168,7 @@ public sealed class FinalApproachPhase : Phase
             $"{ctx.Aircraft.Callsign} is going around (no landing clearance)");
 
         // VFR aircraft without a pattern direction default to left traffic
-        bool isVfr = ctx.Aircraft.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
-        if (isVfr && ctx.Aircraft.Phases.TrafficDirection is null)
+        if (ctx.Aircraft.IsVfr && ctx.Aircraft.Phases.TrafficDirection is null)
         {
             ctx.Aircraft.Phases.TrafficDirection = PatternDirection.Left;
         }

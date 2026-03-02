@@ -7,6 +7,8 @@ public class AircraftState
 {
     public required string Callsign { get; set; }
     public required string AircraftType { get; set; }
+    public string BaseAircraftType => AircraftType.Contains('/')
+        ? AircraftType.Split('/')[0] : AircraftType;
     public string? ScenarioId { get; set; }
     public string Cid { get; set; } = "";
     public double Latitude { get; set; }
@@ -23,6 +25,7 @@ public class AircraftState
     public string Remarks { get; set; } = "";
     public string EquipmentSuffix { get; set; } = "A";
     public string FlightRules { get; set; } = "IFR";
+    public bool IsVfr => FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
     public int CruiseAltitude { get; set; }
     public int CruiseSpeed { get; set; }
     public string TransponderMode { get; set; } = "C";
