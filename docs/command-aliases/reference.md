@@ -12,6 +12,33 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 
 ---
 
+## Implementation Summary
+
+88 `CanonicalCommandType` enum values, each with aliases in both presets. 92 bold rows below (4 extra rows are GA argument variants and the Give Way condition prefix, which map to existing types).
+
+| Category | Implemented | Not yet | Notes |
+|---|---|---|---|
+| Heading | 6/8 | 2 | Missing: Turn (dir as arg), Say Heading |
+| Altitude | 2/9 | 7 | Missing: Assign Alt, Expedite, Normal Rate, Cross Fix, CVIA/DVIA, Say Alt |
+| Speed | 1/11 | 10 | Missing: Min/Max/Present/Cancel/Floor/Ceiling, Mach, RNS, RFAS, Say Speed |
+| Transponder | **9/9** | 0 | Complete |
+| Navigation | 1/6 | 5 | Missing: Depart Fix, Join STAR/Airway/FAC, Airport/Dest |
+| Tower | 16/24 | 8 | Missing: CTO+traffic (×2), CTO present pos, CTO rwy hdg, FS†, LAND, LAHSO, GO |
+| Approach | 0/6 | 6 | Not started |
+| Pattern | 11/22 | 11 | Missing: Crosswind entry (×2), 270, 360s (×2), S-turns (×2), MNA, MSA, NO270, Pattern Size |
+| Hold | 6/7 | 1 | Missing: Hold (general — custom course/distance/direction) |
+| Sim Control | **8/8** | 0 | Complete (includes 3 YAAT-only) |
+| Track Ops | 18/19 | 1 | Missing: Strip |
+| Coordination | **5/5** | 0 | Complete (all YAAT-only) |
+| VFR | 0/3 | 3 | Not started |
+| Ground | 7/10 | 3 | Missing: Taxi All, HS†, Break |
+| Misc | 2/12 | 10 | Missing: FP, VP, Remarks, SAYF, Cleared, Delete At, Open Chat, OPS, Show At, Global Msg |
+| Debug | 0/6 | 6 | Not planned |
+
+**Total: 92/165** bold rows. †FS works as a CTL alias; HS works via `TAXI ... HS` syntax — both functional but not standalone commands.
+
+---
+
 ## YAAT-Only Commands
 
 Commands and behaviors that exist only in YAAT — not available in ATCTrainer or VICE.
@@ -319,10 +346,10 @@ VICE has no ground commands. The VICE preset uses ATCTrainer verbs.
 | Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
 |---|---|---|---|---|
 | **Add Aircraft** | ADD | — | ADD | ADD |
+| **Say** | SAY | — | SAY | SAY |
 | Flight Plan | FP | — | — | — |
 | VFR Flight Plan | VP | — | — | — |
 | Remarks | REMARKS | — | — | — |
-| Say | SAY | — | — | — |
 | Say Frequency | SAYF | — | — | — |
 | Cleared | CLRD | — | — | — |
 | Delete At | DELAT | — | — | — |
