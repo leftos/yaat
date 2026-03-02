@@ -103,6 +103,162 @@ public static class TaxiPathfinder
     public static TaxiRoute? FindRoute(
         AirportGroundLayout layout, int fromNodeId, int toNodeId)
     {
+        return FindRouteInternal(layout, fromNodeId, toNodeId, null, null);
+    }
+
+    /// <summary>
+    /// Find up to <paramref name="maxRoutes"/> distinct routes between two nodes
+    /// using Yen's K-shortest paths algorithm. Routes are deduplicated by taxiway
+    /// sequence (two routes with the same taxiway key keep only the shorter one).
+    /// </summary>
+    public static List<TaxiRoute> FindRoutes(
+        AirportGroundLayout layout, int fromNodeId, int toNodeId,
+        int maxRoutes = 4)
+    {
+        var first = FindRouteInternal(layout, fromNodeId, toNodeId, null, null);
+        if (first is null)
+        {
+            return [];
+        }
+
+        var results = new List<TaxiRoute> { first };
+        var candidates = new List<TaxiRoute>();
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal)
+        {
+            BuildTaxiwayKey(first),
+        };
+
+        for (int k = 1; k < maxRoutes; k++)
+        {
+            var prevRoute = results[k - 1];
+            var prevSegments = prevRoute.Segments;
+
+            for (int i = 0; i < prevSegments.Count; i++)
+            {
+                int spurNodeId = i == 0
+                    ? prevSegments[0].FromNodeId
+                    : prevSegments[i - 1].ToNodeId;
+
+                // Build blocked edges: for each existing result, if root matches,
+                // block the edge at the spur index
+                var blockedEdges = new HashSet<(int, int)>();
+                foreach (var result in results)
+                {
+                    if (result.Segments.Count <= i)
+                    {
+                        continue;
+                    }
+
+                    bool rootMatches = true;
+                    for (int j = 0; j < i; j++)
+                    {
+                        if (result.Segments[j].FromNodeId != prevSegments[j].FromNodeId
+                            || result.Segments[j].ToNodeId != prevSegments[j].ToNodeId)
+                        {
+                            rootMatches = false;
+                            break;
+                        }
+                    }
+
+                    if (rootMatches)
+                    {
+                        var seg = result.Segments[i];
+                        blockedEdges.Add((seg.FromNodeId, seg.ToNodeId));
+                        blockedEdges.Add((seg.ToNodeId, seg.FromNodeId));
+                    }
+                }
+
+                // Block nodes in root path except spur node
+                var blockedNodes = new HashSet<int>();
+                for (int j = 0; j < i; j++)
+                {
+                    blockedNodes.Add(prevSegments[j].FromNodeId);
+                }
+
+                var spurPath = FindRouteInternal(
+                    layout, spurNodeId, toNodeId, blockedEdges, blockedNodes);
+                if (spurPath is null)
+                {
+                    continue;
+                }
+
+                // Combine root + spur
+                var combinedSegments = new List<TaxiRouteSegment>();
+                for (int j = 0; j < i; j++)
+                {
+                    combinedSegments.Add(prevSegments[j]);
+                }
+
+                combinedSegments.AddRange(spurPath.Segments);
+
+                var holdShorts = new List<HoldShortPoint>();
+                AddImplicitRunwayHoldShorts(layout, combinedSegments, holdShorts);
+
+                var combined = new TaxiRoute
+                {
+                    Segments = combinedSegments,
+                    HoldShortPoints = holdShorts,
+                };
+                candidates.Add(combined);
+            }
+
+            // Pick shortest candidate with a unique taxiway key
+            candidates.Sort((a, b) =>
+                a.TotalDistanceNm.CompareTo(b.TotalDistanceNm));
+
+            TaxiRoute? nextRoute = null;
+            foreach (var candidate in candidates)
+            {
+                var key = BuildTaxiwayKey(candidate);
+                if (seenKeys.Add(key))
+                {
+                    nextRoute = candidate;
+                    break;
+                }
+            }
+
+            if (nextRoute is null)
+            {
+                break;
+            }
+
+            results.Add(nextRoute);
+            candidates.Remove(nextRoute);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Build a deduplication key from the ordered unique taxiway names in a route,
+    /// excluding RWY* and RAMP segments.
+    /// </summary>
+    internal static string BuildTaxiwayKey(TaxiRoute route)
+    {
+        var names = new List<string>();
+        foreach (var seg in route.Segments)
+        {
+            var name = seg.TaxiwayName;
+            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (names.Count == 0
+                || !string.Equals(names[^1], name, StringComparison.OrdinalIgnoreCase))
+            {
+                names.Add(name.ToUpperInvariant());
+            }
+        }
+
+        return string.Join("|", names);
+    }
+
+    private static TaxiRoute? FindRouteInternal(
+        AirportGroundLayout layout, int fromNodeId, int toNodeId,
+        HashSet<(int, int)>? blockedEdges, HashSet<int>? blockedNodes)
+    {
         if (!layout.Nodes.TryGetValue(fromNodeId, out var startNode)
             || !layout.Nodes.TryGetValue(toNodeId, out var endNode))
         {
@@ -137,6 +293,18 @@ public static class TaxiPathfinder
             {
                 int neighbor = edge.FromNodeId == current
                     ? edge.ToNodeId : edge.FromNodeId;
+
+                if (blockedNodes is not null && blockedNodes.Contains(neighbor))
+                {
+                    continue;
+                }
+
+                if (blockedEdges is not null
+                    && (blockedEdges.Contains((current, neighbor))
+                        || blockedEdges.Contains((neighbor, current))))
+                {
+                    continue;
+                }
 
                 double tentativeG = currentG + edge.DistanceNm;
 

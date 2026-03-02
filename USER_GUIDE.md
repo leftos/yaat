@@ -606,9 +606,19 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 - **Select aircraft**: click an aircraft triangle on the map (syncs with the grid selection)
 
 **Right-click context menus:**
-- **On a node** (with aircraft selected): "Taxi here", "Taxi here (cross all)", "Park here" (parking nodes), "Hold short" (hold-short nodes)
-- **On an aircraft**: "Hold position" / "Resume", "Pushback" (at parking), "Cross runway", "Line up and wait", "Cleared for takeoff", "Go around", "Delete"
-- **On empty space** (with aircraft selected): "Taxi here" (finds nearest node, computes A* path)
+- **On a node** (with aircraft selected): up to 4 route options ("Taxi via T U W") computed via K-shortest paths. When only one route exists it appears as a flat item; when multiple exist they nest under a "Taxi here" submenu. Routes that cross runways automatically append crossing commands. Also: "Hold short {rwy}" (hold-short nodes), "Park at {name}" (parking nodes).
+- **On an aircraft** — items vary by phase:
+  - *At Parking*: "Push back" (default), "Push back, face {taxiway}" (one per connected edge, with heading)
+  - *Pushback / Taxiing / Following*: "Hold position"
+  - *Taxiing*: "Hold short of..." submenu listing all intersecting runways and taxiways along the current taxi route
+  - *Holding Short {rwy}*: "Resume taxi", "Cross {rwy}", "Line up and wait {rwy}", "Cleared for takeoff {rwy}", plus crossing options for other nearby runways
+  - *Holding After Exit*: "Resume taxi"
+  - *Lined Up And Waiting*: "Cleared for takeoff {rwy}", "Cancel takeoff clearance"
+  - *Final Approach*: "Cleared to land", "Touch and go", "Stop and go", "Low approach", "Cleared for the option", "Go around", "Cancel landing clearance"
+  - *Landing*: "Exit left", "Exit right"
+  - *Takeoff*: "Cancel takeoff clearance"
+  - All phases include "Delete" at the bottom
+- **On empty space** (with aircraft selected): multi-route taxi options (same as node right-click), or pushback directions if aircraft is at parking
 
 The ground layout loads automatically when a scenario is loaded for an airport with ground data.
 

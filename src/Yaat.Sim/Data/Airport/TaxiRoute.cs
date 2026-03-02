@@ -8,6 +8,8 @@ public sealed class TaxiRoute
     public required List<TaxiRouteSegment> Segments { get; init; }
     public required List<HoldShortPoint> HoldShortPoints { get; init; }
 
+    public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
+
     /// <summary>Current segment index being traversed.</summary>
     public int CurrentSegmentIndex { get; set; }
 

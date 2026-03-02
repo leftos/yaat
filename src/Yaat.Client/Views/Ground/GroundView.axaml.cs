@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Ground;
 
@@ -89,10 +90,12 @@ public partial class GroundView : UserControl
         {
             var callsign = vm.SelectedAircraft.Callsign;
             var initials = GetInitials();
+            var fromNodeId = vm.GetAircraftNearestNodeId(vm.SelectedAircraft);
 
-            menu.Items.Add(CreateMenuItem(
-                $"Taxi to {node.Name ?? $"node {nodeId}"}",
-                () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
+            if (fromNodeId is not null)
+            {
+                AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, nodeId);
+            }
 
             if (node.Type == "RunwayHoldShort" && node.RunwayId is not null)
             {
@@ -122,7 +125,6 @@ public partial class GroundView : UserControl
             return;
         }
 
-        // Select the aircraft
         var mainVm = FindMainViewModel();
         var ac = mainVm?.Aircraft.FirstOrDefault(
             a => a.Callsign == callsign);
@@ -134,35 +136,110 @@ public partial class GroundView : UserControl
 
         var initials = GetInitials();
         var menu = new ContextMenu();
-
-        // State-dependent items
         var phase = ac?.CurrentPhase ?? "";
 
-        if (phase == "AtParking")
+        if (phase == "At Parking")
         {
-            menu.Items.Add(CreateMenuItem("Pushback",
+            menu.Items.Add(CreateMenuItem("Push back",
                 () => vm.PushbackAsync(callsign, initials)));
+
+            if (ac is not null)
+            {
+                foreach (var (label, heading) in vm.GetPushbackDirections(ac))
+                {
+                    var h = heading;
+                    menu.Items.Add(CreateMenuItem($"Push back, {label}",
+                        () => vm.PushbackHeadingAsync(callsign, initials, h)));
+                }
+            }
         }
 
-        if (phase is "TaxiingPhase" or "Taxiing")
+        if (phase is "Pushback" or "Taxiing")
         {
             menu.Items.Add(CreateMenuItem("Hold position",
                 () => vm.HoldPositionAsync(callsign, initials)));
         }
 
-        if (phase is "HoldingShort" or "HoldingAfterExit")
+        if (phase == "Taxiing" && ac is not null)
         {
+            AddHoldShortSubmenu(menu, vm, ac, callsign, initials);
+        }
+
+        if (phase.StartsWith("Following", StringComparison.Ordinal))
+        {
+            menu.Items.Add(CreateMenuItem("Hold position",
+                () => vm.HoldPositionAsync(callsign, initials)));
+        }
+
+        if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
+        {
+            var rwyId = ExtractHoldingShortRunway(phase, ac);
+
             menu.Items.Add(CreateMenuItem("Resume taxi",
                 () => vm.ResumeAsync(callsign, initials)));
 
-            AddRunwayCrossingItems(menu, vm, ac, callsign, initials);
-            AddRunwayItems(menu, vm, ac, callsign, initials);
+            if (rwyId is not null)
+            {
+                menu.Items.Add(CreateMenuItem($"Cross {rwyId}",
+                    () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
+                menu.Items.Add(CreateMenuItem($"Line up and wait {rwyId}",
+                    () => vm.LineUpAndWaitAsync(callsign, initials, rwyId)));
+                menu.Items.Add(CreateMenuItem($"Cleared for takeoff {rwyId}",
+                    () => vm.ClearedForTakeoffAsync(callsign, initials, rwyId)));
+            }
+
+            AddNearbyRunwayCrossings(menu, vm, ac, callsign, initials, rwyId);
         }
 
-        if (phase is "FinalApproach" or "FinalApproachPhase")
+        if (phase == "Holding After Exit")
         {
+            menu.Items.Add(CreateMenuItem("Resume taxi",
+                () => vm.ResumeAsync(callsign, initials)));
+        }
+
+        if (phase == "LinedUpAndWaiting")
+        {
+            var rwyId = ac?.AssignedRunway;
+            if (!string.IsNullOrEmpty(rwyId))
+            {
+                menu.Items.Add(CreateMenuItem($"Cleared for takeoff {rwyId}",
+                    () => vm.ClearedForTakeoffAsync(callsign, initials, rwyId)));
+            }
+
+            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance",
+                () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
+        }
+
+        if (phase == "FinalApproach")
+        {
+            menu.Items.Add(CreateMenuItem("Cleared to land",
+                () => vm.ClearedToLandAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Touch and go",
+                () => vm.TouchAndGoAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Stop and go",
+                () => vm.StopAndGoAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Low approach",
+                () => vm.LowApproachAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Cleared for the option",
+                () => vm.ClearedForOptionAsync(callsign, initials)));
             menu.Items.Add(CreateMenuItem("Go around",
                 () => vm.GoAroundAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Cancel landing clearance",
+                () => vm.CancelLandingClearanceAsync(callsign, initials)));
+        }
+
+        if (phase == "Landing")
+        {
+            menu.Items.Add(CreateMenuItem("Exit left",
+                () => vm.ExitLeftAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Exit right",
+                () => vm.ExitRightAsync(callsign, initials)));
+        }
+
+        if (phase == "Takeoff")
+        {
+            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance",
+                () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
         }
 
         menu.Items.Add(new Separator());
@@ -194,23 +271,111 @@ public partial class GroundView : UserControl
         var callsign = vm.SelectedAircraft.Callsign;
         var initials = GetInitials();
         var menu = new ContextMenu();
+        var phase = vm.SelectedAircraft.CurrentPhase ?? "";
 
-        menu.Items.Add(CreateMenuItem("Taxi here",
-            () => vm.TaxiToNodeAsync(callsign, initials, nearestNodeId.Value)));
+        if (phase == "At Parking")
+        {
+            menu.Items.Add(CreateMenuItem("Push back",
+                () => vm.PushbackAsync(callsign, initials)));
 
-        ShowContextMenu(menu, screenPos);
+            foreach (var (label, heading) in vm.GetPushbackDirections(vm.SelectedAircraft))
+            {
+                var h = heading;
+                menu.Items.Add(CreateMenuItem($"Push back, {label}",
+                    () => vm.PushbackHeadingAsync(callsign, initials, h)));
+            }
+        }
+        else
+        {
+            var fromNodeId = vm.GetAircraftNearestNodeId(vm.SelectedAircraft);
+            if (fromNodeId is not null)
+            {
+                AddTaxiRouteItems(menu, vm, callsign, initials,
+                    fromNodeId.Value, nearestNodeId.Value);
+            }
+        }
+
+        if (menu.Items.Count > 0)
+        {
+            ShowContextMenu(menu, screenPos);
+        }
     }
 
-    private void AddRunwayCrossingItems(
+    private static void AddTaxiRouteItems(
+        ContextMenu menu, GroundViewModel vm,
+        string callsign, string initials,
+        int fromNodeId, int toNodeId)
+    {
+        var routes = vm.FindRoutesToNode(fromNodeId, toNodeId);
+
+        if (routes.Count == 0)
+        {
+            var disabled = new MenuItem { Header = "No route found", IsEnabled = false };
+            menu.Items.Add(disabled);
+            return;
+        }
+
+        if (routes.Count == 1)
+        {
+            var route = routes[0];
+            var displayName = vm.GetTaxiwayDisplayName(route);
+            var command = vm.BuildTaxiCommandWithCrossings(route);
+
+            menu.Items.Add(CreateMenuItem($"Taxi {displayName}",
+                () =>
+                {
+                    vm.ActiveRoute = route;
+                    return vm.SendRawCommandAsync(callsign, initials, command);
+                }));
+        }
+        else
+        {
+            var parent = new MenuItem { Header = "Taxi here" };
+            foreach (var route in routes)
+            {
+                var r = route;
+                var displayName = vm.GetTaxiwayDisplayName(r);
+                var command = vm.BuildTaxiCommandWithCrossings(r);
+
+                parent.Items.Add(CreateMenuItem(displayName,
+                    () =>
+                    {
+                        vm.ActiveRoute = r;
+                        return vm.SendRawCommandAsync(callsign, initials, command);
+                    }));
+            }
+
+            menu.Items.Add(parent);
+        }
+    }
+
+    private static string? ExtractHoldingShortRunway(
+        string phase, AircraftModel? ac)
+    {
+        // Phase name: "Holding Short 28L/10R" → extract runway after "Holding Short "
+        const string prefix = "Holding Short ";
+        if (phase.StartsWith(prefix, StringComparison.Ordinal)
+            && phase.Length > prefix.Length)
+        {
+            var rwyPart = phase[prefix.Length..];
+            // Use first part of compound ID: "28L/10R" → "28L"
+            var slashIdx = rwyPart.IndexOf('/');
+            return slashIdx > 0 ? rwyPart[..slashIdx] : rwyPart;
+        }
+
+        return !string.IsNullOrEmpty(ac?.AssignedRunway)
+            ? ac.AssignedRunway : null;
+    }
+
+    private static void AddNearbyRunwayCrossings(
         ContextMenu menu, GroundViewModel vm, AircraftModel? ac,
-        string callsign, string initials)
+        string callsign, string initials, string? excludeRunway)
     {
         if (ac is null || vm.Layout is null)
         {
             return;
         }
 
-        // Find nearby runway hold-short nodes
         foreach (var node in vm.Layout.Nodes)
         {
             if (node.Type != "RunwayHoldShort" || node.RunwayId is null)
@@ -222,49 +387,43 @@ public partial class GroundView : UserControl
                 ac.Latitude, ac.Longitude,
                 node.Latitude, node.Longitude);
 
-            if (dist < 0.1)
-            {
-                var rwyId = node.RunwayId;
-                menu.Items.Add(CreateMenuItem(
-                    $"Cross runway {rwyId}",
-                    () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
-            }
-        }
-    }
-
-    private void AddRunwayItems(
-        ContextMenu menu, GroundViewModel vm, AircraftModel? ac,
-        string callsign, string initials)
-    {
-        if (ac is null || vm.Layout is null)
-        {
-            return;
-        }
-
-        foreach (var node in vm.Layout.Nodes)
-        {
-            if (node.Type != "RunwayHoldShort" || node.RunwayId is null)
+            if (dist >= 0.1)
             {
                 continue;
             }
 
-            var dist = Yaat.Sim.GeoMath.DistanceNm(
-                ac.Latitude, ac.Longitude,
-                node.Latitude, node.Longitude);
-
-            if (dist < 0.1)
+            // Extract first part for comparison and display
+            var rwyId = node.RunwayId.Split('/')[0];
+            if (excludeRunway is not null
+                && string.Equals(rwyId, excludeRunway, StringComparison.OrdinalIgnoreCase))
             {
-                var rwyId = node.RunwayId;
-                menu.Items.Add(CreateMenuItem(
-                    $"Line up and wait {rwyId}",
-                    () => vm.LineUpAndWaitAsync(
-                        callsign, initials, rwyId)));
-                menu.Items.Add(CreateMenuItem(
-                    $"Cleared for takeoff {rwyId}",
-                    () => vm.ClearedForTakeoffAsync(
-                        callsign, initials, rwyId)));
+                continue;
             }
+
+            menu.Items.Add(CreateMenuItem($"Cross {rwyId}",
+                () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
         }
+    }
+
+    private static void AddHoldShortSubmenu(
+        ContextMenu menu, GroundViewModel vm, AircraftModel ac,
+        string callsign, string initials)
+    {
+        var targets = vm.GetHoldShortTargets(ac);
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        var parent = new MenuItem { Header = "Hold short of..." };
+        foreach (var (displayName, target) in targets)
+        {
+            var t = target;
+            parent.Items.Add(CreateMenuItem(displayName,
+                () => vm.HoldShortAsync(callsign, initials, t)));
+        }
+
+        menu.Items.Add(parent);
     }
 
     private static MenuItem CreateMenuItem(
@@ -322,7 +481,6 @@ public partial class GroundView : UserControl
 
     private MainViewModel? FindMainViewModel()
     {
-        // Walk up the visual tree to find a MainViewModel DataContext
         var parent = this.Parent;
         while (parent is not null)
         {

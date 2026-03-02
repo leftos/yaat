@@ -460,6 +460,200 @@ public class TaxiPathfinderTests
         Assert.Equal(2, route.Segments[^1].ToNodeId);
     }
 
+    // --- FindRoutes (K-shortest paths) tests ---
+
+    [Fact]
+    public void FindRoutes_LinearLayout_ReturnsSingleRoute()
+    {
+        // A linear A→B→C→D layout has only one path
+        var layout = BuildSimpleLayout();
+        var routes = TaxiPathfinder.FindRoutes(layout, 0, 3);
+
+        Assert.Single(routes);
+        Assert.Equal(3, routes[0].Segments.Count);
+    }
+
+    [Fact]
+    public void FindRoutes_DiamondLayout_ReturnsTwoRoutes()
+    {
+        // Diamond: 0→1 via T, 0→2 via U, 1→3 via V, 2→3 via W
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+
+        var n0 = new GroundNode { Id = 0, Latitude = 37.700, Longitude = -122.200, Type = GroundNodeType.TaxiwayIntersection };
+        var n1 = new GroundNode { Id = 1, Latitude = 37.701, Longitude = -122.201, Type = GroundNodeType.TaxiwayIntersection };
+        var n2 = new GroundNode { Id = 2, Latitude = 37.701, Longitude = -122.199, Type = GroundNodeType.TaxiwayIntersection };
+        var n3 = new GroundNode { Id = 3, Latitude = 37.702, Longitude = -122.200, Type = GroundNodeType.TaxiwayIntersection };
+
+        layout.Nodes[0] = n0;
+        layout.Nodes[1] = n1;
+        layout.Nodes[2] = n2;
+        layout.Nodes[3] = n3;
+
+        var e01 = new GroundEdge { FromNodeId = 0, ToNodeId = 1, TaxiwayName = "T", DistanceNm = 0.06 };
+        var e02 = new GroundEdge { FromNodeId = 0, ToNodeId = 2, TaxiwayName = "U", DistanceNm = 0.06 };
+        var e13 = new GroundEdge { FromNodeId = 1, ToNodeId = 3, TaxiwayName = "V", DistanceNm = 0.06 };
+        var e23 = new GroundEdge { FromNodeId = 2, ToNodeId = 3, TaxiwayName = "W", DistanceNm = 0.06 };
+
+        layout.Edges.AddRange([e01, e02, e13, e23]);
+        n0.Edges.AddRange([e01, e02]);
+        n1.Edges.AddRange([e01, e13]);
+        n2.Edges.AddRange([e02, e23]);
+        n3.Edges.AddRange([e13, e23]);
+
+        var routes = TaxiPathfinder.FindRoutes(layout, 0, 3);
+
+        Assert.Equal(2, routes.Count);
+        // Routes should use different taxiway sequences
+        var key0 = TaxiPathfinder.BuildTaxiwayKey(routes[0]);
+        var key1 = TaxiPathfinder.BuildTaxiwayKey(routes[1]);
+        Assert.NotEqual(key0, key1);
+    }
+
+    [Fact]
+    public void FindRoutes_Unreachable_ReturnsEmptyList()
+    {
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+        layout.Nodes[0] = new GroundNode { Id = 0, Latitude = 37.7, Longitude = -122.2, Type = GroundNodeType.TaxiwayIntersection };
+        layout.Nodes[1] = new GroundNode { Id = 1, Latitude = 37.8, Longitude = -122.3, Type = GroundNodeType.TaxiwayIntersection };
+
+        var routes = TaxiPathfinder.FindRoutes(layout, 0, 1);
+
+        Assert.Empty(routes);
+    }
+
+    [Fact]
+    public void FindRoutes_DeduplicatesSameTaxiwaySequence()
+    {
+        // Layout where two paths share the same taxiway sequence
+        // 0 --[A]--> 1 --[B]--> 3
+        // 0 --[A]--> 2 --[B]--> 3
+        // Both are A|B — should deduplicate to one
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+
+        var n0 = new GroundNode { Id = 0, Latitude = 37.700, Longitude = -122.200, Type = GroundNodeType.TaxiwayIntersection };
+        var n1 = new GroundNode { Id = 1, Latitude = 37.701, Longitude = -122.201, Type = GroundNodeType.TaxiwayIntersection };
+        var n2 = new GroundNode { Id = 2, Latitude = 37.701, Longitude = -122.199, Type = GroundNodeType.TaxiwayIntersection };
+        var n3 = new GroundNode { Id = 3, Latitude = 37.702, Longitude = -122.200, Type = GroundNodeType.TaxiwayIntersection };
+
+        layout.Nodes[0] = n0;
+        layout.Nodes[1] = n1;
+        layout.Nodes[2] = n2;
+        layout.Nodes[3] = n3;
+
+        var e01 = new GroundEdge { FromNodeId = 0, ToNodeId = 1, TaxiwayName = "A", DistanceNm = 0.06 };
+        var e02 = new GroundEdge { FromNodeId = 0, ToNodeId = 2, TaxiwayName = "A", DistanceNm = 0.07 };
+        var e13 = new GroundEdge { FromNodeId = 1, ToNodeId = 3, TaxiwayName = "B", DistanceNm = 0.06 };
+        var e23 = new GroundEdge { FromNodeId = 2, ToNodeId = 3, TaxiwayName = "B", DistanceNm = 0.05 };
+
+        layout.Edges.AddRange([e01, e02, e13, e23]);
+        n0.Edges.AddRange([e01, e02]);
+        n1.Edges.AddRange([e01, e13]);
+        n2.Edges.AddRange([e02, e23]);
+        n3.Edges.AddRange([e13, e23]);
+
+        var routes = TaxiPathfinder.FindRoutes(layout, 0, 3);
+
+        // Both routes are A|B — deduplication should keep only one
+        Assert.Single(routes);
+    }
+
+    [Fact]
+    public void FindRoutes_CappedAtMaxRoutes()
+    {
+        // Build a grid with many possible paths, request only 2
+        var layout = new AirportGroundLayout { AirportId = "TEST" };
+
+        // 5-node grid: 0→1→4, 0→2→4, 0→3→4 (3 distinct paths)
+        var n0 = new GroundNode { Id = 0, Latitude = 37.700, Longitude = -122.200, Type = GroundNodeType.TaxiwayIntersection };
+        var n1 = new GroundNode { Id = 1, Latitude = 37.701, Longitude = -122.202, Type = GroundNodeType.TaxiwayIntersection };
+        var n2 = new GroundNode { Id = 2, Latitude = 37.701, Longitude = -122.200, Type = GroundNodeType.TaxiwayIntersection };
+        var n3 = new GroundNode { Id = 3, Latitude = 37.701, Longitude = -122.198, Type = GroundNodeType.TaxiwayIntersection };
+        var n4 = new GroundNode { Id = 4, Latitude = 37.702, Longitude = -122.200, Type = GroundNodeType.TaxiwayIntersection };
+
+        layout.Nodes[0] = n0;
+        layout.Nodes[1] = n1;
+        layout.Nodes[2] = n2;
+        layout.Nodes[3] = n3;
+        layout.Nodes[4] = n4;
+
+        var e01 = new GroundEdge { FromNodeId = 0, ToNodeId = 1, TaxiwayName = "T", DistanceNm = 0.06 };
+        var e02 = new GroundEdge { FromNodeId = 0, ToNodeId = 2, TaxiwayName = "U", DistanceNm = 0.06 };
+        var e03 = new GroundEdge { FromNodeId = 0, ToNodeId = 3, TaxiwayName = "V", DistanceNm = 0.06 };
+        var e14 = new GroundEdge { FromNodeId = 1, ToNodeId = 4, TaxiwayName = "W", DistanceNm = 0.06 };
+        var e24 = new GroundEdge { FromNodeId = 2, ToNodeId = 4, TaxiwayName = "X", DistanceNm = 0.06 };
+        var e34 = new GroundEdge { FromNodeId = 3, ToNodeId = 4, TaxiwayName = "Y", DistanceNm = 0.06 };
+
+        layout.Edges.AddRange([e01, e02, e03, e14, e24, e34]);
+        n0.Edges.AddRange([e01, e02, e03]);
+        n1.Edges.AddRange([e01, e14]);
+        n2.Edges.AddRange([e02, e24]);
+        n3.Edges.AddRange([e03, e34]);
+        n4.Edges.AddRange([e14, e24, e34]);
+
+        var routes = TaxiPathfinder.FindRoutes(layout, 0, 4, maxRoutes: 2);
+
+        Assert.True(routes.Count <= 2);
+        Assert.True(routes.Count >= 1);
+    }
+
+    [Fact]
+    public void BuildTaxiwayKey_SkipsRwyAndRamp()
+    {
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                new TaxiRouteSegment
+                {
+                    FromNodeId = 0, ToNodeId = 1, TaxiwayName = "RAMP",
+                    Edge = new GroundEdge { FromNodeId = 0, ToNodeId = 1, TaxiwayName = "RAMP", DistanceNm = 0.01 },
+                },
+                new TaxiRouteSegment
+                {
+                    FromNodeId = 1, ToNodeId = 2, TaxiwayName = "T",
+                    Edge = new GroundEdge { FromNodeId = 1, ToNodeId = 2, TaxiwayName = "T", DistanceNm = 0.05 },
+                },
+                new TaxiRouteSegment
+                {
+                    FromNodeId = 2, ToNodeId = 3, TaxiwayName = "RWY28L",
+                    Edge = new GroundEdge { FromNodeId = 2, ToNodeId = 3, TaxiwayName = "RWY28L", DistanceNm = 0.1 },
+                },
+                new TaxiRouteSegment
+                {
+                    FromNodeId = 3, ToNodeId = 4, TaxiwayName = "U",
+                    Edge = new GroundEdge { FromNodeId = 3, ToNodeId = 4, TaxiwayName = "U", DistanceNm = 0.05 },
+                },
+            ],
+            HoldShortPoints = [],
+        };
+
+        Assert.Equal("T|U", TaxiPathfinder.BuildTaxiwayKey(route));
+    }
+
+    [Fact]
+    public void TotalDistanceNm_SumsSegments()
+    {
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                new TaxiRouteSegment
+                {
+                    FromNodeId = 0, ToNodeId = 1, TaxiwayName = "A",
+                    Edge = new GroundEdge { FromNodeId = 0, ToNodeId = 1, TaxiwayName = "A", DistanceNm = 0.1 },
+                },
+                new TaxiRouteSegment
+                {
+                    FromNodeId = 1, ToNodeId = 2, TaxiwayName = "B",
+                    Edge = new GroundEdge { FromNodeId = 1, ToNodeId = 2, TaxiwayName = "B", DistanceNm = 0.2 },
+                },
+            ],
+            HoldShortPoints = [],
+        };
+
+        Assert.Equal(0.3, route.TotalDistanceNm, precision: 10);
+    }
+
     // --- Integration tests using real airport GeoJSON ---
 
     private const string VzoaGeoJsonDir =
