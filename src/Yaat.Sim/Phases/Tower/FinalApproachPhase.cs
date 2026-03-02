@@ -164,8 +164,26 @@ public sealed class FinalApproachPhase : Phase
             return;
         }
 
-        var goAround = new GoAroundPhase();
-        ctx.Aircraft.Phases.InsertAfterCurrent(goAround);
+        ctx.Aircraft.PendingWarnings.Add(
+            $"{ctx.Aircraft.Callsign} is going around (no landing clearance)");
+
+        // VFR aircraft without a pattern direction default to left traffic
+        bool isVfr = ctx.Aircraft.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
+        if (isVfr && ctx.Aircraft.Phases.TrafficDirection is null)
+        {
+            ctx.Aircraft.Phases.TrafficDirection = PatternDirection.Left;
+        }
+
+        bool isPattern = ctx.Aircraft.Phases.TrafficDirection is not null;
+
+        var goAround = new GoAroundPhase
+        {
+            TargetAltitude = isPattern
+                ? (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category))
+                : null,
+        };
+
+        ctx.Aircraft.Phases.ReplaceUpcoming([goAround]);
         ctx.Aircraft.Phases.AdvanceToNext(ctx);
     }
 

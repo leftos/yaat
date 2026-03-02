@@ -231,7 +231,9 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTL` / `FS` | Cleared to land (full stop) |
 | `CTL NODEL` | Cleared to land (exempt from auto-delete after landing) |
 | `CLC` / `CTLC` | Cancel landing clearance |
-| `GA` | Go around (fly runway heading, climb to 1500 AGL) |
+| `GA` | Go around (fly runway heading, climb to 2,000 AGL) |
+| `GA MRT` | Go around, make right traffic |
+| `GA MLT` | Go around, make left traffic |
 | `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft |
 | `GA RH 50` | Go around, fly runway heading, climb to 5,000 ft |
 | `EL` | Exit runway to the left |
@@ -239,7 +241,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `EXIT A3` | Exit runway at taxiway A3 |
 | `EL NODEL` / `ER NODEL` / `EXIT A3 NODEL` | Exit with auto-delete exemption |
 
-The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments above). `RH` in the heading position means "runway heading."
+The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments above). `RH` in the heading position means "runway heading." `GA MRT`/`GA MLT` sets the aircraft into pattern mode (make right/left traffic) and climbs to pattern altitude. Auto go-around (no landing clearance by 0.5nm) broadcasts a warning; VFR and pattern traffic re-enter the pattern automatically, while IFR non-pattern traffic flies runway heading at 2,000 AGL.
 
 ### Pattern Commands
 

@@ -121,9 +121,7 @@ public static class CommandDescriber
             CancelTakeoffClearanceCommand => "CTOC",
             ClearedToLandCommand => "CTL",
             CancelLandingClearanceCommand => "CLC",
-            GoAroundCommand ga => ga.AssignedHeading is not null || ga.TargetAltitude is not null
-                ? $"GA {(ga.AssignedHeading?.ToString("000") ?? "RH")} {ga.TargetAltitude}"
-                : "GA",
+            GoAroundCommand ga => FormatGaCanonical(ga),
             EnterLeftDownwindCommand eld => eld.RunwayId is not null ? $"ELD {eld.RunwayId}" : "ELD",
             EnterRightDownwindCommand erd => erd.RunwayId is not null ? $"ERD {erd.RunwayId}" : "ERD",
             EnterLeftBaseCommand elb => DescribePatternBase("ELB", elb.RunwayId, elb.FinalDistanceNm),
@@ -288,9 +286,34 @@ public static class CommandDescriber
         return msg;
     }
 
+    private static string FormatGaCanonical(GoAroundCommand ga)
+    {
+        if (ga.TrafficPattern is PatternDirection.Left)
+        {
+            return "GA MLT";
+        }
+        if (ga.TrafficPattern is PatternDirection.Right)
+        {
+            return "GA MRT";
+        }
+        if (ga.AssignedHeading is not null || ga.TargetAltitude is not null)
+        {
+            return $"GA {(ga.AssignedHeading?.ToString("000") ?? "RH")} {ga.TargetAltitude}";
+        }
+        return "GA";
+    }
+
     private static string DescribeGaNatural(GoAroundCommand ga)
     {
         var msg = "Go around";
+        if (ga.TrafficPattern is PatternDirection.Left)
+        {
+            msg += ", make left traffic";
+        }
+        else if (ga.TrafficPattern is PatternDirection.Right)
+        {
+            msg += ", make right traffic";
+        }
         if (ga.AssignedHeading is not null)
         {
             msg += $", fly heading {ga.AssignedHeading:000}";

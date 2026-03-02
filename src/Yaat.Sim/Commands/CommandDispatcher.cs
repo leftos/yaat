@@ -377,16 +377,39 @@ public static class CommandDispatcher
             case GoAroundCommand ga:
                 if (aircraft.Phases is not null && !aircraft.Phases.IsComplete)
                 {
+                    if (ga.TrafficPattern is { } patDir)
+                    {
+                        aircraft.Phases.TrafficDirection = patDir;
+                    }
+
+                    bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
+                    var gaCtx = BuildMinimalContext(aircraft, logger);
+                    int? gaTargetAlt = ga.TargetAltitude;
+
+                    if (gaTargetAlt is null && isGaPattern)
+                    {
+                        double fieldElev = gaCtx.Runway?.ElevationFt ?? 0;
+                        double patAgl = CategoryPerformance.PatternAltitudeAgl(gaCtx.Category);
+                        gaTargetAlt = (int)(fieldElev + patAgl);
+                    }
+
                     var goAround = new GoAroundPhase
                     {
                         AssignedHeading = ga.AssignedHeading,
-                        TargetAltitude = ga.TargetAltitude,
+                        TargetAltitude = gaTargetAlt,
                     };
-                    aircraft.Phases.InsertAfterCurrent(goAround);
-                    var gaCtx = BuildMinimalContext(aircraft, logger);
+                    aircraft.Phases.ReplaceUpcoming([goAround]);
                     aircraft.Phases.AdvanceToNext(gaCtx);
 
                     var gaMsg = "Go around";
+                    if (ga.TrafficPattern is PatternDirection.Left)
+                    {
+                        gaMsg += ", make left traffic";
+                    }
+                    else if (ga.TrafficPattern is PatternDirection.Right)
+                    {
+                        gaMsg += ", make right traffic";
+                    }
                     if (ga.AssignedHeading is not null)
                     {
                         gaMsg += $", fly heading {ga.AssignedHeading:000}";

@@ -64,7 +64,8 @@ public record ClearedForTakeoffCommand(
 public record CancelTakeoffClearanceCommand : ParsedCommand;
 
 public record GoAroundCommand(
-    int? AssignedHeading = null, int? TargetAltitude = null) : ParsedCommand;
+    int? AssignedHeading = null, int? TargetAltitude = null,
+    PatternDirection? TrafficPattern = null) : ParsedCommand;
 
 public record ClearedToLandCommand(bool NoDelete = false) : ParsedCommand;
 

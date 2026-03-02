@@ -4,13 +4,13 @@ namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
 /// Go-around: full power, climb on runway heading, accelerate.
-/// Completes at 1500ft AGL (self-clear) or assigned altitude.
+/// Completes at 2000ft AGL (self-clear) or assigned altitude.
 /// RPO commands clear the phase, allowing immediate re-vectoring.
 /// </summary>
 public sealed class GoAroundPhase : Phase
 {
     private const double NoTurnAgl = 400.0;
-    private const double SelfClearAgl = 1500.0;
+    private const double SelfClearAgl = 2000.0;
 
     private double _fieldElevation;
     private double _runwayHeading;
@@ -20,7 +20,7 @@ public sealed class GoAroundPhase : Phase
     /// <summary>Heading to fly (null = runway heading).</summary>
     public int? AssignedHeading { get; init; }
 
-    /// <summary>Altitude to climb to (null = self-clear at 1500 AGL).</summary>
+    /// <summary>Altitude to climb to (null = self-clear at 2000 AGL).</summary>
     public int? TargetAltitude { get; init; }
 
     public override void OnStart(PhaseContext ctx)

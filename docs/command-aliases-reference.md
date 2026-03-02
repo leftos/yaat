@@ -93,6 +93,8 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 | Takeoff Present Position | CTOPP | — | — | — |
 | Takeoff Runway Heading | CTORH | — | — | — |
 | **Go Around** | GA | GA (VFR "go ahead") | GA | GA |
+| **Go Around Make Left Traffic** | GAMLT | — | (via GA MLT) | (via GA MLT) |
+| **Go Around Make Right Traffic** | GAMRT | — | (via GA MRT) | (via GA MRT) |
 | **Cleared to Land** | — | — | CTL, FS | CTL, FS |
 | **Cancel Landing Clearance** | — | — | CLC, CTLC | CLC, CTLC |
 | **Touch and Go** | TG | — | TG | TG |
@@ -116,6 +118,8 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 > ClearedForOption (`COPT`) is YAAT-specific; neither ATCTrainer nor VICE has this command.
 >
 > VICE has no tower commands; the VICE preset uses ATCTrainer verbs for tower operations.
+>
+> `GA` accepts optional arguments: `GA MRT` / `GA MLT` (go around and make right/left traffic), `GA 270 5000` (heading + altitude), `GA RH 2000` (runway heading + altitude). `GAMRT` and `GAMLT` are verb aliases parsed by the server. Auto go-around (no landing clearance by 0.5nm) broadcasts a warning and re-enters the pattern for VFR and pattern traffic; IFR non-pattern aircraft fly runway heading at 2000 AGL.
 
 ## Approach
 

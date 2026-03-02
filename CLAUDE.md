@@ -117,7 +117,7 @@ TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
 InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned
 FinalApproachPhase.cs          # Glideslope; auto-go-around at 0.5nm; illegal intercept check (§5-9-1)
 LandingPhase.cs                # Flare→touchdown→rollout to 20kts
-GoAroundPhase.cs               # TOGA, runway heading, climb 1500ft AGL
+GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern alt for VFR/pattern traffic)
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
 HoldAtFixPhase.cs / HoldPresentPositionPhase.cs
 
