@@ -58,20 +58,12 @@ public sealed class SimulationWorld
                 return null;
             }
 
-            var speedOverrides = GroundConflictDetector
-                .ComputeSpeedOverrides(_aircraft);
+            GroundConflictDetector.ApplySpeedLimits(_aircraft);
 
             foreach (var ac in _aircraft)
             {
                 preTick?.Invoke(ac, deltaSeconds);
                 FlightPhysics.Update(ac, deltaSeconds, Lookup);
-
-                if (speedOverrides.TryGetValue(ac.Callsign, out double maxSpeed)
-                    && ac.IsOnGround
-                    && ac.GroundSpeed > maxSpeed)
-                {
-                    ac.GroundSpeed = maxSpeed;
-                }
             }
         }
     }

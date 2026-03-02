@@ -2,8 +2,8 @@ namespace Yaat.Sim;
 
 /// <summary>
 /// Detects and resolves ground conflicts between taxiing aircraft.
-/// Called once per tick over all ground aircraft. Returns speed overrides
-/// that should be applied before physics — does NOT modify ControlTargets.
+/// Called once per tick before physics. Writes GroundSpeedLimit onto
+/// each affected AircraftState so phases and physics respect it.
 /// </summary>
 public static class GroundConflictDetector
 {
@@ -16,19 +16,21 @@ public static class GroundConflictDetector
     private const double FtPerNm = 6076.12;
 
     /// <summary>
-    /// Compute ground speed overrides for all ground aircraft in the list.
-    /// Returns a dictionary of callsign → max allowed ground speed (kts).
-    /// Aircraft not in the dictionary are not affected.
+    /// Detect ground conflicts and set GroundSpeedLimit on affected aircraft.
+    /// Clears all limits first, then sets new ones based on proximity.
     /// </summary>
-    public static Dictionary<string, double> ComputeSpeedOverrides(
-        List<AircraftState> aircraft)
+    public static void ApplySpeedLimits(List<AircraftState> aircraft)
     {
-        var overrides = new Dictionary<string, double>();
+        // Clear previous limits
+        for (int i = 0; i < aircraft.Count; i++)
+        {
+            aircraft[i].GroundSpeedLimit = null;
+        }
 
         for (int i = 0; i < aircraft.Count; i++)
         {
             var a = aircraft[i];
-            if (!a.IsOnGround || a.GroundSpeed < 0.1)
+            if (!a.IsOnGround)
             {
                 continue;
             }
@@ -55,21 +57,18 @@ public static class GroundConflictDetector
 
                 if (headingDiff < SameDirectionMaxDeg)
                 {
-                    ResolveSameDirection(a, b, distFt, overrides);
+                    ResolveSameDirection(a, b, distFt);
                 }
                 else if (headingDiff > OppositeDirectionMinDeg)
                 {
-                    ResolveOppositeDirection(a, b, distFt, overrides);
+                    ResolveOppositeDirection(a, b, distFt);
                 }
             }
         }
-
-        return overrides;
     }
 
     private static void ResolveSameDirection(
-        AircraftState a, AircraftState b, double distFt,
-        Dictionary<string, double> overrides)
+        AircraftState a, AircraftState b, double distFt)
     {
         // Determine which aircraft is ahead
         double bearingAtoB = GeoMath.BearingTo(
@@ -86,18 +85,17 @@ public static class GroundConflictDetector
         if (diffAtoB < 90)
         {
             // A is behind B — A should slow down
-            ApplyTrailOverride(a, b, distFt, overrides);
+            ApplyTrailLimit(a, b, distFt);
         }
         else if (diffBtoA < 90)
         {
             // B is behind A — B should slow down
-            ApplyTrailOverride(b, a, distFt, overrides);
+            ApplyTrailLimit(b, a, distFt);
         }
     }
 
-    private static void ApplyTrailOverride(
-        AircraftState trailer, AircraftState leader, double distFt,
-        Dictionary<string, double> overrides)
+    private static void ApplyTrailLimit(
+        AircraftState trailer, AircraftState leader, double distFt)
     {
         double maxSpeed;
         if (distFt <= StopDistanceFt)
@@ -113,12 +111,11 @@ public static class GroundConflictDetector
             return;
         }
 
-        ApplyMinOverride(overrides, trailer.Callsign, maxSpeed);
+        ApplyMinLimit(trailer, maxSpeed);
     }
 
     private static void ResolveOppositeDirection(
-        AircraftState a, AircraftState b, double distFt,
-        Dictionary<string, double> overrides)
+        AircraftState a, AircraftState b, double distFt)
     {
         if (distFt > OppositeStopDistanceFt)
         {
@@ -134,21 +131,20 @@ public static class GroundConflictDetector
         // A is closing on B if bearing to B is within 90 degrees of A's heading
         if (diffA < 90)
         {
-            ApplyMinOverride(overrides, a.Callsign, 0);
-            ApplyMinOverride(overrides, b.Callsign, 0);
+            ApplyMinLimit(a, 0);
+            ApplyMinLimit(b, 0);
         }
     }
 
-    private static void ApplyMinOverride(
-        Dictionary<string, double> overrides, string callsign, double maxSpeed)
+    private static void ApplyMinLimit(AircraftState aircraft, double maxSpeed)
     {
-        if (overrides.TryGetValue(callsign, out double existing))
+        if (aircraft.GroundSpeedLimit is { } existing)
         {
-            overrides[callsign] = Math.Min(existing, maxSpeed);
+            aircraft.GroundSpeedLimit = Math.Min(existing, maxSpeed);
         }
         else
         {
-            overrides[callsign] = maxSpeed;
+            aircraft.GroundSpeedLimit = maxSpeed;
         }
     }
 

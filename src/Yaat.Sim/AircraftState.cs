@@ -42,6 +42,12 @@ public class AircraftState
     public bool IsHeld { get; set; }
     public bool AutoDeleteExempt { get; set; }
 
+    /// <summary>
+    /// Max ground speed (kts) imposed by GroundConflictDetector.
+    /// Null = no limit. Reset each tick before conflict detection runs.
+    /// </summary>
+    public double? GroundSpeedLimit { get; set; }
+
     // Track operations state
     public TrackOwner? Owner { get; set; }
     public TrackOwner? HandoffPeer { get; set; }

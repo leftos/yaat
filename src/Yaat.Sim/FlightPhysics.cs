@@ -165,6 +165,13 @@ public static class FlightPhysics
 
         double current = aircraft.GroundSpeed;
         double goal = target.Value;
+
+        // Clamp goal to ground conflict limit so phases don't accelerate past it
+        if (aircraft.IsOnGround && aircraft.GroundSpeedLimit is { } limit)
+        {
+            goal = Math.Min(goal, limit);
+        }
+
         double diff = goal - current;
 
         if (Math.Abs(diff) < SpeedSnapKts)
@@ -185,6 +192,14 @@ public static class FlightPhysics
 
     private static void UpdatePosition(AircraftState aircraft, double deltaSeconds)
     {
+        // Enforce ground conflict speed limit before computing displacement
+        if (aircraft.IsOnGround
+            && aircraft.GroundSpeedLimit is { } limit
+            && aircraft.GroundSpeed > limit)
+        {
+            aircraft.GroundSpeed = limit;
+        }
+
         double speedNmPerSec = aircraft.GroundSpeed / 3600.0;
         double headingRad = aircraft.Heading * DegToRad;
         double latRad = aircraft.Latitude * DegToRad;
