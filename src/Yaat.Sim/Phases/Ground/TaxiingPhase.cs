@@ -203,6 +203,12 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.Callsign, _targetNodeId,
             route.CurrentSegmentIndex, route.Segments.Count);
 
+        // Update taxiway name from the segment that brought us here
+        if (route.CurrentSegment is { } arrivedSeg)
+        {
+            ctx.Aircraft.CurrentTaxiway = arrivedSeg.TaxiwayName;
+        }
+
         // Check if this node is a hold-short point
         var holdShort = route.GetHoldShortAt(_targetNodeId);
         if (holdShort is not null && !holdShort.IsCleared)

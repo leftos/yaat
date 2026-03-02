@@ -38,13 +38,16 @@ public static class TaxiPathfinder
         int currentNodeId = fromNodeId;
         int segmentCountBeforeLastTw = 0;
 
-        foreach (string twName in taxiwayNames)
+        for (int twIdx = 0; twIdx < taxiwayNames.Count; twIdx++)
         {
+            string twName = taxiwayNames[twIdx];
+            string? nextTwName = twIdx + 1 < taxiwayNames.Count
+                ? taxiwayNames[twIdx + 1] : null;
             segmentCountBeforeLastTw = segments.Count;
 
             bool found = WalkTaxiway(
                 layout, currentNodeId, twName,
-                segments, out int endNodeId);
+                segments, out int endNodeId, nextTwName);
 
             if (!found)
             {
@@ -585,7 +588,8 @@ public static class TaxiPathfinder
         int startNodeId,
         string taxiwayName,
         List<TaxiRouteSegment> segments,
-        out int endNodeId)
+        out int endNodeId,
+        string? nextTaxiwayName = null)
     {
         endNodeId = startNodeId;
 
@@ -698,6 +702,13 @@ public static class TaxiPathfinder
 
             visited.Add(nextNodeId);
             currentId = nextNodeId;
+
+            // Stop early if this node connects to the next taxiway in the path
+            if (nextTaxiwayName is not null
+                && NodeHasEdgeTo(layout, currentId, nextTaxiwayName))
+            {
+                break;
+            }
         }
 
         endNodeId = currentId;
