@@ -114,6 +114,14 @@ public partial class MainWindow : Window
             SaveGridLayout(dataGrid, vm.Preferences);
         };
 
+        dataGrid.PointerCaptureLost += (_, _) =>
+        {
+            if (!_restoringGrid)
+            {
+                SaveGridLayout(dataGrid, vm.Preferences);
+            }
+        };
+
         WireDistanceFlyout(vm, dataGrid);
     }
 
@@ -175,6 +183,17 @@ public partial class MainWindow : Window
                     }
                 }
             }
+
+            if (layout.ColumnWidths is { Count: > 0 })
+            {
+                foreach (var col in dataGrid.Columns)
+                {
+                    if (layout.ColumnWidths.TryGetValue(GetColumnKey(col), out var width))
+                    {
+                        col.Width = new DataGridLength(width);
+                    }
+                }
+            }
         }
         finally
         {
@@ -191,12 +210,23 @@ public partial class MainWindow : Window
 
         var columnOrder = dataGrid.Columns.OrderBy(c => c.DisplayIndex).Select(GetColumnKey).ToList();
 
+        Dictionary<string, double>? columnWidths = null;
+        foreach (var col in dataGrid.Columns)
+        {
+            if (!col.Width.IsAuto)
+            {
+                columnWidths ??= [];
+                columnWidths[GetColumnKey(col)] = col.ActualWidth;
+            }
+        }
+
         prefs.SetGridLayout(
             new SavedGridLayout
             {
                 ColumnOrder = columnOrder,
                 SortColumn = _sortColumnKey,
                 SortDirection = _sortDirection,
+                ColumnWidths = columnWidths,
             }
         );
     }

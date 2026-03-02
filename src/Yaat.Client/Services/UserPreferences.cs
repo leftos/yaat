@@ -419,6 +419,7 @@ public sealed class SavedGridLayout
     public List<string>? ColumnOrder { get; set; }
     public string? SortColumn { get; set; }
     public ListSortDirection? SortDirection { get; set; }
+    public Dictionary<string, double>? ColumnWidths { get; set; }
 }
 
 public sealed class SavedRadarSettings
