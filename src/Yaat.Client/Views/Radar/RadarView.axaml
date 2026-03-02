@@ -12,16 +12,7 @@
                     Spacing="4"
                     Margin="4"
                     Background="#1A1A1A">
-            <Button Content="RNG+"
-                    Command="{Binding IncreaseRangeCommand}"
-                    Padding="6,2" FontSize="11" />
-            <Button Content="RNG-"
-                    Command="{Binding DecreaseRangeCommand}"
-                    Padding="6,2" FontSize="11" />
-
-            <Rectangle Width="1" Fill="#444" Margin="2,2" />
-
-            <!-- Map shortcut buttons (populated in code-behind) -->
+            <!-- Map shortcut buttons -->
             <ItemsControl x:Name="MapShortcutsPanel"
                           ItemsSource="{Binding MapShortcuts}">
                 <ItemsControl.ItemsPanel>
@@ -34,7 +25,7 @@
                         <Button Content="{Binding ShortName}"
                                 Tag="{Binding}"
                                 Click="OnMapShortcutClick"
-                                Padding="6,2" FontSize="11"
+                                Padding="10,4" FontSize="11"
                                 Foreground="{Binding IsEnabled, Converter={x:Static radar:RadarView.BoolToMapColor}}" />
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -50,14 +41,32 @@
                    IsLightDismissEnabled="True"
                    PlacementTarget="{Binding #MapButton}"
                    Placement="Bottom">
-                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="4">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBox x:Name="MapIdInput"
-                                 Watermark="Map #"
-                                 Width="60" FontSize="11" />
-                        <Button Content="OK"
-                                Click="OnMapIdSubmit"
-                                Padding="6,2" FontSize="11" />
+                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="6">
+                    <StackPanel Spacing="4" Width="220">
+                        <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding MapToggles}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:VideoMapToggleItem">
+                                        <CheckBox IsChecked="{Binding IsEnabled}"
+                                                  Click="OnMapToggleClick"
+                                                  Margin="0,1"
+                                                  FontSize="11"
+                                                  Foreground="#CCC">
+                                            <TextBlock Text="{Binding ShortName}" TextTrimming="CharacterEllipsis" />
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <Rectangle Height="1" Fill="#444" Margin="0,2" />
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBox x:Name="MapIdInput"
+                                     Watermark="Map #"
+                                     Width="60" FontSize="11" />
+                            <Button Content="OK"
+                                    Click="OnMapIdSubmit"
+                                    Padding="6,2" FontSize="11" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </Popup>
@@ -69,7 +78,8 @@
                     Padding="6,2" FontSize="11" />
             <Button x:Name="RrSizeButton"
                     Click="OnRrSizeClick"
-                    Padding="6,2" FontSize="11">
+                    Padding="6,2" FontSize="11"
+                    Foreground="{Binding IsAdjustingRangeRingSize, Converter={x:Static radar:RadarView.BoolToLatchColor}}">
                 <Button.Content>
                     <TextBlock Text="{Binding RangeRingSizeNm, StringFormat='RR {0:F0}'}" />
                 </Button.Content>
@@ -91,7 +101,7 @@
                     Foreground="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockColor}}"
                     Padding="6,2" FontSize="11" />
 
-            <TextBlock Text="{Binding RangeNm, StringFormat='Range: {0:F0}nm'}"
+            <TextBlock Text="{Binding #Canvas.ViewRangeNm, StringFormat='Range: {0:F0}nm'}"
                        VerticalAlignment="Center"
                        Foreground="#00B800"
                        FontFamily="Consolas"
@@ -113,9 +123,10 @@
                                Fixes="{Binding Fixes}"
                                RangeRingCenterLat="{Binding RangeRingCenterLat}"
                                RangeRingCenterLon="{Binding RangeRingCenterLon}"
-                               RangeRingSizeNm="{Binding RangeRingSizeNm}"
+                               RangeRingSizeNm="{Binding RangeRingSizeNm, Mode=TwoWay}"
                                IsPanZoomLocked="{Binding IsPanZoomLocked}"
-                               IsPlacingRangeRing="{Binding IsPlacingRangeRing}" />
+                               IsPlacingRangeRing="{Binding IsPlacingRangeRing}"
+                               IsAdjustingRangeRingSize="{Binding IsAdjustingRangeRingSize, Mode=TwoWay}" />
 
             <!-- Input popup (free-text entry for commands) -->
             <Popup x:Name="InputPopup"

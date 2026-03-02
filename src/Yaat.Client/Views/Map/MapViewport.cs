@@ -6,7 +6,7 @@ namespace Yaat.Client.Views.Map;
 /// </summary>
 public sealed class MapViewport
 {
-    private const double MinZoom = 0.5;
+    private const double MinZoom = 0.02;
     private const double MaxZoom = 10000.0;
     private const double DefaultPixelsPerDeg = 5000.0;
 

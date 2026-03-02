@@ -81,7 +81,17 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IsPlacingRangeRingProperty = AvaloniaProperty.Register<
             RadarCanvas, bool>(nameof(IsPlacingRangeRing));
 
+    public static readonly StyledProperty<double>
+        ViewRangeNmProperty = AvaloniaProperty.Register<
+            RadarCanvas, double>(
+            nameof(ViewRangeNm), defaultValue: 60);
+
+    public static readonly StyledProperty<bool>
+        IsAdjustingRangeRingSizeProperty = AvaloniaProperty.Register<
+            RadarCanvas, bool>(nameof(IsAdjustingRangeRingSize));
+
     private readonly RadarRenderer _renderer = new();
+    private bool _initialFitDone;
     private Dictionary<string, string> _brightnessLookup = [];
 
     public IReadOnlyList<AircraftModel>? Aircraft
@@ -168,6 +178,18 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(IsPlacingRangeRingProperty, value);
     }
 
+    public double ViewRangeNm
+    {
+        get => GetValue(ViewRangeNmProperty);
+        private set => SetValue(ViewRangeNmProperty, value);
+    }
+
+    public bool IsAdjustingRangeRingSize
+    {
+        get => GetValue(IsAdjustingRangeRingSizeProperty);
+        set => SetValue(IsAdjustingRangeRingSizeProperty, value);
+    }
+
     public float BrightnessA
     {
         get => _renderer.BrightnessA;
@@ -229,10 +251,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             MarkDirty();
         }
 
-        if (change.Property == RadarCenterLatProperty
-            || change.Property == RadarCenterLonProperty
-            || change.Property == RangeNmProperty)
+        // Only FitToRange on initial load (center set for first time)
+        if ((change.Property == RadarCenterLatProperty
+            || change.Property == RadarCenterLonProperty)
+            && !_initialFitDone
+            && RadarCenterLat != 0 && RadarCenterLon != 0)
         {
+            _initialFitDone = true;
             FitToRange();
         }
 
@@ -403,7 +428,63 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
-        FitToRange();
+        if (_initialFitDone)
+        {
+            UpdateViewRangeNm();
+        }
+        else
+        {
+            FitToRange();
+        }
+    }
+
+    protected override void OnViewportChanged()
+    {
+        UpdateViewRangeNm();
+    }
+
+    protected override void OnPointerWheelChanged(
+        PointerWheelEventArgs e)
+    {
+        if (IsAdjustingRangeRingSize)
+        {
+            var delta = e.Delta.Y > 0 ? 5.0 : -5.0;
+            RangeRingSizeNm = Math.Clamp(
+                RangeRingSizeNm + delta, 1, 200);
+            MarkDirty();
+            e.Handled = true;
+            return;
+        }
+
+        base.OnPointerWheelChanged(e);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (IsAdjustingRangeRingSize
+            && (e.Key == Key.Enter || e.Key == Key.Escape))
+        {
+            IsAdjustingRangeRingSize = false;
+            e.Handled = true;
+            return;
+        }
+
+        base.OnKeyDown(e);
+    }
+
+    private void UpdateViewRangeNm()
+    {
+        if (Viewport.PixelWidth < 1 || Viewport.Zoom < 1e-10)
+        {
+            return;
+        }
+
+        const double defaultPixelsPerDeg = 5000.0;
+        var maxPixels = Math.Max(
+            Viewport.PixelWidth, Viewport.PixelHeight);
+        var rangeNm = maxPixels * 60.0
+            / (defaultPixelsPerDeg * Viewport.Zoom);
+        ViewRangeNm = rangeNm;
     }
 
     public void Dispose()

@@ -14,8 +14,6 @@ public sealed class RadarRenderer : IDisposable
     private static readonly SKColor BackgroundColor = SKColors.Black;
     private static readonly SKColor RangeRingColor = new(0, 100, 0);
     private static readonly SKColor FixColor = new(0, 140, 0);
-    private static readonly SKColor CompassColor = new(0, 80, 0);
-
     private readonly VideoMapRenderer _videoMapRenderer = new();
     private readonly TargetRenderer _targetRenderer = new();
 
@@ -41,14 +39,6 @@ public sealed class RadarRenderer : IDisposable
         TextSize = 10,
         IsAntialias = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
-    };
-
-    private readonly SKPaint _compassPaint = new()
-    {
-        Color = CompassColor,
-        StrokeWidth = 1,
-        Style = SKPaintStyle.Stroke,
-        IsAntialias = true,
     };
 
     public float BrightnessA
@@ -89,9 +79,6 @@ public sealed class RadarRenderer : IDisposable
         // Range rings
         if (showRangeRings)
         {
-            // Compass rose at radar center
-            DrawCompassRose(canvas, vp, centerLat, centerLon);
-
             // Range ring at dedicated center + size
             var rrLat = rangeRingCenterLat != 0
                 ? rangeRingCenterLat : centerLat;
@@ -108,19 +95,6 @@ public sealed class RadarRenderer : IDisposable
 
         // Aircraft targets
         _targetRenderer.Render(canvas, vp, aircraft, selectedAircraft);
-    }
-
-    private void DrawCompassRose(
-        SKCanvas canvas, MapViewport vp,
-        double centerLat, double centerLon)
-    {
-        var (cx, cy) = vp.LatLonToScreen(centerLat, centerLon);
-        float compassRadius = Math.Max(
-            vp.PixelWidth, vp.PixelHeight);
-        canvas.DrawLine(cx, cy - compassRadius, cx, cy + compassRadius,
-            _compassPaint);
-        canvas.DrawLine(cx - compassRadius, cy, cx + compassRadius, cy,
-            _compassPaint);
     }
 
     private void DrawRangeRing(
@@ -173,6 +147,5 @@ public sealed class RadarRenderer : IDisposable
         _rangeRingPaint.Dispose();
         _fixPaint.Dispose();
         _fixLabelPaint.Dispose();
-        _compassPaint.Dispose();
     }
 }

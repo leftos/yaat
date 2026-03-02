@@ -70,6 +70,9 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private bool _isPlacingRangeRing;
 
+    [ObservableProperty]
+    private bool _isAdjustingRangeRingSize;
+
     public ObservableCollection<VideoMapToggleItem> MapToggles { get; }
         = [];
 
@@ -234,9 +237,7 @@ public partial class RadarViewModel : ObservableObject
                 {
                     Index = i,
                     StarsId = starsId.Value,
-                    ShortName = shortName.Length > 5
-                        ? shortName[..5]
-                        : shortName,
+                    ShortName = shortName,
                     IsEnabled = toggle?.IsEnabled ?? false,
                 };
                 MapShortcuts.Add(shortcut);
@@ -295,7 +296,7 @@ public partial class RadarViewModel : ObservableObject
         }
     }
 
-    private void SyncShortcutState(int starsId, bool enabled)
+    public void SyncShortcutState(int starsId, bool enabled)
     {
         foreach (var sc in MapShortcuts)
         {
@@ -311,20 +312,6 @@ public partial class RadarViewModel : ObservableObject
         RangeRingCenterLat = lat;
         RangeRingCenterLon = lon;
         IsPlacingRangeRing = false;
-        SaveSettings();
-    }
-
-    [RelayCommand]
-    private void IncreaseRange()
-    {
-        RangeNm = Math.Min(RangeNm * 1.25, 300);
-        SaveSettings();
-    }
-
-    [RelayCommand]
-    private void DecreaseRange()
-    {
-        RangeNm = Math.Max(RangeNm / 1.25, 5);
         SaveSettings();
     }
 
@@ -346,20 +333,6 @@ public partial class RadarViewModel : ObservableObject
     private void TogglePanZoomLock()
     {
         IsPanZoomLocked = !IsPanZoomLocked;
-        SaveSettings();
-    }
-
-    [RelayCommand]
-    private void IncrementRangeRingSize()
-    {
-        RangeRingSizeNm = Math.Min(RangeRingSizeNm + 5, 100);
-        SaveSettings();
-    }
-
-    [RelayCommand]
-    private void DecrementRangeRingSize()
-    {
-        RangeRingSizeNm = Math.Max(RangeRingSizeNm - 5, 5);
         SaveSettings();
     }
 

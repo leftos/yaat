@@ -32,6 +32,11 @@ public partial class RadarView : UserControl
             ? new SolidColorBrush(Color.Parse("#888"))
             : Brushes.Yellow);
 
+    public static readonly FuncValueConverter<bool, IBrush>
+        BoolToLatchColor = new(v => v
+            ? Brushes.Cyan
+            : new SolidColorBrush(Color.Parse("#CCC")));
+
     public RadarView()
     {
         InitializeComponent();
@@ -128,6 +133,20 @@ public partial class RadarView : UserControl
         }
     }
 
+    private void OnMapToggleClick(
+        object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        if (sender is CheckBox { DataContext: VideoMapToggleItem toggle })
+        {
+            vm.SyncShortcutState(toggle.StarsId, toggle.IsEnabled);
+        }
+    }
+
     private void OnRrSizeClick(
         object? sender, RoutedEventArgs e)
     {
@@ -136,7 +155,11 @@ public partial class RadarView : UserControl
             return;
         }
 
-        vm.IncrementRangeRingSizeCommand.Execute(null);
+        vm.IsAdjustingRangeRingSize = !vm.IsAdjustingRangeRingSize;
+        if (vm.IsAdjustingRangeRingSize)
+        {
+            _canvas?.Focus();
+        }
     }
 
     private void OnRangeRingPlaced(double lat, double lon)
@@ -471,6 +494,17 @@ public partial class RadarView : UserControl
 
         var initials = GetInitials();
         var menu = new ContextMenu();
+
+        var typeText = ac is not null
+            ? $"{callsign} - {ac.AircraftType}"
+            : callsign;
+        menu.Items.Add(new MenuItem
+        {
+            Header = typeText,
+            IsEnabled = false,
+            FontWeight = Avalonia.Media.FontWeight.Bold,
+        });
+        menu.Items.Add(new Separator());
 
         menu.Items.Add(BuildHeadingSubmenu(
             vm, callsign, initials, ac));
