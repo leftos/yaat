@@ -80,12 +80,10 @@ public static class FlightPhysics
                 aircraft.Heading += 360.0;
             }
 
-            // Don't clear heading if nav route is actively steering
-            if (aircraft.Targets.NavigationRoute.Count == 0)
-            {
-                aircraft.Targets.TargetHeading = null;
-                aircraft.Targets.PreferredTurnDirection = null;
-            }
+            // Heading reached — clear turn direction bias but keep the
+            // assigned heading so it persists in the UI and autopilot
+            // until the controller issues a new instruction.
+            aircraft.Targets.PreferredTurnDirection = null;
             return;
         }
 
@@ -280,7 +278,7 @@ public static class FlightPhysics
 
             cmd.IsComplete = cmd.Type switch
             {
-                TrackedCommandType.Heading => aircraft.Targets.TargetHeading is null && aircraft.Targets.NavigationRoute.Count == 0,
+                TrackedCommandType.Heading => IsHeadingReached(aircraft),
                 TrackedCommandType.Altitude => aircraft.Targets.TargetAltitude is null,
                 TrackedCommandType.Speed => aircraft.Targets.TargetSpeed is null,
                 TrackedCommandType.Navigation => aircraft.Targets.NavigationRoute.Count == 0,
@@ -289,6 +287,22 @@ public static class FlightPhysics
                 _ => true,
             };
         }
+    }
+
+    private static bool IsHeadingReached(AircraftState aircraft)
+    {
+        if (aircraft.Targets.NavigationRoute.Count > 0)
+        {
+            return false;
+        }
+
+        if (aircraft.Targets.TargetHeading is not { } target)
+        {
+            return true;
+        }
+
+        double diff = NormalizeAngle(aircraft.Heading - target);
+        return Math.Abs(diff) < HeadingSnapDeg;
     }
 
     private static bool CheckWaitComplete(
