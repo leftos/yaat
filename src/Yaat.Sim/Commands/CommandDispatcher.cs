@@ -646,7 +646,7 @@ public static class CommandDispatcher
         InsertTowerPhasesAfterCurrent(
             aircraft, clearanceType,
             assignedHeading, assignedTurn, trafficPattern,
-            runway, logger);
+            runway, holding.HoldShort.NodeId, logger);
 
         return BuildDepartureMessage(
             clearanceType, runway.RunwayId, assignedHeading, trafficPattern);
@@ -710,9 +710,9 @@ public static class CommandDispatcher
         AircraftState aircraft, ClearanceType clearanceType,
         int? assignedHeading, TurnDirection? assignedTurn,
         PatternDirection? trafficPattern,
-        RunwayInfo runway, ILogger logger)
+        RunwayInfo runway, int? holdShortNodeId, ILogger logger)
     {
-        var lineup = new LineUpPhase();
+        var lineup = new LineUpPhase(holdShortNodeId);
         var luawPhase = new LinedUpAndWaitingPhase();
         var takeoff = new TakeoffPhase();
         var climb = new InitialClimbPhase();

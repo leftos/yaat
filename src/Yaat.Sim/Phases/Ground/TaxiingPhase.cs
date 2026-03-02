@@ -278,7 +278,22 @@ public sealed class TaxiingPhase : Phase
             return;
         }
 
-        var lineup = new LineUpPhase();
+        // Find the last hold-short node ID from the taxi route
+        int? holdShortNodeId = null;
+        var route = ctx.Aircraft.AssignedTaxiRoute;
+        if (route is not null)
+        {
+            foreach (var hs in route.HoldShortPoints)
+            {
+                if (hs.Reason is HoldShortReason.DestinationRunway
+                    or HoldShortReason.ExplicitHoldShort)
+                {
+                    holdShortNodeId = hs.NodeId;
+                }
+            }
+        }
+
+        var lineup = new LineUpPhase(holdShortNodeId);
         var luaw = new LinedUpAndWaitingPhase();
         var takeoff = new TakeoffPhase();
         var climb = new InitialClimbPhase();
