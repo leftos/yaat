@@ -327,9 +327,9 @@ public static class CommandDispatcher
             case ClearedForTakeoffCommand cto:
                 if (currentPhase is LinedUpAndWaitingPhase luaw)
                 {
-                    return TryClearedForTakeoff(cto, aircraft, luaw, fixes);
+                    return DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, fixes);
                 }
-                return TryDepartureClearance(
+                return DepartureClearanceHandler.TryDepartureClearance(
                     aircraft,
                     currentPhase,
                     ClearanceType.ClearedForTakeoff,
@@ -366,7 +366,7 @@ public static class CommandDispatcher
                 return new CommandResult(false, "No takeoff clearance to cancel");
 
             case LineUpAndWaitCommand:
-                return TryDepartureClearance(
+                return DepartureClearanceHandler.TryDepartureClearance(
                     aircraft,
                     currentPhase,
                     ClearanceType.LineUpAndWait,
@@ -447,13 +447,27 @@ public static class CommandDispatcher
 
             // Pattern entry commands
             case EnterLeftDownwindCommand eld:
-                return TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, logger, runwayId: eld.RunwayId, runways: runways);
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft,
+                    PatternDirection.Left,
+                    PatternEntryLeg.Downwind,
+                    logger,
+                    runwayId: eld.RunwayId,
+                    runways: runways
+                );
 
             case EnterRightDownwindCommand erd:
-                return TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, logger, runwayId: erd.RunwayId, runways: runways);
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft,
+                    PatternDirection.Right,
+                    PatternEntryLeg.Downwind,
+                    logger,
+                    runwayId: erd.RunwayId,
+                    runways: runways
+                );
 
             case EnterLeftBaseCommand elb:
-                return TryEnterPattern(
+                return PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     PatternDirection.Left,
                     PatternEntryLeg.Base,
@@ -464,7 +478,7 @@ public static class CommandDispatcher
                 );
 
             case EnterRightBaseCommand erb:
-                return TryEnterPattern(
+                return PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     PatternDirection.Right,
                     PatternEntryLeg.Base,
@@ -475,560 +489,143 @@ public static class CommandDispatcher
                 );
 
             case EnterFinalCommand ef:
-                return TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, logger, runwayId: ef.RunwayId, runways: runways);
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft,
+                    PatternDirection.Left,
+                    PatternEntryLeg.Final,
+                    logger,
+                    runwayId: ef.RunwayId,
+                    runways: runways
+                );
 
             // Pattern modification commands
             case MakeLeftTrafficCommand:
-                return TryChangePatternDirection(aircraft, PatternDirection.Left);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left);
 
             case MakeRightTrafficCommand:
-                return TryChangePatternDirection(aircraft, PatternDirection.Right);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right);
 
             case TurnCrosswindCommand:
-                return TryPatternTurnTo<UpwindPhase>(aircraft, "crosswind", logger);
+                return PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(aircraft, "crosswind", logger);
 
             case TurnDownwindCommand:
-                return TryPatternTurnTo<CrosswindPhase>(aircraft, "downwind", logger);
+                return PatternCommandHandler.TryPatternTurnTo<CrosswindPhase>(aircraft, "downwind", logger);
 
             case TurnBaseCommand:
-                return TryPatternTurnBase(aircraft, logger);
+                return PatternCommandHandler.TryPatternTurnBase(aircraft, logger);
 
             case ExtendDownwindCommand:
-                return TryExtendPattern(aircraft);
+                return PatternCommandHandler.TryExtendPattern(aircraft);
 
             // Option approach / special ops commands
             case TouchAndGoCommand:
-                return TrySetupTouchAndGo(aircraft);
+                return PatternCommandHandler.TrySetupTouchAndGo(aircraft);
 
             case StopAndGoCommand:
-                return TrySetupStopAndGo(aircraft);
+                return PatternCommandHandler.TrySetupStopAndGo(aircraft);
 
             case LowApproachCommand:
-                return TrySetupLowApproach(aircraft);
+                return PatternCommandHandler.TrySetupLowApproach(aircraft);
 
             case ClearedForOptionCommand:
-                return TrySetLandingClearance(aircraft, ClearanceType.ClearedForOption, $"Cleared for the option{RunwayLabel(aircraft)}");
+                return PatternCommandHandler.TrySetLandingClearance(
+                    aircraft,
+                    ClearanceType.ClearedForOption,
+                    $"Cleared for the option{RunwayLabel(aircraft)}"
+                );
 
             // Hold commands
             case HoldPresentPosition360Command hpp:
-                return TryHoldPresentPosition(aircraft, hpp.Direction, logger);
+                return PatternCommandHandler.TryHoldPresentPosition(aircraft, hpp.Direction, logger);
 
             case HoldPresentPositionHoverCommand:
-                return TryHoldPresentPosition(aircraft, null, logger);
+                return PatternCommandHandler.TryHoldPresentPosition(aircraft, null, logger);
 
             case HoldAtFixOrbitCommand hfix:
-                return TryHoldAtFix(aircraft, hfix.FixName, hfix.Lat, hfix.Lon, hfix.Direction, logger);
+                return PatternCommandHandler.TryHoldAtFix(aircraft, hfix.FixName, hfix.Lat, hfix.Lon, hfix.Direction, logger);
 
             case HoldAtFixHoverCommand hfixH:
-                return TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null, logger);
+                return PatternCommandHandler.TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null, logger);
 
             // Ground commands
             case PushbackCommand push:
-                return TryPushback(aircraft, push, groundLayout, logger);
+                return GroundCommandHandler.TryPushback(aircraft, push, groundLayout, logger);
 
             case TaxiCommand taxi:
-                return TryTaxi(aircraft, taxi, groundLayout, runways, logger);
+                return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, runways, logger);
 
             case HoldPositionCommand:
-                return TryHoldPosition(aircraft);
+                return GroundCommandHandler.TryHoldPosition(aircraft);
 
             case ResumeCommand:
-                return TryResumeTaxi(aircraft);
+                return GroundCommandHandler.TryResumeTaxi(aircraft);
 
             case CrossRunwayCommand cross:
-                return TryCrossRunway(aircraft, cross);
+                return GroundCommandHandler.TryCrossRunway(aircraft, cross);
 
             case HoldShortCommand hs:
-                return TryHoldShort(aircraft, hs, groundLayout, logger);
+                return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout, logger);
 
             case FollowCommand follow:
-                return TryFollow(aircraft, follow, logger);
+                return GroundCommandHandler.TryFollow(aircraft, follow, logger);
 
             case ExitLeftCommand el:
-                return TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left }, el.NoDelete);
+                return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left }, el.NoDelete);
 
             case ExitRightCommand er:
-                return TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Right }, er.NoDelete);
+                return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Right }, er.NoDelete);
 
             case ExitTaxiwayCommand et:
-                return TryExitCommand(aircraft, new ExitPreference { Taxiway = et.Taxiway }, et.NoDelete);
+                return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Taxiway = et.Taxiway }, et.NoDelete);
 
             default:
                 return null;
         }
     }
 
-    private static CommandResult TryClearedForTakeoff(
-        ClearedForTakeoffCommand cto,
-        AircraftState aircraft,
-        LinedUpAndWaitingPhase luaw,
-        IFixLookup? fixes
-    )
+    /// <summary>
+    /// Replace the first pending approach-ending phase (LandingPhase,
+    /// TouchAndGoPhase, StopAndGoPhase, or LowApproachPhase) with the
+    /// given replacement. Returns true if a replacement was made.
+    /// </summary>
+    internal static bool ReplaceApproachEnding(PhaseList phases, Phase replacement)
     {
-        if (aircraft.Phases?.AssignedRunway is null)
+        for (int i = 0; i < phases.Phases.Count; i++)
         {
-            return new CommandResult(false, "No runway assigned — cannot clear for takeoff");
-        }
-
-        luaw.Departure = cto.Departure;
-        luaw.AssignedAltitude = cto.AssignedAltitude;
-        luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
-
-        // Propagate departure to TakeoffPhase and InitialClimbPhase
-        if (aircraft.Phases is not null)
-        {
-            var departureRoute = ResolveDepartureRoute(cto.Departure, aircraft, fixes);
-
-            foreach (var p in aircraft.Phases.Phases)
-            {
-                if (p is TakeoffPhase tkoff)
-                {
-                    tkoff.SetAssignedDeparture(cto.Departure);
-                }
-                else if (p is InitialClimbPhase climb && p.Status == PhaseStatus.Pending)
-                {
-                    SetInitialClimbProperties(climb, cto.Departure, cto.AssignedAltitude, departureRoute, aircraft);
-                }
-            }
-
-            // ClosedTrafficDeparture: establish pattern mode and append circuit
-            if (cto.Departure is ClosedTrafficDeparture ct)
-            {
-                aircraft.Phases.TrafficDirection = ct.Direction;
-                var runway = aircraft.Phases.AssignedRunway;
-                if (runway is not null)
-                {
-                    var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-                    var circuit = PatternBuilder.BuildCircuit(runway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
-                    aircraft.Phases.Phases.AddRange(circuit);
-                }
-            }
-        }
-
-        return BuildDepartureMessage(
-            ClearanceType.ClearedForTakeoff,
-            aircraft.Phases?.AssignedRunway?.Designator ?? "unknown",
-            cto.Departure,
-            cto.AssignedAltitude
-        );
-    }
-
-    private static CommandResult TryDepartureClearance(
-        AircraftState aircraft,
-        Phase currentPhase,
-        ClearanceType clearanceType,
-        DepartureInstruction departure,
-        int? assignedAltitude,
-        IRunwayLookup? runways,
-        IFixLookup? fixes,
-        ILogger logger
-    )
-    {
-        if (currentPhase is HoldingShortPhase holding)
-        {
-            return LineUpFromHoldShort(aircraft, holding, clearanceType, departure, assignedAltitude, runways, fixes, logger);
-        }
-
-        if (currentPhase is TaxiingPhase)
-        {
-            return StoreDepartureClearanceDuringTaxi(aircraft, clearanceType, departure, assignedAltitude, runways, fixes);
-        }
-
-        // Aircraft is lining up — CTO can pre-satisfy the upcoming LUAW phase
-        if (currentPhase is LineUpPhase && clearanceType == ClearanceType.ClearedForTakeoff)
-        {
-            return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, fixes, logger);
-        }
-
-        if (clearanceType == ClearanceType.ClearedForTakeoff)
-        {
-            return new CommandResult(false, "Aircraft is not lined up and waiting");
-        }
-
-        return new CommandResult(false, "Line up and wait requires aircraft to be taxiing or holding short");
-    }
-
-    private static CommandResult LineUpFromHoldShort(
-        AircraftState aircraft,
-        HoldingShortPhase holding,
-        ClearanceType clearanceType,
-        DepartureInstruction departure,
-        int? assignedAltitude,
-        IRunwayLookup? runways,
-        IFixLookup? fixes,
-        ILogger logger
-    )
-    {
-        var runwayId = holding.HoldShort.TargetName;
-        if (runwayId is null)
-        {
-            return new CommandResult(false, "Hold short point has no runway assigned");
-        }
-
-        var runway = ResolveRunway(aircraft, runwayId, runways);
-        if (runway is null)
-        {
-            return new CommandResult(false, $"Cannot resolve runway {runwayId}");
-        }
-
-        // Satisfy the runway crossing clearance so HoldingShortPhase completes
-        holding.SatisfyClearance(ClearanceType.RunwayCrossing);
-
-        // Set the assigned runway and insert tower phases
-        aircraft.Phases!.AssignedRunway = runway;
-        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, holding.HoldShort.NodeId, logger);
-
-        return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
-    }
-
-    private static CommandResult StoreDepartureClearanceDuringTaxi(
-        AircraftState aircraft,
-        ClearanceType clearanceType,
-        DepartureInstruction departure,
-        int? assignedAltitude,
-        IRunwayLookup? runways,
-        IFixLookup? fixes
-    )
-    {
-        var route = aircraft.AssignedTaxiRoute;
-        if (route is null)
-        {
-            return new CommandResult(false, "No taxi route assigned");
-        }
-
-        // Find the destination runway hold-short (last one in the route)
-        HoldShortPoint? depHoldShort = null;
-        foreach (var hs in route.HoldShortPoints)
-        {
-            if (hs.Reason is HoldShortReason.DestinationRunway or HoldShortReason.ExplicitHoldShort)
-            {
-                depHoldShort = hs;
-            }
-        }
-
-        if (depHoldShort?.TargetName is null)
-        {
-            return new CommandResult(false, "No departure runway hold-short in taxi route");
-        }
-
-        var runway = ResolveRunway(aircraft, depHoldShort.TargetName, runways);
-        if (runway is null)
-        {
-            return new CommandResult(false, $"Cannot resolve runway {depHoldShort.TargetName}");
-        }
-
-        // Pre-clear so aircraft doesn't stop at the hold-short
-        depHoldShort.IsCleared = true;
-
-        // Pre-resolve navigation targets for route-based departures
-        var departureRoute = ResolveDepartureRoute(departure, aircraft, fixes);
-
-        // Set runway and store departure clearance for TaxiingPhase to consume
-        aircraft.Phases!.AssignedRunway = runway;
-        aircraft.Phases.DepartureClearance = new DepartureClearanceInfo
-        {
-            Type = clearanceType,
-            Departure = departure,
-            AssignedAltitude = assignedAltitude,
-            DepartureRoute = departureRoute,
-        };
-
-        return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
-    }
-
-    private static void InsertTowerPhasesAfterCurrent(
-        AircraftState aircraft,
-        ClearanceType clearanceType,
-        DepartureInstruction departure,
-        int? assignedAltitude,
-        RunwayInfo runway,
-        IFixLookup? fixes,
-        int? holdShortNodeId,
-        ILogger logger
-    )
-    {
-        var departureRoute = ResolveDepartureRoute(departure, aircraft, fixes);
-
-        var lineup = new LineUpPhase(holdShortNodeId);
-        var luawPhase = new LinedUpAndWaitingPhase();
-        var takeoff = new TakeoffPhase();
-        var climb = new InitialClimbPhase
-        {
-            Departure = departure,
-            AssignedAltitude = assignedAltitude,
-            DepartureRoute = departureRoute,
-            IsVfr = aircraft.IsVfr,
-            CruiseAltitude = aircraft.CruiseAltitude,
-        };
-        aircraft.Phases!.InsertAfterCurrent(new Phase[] { lineup, luawPhase, takeoff, climb });
-
-        if (clearanceType == ClearanceType.ClearedForTakeoff)
-        {
-            luawPhase.SatisfyClearance(ClearanceType.ClearedForTakeoff);
-            luawPhase.Departure = departure;
-            luawPhase.AssignedAltitude = assignedAltitude;
-            takeoff.SetAssignedDeparture(departure);
-
-            if (departure is ClosedTrafficDeparture ct)
-            {
-                aircraft.Phases.TrafficDirection = ct.Direction;
-                var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-                var circuit = PatternBuilder.BuildCircuit(runway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
-                aircraft.Phases.Phases.AddRange(circuit);
-            }
-        }
-
-        logger.LogDebug(
-            "[Departure] {Callsign}: tower phases inserted ({Clearance}), runway {Rwy}",
-            aircraft.Callsign,
-            clearanceType,
-            runway.Designator
-        );
-    }
-
-    private static CommandResult SatisfyUpcomingTakeoffClearance(
-        AircraftState aircraft,
-        DepartureInstruction departure,
-        int? assignedAltitude,
-        IFixLookup? fixes,
-        ILogger logger
-    )
-    {
-        var phases = aircraft.Phases;
-        if (phases is null)
-        {
-            return new CommandResult(false, "No active phase sequence");
-        }
-
-        // Find the pending LinedUpAndWaitingPhase, TakeoffPhase, InitialClimbPhase
-        LinedUpAndWaitingPhase? luaw = null;
-        TakeoffPhase? takeoff = null;
-        InitialClimbPhase? climb = null;
-        foreach (var p in phases.Phases)
-        {
-            if (p.Status != PhaseStatus.Pending)
+            var phase = phases.Phases[i];
+            if (phase.Status != PhaseStatus.Pending)
             {
                 continue;
             }
 
-            if (luaw is null && p is LinedUpAndWaitingPhase l)
+            if (phase is LandingPhase or TouchAndGoPhase or StopAndGoPhase or LowApproachPhase)
             {
-                luaw = l;
-            }
-            else if (takeoff is null && p is TakeoffPhase t)
-            {
-                takeoff = t;
-            }
-            else if (climb is null && p is InitialClimbPhase c)
-            {
-                climb = c;
+                phases.Phases[i] = replacement;
+                return true;
             }
         }
 
-        if (luaw is null)
-        {
-            return new CommandResult(false, "Aircraft is not lined up and waiting");
-        }
-
-        var departureRoute = ResolveDepartureRoute(departure, aircraft, fixes);
-
-        luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
-        luaw.Departure = departure;
-        luaw.AssignedAltitude = assignedAltitude;
-        takeoff?.SetAssignedDeparture(departure);
-
-        if (climb is not null)
-        {
-            SetInitialClimbProperties(climb, departure, assignedAltitude, departureRoute, aircraft);
-        }
-
-        if (departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
-        {
-            phases.TrafficDirection = ct.Direction;
-            var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-            var circuit = PatternBuilder.BuildCircuit(rwy, cat, ct.Direction, PatternEntryLeg.Upwind, true);
-            phases.Phases.AddRange(circuit);
-        }
-
-        logger.LogDebug("[Departure] {Callsign}: CTO satisfied on upcoming LUAW phase", aircraft.Callsign);
-
-        return BuildDepartureMessage(ClearanceType.ClearedForTakeoff, phases.AssignedRunway?.Designator ?? "unknown", departure, assignedAltitude);
+        return false;
     }
 
-    private static CommandResult BuildDepartureMessage(
-        ClearanceType clearanceType,
-        string runwayId,
-        DepartureInstruction departure,
-        int? assignedAltitude
-    )
+    internal static PhaseContext BuildMinimalContext(AircraftState aircraft, ILogger logger, AirportGroundLayout? groundLayout = null)
     {
-        if (clearanceType == ClearanceType.ClearedForTakeoff)
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        var runway = aircraft.Phases?.AssignedRunway;
+        return new PhaseContext
         {
-            var msg = $"Cleared for takeoff runway {runwayId}";
-            msg += FormatDepartureInstructionSuffix(departure);
-            if (assignedAltitude is not null)
-            {
-                msg += $", climb and maintain {assignedAltitude:N0}";
-            }
-            return Ok(msg);
-        }
-
-        return Ok($"Line up and wait runway {runwayId}");
-    }
-
-    private static string FormatDepartureInstructionSuffix(DepartureInstruction departure)
-    {
-        return departure switch
-        {
-            DefaultDeparture => "",
-            RunwayHeadingDeparture => ", fly runway heading",
-            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Right } => ", right crosswind departure",
-            RelativeTurnDeparture { Degrees: 90, Direction: TurnDirection.Left } => ", left crosswind departure",
-            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } => ", right downwind departure",
-            RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } => ", left downwind departure",
-            RelativeTurnDeparture rel => $", turn {(rel.Direction == TurnDirection.Right ? "right" : "left")} {rel.Degrees} degrees",
-            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right => $", turn right heading {fh.Heading:000}",
-            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left => $", turn left heading {fh.Heading:000}",
-            FlyHeadingDeparture fh => $", fly heading {fh.Heading:000}",
-            OnCourseDeparture => ", on course",
-            DirectFixDeparture dfd => $", direct {dfd.FixName}",
-            ClosedTrafficDeparture ct => $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
-            _ => "",
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = cat,
+            DeltaSeconds = 0,
+            Runway = runway,
+            FieldElevation = runway?.ElevationFt ?? 0,
+            GroundLayout = groundLayout,
+            Logger = logger,
         };
     }
 
-    /// <summary>
-    /// Pre-resolves navigation targets for route-based departure instructions.
-    /// Keeps IFixLookup out of the phase layer.
-    /// </summary>
-    private static List<NavigationTarget>? ResolveDepartureRoute(DepartureInstruction departure, AircraftState aircraft, IFixLookup? fixes)
-    {
-        if (fixes is null)
-        {
-            return null;
-        }
-
-        switch (departure)
-        {
-            case DirectFixDeparture dfd:
-                return
-                [
-                    new NavigationTarget
-                    {
-                        Name = dfd.FixName,
-                        Latitude = dfd.Lat,
-                        Longitude = dfd.Lon,
-                    },
-                ];
-
-            case OnCourseDeparture when aircraft.Destination is not null:
-            {
-                var pos = fixes.GetFixPosition(aircraft.Destination);
-                if (pos is null)
-                {
-                    return null;
-                }
-                return
-                [
-                    new NavigationTarget
-                    {
-                        Name = aircraft.Destination,
-                        Latitude = pos.Value.Lat,
-                        Longitude = pos.Value.Lon,
-                    },
-                ];
-            }
-
-            case DefaultDeparture when !aircraft.IsVfr && aircraft.Route is not null:
-            {
-                var expanded = fixes.ExpandRouteForNavigation(aircraft.Route, aircraft.Departure);
-                var targets = new List<NavigationTarget>();
-
-                // Resolve fix positions, skipping unknown fixes
-                var airportPos = aircraft.Departure is not null ? fixes.GetFixPosition(aircraft.Departure) : null;
-
-                foreach (var name in expanded)
-                {
-                    var pos = fixes.GetFixPosition(name);
-                    if (pos is null)
-                    {
-                        continue;
-                    }
-
-                    targets.Add(
-                        new NavigationTarget
-                        {
-                            Name = name,
-                            Latitude = pos.Value.Lat,
-                            Longitude = pos.Value.Lon,
-                        }
-                    );
-                }
-
-                // Safety net: strip leading targets within 1nm of departure
-                if (airportPos is not null)
-                {
-                    while (targets.Count > 0)
-                    {
-                        double dist = GeoMath.DistanceNm(airportPos.Value.Lat, airportPos.Value.Lon, targets[0].Latitude, targets[0].Longitude);
-                        if (dist > 1.0)
-                        {
-                            break;
-                        }
-
-                        targets.RemoveAt(0);
-                    }
-                }
-
-                return targets.Count > 0 ? targets : null;
-            }
-
-            default:
-                return null;
-        }
-    }
-
-    /// <summary>
-    /// Sets properties on a pending InitialClimbPhase. Since init properties
-    /// are set via object initializer, we use reflection-free approach by
-    /// replacing the phase in the list.
-    /// </summary>
-    private static void SetInitialClimbProperties(
-        InitialClimbPhase existing,
-        DepartureInstruction departure,
-        int? assignedAltitude,
-        List<NavigationTarget>? departureRoute,
-        AircraftState aircraft
-    )
-    {
-        // InitialClimbPhase uses init properties, so we can't set them after
-        // construction. However, since the phase hasn't started yet (Pending),
-        // we find it in the phase list and replace it with a new instance.
-        if (aircraft.Phases is null)
-        {
-            return;
-        }
-
-        var newClimb = new InitialClimbPhase
-        {
-            Departure = departure,
-            AssignedAltitude = assignedAltitude,
-            DepartureRoute = departureRoute,
-            IsVfr = aircraft.IsVfr,
-            CruiseAltitude = aircraft.CruiseAltitude,
-        };
-
-        for (int i = 0; i < aircraft.Phases.Phases.Count; i++)
-        {
-            if (ReferenceEquals(aircraft.Phases.Phases[i], existing))
-            {
-                aircraft.Phases.Phases[i] = newClimb;
-                break;
-            }
-        }
-    }
-
-    private static RunwayInfo? ResolveRunway(AircraftState aircraft, string runwayId, IRunwayLookup? runways)
+    internal static RunwayInfo? ResolveRunway(AircraftState aircraft, string runwayId, IRunwayLookup? runways)
     {
         if (runways is null)
         {
@@ -1053,654 +650,15 @@ public static class CommandDispatcher
         return runways.GetRunway(airportId, parsed.End2);
     }
 
-    private static CommandResult TryEnterPattern(
-        AircraftState aircraft,
-        PatternDirection direction,
-        PatternEntryLeg entryLeg,
-        ILogger logger,
-        string? runwayId = null,
-        double? finalDistanceNm = null,
-        IRunwayLookup? runways = null
-    )
+    internal static string RunwayLabel(AircraftState aircraft)
     {
-        // Resolve runway from argument if provided
-        if (runwayId is not null && runways is not null)
-        {
-            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination ?? aircraft.Departure;
-            if (airportId is null)
-            {
-                return new CommandResult(false, "No airport context to resolve runway");
-            }
-
-            var resolved = runways.GetRunway(airportId, runwayId);
-            if (resolved is null)
-            {
-                return new CommandResult(false, $"Runway {runwayId} not found at {airportId}");
-            }
-
-            aircraft.Phases ??= new PhaseList();
-            aircraft.Phases.AssignedRunway = resolved;
-        }
-
-        if (aircraft.Phases?.AssignedRunway is null)
-        {
-            return new CommandResult(false, "No assigned runway for pattern entry");
-        }
-
-        var runway = aircraft.Phases.AssignedRunway;
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        bool touchAndGo = aircraft.Phases.TrafficDirection is not null;
-
-        // Detect if the aircraft is on the wrong side of the runway
-        bool isOnWrongSide = false;
-        PatternWaypoints? waypoints = null;
-
-        if (entryLeg is PatternEntryLeg.Downwind or PatternEntryLeg.Base)
-        {
-            // Crosswind heading points toward the pattern side
-            double crosswindHdg =
-                direction == PatternDirection.Right
-                    ? FlightPhysics.NormalizeHeading(runway.TrueHeading + 90.0)
-                    : FlightPhysics.NormalizeHeading(runway.TrueHeading - 90.0);
-
-            // Positive = pattern side, negative = wrong side
-            double patternSideOffset = FlightPhysics.AlongTrackDistanceNm(
-                aircraft.Latitude,
-                aircraft.Longitude,
-                runway.ThresholdLatitude,
-                runway.ThresholdLongitude,
-                crosswindHdg
-            );
-
-            isOnWrongSide = patternSideOffset < 0;
-
-            if (isOnWrongSide)
-            {
-                waypoints = PatternGeometry.Compute(runway, category, direction);
-            }
-        }
-
-        // Clear current phases and build new sequence from entry leg
-        var ctx = BuildMinimalContext(aircraft, logger);
-        aircraft.Phases.Clear(ctx);
-
-        // For wrong-side entry: midfield crossing then downwind entry
-        PatternEntryLeg effectiveEntryLeg = isOnWrongSide ? PatternEntryLeg.Downwind : entryLeg;
-        double? effectiveFinalDistanceNm = isOnWrongSide ? null : finalDistanceNm;
-
-        var circuitPhases = PatternBuilder.BuildCircuit(runway, category, direction, effectiveEntryLeg, touchAndGo, effectiveFinalDistanceNm);
-
-        var phases = new PhaseList { AssignedRunway = runway };
-        phases.LandingClearance = aircraft.Phases.LandingClearance;
-        phases.ClearedRunwayId = aircraft.Phases.ClearedRunwayId;
-        phases.TrafficDirection = aircraft.Phases.TrafficDirection;
-
-        if (isOnWrongSide)
-        {
-            phases.Add(new MidfieldCrossingPhase { Waypoints = waypoints });
-        }
-
-        foreach (var phase in circuitPhases)
-        {
-            phases.Add(phase);
-        }
-
-        aircraft.Phases = phases;
-
-        var dirStr = direction == PatternDirection.Left ? "left" : "right";
-        var legStr = entryLeg.ToString().ToLowerInvariant();
-        var distStr = finalDistanceNm is not null ? $", {finalDistanceNm:G}nm final" : "";
-        var sideStr = isOnWrongSide ? " (crossing midfield)" : "";
-        return Ok($"Enter {dirStr} {legStr}{RunwayLabel(aircraft)}{distStr}{sideStr}");
-    }
-
-    private static CommandResult TryChangePatternDirection(AircraftState aircraft, PatternDirection newDirection)
-    {
-        if (aircraft.Phases?.AssignedRunway is null)
-        {
-            return new CommandResult(false, "No assigned runway");
-        }
-
-        var runway = aircraft.Phases.AssignedRunway;
-        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var waypoints = PatternGeometry.Compute(runway, category, newDirection);
-
-        // Set traffic direction — aircraft is now in pattern mode
-        aircraft.Phases.TrafficDirection = newDirection;
-
-        // Update waypoints on existing pattern phases
-        bool hasPatternPhases = PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
-
-        // If no pattern phases exist yet (e.g., after takeoff or go-around),
-        // append a full pattern circuit after the current phase.
-        if (!hasPatternPhases)
-        {
-            var circuit = PatternBuilder.BuildCircuit(runway, category, newDirection, PatternEntryLeg.Upwind, true);
-            aircraft.Phases.InsertAfterCurrent(circuit);
-        }
-        else
-        {
-            // Replace any pending LandingPhase with TouchAndGoPhase
-            // since the aircraft is now in pattern mode.
-            // Don't override specific approach instructions (SG/LA).
-            for (int i = 0; i < aircraft.Phases.Phases.Count; i++)
-            {
-                if (aircraft.Phases.Phases[i] is LandingPhase { Status: PhaseStatus.Pending })
-                {
-                    aircraft.Phases.Phases[i] = new TouchAndGoPhase();
-                    break;
-                }
-            }
-        }
-
-        var dirStr = newDirection == PatternDirection.Left ? "left" : "right";
-        return Ok($"Make {dirStr} traffic{RunwayLabel(aircraft)}");
-    }
-
-    /// <summary>
-    /// Replace the first pending approach-ending phase (LandingPhase,
-    /// TouchAndGoPhase, StopAndGoPhase, or LowApproachPhase) with the
-    /// given replacement. Returns true if a replacement was made.
-    /// </summary>
-    private static bool ReplaceApproachEnding(PhaseList phases, Phase replacement)
-    {
-        for (int i = 0; i < phases.Phases.Count; i++)
-        {
-            var phase = phases.Phases[i];
-            if (phase.Status != PhaseStatus.Pending)
-            {
-                continue;
-            }
-
-            if (phase is LandingPhase or TouchAndGoPhase or StopAndGoPhase or LowApproachPhase)
-            {
-                phases.Phases[i] = replacement;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Ensure the aircraft is in pattern mode. If TrafficDirection is not set,
-    /// infer direction from existing pattern phases or default to Left.
-    /// </summary>
-    private static void EnsurePatternMode(PhaseList phases)
-    {
-        if (phases.TrafficDirection is not null)
-        {
-            return;
-        }
-
-        // Infer from existing pattern phases
-        foreach (var phase in phases.Phases)
-        {
-            if (phase is DownwindPhase { Waypoints: not null } dw)
-            {
-                phases.TrafficDirection = dw.Waypoints.Direction;
-                return;
-            }
-            if (phase is BasePhase { Waypoints: not null } bp)
-            {
-                phases.TrafficDirection = bp.Waypoints.Direction;
-                return;
-            }
-        }
-
-        phases.TrafficDirection = PatternDirection.Left;
-    }
-
-    /// <summary>
-    /// Advance to the next phase when the current phase is of type T.
-    /// Used for TC (skip upwind to crosswind) and TD (skip crosswind to downwind).
-    /// </summary>
-    private static CommandResult TryPatternTurnTo<T>(AircraftState aircraft, string legName, ILogger logger)
-        where T : Phase
-    {
-        if (aircraft.Phases?.CurrentPhase is T)
-        {
-            var ctx = BuildMinimalContext(aircraft, logger);
-            aircraft.Phases.AdvanceToNext(ctx);
-            return Ok($"Turn {legName}");
-        }
-
-        return new CommandResult(false, $"Not on the leg before {legName}");
-    }
-
-    private static CommandResult TryPatternTurnBase(AircraftState aircraft, ILogger logger)
-    {
-        if (aircraft.Phases?.CurrentPhase is DownwindPhase)
-        {
-            var ctx = BuildMinimalContext(aircraft, logger);
-            aircraft.Phases.AdvanceToNext(ctx);
-            return Ok("Turn base");
-        }
-
-        return new CommandResult(false, "Not on downwind");
-    }
-
-    private static CommandResult TryExtendPattern(AircraftState aircraft)
-    {
-        var phase = aircraft.Phases?.CurrentPhase;
-        switch (phase)
-        {
-            case UpwindPhase p:
-                p.IsExtended = true;
-                return Ok("Extend upwind");
-            case CrosswindPhase p:
-                p.IsExtended = true;
-                return Ok("Extend crosswind");
-            case DownwindPhase p:
-                p.IsExtended = true;
-                return Ok("Extend downwind");
-            case BasePhase p:
-                p.IsExtended = true;
-                return Ok("Extend base");
-            default:
-                return new CommandResult(false, "Not in the pattern");
-        }
-    }
-
-    private static PhaseContext BuildMinimalContext(AircraftState aircraft, ILogger logger, AirportGroundLayout? groundLayout = null)
-    {
-        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         var runway = aircraft.Phases?.AssignedRunway;
-        return new PhaseContext
-        {
-            Aircraft = aircraft,
-            Targets = aircraft.Targets,
-            Category = cat,
-            DeltaSeconds = 0,
-            Runway = runway,
-            FieldElevation = runway?.ElevationFt ?? 0,
-            GroundLayout = groundLayout,
-            Logger = logger,
-        };
+        return runway is not null ? $", Runway {runway.Designator}" : "";
     }
 
-    private static CommandResult TrySetLandingClearance(AircraftState aircraft, ClearanceType clearanceType, string message)
+    internal static CommandResult Ok(string message)
     {
-        if (aircraft.Phases is null)
-        {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
-        }
-
-        aircraft.Phases.LandingClearance = clearanceType;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-        return Ok(message);
-    }
-
-    private static CommandResult TrySetupLowApproach(AircraftState aircraft)
-    {
-        if (aircraft.Phases is null)
-        {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
-        }
-
-        aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-        EnsurePatternMode(aircraft.Phases);
-        ReplaceApproachEnding(aircraft.Phases, new LowApproachPhase());
-
-        return Ok($"Cleared low approach{RunwayLabel(aircraft)}");
-    }
-
-    private static CommandResult TrySetupTouchAndGo(AircraftState aircraft)
-    {
-        if (aircraft.Phases is null)
-        {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
-        }
-
-        aircraft.Phases.LandingClearance = ClearanceType.ClearedTouchAndGo;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-        EnsurePatternMode(aircraft.Phases);
-        ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase());
-
-        return Ok($"Cleared touch-and-go{RunwayLabel(aircraft)}");
-    }
-
-    private static CommandResult TrySetupStopAndGo(AircraftState aircraft)
-    {
-        if (aircraft.Phases is null)
-        {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
-        }
-
-        aircraft.Phases.LandingClearance = ClearanceType.ClearedStopAndGo;
-        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-        EnsurePatternMode(aircraft.Phases);
-        ReplaceApproachEnding(aircraft.Phases, new StopAndGoPhase());
-
-        return Ok($"Cleared stop-and-go{RunwayLabel(aircraft)}");
-    }
-
-    private static CommandResult TryHoldPresentPosition(AircraftState aircraft, TurnDirection? orbitDirection, ILogger logger)
-    {
-        var phase = new HoldPresentPositionPhase { OrbitDirection = orbitDirection };
-
-        if (aircraft.Phases is not null)
-        {
-            var ctx = BuildMinimalContext(aircraft, logger);
-            aircraft.Phases.Clear(ctx);
-            aircraft.Phases = new PhaseList { AssignedRunway = aircraft.Phases.AssignedRunway };
-        }
-        else
-        {
-            aircraft.Phases = new PhaseList();
-        }
-
-        aircraft.Phases.Add(phase);
-        var startCtx = BuildMinimalContext(aircraft, logger);
-        aircraft.Phases.Start(startCtx);
-
-        var dirStr = orbitDirection switch
-        {
-            TurnDirection.Left => "left 360s",
-            TurnDirection.Right => "right 360s",
-            _ => "hover",
-        };
-        return Ok($"Hold present position, {dirStr}");
-    }
-
-    private static CommandResult TryHoldAtFix(
-        AircraftState aircraft,
-        string fixName,
-        double lat,
-        double lon,
-        TurnDirection? orbitDirection,
-        ILogger logger
-    )
-    {
-        var phase = new HoldAtFixPhase
-        {
-            FixName = fixName,
-            FixLat = lat,
-            FixLon = lon,
-            OrbitDirection = orbitDirection,
-        };
-
-        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
-        if (aircraft.Phases is not null)
-        {
-            var ctx = BuildMinimalContext(aircraft, logger);
-            aircraft.Phases.Clear(ctx);
-        }
-
-        aircraft.Phases = new PhaseList { AssignedRunway = runway };
-        aircraft.Phases.Add(phase);
-        var startCtx = BuildMinimalContext(aircraft, logger);
-        aircraft.Phases.Start(startCtx);
-
-        var dirStr = orbitDirection switch
-        {
-            TurnDirection.Left => "left orbits",
-            TurnDirection.Right => "right orbits",
-            _ => "hover",
-        };
-        return Ok($"Hold at {fixName}, {dirStr}");
-    }
-
-    private static CommandResult TryPushback(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout, ILogger logger)
-    {
-        if (aircraft.Phases?.CurrentPhase is not AtParkingPhase)
-        {
-            return new CommandResult(false, "Pushback requires aircraft to be at parking");
-        }
-
-        var ctx = BuildMinimalContext(aircraft, logger, groundLayout);
-        aircraft.Phases.Clear(ctx);
-
-        var phase = new PushbackPhase { TargetHeading = push.Heading };
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(phase);
-        aircraft.Phases.Start(ctx);
-
-        var msg = "Pushing back";
-        if (push.Heading is not null)
-        {
-            msg += $", face heading {push.Heading:000}";
-        }
-
-        return Ok(msg);
-    }
-
-    private static CommandResult TryTaxi(
-        AircraftState aircraft,
-        TaxiCommand taxi,
-        AirportGroundLayout? groundLayout,
-        IRunwayLookup? runways,
-        ILogger logger
-    )
-    {
-        if (groundLayout is null)
-        {
-            logger.LogWarning(
-                "[TryTaxi] {Callsign}: no ground layout (departure={Dep}, destination={Dest})",
-                aircraft.Callsign,
-                aircraft.Departure,
-                aircraft.Destination
-            );
-            return new CommandResult(false, "No airport ground layout available");
-        }
-
-        // Find starting node: nearest to aircraft's current position
-        var startNode = groundLayout.FindNearestNode(aircraft.Latitude, aircraft.Longitude);
-
-        if (startNode is null)
-        {
-            logger.LogWarning(
-                "[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})",
-                aircraft.Callsign,
-                aircraft.Latitude,
-                aircraft.Longitude
-            );
-            return new CommandResult(false, "Cannot find position on taxiway graph");
-        }
-
-        logger.LogDebug(
-            "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], destRwy={Rwy}",
-            aircraft.Callsign,
-            startNode.Id,
-            startNode.Latitude,
-            startNode.Longitude,
-            GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, startNode.Latitude, startNode.Longitude),
-            string.Join(" ", taxi.Path),
-            taxi.DestinationRunway ?? "(none)"
-        );
-
-        // Resolve the taxi route using explicit path
-        var route = TaxiPathfinder.ResolveExplicitPath(
-            groundLayout,
-            startNode.Id,
-            taxi.Path,
-            out string? failReason,
-            taxi.HoldShorts,
-            taxi.DestinationRunway,
-            runways,
-            groundLayout.AirportId
-        );
-
-        if (route is null)
-        {
-            logger.LogWarning("[TryTaxi] {Callsign}: route resolution failed — {Reason}", aircraft.Callsign, failReason ?? "no matching taxiways");
-
-            if (failReason is not null)
-            {
-                return new CommandResult(false, failReason);
-            }
-
-            var pathStr = string.Join(" ", taxi.Path);
-            return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
-        }
-
-        logger.LogInformation(
-            "[TryTaxi] {Callsign}: route resolved — {SegCount} segments, {HsCount} hold-shorts, summary: {Summary}",
-            aircraft.Callsign,
-            route.Segments.Count,
-            route.HoldShortPoints.Count,
-            route.ToSummary()
-        );
-
-        // Clear current phases
-        var ctx = BuildMinimalContext(aircraft, logger, groundLayout);
-        if (aircraft.Phases is not null)
-        {
-            aircraft.Phases.Clear(ctx);
-        }
-
-        // Set up the taxi route and phase
-        aircraft.AssignedTaxiRoute = route;
-        aircraft.IsHeld = false;
-
-        if (taxi.NoDelete)
-        {
-            aircraft.AutoDeleteExempt = true;
-        }
-
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.Add(new TaxiingPhase());
-        ctx = BuildMinimalContext(aircraft, logger, groundLayout);
-        aircraft.Phases.Start(ctx);
-
-        return Ok($"Taxi via {route.ToSummary()}");
-    }
-
-    private static CommandResult TryHoldPosition(AircraftState aircraft)
-    {
-        bool isGround = aircraft.Phases?.CurrentPhase is AtParkingPhase or PushbackPhase or TaxiingPhase or HoldingShortPhase or CrossingRunwayPhase;
-
-        if (!isGround)
-        {
-            return new CommandResult(false, "Hold position requires aircraft on the ground");
-        }
-
-        aircraft.IsHeld = true;
-        return Ok("Hold position");
-    }
-
-    private static CommandResult TryResumeTaxi(AircraftState aircraft)
-    {
-        if (!aircraft.IsHeld)
-        {
-            return new CommandResult(false, "Aircraft is not held");
-        }
-
-        aircraft.IsHeld = false;
-        return Ok("Resume taxi");
-    }
-
-    private static CommandResult TryCrossRunway(AircraftState aircraft, CrossRunwayCommand cross)
-    {
-        // If currently holding short, satisfy the clearance immediately
-        if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase)
-        {
-            holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
-            return Ok($"Cross {cross.RunwayId}");
-        }
-
-        // Otherwise, pre-clear the matching hold-short in the taxi route
-        var route = aircraft.AssignedTaxiRoute;
-        if (route is null)
-        {
-            return new CommandResult(false, "No taxi route assigned");
-        }
-
-        bool cleared = false;
-        foreach (var hs in route.HoldShortPoints)
-        {
-            if (hs.TargetName is not null && RunwayIdentifier.Parse(hs.TargetName).Contains(cross.RunwayId) && !hs.IsCleared)
-            {
-                hs.IsCleared = true;
-                cleared = true;
-            }
-        }
-
-        if (!cleared)
-        {
-            return new CommandResult(false, $"No hold-short for {cross.RunwayId} in taxi route");
-        }
-
-        return Ok($"Cross {cross.RunwayId}");
-    }
-
-    private static CommandResult TryHoldShort(AircraftState aircraft, HoldShortCommand hs, AirportGroundLayout? groundLayout, ILogger logger)
-    {
-        if (!aircraft.IsOnGround)
-        {
-            return new CommandResult(false, "Hold short requires aircraft on the ground");
-        }
-
-        var route = aircraft.AssignedTaxiRoute;
-        if (route is null)
-        {
-            return new CommandResult(false, "No taxi route assigned");
-        }
-
-        if (groundLayout is null)
-        {
-            return new CommandResult(false, "No ground layout available");
-        }
-
-        bool added = route.AddHoldShortAtIntersection(hs.Target, groundLayout);
-        if (!added)
-        {
-            return new CommandResult(false, $"No intersection with {hs.Target} along remaining taxi route");
-        }
-
-        logger.LogDebug("[HS] {Callsign}: added hold short of {Target}", aircraft.Callsign, hs.Target);
-        return Ok($"Hold short of {hs.Target}");
-    }
-
-    private static CommandResult TryFollow(AircraftState aircraft, FollowCommand follow, ILogger logger)
-    {
-        var currentPhase = aircraft.Phases?.CurrentPhase;
-        if (currentPhase is null)
-        {
-            return new CommandResult(false, "Aircraft has no active phase");
-        }
-
-        // Must be on the ground in a phase that accepts Follow
-        if (!aircraft.IsOnGround)
-        {
-            return new CommandResult(false, "Follow requires the aircraft to be on the ground");
-        }
-
-        var acceptance = currentPhase.CanAcceptCommand(CanonicalCommandType.Follow);
-        if (acceptance == CommandAcceptance.Rejected)
-        {
-            return new CommandResult(false, $"Cannot follow during {currentPhase.Name}");
-        }
-
-        // Replace phases with FollowingPhase
-        var phases = aircraft.Phases!;
-        phases.Clear(BuildMinimalContext(aircraft, logger));
-        phases.Phases.Add(new FollowingPhase(follow.TargetCallsign));
-        phases.Start(BuildMinimalContext(aircraft, logger));
-
-        return Ok($"Follow {follow.TargetCallsign}");
-    }
-
-    private static CommandResult TryExitCommand(AircraftState aircraft, ExitPreference preference, bool noDelete)
-    {
-        if (aircraft.Phases is null)
-        {
-            return new CommandResult(false, "Aircraft has no active phase sequence");
-        }
-
-        aircraft.Phases.RequestedExit = preference;
-        if (noDelete)
-        {
-            aircraft.AutoDeleteExempt = true;
-        }
-
-        if (preference.Taxiway is not null)
-        {
-            return Ok($"Exit at {preference.Taxiway}");
-        }
-
-        return Ok(preference.Side == ExitSide.Left ? "Exit left" : "Exit right");
+        return new CommandResult(true, message);
     }
 
     private static void ApplyBlock(CommandBlock block, AircraftState aircraft)
@@ -1789,16 +747,5 @@ public static class CommandDispatcher
         }
 
         return at.FixName;
-    }
-
-    private static string RunwayLabel(AircraftState aircraft)
-    {
-        var runway = aircraft.Phases?.AssignedRunway;
-        return runway is not null ? $", Runway {runway.Designator}" : "";
-    }
-
-    private static CommandResult Ok(string message)
-    {
-        return new CommandResult(true, message);
     }
 }
