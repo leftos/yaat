@@ -1,7 +1,7 @@
 # Tower Cab Mode
 
 <figure>
-    <img src="/docs/img/tower-cab/tower-cab.png" style="max-height: 500px;"/>
+    <img src="img/tower-cab/tower-cab.png" style="max-height: 500px;"/>
     <figcaption>Fig. <span class="counter"></span> - A Tower Cab display</figcaption>
 </figure>
 
@@ -29,7 +29,7 @@ The display is panned by holding down the right mouse button and dragging the di
 ## Aircraft and Data Blocks
 
 <figure>
-    <img src="/docs/img/tower-cab/aircraft.png" style="max-height: 400px;"/>
+    <img src="img/tower-cab/aircraft.png" style="max-height: 400px;"/>
     <figcaption>Fig. <span class="counter"></span> - A variety of Tower Cab aircraft </figcaption>
 </figure>
 
@@ -38,7 +38,7 @@ Aircraft are depicted on Tower Cab displays as icons that approximate their resp
 Attached to each aircraft icon via a leader line is a Data Block. Data Blocks are repositioned by simply left-clicking and dragging to a desired position. An aircraft's Data Block can be toggled by left-clicking the aircraft's icon.
 
 <figure>
-    <img src="/docs/img/tower-cab/airborne.png" style="max-height: 200px;"/>
+    <img src="img/tower-cab/airborne.png" style="max-height: 200px;"/>
     <figcaption>Fig. <span class="counter"></span> - A Data Block with an altitude </figcaption>
 </figure>
 
@@ -51,7 +51,7 @@ The Data Block font size and color can be customized in the display settings.
 ## Weather Depiction
 
 <figure>
-    <img src="/docs/img/tower-cab/weather.png" style="max-height: 500px;"/>
+    <img src="img/tower-cab/weather.png" style="max-height: 500px;"/>
     <figcaption>Fig. <span class="counter"></span> - Limited visibility </figcaption>
 </figure>
 
@@ -115,7 +115,7 @@ Pressing `Enter` executes the command. Left-clicking an aircraft enters the airc
 ## Settings
 
 <figure>
-    <img src="/docs/img/tower-cab/settings.png" style="max-height: 400px;"/>
+    <img src="img/tower-cab/settings.png" style="max-height: 400px;"/>
     <figcaption>Fig. <span class="counter"></span> - Tower Cab display settings </figcaption>
 </figure>
 

@@ -1,7 +1,7 @@
 # STARS
 
 <figure>
-    <img src="/docs/img/stars/stars-main.png" style="max-height: 500px;"/>
+    <img src="img/stars/stars-main.png" style="max-height: 500px;"/>
     <figcaption>Fig. <span class="counter"></span> - A STARS display</figcaption>
 </figure>
 
@@ -83,7 +83,7 @@ Some of the DCB buttons open submenus containing additional buttons. While a sub
 ### Main Menu
 
 <figure>
-    <img src="/docs/img/stars/dcb/main-menu.png"/>
+    <img src="img/stars/dcb/main-menu.png"/>
     <figcaption>Fig. <span class="counter"></span> - DCB Main Menu</figcaption>
 </figure>
 
@@ -114,7 +114,7 @@ Some of the DCB buttons open submenus containing additional buttons. While a sub
 ### Aux Menu
 
 <figure>
-    <img src="/docs/img/stars/dcb/aux-menu.png"/>
+    <img src="img/stars/dcb/aux-menu.png"/>
     <figcaption>Fig. <span class="counter"></span> - DCB Aux Menu</figcaption>
 </figure>
 
@@ -139,7 +139,7 @@ All other buttons on the Aux Menu are disabled as their functionality is not yet
 ### MAPS Submenu
 
 <figure>
-    <img src="/docs/img/stars/dcb/maps-submenu.png"/>
+    <img src="img/stars/dcb/maps-submenu.png"/>
     <figcaption>Fig. <span class="counter"></span> - DCB MAPS Submenu</figcaption>
 </figure>
 
@@ -156,7 +156,7 @@ All other buttons on the Aux Menu are disabled as their functionality is not yet
 ### BRITE Submenu
 
 <figure>
-    <img src="/docs/img/stars/dcb/brite-submenu.png"/>
+    <img src="img/stars/dcb/brite-submenu.png"/>
     <figcaption>Fig. <span class="counter"></span> - DCB BRITE Submenu</figcaption>
 </figure>
 
@@ -186,7 +186,7 @@ All other buttons on the Aux Menu are disabled as their functionality is not yet
 ### CHAR SIZE Submenu
 
 <figure>
-    <img src="/docs/img/stars/dcb/char-size-submenu.png"/>
+    <img src="img/stars/dcb/char-size-submenu.png"/>
     <figcaption>Fig. <span class="counter"></span> - DCB CHAR SIZE Submenu</figcaption>
 </figure>
 
@@ -204,7 +204,7 @@ All other buttons on the Aux Menu are disabled as their functionality is not yet
 ### PREF Submenu
 
 <figure>
-    <img src="/docs/img/stars/dcb/pref-submenu.png"/>
+    <img src="img/stars/dcb/pref-submenu.png"/>
     <figcaption>Fig. <span class="counter"></span> - DCB PREF Submenu</figcaption>
 </figure>
 
@@ -243,7 +243,7 @@ A preference set consists of the following settings:
 ### SSA FILTER Submenu
 
 <figure>
-    <img src="/docs/img/stars/dcb/ssa-filter-submenu.png"/>
+    <img src="img/stars/dcb/ssa-filter-submenu.png"/>
     <figcaption>Fig. <span class="counter"></span> - DCB SSA FILTER Submenu</figcaption>
 </figure>
 
@@ -273,7 +273,7 @@ The buttons on the **SSA FILTER** submenu allow you to select which pieces of in
 ### GI TEXT FILTER Submenu
 
 <figure>
-    <img src="/docs/img/stars/dcb/gi-text-filter-submenu.png"/>
+    <img src="img/stars/dcb/gi-text-filter-submenu.png"/>
     <figcaption>Fig. <span class="counter"></span> - DCB GI TEXT FILTER Submenu</figcaption>
 </figure>
 
@@ -284,7 +284,7 @@ The operator can define up to 10 lines of "General Information" to be displayed 
 The buttons on the **TPA ATPA Submenu** allow you to select which pieces of information are displayed from the TPA/ATPA system.
 
 <figure>
-    <img src="/docs/img/stars/dcb/atpa-submenu.png"/>
+    <img src="img/stars/dcb/atpa-submenu.png"/>
     <figcaption>Fig. <span class="counter"></span> - TPA/ATPA Submenu</figcaption>
 </figure>
 
@@ -298,7 +298,7 @@ The buttons on the **TPA ATPA Submenu** allow you to select which pieces of info
 ## System Status Area (SSA)
 
 <figure>
-    <img src="/docs/img/stars/ssa.png"/>
+    <img src="img/stars/ssa.png"/>
     <figcaption>Fig. <span class="counter"></span> - System Status Area (SSA)</figcaption>
 </figure>
 
@@ -319,7 +319,7 @@ The next line contains the current altitude filters. The filters for unassociate
 The next three lines in this example provide weather information (wind and altimeter) for any airports listed in the current facility configuration for inclusion in the SSA. The real STARS system does not display wind information here, but it is included for VATSIM purposes to make it easier for an approach controller that is also providing tower services. For greater realism, the display of wind data can be disabled in the [Display Settings Window](#display-settings).
 
 <figure>
-    <img src="/docs/img/stars/ssa2.png"/>
+    <img src="img/stars/ssa2.png"/>
     <figcaption>Fig. <span class="counter"></span> - SSA Example #2</figcaption>
 </figure>
 
@@ -336,7 +336,7 @@ The last line indicates that the BOS 27/22L CRDA Runway Pair Configuration is cu
 ## Preview Area
 
 <figure>
-    <img src="/docs/img/stars/preview-area.png"/>
+    <img src="img/stars/preview-area.png"/>
     <figcaption>Fig. <span class="counter"></span> - Preview Area</figcaption>
 </figure>
 
@@ -349,7 +349,7 @@ CRC STARS maintains several lists of information. The user can specify the locat
 ### Sign-On List
 
 <figure>
-    <img src="/docs/img/stars/system-lists/sign-on.png"/>
+    <img src="img/stars/system-lists/sign-on.png"/>
     <figcaption>Fig. <span class="counter"></span> - Sign-On List</figcaption>
 </figure>
 
@@ -358,7 +358,7 @@ The sign on list displays the TCP (Terminal Control Position) that you are curre
 ### Flight Plan List
 
 <figure>
-    <img src="/docs/img/stars/system-lists/flight-plan.png"/>
+    <img src="img/stars/system-lists/flight-plan.png"/>
     <figcaption>Fig. <span class="counter"></span> - Flight Plan List</figcaption>
 </figure>
 
@@ -367,7 +367,7 @@ Also known as the "TAB" list, the flight plan list displays tracks that have a f
 ### Tower Lists
 
 <figure>
-    <img src="/docs/img/stars/system-lists/tower.png"/>
+    <img src="img/stars/system-lists/tower.png"/>
     <figcaption>Fig. <span class="counter"></span> - Tower List</figcaption>
 </figure>
 
@@ -376,7 +376,7 @@ Tower lists display tracks that have a flight plan indicating an arrival at one 
 ### Coast/Suspend List
 
 <figure>
-    <img src="/docs/img/stars/system-lists/coast-suspend.png"/>
+    <img src="img/stars/system-lists/coast-suspend.png"/>
     <figcaption>Fig. <span class="counter"></span> - Coast/Suspend List</figcaption>
 </figure>
 
@@ -385,7 +385,7 @@ The COAST/SUSPEND list shows any track that is owned by the current user and has
 ### VFR List
 
 <figure>
-    <img src="/docs/img/stars/system-lists/vfr.png"/>
+    <img src="img/stars/system-lists/vfr.png"/>
     <figcaption>Fig. <span class="counter"></span> - VFR List</figcaption>
 </figure>
 
@@ -394,7 +394,7 @@ The VFR list displays all VFR flight plans that have not yet been associated wit
 ### LA/CA/MCI List
 
 <figure>
-    <img src="/docs/img/stars/system-lists/la-ca-mci.png"/>
+    <img src="img/stars/system-lists/la-ca-mci.png"/>
     <figcaption>Fig. <span class="counter"></span> - LA/CA/MCI List</figcaption>
 </figure>
 
@@ -403,7 +403,7 @@ The LA/CA/MCI list displays tracks in MSAW (Low-Altitude) alert status (not yet 
 ### CRDA Status List
 
 <figure>
-    <img src="/docs/img/stars/system-lists/crda-status.png"/>
+    <img src="img/stars/system-lists/crda-status.png"/>
     <figcaption>Fig. <span class="counter"></span> - CRDA Status List</figcaption>
 </figure>
 
@@ -412,7 +412,7 @@ The CRDA STATUS list shows all available CRDA Runway Pair Configurations (RPCs) 
 ### Video Map Lists
 
 <figure>
-    <img src="/docs/img/stars/system-lists/geo-maps.png" style="max-height: 400px;"/>
+    <img src="img/stars/system-lists/geo-maps.png" style="max-height: 400px;"/>
     <figcaption>Fig. <span class="counter"></span> - Geographic Maps List</figcaption>
 </figure>
 
@@ -469,14 +469,14 @@ Point outs can only be sent to other controllers within the same STARS system as
 On the receiving controller's screen, a full data block will appear in blinking yellow with the `PO` indicator after the callsign as shown here:
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/incoming-pointout.png"/>
+    <img src="img/stars/data-blocks/incoming-pointout.png"/>
     <figcaption>Fig. <span class="counter"></span> - Incoming Pointout</figcaption>
 </figure>
 
 On the sending controller's screen, the `PO` indicator is shown after the callsign along with the TCP of the receiving controller, as shown here:
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/outgoing-pointout.png"/>
+    <img src="img/stars/data-blocks/outgoing-pointout.png"/>
     <figcaption>Fig. <span class="counter"></span> - Outgoing Pointout</figcaption>
 </figure>
 
@@ -491,7 +491,7 @@ After the receiving controller accepts the pointout, on the sending controller's
 The receiving controller can reject a point out by entering `UN` and clicking the target. This will return the data block to the normal green color and stop the flashing. On the sender's screen, the data block will show a flashing `UN` indicator until the target is clicked, as shown here:
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/rejected-pointout.png"/>
+    <img src="img/stars/data-blocks/rejected-pointout.png"/>
     <figcaption>Fig. <span class="counter"></span> - Rejected Pointout</figcaption>
 </figure>
 
@@ -508,7 +508,7 @@ Facility Engineers define the TCP hierarchy which can be automatically applied w
 For the following examples, please assume automatic consolidation is enabled with the following hierarchy:
 
 <figure>
-    <img src="/docs/img/stars/tcp-hierarchy.png"/>
+    <img src="img/stars/tcp-hierarchy.png"/>
     <figcaption>Fig. <span class="counter"></span> - TCP Hierarchy</figcaption>
 </figure>
 
@@ -564,7 +564,7 @@ The entry of a flight in a coordination list is called a coordination message. A
 - **Void Unacknowledged:** Displayed at sender and receiver positions with a blinking green color and an expired time stamp to indicate that the corresponding flight has not yet departed and the acknowledgement of the flight’s coordination message has expired, rendering the message as Unacknowledged. Receiver acknowledgement is needed.
 
 <figure>
-    <img src="/docs/img/stars/system-lists/coordination.png"/>
+    <img src="img/stars/system-lists/coordination.png"/>
     <figcaption>Fig. <span class="counter"></span> - Coordination List (Tower View) </figcaption>
 </figure>
 
@@ -579,7 +579,7 @@ STARS displays track data blocks in one of three formats, described below.
 ### Limited Data Blocks (LDBs)
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/ldb.png"/>
+    <img src="img/stars/data-blocks/ldb.png"/>
     <figcaption>Fig. <span class="counter"></span> - Limited Data Block (LDB)</figcaption>
 </figure>
 
@@ -588,7 +588,7 @@ LDBs are shown for any unassociated track. A track is unassociated if it is not 
 The LDB displays beacon code and altitude by default. Ground speed can also be displayed temporarily by clicking on the target:
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/ldb-queried.png"/>
+    <img src="img/stars/data-blocks/ldb-queried.png"/>
     <figcaption>Fig. <span class="counter"></span> - LDB with Ground Speed</figcaption>
 </figure>
 
@@ -597,7 +597,7 @@ LDBs have an asterisk as the position symbol if a beacon code is being received 
 ### Partial Data Blocks (PDBs)
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/pdb.png"/>
+    <img src="img/stars/data-blocks/pdb.png"/>
     <figcaption>Fig. <span class="counter"></span> - Partial Data Block (PDB)</figcaption>
 </figure>
 
@@ -606,7 +606,7 @@ Partial data blocks are shown for any associated track that is owned by a positi
 ### Full Data Blocks (FDBs)
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/fdb.png"/>
+    <img src="img/stars/data-blocks/fdb.png"/>
     <figcaption>Fig. <span class="counter"></span> - Full Data Block (FDB)</figcaption>
 </figure>
 
@@ -657,7 +657,7 @@ A Data Block can be positioned relative to its Track by an Implied command with 
 Data blocks can be highlighted in cyan by middle-clicking on the target. A highlighted FDB is shown here:
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/highlighted.png"/>
+    <img src="img/stars/data-blocks/highlighted.png"/>
     <figcaption>Fig. <span class="counter"></span> - Highlighted Data Block</figcaption>
 </figure>
 
@@ -679,7 +679,7 @@ One of the following codes may be displayed after the ground speed to indicate w
 <figcaption>Table <span class="table-counter"></span> - Category Indicator</figcaption>
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/heavy.png"/>
+    <img src="img/stars/data-blocks/heavy.png"/>
     <figcaption>Fig. <span class="counter"></span> - A heavy aircraft</figcaption>
 </figure>
 
@@ -700,7 +700,7 @@ One of the following codes may be displayed after the ground speed to indicate w
 | I         | Lower Small < 15,400 lbs |
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/cwt-g.png"/>
+    <img src="img/stars/data-blocks/cwt-g.png"/>
     <figcaption>Fig. <span class="counter"></span> - an aircraft with a CWT category of G - Lower Large</figcaption>
 </figure>
 
@@ -709,36 +709,36 @@ One of the following codes may be displayed after the ground speed to indicate w
 An unsupported data block represents a track that is not currently supported by radar data, and never was supported by radar data previously. The controller can create an unsupported data block by entering the aircraft ID and clicking on the scope. A VFR flight plan will be created and the data block will be shown with a blank altitude field and zero ground speed, as shown here:
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/unsupported.png"/>
+    <img src="img/stars/data-blocks/unsupported.png"/>
     <figcaption>Fig. <span class="counter"></span> - An Unsupported Data Block</figcaption>
 </figure>
 
 ### More Data Block Examples
 
 <table>
-<tr><td style="min-width: 190px;"><img src="/docs/img/stars/data-blocks/pdb2.png"/></td><td>This is a partial data block (PDB), showing the altitude and ground speed. The altitude is displayed in hundreds of feet MSL, and the ground speed is displayed in tens of knots. Some facilities have the ground speed suppressed in PDBs. The altitude field will time share with scratchpads and the owning sector ID for an inbound inter-facility handoff or a recently-accepted outbound inter-facility handoff.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/fdb.png"/></td><td>This is a full data block. (FDB) The white color indicates that it is owned by you, or you were the previous owner. The second line of the data block alternates between displaying altitude and ground speed, and destination airport (or scratchpad) and aircraft type. The altitude field will also time share with the owning sector ID for an inbound inter-facility handoff or a recently-accepted outbound inter-facility handoff.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/fdb-owned-other.png"/></td><td>This FDB is owned by another controller and is therefore shown in green.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/highlighted.png"/></td><td>The cyan color indicates a track that has been highlighted. (Middle-click to toggle the highlight color.)</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/primary-only.png"/></td><td>This is a primary-only track. The aircraft does not have their transponder turned on. There is no data block and the position symbol is a diamond.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/ldb.png"/></td><td>This is an unassociated track showing a limited data block (LDB).</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/ldb-mode-c-only.png"/></td><td>This is an unassociated track showing a limited data block (LDB) and the facility has beacon codes inhibited in LDBs. Only the mode C altitude is shown.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/ldb-beacon-selected.png"/></td><td>The square position symbol depicted here indicates that this track is squawking a code that belongs to a beacon code group that the user has selected.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/handoff.png"/></td><td>This track is being handed off. The position symbol indicates that it is owned by sector B, and the D on line 2 indicates that it is being handed off to sector D. The data block will be blinking at the receiving sector.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/who.png"/></td><td>This track just departed one of the airports listed in the facility configuration, but the STARS system cannot auto-acquire the track because no controller has autotrack enabled for the airport and the beacon code was not assigned by a controller. If the beacon code was assigned by a controller, the track would auto-acquire and be owned by that controller. The "WHO" indicator blinks.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/outgoing-pointout.png"/></td><td>This track is owned by you and has been pointed out to TCP <strong>1R</strong>.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/incoming-pointout.png"/></td><td>This track has been pointed out to you. The data block blinks until you accept or reject the point out.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/rejected-pointout.png"/></td><td>This track was pointed out but the receiving controller rejected the pointout. The data block blinks until clicked.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/ca-inhibited.png"/></td><td>The triangle after the aircraft ID indicates that conflict alerts have been inhibited for this track.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/requested-altitude.png"/></td><td>This data block is showing the pilot's requested (filed) altitude. The requested altitude is prefixed with an "R".</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/assigned-altitude.png"/></td><td>An altitude prefixed with an "A" on the third line of the data block indicates an assigned (temporary) altitude.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/mode-c-inhibited.png"/></td><td>For this track, the user has inhibited the display of the Mode C reported altitude.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/pilot-reported-altitude.png"/></td><td>The asterisk following the altitude field indicates that this is a pilot-reported altitude.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/coasting.png"/></td><td>This track is coasting, meaning radar data is no longer being received.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/conflict-alert.png"/></td><td>These tracks are in Conflict Alert (CA) status.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/vfr.png"/></td><td>A VFR track, indicated by the "V" following the ground speed. VFR tracks are automatically MSAW-inhibited, as indicated by the asterisk after the aircraft ID.</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/overflight.png"/></td><td>The "E" following the ground speed indicates that this track is an overflight. (Not arriving to or departing from an airport that is controlled by this STARS facility.)</td></tr>
-<tr><td><img src="/docs/img/stars/data-blocks/atpa-distance.png"/></td><td>This track is displaying an ATPA distance to the track ahead, has a CWT category of F, and is on an RNAV route, as indicated by the caret (^).</td></tr>
+<tr><td style="min-width: 190px;"><img src="img/stars/data-blocks/pdb2.png"/></td><td>This is a partial data block (PDB), showing the altitude and ground speed. The altitude is displayed in hundreds of feet MSL, and the ground speed is displayed in tens of knots. Some facilities have the ground speed suppressed in PDBs. The altitude field will time share with scratchpads and the owning sector ID for an inbound inter-facility handoff or a recently-accepted outbound inter-facility handoff.</td></tr>
+<tr><td><img src="img/stars/data-blocks/fdb.png"/></td><td>This is a full data block. (FDB) The white color indicates that it is owned by you, or you were the previous owner. The second line of the data block alternates between displaying altitude and ground speed, and destination airport (or scratchpad) and aircraft type. The altitude field will also time share with the owning sector ID for an inbound inter-facility handoff or a recently-accepted outbound inter-facility handoff.</td></tr>
+<tr><td><img src="img/stars/data-blocks/fdb-owned-other.png"/></td><td>This FDB is owned by another controller and is therefore shown in green.</td></tr>
+<tr><td><img src="img/stars/data-blocks/highlighted.png"/></td><td>The cyan color indicates a track that has been highlighted. (Middle-click to toggle the highlight color.)</td></tr>
+<tr><td><img src="img/stars/data-blocks/primary-only.png"/></td><td>This is a primary-only track. The aircraft does not have their transponder turned on. There is no data block and the position symbol is a diamond.</td></tr>
+<tr><td><img src="img/stars/data-blocks/ldb.png"/></td><td>This is an unassociated track showing a limited data block (LDB).</td></tr>
+<tr><td><img src="img/stars/data-blocks/ldb-mode-c-only.png"/></td><td>This is an unassociated track showing a limited data block (LDB) and the facility has beacon codes inhibited in LDBs. Only the mode C altitude is shown.</td></tr>
+<tr><td><img src="img/stars/data-blocks/ldb-beacon-selected.png"/></td><td>The square position symbol depicted here indicates that this track is squawking a code that belongs to a beacon code group that the user has selected.</td></tr>
+<tr><td><img src="img/stars/data-blocks/handoff.png"/></td><td>This track is being handed off. The position symbol indicates that it is owned by sector B, and the D on line 2 indicates that it is being handed off to sector D. The data block will be blinking at the receiving sector.</td></tr>
+<tr><td><img src="img/stars/data-blocks/who.png"/></td><td>This track just departed one of the airports listed in the facility configuration, but the STARS system cannot auto-acquire the track because no controller has autotrack enabled for the airport and the beacon code was not assigned by a controller. If the beacon code was assigned by a controller, the track would auto-acquire and be owned by that controller. The "WHO" indicator blinks.</td></tr>
+<tr><td><img src="img/stars/data-blocks/outgoing-pointout.png"/></td><td>This track is owned by you and has been pointed out to TCP <strong>1R</strong>.</td></tr>
+<tr><td><img src="img/stars/data-blocks/incoming-pointout.png"/></td><td>This track has been pointed out to you. The data block blinks until you accept or reject the point out.</td></tr>
+<tr><td><img src="img/stars/data-blocks/rejected-pointout.png"/></td><td>This track was pointed out but the receiving controller rejected the pointout. The data block blinks until clicked.</td></tr>
+<tr><td><img src="img/stars/data-blocks/ca-inhibited.png"/></td><td>The triangle after the aircraft ID indicates that conflict alerts have been inhibited for this track.</td></tr>
+<tr><td><img src="img/stars/data-blocks/requested-altitude.png"/></td><td>This data block is showing the pilot's requested (filed) altitude. The requested altitude is prefixed with an "R".</td></tr>
+<tr><td><img src="img/stars/data-blocks/assigned-altitude.png"/></td><td>An altitude prefixed with an "A" on the third line of the data block indicates an assigned (temporary) altitude.</td></tr>
+<tr><td><img src="img/stars/data-blocks/mode-c-inhibited.png"/></td><td>For this track, the user has inhibited the display of the Mode C reported altitude.</td></tr>
+<tr><td><img src="img/stars/data-blocks/pilot-reported-altitude.png"/></td><td>The asterisk following the altitude field indicates that this is a pilot-reported altitude.</td></tr>
+<tr><td><img src="img/stars/data-blocks/coasting.png"/></td><td>This track is coasting, meaning radar data is no longer being received.</td></tr>
+<tr><td><img src="img/stars/data-blocks/conflict-alert.png"/></td><td>These tracks are in Conflict Alert (CA) status.</td></tr>
+<tr><td><img src="img/stars/data-blocks/vfr.png"/></td><td>A VFR track, indicated by the "V" following the ground speed. VFR tracks are automatically MSAW-inhibited, as indicated by the asterisk after the aircraft ID.</td></tr>
+<tr><td><img src="img/stars/data-blocks/overflight.png"/></td><td>The "E" following the ground speed indicates that this track is an overflight. (Not arriving to or departing from an airport that is controlled by this STARS facility.)</td></tr>
+<tr><td><img src="img/stars/data-blocks/atpa-distance.png"/></td><td>This track is displaying an ATPA distance to the track ahead, has a CWT category of F, and is on an RNAV route, as indicated by the caret (^).</td></tr>
 </table>
 
 <figcaption>Table <span class="table-counter"></span> - Data Block examples</figcaption>
@@ -862,7 +862,7 @@ There are also a number of SPCs that do not correspond to a beacon code, and thu
 Using the buttons on the [DCB Aux Menu](#aux-menu), you can enable predicted track lines for tracks that you own or for all tracks. The PTL shows where the track will be after a configured number of minutes have passed, based on the aircraft's current ground track and ground speed.
 
 <figure>
-    <img src="/docs/img/stars/data-blocks/ptl.png"/>
+    <img src="img/stars/data-blocks/ptl.png"/>
     <figcaption>Fig. <span class="counter"></span> - A Track Displaying a PTL</figcaption>
 </figure>
 
@@ -871,14 +871,14 @@ Using the buttons on the [DCB Aux Menu](#aux-menu), you can enable predicted tra
 CRC STARS supports the ability to display Terminal Proximity Alert (TPA) J-Rings or Cones. These are graphical tools which assist the controller with maintaining minimum separation between targets.
 
 <figure>
-    <img src="/docs/img/stars/tpa-j-rings.png"/>
+    <img src="img/stars/tpa-j-rings.png"/>
     <figcaption>Fig. <span class="counter"></span> - TPA J-Rings</figcaption>
 </figure>
 
 TPA J-Rings (pictured above) are rendered as a circle centered on the target. The controller specifies the radius in nautical miles when activating the J-Ring.
 
 <figure>
-    <img src="/docs/img/stars/tpa-cones.png"/>
+    <img src="img/stars/tpa-cones.png"/>
     <figcaption>Fig. <span class="counter"></span> - TPA Cones</figcaption>
 </figure>
 
@@ -909,7 +909,7 @@ The ATPA Monitor Cone is displayed in the TPA color (blue on the TCW and white o
 The ATPA Warning Cone and in-trail distance is displayed in the caution color (yellow) if the trailing track is predicted to violate the allowable In−trail minimum separation within 45 seconds. It will supersede any manual TPA Cone or Monitor Cone, but will not be displayed if an Alert Cone is displayed. The Warning Cone is displayed at the trailing track’s owner’s position and any positions adapted to display ATPA Alert and Warning Cones for tracks in the enabled ATPA Approach volume, if enabled for the TCW/TDW.
 
 <figure>
-    <img src="/docs/img/stars/atpa-warning-cone.png"/>
+    <img src="img/stars/atpa-warning-cone.png"/>
     <figcaption>Fig. <span class="counter"></span> - ATPA Warning Cone</figcaption>
 </figure>
 
@@ -918,7 +918,7 @@ The ATPA Warning Cone and in-trail distance is displayed in the caution color (y
 The ATPA Alert Cone and in-trail distance is displayed in the ATPA alert color (orange) if the trailing track already has or is predicted to violate the allowable In−trail minimum separation within 24 seconds. It will supersede all other ATPA and TPA Cones. The Alert Cone is displayed at the trailing track’s owner’s position and any positions adapted to display ATPA Alert and Warning Cones for tracks in the enabled ATPA Approach volume, if enabled for the TCW/TDW.
 
 <figure>
-    <img src="/docs/img/stars/atpa-alert-cone.png"/>
+    <img src="img/stars/atpa-alert-cone.png"/>
     <figcaption>Fig. <span class="counter"></span> - ATPA Alert Cone</figcaption>
 </figure>
 
@@ -964,7 +964,7 @@ Next Generation Weather Radar (NEXRAD) displays areas of light, moderate, heavy,
 
 |            Light Precipitation (WX1)            |          Moderate Precipitation (WX2)           |            Heavy Precipitation (WX3)            |            Heavy Precipitation (WX4)            |           Extreme Precipitation (WX5)           |           Extreme Precipitation (WX6)           |
 | :---------------------------------------------: | :---------------------------------------------: | :---------------------------------------------: | :---------------------------------------------: | :---------------------------------------------: | :---------------------------------------------: |
-| <img src="/docs/img/stars/nexrad/l1.png"></img> | <img src="/docs/img/stars/nexrad/l2.png"></img> | <img src="/docs/img/stars/nexrad/l3.png"></img> | <img src="/docs/img/stars/nexrad/l4.png"></img> | <img src="/docs/img/stars/nexrad/l5.png"></img> | <img src="/docs/img/stars/nexrad/l6.png"></img> |
+| <img src="img/stars/nexrad/l1.png"></img> | <img src="img/stars/nexrad/l2.png"></img> | <img src="img/stars/nexrad/l3.png"></img> | <img src="img/stars/nexrad/l4.png"></img> | <img src="img/stars/nexrad/l5.png"></img> | <img src="img/stars/nexrad/l6.png"></img> |
 
 <figcaption>Table <span class="table-counter"></span> - NEXRAD precipitation levels </figcaption>
 
@@ -988,14 +988,14 @@ For the purposes of VATSIM, STARS Top-Down mode (TDM) can be toggled with `Ctrl 
 
 | Aircraft                                                             | Heavy Aircraft                                                             |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| <img src="/docs/img/eram/targets/ground.png" style="width: 75px;" /> | <img src="/docs/img/eram/targets/heavy-ground.png" style="width: 75px;" /> |
+| <img src="img/eram/targets/ground.png" style="width: 75px;" /> | <img src="img/eram/targets/heavy-ground.png" style="width: 75px;" /> |
 
 <figcaption>Table <span class="table-counter"></span> - Ground Targets </figcaption>
 
 A Ground Target's Data Block always displays the aircraft's ID on the first line, and aircraft type on the second. If the aircraft is squawking a beacon code, that beacon code appears on the second line. If the beacon code correlates with a flight plan, the aircraft's destination is displayed instead of the beacon code.
 
 <figure>
-    <img src="/docs/img/eram/ground-data-block.png"/>
+    <img src="img/eram/ground-data-block.png"/>
     <figcaption>Fig. <span class="counter"></span> - A Ground Target and Data Block with a correlated flight plan</figcaption>
 </figure>
 
@@ -1008,7 +1008,7 @@ Ground Target Data Blocks are repositioned by simply left-clicking and dragging 
 ## Display Settings
 
 <figure>
-    <img src="/docs/img/stars/display-settings.png"/>
+    <img src="img/stars/display-settings.png"/>
     <figcaption>Fig. <span class="counter"></span> - STARS Display Settings</figcaption>
 </figure>
 

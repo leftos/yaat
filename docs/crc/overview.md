@@ -39,7 +39,7 @@ _Reserved_
 ## Profile Setup
 
 <figure>
-    <img src="/docs/img/overview/profiles.png" style="max-height: 300px;"/>
+    <img src="img/overview/profiles.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - The CRC Profiles window</figcaption>
 </figure>
 
@@ -48,7 +48,7 @@ The CRC Profiles window appears after launching CRC. CRC Profiles save preferred
 ### Installing an ARTCC
 
 <figure>
-    <img src="/docs/img/overview/artccs.png" style="max-height: 300px;"/>
+    <img src="img/overview/artccs.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - Managing installed ARTCCs</figcaption>
 </figure>
 
@@ -59,7 +59,7 @@ In order to control a position within an ARTCC or one of its child facilities, t
 ### Creating a Profile
 
 <figure>
-    <img src="/docs/img/overview/creating-profile.png" style="max-height: 300px;"/>
+    <img src="img/overview/creating-profile.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - Creating a new profile</figcaption>
 </figure>
 
@@ -132,7 +132,7 @@ Profiles can be switched by selecting the **Switch Profile...** option in a Cont
 ### Profile Settings
 
 <figure>
-    <img src="/docs/img/overview/profile-settings.png" style="max-height: 150px;"/>
+    <img src="img/overview/profile-settings.png" style="max-height: 150px;"/>
     <figcaption>Fig. <span class="counter"></span> - The Profile Settings window</figcaption>
 </figure>
 
@@ -160,7 +160,7 @@ A Profile (and CRC) is exited by selecting the **Exit** option from a Controllin
 ## General Settings
 
 <figure>
-    <img src="/docs/img/overview/general-settings.png" style="max-height: 300px;"/>
+    <img src="img/overview/general-settings.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - The General Settings window</figcaption>
 </figure>
 
@@ -200,7 +200,7 @@ A CRC Profile is made up of one or more Controlling Windows. These windows have 
 ### Window View Settings
 
 <figure>
-    <img src="/docs/img/overview/window-settings.png" style="max-height: 400px;"/>
+    <img src="img/overview/window-settings.png" style="max-height: 400px;"/>
     <figcaption>Fig. <span class="counter"></span> - Window view settings</figcaption>
 </figure>
 
@@ -220,7 +220,7 @@ Window view settings are accessed through the Controlling Window's menu (hamburg
 ### Adding a New Window
 
 <figure>
-    <img src="/docs/img/overview/new-window.png" style="max-height: 200px;"/>
+    <img src="img/overview/new-window.png" style="max-height: 200px;"/>
     <figcaption>Fig. <span class="counter"></span> - Adding a new window</figcaption>
 </figure>
 
@@ -231,7 +231,7 @@ To add a new window, select the **New Window...** option from a Controlling Wind
 ### Adding a New Tab
 
 <figure>
-    <img src="/docs/img/overview/new-tab.png" style="max-height: 200px;"/>
+    <img src="img/overview/new-tab.png" style="max-height: 200px;"/>
     <figcaption>Fig. <span class="counter"></span> - Adding a new tab</figcaption>
 </figure>
 
@@ -279,7 +279,7 @@ To recall a Bookmark, use the `Ctrl + #` keyboard command, where `#` is a digit 
 ### Help Window
 
 <figure>
-    <img src="/docs/img/overview/help.png" style="max-height: 300px;"/>
+    <img src="img/overview/help.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - The Help window</figcaption>
 </figure>
 
@@ -290,7 +290,7 @@ The CRC Help window contains many common keyboard shortcuts and is opened from a
 ## Messages Window
 
 <figure>
-    <img src="/docs/img/overview/messages.png" style="max-height: 200px;"/>
+    <img src="img/overview/messages.png" style="max-height: 200px;"/>
     <figcaption>Fig. <span class="counter"></span> - The Messages window</figcaption>
 </figure>
 
@@ -368,7 +368,7 @@ Personal Aliases can be defined by creating a `MyAliases.txt` file in the `/Alia
 ## Flight Plan Editor
 
 <figure>
-    <img src="/docs/img/overview/fpe.png" style="max-height: 120px;"/>
+    <img src="img/overview/fpe.png" style="max-height: 120px;"/>
     <figcaption>Fig. <span class="counter"></span> - The Flight Plan Editor</figcaption>
 </figure>
 
@@ -403,7 +403,7 @@ From left to right, top to bottom, the Flight Plan Editor contains the following
 ## Controller List
 
 <figure>
-    <img src="/docs/img/overview/controllers.png" style="max-height: 200px;"/>
+    <img src="img/overview/controllers.png" style="max-height: 200px;"/>
     <figcaption>Fig. <span class="counter"></span> - The Controller List</figcaption>
 </figure>
 
@@ -432,7 +432,7 @@ Hovering over a controller in the Controller List displays the controller's call
 ## Voice Switch
 
 <figure>
-    <img src="/docs/img/overview/voice-switch.png" style="max-height: 300px;"/>
+    <img src="img/overview/voice-switch.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - The Voice Switch</figcaption>
 </figure>
 
@@ -455,7 +455,7 @@ When you connect to the network, your primary frequency will automatically be en
 To add a secondary frequency, click the `Add Secondary Freq` button. A popup will appear where you can select the facility and position for which you want to add the frequency:
 
 <figure>
-    <img src="/docs/img/overview/voice-switch-add-secondary.png" style="max-height: 300px;"/>
+    <img src="img/overview/voice-switch-add-secondary.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - Add Secondary Frequency</figcaption>
 </figure>
 
@@ -464,7 +464,7 @@ Secondary frequencies are not automatically enabled for transmit or receive. You
 Here, the user has added a frequency in the underlying Boston TRACON, so that they can temporarily cover the frequency while the controller steps away, and enabled it for both transmit and receive:
 
 <figure>
-    <img src="/docs/img/overview/voice-switch-with-secondary.png" style="max-height: 300px;"/>
+    <img src="img/overview/voice-switch-with-secondary.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - Secondary Frequency Added</figcaption>
 </figure>
 
@@ -473,7 +473,7 @@ Notice that secondary frequency rows have a red button with a trash can icon. Cl
 You can also add secondary frequencies for positions within your primary facility, as the user has done here:
 
 <figure>
-    <img src="/docs/img/overview/voice-switch-secondaries.png" style="max-height: 300px;"/>
+    <img src="img/overview/voice-switch-secondaries.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - Secondary Frequencies in Primary Facility</figcaption>
 </figure>
 
@@ -484,7 +484,7 @@ You can also add secondary frequencies for positions within your primary facilit
 CRC allows you to extend the coverage of your primary frequency by adding transceiver sets from other positions. To do this, click the `Extend Primary Freq` button. A popup will appear where you can choose the position from which you want to add transceivers. Here, the user has added two extensions to their primary frequency:
 
 <figure>
-    <img src="/docs/img/overview/voice-switch-with-extensions.png" style="max-height: 350px;"/>
+    <img src="img/overview/voice-switch-with-extensions.png" style="max-height: 350px;"/>
     <figcaption>Fig. <span class="counter"></span> - Primary Frequency Extensions</figcaption>
 </figure>
 
@@ -517,7 +517,7 @@ If the Voice Switch window is too small to show all of the frequencies at once, 
 ### Connecting to VATSIM
 
 <figure>
-    <img src="/docs/img/overview/connect.png" style="max-height: 300px;"/>
+    <img src="img/overview/connect.png" style="max-height: 300px;"/>
     <figcaption>Fig. <span class="counter"></span> - Connecting to VATSIM</figcaption>
 </figure>
 
