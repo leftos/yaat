@@ -922,66 +922,66 @@ public static class CommandDispatcher
                 ];
 
             case OnCourseDeparture when aircraft.Destination is not null:
+            {
+                var pos = fixes.GetFixPosition(aircraft.Destination);
+                if (pos is null)
                 {
-                    var pos = fixes.GetFixPosition(aircraft.Destination);
-                    if (pos is null)
-                    {
-                        return null;
-                    }
-                    return
-                    [
-                        new NavigationTarget
+                    return null;
+                }
+                return
+                [
+                    new NavigationTarget
                     {
                         Name = aircraft.Destination,
                         Latitude = pos.Value.Lat,
                         Longitude = pos.Value.Lon,
                     },
                 ];
-                }
+            }
 
             case DefaultDeparture when !aircraft.IsVfr && aircraft.Route is not null:
+            {
+                var expanded = fixes.ExpandRouteForNavigation(aircraft.Route, aircraft.Departure);
+                var targets = new List<NavigationTarget>();
+
+                // Resolve fix positions, skipping unknown fixes
+                var airportPos = aircraft.Departure is not null ? fixes.GetFixPosition(aircraft.Departure) : null;
+
+                foreach (var name in expanded)
                 {
-                    var expanded = fixes.ExpandRouteForNavigation(aircraft.Route, aircraft.Departure);
-                    var targets = new List<NavigationTarget>();
-
-                    // Resolve fix positions, skipping unknown fixes
-                    var airportPos = aircraft.Departure is not null ? fixes.GetFixPosition(aircraft.Departure) : null;
-
-                    foreach (var name in expanded)
+                    var pos = fixes.GetFixPosition(name);
+                    if (pos is null)
                     {
-                        var pos = fixes.GetFixPosition(name);
-                        if (pos is null)
-                        {
-                            continue;
-                        }
-
-                        targets.Add(
-                            new NavigationTarget
-                            {
-                                Name = name,
-                                Latitude = pos.Value.Lat,
-                                Longitude = pos.Value.Lon,
-                            }
-                        );
+                        continue;
                     }
 
-                    // Safety net: strip leading targets within 1nm of departure
-                    if (airportPos is not null)
-                    {
-                        while (targets.Count > 0)
+                    targets.Add(
+                        new NavigationTarget
                         {
-                            double dist = GeoMath.DistanceNm(airportPos.Value.Lat, airportPos.Value.Lon, targets[0].Latitude, targets[0].Longitude);
-                            if (dist > 1.0)
-                            {
-                                break;
-                            }
-
-                            targets.RemoveAt(0);
+                            Name = name,
+                            Latitude = pos.Value.Lat,
+                            Longitude = pos.Value.Lon,
                         }
-                    }
-
-                    return targets.Count > 0 ? targets : null;
+                    );
                 }
+
+                // Safety net: strip leading targets within 1nm of departure
+                if (airportPos is not null)
+                {
+                    while (targets.Count > 0)
+                    {
+                        double dist = GeoMath.DistanceNm(airportPos.Value.Lat, airportPos.Value.Lon, targets[0].Latitude, targets[0].Longitude);
+                        if (dist > 1.0)
+                        {
+                            break;
+                        }
+
+                        targets.RemoveAt(0);
+                    }
+                }
+
+                return targets.Count > 0 ? targets : null;
+            }
 
             default:
                 return null;

@@ -102,9 +102,9 @@ public sealed class TakeoffPhase : Phase
                 ctx.Targets.PreferredTurnDirection = fh.Direction;
                 break;
 
-                // DefaultDeparture, RunwayHeadingDeparture, OnCourseDeparture,
-                // DirectFixDeparture, ClosedTrafficDeparture: keep runway heading.
-                // Navigation is set up by InitialClimbPhase.
+            // DefaultDeparture, RunwayHeadingDeparture, OnCourseDeparture,
+            // DirectFixDeparture, ClosedTrafficDeparture: keep runway heading.
+            // Navigation is set up by InitialClimbPhase.
         }
     }
 
