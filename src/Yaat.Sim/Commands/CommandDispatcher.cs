@@ -315,7 +315,10 @@ public static class CommandDispatcher
                 {
                     return TryClearedForTakeoff(cto, aircraft, luaw);
                 }
-                return new CommandResult(false, "Aircraft is not lined up and waiting");
+                return TryDepartureClearance(
+                    aircraft, currentPhase, ClearanceType.ClearedForTakeoff,
+                    cto.AssignedHeading, cto.Turn, cto.TrafficPattern,
+                    runways, logger);
 
             case CancelTakeoffClearanceCommand:
                 if (currentPhase is LinedUpAndWaitingPhase luawCancel)
@@ -343,7 +346,9 @@ public static class CommandDispatcher
                 return new CommandResult(false, "No takeoff clearance to cancel");
 
             case LineUpAndWaitCommand:
-                return new CommandResult(false, "Aircraft position set by scenario");
+                return TryDepartureClearance(
+                    aircraft, currentPhase, ClearanceType.LineUpAndWait,
+                    null, null, null, runways, logger);
 
             case ClearedToLandCommand ctl:
                 if (aircraft.Phases is not null)
@@ -548,6 +553,284 @@ public static class CommandDispatcher
             msg += $", make {dir} traffic";
         }
         return Ok(msg);
+    }
+
+    private static CommandResult TryDepartureClearance(
+        AircraftState aircraft, Phase currentPhase, ClearanceType clearanceType,
+        int? assignedHeading, TurnDirection? assignedTurn,
+        PatternDirection? trafficPattern,
+        IRunwayLookup? runways, ILogger logger)
+    {
+        if (currentPhase is HoldingShortPhase holding)
+        {
+            return LineUpFromHoldShort(
+                aircraft, holding, clearanceType,
+                assignedHeading, assignedTurn, trafficPattern,
+                runways, logger);
+        }
+
+        if (currentPhase is TaxiingPhase)
+        {
+            return StoreDepartureClearanceDuringTaxi(
+                aircraft, clearanceType,
+                assignedHeading, assignedTurn, trafficPattern, runways);
+        }
+
+        // Aircraft is lining up — CTO can pre-satisfy the upcoming LUAW phase
+        if (currentPhase is LineUpPhase
+            && clearanceType == ClearanceType.ClearedForTakeoff)
+        {
+            return SatisfyUpcomingTakeoffClearance(
+                aircraft, assignedHeading, assignedTurn, trafficPattern,
+                logger);
+        }
+
+        if (clearanceType == ClearanceType.ClearedForTakeoff)
+        {
+            return new CommandResult(false, "Aircraft is not lined up and waiting");
+        }
+
+        return new CommandResult(false,
+            "Line up and wait requires aircraft to be taxiing or holding short");
+    }
+
+    private static CommandResult LineUpFromHoldShort(
+        AircraftState aircraft, HoldingShortPhase holding,
+        ClearanceType clearanceType,
+        int? assignedHeading, TurnDirection? assignedTurn,
+        PatternDirection? trafficPattern,
+        IRunwayLookup? runways, ILogger logger)
+    {
+        var runwayId = holding.HoldShort.RunwayId;
+        if (runwayId is null)
+        {
+            return new CommandResult(false,
+                "Hold short point has no runway assigned");
+        }
+
+        var runway = ResolveRunway(aircraft, runwayId, runways);
+        if (runway is null)
+        {
+            return new CommandResult(false,
+                $"Cannot resolve runway {runwayId}");
+        }
+
+        // Satisfy the runway crossing clearance so HoldingShortPhase completes
+        holding.SatisfyClearance(ClearanceType.RunwayCrossing);
+
+        // Set the assigned runway and insert tower phases
+        aircraft.Phases!.AssignedRunway = runway;
+        InsertTowerPhasesAfterCurrent(
+            aircraft, clearanceType,
+            assignedHeading, assignedTurn, trafficPattern,
+            runway, logger);
+
+        return BuildDepartureMessage(
+            clearanceType, runway.RunwayId, assignedHeading, trafficPattern);
+    }
+
+    private static CommandResult StoreDepartureClearanceDuringTaxi(
+        AircraftState aircraft, ClearanceType clearanceType,
+        int? assignedHeading, TurnDirection? assignedTurn,
+        PatternDirection? trafficPattern,
+        IRunwayLookup? runways)
+    {
+        var route = aircraft.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return new CommandResult(false, "No taxi route assigned");
+        }
+
+        // Find the destination runway hold-short (last one in the route)
+        HoldShortPoint? depHoldShort = null;
+        foreach (var hs in route.HoldShortPoints)
+        {
+            if (hs.Reason is HoldShortReason.DestinationRunway
+                or HoldShortReason.ExplicitHoldShort)
+            {
+                depHoldShort = hs;
+            }
+        }
+
+        if (depHoldShort?.RunwayId is null)
+        {
+            return new CommandResult(false,
+                "No departure runway hold-short in taxi route");
+        }
+
+        var runway = ResolveRunway(aircraft, depHoldShort.RunwayId, runways);
+        if (runway is null)
+        {
+            return new CommandResult(false,
+                $"Cannot resolve runway {depHoldShort.RunwayId}");
+        }
+
+        // Pre-clear so aircraft doesn't stop at the hold-short
+        depHoldShort.IsCleared = true;
+
+        // Set runway and store departure clearance for TaxiingPhase to consume
+        aircraft.Phases!.AssignedRunway = runway;
+        aircraft.Phases.DepartureClearance = new DepartureClearanceInfo
+        {
+            Type = clearanceType,
+            AssignedHeading = assignedHeading,
+            AssignedTurn = assignedTurn,
+            TrafficPattern = trafficPattern,
+        };
+
+        return BuildDepartureMessage(
+            clearanceType, runway.RunwayId,
+            assignedHeading, trafficPattern);
+    }
+
+    private static void InsertTowerPhasesAfterCurrent(
+        AircraftState aircraft, ClearanceType clearanceType,
+        int? assignedHeading, TurnDirection? assignedTurn,
+        PatternDirection? trafficPattern,
+        RunwayInfo runway, ILogger logger)
+    {
+        var lineup = new LineUpPhase();
+        var luawPhase = new LinedUpAndWaitingPhase();
+        var takeoff = new TakeoffPhase();
+        var climb = new InitialClimbPhase();
+        aircraft.Phases!.InsertAfterCurrent(
+            new Phase[] { lineup, luawPhase, takeoff, climb });
+
+        if (clearanceType == ClearanceType.ClearedForTakeoff)
+        {
+            luawPhase.SatisfyClearance(ClearanceType.ClearedForTakeoff);
+            luawPhase.AssignedHeading = assignedHeading;
+            luawPhase.AssignedTurn = assignedTurn;
+            takeoff.SetAssignedDeparture(assignedHeading, assignedTurn);
+
+            if (trafficPattern is { } patDir)
+            {
+                aircraft.Phases.TrafficDirection = patDir;
+                var cat = AircraftCategorization.Categorize(
+                    aircraft.AircraftType);
+                var circuit = PatternBuilder.BuildCircuit(
+                    runway, cat, patDir, PatternEntryLeg.Upwind, true);
+                aircraft.Phases.Phases.AddRange(circuit);
+            }
+        }
+
+        logger.LogDebug(
+            "[Departure] {Callsign}: tower phases inserted ({Clearance}), runway {Rwy}",
+            aircraft.Callsign, clearanceType, runway.RunwayId);
+    }
+
+    private static CommandResult SatisfyUpcomingTakeoffClearance(
+        AircraftState aircraft,
+        int? assignedHeading, TurnDirection? assignedTurn,
+        PatternDirection? trafficPattern, ILogger logger)
+    {
+        var phases = aircraft.Phases;
+        if (phases is null)
+        {
+            return new CommandResult(false, "No active phase sequence");
+        }
+
+        // Find the pending LinedUpAndWaitingPhase and TakeoffPhase
+        LinedUpAndWaitingPhase? luaw = null;
+        TakeoffPhase? takeoff = null;
+        foreach (var p in phases.Phases)
+        {
+            if (p.Status != PhaseStatus.Pending)
+            {
+                continue;
+            }
+
+            if (luaw is null && p is LinedUpAndWaitingPhase l)
+            {
+                luaw = l;
+            }
+            else if (takeoff is null && p is TakeoffPhase t)
+            {
+                takeoff = t;
+            }
+        }
+
+        if (luaw is null)
+        {
+            return new CommandResult(false,
+                "Aircraft is not lined up and waiting");
+        }
+
+        luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
+        luaw.AssignedHeading = assignedHeading;
+        luaw.AssignedTurn = assignedTurn;
+        takeoff?.SetAssignedDeparture(assignedHeading, assignedTurn);
+
+        if (trafficPattern is { } patDir && phases.AssignedRunway is { } rwy)
+        {
+            phases.TrafficDirection = patDir;
+            var cat = AircraftCategorization.Categorize(
+                aircraft.AircraftType);
+            var circuit = PatternBuilder.BuildCircuit(
+                rwy, cat, patDir, PatternEntryLeg.Upwind, true);
+            phases.Phases.AddRange(circuit);
+        }
+
+        logger.LogDebug(
+            "[Departure] {Callsign}: CTO satisfied on upcoming LUAW phase",
+            aircraft.Callsign);
+
+        return BuildDepartureMessage(
+            ClearanceType.ClearedForTakeoff,
+            phases.AssignedRunway?.RunwayId ?? "unknown",
+            assignedHeading, trafficPattern);
+    }
+
+    private static CommandResult BuildDepartureMessage(
+        ClearanceType clearanceType, string runwayId,
+        int? assignedHeading, PatternDirection? trafficPattern)
+    {
+        if (clearanceType == ClearanceType.ClearedForTakeoff)
+        {
+            var msg = $"Cleared for takeoff runway {runwayId}";
+            if (assignedHeading is not null)
+            {
+                msg += $", fly heading {assignedHeading:000}";
+            }
+            if (trafficPattern is not null)
+            {
+                var dir = trafficPattern == PatternDirection.Left
+                    ? "left" : "right";
+                msg += $", make {dir} traffic";
+            }
+            return Ok(msg);
+        }
+
+        return Ok($"Line up and wait runway {runwayId}");
+    }
+
+    private static RunwayInfo? ResolveRunway(
+        AircraftState aircraft, string runwayId, IRunwayLookup? runways)
+    {
+        if (runways is null)
+        {
+            return null;
+        }
+
+        var airportId = aircraft.Departure ?? aircraft.Destination;
+        if (airportId is null)
+        {
+            return null;
+        }
+
+        // Hold-short runway IDs can be combined (e.g., "28R/10L").
+        // Try each component until one resolves.
+        var parts = runwayId.Split('/');
+        foreach (var part in parts)
+        {
+            var info = runways.GetRunway(airportId, part);
+            if (info is not null)
+            {
+                return info;
+            }
+        }
+
+        return null;
     }
 
     private static CommandResult TryEnterPattern(

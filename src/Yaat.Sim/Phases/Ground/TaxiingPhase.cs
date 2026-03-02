@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -227,6 +229,8 @@ public sealed class TaxiingPhase : Phase
             ctx.Logger.LogDebug(
                 "[Taxi] {Callsign}: route complete after {SegCount} segments",
                 ctx.Aircraft.Callsign, route.Segments.Count);
+
+            ApplyDepartureClearanceIfPending(ctx);
             return true;
         }
 
@@ -257,6 +261,46 @@ public sealed class TaxiingPhase : Phase
             ctx.Aircraft.GroundSpeed = Math.Max(
                 targetSpeed, current - rate * ctx.DeltaSeconds);
         }
+    }
+
+    private static void ApplyDepartureClearanceIfPending(PhaseContext ctx)
+    {
+        var phases = ctx.Aircraft.Phases;
+        var dep = phases?.DepartureClearance;
+        if (dep is null || phases is null)
+        {
+            return;
+        }
+
+        var lineup = new LineUpPhase();
+        var luaw = new LinedUpAndWaitingPhase();
+        var takeoff = new TakeoffPhase();
+        var climb = new InitialClimbPhase();
+        phases.InsertAfterCurrent(new Phase[] { lineup, luaw, takeoff, climb });
+
+        if (dep.Type == ClearanceType.ClearedForTakeoff)
+        {
+            luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
+            luaw.AssignedHeading = dep.AssignedHeading;
+            luaw.AssignedTurn = dep.AssignedTurn;
+            takeoff.SetAssignedDeparture(dep.AssignedHeading, dep.AssignedTurn);
+
+            if (dep.TrafficPattern is { } patDir
+                && phases.AssignedRunway is { } rwy)
+            {
+                phases.TrafficDirection = patDir;
+                var cat = AircraftCategorization.Categorize(
+                    ctx.Aircraft.AircraftType);
+                var circuit = PatternBuilder.BuildCircuit(
+                    rwy, cat, patDir, PatternEntryLeg.Upwind, true);
+                phases.Phases.AddRange(circuit);
+            }
+        }
+
+        phases.DepartureClearance = null;
+        ctx.Logger.LogDebug(
+            "[Taxi] {Callsign}: departure clearance {Type} applied at route end",
+            ctx.Aircraft.Callsign, dep.Type);
     }
 
 }

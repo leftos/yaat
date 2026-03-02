@@ -111,6 +111,7 @@ Phases/PatternGeometry.cs      # 7 pattern waypoints from RunwayInfo + category 
 Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, UpdateWaypoints
 
 # Phases/Tower/
+LineUpPhase.cs                 # Taxi from hold-short to runway centerline + align heading
 LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
 InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned

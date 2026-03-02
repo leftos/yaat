@@ -1,6 +1,19 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Phases;
+
+/// <summary>
+/// Pre-issued departure clearance (LUAW or CTO) stored during taxi.
+/// Consumed when aircraft reaches the departure runway hold-short.
+/// </summary>
+public sealed class DepartureClearanceInfo
+{
+    public required ClearanceType Type { get; init; }
+    public int? AssignedHeading { get; init; }
+    public TurnDirection? AssignedTurn { get; init; }
+    public PatternDirection? TrafficPattern { get; init; }
+}
 
 public sealed class PhaseList
 {
@@ -10,6 +23,13 @@ public sealed class PhaseList
     /// Taxi route persisted across phase transitions (set once, consumed by ground phases).
     /// </summary>
     public TaxiRoute? TaxiRoute { get; set; }
+
+    /// <summary>
+    /// Pre-issued departure clearance (LUAW or CTO) during taxi.
+    /// Set by LUAW/CTO commands while taxiing. Consumed by TaxiingPhase
+    /// when the taxi route completes (at departure runway threshold).
+    /// </summary>
+    public DepartureClearanceInfo? DepartureClearance { get; set; }
 
     /// <summary>
     /// Landing clearance that persists across phases.
