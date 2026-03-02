@@ -64,9 +64,7 @@ public sealed class FinalApproachPhase : Phase
             return false;
         }
 
-        double distNm = FlightPhysics.DistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _thresholdLat, _thresholdLon);
+        double distNm = FlightPhysics.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
 
         CheckInterceptDistance(ctx, distNm);
 
@@ -76,13 +74,9 @@ public sealed class FinalApproachPhase : Phase
         // Compute descent rate proportionally: lose all remaining altitude
         // over the remaining distance. This naturally handles above/below
         // glideslope — steeper when high, shallower when low.
-        double timeToThresholdSec = ctx.Aircraft.GroundSpeed > 1
-            ? distNm / (ctx.Aircraft.GroundSpeed / 3600.0)
-            : 1.0;
+        double timeToThresholdSec = ctx.Aircraft.GroundSpeed > 1 ? distNm / (ctx.Aircraft.GroundSpeed / 3600.0) : 1.0;
         double altToLose = ctx.Aircraft.Altitude - _thresholdElevation;
-        double requiredFpm = timeToThresholdSec > 1
-            ? (altToLose / timeToThresholdSec) * 60.0
-            : altToLose * 60.0;
+        double requiredFpm = timeToThresholdSec > 1 ? (altToLose / timeToThresholdSec) * 60.0 : altToLose * 60.0;
 
         // Clamp to reasonable range (don't dive or climb on approach)
         double clampedFpm = Math.Clamp(requiredFpm, 200, 1500);
@@ -106,23 +100,18 @@ public sealed class FinalApproachPhase : Phase
 
     private void CheckInterceptDistance(PhaseContext ctx, double distNm)
     {
-        if (_interceptChecked || _isPatternTraffic || SkipInterceptCheck
-            || ctx.Runway is null)
+        if (_interceptChecked || _isPatternTraffic || SkipInterceptCheck || ctx.Runway is null)
         {
             return;
         }
 
         double crossTrack = Math.Abs(
-            FlightPhysics.SignedCrossTrackDistanceNm(
-                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-                _thresholdLat, _thresholdLon, _runwayHeading));
+            FlightPhysics.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading)
+        );
 
-        double headingDiff = Math.Abs(
-            FlightPhysics.NormalizeAngle(
-                ctx.Aircraft.Heading - _runwayHeading));
+        double headingDiff = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - _runwayHeading));
 
-        if (crossTrack >= InterceptCrossTrackThresholdNm
-            || headingDiff >= InterceptHeadingThresholdDeg)
+        if (crossTrack >= InterceptCrossTrackThresholdNm || headingDiff >= InterceptHeadingThresholdDeg)
         {
             return;
         }
@@ -130,16 +119,13 @@ public sealed class FinalApproachPhase : Phase
         // Aircraft is established on the localizer — check distance
         _interceptChecked = true;
 
-        double minIntercept = ApproachGateDatabase
-            .GetMinInterceptDistanceNm(
-                ctx.Runway.AirportId, ctx.Runway.RunwayId);
+        double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(ctx.Runway.AirportId, ctx.Runway.Designator);
 
         if (distNm < minIntercept)
         {
             ctx.Aircraft.PendingWarnings.Add(
-                $"Illegal intercept: turned on final {distNm:F1}nm "
-                + $"from threshold (min {minIntercept:F1}nm) "
-                + "[7110.65 §5-9-1]");
+                $"Illegal intercept: turned on final {distNm:F1}nm " + $"from threshold (min {minIntercept:F1}nm) " + "[7110.65 §5-9-1]"
+            );
         }
     }
 
@@ -151,10 +137,11 @@ public sealed class FinalApproachPhase : Phase
             return false;
         }
 
-        return phases.LandingClearance is ClearanceType.ClearedToLand
-            or ClearanceType.ClearedForOption
-            or ClearanceType.ClearedTouchAndGo
-            or ClearanceType.ClearedStopAndGo;
+        return phases.LandingClearance
+            is ClearanceType.ClearedToLand
+                or ClearanceType.ClearedForOption
+                or ClearanceType.ClearedTouchAndGo
+                or ClearanceType.ClearedStopAndGo;
     }
 
     private void TriggerGoAround(PhaseContext ctx)
@@ -164,8 +151,7 @@ public sealed class FinalApproachPhase : Phase
             return;
         }
 
-        ctx.Aircraft.PendingWarnings.Add(
-            $"{ctx.Aircraft.Callsign} is going around (no landing clearance)");
+        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is going around (no landing clearance)");
 
         // VFR aircraft without a pattern direction default to left traffic
         if (ctx.Aircraft.IsVfr && ctx.Aircraft.Phases.TrafficDirection is null)
@@ -177,9 +163,7 @@ public sealed class FinalApproachPhase : Phase
 
         var goAround = new GoAroundPhase
         {
-            TargetAltitude = isPattern
-                ? (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category))
-                : null,
+            TargetAltitude = isPattern ? (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category)) : null,
         };
 
         ctx.Aircraft.Phases.ReplaceUpcoming([goAround]);

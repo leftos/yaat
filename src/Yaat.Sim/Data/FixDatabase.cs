@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Proto;
 
@@ -11,33 +12,23 @@ namespace Yaat.Sim.Data;
 /// </summary>
 public sealed class FixDatabase : IFixLookup, IRunwayLookup
 {
-    private readonly Dictionary<string, (double Lat, double Lon)> _fixes =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (double Lat, double Lon)> _fixes = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, double> _elevations =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, double> _elevations = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, List<string>> _sidBodies =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<string>> _sidBodies = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, List<string>> _sidAllFixes =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<string>> _sidAllFixes = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, List<string>> _starBodies =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<string>> _starBodies = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, List<string>> _starAllFixes =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<string>> _starAllFixes = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, List<RunwayInfo>> _runways =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<RunwayInfo>> _runways = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly ILogger? _logger;
 
-    public FixDatabase(
-        NavDataSet? navData,
-        string? customFixesBaseDir = null,
-        ILogger? logger = null)
+    public FixDatabase(NavDataSet? navData, string? customFixesBaseDir = null, ILogger? logger = null)
     {
         _logger = logger;
         BuildIndex(navData);
@@ -72,9 +63,9 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
         foreach (var rwy in list)
         {
-            if (string.Equals(rwy.RunwayId, runwayId, StringComparison.OrdinalIgnoreCase))
+            if (rwy.Id.Contains(runwayId))
             {
-                return rwy;
+                return rwy.ForApproach(runwayId);
             }
         }
 
@@ -131,8 +122,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
     /// (body ≤ 1 fix). Strips leading fixes within 1nm of the departure
     /// airport and deduplicates adjacent identical names.
     /// </summary>
-    public IReadOnlyList<string> ExpandRouteForNavigation(
-        string route, string? departureAirport)
+    public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport)
     {
         if (string.IsNullOrWhiteSpace(route))
         {
@@ -173,8 +163,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
         var deduped = new List<string>(raw.Count);
         foreach (var name in raw)
         {
-            if (deduped.Count == 0
-                || !string.Equals(deduped[^1], name, StringComparison.OrdinalIgnoreCase))
+            if (deduped.Count == 0 || !string.Equals(deduped[^1], name, StringComparison.OrdinalIgnoreCase))
             {
                 deduped.Add(name);
             }
@@ -194,9 +183,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                         break;
                     }
 
-                    double dist = GeoMath.DistanceNm(
-                        airportPos.Value.Lat, airportPos.Value.Lon,
-                        fixPos.Value.Lat, fixPos.Value.Lon);
+                    double dist = GeoMath.DistanceNm(airportPos.Value.Lat, airportPos.Value.Lon, fixPos.Value.Lat, fixPos.Value.Lon);
                     if (dist > 1.0)
                     {
                         break;
@@ -214,8 +201,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
     {
         if (navData is null)
         {
-            _logger?.LogWarning(
-                "No NavData available — fix lookup will be empty");
+            _logger?.LogWarning("No NavData available — fix lookup will be empty");
             return;
         }
 
@@ -256,28 +242,95 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
         int runwayCount = 0;
         foreach (var airport in navData.Airports)
         {
-            foreach (var rwy in airport.Runways)
+            // Build paired RunwayInfo: match opposite ends by location proximity
+            var paired = new HashSet<int>();
+            var runwayInfos = new List<RunwayInfo>();
+
+            for (int i = 0; i < airport.Runways.Count; i++)
             {
-                if (rwy.StartLocation is null || rwy.EndLocation is null)
+                if (paired.Contains(i))
                 {
                     continue;
                 }
 
-                double elevation = airport.Elevation;
-                var info = new RunwayInfo
+                var rwy1 = airport.Runways[i];
+                if (rwy1.StartLocation is null || rwy1.EndLocation is null)
                 {
-                    AirportId = airport.FaaId ?? airport.IcaoId ?? "",
-                    RunwayId = rwy.Id,
-                    ThresholdLatitude = rwy.StartLocation.Lat,
-                    ThresholdLongitude = rwy.StartLocation.Lon,
-                    TrueHeading = rwy.TrueHeading,
-                    ElevationFt = elevation,
-                    LengthFt = rwy.LandingDistanceAvailable,
-                    WidthFt = rwy.Width,
-                    EndLatitude = rwy.EndLocation.Lat,
-                    EndLongitude = rwy.EndLocation.Lon,
-                };
+                    continue;
+                }
 
+                // Look for the opposite end: rwy2.StartLocation ≈ rwy1.EndLocation
+                int matchIdx = -1;
+                for (int j = i + 1; j < airport.Runways.Count; j++)
+                {
+                    if (paired.Contains(j))
+                    {
+                        continue;
+                    }
+
+                    var rwy2 = airport.Runways[j];
+                    if (rwy2.StartLocation is null || rwy2.EndLocation is null)
+                    {
+                        continue;
+                    }
+
+                    double dist = GeoMath.DistanceNm(rwy1.EndLocation.Lat, rwy1.EndLocation.Lon, rwy2.StartLocation.Lat, rwy2.StartLocation.Lon);
+                    if (dist < 0.05)
+                    {
+                        matchIdx = j;
+                        break;
+                    }
+                }
+
+                RunwayInfo info;
+                if (matchIdx >= 0)
+                {
+                    var rwy2 = airport.Runways[matchIdx];
+                    paired.Add(matchIdx);
+                    info = new RunwayInfo
+                    {
+                        AirportId = airport.FaaId ?? airport.IcaoId ?? "",
+                        Id = new RunwayIdentifier(rwy1.Id, rwy2.Id),
+                        Designator = rwy1.Id,
+                        Lat1 = rwy1.StartLocation.Lat,
+                        Lon1 = rwy1.StartLocation.Lon,
+                        Elevation1Ft = airport.Elevation,
+                        Heading1 = rwy1.TrueHeading,
+                        Lat2 = rwy2.StartLocation!.Lat,
+                        Lon2 = rwy2.StartLocation.Lon,
+                        Elevation2Ft = airport.Elevation,
+                        Heading2 = rwy2.TrueHeading,
+                        LengthFt = rwy1.LandingDistanceAvailable,
+                        WidthFt = rwy1.Width,
+                    };
+                }
+                else
+                {
+                    // Unpaired (single designator); use EndLocation for the other end
+                    info = new RunwayInfo
+                    {
+                        AirportId = airport.FaaId ?? airport.IcaoId ?? "",
+                        Id = new RunwayIdentifier(rwy1.Id, rwy1.Id),
+                        Designator = rwy1.Id,
+                        Lat1 = rwy1.StartLocation.Lat,
+                        Lon1 = rwy1.StartLocation.Lon,
+                        Elevation1Ft = airport.Elevation,
+                        Heading1 = rwy1.TrueHeading,
+                        Lat2 = rwy1.EndLocation.Lat,
+                        Lon2 = rwy1.EndLocation.Lon,
+                        Elevation2Ft = airport.Elevation,
+                        Heading2 = (rwy1.TrueHeading + 180.0) % 360.0,
+                        LengthFt = rwy1.LandingDistanceAvailable,
+                        WidthFt = rwy1.Width,
+                    };
+                }
+
+                runwayInfos.Add(info);
+                paired.Add(i);
+            }
+
+            foreach (var info in runwayInfos)
+            {
                 void IndexRunway(string key)
                 {
                     if (!_runways.TryGetValue(key, out var list))
@@ -303,12 +356,12 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
         }
 
         _logger?.LogInformation(
-            "Fix database built: {Count} entries "
-            + "({Airports} airports + {Fixes} fixes + {Runways} runways)",
+            "Fix database built: {Count} entries " + "({Airports} airports + {Fixes} fixes + {Runways} runways)",
             _fixes.Count,
             navData.Airports.Count,
             navData.Fixes.Count,
-            runwayCount);
+            runwayCount
+        );
     }
 
     private void BuildProcedureIndex(NavDataSet? navData)
@@ -376,15 +429,12 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
             _starAllFixes.TryAdd(star.Id, allFixes);
         }
 
-        _logger?.LogInformation(
-            "Procedure index: {Sids} SIDs, {Stars} STARs",
-            _sidBodies.Count, _starBodies.Count);
+        _logger?.LogInformation("Procedure index: {Sids} SIDs, {Stars} STARs", _sidBodies.Count, _starBodies.Count);
     }
 
     private void LoadCustomFixes(string? baseDir)
     {
-        baseDir ??= Path.Combine(
-            AppContext.BaseDirectory, "data", "custom_fixes");
+        baseDir ??= Path.Combine(AppContext.BaseDirectory, "data", "custom_fixes");
 
         var loadResult = CustomFixLoader.LoadAll(baseDir);
 
@@ -407,9 +457,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                 var resolved = FrdResolver.Resolve(def.Frd, this);
                 if (resolved is null)
                 {
-                    _logger?.LogWarning(
-                        "Custom fix {Alias}: failed to resolve FRD '{Frd}'",
-                        def.Aliases[0], def.Frd);
+                    _logger?.LogWarning("Custom fix {Alias}: failed to resolve FRD '{Frd}'", def.Aliases[0], def.Frd);
                     continue;
                 }
 
@@ -429,16 +477,12 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                 }
                 else
                 {
-                    _logger?.LogWarning(
-                        "Custom fix alias '{Alias}' conflicts with "
-                        + "existing entry", alias);
+                    _logger?.LogWarning("Custom fix alias '{Alias}' conflicts with " + "existing entry", alias);
                 }
             }
         }
 
-        _logger?.LogInformation(
-            "Custom fixes: {Added} aliases added from {Total} definitions",
-            added, loadResult.Fixes.Count);
+        _logger?.LogInformation("Custom fixes: {Added} aliases added from {Total} definitions", added, loadResult.Fixes.Count);
     }
 
     private string[] BuildSortedNames()

@@ -20,19 +20,7 @@ public class InitialClimbAltitudeTests
 
     private static RunwayInfo MakeRunway()
     {
-        return new RunwayInfo
-        {
-            AirportId = "KSFO",
-            RunwayId = "28",
-            TrueHeading = 280,
-            LengthFt = 10000,
-            WidthFt = 150,
-            ThresholdLatitude = 37.0,
-            ThresholdLongitude = -122.0,
-            EndLatitude = 37.01,
-            EndLongitude = -122.01,
-            ElevationFt = FieldElevation,
-        };
+        return TestRunwayFactory.Make(designator: "28", airportId: "KSFO", elevationFt: FieldElevation);
     }
 
     private static double RunResolve(
@@ -40,7 +28,8 @@ public class InitialClimbAltitudeTests
         int? assignedAltitude,
         bool isVfr,
         int cruiseAltitude,
-        AircraftCategory category = AircraftCategory.Jet)
+        AircraftCategory category = AircraftCategory.Jet
+    )
     {
         var phase = new InitialClimbPhase
         {
@@ -89,8 +78,7 @@ public class InitialClimbAltitudeTests
     [Fact]
     public void ExplicitAltitude_OverridesClosedTrafficDefault()
     {
-        double alt = RunResolve(
-            new ClosedTrafficDeparture(PatternDirection.Right), 3000, isVfr: true, cruiseAltitude: 0);
+        double alt = RunResolve(new ClosedTrafficDeparture(PatternDirection.Right), 3000, isVfr: true, cruiseAltitude: 0);
         Assert.Equal(3000, alt);
     }
 
@@ -98,9 +86,7 @@ public class InitialClimbAltitudeTests
     public void ClosedTraffic_NoAlt_UsesPatternAltitude_Jet()
     {
         // Jet pattern alt = 1500 AGL → 1500 + 100 = 1600
-        double alt = RunResolve(
-            new ClosedTrafficDeparture(PatternDirection.Left), null, isVfr: true, cruiseAltitude: 0,
-            AircraftCategory.Jet);
+        double alt = RunResolve(new ClosedTrafficDeparture(PatternDirection.Left), null, isVfr: true, cruiseAltitude: 0, AircraftCategory.Jet);
         Assert.Equal(FieldElevation + 1500, alt);
     }
 
@@ -108,9 +94,7 @@ public class InitialClimbAltitudeTests
     public void ClosedTraffic_NoAlt_UsesPatternAltitude_Piston()
     {
         // Piston pattern alt = 1000 AGL → 1000 + 100 = 1100
-        double alt = RunResolve(
-            new ClosedTrafficDeparture(PatternDirection.Right), null, isVfr: true, cruiseAltitude: 0,
-            AircraftCategory.Piston);
+        double alt = RunResolve(new ClosedTrafficDeparture(PatternDirection.Right), null, isVfr: true, cruiseAltitude: 0, AircraftCategory.Piston);
         Assert.Equal(FieldElevation + 1000, alt);
     }
 
@@ -124,16 +108,14 @@ public class InitialClimbAltitudeTests
     [Fact]
     public void Vfr_NoCruise_UsesPatternAltitude_Jet()
     {
-        double alt = RunResolve(
-            new DefaultDeparture(), null, isVfr: true, cruiseAltitude: 0, AircraftCategory.Jet);
+        double alt = RunResolve(new DefaultDeparture(), null, isVfr: true, cruiseAltitude: 0, AircraftCategory.Jet);
         Assert.Equal(FieldElevation + 1500, alt);
     }
 
     [Fact]
     public void Vfr_NoCruise_UsesPatternAltitude_Turboprop()
     {
-        double alt = RunResolve(
-            new DefaultDeparture(), null, isVfr: true, cruiseAltitude: 0, AircraftCategory.Turboprop);
+        double alt = RunResolve(new DefaultDeparture(), null, isVfr: true, cruiseAltitude: 0, AircraftCategory.Turboprop);
         Assert.Equal(FieldElevation + 1000, alt);
     }
 
@@ -163,8 +145,18 @@ public class InitialClimbAltitudeTests
     {
         var route = new List<NavigationTarget>
         {
-            new() { Name = "SUNOL", Latitude = 37.5, Longitude = -121.8 },
-            new() { Name = "TRACY", Latitude = 37.7, Longitude = -121.4 },
+            new()
+            {
+                Name = "SUNOL",
+                Latitude = 37.5,
+                Longitude = -121.8,
+            },
+            new()
+            {
+                Name = "TRACY",
+                Latitude = 37.7,
+                Longitude = -121.4,
+            },
         };
 
         var phase = new InitialClimbPhase

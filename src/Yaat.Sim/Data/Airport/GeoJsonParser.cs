@@ -28,8 +28,12 @@ public static class GeoJsonParser
     private const double HoldShortReuseFt = 50.0;
 
     public static AirportGroundLayout Parse(
-        string airportId, string geoJson, ILogger? logger = null,
-        IRunwayLookup? runwayLookup = null, string? runwayAirportCode = null)
+        string airportId,
+        string geoJson,
+        ILogger? logger = null,
+        IRunwayLookup? runwayLookup = null,
+        string? runwayAirportCode = null
+    )
     {
         var doc = JsonDocument.Parse(geoJson);
         var root = doc.RootElement;
@@ -67,18 +71,19 @@ public static class GeoJsonParser
             }
         }
 
-        return BuildLayout(
-            airportId, parkingFeatures, spotFeatures,
-            taxiwayFeatures, runwayFeatures, logger,
-            runwayLookup, runwayAirportCode);
+        return BuildLayout(airportId, parkingFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, logger, runwayLookup, runwayAirportCode);
     }
 
     /// <summary>
     /// Parse from multiple GeoJSON files (separate parking, taxiways, spots, runways).
     /// </summary>
     public static AirportGroundLayout ParseMultiple(
-        string airportId, IEnumerable<string> geoJsonFiles, ILogger? logger = null,
-        IRunwayLookup? runwayLookup = null, string? runwayAirportCode = null)
+        string airportId,
+        IEnumerable<string> geoJsonFiles,
+        ILogger? logger = null,
+        IRunwayLookup? runwayLookup = null,
+        string? runwayAirportCode = null
+    )
     {
         var merged = geoJsonFiles.ToList();
 
@@ -111,7 +116,8 @@ public static class GeoJsonParser
         List<RunwayFeature> runways,
         ILogger? logger,
         IRunwayLookup? runwayLookup = null,
-        string? runwayAirportCode = null)
+        string? runwayAirportCode = null
+    )
     {
         var layout = new AirportGroundLayout { AirportId = airportId };
         int nextNodeId = 0;
@@ -140,8 +146,7 @@ public static class GeoJsonParser
         var taxiwaySegments = new List<ProcessedTaxiway>();
         foreach (var tw in taxiways)
         {
-            var processed = ProcessTaxiway(
-                tw, layout, coordIndex, ref nextNodeId);
+            var processed = ProcessTaxiway(tw, layout, coordIndex, ref nextNodeId);
             taxiwaySegments.Add(processed);
         }
 
@@ -157,16 +162,16 @@ public static class GeoJsonParser
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
         foreach (var rwy in runways)
         {
-            double rwyWidthFt = DetectRunwayCrossings(
-                rwy, layout, coordIndex, ref nextNodeId, logger,
-                runwayLookup, runwayAirportCode);
+            double rwyWidthFt = DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, logger, runwayLookup, runwayAirportCode);
 
-            layout.Runways.Add(new GroundRunway
-            {
-                Name = rwy.Name,
-                Coordinates = new List<(double Lat, double Lon)>(rwy.Coords),
-                WidthFt = rwyWidthFt,
-            });
+            layout.Runways.Add(
+                new GroundRunway
+                {
+                    Name = rwy.Name,
+                    Coordinates = new List<(double Lat, double Lon)>(rwy.Coords),
+                    WidthFt = rwyWidthFt,
+                }
+            );
         }
 
         // Step 6: Create parking nodes and connect to nearest taxiway
@@ -202,18 +207,17 @@ public static class GeoJsonParser
         }
 
         logger?.LogInformation(
-            "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, " +
-            "{ParkingCount} parking spots",
-            airportId, layout.Nodes.Count, layout.Edges.Count, parkings.Count);
+            "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, " + "{ParkingCount} parking spots",
+            airportId,
+            layout.Nodes.Count,
+            layout.Edges.Count,
+            parkings.Count
+        );
 
         return layout;
     }
 
-    private static ProcessedTaxiway ProcessTaxiway(
-        TaxiwayFeature tw,
-        AirportGroundLayout layout,
-        CoordinateIndex coordIndex,
-        ref int nextNodeId)
+    private static ProcessedTaxiway ProcessTaxiway(TaxiwayFeature tw, AirportGroundLayout layout, CoordinateIndex coordIndex, ref int nextNodeId)
     {
         var nodeIds = new List<int>();
 
@@ -249,32 +253,32 @@ public static class GeoJsonParser
         List<ProcessedTaxiway> taxiways,
         AirportGroundLayout layout,
         CoordinateIndex coordIndex,
-        ref int nextNodeId)
+        ref int nextNodeId
+    )
     {
         for (int i = 0; i < taxiways.Count; i++)
         {
             for (int j = i + 1; j < taxiways.Count; j++)
             {
-                FindLineStringIntersections(
-                    taxiways[i], taxiways[j],
-                    layout, coordIndex, ref nextNodeId);
+                FindLineStringIntersections(taxiways[i], taxiways[j], layout, coordIndex, ref nextNodeId);
             }
         }
     }
 
     private static void FindLineStringIntersections(
-        ProcessedTaxiway tw1, ProcessedTaxiway tw2,
-        AirportGroundLayout layout, CoordinateIndex coordIndex,
-        ref int nextNodeId)
+        ProcessedTaxiway tw1,
+        ProcessedTaxiway tw2,
+        AirportGroundLayout layout,
+        CoordinateIndex coordIndex,
+        ref int nextNodeId
+    )
     {
         // Check each segment pair
         for (int a = 0; a < tw1.Coords.Count - 1; a++)
         {
             for (int b = 0; b < tw2.Coords.Count - 1; b++)
             {
-                var (lat, lon) = SegmentIntersection(
-                    tw1.Coords[a], tw1.Coords[a + 1],
-                    tw2.Coords[b], tw2.Coords[b + 1]);
+                var (lat, lon) = SegmentIntersection(tw1.Coords[a], tw1.Coords[a + 1], tw2.Coords[b], tw2.Coords[b + 1]);
 
                 if (double.IsNaN(lat))
                 {
@@ -308,9 +312,7 @@ public static class GeoJsonParser
         }
     }
 
-    private static void EnsureNodeInChain(
-        ProcessedTaxiway tw, int nodeId, int afterSegIndex,
-        AirportGroundLayout layout)
+    private static void EnsureNodeInChain(ProcessedTaxiway tw, int nodeId, int afterSegIndex, AirportGroundLayout layout)
     {
         if (tw.NodeIds.Contains(nodeId))
         {
@@ -331,8 +333,7 @@ public static class GeoJsonParser
         }
     }
 
-    private static void InsertNodeInChain(
-        ProcessedTaxiway tw, int nodeId, int afterSegIndex)
+    private static void InsertNodeInChain(ProcessedTaxiway tw, int nodeId, int afterSegIndex)
     {
         int insertAt = afterSegIndex + 1;
         if (insertAt > tw.NodeIds.Count)
@@ -343,8 +344,7 @@ public static class GeoJsonParser
         tw.NodeIds.Insert(insertAt, nodeId);
     }
 
-    private static void BuildEdgesFromTaxiway(
-        ProcessedTaxiway tw, AirportGroundLayout layout)
+    private static void BuildEdgesFromTaxiway(ProcessedTaxiway tw, AirportGroundLayout layout)
     {
         for (int i = 0; i < tw.NodeIds.Count - 1; i++)
         {
@@ -356,8 +356,7 @@ public static class GeoJsonParser
                 continue;
             }
 
-            if (!layout.Nodes.TryGetValue(fromId, out var fromNode)
-                || !layout.Nodes.TryGetValue(toId, out var toNode))
+            if (!layout.Nodes.TryGetValue(fromId, out var fromNode) || !layout.Nodes.TryGetValue(toId, out var toNode))
             {
                 continue;
             }
@@ -366,11 +365,9 @@ public static class GeoJsonParser
             bool exists = false;
             foreach (var e in layout.Edges)
             {
-                if ((e.FromNodeId == fromId && e.ToNodeId == toId)
-                    || (e.FromNodeId == toId && e.ToNodeId == fromId))
+                if ((e.FromNodeId == fromId && e.ToNodeId == toId) || (e.FromNodeId == toId && e.ToNodeId == fromId))
                 {
-                    if (string.Equals(e.TaxiwayName, tw.Name,
-                        StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(e.TaxiwayName, tw.Name, StringComparison.OrdinalIgnoreCase))
                     {
                         exists = true;
                         break;
@@ -383,9 +380,7 @@ public static class GeoJsonParser
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(
-                fromNode.Latitude, fromNode.Longitude,
-                toNode.Latitude, toNode.Longitude);
+            double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
 
             var edge = new GroundEdge
             {
@@ -400,22 +395,22 @@ public static class GeoJsonParser
     }
 
     private static double DetectRunwayCrossings(
-        RunwayFeature rwy, AirportGroundLayout layout,
-        CoordinateIndex coordIndex, ref int nextNodeId,
+        RunwayFeature rwy,
+        AirportGroundLayout layout,
+        CoordinateIndex coordIndex,
+        ref int nextNodeId,
         ILogger? logger,
-        IRunwayLookup? runwayLookup, string? runwayAirportCode)
+        IRunwayLookup? runwayLookup,
+        string? runwayAirportCode
+    )
     {
-        string[] nameParts = rwy.Name.Split(" - ");
-        string rwyId1 = nameParts[0].Trim();
-        string rwyId2 = nameParts.Length > 1 ? nameParts[1].Trim() : rwyId1;
-        string combinedId = $"{rwyId1}/{rwyId2}";
+        var combinedId = RunwayIdentifier.Parse(rwy.Name);
 
         // Look up runway width from navdata; fall back to default
         double widthFt = DefaultRunwayWidthFt;
         if (runwayLookup is not null && runwayAirportCode is not null)
         {
-            var rwyInfo = runwayLookup.GetRunway(runwayAirportCode, rwyId1)
-                ?? runwayLookup.GetRunway(runwayAirportCode, rwyId2);
+            var rwyInfo = runwayLookup.GetRunway(runwayAirportCode, combinedId.End1) ?? runwayLookup.GetRunway(runwayAirportCode, combinedId.End2);
             if (rwyInfo is not null)
             {
                 widthFt = rwyInfo.WidthFt;
@@ -464,29 +459,21 @@ public static class GeoJsonParser
                 continue;
             }
 
-            if (!layout.Nodes.TryGetValue(onId, out var onNode)
-                || !layout.Nodes.TryGetValue(offId, out var offNode))
+            if (!layout.Nodes.TryGetValue(onId, out var onNode) || !layout.Nodes.TryGetValue(offId, out var offNode))
             {
                 continue;
             }
 
-            ProcessBoundaryEdge(
-                layout, edge, onNode, offNode, rect,
-                coordIndex, ref nextNodeId, logger);
+            ProcessBoundaryEdge(layout, edge, onNode, offNode, rect, coordIndex, ref nextNodeId, logger);
         }
 
         return widthFt;
     }
 
-    private static RunwayRectangle BuildRunwayRectangle(
-        RunwayFeature rwy, double widthFt, string combinedId)
+    private static RunwayRectangle BuildRunwayRectangle(RunwayFeature rwy, double widthFt, RunwayIdentifier combinedId)
     {
-        double heading = GeoMath.BearingTo(
-            rwy.Coords[0].Lat, rwy.Coords[0].Lon,
-            rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
-        double lengthNm = GeoMath.DistanceNm(
-            rwy.Coords[0].Lat, rwy.Coords[0].Lon,
-            rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
+        double heading = GeoMath.BearingTo(rwy.Coords[0].Lat, rwy.Coords[0].Lon, rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
+        double lengthNm = GeoMath.DistanceNm(rwy.Coords[0].Lat, rwy.Coords[0].Lon, rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
         double halfWidthNm = (widthFt / 2.0) / GeoMath.FeetPerNm;
         double holdShortNm = HoldShortDistanceForWidth(widthFt) / GeoMath.FeetPerNm;
 
@@ -502,38 +489,31 @@ public static class GeoJsonParser
         };
     }
 
-    private static bool IsOnRunway(
-        double lat, double lon, in RunwayRectangle rect)
+    private static bool IsOnRunway(double lat, double lon, in RunwayRectangle rect)
     {
-        double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(
-            lat, lon, rect.RefLat, rect.RefLon, rect.Heading));
-        double alongTrack = GeoMath.AlongTrackDistanceNm(
-            lat, lon, rect.RefLat, rect.RefLon, rect.Heading);
+        double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(lat, lon, rect.RefLat, rect.RefLon, rect.Heading));
+        double alongTrack = GeoMath.AlongTrackDistanceNm(lat, lon, rect.RefLat, rect.RefLon, rect.Heading);
 
-        return crossTrack <= rect.HalfWidthNm + RunwayTolerance
-            && alongTrack >= -RunwayTolerance
-            && alongTrack <= rect.LengthNm + RunwayTolerance;
+        return crossTrack <= rect.HalfWidthNm + RunwayTolerance && alongTrack >= -RunwayTolerance && alongTrack <= rect.LengthNm + RunwayTolerance;
     }
 
     private static void ProcessBoundaryEdge(
-        AirportGroundLayout layout, GroundEdge edge,
-        GroundNode onNode, GroundNode offNode,
+        AirportGroundLayout layout,
+        GroundEdge edge,
+        GroundNode onNode,
+        GroundNode offNode,
         in RunwayRectangle rect,
-        CoordinateIndex coordIndex, ref int nextNodeId,
-        ILogger? logger)
+        CoordinateIndex coordIndex,
+        ref int nextNodeId,
+        ILogger? logger
+    )
     {
-        double crossOff = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(
-            offNode.Latitude, offNode.Longitude,
-            rect.RefLat, rect.RefLon, rect.Heading));
-        double crossOn = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(
-            onNode.Latitude, onNode.Longitude,
-            rect.RefLat, rect.RefLon, rect.Heading));
+        double crossOff = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(offNode.Latitude, offNode.Longitude, rect.RefLat, rect.RefLon, rect.Heading));
+        double crossOn = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(onNode.Latitude, onNode.Longitude, rect.RefLat, rect.RefLon, rect.Heading));
 
-        double distOffToIdeal = Math.Abs(crossOff - rect.HoldShortNm)
-            * GeoMath.FeetPerNm;
+        double distOffToIdeal = Math.Abs(crossOff - rect.HoldShortNm) * GeoMath.FeetPerNm;
 
-        if (distOffToIdeal <= HoldShortReuseFt
-            && offNode.Type != GroundNodeType.RunwayHoldShort)
+        if (distOffToIdeal <= HoldShortReuseFt && offNode.Type != GroundNodeType.RunwayHoldShort)
         {
             // Existing node is close enough — upgrade it to hold-short
             var upgraded = new GroundNode
@@ -547,9 +527,7 @@ public static class GeoJsonParser
             };
             layout.Nodes[offNode.Id] = upgraded;
 
-            logger?.LogDebug(
-                "Reused node {NodeId} as hold-short for {Runway} on {Taxiway}",
-                offNode.Id, rect.CombinedId, edge.TaxiwayName);
+            logger?.LogDebug("Reused node {NodeId} as hold-short for {Runway} on {Taxiway}", offNode.Id, rect.CombinedId, edge.TaxiwayName);
             return;
         }
 
@@ -563,10 +541,8 @@ public static class GeoJsonParser
         double fraction = (rect.HoldShortNm - crossOn) / denom;
         fraction = Math.Clamp(fraction, 0.01, 0.99);
 
-        double hsLat = onNode.Latitude
-            + fraction * (offNode.Latitude - onNode.Latitude);
-        double hsLon = onNode.Longitude
-            + fraction * (offNode.Longitude - onNode.Longitude);
+        double hsLat = onNode.Latitude + fraction * (offNode.Latitude - onNode.Latitude);
+        double hsLon = onNode.Longitude + fraction * (offNode.Longitude - onNode.Longitude);
 
         int hsId = nextNodeId++;
         var hsNode = new GroundNode
@@ -584,7 +560,12 @@ public static class GeoJsonParser
 
         logger?.LogDebug(
             "Runway crossing: {Taxiway} boundary at {Runway} — hold-short node {NodeId} at ({Lat:F6}, {Lon:F6})",
-            edge.TaxiwayName, rect.CombinedId, hsId, hsLat, hsLon);
+            edge.TaxiwayName,
+            rect.CombinedId,
+            hsId,
+            hsLat,
+            hsLon
+        );
     }
 
     /// <summary>
@@ -596,10 +577,10 @@ public static class GeoJsonParser
     {
         return runwayWidthFt switch
         {
-            < 75 => 125,   // ADG I: small GA (e.g., Cessna 172, Beechcraft Baron)
-            < 100 => 200,  // ADG II: regional (e.g., King Air, CRJ-200)
-            < 150 => 250,  // ADG III: commercial (e.g., B737, A320)
-            _ => 300,      // ADG IV-VI: major (e.g., B777, A380)
+            < 75 => 125, // ADG I: small GA (e.g., Cessna 172, Beechcraft Baron)
+            < 100 => 200, // ADG II: regional (e.g., King Air, CRJ-200)
+            < 150 => 250, // ADG III: commercial (e.g., B737, A320)
+            _ => 300, // ADG IV-VI: major (e.g., B777, A380)
         };
     }
 
@@ -607,33 +588,32 @@ public static class GeoJsonParser
     /// Splits an edge into two segments through one intermediate node.
     /// Replaces: from→to with from→mid, mid→to.
     /// </summary>
-    private static void SplitEdgeAtOneNode(
-        AirportGroundLayout layout, GroundEdge edge, GroundNode midNode)
+    private static void SplitEdgeAtOneNode(AirportGroundLayout layout, GroundEdge edge, GroundNode midNode)
     {
         layout.Edges.Remove(edge);
 
         var fromNode = layout.Nodes[edge.FromNodeId];
         var toNode = layout.Nodes[edge.ToNodeId];
 
-        layout.Edges.Add(new GroundEdge
-        {
-            FromNodeId = edge.FromNodeId,
-            ToNodeId = midNode.Id,
-            TaxiwayName = edge.TaxiwayName,
-            DistanceNm = GeoMath.DistanceNm(
-                fromNode.Latitude, fromNode.Longitude,
-                midNode.Latitude, midNode.Longitude),
-        });
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                FromNodeId = edge.FromNodeId,
+                ToNodeId = midNode.Id,
+                TaxiwayName = edge.TaxiwayName,
+                DistanceNm = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, midNode.Latitude, midNode.Longitude),
+            }
+        );
 
-        layout.Edges.Add(new GroundEdge
-        {
-            FromNodeId = midNode.Id,
-            ToNodeId = edge.ToNodeId,
-            TaxiwayName = edge.TaxiwayName,
-            DistanceNm = GeoMath.DistanceNm(
-                midNode.Latitude, midNode.Longitude,
-                toNode.Latitude, toNode.Longitude),
-        });
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                FromNodeId = midNode.Id,
+                ToNodeId = edge.ToNodeId,
+                TaxiwayName = edge.TaxiwayName,
+                DistanceNm = GeoMath.DistanceNm(midNode.Latitude, midNode.Longitude, toNode.Latitude, toNode.Longitude),
+            }
+        );
     }
 
     private readonly struct RunwayRectangle
@@ -644,11 +624,10 @@ public static class GeoJsonParser
         public required double LengthNm { get; init; }
         public required double HalfWidthNm { get; init; }
         public required double HoldShortNm { get; init; }
-        public required string CombinedId { get; init; }
+        public required RunwayIdentifier CombinedId { get; init; }
     }
 
-    private static void ConnectParkingToTaxiway(
-        GroundNode parking, AirportGroundLayout layout)
+    private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout)
     {
         GroundNode? nearest = null;
         double nearestDist = double.MaxValue;
@@ -660,9 +639,7 @@ public static class GeoJsonParser
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(
-                parking.Latitude, parking.Longitude,
-                node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(parking.Latitude, parking.Longitude, node.Latitude, node.Longitude);
 
             if (dist < nearestDist)
             {
@@ -692,8 +669,11 @@ public static class GeoJsonParser
     /// Returns (NaN, NaN) if no intersection.
     /// </summary>
     private static (double Lat, double Lon) SegmentIntersection(
-        (double Lat, double Lon) a1, (double Lat, double Lon) a2,
-        (double Lat, double Lon) b1, (double Lat, double Lon) b2)
+        (double Lat, double Lon) a1,
+        (double Lat, double Lon) a2,
+        (double Lat, double Lon) b1,
+        (double Lat, double Lon) b2
+    )
     {
         double d1Lat = a2.Lat - a1.Lat;
         double d1Lon = a2.Lon - a1.Lon;
@@ -742,8 +722,7 @@ public static class GeoJsonParser
         return new SpotFeature(name, lat, lon);
     }
 
-    private static (string Name, List<(double Lat, double Lon)> Coords) ParseLineString(
-        JsonElement props, JsonElement geom)
+    private static (string Name, List<(double Lat, double Lon)> Coords) ParseLineString(JsonElement props, JsonElement geom)
     {
         string name = props.GetProperty("name").GetString() ?? "";
         var coordsArray = geom.GetProperty("coordinates");
@@ -789,21 +768,15 @@ public static class GeoJsonParser
     }
 
     // Internal feature DTOs
-    private sealed record ParkingFeature(
-        string Name, double Lat, double Lon, int Heading);
+    private sealed record ParkingFeature(string Name, double Lat, double Lon, int Heading);
 
     private sealed record SpotFeature(string Name, double Lat, double Lon);
 
-    private sealed record TaxiwayFeature(
-        string Name, List<(double Lat, double Lon)> Coords);
+    private sealed record TaxiwayFeature(string Name, List<(double Lat, double Lon)> Coords);
 
-    private sealed record RunwayFeature(
-        string Name, List<(double Lat, double Lon)> Coords);
+    private sealed record RunwayFeature(string Name, List<(double Lat, double Lon)> Coords);
 
-    private sealed class ProcessedTaxiway(
-        string name,
-        List<int> nodeIds,
-        List<(double Lat, double Lon)> coords)
+    private sealed class ProcessedTaxiway(string name, List<int> nodeIds, List<(double Lat, double Lon)> coords)
     {
         public string Name { get; } = name;
         public List<int> NodeIds { get; } = nodeIds;
@@ -853,8 +826,7 @@ public static class GeoJsonParser
 
                     foreach (var (nLat, nLon, nodeId) in list)
                     {
-                        if (Math.Abs(lat - nLat) <= _tolerance
-                            && Math.Abs(lon - nLon) <= _tolerance)
+                        if (Math.Abs(lat - nLat) <= _tolerance && Math.Abs(lon - nLon) <= _tolerance)
                         {
                             return nodeId;
                         }
@@ -867,9 +839,7 @@ public static class GeoJsonParser
 
         private (int LatBucket, int LonBucket) BucketKey(double lat, double lon)
         {
-            return (
-                (int)Math.Floor(lat / _tolerance),
-                (int)Math.Floor(lon / _tolerance));
+            return ((int)Math.Floor(lat / _tolerance), (int)Math.Floor(lon / _tolerance));
         }
     }
 }

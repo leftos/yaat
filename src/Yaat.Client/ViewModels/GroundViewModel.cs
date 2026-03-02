@@ -30,9 +30,7 @@ public partial class GroundViewModel : ObservableObject
 
     public ObservableCollection<AircraftModel> GroundAircraft { get; } = [];
 
-    public GroundViewModel(
-        ServerConnection connection,
-        Func<string, string, string, Task> sendCommand)
+    public GroundViewModel(ServerConnection connection, Func<string, string, string, Task> sendCommand)
     {
         _connection = connection;
         _sendCommand = sendCommand;
@@ -53,9 +51,7 @@ public partial class GroundViewModel : ObservableObject
 
             Layout = dto;
             _domainLayout = ReconstructLayout(dto);
-            _log.LogInformation(
-                "Ground layout loaded for {Id}: {Nodes} nodes, {Edges} edges",
-                airportId, dto.Nodes.Count, dto.Edges.Count);
+            _log.LogInformation("Ground layout loaded for {Id}: {Nodes} nodes, {Edges} edges", airportId, dto.Nodes.Count, dto.Edges.Count);
         }
         catch (Exception ex)
         {
@@ -143,8 +139,7 @@ public partial class GroundViewModel : ObservableObject
 
     // --- Command methods ---
 
-    public async Task TaxiToNodeAsync(
-        string callsign, string initials, int toNodeId)
+    public async Task TaxiToNodeAsync(string callsign, string initials, int toNodeId)
     {
         if (_domainLayout is null || SelectedAircraft is null)
         {
@@ -160,8 +155,7 @@ public partial class GroundViewModel : ObservableObject
         var route = FindRouteToNode(fromNodeId.Value, toNodeId);
         if (route is null)
         {
-            _log.LogWarning("No route from node {From} to {To}",
-                fromNodeId, toNodeId);
+            _log.LogWarning("No route from node {From} to {To}", fromNodeId, toNodeId);
             return;
         }
 
@@ -175,116 +169,97 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, $"TAXI {taxiways}", initials);
     }
 
-    public async Task HoldPositionAsync(
-        string callsign, string initials)
+    public async Task HoldPositionAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "HP", initials);
     }
 
-    public async Task ResumeAsync(
-        string callsign, string initials)
+    public async Task ResumeAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "RES", initials);
     }
 
-    public async Task PushbackAsync(
-        string callsign, string initials)
+    public async Task PushbackAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "PUSH", initials);
     }
 
-    public async Task CrossRunwayAsync(
-        string callsign, string initials, string runwayId)
+    public async Task CrossRunwayAsync(string callsign, string initials, string runwayId)
     {
         await _sendCommand(callsign, $"CROSS {runwayId}", initials);
     }
 
-    public async Task LineUpAndWaitAsync(
-        string callsign, string initials, string runwayId)
+    public async Task LineUpAndWaitAsync(string callsign, string initials, string runwayId)
     {
         await _sendCommand(callsign, $"LUAW {runwayId}", initials);
     }
 
-    public async Task ClearedForTakeoffAsync(
-        string callsign, string initials, string runwayId)
+    public async Task ClearedForTakeoffAsync(string callsign, string initials, string runwayId)
     {
         await _sendCommand(callsign, $"CTO {runwayId}", initials);
     }
 
-    public async Task GoAroundAsync(
-        string callsign, string initials)
+    public async Task GoAroundAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "GA", initials);
     }
 
-    public async Task CancelTakeoffClearanceAsync(
-        string callsign, string initials)
+    public async Task CancelTakeoffClearanceAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "CTOC", initials);
     }
 
-    public async Task ClearedToLandAsync(
-        string callsign, string initials)
+    public async Task ClearedToLandAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "CTL", initials);
     }
 
-    public async Task CancelLandingClearanceAsync(
-        string callsign, string initials)
+    public async Task CancelLandingClearanceAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "CLC", initials);
     }
 
-    public async Task TouchAndGoAsync(
-        string callsign, string initials)
+    public async Task TouchAndGoAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "TG", initials);
     }
 
-    public async Task StopAndGoAsync(
-        string callsign, string initials)
+    public async Task StopAndGoAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "SG", initials);
     }
 
-    public async Task LowApproachAsync(
-        string callsign, string initials)
+    public async Task LowApproachAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "LA", initials);
     }
 
-    public async Task ClearedForOptionAsync(
-        string callsign, string initials)
+    public async Task ClearedForOptionAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "COPT", initials);
     }
 
-    public async Task ExitLeftAsync(
-        string callsign, string initials)
+    public async Task ExitLeftAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "EL", initials);
     }
 
-    public async Task ExitRightAsync(
-        string callsign, string initials)
+    public async Task ExitRightAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "ER", initials);
     }
 
-    public async Task PushbackHeadingAsync(
-        string callsign, string initials, int heading)
+    public async Task PushbackHeadingAsync(string callsign, string initials, int heading)
     {
         await _sendCommand(callsign, $"PUSH {heading}", initials);
     }
 
-    public async Task SendRawCommandAsync(
-        string callsign, string initials, string command)
+    public async Task SendRawCommandAsync(string callsign, string initials, string command)
     {
         await _sendCommand(callsign, command, initials);
     }
 
-    public async Task HoldShortAsync(
-        string callsign, string initials, string target)
+    public async Task HoldShortAsync(string callsign, string initials, string target)
     {
         await _sendCommand(callsign, $"HS {target}", initials);
     }
@@ -296,25 +271,19 @@ public partial class GroundViewModel : ObservableObject
 
     public async Task WarpToNodeAsync(string callsign, int nodeId)
     {
-        if (_domainLayout is null
-            || !_domainLayout.Nodes.TryGetValue(nodeId, out var node))
+        if (_domainLayout is null || !_domainLayout.Nodes.TryGetValue(nodeId, out var node))
         {
             return;
         }
 
-        var ac = GroundAircraft.FirstOrDefault(
-            a => a.Callsign == callsign);
+        var ac = GroundAircraft.FirstOrDefault(a => a.Callsign == callsign);
         var currentHeading = ac?.Heading ?? 0;
 
-        var heading = PickBestEdgeHeading(
-            _domainLayout, node, currentHeading);
-        await _connection.WarpAircraftAsync(
-            callsign, node.Latitude, node.Longitude, heading);
+        var heading = PickBestEdgeHeading(_domainLayout, node, currentHeading);
+        await _connection.WarpAircraftAsync(callsign, node.Latitude, node.Longitude, heading);
     }
 
-    private static double PickBestEdgeHeading(
-        AirportGroundLayout layout, GroundNode node,
-        double currentHeading)
+    private static double PickBestEdgeHeading(AirportGroundLayout layout, GroundNode node, double currentHeading)
     {
         double bestHeading = currentHeading;
         double bestDelta = 360;
@@ -334,34 +303,26 @@ public partial class GroundViewModel : ObservableObject
         return bestHeading;
     }
 
-    private static double ComputeEdgeBearing(
-        AirportGroundLayout layout, GroundNode node, GroundEdge edge)
+    private static double ComputeEdgeBearing(AirportGroundLayout layout, GroundNode node, GroundEdge edge)
     {
         // Use the first intermediate point along the direction away from node
-        if (edge.FromNodeId == node.Id
-            && edge.IntermediatePoints.Count > 0)
+        if (edge.FromNodeId == node.Id && edge.IntermediatePoints.Count > 0)
         {
             var pt = edge.IntermediatePoints[0];
-            return Yaat.Sim.GeoMath.BearingTo(
-                node.Latitude, node.Longitude, pt.Lat, pt.Lon);
+            return Yaat.Sim.GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
         }
 
-        if (edge.ToNodeId == node.Id
-            && edge.IntermediatePoints.Count > 0)
+        if (edge.ToNodeId == node.Id && edge.IntermediatePoints.Count > 0)
         {
             var pt = edge.IntermediatePoints[^1];
-            return Yaat.Sim.GeoMath.BearingTo(
-                node.Latitude, node.Longitude, pt.Lat, pt.Lon);
+            return Yaat.Sim.GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
         }
 
         // No intermediate points — use the other node's position
-        int otherId = edge.FromNodeId == node.Id
-            ? edge.ToNodeId : edge.FromNodeId;
+        int otherId = edge.FromNodeId == node.Id ? edge.ToNodeId : edge.FromNodeId;
         if (layout.Nodes.TryGetValue(otherId, out var otherNode))
         {
-            return Yaat.Sim.GeoMath.BearingTo(
-                node.Latitude, node.Longitude,
-                otherNode.Latitude, otherNode.Longitude);
+            return Yaat.Sim.GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
         }
 
         return 0;
@@ -399,8 +360,7 @@ public partial class GroundViewModel : ObservableObject
     /// Routes with no crossings return a single entry.
     /// Each entry: (displayLabel, command).
     /// </summary>
-    public List<(string Label, string Command)> BuildTaxiCrossingVariants(
-        TaxiRoute route)
+    public List<(string Label, string Command)> BuildTaxiCrossingVariants(TaxiRoute route)
     {
         var taxiways = BuildTaxiCommand(route);
         if (string.IsNullOrEmpty(taxiways))
@@ -411,10 +371,9 @@ public partial class GroundViewModel : ObservableObject
         var crossings = new List<string>();
         foreach (var hs in route.HoldShortPoints)
         {
-            if (hs.Reason == HoldShortReason.RunwayCrossing
-                && hs.TargetName is not null)
+            if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
             {
-                crossings.Add(hs.TargetName.Split('/')[0]);
+                crossings.Add(RunwayIdentifier.Parse(hs.TargetName).End1);
             }
         }
 
@@ -426,15 +385,12 @@ public partial class GroundViewModel : ObservableObject
         var results = new List<(string Label, string Command)>();
 
         // Variation 0: hold short of first crossing
-        results.Add((
-            $"HS {crossings[0]}",
-            $"TAXI {taxiways} HS {crossings[0]}"));
+        results.Add(($"HS {crossings[0]}", $"TAXI {taxiways} HS {crossings[0]}"));
 
         // Variations 1..N-1: cross some, hold short of next
         for (int i = 0; i < crossings.Count - 1; i++)
         {
-            var crossParts = crossings.Take(i + 1)
-                .Select(r => $"CROSS {r}");
+            var crossParts = crossings.Take(i + 1).Select(r => $"CROSS {r}");
             var holdAt = crossings[i + 1];
             var label = $"CROSS {string.Join(" ", crossings.Take(i + 1))} HS {holdAt}";
             var cmd = $"TAXI {taxiways} HS {holdAt}, {string.Join(", ", crossParts)}";
@@ -443,9 +399,7 @@ public partial class GroundViewModel : ObservableObject
 
         // Variation N: cross all
         var allCrossParts = crossings.Select(r => $"CROSS {r}");
-        results.Add((
-            $"CROSS {string.Join(" ", crossings)}",
-            $"TAXI {taxiways}, {string.Join(", ", allCrossParts)}"));
+        results.Add(($"CROSS {string.Join(" ", crossings)}", $"TAXI {taxiways}, {string.Join(", ", allCrossParts)}"));
 
         return results;
     }
@@ -456,8 +410,7 @@ public partial class GroundViewModel : ObservableObject
         foreach (var seg in route.Segments)
         {
             var name = seg.TaxiwayName;
-            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
+            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -487,17 +440,14 @@ public partial class GroundViewModel : ObservableObject
         var directions = new List<(string Label, int Heading)>();
         foreach (var edge in node.Edges)
         {
-            int otherId = edge.FromNodeId == nodeId.Value
-                ? edge.ToNodeId : edge.FromNodeId;
+            int otherId = edge.FromNodeId == nodeId.Value ? edge.ToNodeId : edge.FromNodeId;
 
             if (!_domainLayout.Nodes.TryGetValue(otherId, out var otherNode))
             {
                 continue;
             }
 
-            var bearing = Yaat.Sim.GeoMath.BearingTo(
-                node.Latitude, node.Longitude,
-                otherNode.Latitude, otherNode.Longitude);
+            var bearing = Yaat.Sim.GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
             var heading = (int)Math.Round(bearing);
             if (heading <= 0)
             {
@@ -514,8 +464,7 @@ public partial class GroundViewModel : ObservableObject
         return directions;
     }
 
-    public List<(string DisplayName, string Target)> GetHoldShortTargets(
-        AircraftModel ac)
+    public List<(string DisplayName, string Target)> GetHoldShortTargets(AircraftModel ac)
     {
         if (_domainLayout is null)
         {
@@ -549,12 +498,12 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            if (node.Type == GroundNodeType.RunwayHoldShort
-                && node.RunwayId is not null)
+            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rwyId)
             {
-                foreach (var part in node.RunwayId.Split('/'))
+                runways.Add(rwyId.End1);
+                if (!string.Equals(rwyId.End1, rwyId.End2, StringComparison.OrdinalIgnoreCase))
                 {
-                    runways.Add(part);
+                    runways.Add(rwyId.End2);
                 }
             }
 
@@ -566,8 +515,7 @@ public partial class GroundViewModel : ObservableObject
                     continue;
                 }
 
-                if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
+                if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -590,8 +538,7 @@ public partial class GroundViewModel : ObservableObject
         return results;
     }
 
-    public TaxiRoute? FindHoldShortPreviewRoute(
-        AircraftModel ac, string target)
+    public TaxiRoute? FindHoldShortPreviewRoute(AircraftModel ac, string target)
     {
         if (_domainLayout is null)
         {
@@ -614,9 +561,7 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            bool matches = node.Type == GroundNodeType.RunwayHoldShort
-                && node.RunwayId is not null
-                && node.RunwayId.Contains(target, StringComparison.OrdinalIgnoreCase);
+            bool matches = node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } hsRwyId && hsRwyId.Contains(target);
 
             if (!matches)
             {
@@ -632,11 +577,7 @@ public partial class GroundViewModel : ObservableObject
 
             if (matches)
             {
-                return new TaxiRoute
-                {
-                    Segments = route.Segments.GetRange(0, i + 1),
-                    HoldShortPoints = [],
-                };
+                return new TaxiRoute { Segments = route.Segments.GetRange(0, i + 1), HoldShortPoints = [] };
             }
         }
 
@@ -665,18 +606,14 @@ public partial class GroundViewModel : ObservableObject
         // Trim to start from the aircraft's current taxiway
         if (!string.IsNullOrEmpty(ac.CurrentTaxiway))
         {
-            int startIdx = routeTaxiways.FindIndex(
-                tw => string.Equals(tw, ac.CurrentTaxiway,
-                    StringComparison.OrdinalIgnoreCase));
+            int startIdx = routeTaxiways.FindIndex(tw => string.Equals(tw, ac.CurrentTaxiway, StringComparison.OrdinalIgnoreCase));
             if (startIdx > 0)
             {
-                routeTaxiways = routeTaxiways.GetRange(
-                    startIdx, routeTaxiways.Count - startIdx);
+                routeTaxiways = routeTaxiways.GetRange(startIdx, routeTaxiways.Count - startIdx);
             }
         }
 
-        return TaxiPathfinder.ResolveExplicitPath(
-            _domainLayout, nodeId.Value, routeTaxiways, out _);
+        return TaxiPathfinder.ResolveExplicitPath(_domainLayout, nodeId.Value, routeTaxiways, out _);
     }
 
     private static List<string> ParseRouteTaxiways(string taxiRoute)
@@ -701,20 +638,13 @@ public partial class GroundViewModel : ObservableObject
         return result;
     }
 
-    private static AirportGroundLayout ReconstructLayout(
-        GroundLayoutDto dto)
+    private static AirportGroundLayout ReconstructLayout(GroundLayoutDto dto)
     {
-        var layout = new AirportGroundLayout
-        {
-            AirportId = dto.AirportId,
-        };
+        var layout = new AirportGroundLayout { AirportId = dto.AirportId };
 
         foreach (var nodeDto in dto.Nodes)
         {
-            var type = Enum.TryParse<GroundNodeType>(
-                nodeDto.Type, out var t)
-                ? t
-                : GroundNodeType.TaxiwayIntersection;
+            var type = Enum.TryParse<GroundNodeType>(nodeDto.Type, out var t) ? t : GroundNodeType.TaxiwayIntersection;
 
             var node = new GroundNode
             {
@@ -724,7 +654,7 @@ public partial class GroundViewModel : ObservableObject
                 Type = type,
                 Name = nodeDto.Name,
                 Heading = nodeDto.Heading,
-                RunwayId = nodeDto.RunwayId,
+                RunwayId = nodeDto.RunwayId is not null ? RunwayIdentifier.Parse(nodeDto.RunwayId) : null,
             };
             layout.Nodes[node.Id] = node;
         }

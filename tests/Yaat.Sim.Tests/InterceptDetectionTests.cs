@@ -9,19 +9,16 @@ namespace Yaat.Sim.Tests;
 public class InterceptDetectionTests
 {
     // OAK runway 28L: threshold at (37.72, -122.22), heading 280°
-    private static readonly RunwayInfo TestRunway = new()
-    {
-        AirportId = "OAK",
-        RunwayId = "28L",
-        ThresholdLatitude = 37.72,
-        ThresholdLongitude = -122.22,
-        TrueHeading = 280,
-        ElevationFt = 10,
-        LengthFt = 10000,
-        WidthFt = 150,
-        EndLatitude = 37.72,
-        EndLongitude = -122.26,
-    };
+    private static readonly RunwayInfo TestRunway = TestRunwayFactory.Make(
+        designator: "28L",
+        airportId: "OAK",
+        thresholdLat: 37.72,
+        thresholdLon: -122.22,
+        endLat: 37.72,
+        endLon: -122.26,
+        heading: 280,
+        elevationFt: 10
+    );
 
     [Fact]
     public void InterceptTooClose_TriggersWarning()
@@ -29,8 +26,7 @@ public class InterceptDetectionTests
         // Approach gate database not initialized → uses 7nm default
         // Place aircraft 5nm from threshold on the extended centerline
         // (5nm < 7nm default → should warn)
-        var (aircraft, phaseList) = CreateAircraftOnFinal(
-            distanceNm: 5.0, heading: 280);
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 280);
 
         var phase = new FinalApproachPhase();
         phaseList.Add(phase);
@@ -48,8 +44,7 @@ public class InterceptDetectionTests
     public void InterceptFarEnough_NoWarning()
     {
         // Place aircraft 8nm from threshold (8 > 7nm default → no warning)
-        var (aircraft, phaseList) = CreateAircraftOnFinal(
-            distanceNm: 8.0, heading: 280);
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 8.0, heading: 280);
 
         var phase = new FinalApproachPhase();
         phaseList.Add(phase);
@@ -65,8 +60,7 @@ public class InterceptDetectionTests
     public void PatternTraffic_ExemptFromWarning()
     {
         // Pattern traffic (TrafficDirection set) should never warn
-        var (aircraft, phaseList) = CreateAircraftOnFinal(
-            distanceNm: 3.0, heading: 280);
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 3.0, heading: 280);
         phaseList.TrafficDirection = PatternDirection.Left;
 
         var phase = new FinalApproachPhase();
@@ -83,8 +77,7 @@ public class InterceptDetectionTests
     public void InterceptCheck_FiresOnlyOnce()
     {
         // Place aircraft 5nm from threshold → triggers warning on first tick
-        var (aircraft, phaseList) = CreateAircraftOnFinal(
-            distanceNm: 5.0, heading: 280);
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 280);
 
         var phase = new FinalApproachPhase();
         phaseList.Add(phase);
@@ -103,8 +96,7 @@ public class InterceptDetectionTests
     {
         // Aircraft at 5nm but heading 45° off runway heading →
         // not established → no warning on first tick
-        var (aircraft, phaseList) = CreateAircraftOnFinal(
-            distanceNm: 5.0, heading: 325); // 280 + 45 = 325
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 325); // 280 + 45 = 325
 
         var phase = new FinalApproachPhase();
         phaseList.Add(phase);
@@ -117,21 +109,13 @@ public class InterceptDetectionTests
         Assert.Empty(aircraft.PendingWarnings);
     }
 
-    private static (AircraftState Aircraft, PhaseList PhaseList)
-        CreateAircraftOnFinal(double distanceNm, double heading)
+    private static (AircraftState Aircraft, PhaseList PhaseList) CreateAircraftOnFinal(double distanceNm, double heading)
     {
         // Project aircraft position along reciprocal of runway heading
         double reciprocal = (TestRunway.TrueHeading + 180) % 360;
-        var (lat, lon) = FlightPhysics.ProjectPoint(
-            TestRunway.ThresholdLatitude,
-            TestRunway.ThresholdLongitude,
-            reciprocal,
-            distanceNm);
+        var (lat, lon) = FlightPhysics.ProjectPoint(TestRunway.ThresholdLatitude, TestRunway.ThresholdLongitude, reciprocal, distanceNm);
 
-        var phaseList = new PhaseList
-        {
-            AssignedRunway = TestRunway,
-        };
+        var phaseList = new PhaseList { AssignedRunway = TestRunway };
 
         var aircraft = new AircraftState
         {

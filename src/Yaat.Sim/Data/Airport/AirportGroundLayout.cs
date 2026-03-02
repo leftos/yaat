@@ -26,7 +26,7 @@ public sealed class GroundNode
     /// <summary>
     /// Runway ID that this hold-short node protects. Only set for RunwayHoldShort nodes.
     /// </summary>
-    public string? RunwayId { get; init; }
+    public RunwayIdentifier? RunwayId { get; init; }
 
     /// <summary>
     /// Adjacent edges for graph traversal. Populated during layout construction.
@@ -66,8 +66,7 @@ public sealed class AirportGroundLayout
     {
         foreach (var node in Nodes.Values)
         {
-            if (node.Type == GroundNodeType.Parking
-                && string.Equals(node.Name, name, StringComparison.OrdinalIgnoreCase))
+            if (node.Type == GroundNodeType.Parking && string.Equals(node.Name, name, StringComparison.OrdinalIgnoreCase))
             {
                 return node;
             }
@@ -98,8 +97,7 @@ public sealed class AirportGroundLayout
     /// Find the nearest taxiway node suitable as a runway exit, considering aircraft heading.
     /// Prefers exits that don't require turns greater than 90 degrees.
     /// </summary>
-    public GroundNode? FindNearestExit(
-        double lat, double lon, double runwayHeading, double maxSearchNm = 0.5)
+    public GroundNode? FindNearestExit(double lat, double lon, double runwayHeading, double maxSearchNm = 0.5)
     {
         GroundNode? best = null;
         double bestScore = double.MaxValue;
@@ -150,9 +148,7 @@ public sealed class AirportGroundLayout
     /// Find the nearest exit on the specified side of the runway heading.
     /// Falls back to FindNearestExit if no exits match the requested side.
     /// </summary>
-    public GroundNode? FindExitBySide(
-        double lat, double lon, double runwayHeading, ExitSide side,
-        double maxSearchNm = 0.5)
+    public GroundNode? FindExitBySide(double lat, double lon, double runwayHeading, ExitSide side, double maxSearchNm = 0.5)
     {
         GroundNode? best = null;
         double bestScore = double.MaxValue;
@@ -213,9 +209,7 @@ public sealed class AirportGroundLayout
     /// Find an exit node connected to the named taxiway.
     /// Uses a wider search radius since the taxiway might be further ahead.
     /// </summary>
-    public GroundNode? FindExitByTaxiway(
-        double lat, double lon, string taxiwayName,
-        double maxSearchNm = 1.0)
+    public GroundNode? FindExitByTaxiway(double lat, double lon, string taxiwayName, double maxSearchNm = 1.0)
     {
         GroundNode? best = null;
         double bestDist = double.MaxValue;
@@ -236,8 +230,7 @@ public sealed class AirportGroundLayout
             bool hasMatchingEdge = false;
             foreach (var edge in node.Edges)
             {
-                if (!IsRunwayEdge(edge)
-                    && string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                if (!IsRunwayEdge(edge) && string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
                 {
                     hasMatchingEdge = true;
                     break;
@@ -283,8 +276,7 @@ public sealed class AirportGroundLayout
         var result = new List<GroundNode>();
         foreach (var node in Nodes.Values)
         {
-            if (node.Type == GroundNodeType.RunwayHoldShort
-                && string.Equals(node.RunwayId, runwayId, StringComparison.OrdinalIgnoreCase))
+            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } id && id.Contains(runwayId))
             {
                 result.Add(node);
             }

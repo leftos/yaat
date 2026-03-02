@@ -23,7 +23,7 @@ public sealed class RunwayExitPhase : Phase
     {
         ctx.Aircraft.IsOnGround = true;
 
-        _runwayId = ctx.Aircraft.Phases?.AssignedRunway?.RunwayId;
+        _runwayId = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
 
         if (ctx.GroundLayout is null)
         {
@@ -55,33 +55,23 @@ public sealed class RunwayExitPhase : Phase
         if (ctx.Aircraft.GroundSpeed > exitSpeed)
         {
             double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Max(
-                exitSpeed,
-                ctx.Aircraft.GroundSpeed - decelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.GroundSpeed = Math.Max(exitSpeed, ctx.Aircraft.GroundSpeed - decelRate * ctx.DeltaSeconds);
         }
         else if (ctx.Aircraft.GroundSpeed < exitSpeed)
         {
             double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Min(
-                exitSpeed,
-                ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.GroundSpeed = Math.Min(exitSpeed, ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
         }
 
         ctx.Targets.TargetSpeed = exitSpeed;
 
         // Turn toward exit node
-        double bearing = GeoMath.BearingTo(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _exitNode.Latitude, _exitNode.Longitude);
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category)
-            * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(
-            ctx.Aircraft.Heading, bearing, maxTurn);
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _exitNode.Latitude, _exitNode.Longitude);
+        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
 
         // Check arrival
-        double dist = GeoMath.DistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            _exitNode.Latitude, _exitNode.Longitude);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _exitNode.Latitude, _exitNode.Longitude);
 
         if (dist <= ArrivalThresholdNm)
         {
@@ -102,8 +92,7 @@ public sealed class RunwayExitPhase : Phase
             // Generate "clear of runway" notification
             string rwy = _runwayId ?? "unknown";
             string taxiway = _exitTaxiway ?? "taxiway";
-            ctx.Aircraft.PendingWarnings.Add(
-                $"{ctx.Aircraft.Callsign} clear of runway {rwy} at {taxiway}");
+            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} clear of runway {rwy} at {taxiway}");
         }
     }
 
@@ -115,23 +104,18 @@ public sealed class RunwayExitPhase : Phase
 
         if (requested?.Taxiway is { } taxiway)
         {
-            _exitNode = ctx.GroundLayout!.FindExitByTaxiway(
-                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, taxiway);
+            _exitNode = ctx.GroundLayout!.FindExitByTaxiway(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, taxiway);
         }
         else if (requested?.Side is { } side)
         {
-            _exitNode = ctx.GroundLayout!.FindExitBySide(
-                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, heading, side);
+            _exitNode = ctx.GroundLayout!.FindExitBySide(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, heading, side);
         }
         else
         {
-            _exitNode = ctx.GroundLayout!.FindNearestExit(
-                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, heading);
+            _exitNode = ctx.GroundLayout!.FindNearestExit(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, heading);
         }
 
-        _exitTaxiway = _exitNode is not null
-            ? ctx.GroundLayout!.GetExitTaxiwayName(_exitNode)
-            : null;
+        _exitTaxiway = _exitNode is not null ? ctx.GroundLayout!.GetExitTaxiwayName(_exitNode) : null;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

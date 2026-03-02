@@ -24,7 +24,8 @@ public static class TaxiPathfinder
         List<string>? explicitHoldShorts = null,
         string? destinationRunway = null,
         IRunwayLookup? runways = null,
-        string? airportId = null)
+        string? airportId = null
+    )
     {
         failReason = null;
 
@@ -41,13 +42,10 @@ public static class TaxiPathfinder
         for (int twIdx = 0; twIdx < taxiwayNames.Count; twIdx++)
         {
             string twName = taxiwayNames[twIdx];
-            string? nextTwName = twIdx + 1 < taxiwayNames.Count
-                ? taxiwayNames[twIdx + 1] : null;
+            string? nextTwName = twIdx + 1 < taxiwayNames.Count ? taxiwayNames[twIdx + 1] : null;
             segmentCountBeforeLastTw = segments.Count;
 
-            bool found = WalkTaxiway(
-                layout, currentNodeId, twName,
-                segments, out int endNodeId, nextTwName);
+            bool found = WalkTaxiway(layout, currentNodeId, twName, segments, out int endNodeId, nextTwName);
 
             if (!found)
             {
@@ -61,10 +59,16 @@ public static class TaxiPathfinder
         if (destinationRunway is not null && taxiwayNames.Count > 0)
         {
             bool inferred = TryInferVariant(
-                layout, segments, taxiwayNames[^1],
-                segmentCountBeforeLastTw, destinationRunway,
-                runways, airportId,
-                ref currentNodeId, out failReason);
+                layout,
+                segments,
+                taxiwayNames[^1],
+                segmentCountBeforeLastTw,
+                destinationRunway,
+                runways,
+                airportId,
+                ref currentNodeId,
+                out failReason
+            );
 
             if (failReason is not null)
             {
@@ -90,18 +94,13 @@ public static class TaxiPathfinder
             AddDestinationHoldShort(layout, segments, holdShorts, destinationRunway);
         }
 
-        return new TaxiRoute
-        {
-            Segments = segments,
-            HoldShortPoints = holdShorts,
-        };
+        return new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
     }
 
     /// <summary>
     /// Find shortest route between two nodes using A*.
     /// </summary>
-    public static TaxiRoute? FindRoute(
-        AirportGroundLayout layout, int fromNodeId, int toNodeId)
+    public static TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId)
     {
         return FindRouteInternal(layout, fromNodeId, toNodeId, null, null);
     }
@@ -111,9 +110,7 @@ public static class TaxiPathfinder
     /// using Yen's K-shortest paths algorithm. Routes are deduplicated by taxiway
     /// sequence (two routes with the same taxiway key keep only the shorter one).
     /// </summary>
-    public static List<TaxiRoute> FindRoutes(
-        AirportGroundLayout layout, int fromNodeId, int toNodeId,
-        int maxRoutes = 4)
+    public static List<TaxiRoute> FindRoutes(AirportGroundLayout layout, int fromNodeId, int toNodeId, int maxRoutes = 4)
     {
         var first = FindRouteInternal(layout, fromNodeId, toNodeId, null, null);
         if (first is null)
@@ -123,10 +120,7 @@ public static class TaxiPathfinder
 
         var results = new List<TaxiRoute> { first };
         var candidates = new List<TaxiRoute>();
-        var seenKeys = new HashSet<string>(StringComparer.Ordinal)
-        {
-            BuildTaxiwayKey(first),
-        };
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal) { BuildTaxiwayKey(first) };
 
         for (int k = 1; k < maxRoutes; k++)
         {
@@ -135,9 +129,7 @@ public static class TaxiPathfinder
 
             for (int i = 0; i < prevSegments.Count; i++)
             {
-                int spurNodeId = i == 0
-                    ? prevSegments[0].FromNodeId
-                    : prevSegments[i - 1].ToNodeId;
+                int spurNodeId = i == 0 ? prevSegments[0].FromNodeId : prevSegments[i - 1].ToNodeId;
 
                 // Build blocked edges: for each existing result, if root matches,
                 // block the edge at the spur index
@@ -152,8 +144,7 @@ public static class TaxiPathfinder
                     bool rootMatches = true;
                     for (int j = 0; j < i; j++)
                     {
-                        if (result.Segments[j].FromNodeId != prevSegments[j].FromNodeId
-                            || result.Segments[j].ToNodeId != prevSegments[j].ToNodeId)
+                        if (result.Segments[j].FromNodeId != prevSegments[j].FromNodeId || result.Segments[j].ToNodeId != prevSegments[j].ToNodeId)
                         {
                             rootMatches = false;
                             break;
@@ -175,8 +166,7 @@ public static class TaxiPathfinder
                     blockedNodes.Add(prevSegments[j].FromNodeId);
                 }
 
-                var spurPath = FindRouteInternal(
-                    layout, spurNodeId, toNodeId, blockedEdges, blockedNodes);
+                var spurPath = FindRouteInternal(layout, spurNodeId, toNodeId, blockedEdges, blockedNodes);
                 if (spurPath is null)
                 {
                     continue;
@@ -194,17 +184,12 @@ public static class TaxiPathfinder
                 var holdShorts = new List<HoldShortPoint>();
                 AddImplicitRunwayHoldShorts(layout, combinedSegments, holdShorts);
 
-                var combined = new TaxiRoute
-                {
-                    Segments = combinedSegments,
-                    HoldShortPoints = holdShorts,
-                };
+                var combined = new TaxiRoute { Segments = combinedSegments, HoldShortPoints = holdShorts };
                 candidates.Add(combined);
             }
 
             // Pick shortest candidate with a unique taxiway key
-            candidates.Sort((a, b) =>
-                a.TotalDistanceNm.CompareTo(b.TotalDistanceNm));
+            candidates.Sort((a, b) => a.TotalDistanceNm.CompareTo(b.TotalDistanceNm));
 
             TaxiRoute? nextRoute = null;
             foreach (var candidate in candidates)
@@ -239,14 +224,12 @@ public static class TaxiPathfinder
         foreach (var seg in route.Segments)
         {
             var name = seg.TaxiwayName;
-            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
+            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (names.Count == 0
-                || !string.Equals(names[^1], name, StringComparison.OrdinalIgnoreCase))
+            if (names.Count == 0 || !string.Equals(names[^1], name, StringComparison.OrdinalIgnoreCase))
             {
                 names.Add(name.ToUpperInvariant());
             }
@@ -256,11 +239,14 @@ public static class TaxiPathfinder
     }
 
     private static TaxiRoute? FindRouteInternal(
-        AirportGroundLayout layout, int fromNodeId, int toNodeId,
-        HashSet<(int, int)>? blockedEdges, HashSet<int>? blockedNodes)
+        AirportGroundLayout layout,
+        int fromNodeId,
+        int toNodeId,
+        HashSet<(int, int)>? blockedEdges,
+        HashSet<int>? blockedNodes
+    )
     {
-        if (!layout.Nodes.TryGetValue(fromNodeId, out var startNode)
-            || !layout.Nodes.TryGetValue(toNodeId, out var endNode))
+        if (!layout.Nodes.TryGetValue(fromNodeId, out var startNode) || !layout.Nodes.TryGetValue(toNodeId, out var endNode))
         {
             return null;
         }
@@ -269,9 +255,7 @@ public static class TaxiPathfinder
         var cameFrom = new Dictionary<int, (int NodeId, GroundEdge Edge)>();
         var gScore = new Dictionary<int, double> { [fromNodeId] = 0 };
 
-        double heuristic = GeoMath.DistanceNm(
-            startNode.Latitude, startNode.Longitude,
-            endNode.Latitude, endNode.Longitude);
+        double heuristic = GeoMath.DistanceNm(startNode.Latitude, startNode.Longitude, endNode.Latitude, endNode.Longitude);
         openSet.Enqueue(fromNodeId, heuristic);
 
         while (openSet.Count > 0)
@@ -291,17 +275,14 @@ public static class TaxiPathfinder
 
             foreach (var edge in currentNode.Edges)
             {
-                int neighbor = edge.FromNodeId == current
-                    ? edge.ToNodeId : edge.FromNodeId;
+                int neighbor = edge.FromNodeId == current ? edge.ToNodeId : edge.FromNodeId;
 
                 if (blockedNodes is not null && blockedNodes.Contains(neighbor))
                 {
                     continue;
                 }
 
-                if (blockedEdges is not null
-                    && (blockedEdges.Contains((current, neighbor))
-                        || blockedEdges.Contains((neighbor, current))))
+                if (blockedEdges is not null && (blockedEdges.Contains((current, neighbor)) || blockedEdges.Contains((neighbor, current))))
                 {
                     continue;
                 }
@@ -321,9 +302,7 @@ public static class TaxiPathfinder
                     continue;
                 }
 
-                double h = GeoMath.DistanceNm(
-                    neighborNode.Latitude, neighborNode.Longitude,
-                    endNode.Latitude, endNode.Longitude);
+                double h = GeoMath.DistanceNm(neighborNode.Latitude, neighborNode.Longitude, endNode.Latitude, endNode.Longitude);
                 openSet.Enqueue(neighbor, tentativeG + h);
             }
         }
@@ -359,20 +338,12 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// Checks if any part of a stored runway ID (e.g., "12/30") matches the target
-    /// runway exactly (case-insensitive). Splits on '/'.
+    /// Checks if a stored runway ID (e.g., "12/30") contains the target
+    /// designator (case-insensitive).
     /// </summary>
-    internal static bool RunwayIdMatches(string storedRunwayId, string targetRunway)
+    internal static bool RunwayIdMatches(RunwayIdentifier storedRunwayId, string targetRunway)
     {
-        foreach (var part in storedRunwayId.Split('/'))
-        {
-            if (string.Equals(part, targetRunway, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return storedRunwayId.Contains(targetRunway);
     }
 
     private static bool TryInferVariant(
@@ -384,17 +355,20 @@ public static class TaxiPathfinder
         IRunwayLookup? runways,
         string? airportId,
         ref int currentNodeId,
-        out string? failReason)
+        out string? failReason
+    )
     {
         failReason = null;
 
         // Check if route already reaches a hold-short for the destination runway
         foreach (var seg in segments)
         {
-            if (layout.Nodes.TryGetValue(seg.ToNodeId, out var segNode)
+            if (
+                layout.Nodes.TryGetValue(seg.ToNodeId, out var segNode)
                 && segNode.Type == GroundNodeType.RunwayHoldShort
-                && segNode.RunwayId is not null
-                && RunwayIdMatches(segNode.RunwayId, destinationRunway))
+                && segNode.RunwayId is { } segRwyId
+                && RunwayIdMatches(segRwyId, destinationRunway)
+            )
             {
                 return false;
             }
@@ -406,10 +380,12 @@ public static class TaxiPathfinder
 
         foreach (var node in layout.Nodes.Values)
         {
-            if (node.Type != GroundNodeType.RunwayHoldShort
-                || node.RunwayId is null
+            if (
+                node.Type != GroundNodeType.RunwayHoldShort
+                || node.RunwayId is not { } nodeRwyId
                 || node.Edges.Count == 0
-                || !RunwayIdMatches(node.RunwayId, destinationRunway))
+                || !RunwayIdMatches(nodeRwyId, destinationRunway)
+            )
             {
                 continue;
             }
@@ -437,10 +413,16 @@ public static class TaxiPathfinder
         if (variants.Count > 0)
         {
             return AutoExtendVariant(
-                layout, segments, lastTaxiwayName,
-                segmentCountBeforeLastTw, variants,
-                runways, airportId, destinationRunway,
-                ref currentNodeId);
+                layout,
+                segments,
+                lastTaxiwayName,
+                segmentCountBeforeLastTw,
+                variants,
+                runways,
+                airportId,
+                destinationRunway,
+                ref currentNodeId
+            );
         }
 
         if (nonVariantConnectors.Count > 0)
@@ -462,11 +444,11 @@ public static class TaxiPathfinder
         IRunwayLookup? runways,
         string? airportId,
         string destinationRunway,
-        ref int currentNodeId)
+        ref int currentNodeId
+    )
     {
         // Pick variant: if multiple distinct names, choose closest to runway threshold
-        string chosenVariant = PickBestVariant(
-            variants, runways, airportId, destinationRunway);
+        string chosenVariant = PickBestVariant(variants, runways, airportId, destinationRunway);
 
         // Find branch point: scan nodes along the last-taxiway segments
         int branchNodeId = -1;
@@ -474,9 +456,7 @@ public static class TaxiPathfinder
 
         for (int i = segmentCountBeforeLastTw; i < segments.Count; i++)
         {
-            int nodeId = i == segmentCountBeforeLastTw
-                ? segments[i].FromNodeId
-                : segments[i].ToNodeId;
+            int nodeId = i == segmentCountBeforeLastTw ? segments[i].FromNodeId : segments[i].ToNodeId;
 
             if (NodeHasEdgeTo(layout, nodeId, chosenVariant))
             {
@@ -523,9 +503,7 @@ public static class TaxiPathfinder
         }
 
         // Walk the variant from the branch point
-        bool walked = WalkTaxiway(
-            layout, branchNodeId, chosenVariant,
-            segments, out int endNodeId);
+        bool walked = WalkTaxiway(layout, branchNodeId, chosenVariant, segments, out int endNodeId);
 
         if (walked)
         {
@@ -539,7 +517,8 @@ public static class TaxiPathfinder
         List<(GroundNode HsNode, string VariantName)> variants,
         IRunwayLookup? runways,
         string? airportId,
-        string destinationRunway)
+        string destinationRunway
+    )
     {
         // Collect distinct variant names
         var distinctNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -570,9 +549,7 @@ public static class TaxiPathfinder
 
         foreach (var (hsNode, name) in variants)
         {
-            double dist = GeoMath.DistanceNm(
-                hsNode.Latitude, hsNode.Longitude,
-                rwyInfo.ThresholdLatitude, rwyInfo.ThresholdLongitude);
+            double dist = GeoMath.DistanceNm(hsNode.Latitude, hsNode.Longitude, rwyInfo.ThresholdLatitude, rwyInfo.ThresholdLongitude);
 
             if (dist < bestDist)
             {
@@ -584,8 +561,7 @@ public static class TaxiPathfinder
         return bestName;
     }
 
-    private static bool NodeHasEdgeTo(
-        AirportGroundLayout layout, int nodeId, string taxiwayName)
+    private static bool NodeHasEdgeTo(AirportGroundLayout layout, int nodeId, string taxiwayName)
     {
         if (!layout.Nodes.TryGetValue(nodeId, out var node))
         {
@@ -594,8 +570,7 @@ public static class TaxiPathfinder
 
         foreach (var edge in node.Edges)
         {
-            if (string.Equals(edge.TaxiwayName, taxiwayName,
-                StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -613,7 +588,8 @@ public static class TaxiPathfinder
         AirportGroundLayout layout,
         int startNodeId,
         string taxiwayName,
-        List<TaxiRouteSegment> segments)
+        List<TaxiRouteSegment> segments
+    )
     {
         const int maxHops = 3;
         var visited = new HashSet<int> { startNodeId };
@@ -634,8 +610,7 @@ public static class TaxiPathfinder
 
             foreach (var edge in node.Edges)
             {
-                int neighborId = edge.FromNodeId == nodeId
-                    ? edge.ToNodeId : edge.FromNodeId;
+                int neighborId = edge.FromNodeId == nodeId ? edge.ToNodeId : edge.FromNodeId;
 
                 if (!visited.Add(neighborId))
                 {
@@ -648,8 +623,7 @@ public static class TaxiPathfinder
                 {
                     foreach (var nEdge in neighborNode.Edges)
                     {
-                        if (string.Equals(nEdge.TaxiwayName, taxiwayName,
-                            StringComparison.OrdinalIgnoreCase))
+                        if (string.Equals(nEdge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
                         {
                             foundId = neighborId;
                             foundEdge = nEdge;
@@ -690,13 +664,15 @@ public static class TaxiPathfinder
         foreach (int id in pathNodes)
         {
             var (_, connectEdge) = cameFrom[id];
-            segments.Add(new TaxiRouteSegment
-            {
-                FromNodeId = prevId,
-                ToNodeId = id,
-                TaxiwayName = connectEdge.TaxiwayName,
-                Edge = connectEdge,
-            });
+            segments.Add(
+                new TaxiRouteSegment
+                {
+                    FromNodeId = prevId,
+                    ToNodeId = id,
+                    TaxiwayName = connectEdge.TaxiwayName,
+                    Edge = connectEdge,
+                }
+            );
             prevId = id;
         }
 
@@ -708,11 +684,11 @@ public static class TaxiPathfinder
     /// an edge on the target taxiway. Used for parking/ramp areas where
     /// graph connectivity to the taxiway may be missing.
     /// </summary>
-    private static (int NodeId, double DistNm, GroundEdge? Edge)
-        FindNearestNodeOnTaxiway(
-            AirportGroundLayout layout,
-            GroundNode fromNode,
-            string taxiwayName)
+    private static (int NodeId, double DistNm, GroundEdge? Edge) FindNearestNodeOnTaxiway(
+        AirportGroundLayout layout,
+        GroundNode fromNode,
+        string taxiwayName
+    )
     {
         int nearestId = -1;
         double nearestDist = double.MaxValue;
@@ -727,15 +703,12 @@ public static class TaxiPathfinder
 
             foreach (var edge in node.Edges)
             {
-                if (!string.Equals(edge.TaxiwayName, taxiwayName,
-                    StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                double dist = GeoMath.DistanceNm(
-                    fromNode.Latitude, fromNode.Longitude,
-                    node.Latitude, node.Longitude);
+                double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, node.Latitude, node.Longitude);
 
                 if (dist < nearestDist)
                 {
@@ -757,7 +730,8 @@ public static class TaxiPathfinder
         string taxiwayName,
         List<TaxiRouteSegment> segments,
         out int endNodeId,
-        string? nextTaxiwayName = null)
+        string? nextTaxiwayName = null
+    )
     {
         endNodeId = startNodeId;
 
@@ -770,8 +744,7 @@ public static class TaxiPathfinder
         GroundEdge? startEdge = null;
         foreach (var edge in currentNode.Edges)
         {
-            if (string.Equals(edge.TaxiwayName, taxiwayName,
-                StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
             {
                 startEdge = edge;
                 break;
@@ -781,8 +754,7 @@ public static class TaxiPathfinder
         if (startEdge is null)
         {
             // Try short BFS first (handles normal taxiway-to-taxiway transitions)
-            (int foundId, GroundEdge? foundEdge) = BfsToTaxiway(
-                layout, startNodeId, taxiwayName, segments);
+            (int foundId, GroundEdge? foundEdge) = BfsToTaxiway(layout, startNodeId, taxiwayName, segments);
 
             if (foundId != -1)
             {
@@ -793,27 +765,28 @@ public static class TaxiPathfinder
             {
                 // BFS failed — straight-line search for parking/ramp areas
                 // where graph connectivity may be missing
-                (int nearestId, double nearestDist, GroundEdge? nearestEdge) =
-                    FindNearestNodeOnTaxiway(layout, currentNode, taxiwayName);
+                (int nearestId, double nearestDist, GroundEdge? nearestEdge) = FindNearestNodeOnTaxiway(layout, currentNode, taxiwayName);
 
                 if (nearestId == -1)
                 {
                     return false;
                 }
 
-                segments.Add(new TaxiRouteSegment
-                {
-                    FromNodeId = startNodeId,
-                    ToNodeId = nearestId,
-                    TaxiwayName = "RAMP",
-                    Edge = new GroundEdge
+                segments.Add(
+                    new TaxiRouteSegment
                     {
                         FromNodeId = startNodeId,
                         ToNodeId = nearestId,
                         TaxiwayName = "RAMP",
-                        DistanceNm = nearestDist,
-                    },
-                });
+                        Edge = new GroundEdge
+                        {
+                            FromNodeId = startNodeId,
+                            ToNodeId = nearestId,
+                            TaxiwayName = "RAMP",
+                            DistanceNm = nearestDist,
+                        },
+                    }
+                );
 
                 startNodeId = nearestId;
                 startEdge = nearestEdge;
@@ -836,14 +809,12 @@ public static class TaxiPathfinder
 
             foreach (var edge in node.Edges)
             {
-                if (!string.Equals(edge.TaxiwayName, taxiwayName,
-                    StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                int otherId = edge.FromNodeId == currentId
-                    ? edge.ToNodeId : edge.FromNodeId;
+                int otherId = edge.FromNodeId == currentId ? edge.ToNodeId : edge.FromNodeId;
 
                 if (visited.Contains(otherId))
                 {
@@ -860,20 +831,21 @@ public static class TaxiPathfinder
                 break;
             }
 
-            segments.Add(new TaxiRouteSegment
-            {
-                FromNodeId = currentId,
-                ToNodeId = nextNodeId,
-                TaxiwayName = taxiwayName,
-                Edge = nextEdge,
-            });
+            segments.Add(
+                new TaxiRouteSegment
+                {
+                    FromNodeId = currentId,
+                    ToNodeId = nextNodeId,
+                    TaxiwayName = taxiwayName,
+                    Edge = nextEdge,
+                }
+            );
 
             visited.Add(nextNodeId);
             currentId = nextNodeId;
 
             // Stop early if this node connects to the next taxiway in the path
-            if (nextTaxiwayName is not null
-                && NodeHasEdgeTo(layout, currentId, nextTaxiwayName))
+            if (nextTaxiwayName is not null && NodeHasEdgeTo(layout, currentId, nextTaxiwayName))
             {
                 break;
             }
@@ -895,38 +867,43 @@ public static class TaxiPathfinder
         return false;
     }
 
-    private static void AddImplicitRunwayHoldShorts(
-        AirportGroundLayout layout,
-        List<TaxiRouteSegment> segments,
-        List<HoldShortPoint> holdShorts)
+    private static void AddImplicitRunwayHoldShorts(AirportGroundLayout layout, List<TaxiRouteSegment> segments, List<HoldShortPoint> holdShorts)
     {
+        // Entry/exit pairing by encounter order: the first HS node for a
+        // runway is the entry side (add hold-short); the second is the exit
+        // side (skip and reset tracking). A third HS would be a new crossing.
+        var enteredRunways = new Dictionary<RunwayIdentifier, GroundNode>();
+
         foreach (var seg in segments)
         {
-            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
+            if (
+                !layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
                 || node.Type != GroundNodeType.RunwayHoldShort
-                || node.RunwayId is null)
+                || node.RunwayId is not { } rwyId
+            )
             {
                 continue;
             }
 
-            // Skip exit-side hold-short: if approaching from another hold-short
-            // node for the same runway, this is the far side of a crossing
-            if (layout.Nodes.TryGetValue(seg.FromNodeId, out var fromNode)
-                && fromNode.Type == GroundNodeType.RunwayHoldShort
-                && string.Equals(fromNode.RunwayId, node.RunwayId,
-                    StringComparison.OrdinalIgnoreCase))
+            if (enteredRunways.Remove(rwyId))
             {
+                // Exit-side HS: paired with the previous entry, skip
                 continue;
             }
+
+            // Entry-side: track for pairing and add hold-short
+            enteredRunways[rwyId] = node;
 
             if (!HoldShortExists(holdShorts, node.Id))
             {
-                holdShorts.Add(new HoldShortPoint
-                {
-                    NodeId = node.Id,
-                    Reason = HoldShortReason.RunwayCrossing,
-                    TargetName = node.RunwayId,
-                });
+                holdShorts.Add(
+                    new HoldShortPoint
+                    {
+                        NodeId = node.Id,
+                        Reason = HoldShortReason.RunwayCrossing,
+                        TargetName = rwyId.ToString(),
+                    }
+                );
             }
         }
     }
@@ -935,7 +912,8 @@ public static class TaxiPathfinder
         AirportGroundLayout layout,
         List<TaxiRouteSegment> segments,
         List<HoldShortPoint> holdShorts,
-        string runwayId)
+        string runwayId
+    )
     {
         // Find nodes along the route that are hold-short for this runway
         foreach (var seg in segments)
@@ -945,25 +923,26 @@ public static class TaxiPathfinder
                 continue;
             }
 
-            if (node.Type != GroundNodeType.RunwayHoldShort
-                || node.RunwayId is null)
+            if (node.Type != GroundNodeType.RunwayHoldShort || node.RunwayId is not { } nodeRwyId)
             {
                 continue;
             }
 
-            if (!node.RunwayId.Contains(runwayId, StringComparison.OrdinalIgnoreCase))
+            if (!nodeRwyId.Contains(runwayId))
             {
                 continue;
             }
 
             if (!HoldShortExists(holdShorts, node.Id))
             {
-                holdShorts.Add(new HoldShortPoint
-                {
-                    NodeId = node.Id,
-                    Reason = HoldShortReason.ExplicitHoldShort,
-                    TargetName = runwayId,
-                });
+                holdShorts.Add(
+                    new HoldShortPoint
+                    {
+                        NodeId = node.Id,
+                        Reason = HoldShortReason.ExplicitHoldShort,
+                        TargetName = runwayId,
+                    }
+                );
             }
         }
     }
@@ -972,7 +951,8 @@ public static class TaxiPathfinder
         AirportGroundLayout layout,
         List<TaxiRouteSegment> segments,
         List<HoldShortPoint> holdShorts,
-        string runwayId)
+        string runwayId
+    )
     {
         if (segments.Count == 0)
         {
@@ -980,31 +960,32 @@ public static class TaxiPathfinder
         }
 
         int lastNodeId = segments[^1].ToNodeId;
-        holdShorts.Add(new HoldShortPoint
-        {
-            NodeId = lastNodeId,
-            Reason = HoldShortReason.DestinationRunway,
-            TargetName = runwayId,
-        });
+        holdShorts.Add(
+            new HoldShortPoint
+            {
+                NodeId = lastNodeId,
+                Reason = HoldShortReason.DestinationRunway,
+                TargetName = runwayId,
+            }
+        );
     }
 
-    private static TaxiRoute ReconstructRoute(
-        AirportGroundLayout layout,
-        Dictionary<int, (int NodeId, GroundEdge Edge)> cameFrom,
-        int endNodeId)
+    private static TaxiRoute ReconstructRoute(AirportGroundLayout layout, Dictionary<int, (int NodeId, GroundEdge Edge)> cameFrom, int endNodeId)
     {
         var segments = new List<TaxiRouteSegment>();
         int current = endNodeId;
 
         while (cameFrom.TryGetValue(current, out var prev))
         {
-            segments.Add(new TaxiRouteSegment
-            {
-                FromNodeId = prev.NodeId,
-                ToNodeId = current,
-                TaxiwayName = prev.Edge.TaxiwayName,
-                Edge = prev.Edge,
-            });
+            segments.Add(
+                new TaxiRouteSegment
+                {
+                    FromNodeId = prev.NodeId,
+                    ToNodeId = current,
+                    TaxiwayName = prev.Edge.TaxiwayName,
+                    Edge = prev.Edge,
+                }
+            );
             current = prev.NodeId;
         }
 
@@ -1013,10 +994,6 @@ public static class TaxiPathfinder
         var holdShorts = new List<HoldShortPoint>();
         AddImplicitRunwayHoldShorts(layout, segments, holdShorts);
 
-        return new TaxiRoute
-        {
-            Segments = segments,
-            HoldShortPoints = holdShorts,
-        };
+        return new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
     }
 }

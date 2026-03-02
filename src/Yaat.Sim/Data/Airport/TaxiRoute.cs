@@ -14,9 +14,7 @@ public sealed class TaxiRoute
     public int CurrentSegmentIndex { get; set; }
 
     public TaxiRouteSegment? CurrentSegment =>
-        CurrentSegmentIndex >= 0 && CurrentSegmentIndex < Segments.Count
-            ? Segments[CurrentSegmentIndex]
-            : null;
+        CurrentSegmentIndex >= 0 && CurrentSegmentIndex < Segments.Count ? Segments[CurrentSegmentIndex] : null;
 
     public bool IsComplete => CurrentSegmentIndex >= Segments.Count;
 
@@ -59,16 +57,16 @@ public sealed class TaxiRoute
             }
 
             // Check if this is a RunwayHoldShort node matching the target
-            if (node.Type == GroundNodeType.RunwayHoldShort
-                && node.RunwayId is not null
-                && node.RunwayId.Contains(target, StringComparison.OrdinalIgnoreCase))
+            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rwyId && rwyId.Contains(target))
             {
-                HoldShortPoints.Add(new HoldShortPoint
-                {
-                    NodeId = nodeId,
-                    Reason = HoldShortReason.ExplicitHoldShort,
-                    TargetName = node.RunwayId,
-                });
+                HoldShortPoints.Add(
+                    new HoldShortPoint
+                    {
+                        NodeId = nodeId,
+                        Reason = HoldShortReason.ExplicitHoldShort,
+                        TargetName = rwyId.ToString(),
+                    }
+                );
                 return true;
             }
 
@@ -77,12 +75,14 @@ public sealed class TaxiRoute
             {
                 if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
                 {
-                    HoldShortPoints.Add(new HoldShortPoint
-                    {
-                        NodeId = nodeId,
-                        Reason = HoldShortReason.ExplicitHoldShort,
-                        TargetName = target.ToUpperInvariant(),
-                    });
+                    HoldShortPoints.Add(
+                        new HoldShortPoint
+                        {
+                            NodeId = nodeId,
+                            Reason = HoldShortReason.ExplicitHoldShort,
+                            TargetName = target.ToUpperInvariant(),
+                        }
+                    );
                     return true;
                 }
             }
@@ -139,6 +139,7 @@ public sealed class HoldShortPoint
 {
     public required int NodeId { get; init; }
     public required HoldShortReason Reason { get; init; }
+
     /// <summary>Runway ID or taxiway name this hold-short protects.</summary>
     public string? TargetName { get; init; }
 

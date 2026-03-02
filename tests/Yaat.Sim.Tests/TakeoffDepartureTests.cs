@@ -17,19 +17,7 @@ public class TakeoffDepartureTests
 
     private static RunwayInfo MakeRunway(double heading = RunwayHeading)
     {
-        return new RunwayInfo
-        {
-            AirportId = "KSFO",
-            RunwayId = "28",
-            TrueHeading = heading,
-            LengthFt = 10000,
-            WidthFt = 150,
-            ThresholdLatitude = 37.0,
-            ThresholdLongitude = -122.0,
-            EndLatitude = 37.01,
-            EndLongitude = -122.01,
-            ElevationFt = FieldElevation,
-        };
+        return TestRunwayFactory.Make(designator: "28", airportId: "KSFO", heading: heading, elevationFt: FieldElevation);
     }
 
     /// <summary>
@@ -37,8 +25,7 @@ public class TakeoffDepartureTests
     /// runs OnStart + ticks until airborne, and returns the resulting
     /// TargetHeading and PreferredTurnDirection.
     /// </summary>
-    private static (double? TargetHeading, TurnDirection? TurnDir) RunTakeoff(
-        DepartureInstruction departure, double runwayHeading = RunwayHeading)
+    private static (double? TargetHeading, TurnDirection? TurnDir) RunTakeoff(DepartureInstruction departure, double runwayHeading = RunwayHeading)
     {
         var runway = MakeRunway(runwayHeading);
         var phase = new TakeoffPhase();

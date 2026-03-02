@@ -62,8 +62,7 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var ac = mainVm.Aircraft.FirstOrDefault(
-            a => a.Callsign == callsign);
+        var ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
         if (ac is not null)
         {
             mainVm.SelectedAircraft = ac;
@@ -99,21 +98,16 @@ public partial class GroundView : UserControl
 
             if (node.Type == "RunwayHoldShort" && node.RunwayId is not null)
             {
-                menu.Items.Add(CreateMenuItem(
-                    $"Hold short {node.RunwayId}",
-                    () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
+                menu.Items.Add(CreateMenuItem($"Hold short {node.RunwayId}", () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
             }
 
             if (node.Type == "Parking")
             {
-                menu.Items.Add(CreateMenuItem(
-                    $"Park at {node.Name ?? "spot"}",
-                    () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
+                menu.Items.Add(CreateMenuItem($"Park at {node.Name ?? "spot"}", () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
             }
 
             menu.Items.Add(new Separator());
-            menu.Items.Add(CreateMenuItem("Warp here",
-                () => vm.WarpToNodeAsync(callsign, nodeId)));
+            menu.Items.Add(CreateMenuItem("Warp here", () => vm.WarpToNodeAsync(callsign, nodeId)));
         }
 
         if (menu.Items.Count > 0)
@@ -130,8 +124,7 @@ public partial class GroundView : UserControl
         }
 
         var mainVm = FindMainViewModel();
-        var ac = mainVm?.Aircraft.FirstOrDefault(
-            a => a.Callsign == callsign);
+        var ac = mainVm?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
         if (ac is not null && mainVm is not null)
         {
             mainVm.SelectedAircraft = ac;
@@ -142,37 +135,34 @@ public partial class GroundView : UserControl
         var menu = new ContextMenu();
         var phase = ac?.CurrentPhase ?? "";
 
-        var headerText = ac is not null
-            ? $"{callsign} — {ac.AircraftType}"
-            : callsign;
-        menu.Items.Add(new MenuItem
-        {
-            Header = headerText,
-            IsEnabled = false,
-            FontWeight = Avalonia.Media.FontWeight.Bold,
-        });
+        var headerText = ac is not null ? $"{callsign} — {ac.AircraftType}" : callsign;
+        menu.Items.Add(
+            new MenuItem
+            {
+                Header = headerText,
+                IsEnabled = false,
+                FontWeight = Avalonia.Media.FontWeight.Bold,
+            }
+        );
         menu.Items.Add(new Separator());
 
         if (phase == "At Parking")
         {
-            menu.Items.Add(CreateMenuItem("Push back",
-                () => vm.PushbackAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Push back", () => vm.PushbackAsync(callsign, initials)));
 
             if (ac is not null)
             {
                 foreach (var (label, heading) in vm.GetPushbackDirections(ac))
                 {
                     var h = heading;
-                    menu.Items.Add(CreateMenuItem($"Push back, {label}",
-                        () => vm.PushbackHeadingAsync(callsign, initials, h)));
+                    menu.Items.Add(CreateMenuItem($"Push back, {label}", () => vm.PushbackHeadingAsync(callsign, initials, h)));
                 }
             }
         }
 
         if (phase is "Pushback" or "Taxiing")
         {
-            menu.Items.Add(CreateMenuItem("Hold position",
-                () => vm.HoldPositionAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Hold position", () => vm.HoldPositionAsync(callsign, initials)));
         }
 
         if (phase == "Taxiing" && ac is not null)
@@ -182,25 +172,20 @@ public partial class GroundView : UserControl
 
         if (phase.StartsWith("Following", StringComparison.Ordinal))
         {
-            menu.Items.Add(CreateMenuItem("Hold position",
-                () => vm.HoldPositionAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Hold position", () => vm.HoldPositionAsync(callsign, initials)));
         }
 
         if (phase.StartsWith("Holding Short", StringComparison.Ordinal))
         {
             var rwyId = ExtractHoldingShortRunway(phase, ac);
 
-            menu.Items.Add(CreateMenuItem("Resume taxi",
-                () => vm.ResumeAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
 
             if (rwyId is not null)
             {
-                menu.Items.Add(CreateMenuItem($"Cross {rwyId}",
-                    () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
-                menu.Items.Add(CreateMenuItem($"Line up and wait {rwyId}",
-                    () => vm.LineUpAndWaitAsync(callsign, initials, rwyId)));
-                menu.Items.Add(CreateMenuItem($"Cleared for takeoff {rwyId}",
-                    () => vm.ClearedForTakeoffAsync(callsign, initials, rwyId)));
+                menu.Items.Add(CreateMenuItem($"Cross {rwyId}", () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
+                menu.Items.Add(CreateMenuItem($"Line up and wait {rwyId}", () => vm.LineUpAndWaitAsync(callsign, initials, rwyId)));
+                menu.Items.Add(CreateMenuItem($"Cleared for takeoff {rwyId}", () => vm.ClearedForTakeoffAsync(callsign, initials, rwyId)));
             }
 
             AddNearbyRunwayCrossings(menu, vm, ac, callsign, initials, rwyId);
@@ -208,8 +193,7 @@ public partial class GroundView : UserControl
 
         if (phase == "Holding After Exit")
         {
-            menu.Items.Add(CreateMenuItem("Resume taxi",
-                () => vm.ResumeAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
         }
 
         if (phase == "LinedUpAndWaiting")
@@ -217,49 +201,36 @@ public partial class GroundView : UserControl
             var rwyId = ac?.AssignedRunway;
             if (!string.IsNullOrEmpty(rwyId))
             {
-                menu.Items.Add(CreateMenuItem($"Cleared for takeoff {rwyId}",
-                    () => vm.ClearedForTakeoffAsync(callsign, initials, rwyId)));
+                menu.Items.Add(CreateMenuItem($"Cleared for takeoff {rwyId}", () => vm.ClearedForTakeoffAsync(callsign, initials, rwyId)));
             }
 
-            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance",
-                () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
         }
 
         if (phase == "FinalApproach")
         {
-            menu.Items.Add(CreateMenuItem("Cleared to land",
-                () => vm.ClearedToLandAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Touch and go",
-                () => vm.TouchAndGoAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Stop and go",
-                () => vm.StopAndGoAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Low approach",
-                () => vm.LowApproachAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Cleared for the option",
-                () => vm.ClearedForOptionAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Go around",
-                () => vm.GoAroundAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Cancel landing clearance",
-                () => vm.CancelLandingClearanceAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Cleared to land", () => vm.ClearedToLandAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Touch and go", () => vm.TouchAndGoAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Stop and go", () => vm.StopAndGoAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Low approach", () => vm.LowApproachAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Cleared for the option", () => vm.ClearedForOptionAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Go around", () => vm.GoAroundAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Cancel landing clearance", () => vm.CancelLandingClearanceAsync(callsign, initials)));
         }
 
         if (phase == "Landing")
         {
-            menu.Items.Add(CreateMenuItem("Exit left",
-                () => vm.ExitLeftAsync(callsign, initials)));
-            menu.Items.Add(CreateMenuItem("Exit right",
-                () => vm.ExitRightAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Exit left", () => vm.ExitLeftAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Exit right", () => vm.ExitRightAsync(callsign, initials)));
         }
 
         if (phase == "Takeoff")
         {
-            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance",
-                () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
+            menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
         }
 
         menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Delete",
-            () => vm.DeleteAsync(callsign, initials)));
+        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
         ShowContextMenu(menu, screenPos);
     }
@@ -280,10 +251,7 @@ public partial class GroundView : UserControl
         vm.SelectedAircraft = null;
     }
 
-    private static void AddTaxiRouteItems(
-        ContextMenu menu, GroundViewModel vm,
-        string callsign, string initials,
-        int fromNodeId, int toNodeId)
+    private static void AddTaxiRouteItems(ContextMenu menu, GroundViewModel vm, string callsign, string initials, int fromNodeId, int toNodeId)
     {
         var routes = vm.FindRoutesToNode(fromNodeId, toNodeId);
 
@@ -310,9 +278,7 @@ public partial class GroundView : UserControl
         }
     }
 
-    private static void AddSingleRouteItems(
-        ItemsControl parent, GroundViewModel vm,
-        string callsign, string initials, TaxiRoute route)
+    private static void AddSingleRouteItems(ItemsControl parent, GroundViewModel vm, string callsign, string initials, TaxiRoute route)
     {
         var displayName = vm.GetTaxiwayDisplayName(route);
         var variants = vm.BuildTaxiCrossingVariants(route);
@@ -320,12 +286,14 @@ public partial class GroundView : UserControl
         if (variants.Count <= 1)
         {
             var command = variants.Count == 1 ? variants[0].Command : "";
-            var item = CreateMenuItem($"Taxi {displayName}",
+            var item = CreateMenuItem(
+                $"Taxi {displayName}",
                 () =>
                 {
                     vm.ActiveRoute = route;
                     return vm.SendRawCommandAsync(callsign, initials, command);
-                });
+                }
+            );
             AttachPreviewHover(item, vm, route);
             parent.Items.Add(item);
             return;
@@ -337,19 +305,22 @@ public partial class GroundView : UserControl
         foreach (var (label, command) in variants)
         {
             var cmd = command;
-            sub.Items.Add(CreateMenuItem(label,
-                () =>
-                {
-                    vm.ActiveRoute = route;
-                    return vm.SendRawCommandAsync(callsign, initials, cmd);
-                }));
+            sub.Items.Add(
+                CreateMenuItem(
+                    label,
+                    () =>
+                    {
+                        vm.ActiveRoute = route;
+                        return vm.SendRawCommandAsync(callsign, initials, cmd);
+                    }
+                )
+            );
         }
 
         parent.Items.Add(sub);
     }
 
-    private static void AttachPreviewHover(
-        MenuItem item, GroundViewModel vm, TaxiRoute route)
+    private static void AttachPreviewHover(MenuItem item, GroundViewModel vm, TaxiRoute route)
     {
         item.PointerEntered += (_, _) => vm.PreviewRoute = route;
         item.PointerExited += (_, _) =>
@@ -361,27 +332,28 @@ public partial class GroundView : UserControl
         };
     }
 
-    private static string? ExtractHoldingShortRunway(
-        string phase, AircraftModel? ac)
+    private static string? ExtractHoldingShortRunway(string phase, AircraftModel? ac)
     {
         // Phase name: "Holding Short 28L/10R" → extract runway after "Holding Short "
         const string prefix = "Holding Short ";
-        if (phase.StartsWith(prefix, StringComparison.Ordinal)
-            && phase.Length > prefix.Length)
+        if (phase.StartsWith(prefix, StringComparison.Ordinal) && phase.Length > prefix.Length)
         {
             var rwyPart = phase[prefix.Length..];
             // Use first part of compound ID: "28L/10R" → "28L"
-            var slashIdx = rwyPart.IndexOf('/');
-            return slashIdx > 0 ? rwyPart[..slashIdx] : rwyPart;
+            return RunwayIdentifier.Parse(rwyPart).End1;
         }
 
-        return !string.IsNullOrEmpty(ac?.AssignedRunway)
-            ? ac.AssignedRunway : null;
+        return !string.IsNullOrEmpty(ac?.AssignedRunway) ? ac.AssignedRunway : null;
     }
 
     private static void AddNearbyRunwayCrossings(
-        ContextMenu menu, GroundViewModel vm, AircraftModel? ac,
-        string callsign, string initials, string? excludeRunway)
+        ContextMenu menu,
+        GroundViewModel vm,
+        AircraftModel? ac,
+        string callsign,
+        string initials,
+        string? excludeRunway
+    )
     {
         if (ac is null || vm.Layout is null)
         {
@@ -395,9 +367,7 @@ public partial class GroundView : UserControl
                 continue;
             }
 
-            var dist = Yaat.Sim.GeoMath.DistanceNm(
-                ac.Latitude, ac.Longitude,
-                node.Latitude, node.Longitude);
+            var dist = Yaat.Sim.GeoMath.DistanceNm(ac.Latitude, ac.Longitude, node.Latitude, node.Longitude);
 
             if (dist >= 0.1)
             {
@@ -405,21 +375,17 @@ public partial class GroundView : UserControl
             }
 
             // Extract first part for comparison and display
-            var rwyId = node.RunwayId.Split('/')[0];
-            if (excludeRunway is not null
-                && string.Equals(rwyId, excludeRunway, StringComparison.OrdinalIgnoreCase))
+            var rwyId = RunwayIdentifier.Parse(node.RunwayId).End1;
+            if (excludeRunway is not null && string.Equals(rwyId, excludeRunway, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            menu.Items.Add(CreateMenuItem($"Cross {rwyId}",
-                () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
+            menu.Items.Add(CreateMenuItem($"Cross {rwyId}", () => vm.CrossRunwayAsync(callsign, initials, rwyId)));
         }
     }
 
-    private static void AddHoldShortSubmenu(
-        ContextMenu menu, GroundViewModel vm, AircraftModel ac,
-        string callsign, string initials)
+    private static void AddHoldShortSubmenu(ContextMenu menu, GroundViewModel vm, AircraftModel ac, string callsign, string initials)
     {
         var targets = vm.GetHoldShortTargets(ac);
         if (targets.Count == 0)
@@ -431,8 +397,7 @@ public partial class GroundView : UserControl
         foreach (var (displayName, target) in targets)
         {
             var t = target;
-            var item = CreateMenuItem(displayName,
-                () => vm.HoldShortAsync(callsign, initials, t));
+            var item = CreateMenuItem(displayName, () => vm.HoldShortAsync(callsign, initials, t));
 
             var previewRoute = vm.FindHoldShortPreviewRoute(ac, t);
             if (previewRoute is not null)
@@ -446,8 +411,7 @@ public partial class GroundView : UserControl
         menu.Items.Add(parent);
     }
 
-    private static MenuItem CreateMenuItem(
-        string header, Func<Task> action)
+    private static MenuItem CreateMenuItem(string header, Func<Task> action)
     {
         var item = new MenuItem { Header = header };
         item.Click += async (_, _) => await action();

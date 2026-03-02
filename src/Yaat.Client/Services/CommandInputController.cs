@@ -31,7 +31,8 @@ public partial class CommandInputController : ObservableObject
         string text,
         IReadOnlyCollection<AircraftModel> aircraft,
         CommandScheme scheme,
-        AircraftModel? selectedAircraft = null)
+        AircraftModel? selectedAircraft = null
+    )
     {
         if (_suppressNextUpdate)
         {
@@ -86,8 +87,7 @@ public partial class CommandInputController : ObservableObject
 
         // Resolve the target aircraft for filtering commands.
         // If the first token is a callsign (not a verb), find it in the list.
-        var targetAircraft = ResolveTargetAircraft(
-            firstToken, hasSpace, aircraft, selectedAircraft, scheme);
+        var targetAircraft = ResolveTargetAircraft(firstToken, hasSpace, aircraft, selectedAircraft, scheme);
 
         if (!hasSpace)
         {
@@ -96,8 +96,7 @@ public partial class CommandInputController : ObservableObject
             AddCommandVerbSuggestions(firstToken, text, scheme, targetAircraft);
             AddConditionSuggestions(firstToken);
         }
-        else if (TryAddAddArgumentSuggestions(
-            fragmentForSuggestion, text, scheme, selectedAircraft))
+        else if (TryAddAddArgumentSuggestions(fragmentForSuggestion, text, scheme, selectedAircraft))
         {
             // ADD command positional argument suggestions
         }
@@ -111,8 +110,7 @@ public partial class CommandInputController : ObservableObject
             // Only suggest verbs if the first token is NOT a known verb (i.e., it's a callsign)
             if (!IsKnownVerb(firstToken, scheme))
             {
-                AddCommandVerbSuggestions(
-                    parts[1].TrimStart(), text, scheme, targetAircraft);
+                AddCommandVerbSuggestions(parts[1].TrimStart(), text, scheme, targetAircraft);
             }
         }
         else if (hasSpace && parts.Length == 1)
@@ -171,10 +169,7 @@ public partial class CommandInputController : ObservableObject
     /// <summary>
     /// Navigates command history. Returns the replacement text, or null if at boundary.
     /// </summary>
-    public string? NavigateHistory(
-        int direction,
-        string currentText,
-        IReadOnlyList<string> history)
+    public string? NavigateHistory(int direction, string currentText, IReadOnlyList<string> history)
     {
         if (history.Count == 0)
         {
@@ -243,15 +238,15 @@ public partial class CommandInputController : ObservableObject
         bool hasSpace,
         IReadOnlyCollection<AircraftModel> aircraft,
         AircraftModel? selectedAircraft,
-        CommandScheme scheme)
+        CommandScheme scheme
+    )
     {
         if (hasSpace && !IsKnownVerb(firstToken, scheme))
         {
             // First token looks like a callsign — find matching aircraft
             foreach (var ac in aircraft)
             {
-                if (string.Equals(
-                    ac.Callsign, firstToken, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(ac.Callsign, firstToken, StringComparison.OrdinalIgnoreCase))
                 {
                     return ac;
                 }
@@ -262,8 +257,7 @@ public partial class CommandInputController : ObservableObject
             var count = 0;
             foreach (var ac in aircraft)
             {
-                if (ac.Callsign.Contains(
-                    firstToken, StringComparison.OrdinalIgnoreCase))
+                if (ac.Callsign.Contains(firstToken, StringComparison.OrdinalIgnoreCase))
                 {
                     partial = ac;
                     count++;
@@ -320,8 +314,7 @@ public partial class CommandInputController : ObservableObject
 
         // Check for "LV <arg> " or "AT <arg> " prefix (fully typed condition keyword + space)
         var upper = fragment.TrimStart().ToUpperInvariant();
-        if (upper.StartsWith("LV ", StringComparison.Ordinal)
-            || upper.StartsWith("AT ", StringComparison.Ordinal))
+        if (upper.StartsWith("LV ", StringComparison.Ordinal) || upper.StartsWith("AT ", StringComparison.Ordinal))
         {
             conditionVerb = upper[..2];
             var afterPrefix = fragment[3..].TrimStart();
@@ -349,21 +342,15 @@ public partial class CommandInputController : ObservableObject
     /// Checks if the user is typing a fix argument for DCT (with or without callsign prefix).
     /// Returns true if fix suggestions were added.
     /// </summary>
-    private bool TryAddFixSuggestions(
-        string fragmentWithSpaces,
-        string fullText,
-        AircraftModel? selectedAircraft,
-        CommandScheme scheme)
+    private bool TryAddFixSuggestions(string fragmentWithSpaces, string fullText, AircraftModel? selectedAircraft, CommandScheme scheme)
     {
         // Find the DCT verb in the active scheme
-        if (!scheme.Patterns.TryGetValue(
-            Sim.Commands.CanonicalCommandType.DirectTo, out var dctPattern))
+        if (!scheme.Patterns.TryGetValue(Sim.Commands.CanonicalCommandType.DirectTo, out var dctPattern))
         {
             return false;
         }
 
-        var words = fragmentWithSpaces.Split(
-            ' ', StringSplitOptions.RemoveEmptyEntries);
+        var words = fragmentWithSpaces.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length < 1)
         {
             return false;
@@ -394,10 +381,7 @@ public partial class CommandInputController : ObservableObject
         return Suggestions.Count > 0;
     }
 
-    private void AddFixSuggestions(
-        string token,
-        string fullText,
-        AircraftModel? selectedAircraft)
+    private void AddFixSuggestions(string token, string fullText, AircraftModel? selectedAircraft)
     {
         var prefix = GetTextBeforeLastWord(fullText);
         var count = Suggestions.Count;
@@ -413,19 +397,20 @@ public partial class CommandInputController : ObservableObject
                     break;
                 }
 
-                if (token.Length > 0
-                    && !fix.StartsWith(token, StringComparison.OrdinalIgnoreCase))
+                if (token.Length > 0 && !fix.StartsWith(token, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                Suggestions.Add(new SuggestionItem
-                {
-                    Kind = SuggestionKind.RouteFix,
-                    Text = fix,
-                    Description = "Route",
-                    InsertText = prefix + fix + " ",
-                });
+                Suggestions.Add(
+                    new SuggestionItem
+                    {
+                        Kind = SuggestionKind.RouteFix,
+                        Text = fix,
+                        Description = "Route",
+                        InsertText = prefix + fix + " ",
+                    }
+                );
                 count++;
             }
         }
@@ -437,8 +422,7 @@ public partial class CommandInputController : ObservableObject
         }
     }
 
-    private void AddNavdataFixSuggestions(
-        string token, string prefix, ref int count)
+    private void AddNavdataFixSuggestions(string token, string prefix, ref int count)
     {
         if (token.Length == 0)
         {
@@ -449,19 +433,17 @@ public partial class CommandInputController : ObservableObject
         AddNavdataFixSuggestionsWithBinarySearch(token, prefix, fixTextPrefix: "", ref count);
     }
 
-    private void AddNavdataFixSuggestionsWithBinarySearch(
-        string token, string prefix, string fixTextPrefix, ref int count)
+    private void AddNavdataFixSuggestionsWithBinarySearch(string token, string prefix, string fixTextPrefix, ref int count)
     {
         var allNames = FixDb!.AllFixNames;
 
         // Binary search for the first name matching the prefix
-        int lo = 0, hi = allNames.Length - 1;
+        int lo = 0,
+            hi = allNames.Length - 1;
         while (lo <= hi)
         {
             int mid = lo + (hi - lo) / 2;
-            if (string.Compare(
-                allNames[mid], 0, token, 0, token.Length,
-                StringComparison.OrdinalIgnoreCase) < 0)
+            if (string.Compare(allNames[mid], 0, token, 0, token.Length, StringComparison.OrdinalIgnoreCase) < 0)
             {
                 lo = mid + 1;
             }
@@ -477,9 +459,7 @@ public partial class CommandInputController : ObservableObject
         {
             if (s.Kind == SuggestionKind.RouteFix)
             {
-                var rawName = fixTextPrefix.Length > 0 && s.Text.StartsWith(fixTextPrefix)
-                    ? s.Text[fixTextPrefix.Length..]
-                    : s.Text;
+                var rawName = fixTextPrefix.Length > 0 && s.Text.StartsWith(fixTextPrefix) ? s.Text[fixTextPrefix.Length..] : s.Text;
                 existing.Add(rawName);
             }
         }
@@ -498,13 +478,15 @@ public partial class CommandInputController : ObservableObject
             }
 
             var displayText = fixTextPrefix + name;
-            Suggestions.Add(new SuggestionItem
-            {
-                Kind = SuggestionKind.Fix,
-                Text = displayText,
-                Description = "",
-                InsertText = prefix + displayText + " ",
-            });
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Fix,
+                    Text = displayText,
+                    Description = "",
+                    InsertText = prefix + displayText + " ",
+                }
+            );
             count++;
         }
     }
@@ -546,12 +528,9 @@ public partial class CommandInputController : ObservableObject
         return "";
     }
 
-    private bool TryAddAddArgumentSuggestions(
-        string fragment, string fullText, CommandScheme scheme,
-        AircraftModel? selectedAircraft)
+    private bool TryAddAddArgumentSuggestions(string fragment, string fullText, CommandScheme scheme, AircraftModel? selectedAircraft)
     {
-        if (!scheme.Patterns.TryGetValue(
-            Sim.Commands.CanonicalCommandType.Add, out var addPattern))
+        if (!scheme.Patterns.TryGetValue(Sim.Commands.CanonicalCommandType.Add, out var addPattern))
         {
             return false;
         }
@@ -570,16 +549,11 @@ public partial class CommandInputController : ObservableObject
         switch (completedArgs)
         {
             case 0:
-                AddAddOptions(prefix, partial,
-                    ("I", "IFR — Instrument flight rules"),
-                    ("V", "VFR — Visual flight rules"));
+                AddAddOptions(prefix, partial, ("I", "IFR — Instrument flight rules"), ("V", "VFR — Visual flight rules"));
                 break;
 
             case 1:
-                AddAddOptions(prefix, partial,
-                    ("S", "Small — GA/light aircraft"),
-                    ("L", "Large — Regional/narrow-body"),
-                    ("H", "Heavy — Wide-body"));
+                AddAddOptions(prefix, partial, ("S", "Small — GA/light aircraft"), ("L", "Large — Regional/narrow-body"), ("H", "Heavy — Wide-body"));
                 break;
 
             case 2:
@@ -593,18 +567,14 @@ public partial class CommandInputController : ObservableObject
             }
 
             case >= 3:
-                AddPositionSuggestions(
-                    words, fullText, prefix, partial,
-                    completedArgs, selectedAircraft);
+                AddPositionSuggestions(words, fullText, prefix, partial, completedArgs, selectedAircraft);
                 break;
         }
 
         return Suggestions.Count > 0;
     }
 
-    private void AddAddOptions(
-        string prefix, string partial,
-        params (string Value, string Description)[] options)
+    private void AddAddOptions(string prefix, string partial, params (string Value, string Description)[] options)
     {
         foreach (var (value, desc) in options)
         {
@@ -613,24 +583,24 @@ public partial class CommandInputController : ObservableObject
                 break;
             }
 
-            if (partial.Length > 0
-                && !value.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            if (partial.Length > 0 && !value.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            Suggestions.Add(new SuggestionItem
-            {
-                Kind = SuggestionKind.Command,
-                Text = value,
-                Description = desc,
-                InsertText = prefix + value + " ",
-            });
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = value,
+                    Description = desc,
+                    InsertText = prefix + value + " ",
+                }
+            );
         }
     }
 
-    private void AddEngineOptions(
-        string prefix, string partial, WeightClass weight)
+    private void AddEngineOptions(string prefix, string partial, WeightClass weight)
     {
         var options = weight switch
         {
@@ -644,10 +614,7 @@ public partial class CommandInputController : ObservableObject
                 ("T", "Turboprop — " + FormatTypes(weight, EngineKind.Turboprop)),
                 ("J", "Jet — " + FormatTypes(weight, EngineKind.Jet)),
             },
-            WeightClass.Heavy => new (string, string)[]
-            {
-                ("J", "Jet — " + FormatTypes(weight, EngineKind.Jet)),
-            },
+            WeightClass.Heavy => new (string, string)[] { ("J", "Jet — " + FormatTypes(weight, EngineKind.Jet)) },
             _ => [],
         };
 
@@ -661,8 +628,13 @@ public partial class CommandInputController : ObservableObject
     }
 
     private void AddPositionSuggestions(
-        string[] words, string fullText, string prefix, string partial,
-        int completedArgs, AircraftModel? selectedAircraft)
+        string[] words,
+        string fullText,
+        string prefix,
+        string partial,
+        int completedArgs,
+        AircraftModel? selectedAircraft
+    )
     {
         if (completedArgs == 3)
         {
@@ -675,9 +647,7 @@ public partial class CommandInputController : ObservableObject
             else
             {
                 // Show all position variant hints + runway suggestions
-                AddAddOptions(prefix, partial,
-                    ("-", "Airborne — -{bearing} {dist_nm} {alt_ft}"),
-                    ("@", "At fix — @{fix_or_FRD} {alt_ft}"));
+                AddAddOptions(prefix, partial, ("-", "Airborne — -{bearing} {dist_nm} {alt_ft}"), ("@", "At fix — @{fix_or_FRD} {alt_ft}"));
                 AddRunwaySuggestions(prefix, partial);
             }
             return;
@@ -726,26 +696,25 @@ public partial class CommandInputController : ObservableObject
                 break;
             }
 
-            if (partial.Length > 0
-                && !rwy.RunwayId.StartsWith(
-                    partial, StringComparison.OrdinalIgnoreCase))
+            if (partial.Length > 0 && !rwy.Designator.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
             var desc = $"Runway — lined up, or add distance for final";
-            Suggestions.Add(new SuggestionItem
-            {
-                Kind = SuggestionKind.Command,
-                Text = rwy.RunwayId,
-                Description = desc,
-                InsertText = prefix + rwy.RunwayId + " ",
-            });
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = rwy.Designator,
+                    Description = desc,
+                    InsertText = prefix + rwy.Designator + " ",
+                }
+            );
         }
     }
 
-    private void AddAtFixSuggestions(
-        string fixPartial, string prefix, AircraftModel? selectedAircraft)
+    private void AddAtFixSuggestions(string fixPartial, string prefix, AircraftModel? selectedAircraft)
     {
         var count = Suggestions.Count;
 
@@ -760,20 +729,20 @@ public partial class CommandInputController : ObservableObject
                     break;
                 }
 
-                if (fixPartial.Length > 0
-                    && !fix.StartsWith(
-                        fixPartial, StringComparison.OrdinalIgnoreCase))
+                if (fixPartial.Length > 0 && !fix.StartsWith(fixPartial, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                Suggestions.Add(new SuggestionItem
-                {
-                    Kind = SuggestionKind.RouteFix,
-                    Text = $"@{fix}",
-                    Description = "Route",
-                    InsertText = prefix + $"@{fix} ",
-                });
+                Suggestions.Add(
+                    new SuggestionItem
+                    {
+                        Kind = SuggestionKind.RouteFix,
+                        Text = $"@{fix}",
+                        Description = "Route",
+                        InsertText = prefix + $"@{fix} ",
+                    }
+                );
                 count++;
             }
         }
@@ -785,8 +754,7 @@ public partial class CommandInputController : ObservableObject
         }
     }
 
-    private void AddTypeAndAirlineOverrides(
-        string[] words, string prefix, string partial)
+    private void AddTypeAndAirlineOverrides(string[] words, string prefix, string partial)
     {
         var weight = ParseWeightToken(words[2]);
         var engine = ParseEngineToken(words[3]);
@@ -805,19 +773,20 @@ public partial class CommandInputController : ObservableObject
                     break;
                 }
 
-                if (partial.Length > 0
-                    && !type.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+                if (partial.Length > 0 && !type.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                Suggestions.Add(new SuggestionItem
-                {
-                    Kind = SuggestionKind.Command,
-                    Text = type,
-                    Description = "Aircraft type override",
-                    InsertText = prefix + type + " ",
-                });
+                Suggestions.Add(
+                    new SuggestionItem
+                    {
+                        Kind = SuggestionKind.Command,
+                        Text = type,
+                        Description = "Aircraft type override",
+                        InsertText = prefix + type + " ",
+                    }
+                );
             }
         }
 
@@ -831,21 +800,21 @@ public partial class CommandInputController : ObservableObject
                     break;
                 }
 
-                if (airlinePartial.Length > 0
-                    && !airline.StartsWith(
-                        airlinePartial, StringComparison.OrdinalIgnoreCase))
+                if (airlinePartial.Length > 0 && !airline.StartsWith(airlinePartial, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
                 var display = $"*{airline}";
-                Suggestions.Add(new SuggestionItem
-                {
-                    Kind = SuggestionKind.Command,
-                    Text = display,
-                    Description = "Airline callsign override",
-                    InsertText = prefix + display + " ",
-                });
+                Suggestions.Add(
+                    new SuggestionItem
+                    {
+                        Kind = SuggestionKind.Command,
+                        Text = display,
+                        Description = "Airline callsign override",
+                        InsertText = prefix + display + " ",
+                    }
+                );
             }
         }
     }
@@ -882,13 +851,15 @@ public partial class CommandInputController : ObservableObject
         var upper = token.TrimStart().ToUpperInvariant();
         if ("LV".StartsWith(upper, StringComparison.Ordinal) && upper.Length > 0)
         {
-            Suggestions.Add(new SuggestionItem
-            {
-                Kind = SuggestionKind.Command,
-                Text = "LV",
-                Description = "Level at {altitude} — trigger at altitude",
-                InsertText = "LV ",
-            });
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = "LV",
+                    Description = "Level at {altitude} — trigger at altitude",
+                    InsertText = "LV ",
+                }
+            );
         }
 
         if (Suggestions.Count >= MaxSuggestions)
@@ -898,20 +869,19 @@ public partial class CommandInputController : ObservableObject
 
         if ("AT".StartsWith(upper, StringComparison.Ordinal) && upper.Length > 0)
         {
-            Suggestions.Add(new SuggestionItem
-            {
-                Kind = SuggestionKind.Command,
-                Text = "AT",
-                Description = "At {fix/FR/FRD} — trigger at fix, radial, or FRD point",
-                InsertText = "AT ",
-            });
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = "AT",
+                    Description = "At {fix/FR/FRD} — trigger at fix, radial, or FRD point",
+                    InsertText = "AT ",
+                }
+            );
         }
     }
 
-    private void AddCallsignSuggestions(
-        string token,
-        string fullText,
-        IReadOnlyCollection<AircraftModel> aircraft)
+    private void AddCallsignSuggestions(string token, string fullText, IReadOnlyCollection<AircraftModel> aircraft)
     {
         var count = 0;
         foreach (var ac in aircraft)
@@ -927,13 +897,15 @@ public partial class CommandInputController : ObservableObject
             }
 
             var desc = $"{ac.AircraftType} {ac.Departure}-{ac.Destination}".Trim();
-            Suggestions.Add(new SuggestionItem
-            {
-                Kind = SuggestionKind.Callsign,
-                Text = ac.Callsign,
-                Description = desc,
-                InsertText = ac.Callsign + " ",
-            });
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Callsign,
+                    Text = ac.Callsign,
+                    Description = desc,
+                    InsertText = ac.Callsign + " ",
+                }
+            );
             count++;
         }
     }
@@ -958,11 +930,7 @@ public partial class CommandInputController : ObservableObject
         Sim.Commands.CanonicalCommandType.Delete,
     ];
 
-    private void AddCommandVerbSuggestions(
-        string token,
-        string fullText,
-        CommandScheme scheme,
-        AircraftModel? targetAircraft = null)
+    private void AddCommandVerbSuggestions(string token, string fullText, CommandScheme scheme, AircraftModel? targetAircraft = null)
     {
         var isDelayed = targetAircraft?.IsDelayedOrDeferred == true;
 
@@ -997,8 +965,7 @@ public partial class CommandInputController : ObservableObject
                 }
             }
 
-            if (bestRank == int.MaxValue
-                && cmd.Label.Contains(token, StringComparison.OrdinalIgnoreCase))
+            if (bestRank == int.MaxValue && cmd.Label.Contains(token, StringComparison.OrdinalIgnoreCase))
             {
                 bestRank = 2;
             }
@@ -1020,21 +987,21 @@ public partial class CommandInputController : ObservableObject
             }
 
             var argHint = cmd.SampleArg is not null ? $" {{{cmd.SampleArg}}}" : "";
-            var aliasHint = pattern.Aliases.Count > 1
-                ? $" ({string.Join(", ", pattern.Aliases)})"
-                : "";
+            var aliasHint = pattern.Aliases.Count > 1 ? $" ({string.Join(", ", pattern.Aliases)})" : "";
             var desc = $"{cmd.Label}{argHint}{aliasHint}";
             var needsArg = pattern.Format.Contains("{arg}");
             var prefix = GetTextBeforeCurrentToken(fullText);
             var insertText = prefix + pattern.PrimaryVerb + (needsArg ? " " : "");
 
-            Suggestions.Add(new SuggestionItem
-            {
-                Kind = SuggestionKind.Command,
-                Text = pattern.PrimaryVerb,
-                Description = desc,
-                InsertText = insertText,
-            });
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = pattern.PrimaryVerb,
+                    Description = desc,
+                    InsertText = insertText,
+                }
+            );
             count++;
         }
     }
@@ -1062,15 +1029,11 @@ public partial class CommandInputController : ObservableObject
         return text[..(lastSep + 1)] + " ";
     }
 
-    private static int FindNextHistoryMatch(
-        IReadOnlyList<string> history,
-        int startIndex,
-        string filter)
+    private static int FindNextHistoryMatch(IReadOnlyList<string> history, int startIndex, string filter)
     {
         for (var i = startIndex; i < history.Count; i++)
         {
-            if (string.IsNullOrEmpty(filter)
-                || history[i].StartsWith(filter, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(filter) || history[i].StartsWith(filter, StringComparison.OrdinalIgnoreCase))
             {
                 return i;
             }
@@ -1079,15 +1042,11 @@ public partial class CommandInputController : ObservableObject
         return -1;
     }
 
-    private static int FindPrevHistoryMatch(
-        IReadOnlyList<string> history,
-        int startIndex,
-        string filter)
+    private static int FindPrevHistoryMatch(IReadOnlyList<string> history, int startIndex, string filter)
     {
         for (var i = startIndex; i >= 0; i--)
         {
-            if (string.IsNullOrEmpty(filter)
-                || history[i].StartsWith(filter, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(filter) || history[i].StartsWith(filter, StringComparison.OrdinalIgnoreCase))
             {
                 return i;
             }
