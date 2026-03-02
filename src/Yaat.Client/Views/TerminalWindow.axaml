@@ -6,6 +6,7 @@
         Title="Terminal">
 
     <DockPanel Margin="8">
+        <views:FavoritesBarView DockPanel.Dock="Bottom" />
         <views:CommandInputView DockPanel.Dock="Bottom" />
         <views:TerminalPanelView />
     </DockPanel>

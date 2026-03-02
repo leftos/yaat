@@ -73,6 +73,10 @@
                        FontSize="11" />
         </Border>
 
+        <!-- Bottom: Favorites bar (visible when docked) -->
+        <views:FavoritesBarView DockPanel.Dock="Bottom"
+            IsVisible="{Binding IsTerminalDocked}" />
+
         <!-- Bottom: Command input (visible when docked) -->
         <views:CommandInputView DockPanel.Dock="Bottom"
             IsVisible="{Binding IsTerminalDocked}" />

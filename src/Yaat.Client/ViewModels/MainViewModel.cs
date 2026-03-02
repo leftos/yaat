@@ -233,6 +233,7 @@ public partial class MainViewModel : ObservableObject
 
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;
+        RefreshDisplayFavorites();
 
         _ = InitializeNavDataAsync();
     }
@@ -277,6 +278,7 @@ public partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(HasScenario));
         OnPropertyChanged(nameof(WindowTitle));
+        RefreshDisplayFavorites();
     }
 
     partial void OnActiveScenarioNameChanged(string? value)

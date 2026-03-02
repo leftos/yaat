@@ -41,6 +41,7 @@ public sealed class UserPreferences
     private Dictionary<string, SavedRadarSettings> _radarSettings;
     private bool _isDelayedGroupCollapsed;
     private List<MacroDefinition> _macros;
+    private List<FavoriteCommand> _favoriteCommands;
 
     public UserPreferences()
     {
@@ -68,6 +69,7 @@ public sealed class UserPreferences
         _radarSettings = saved.RadarSettings;
         _isDelayedGroupCollapsed = saved.IsDelayedGroupCollapsed;
         _macros = saved.Macros;
+        _favoriteCommands = saved.FavoriteCommands;
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -92,6 +94,7 @@ public sealed class UserPreferences
     public bool IsRadarViewPoppedOut => _isRadarViewPoppedOut;
     public bool IsDelayedGroupCollapsed => _isDelayedGroupCollapsed;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
+    public IReadOnlyList<FavoriteCommand> FavoriteCommands => _favoriteCommands;
 
     public void SetServerUrl(string url)
     {
@@ -204,6 +207,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetFavoriteCommands(List<FavoriteCommand> favorites)
+    {
+        _favoriteCommands = favorites;
+        Save();
+    }
+
     public void ResetGridLayout()
     {
         _gridLayout = null;
@@ -262,6 +271,7 @@ public sealed class UserPreferences
                 RadarSettings = saved?.RadarSettings ?? [],
                 IsDelayedGroupCollapsed = saved?.IsDelayedGroupCollapsed ?? false,
                 Macros = saved?.Macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
+                FavoriteCommands = saved?.FavoriteCommands ?? [],
             };
         }
         catch (JsonException)
@@ -295,6 +305,7 @@ public sealed class UserPreferences
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; init; } = [];
         public bool IsDelayedGroupCollapsed { get; init; }
         public List<MacroDefinition> Macros { get; init; } = [];
+        public List<FavoriteCommand> FavoriteCommands { get; init; } = [];
     }
 
     private void Save()
@@ -326,6 +337,7 @@ public sealed class UserPreferences
             RadarSettings = _radarSettings,
             IsDelayedGroupCollapsed = _isDelayedGroupCollapsed,
             Macros = _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList(),
+            FavoriteCommands = [.. _favoriteCommands],
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
@@ -410,6 +422,7 @@ public sealed class UserPreferences
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public bool IsDelayedGroupCollapsed { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
+        public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
     }
 
     private sealed class SavedCommandScheme
@@ -446,6 +459,13 @@ public sealed class SavedMacro
 {
     public string Name { get; set; } = "";
     public string Expansion { get; set; } = "";
+}
+
+public sealed class FavoriteCommand
+{
+    public string Label { get; set; } = "";
+    public string CommandText { get; set; } = "";
+    public string? ScenarioId { get; set; }
 }
 
 public sealed class SavedRadarSettings
