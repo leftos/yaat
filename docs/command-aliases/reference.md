@@ -2,10 +2,60 @@
 
 Sources:
 - **ATCTrainer**: https://atctrainer.collinkoldoff.dev/docs/commands
-- **VICE**: https://pharr.org/vice/
+- **VICE**: https://pharr.org/vice/#atc-commands
+- Structured extracts: `atctrainer-commands.json`, `vice-commands.json` (regenerate with `build.py`)
 
 **Bold** = implemented in YAAT. Normal = not yet implemented.
 YAAT aliases = what's actually in the code presets (primary alias listed first).
+
+🟢 = **YAAT-only** — functionality that neither ATCTrainer nor VICE offers.
+
+---
+
+## YAAT-Only Commands
+
+Commands and behaviors that exist only in YAAT — not available in ATCTrainer or VICE.
+
+| Command | Aliases | Description |
+|---|---|---|
+| 🟢 **Cleared to Land** | CTL, FS | Explicit landing clearance. ATCTrainer has no equivalent (pattern aircraft land implicitly; `CTL` there means Clear Approach). VICE has no tower commands. |
+| 🟢 **Cancel Landing Clearance** | CLC, CTLC | Revokes a landing clearance. Neither app has this. |
+| 🟢 **Cleared for the Option** | COPT | Cleared for touch-and-go, stop-and-go, low approach, or full-stop landing at pilot's discretion. Neither app has this. |
+| 🟢 **Go Around (heading + altitude)** | GA {hdg} {alt} | Go around with assigned heading and altitude (e.g., `GA 270 5000`). ATCTrainer only has `GAMLT`/`GAMRT`; VICE's `GA` means "go ahead" (VFR acknowledgment). YAAT also supports `GA RH {alt}` (runway heading). |
+| 🟢 **Spawn Now** | SPAWN | Immediately spawns a delayed aircraft. Neither app has delayed spawn control. |
+| 🟢 **Set Spawn Delay** | DELAY | Sets a new spawn countdown in seconds (accepts `M:SS` format, e.g., `DELAY 2:00`). |
+| 🟢 **Wait (distance)** | WAITD | Executes a queued command after the aircraft travels a specified distance. ATCTrainer's `WAIT` is time-only. |
+| 🟢 **Release (Rundown)** | RD | STARS departure release coordination. |
+| 🟢 **Hold Release** | RDH | Hold a departure release. |
+| 🟢 **Recall Release** | RDR | Recall a departure release. |
+| 🟢 **Acknowledge Release** | RDACK | Acknowledge a departure release. |
+| 🟢 **Toggle Auto-Ack** | RDAUTO | Toggle automatic release acknowledgment for a coordination list. |
+
+### YAAT-only alias additions
+
+These commands exist in ATCTrainer/VICE, but YAAT adds aliases that neither app uses:
+
+| YAAT alias | Canonical command | Why |
+|---|---|---|
+| `SQVFR` | Squawk VFR | Clearer than ATCTrainer's `SQV` |
+| `SQNORM` | Squawk Normal | Clearer than ATCTrainer's `SN` |
+| `SQSBY` | Squawk Standby | Clearer than ATCTrainer's `SS` |
+| `IDENT` | Ident | Clearer than ATCTrainer's `ID` |
+| `BEHIND` | Give Way | Alternative to ATCTrainer's `GIVEWAY` |
+| `RESUME` | Resume Taxi | Alternative to ATCTrainer's `RES` |
+| `FOL` | Follow | Shorthand for ATCTrainer's `FOLLOW` |
+| `HP` | Hold Position (ground) | Shorthand for ATCTrainer's `HOLD` |
+
+### YAAT-only behavioral differences
+
+| Behavior | ATCTrainer | VICE | YAAT |
+|---|---|---|---|
+| **Pause/Unpause** | Separate commands | Single toggle (`P`) | Separate commands (PAUSE/UNPAUSE) |
+| **Hold-short** | Standalone `HS` command | — | Integrated into `TAXI` syntax: `TAXI S T U HS 28L` |
+| **Auto go-around** | — | — | Aircraft without landing clearance at 0.5nm auto-executes go-around with broadcast warning |
+| **Give Way** | Standalone command | — | Condition prefix (like `AT`/`LV`): `GIVEWAY SWA5456; TAXI S T U` |
+| **Squawk no-arg** | Resets to assigned code | — | Resets to flight-plan-assigned code (same as ATCTrainer) |
+| **Ident timeout** | — | — | Auto-clears after 18 seconds |
 
 ---
 
@@ -45,6 +95,8 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 | Speed Max | — | SMAX | — | — |
 | Speed Present | — | SPRES | — | — |
 | Speed Cancel | — | S (no arg) | — | — |
+| Speed Floor | — | S{kts}+ | — | — |
+| Speed Ceiling | — | S{kts}- | — | — |
 | Mach | MACH, M | — | — | — |
 | Resume Normal Speed | RNS, NS | — | — | — |
 | Reduce Final Approach Speed | RFAS, FAS | — | — | — |
@@ -57,10 +109,10 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 | Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
 |---|---|---|---|---|
 | **Squawk** | SQ, SQUAWK | SQ{code} | SQ, SQUAWK | SQ |
-| **Squawk VFR** | SQV | — | SQVFR, SQV | SQVFR |
-| **Squawk Normal** | SN | SQA, SQON | SQNORM, SN | SQNORM, SQA, SQON |
-| **Squawk Standby** | SS | SQS | SQSBY, SS | SQSBY, SQS |
-| **Ident** | ID, SQI, SQID | ID | IDENT, ID, SQI, SQID | IDENT, ID, SQI |
+| **Squawk VFR** | SQV | — | 🟢 SQVFR, SQV | 🟢 SQVFR |
+| **Squawk Normal** | SN | SQA, SQON | 🟢 SQNORM, SN | 🟢 SQNORM, SQA, SQON |
+| **Squawk Standby** | SS | SQS | 🟢 SQSBY, SS | 🟢 SQSBY, SQS |
+| **Ident** | ID, SQI, SQID | ID | 🟢 IDENT, ID, SQI, SQID | 🟢 IDENT, ID, SQI |
 | **Random Squawk** | RANDSQ | — | RANDSQ | RANDSQ |
 | **Squawk All** | SQALL | — | SQALL | SQALL |
 | **Squawk Normal All** | SNALL | — | SNALL | SNALL |
@@ -95,12 +147,13 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 | **Go Around** | GA | GA (VFR "go ahead") | GA | GA |
 | **Go Around Make Left Traffic** | GAMLT | — | (via GA MLT) | (via GA MLT) |
 | **Go Around Make Right Traffic** | GAMRT | — | (via GA MRT) | (via GA MRT) |
-| **Cleared to Land** | — | — | CTL, FS | CTL, FS |
-| **Cancel Landing Clearance** | — | — | CLC, CTLC | CLC, CTLC |
+| 🟢 **Go Around (heading + alt)** | — | — | (via GA {hdg} {alt}) | (via GA {hdg} {alt}) |
+| 🟢 **Cleared to Land** | — | — | CTL, FS | CTL, FS |
+| 🟢 **Cancel Landing Clearance** | — | — | CLC, CTLC | CLC, CTLC |
 | **Touch and Go** | TG | — | TG | TG |
 | **Stop and Go** | SG | — | SG | SG |
 | **Low Approach** | LA | — | LA | LA |
-| **Cleared for the Option** | — | — | COPT | COPT |
+| 🟢 **Cleared for the Option** | — | — | COPT | COPT |
 | Full Stop | FS | — | (alias of CTL) | (alias of CTL) |
 | Land (heli at parking spot) | LAND | — | — | — |
 | Land and Hold Short | LAHSO | — | — | — |
@@ -111,17 +164,17 @@ YAAT aliases = what's actually in the code presets (primary alias listed first).
 
 > **Note:** ATCTrainer's `CTL` means "Clear Approach" (IFR approach clearance), NOT "Cleared to Land".
 >
-> ATCTrainer has no explicit "cleared to land" command — aircraft in the pattern are implicitly cleared to land. `LAND` in ATCTrainer is only for helicopters landing at a named parking spot on the destination ramp (ground ops, not tower clearance). `FS` (Full Stop) tells a pattern aircraft to make a full-stop landing on the current/next approach. YAAT uses `CTL` as its own "Cleared to Land" command (no ATCTrainer equivalent); `FS` should also be supported as an alternative (not yet implemented).
+> ATCTrainer has no explicit "cleared to land" command — aircraft in the pattern are implicitly cleared to land. `LAND` in ATCTrainer is only for helicopters landing at a named parking spot on the destination ramp (ground ops, not tower clearance). `FS` (Full Stop) tells a pattern aircraft to make a full-stop landing on the current/next approach. YAAT uses `CTL` as its own "Cleared to Land" command (no ATCTrainer equivalent); `FS` is also supported as an alias.
 >
 > `LAND` will be added to YAAT in the ground ops milestone for helicopter parking spot landings.
->
-> ClearedForOption (`COPT`) is YAAT-specific; neither ATCTrainer nor VICE has this command.
 >
 > VICE has no tower commands; the VICE preset uses ATCTrainer verbs for tower operations.
 >
 > `GA` accepts optional arguments: `GA MRT` / `GA MLT` (go around and make right/left traffic), `GA 270 5000` (heading + altitude), `GA RH 2000` (runway heading + altitude). `GAMRT` and `GAMLT` are verb aliases parsed by the server. Auto go-around (no landing clearance by 0.5nm) broadcasts a warning and re-enters the pattern for VFR and pattern traffic; IFR non-pattern aircraft fly runway heading at 2000 AGL.
 
 ## Approach
+
+Neither ATCTrainer nor VICE approach commands are implemented in YAAT yet.
 
 | Command | ATCTrainer doc | VICE doc |
 |---|---|---|
@@ -181,10 +234,10 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 | **Pause** | PAUSE, P | P (toggle) | PAUSE, P | PAUSE |
 | **Unpause** | UNPAUSE, U, UN, UNP, UP | P (toggle) | UNPAUSE, U, UN, UNP, UP | UNPAUSE |
 | **Sim Rate** | SIMRATE | — | SIMRATE | SIMRATE |
-| **Spawn Now** | — | — | SPAWN | SPAWN |
-| **Set Spawn Delay** | — | — | DELAY | DELAY |
+| 🟢 **Spawn Now** | — | — | SPAWN | SPAWN |
+| 🟢 **Set Spawn Delay** | — | — | DELAY | DELAY |
 | **Wait (seconds)** | WAIT | — | WAIT | WAIT |
-| **Wait (distance)** | — | — | WAITD | WAITD |
+| 🟢 **Wait (distance)** | — | — | WAITD | WAITD |
 
 > **Note:** VICE pause is a toggle (`P`); YAAT splits into separate Pause/Unpause. The VICE preset uses PAUSE/UNPAUSE (ATCTrainer verbs) since YAAT needs distinct commands.
 >
@@ -216,15 +269,15 @@ VICE has no pattern commands. The VICE preset uses ATCTrainer verbs.
 
 ## Coordination
 
-YAAT-specific commands for STARS departure release coordination (rundown lists). Neither ATCTrainer nor VICE has native coordination commands.
+🟢 YAAT-specific commands for STARS departure release coordination (rundown lists). Neither ATCTrainer nor VICE has native coordination commands.
 
 | Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
 |---|---|---|---|---|
-| **Release (Rundown)** | — | — | RD | RD |
-| **Hold Release** | — | — | RDH | RDH |
-| **Recall Release** | — | — | RDR | RDR |
-| **Acknowledge Release** | — | — | RDACK | RDACK |
-| **Toggle Auto-Ack** | — | — | RDAUTO | RDAUTO |
+| 🟢 **Release (Rundown)** | — | — | RD | RD |
+| 🟢 **Hold Release** | — | — | RDH | RDH |
+| 🟢 **Recall Release** | — | — | RDR | RDR |
+| 🟢 **Acknowledge Release** | — | — | RDACK | RDACK |
+| 🟢 **Toggle Auto-Ack** | — | — | RDAUTO | RDAUTO |
 
 > **Note:** `RD`, `RDH`, `RDR`, and `RDACK` take an optional list ID argument (e.g., `RD PFAT`). When omitted, the server auto-detects the list from the sender/receiver TCP. `RDACK` works without a list ID even when the TCP belongs to multiple lists, as long as there is only one unacknowledged release across all lists. `RDAUTO` requires a list ID and is a global command (no callsign needed).
 
@@ -244,13 +297,13 @@ VICE has no ground commands. The VICE preset uses ATCTrainer verbs.
 |---|---|---|---|---|
 | **Pushback** | PUSH | — | PUSH | PUSH |
 | **Taxi** | TAXI, RWY | — | TAXI, RWY | TAXI |
-| **Hold Position** | HOLD | — | HOLD, HP | HOLD |
-| **Resume Taxi** | RES | — | RES, RESUME | RES |
+| **Hold Position** | HOLD | — | HOLD, 🟢 HP | HOLD |
+| **Resume Taxi** | RES | — | RES, 🟢 RESUME | RES |
 | **Cross Runway** | CROSS | — | CROSS | CROSS |
-| **Follow** | FOLLOW | — | FOLLOW, FOL | FOLLOW |
+| **Follow** | FOLLOW | — | FOLLOW, 🟢 FOL | FOLLOW |
 | Taxi All | TAXIALL | — | — | — |
 | Hold Short | HS | — | (via TAXI HS) | (via TAXI HS) |
-| **Give Way** | GIVEWAY, GW, PB | — | GIVEWAY, BEHIND | GIVEWAY, BEHIND |
+| **Give Way** | GIVEWAY, GW, PB | — | GIVEWAY, 🟢 BEHIND | GIVEWAY, 🟢 BEHIND |
 | Break | BREAK | — | — | — |
 
 > **Note:** ATCTrainer's `HS` is a standalone command for hold-short. In YAAT, hold-short is specified as part of the `TAXI` command: `TAXI S T U HS 28L` (tokens after `HS` are explicit hold-short runways). Implicit hold-shorts are added at all runway crossings automatically.
@@ -259,22 +312,32 @@ VICE has no ground commands. The VICE preset uses ATCTrainer verbs.
 >
 > `HOLD` and `HP` stop the aircraft wherever it is on the ground. `RES` / `RESUME` resumes taxi movement.
 >
-> `GIVEWAY` / `BEHIND` is a condition prefix (like `AT` / `LV`), not a standalone command. It delays the next command until the named aircraft no longer conflicts. Example: `GIVEWAY SWA5456; TAXI S T U` waits for SWA5456 to pass before taxiing.
+> `GIVEWAY` / `BEHIND` is a condition prefix (like `AT`/`LV`), not a standalone command. It delays the next command until the named aircraft no longer conflicts. Example: `GIVEWAY SWA5456; TAXI S T U` waits for SWA5456 to pass before taxiing.
 
 ## Misc
 
 | Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
 |---|---|---|---|---|
 | **Add Aircraft** | ADD | — | ADD | ADD |
-| Flight Plan | FP | — |
-| VFR Flight Plan | VP | — |
-| Remarks | REMARKS | — |
-| Say | SAY | — |
-| Say Frequency | SAYF | — |
-| Cleared | CLRD | — |
-| Delete At | DELAT | — |
-| Wait | WAIT | — |
-| Open Chat | OPENCHAT | — |
-| Operations/Stats | OPS, STATS, STAT | — |
-| Show At | SHOWAT | — |
-| Global Message | — | /{msg} |
+| Flight Plan | FP | — | — | — |
+| VFR Flight Plan | VP | — | — | — |
+| Remarks | REMARKS | — | — | — |
+| Say | SAY | — | — | — |
+| Say Frequency | SAYF | — | — | — |
+| Cleared | CLRD | — | — | — |
+| Delete At | DELAT | — | — | — |
+| Open Chat | OPENCHAT | — | — | — |
+| Operations/Stats | OPS, STATS, STAT | — | — | — |
+| Show At | SHOWAT | — | — | — |
+| Global Message | — | /{msg} | — | — |
+
+## ATCTrainer Debug Commands (not implemented)
+
+| Command | ATCTrainer doc | Description |
+|---|---|---|
+| APPS | APPS | Display available approaches |
+| CMN, DMN | CMN | Instant altitude change |
+| FHN | FHN | Instant heading change |
+| SLN, ISN | SLN | Instant speed change |
+| SHOWPATH | SHOWPATH | Display waypoints as aircraft |
+| HIDEPATH | HIDEPATH | Remove displayed path |

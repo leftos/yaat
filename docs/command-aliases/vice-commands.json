@@ -1,0 +1,366 @@
+[
+  {
+    "primary": "H",
+    "raw_syntax": "H heading",
+    "args_hint": " heading",
+    "description": "Directs the aircraft to fly the specified heading. It will turn in whichever direction gets it to that heading most quickly.\n                      If no heading is given, the aircraft is instructed to fly present heading.",
+    "example": "H050 , H"
+  },
+  {
+    "primary": "L",
+    "raw_syntax": "L heading",
+    "args_hint": " heading",
+    "description": "Directs the aircraft to turn left to the specified heading.",
+    "example": "L130"
+  },
+  {
+    "primary": "R",
+    "raw_syntax": "R heading",
+    "args_hint": " heading",
+    "description": "Directs the aircraft to turn right to the specified heading.",
+    "example": "R210"
+  },
+  {
+    "primary": "T",
+    "raw_syntax": "T degrees L",
+    "args_hint": " degrees L",
+    "description": "Directs the aircraft to turn the specified number of degrees to the left.",
+    "example": "T10L"
+  },
+  {
+    "primary": "T",
+    "raw_syntax": "T degrees R",
+    "args_hint": " degrees R",
+    "description": "Directs the aircraft to turn the specified number of degrees to the right.",
+    "example": "T20R"
+  },
+  {
+    "primary": "D",
+    "raw_syntax": "D fix",
+    "args_hint": " fix",
+    "description": "Directs the aircraft to proceed direct to the given\n                    fix. (The specified fix must be in the aircraft's\n                    flight plan, including on the approach assigned to it.)",
+    "example": "DWAVEY"
+  },
+  {
+    "primary": "D",
+    "raw_syntax": "D fix /H heading",
+    "args_hint": " fix /H heading",
+    "description": "Directs the aircraft to depart the specified fix at the given heading.\n                    (The specified fix must be in the aircraft's flight plan.)",
+    "example": "DLENDY/H180"
+  },
+  {
+    "primary": "H",
+    "raw_syntax": "H fix",
+    "args_hint": " fix",
+    "description": "Directs the aircraft to hold at the specified fix using a published holding pattern.\n                        (The specified fix must be in the aircraft's flight plan; for one that is not, first give them D fix to add it and send them direct to it.) There are three ways to cause an aircraft to exit a hold:\n                        1. Clearing them for the approach, if the hold is part of an approach assigned to the aircraft.\n                        2. Giving \"direct FIX\".\n                        3. Assigning a heading.\n                        In the first two, the aircraft will finish flying the current lap in the hold before proceeding;\n                        if a heading is given, they will turn to the heading directly.",
+    "example": "HJIMEE"
+  },
+  {
+    "primary": "H",
+    "raw_syntax": "H fix / option / option",
+    "args_hint": " fix / option / option",
+    "description": "Directs the aircraft to hold at the specified fix using controller-specified holding parameters.\n                    (The specified fix must be in the aircraft's flight plan.) Options may be: L : left turns R : right turns (default) xx NM : xx nautical mile legs xx M : xx minute legs (default: 1 minute) R xxx : inbound course on the xxx radial to the fix (required) The radial option ( R xxx ) is required for controller-specified holds.\n                    Multiple options of the same type (e.g., both L and R, or both distance and time legs) are not allowed.",
+    "example": "HJIMEE/L/5NM/R090 HJIMEE/R270/2M"
+  },
+  {
+    "primary": "SH",
+    "raw_syntax": "SH",
+    "args_hint": "",
+    "description": "Directs the aircraft to say its current heading.",
+    "example": "SH"
+  },
+  {
+    "primary": "C",
+    "raw_syntax": "C alt",
+    "args_hint": " alt",
+    "description": "Directs the aircraft to climb to the specified\n                      altitude, which is given in hundreds of feet.\n                      If the aircraft is changing speed, both the speed\n                      change and climb are simultaneous.",
+    "example": "C170"
+  },
+  {
+    "primary": "TC",
+    "raw_syntax": "TC alt",
+    "args_hint": " alt",
+    "description": "Directs the aircraft to climb to the specified\n                      altitude, given in hundreds of feet, after it\n                      finishes speeding up or slowing down to meet a\n                      controller-specified speed.",
+    "example": "TC170"
+  },
+  {
+    "primary": "D",
+    "raw_syntax": "D alt",
+    "args_hint": " alt",
+    "description": "Directs the aircraft to descend to the specified\n                    altitude, given in hundreds of feet.",
+    "example": "D20"
+  },
+  {
+    "primary": "TD",
+    "raw_syntax": "TD alt",
+    "args_hint": " alt",
+    "description": "Directs the aircraft to descend to the specified\n                      altitude, given in hundreds of feet, after it\n                      finishes speeding up or slowing down to meet a\n                      controller-specified speed.",
+    "example": "TD20"
+  },
+  {
+    "primary": "A",
+    "raw_syntax": "A alt",
+    "args_hint": " alt",
+    "description": "Directs the aircraft to maintain the given altitude given in hundreds of feet,\n                      climbing or descending if necessary.\n                      If the aircraft is changing speed, both the speed\n                      change and climb are simultaneous.",
+    "example": "A120"
+  },
+  {
+    "primary": "ED",
+    "raw_syntax": "ED",
+    "args_hint": "",
+    "description": "Directs the aircraft to expedite the descent to its\n                    assigned altitude.",
+    "example": "ED"
+  },
+  {
+    "primary": "EC",
+    "raw_syntax": "EC",
+    "args_hint": "",
+    "description": "Directs the aircraft to expedite the climb to its\n                    assigned altitude.",
+    "example": "EC"
+  },
+  {
+    "primary": "C",
+    "raw_syntax": "C fix /A altitude /S speed",
+    "args_hint": " fix /A altitude /S speed",
+    "description": "Directs the aircraft to cross the specified fix at the given altitude and speed.\n                      Either one or both of A and S may be specified. Altitudes may be given as single altitudes (corresponding to\n                      \"at\"), an altitude and a plus sign (\"at or above\"),\n                      an altitude and a minus sign (\"at or below\"), or a\n                      range of altitudes separated by a minus sign (\"between\").",
+    "example": "CCAMRN/A110+"
+  },
+  {
+    "primary": "CVS",
+    "raw_syntax": "CVS",
+    "args_hint": "",
+    "description": "Directs a departure to \"climb via the SID\".",
+    "example": "CVS"
+  },
+  {
+    "primary": "DVS",
+    "raw_syntax": "DVS",
+    "args_hint": "",
+    "description": "Directs an arrival to \"descend via the STAR\".",
+    "example": "DVS"
+  },
+  {
+    "primary": "SA",
+    "raw_syntax": "SA",
+    "args_hint": "",
+    "description": "Directs the aircraft to say its current altitude.",
+    "example": "SA"
+  },
+  {
+    "primary": "S",
+    "raw_syntax": "S knots",
+    "args_hint": " knots",
+    "description": "Gives the aircraft a speed restriction.\n                      If the restriction is given after an aircraft is cleared for an approach,\n                      the speed restriction is in effect until 5 mile\n                      final.  If no speed is given, then the aircraft is instructed\n                      \"cancel speed restrictions\".  Speed changes happen at\n                      the same time as any required altitude change.",
+    "example": "S210 , S"
+  },
+  {
+    "primary": "TS",
+    "raw_syntax": "TS knots",
+    "args_hint": " knots",
+    "description": "Gives the aircraft a speed restriction to be\n                      applied after the aircraft climbs or descends to the\n                      most recent controller-specified altitude.\n                      As with S , speed restrictions are\n                      canceled at 5 mile final.",
+    "example": "TS210"
+  },
+  {
+    "primary": "SMIN",
+    "raw_syntax": "SMIN",
+    "args_hint": "",
+    "description": "Directs the aircraft to maintain its slowest practical speed.",
+    "example": "SMIN"
+  },
+  {
+    "primary": "SMAX",
+    "raw_syntax": "SMAX",
+    "args_hint": "",
+    "description": "Directs the aircraft to maintain its maximum forward speed.",
+    "example": "SMAX"
+  },
+  {
+    "primary": "SPRES",
+    "raw_syntax": "SPRES",
+    "args_hint": "",
+    "description": "Instructs the aircraft to maintain its present speed.",
+    "example": "SPRES"
+  },
+  {
+    "primary": "S",
+    "raw_syntax": "S kts +",
+    "args_hint": " kts +",
+    "description": "Assigns a speed floor: aircraft should fly at or above the specified speed. Currently treated as a standard speed assignment.",
+    "example": "S180+"
+  },
+  {
+    "primary": "S",
+    "raw_syntax": "S kts -",
+    "args_hint": " kts -",
+    "description": "Assigns a speed ceiling: aircraft should not exceed the specified speed. Currently treated as a standard speed assignment.",
+    "example": "S180-"
+  },
+  {
+    "primary": "SS",
+    "raw_syntax": "SS",
+    "args_hint": "",
+    "description": "Directs the aircraft to say its indicated airspeed.",
+    "example": "SS"
+  },
+  {
+    "primary": "SQ",
+    "raw_syntax": "SQ code",
+    "args_hint": " code",
+    "description": "Instructs the aircraft to squawk the given beacon code.",
+    "example": "SQ1200"
+  },
+  {
+    "primary": "SQS",
+    "raw_syntax": "SQS",
+    "args_hint": "",
+    "description": "Directs the aircraft to squawk \"standby\" mode.",
+    "example": "SQS"
+  },
+  {
+    "primary": "SQA",
+    "raw_syntax": "SQA",
+    "args_hint": "",
+    "description": "Directs the aircraft to squawk \"altitude\" mode.",
+    "example": "SQA"
+  },
+  {
+    "primary": "SQON",
+    "raw_syntax": "SQON",
+    "args_hint": "",
+    "description": "Directs the aircraft to turn on their transponder and squawk mode-A.",
+    "example": "SQON"
+  },
+  {
+    "primary": "ID",
+    "raw_syntax": "ID",
+    "args_hint": "",
+    "description": "Instructs the aircraft to \"ident\".",
+    "example": "ID"
+  },
+  {
+    "primary": "FC",
+    "raw_syntax": "FC",
+    "args_hint": "",
+    "description": "\"Frequency change\": change radio frequency to the controller the aircraft was handed off to\n                      and contact them.",
+    "example": "FC"
+  },
+  {
+    "primary": "CT",
+    "raw_syntax": "CT TCP",
+    "args_hint": " TCP",
+    "description": "Contact the controller with the specified TCP. This is generally used for VFR aircraft that contact\n                      the wrong controller asking for flight following.",
+    "example": "CT2J"
+  },
+  {
+    "primary": "TO",
+    "raw_syntax": "TO",
+    "args_hint": "",
+    "description": "Directs an arrival to contact the tower.",
+    "example": "TO"
+  },
+  {
+    "primary": "E",
+    "raw_syntax": "E approach",
+    "args_hint": " approach",
+    "description": "Tells the aircraft to expect the specified\n                    approach. This command must be used before an aircraft\n                    is cleared for an approach and it also adds the approach\n                    fixes to the end of the aircraft's route.",
+    "example": "EI2L"
+  },
+  {
+    "primary": "C",
+    "raw_syntax": "C approach",
+    "args_hint": " approach",
+    "description": "Clears the aircraft for the specified\n                    approach. The aircraft must have been told to expect the approach before it is cleared for it.",
+    "example": "CI2L"
+  },
+  {
+    "primary": "C",
+    "raw_syntax": "C",
+    "args_hint": "",
+    "description": "Clears the aircraft for the approach that was previously assigned.",
+    "example": "C"
+  },
+  {
+    "primary": "A",
+    "raw_syntax": "A fix /C [ approach ]",
+    "args_hint": " fix /C [ approach ]",
+    "description": "Clears the aircraft for the approach when\n                    it passes the given fix. The approach identifier is optional;\n                    if not specified, uses the previously-assigned approach.",
+    "example": "AROSLY/C"
+  },
+  {
+    "primary": "A",
+    "raw_syntax": "A fix /I",
+    "args_hint": " fix /I",
+    "description": "Directs the aircraft to intercept the localizer when\n                    it passes the given fix. The aircraft must have been told\n                    to expect an approach before this command is given.",
+    "example": "AROSLY/I"
+  },
+  {
+    "primary": "CAC",
+    "raw_syntax": "CAC",
+    "args_hint": "",
+    "description": "Cancels approach clearance for an aircraft.",
+    "example": "CAC"
+  },
+  {
+    "primary": "CSI",
+    "raw_syntax": "CSI approach",
+    "args_hint": " approach",
+    "description": "Clears the aircraft \"straight in\" for the specified approach.\n                      (This command is only useful for approaches that include procedure turns.)\n                      The aircraft must have been told to expect the approach before it is cleared for it.",
+    "example": "CSII6"
+  },
+  {
+    "primary": "I",
+    "raw_syntax": "I",
+    "args_hint": "",
+    "description": "Directs the aircraft to intercept the localizer (at\n                    which point it will follow the localizer's lateral path\n                    but not descend until it is cleared for the approach.)",
+    "example": "I"
+  },
+  {
+    "primary": "A",
+    "raw_syntax": "A",
+    "args_hint": "",
+    "description": "\"Altitude your discretion, maintain VFR\".",
+    "example": "A"
+  },
+  {
+    "primary": "RON",
+    "raw_syntax": "RON",
+    "args_hint": "",
+    "description": "\"Resume own navigation\".",
+    "example": "RON"
+  },
+  {
+    "primary": "RST",
+    "raw_syntax": "RST",
+    "args_hint": "",
+    "description": "\"Radar services terminated, squawk VFR, frequency change approved\".",
+    "example": "RST"
+  },
+  {
+    "primary": "GA",
+    "raw_syntax": "GA",
+    "args_hint": "",
+    "description": "\"Go ahead\" - respond to a VFR request.",
+    "example": "GA"
+  },
+  {
+    "primary": "X",
+    "raw_syntax": "X",
+    "args_hint": "",
+    "description": "Deletes the specified aircraft from the simulation. This command is useful when one starts going down the tubes.",
+    "example": "X"
+  },
+  {
+    "primary": "P",
+    "raw_syntax": "P",
+    "args_hint": "",
+    "description": "Toggles Pause/Unpause",
+    "example": "P"
+  },
+  {
+    "primary": "/",
+    "raw_syntax": "/ message",
+    "args_hint": " message",
+    "description": "Displays the given message in the message log of all controllers",
+    "example": "/2A IS CLOSING DINNER TIME"
+  }
+]

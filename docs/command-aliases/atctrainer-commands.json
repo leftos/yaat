@@ -1,0 +1,1538 @@
+[
+  {
+    "category": "Add Commands",
+    "syntax": "ADD {RULES} {WEIGHT} {ENGINE} @{SPACE} [TYPE] *[AIRLINE]",
+    "description": "Add a new aircraft at a specific parking space",
+    "aliases": [],
+    "parameters": "rules - V or I (VFR or IFR) weight - S, M, L, or H, (Small, Small+, Large, Heavy) engine - P, T, J, H (Prop, Turboprop, Jet, Helo) space - The parking space to add the aircraft to. type - Overrides a randomly generated aircraft type. [optional] airline - Overrides a randomly generated airline. [optional]",
+    "examples": [
+      "ADD V S P @GA1 ADD I H J @B3 B738 ADD I S H @C27 C402 *KAP"
+    ],
+    "delayable": false,
+    "primary": "ADD"
+  },
+  {
+    "category": "Add Commands",
+    "syntax": "ADD {RULES} {WEIGHT} {ENGINE} -{BEARING} {DISTANCE} {ALTITUDE} [TYPE] *[AIRLINE]",
+    "description": "Add a new aircraft on a specified bearing, distance and altitude from the airport",
+    "aliases": [],
+    "parameters": "rules - V or I (VFR or IFR) weight - S, M, L, or H, (Small, Small+, Large, Heavy) engine - P, T, J, H (Prop, Turboprop, Jet, Helo) bearing - The bearing from the field on which to add the aircraft. distance - Distance from the threshold in NM.distance - Distance from the field in NM to add the aircraft. altitude - The aircraft will be at this altitude. type - Overrides a randomly generated aircraft type. [optional] airline - Overrides a randomly generated airline. [optional]",
+    "examples": [
+      "ADD V S P -270 15 2500 C172 ADD V S P -040 35 4000 B738 *AAL"
+    ],
+    "delayable": false,
+    "primary": "ADD",
+    "variant": 2
+  },
+  {
+    "category": "Add Commands",
+    "syntax": "ADD {RULES} {WEIGHT} {ENGINE} {RUNWAY} [DISTANCE] [TYPE] *[AIRLINE]",
+    "description": "Add a new aircraft or controller.",
+    "aliases": [],
+    "parameters": "rules - V or I (VFR or IFR) weight - S, M, L, or H, (Small, Small+, Large, Heavy) engine - P, T, J, H (Prop, Turboprop, Jet, Helo) runway - The runway to add the aircraft on approach to. distance - Distance from the threshold in NM. Aircraft spawn lined up on runway if not specified.distance - Distance from the field in NM to add the aircraft. type - Overrides a randomly generated aircraft type. [optional] airline - Overrides a randomly generated airline. [optional]",
+    "examples": [
+      "ADD I L J 33L 20 *AAL ADD V M T 22R 15 BE20 ADD I S P 22R C172"
+    ],
+    "delayable": false,
+    "primary": "ADD",
+    "variant": 3
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "BREAK",
+    "description": "Aircraft will break from any taxiing conflicts and will ignore and other traffic on the ground for a short time.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "BREAK"
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "CROSS {RUNWAY/TAXIWAY}",
+    "description": "Instructs an aircraft to cross a runway or taxiway that it is currently holding short of, or has previously been instructed to hold short of or the current hold short point if already holding short.",
+    "aliases": [],
+    "parameters": "runway/taxiway - The runway or taxiway to cross.",
+    "examples": [
+      "CROSS CROSS 4R CROSS M"
+    ],
+    "delayable": false,
+    "primary": "CROSS"
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "GIVEWAY {AIRCRAFT} [RUNWAY/TAXIWAY]",
+    "description": "Instructs an aircraft to wait for a different aircraft to pass before continuing after a hold short point.",
+    "aliases": [
+      "GW",
+      "PB"
+    ],
+    "parameters": "aircraft - The callsign of the aircraft to give way to. runway/taxiway - The runway/taxiway to give way at. Will default to the first hold short point if not specified.",
+    "examples": [
+      "GIVEWAY AAL1667 GIVEWAY DCM722 A2"
+    ],
+    "delayable": false,
+    "primary": "GIVEWAY"
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "HOLD",
+    "description": "Instructs the aircraft to hold on the ground or in the air at a certain point.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [
+      "HOLD HOLD ROBUC 120 HOLD ROBUC 120 10 LEFT"
+    ],
+    "delayable": false,
+    "primary": "HOLD"
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "HS {TAXIWAY/RUNWAY}",
+    "description": "Instructs an aircraft to hold short of the specified taxiway/runway",
+    "aliases": [],
+    "parameters": "taxiway/runway - The taxiway/runway to hold short of.",
+    "examples": [
+      "HS 4R HS J"
+    ],
+    "delayable": false,
+    "primary": "HS"
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "PUSH [TAXIWAY/SPOT]",
+    "description": "Instructs an aircraft to push back on to the specified taxiway. The aircraft will taxi on a heading perpendicular to the taxiway then stop.",
+    "aliases": [],
+    "parameters": "taxiway/spot - The taxiway or spot to push back on to. Optional, aircraft will push straight back if left blank.",
+    "examples": [
+      "PUSH PUSH A"
+    ],
+    "delayable": false,
+    "primary": "PUSH"
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "RES",
+    "description": "Instructs an aircraft to resume taxiing or cross a runway if holding short.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "RES"
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "RWY {RUNWAY} TAXI {TAXI-PATH} [HOLD-SHORT-LIST]",
+    "description": "A variation of the TAXI command that is more like taxi instruction phraesology. The keyword TAXI is optional within the command.",
+    "aliases": [],
+    "parameters": "runway - The runway to taxi to. taxi-path - List of taxiways and/or runways to taxi via. hold-short-list - List of ruwnays or taxiways to hold short of. It is not required to specify the departure runway.",
+    "examples": [
+      "RWY 27 K C D HS 33L RWY 4R TAXI E B"
+    ],
+    "delayable": false,
+    "primary": "RWY"
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "TAXI {TAXI-PATH} [HOLD-SHORT-LIST]",
+    "description": "Instructs an aircraft to taxi along the specified path including any hold short points.",
+    "aliases": [],
+    "parameters": "taxi-path - List of taxiways and/or runways to taxi via, optionally ending with a departure runway, parking space or spot. hold-short-list - List of ruwnays or taxiways to hold short of. It is not required to specify the departure runway.",
+    "examples": [
+      "TAXI K C D 27 HS 33L TAXI C A @B3"
+    ],
+    "delayable": false,
+    "primary": "TAXI"
+  },
+  {
+    "category": "Ground Commands",
+    "syntax": "TAXIALL {TAXI-PATH} [HOLD-SHORT-LIST]",
+    "description": "Taxis all parked and loaded aircraft along the specified taxi route. This command executes the TAXI command for each aircraft.",
+    "aliases": [],
+    "parameters": "taxi-path - List of taxiways and/or runways to taxi via, optionally ending with a departure runway, parking space or spot. hold-short-list - List of ruwnays or taxiways to hold short of. It is not required to specify the departure runway.",
+    "examples": [
+      "TAXIALL N 22R"
+    ],
+    "delayable": false,
+    "primary": "TAXIALL"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "CTO [HEADING]",
+    "description": "Clears an aircraft for takeoff. This command can be issued when the aircraft is holding short, in position, or any time during taxi to the runway. If no heading is specified the aircraft will fly the SID in their flight plan. If the SID does not exist or there is no SID present, the aircraft will fly runway heading.",
+    "aliases": [],
+    "parameters": "heading - Initial departure heading.",
+    "examples": [
+      "CTO CTO 240"
+    ],
+    "delayable": false,
+    "primary": "CTO"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "CTOC",
+    "description": "Cancels take off clearance. The aircraft will be put into a taxiing state and instructed to hold.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "CTOC"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "CTOMLT",
+    "description": "Clears an aircraft for takeoff and instructs the aircraft to make left closed traffic.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "CTOMLT"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "CTOMRT",
+    "description": "Clears an aircraft for takeoff and instructs the aircraft to make right closed traffic.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "CTOMRT"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "CTOPP",
+    "description": "Clears a helicopter for takeoff from present position.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "CTOPP"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "CTORH",
+    "description": "Clears a helicopter for takeoff on runway heading.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "CTORH"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "EL",
+    "description": "Instructs an aircraft to exit left when able.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "EL"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "ER",
+    "description": "Instructs an aircraft to exit right when able.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "ER"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "EXIT {TAXIWAY/RUNWAY}",
+    "description": "Instructs an aircraft to exit at a specific taxiway/runway. If the aircraft can not slow down in time, the aircraft will vacate at the next available taxiway.",
+    "aliases": [],
+    "parameters": "taxiway/runway - The taxiway/runway to exit at.",
+    "examples": [
+      "EXIT C"
+    ],
+    "delayable": false,
+    "primary": "EXIT"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "FS",
+    "description": "Instructs an aircraft to make a full stop.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "FS"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "GA",
+    "description": "Instructs an aircraft to go around. Pattern aircraft will make another lap in the pattern. All other aircraft will fly runway heading and maintain either pattern altitude or their present altitude, whichever is higher.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "GA"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "GO",
+    "description": "Instructs an aircraft to start its takeoff roll when stopped on the runway during stop-and-go operations.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "GO"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "LA",
+    "description": "Instructs an aircraft to make a low approach. The aircraft will overfly the runway at 200 feet AGL and remain in the pattern. The aircraft will continue performing low approaches until instructed otherwise.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "LA"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "LAHSO {RUNWAY}",
+    "description": "Instructs an aircraft to land and hold short of the specified runway.",
+    "aliases": [],
+    "parameters": "runway - The crossing runway to hold short of.",
+    "examples": [
+      "LAHSO 27"
+    ],
+    "delayable": false,
+    "primary": "LAHSO"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "LAND [PARKING-SPOT]",
+    "description": "Instructs a helicopter to land at present position or at the specified parking spot.",
+    "aliases": [],
+    "parameters": "parking-spot - The parking space to land at. [optional]",
+    "examples": [
+      "LAND LAND @helipad"
+    ],
+    "delayable": false,
+    "primary": "LAND"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "LUAW",
+    "description": "Instructs an aircraft to line up and wait (position and hold)",
+    "aliases": [
+      "POS",
+      "LU",
+      "PH"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "LUAW"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "SG",
+    "description": "Instructs an aircraft to make a stop-and-go. If a number of seconds is specified, the aircraft will stop on the runway and hold for that many seconds before rolling again. Otherwise, it will stop on the runway and wait indefinitely for a 'go' command. The aircraft will continue with stop-and-go operations until instructed otherwise.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "SG"
+  },
+  {
+    "category": "Tower Commands",
+    "syntax": "TG",
+    "description": "Instructs an aircraft to make a touch-and-go. The aircraft will continue with touch-and-go operations until instructed otherwise.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "TG"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "EF {RUNWAY}",
+    "description": "Instructs the selected aircraft to enter final for the specified runway.",
+    "aliases": [],
+    "parameters": "runway - The runway to enter final for.",
+    "examples": [
+      "EF 4R"
+    ],
+    "delayable": false,
+    "primary": "EF"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "ELB {RUNWAY}",
+    "description": "Instructs an aircraft to enter a left base for the specified runway.",
+    "aliases": [],
+    "parameters": "runway - The runway for which to enter the pattern on the left base.",
+    "examples": [
+      "ELB 4L"
+    ],
+    "delayable": false,
+    "primary": "ELB"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "ELC {RUNWAY}",
+    "description": "Instructs an aircraft to enter a left crosswind for the specified runway.",
+    "aliases": [],
+    "parameters": "runway - The runway for which to enter the pattern on the left crosswind.",
+    "examples": [
+      "ELC 4L"
+    ],
+    "delayable": false,
+    "primary": "ELC"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "ELD {RUNWAY}",
+    "description": "Instructs an aircraft to enter a left downwind for the specified runway.",
+    "aliases": [],
+    "parameters": "runway - The runway for which to enter the pattern on the left downwind.",
+    "examples": [
+      "ELD 4L"
+    ],
+    "delayable": false,
+    "primary": "ELD"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "ERB {RUNWAY}",
+    "description": "Instructs an aircraft to enter a right base for the specified runway.",
+    "aliases": [],
+    "parameters": "runway - The runway for which to enter the pattern on the right base.",
+    "examples": [
+      "ERB 4L"
+    ],
+    "delayable": false,
+    "primary": "ERB"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "ERC {RUNWAY}",
+    "description": "Instructs an aircraft to enter a right crosswind for the specified runway.",
+    "aliases": [],
+    "parameters": "runway - The runway for which to enter the pattern on the right crosswind.",
+    "examples": [
+      "ERC 4L"
+    ],
+    "delayable": false,
+    "primary": "ERC"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "ERD {RUNWAY}",
+    "description": "Instructs an aircraft to enter a right downwind for the specified runway.",
+    "aliases": [],
+    "parameters": "runway - The runway for which to enter the pattern on the right downwind.",
+    "examples": [
+      "ERD 4L"
+    ],
+    "delayable": false,
+    "primary": "ERD"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "EXT",
+    "description": "Instructs an aircraft to extend current pattern leg. This command will extend the leg indefinitely until the appropriate instruction is issued.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "EXT"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "M2",
+    "description": "Instructs an aircraft to make a 270 degree turn (instead of a 90 degree turn) when turning to the next leg of its pattern.",
+    "aliases": [
+      "M270"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "M2"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "ML3 [NUMBER]",
+    "description": "Instructs an aircraft to make one or more left 360 degree turn(s), then resume current heading/path.",
+    "aliases": [
+      "ML360"
+    ],
+    "parameters": "number - Number of 360s to complete.",
+    "examples": [
+      "ML3 ML3 10"
+    ],
+    "delayable": false,
+    "primary": "ML3"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "MLS [TURN-COUNT]",
+    "description": "Instructs an aircraft to make s-turns on final. The initial turn will be to the left.",
+    "aliases": [
+      "STURN",
+      "STURNS"
+    ],
+    "parameters": "turn-count - The number of full S-Turns to complete. [optional]",
+    "examples": [
+      "MLS MLS 5"
+    ],
+    "delayable": false,
+    "primary": "MLS"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "MLT",
+    "description": "Instructs an aircraft to make left traffic. Can only be issued during takeoff or to change next pattern direction.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "MLT"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "MNA",
+    "description": "Instructs an aircraft to make a normal approach if previously instructed to make a short approach.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "MNA"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "MR3 [NUMBER]",
+    "description": "Instructs an aircraft to make one or more right 360 degree turn(s), then resume current heading/path.",
+    "aliases": [
+      "MR360"
+    ],
+    "parameters": "number - Number of 360s to complete.",
+    "examples": [
+      "MR3 MR3 10"
+    ],
+    "delayable": false,
+    "primary": "MR3"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "MRS [TURN-COUNT]",
+    "description": "Instructs an aircraft to make s-turns on final. The initial turn will be to the right.",
+    "aliases": [],
+    "parameters": "turn-count - The number of full S-Turns to complete. [optional]",
+    "examples": [
+      "MRS MRS 5"
+    ],
+    "delayable": false,
+    "primary": "MRS"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "MRT",
+    "description": "Instructs an aircraft to make right traffic. Can only be issued during takeoff or to change next pattern direction.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "MRT"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "MSA",
+    "description": "Instructs an aircraft to make a short approach. The aircraft will fly direct to the threshold instead of flying a square downwind-to-base-to-final pattern.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "MSA"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "NO270",
+    "description": "Cancels a previous instruction to make a 270 degree turn to the next pattern leg.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "NO270"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "PS {SIZE}",
+    "description": "Assigns a non-standard pattern size to the aircraft. The default pattern size  is specified in the airport file. If you would like the aircraft to fly a smaller or larger pattern, use this command. The size of the pattern dictates how far the downwind is from the runway, and how long the final leg will be.",
+    "aliases": [
+      "PATTSIZE",
+      "PSIZE",
+      "PATTS"
+    ],
+    "parameters": "size - Pattern size in nautical miles. Fractional values acceptable. Minimum 0.5, maximuim 20.",
+    "examples": [
+      "PS .5 PS 2"
+    ],
+    "delayable": false,
+    "primary": "PS"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "TB",
+    "description": "Instructs an aircraft on the downwind to turn base. The aircraft must have passed the threshold in the downwind.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "TB"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "TC",
+    "description": "Instructs an aircraft on the upwind to turn crosswind. The aircraft must be passed midfield.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "TC"
+  },
+  {
+    "category": "Pattern Commands",
+    "syntax": "TD",
+    "description": "Instructs an aircraft on the crosswind to turn downwind.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "TD"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "APT",
+    "description": "Changes the primary airport of an aircraft.",
+    "aliases": [
+      "DEST"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "APT"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "CAPP [APPROACH] [AIRPORT]",
+    "description": "Clears aircraft for the approach from present heading or current path if they intersect.",
+    "aliases": [
+      "CTL"
+    ],
+    "parameters": "approach - The name of the approach or the runway if the approach is the primary ILS approach. Optional if the aircraft or scenario has a predefined PrimaryApproach. airport - The FAA identifier for the airport to clear the aircraft for approach to. This will change the primary reference airport for this aircraft.",
+    "examples": [
+      "CAPP CAPP I04R CAPP 4R CAPP I22L BOS"
+    ],
+    "delayable": false,
+    "primary": "CAPP"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "CFIX {WAYPOINT} {ALTITUDE} [SPEED]",
+    "description": "Instructs the aircraft to cross fix or other type of waypoint at a specified altitude. The aircraft must be already path finding to the specified waypoint.",
+    "aliases": [
+      "CF"
+    ],
+    "parameters": "waypoint - A waypoint along the aircraft's current path. altitude - The altitude to cross the waypoint at in feet or hundreds of feet. speed - The speed to cross the waypoint at.",
+    "examples": [
+      "CFIX CCC 120 250 CFIX BASYE 8000"
+    ],
+    "delayable": false,
+    "primary": "CFIX"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "CM {ALTITUDE}",
+    "description": "Instructs the aircraft to climb or descend to the specified altitude.",
+    "aliases": [
+      "DM"
+    ],
+    "parameters": "altitude - Altitude in feet or hundreds of feet.",
+    "examples": [
+      "CM 240 DM 5000"
+    ],
+    "delayable": false,
+    "primary": "CM"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "DCT {WAYPOINTS}",
+    "description": "Instructs an aircraft to proceed direct to a waypoint. If the waypoint is on the aircraft's current route it will skip all waypoints prior to the specified waypoint and keep the rest of the path.",
+    "aliases": [],
+    "parameters": "waypoints - The waypoint or waypoints to proceed direct to.",
+    "examples": [
+      "DCT GOSHI"
+    ],
+    "delayable": false,
+    "primary": "DCT"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "DEPART {WAYPOINT} {HEADING}",
+    "description": "Instructs the aircraft to depart a waypoint on a specific heading.",
+    "aliases": [
+      "DEP",
+      "D"
+    ],
+    "parameters": "waypoint - The waypoint on the current path to fly the specified heading after crossing. heading - The heading to fly after crossing over the specified waypoint.",
+    "examples": [
+      "DEPART MINNK 030"
+    ],
+    "delayable": false,
+    "primary": "DEPART"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "DVIA",
+    "description": "Instructs an aircraft to climb/descend via the current path. An altitude can be specified to stop early at. Can be combine with CFIX and/or SPD to alter altitude and speed crossing restrictions.",
+    "aliases": [
+      "CVIA"
+    ],
+    "parameters": "",
+    "examples": [
+      "DVIA DVIA 80 DVIA CFIX ROBUC 100 DVIA SPD 230 GOSHI"
+    ],
+    "delayable": false,
+    "primary": "DVIA"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "DVIA {ALTITUDE}",
+    "description": "Instructs an aircraft to climb/descend via the current path. An altitude can be specified to stop early at. Can be combine with CFIX and/or SPD to alter altitude and speed crossing restrictions.",
+    "aliases": [
+      "CVIA"
+    ],
+    "parameters": "altitude - The altitude to cross the waypoint at in feet or hundreds of feet.",
+    "examples": [
+      "DVIA DVIA 80 DVIA CFIX ROBUC 100 DVIA SPD 230 GOSHI"
+    ],
+    "delayable": false,
+    "primary": "DVIA",
+    "variant": 2
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "DVIA CFIX {WAYPOINT} {ALTITUDE}",
+    "description": "Instructs an aircraft to climb/descend via the current path. An altitude can be specified to stop early at. Can be combine with CFIX and/or SPD to alter altitude and speed crossing restrictions.",
+    "aliases": [
+      "CVIA"
+    ],
+    "parameters": "waypoint - A waypoint along the aircraft's current path. altitude - The altitude to cross the waypoint at in feet or hundreds of feet.",
+    "examples": [
+      "DVIA DVIA 80 DVIA CFIX ROBUC 100 DVIA SPD 230 GOSHI"
+    ],
+    "delayable": false,
+    "primary": "DVIA",
+    "variant": 3
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "DVIA SPD {SPEED} {WAYPOINT}",
+    "description": "Instructs an aircraft to climb/descend via the current path. An altitude can be specified to stop early at. Can be combine with CFIX and/or SPD to alter altitude and speed crossing restrictions.",
+    "aliases": [
+      "CVIA"
+    ],
+    "parameters": "speed - The speed to cross the waypoint at. waypoint - A waypoint along the aircraft's current path.",
+    "examples": [
+      "DVIA DVIA 80 DVIA CFIX ROBUC 100 DVIA SPD 230 GOSHI"
+    ],
+    "delayable": false,
+    "primary": "DVIA",
+    "variant": 4
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "EXP [ALTITUDE]",
+    "description": "Instructs an aircraft to expedite climb/descent. An optional altitude can be defined to resume normal operations at.",
+    "aliases": [],
+    "parameters": "altitude - The altitude to resume normal climb/descent rates.",
+    "examples": [
+      "EXP EXP 8000"
+    ],
+    "delayable": false,
+    "primary": "EXP"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "HOLD {WAYPOINT} {COURSE} {DISTANCE} {DIRECTION}",
+    "description": "Instructs the aircraft to hold on the ground or in the air at a certain point.",
+    "aliases": [],
+    "parameters": "waypoint - The waypoint to hold at. course - The inbound course of the hold. distance - The leg distance in NM. direction - The direction of turns in the hold. Accepts L, LEFT, R or RIGHT.",
+    "examples": [
+      "HOLD HOLD ROBUC 120 HOLD ROBUC 120 10 LEFT"
+    ],
+    "delayable": false,
+    "primary": "HOLD",
+    "variant": 2
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "JARR {STAR} [TRANSITION]",
+    "description": "Instructs an aircraft to join a STAR with an optional transition. The aircraft must already be direct to a waypoint on the arrival. The aircraft will not descend automatically.",
+    "aliases": [
+      "ARR",
+      "STAR",
+      "JSTAR"
+    ],
+    "parameters": "star - The STAR to join along the aircraft's current path. transition - The runway transition on the STAR.",
+    "examples": [
+      "JARR ROBUC3 JARR JFUND2 4R"
+    ],
+    "delayable": false,
+    "primary": "JARR"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "JAWY {AIRWAY}",
+    "description": "Instructs the aircraft to join the specified airway from the assigned heading. Aircraft will join the airway at the intersection then continue in that direction.",
+    "aliases": [],
+    "parameters": "airway - The airway to join",
+    "examples": [
+      "JAWY V139"
+    ],
+    "delayable": false,
+    "primary": "JAWY"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "JFAC {APPROACH}",
+    "description": "Instructs the aircraft to join the final approach course from an intercept heading or if already direct to a waypoint on the approach.",
+    "aliases": [
+      "JLOC",
+      "JF"
+    ],
+    "parameters": "approach - The name of the approach or the runway if the approach is the primary ILS approach.",
+    "examples": [
+      "JFAC I4R JFAC 4R"
+    ],
+    "delayable": false,
+    "primary": "JFAC"
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "JFAC [APPROACH]",
+    "description": "Instructs the aircraft to join the final approach course from an intercept heading or if already direct to a waypoint on the approach.",
+    "aliases": [
+      "JLOC",
+      "JF"
+    ],
+    "parameters": "approach - The name of the approach or the runway if the approach is the primary ILS approach. Optional if the aircraft or scenario has a predefined PrimaryApproach.",
+    "examples": [
+      "JFAC JFAC I4R JFAC 4R"
+    ],
+    "delayable": false,
+    "primary": "JFAC",
+    "variant": 2
+  },
+  {
+    "category": "Approach/Enroute Commands",
+    "syntax": "NORM",
+    "description": "Instructs an aircraft to resume normal climb/descent rate after being told to expedite.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "NORM"
+  },
+  {
+    "category": "Speed Management Commands",
+    "syntax": "MACH {MACH}",
+    "description": "Instructs an aircraft to maintain the specified mach.",
+    "aliases": [
+      "M"
+    ],
+    "parameters": "mach - The mach to maintain with an optional decimal point.",
+    "examples": [
+      "MACH 78 MACH .74"
+    ],
+    "delayable": false,
+    "primary": "MACH"
+  },
+  {
+    "category": "Speed Management Commands",
+    "syntax": "RFAS",
+    "description": "Instructs an aircraft to reduce to an automatically generated final approach speed.",
+    "aliases": [
+      "FAS"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "RFAS"
+  },
+  {
+    "category": "Speed Management Commands",
+    "syntax": "RNS",
+    "description": "Instructs an aircraft to ignore any previous speed restrictions.",
+    "aliases": [
+      "NS"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "RNS"
+  },
+  {
+    "category": "Speed Management Commands",
+    "syntax": "SPD {SPEED} [TERMINATION]",
+    "description": "Instructs the aircraft to increase/decrease to the specified speed. SPD 0 will remove any previous speed restrictions and the aircraft will automatically adjust speed. A termination waypoint can be used to cancel speed restictions at.",
+    "aliases": [
+      "DS",
+      "IS",
+      "SLOW",
+      "SL",
+      "SPEED"
+    ],
+    "parameters": "speed - The speed to maintain. 0 indicates normal speed. termination - The waypoint to resume normal speed at. The aircraft must be navigating to this waypoint. [optional]",
+    "examples": [
+      "SPD 170 SPD 250 SPD 0"
+    ],
+    "delayable": false,
+    "primary": "SPD"
+  },
+  {
+    "category": "Heading Management Commands",
+    "syntax": "FH {HEADING}",
+    "description": "Instructs an aircraft to fly a specific heading.",
+    "aliases": [],
+    "parameters": "heading - The new heading to fly.",
+    "examples": [
+      "FH 360 FH 030"
+    ],
+    "delayable": false,
+    "primary": "FH"
+  },
+  {
+    "category": "Heading Management Commands",
+    "syntax": "FPH",
+    "description": "Instructs an aircraft to maintain its present heading.",
+    "aliases": [
+      "FCH"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "FPH"
+  },
+  {
+    "category": "Heading Management Commands",
+    "syntax": "LT {DEGREES}",
+    "description": "Left turn a specific number of degrees relative to current heading.",
+    "aliases": [],
+    "parameters": "degrees - Number of degrees to turn to the left relative to current heading.",
+    "examples": [
+      "LT 20"
+    ],
+    "delayable": false,
+    "primary": "LT"
+  },
+  {
+    "category": "Heading Management Commands",
+    "syntax": "RT {DEGREES}",
+    "description": "Right turn a specific number of degrees relative to current heading.",
+    "aliases": [],
+    "parameters": "degrees - Number of degrees to turn to the right relative to current heading.",
+    "examples": [
+      "RT 20"
+    ],
+    "delayable": false,
+    "primary": "RT"
+  },
+  {
+    "category": "Heading Management Commands",
+    "syntax": "T {DEGREES} {DIRECTION}",
+    "description": "Instructs the aircraft to turn the specified number of degrees in the specified direction.",
+    "aliases": [],
+    "parameters": "degrees - The number of degrees to turn in the specified direction. direction - The direction to turn. Accepts L, LEFT, R or RIGHT",
+    "examples": [
+      "T 10 L T 20 RIGHT"
+    ],
+    "delayable": false,
+    "primary": "T"
+  },
+  {
+    "category": "Heading Management Commands",
+    "syntax": "TL {HEADING}",
+    "description": "Instructs an aircraft to turn left to the specified heading.",
+    "aliases": [],
+    "parameters": "heading - The new heading to fly. The aircraft will turn left regardless of which direction is shorter.",
+    "examples": [
+      "TL 360"
+    ],
+    "delayable": false,
+    "primary": "TL"
+  },
+  {
+    "category": "Heading Management Commands",
+    "syntax": "TR {HEADING}",
+    "description": "Instructs an aircraft to turn right to the specified heading.",
+    "aliases": [],
+    "parameters": "heading - The new heading to fly. The aircraft will turn right regardless of which direction is shorter.",
+    "examples": [
+      "TR 360"
+    ],
+    "delayable": false,
+    "primary": "TR"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "ID",
+    "description": "Instructs aircraft to squawk ident.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "ID"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "RANDSQ",
+    "description": "Assigns a random squawk code to all aircraft in the scenario and makes them squawk that code.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "RANDSQ"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "SN",
+    "description": "Instructs an aircraft to squawk normal (Mode C).",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "SN"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "SNALL",
+    "description": "Sets all the transponder of all aircraft to normal (Mode C).",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "SNALL"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "SQ [CODE]",
+    "description": "Instructs an aircraft to squawk the specified transponder code. If no code is specified the aircraft will squawk the atc assigned code.",
+    "aliases": [
+      "SQUAWK"
+    ],
+    "parameters": "code - The new transponder code.",
+    "examples": [
+      "SQ SQ 1200"
+    ],
+    "delayable": false,
+    "primary": "SQ"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "SQALL",
+    "description": "Instructs all aircraft to squawk their assigned code.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "SQALL"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "SQI [CODE]",
+    "description": "Instructs an aircraft to squawk the specified transponder code and ident. If no code is specified the aircraft will squawk the atc assigned code.",
+    "aliases": [
+      "SQID"
+    ],
+    "parameters": "code - The new transponder code.",
+    "examples": [
+      "SQI SQI 1200"
+    ],
+    "delayable": false,
+    "primary": "SQI"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "SQV",
+    "description": "Instructs the aircraft to squawk VFR (1200).",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "SQV"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "SS",
+    "description": "Instructs the aircraft to squawk standby.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "SS"
+  },
+  {
+    "category": "Transponder Commands",
+    "syntax": "SSALL",
+    "description": "Sets all the transponder of all aircraft to standby.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "SSALL"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "AT {LOCATION} {COMMAND}",
+    "description": "Makes the aircraft complete a command at a waypoint, altitude or speed.",
+    "aliases": [],
+    "parameters": "location - A waypoint along the current path, altitude greater than 1000 feet, or knots in airspeed to complete the command at. command - A full command to complete at the location.",
+    "examples": [
+      "AT MINNK FH 030 AT 5000 SPD 210 AT 210 DM 5000"
+    ],
+    "delayable": false,
+    "primary": "AT"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "CLRD",
+    "description": "Indicates that the aircraft has a clearance within the application window.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "CLRD"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "DEL",
+    "description": "Deletes currently selected aircraft.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "DEL"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "DELAT",
+    "description": "Removes all queued commands for the selected aircraft.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "DELAT"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "FP {TYPE} {ALTITUDE} {ROUTE}",
+    "description": "Creates an IFR flight plan for the aircraft. This can be used if the instructor wishes to have a specific flight plan for an aircraft after it is created with one of the 'ADD' commands.",
+    "aliases": [],
+    "parameters": "type - The new aircraft type. altitude - The new cruising altitude. route - The new route. Use spaces to separate waypoints. The first entry must be the departure airport. The last entry must be the arrival airport.",
+    "examples": [
+      "FP B738 220 KBOS SSOXS6 SSOXS BUZRD SEY PARCH3 KJFK FP B190 160 KBOS BOSOX ALB KALB"
+    ],
+    "delayable": false,
+    "primary": "FP"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "ONHO {COMMAND}",
+    "description": "Runs the specified command when a handoff is accepted by ATCTrainer ATC.",
+    "aliases": [
+      "ONH"
+    ],
+    "parameters": "command - A full command to execute when the handoff is accepted.",
+    "examples": [
+      "ONHO QZ 240 ONHO SPD 210 ONHO CM 340"
+    ],
+    "delayable": false,
+    "primary": "ONHO"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "OPENCHAT {CONTROLLER}",
+    "description": "Opens a chat window to private message the specified controller.",
+    "aliases": [],
+    "parameters": "controller - The callsign of the controller to open a chat with.",
+    "examples": [
+      "OPENCHAT BOS_GND"
+    ],
+    "delayable": false,
+    "primary": "OPENCHAT"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "OPS",
+    "description": "Shows statistics on the number of arrivals and departures, including totals and per-minute averages.",
+    "aliases": [
+      "STATS",
+      "STAT"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "OPS"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "PAUSE",
+    "description": "Pauses the simulation.",
+    "aliases": [
+      "P"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "PAUSE"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "REMARKS {TEXT}",
+    "description": "Alters the flight plan remarks for an aircraft. The aircraft will have to refile the initial flight plan data or data provided with the FP or VP commands.",
+    "aliases": [],
+    "parameters": "text - The text to enter in the aircraft's flight strip remarks.",
+    "examples": [
+      "REMARKS First flight on vatsim. How do I fly? REMARKS NO SID"
+    ],
+    "delayable": false,
+    "primary": "REMARKS"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "SAY {MESSAGE}",
+    "description": "Sends the specified message on the frequency. Best used in preset commands to provide information to the instructor. Can be used in conjunction with the DELAY or AT command.",
+    "aliases": [],
+    "parameters": "message - The message to send.",
+    "examples": [
+      "SAY Taking off from 1B9"
+    ],
+    "delayable": false,
+    "primary": "SAY"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "SAYF {MESSAGE}",
+    "description": "Sends the specified message over the command frequency. Output will never be sent to the command line and always to the frequency. Useful for simulating text pilots.",
+    "aliases": [],
+    "parameters": "message - The message to send.",
+    "examples": [
+      "SAYF Ready to taxi"
+    ],
+    "delayable": false,
+    "primary": "SAYF"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "SHOWAT",
+    "description": "Outputs any pending 'AT' commands that have not executed.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "SHOWAT"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "SIMRATE {RATE}",
+    "description": "Increases the simulation rate to the set amount. Increasing simulation rate may lead to increased CPU usage. Use at your own risk.",
+    "aliases": [],
+    "parameters": "rate - The simulation rate to set. Value must be 1, 2, 4, 8, or 16.",
+    "examples": [
+      "SIMRATE 1 SIMRATE 8"
+    ],
+    "delayable": false,
+    "primary": "SIMRATE"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "UNPAUSE",
+    "description": "Unpauses the simulation.",
+    "aliases": [
+      "U",
+      "UN",
+      "UNP",
+      "UP"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "UNPAUSE"
+  },
+  {
+    "category": "General Commands",
+    "syntax": "FP {TYPE} {ALTITUDE} {ROUTE}",
+    "description": "Creates a VFR flight plan for the aircraft. This can be used if the instructor wishes to have a specific flight plan for an aircraft after it is created with one of the 'ADD' commands.",
+    "aliases": [],
+    "parameters": "type - The new aircraft type. altitude - The new cruising altitude. route - The new route. Use spaces to separate waypoints. The first entry must be the departure airport. The last entry must be the arrival airport.",
+    "examples": [
+      "VP C172/G KBOS DCT GPS KALB VP P28A 5500 KBOS MANCH LBNON BTV KBTV"
+    ],
+    "delayable": false,
+    "primary": "FP",
+    "variant": 2
+  },
+  {
+    "category": "General Commands",
+    "syntax": "WAIT {DELAY} {COMMAND}",
+    "description": "Adds a command with a specified delay in seconds before it is executed.",
+    "aliases": [
+      "DELAY"
+    ],
+    "parameters": "delay - Time in seconds to delay the execution of the specified command. command - The command to execute.",
+    "examples": [
+      "WAIT 120 TAXI N 22R"
+    ],
+    "delayable": false,
+    "primary": "WAIT"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "ACCEPT",
+    "description": "Accept a pending handoff of an aircraft.",
+    "aliases": [
+      "A"
+    ],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "ACCEPT"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "ACCEPTALL",
+    "description": "Accept all pending handoffs to controllers",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "ACCEPTALL"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "ANNOTATE {BOXNUMBER} {VALUE}",
+    "description": "Annotates all strips for the defined aircraft.",
+    "aliases": [
+      "AN",
+      "BOX"
+    ],
+    "parameters": "boxNumber - The box number to enter the annotation in. Must be between 0 and 9 inclusive. value - The value to enter into the box.",
+    "examples": [
+      "ANNOTATE 1 E"
+    ],
+    "delayable": false,
+    "primary": "ANNOTATE"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "CANCEL",
+    "description": "Cancels a pending handoff",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "CANCEL"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "CRUISE [ALTITUDE]",
+    "description": "Sets the temporary altitude for the specified aircraft.",
+    "aliases": [
+      "QZ"
+    ],
+    "parameters": "altitude - The altitude to set as the cruize altitude. For ERAM tracked aircraft, this value could be VFR, OTP, a block altitude, or any other QZ accepted value.",
+    "examples": [
+      "CRUISE 240"
+    ],
+    "delayable": false,
+    "primary": "CRUISE"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "DROP",
+    "description": "Drops track on the selected aircraft.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "DROP"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "HO {HANDOFFID}",
+    "description": "Hands off the selected or defined aircraft to the student position or the specified controller",
+    "aliases": [],
+    "parameters": "handoffId - The handoff ID of the controller to handoff the aircraft to. If not specified defaults to the student's position",
+    "examples": [
+      "HO B1D"
+    ],
+    "delayable": false,
+    "primary": "HO"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "HOALL {HANDOFFID}",
+    "description": "Hands off all ATCTrainer generated aircraft to the student's position or the defined controller.",
+    "aliases": [],
+    "parameters": "handoffId - The handoff ID of the controller to handoff the aircraft to. If not specified defaults to the student's position",
+    "examples": [
+      "HOALL B1D"
+    ],
+    "delayable": false,
+    "primary": "HOALL"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "OK {HANDOFFID}",
+    "description": "Runs /OK on the specified aircraft. This command only works with ERAM positions.",
+    "aliases": [],
+    "parameters": "handoffId - Handoff ID of the target position. This position must be an ERAM position.",
+    "examples": [
+      "OK B1D"
+    ],
+    "delayable": false,
+    "primary": "OK"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "PO {HANDOFFID}",
+    "description": "Sends a point out for the target aircraft to a specific controller.",
+    "aliases": [],
+    "parameters": "handoffId - Callsign of the controller to point out to",
+    "examples": [
+      "PO BOS_APP"
+    ],
+    "delayable": false,
+    "primary": "PO"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "SCRATCHPAD {SCRATCHPAD}",
+    "description": "Sets the scratchpad of the specified aircraft",
+    "aliases": [
+      "SP"
+    ],
+    "parameters": "scratchpad - The scratchpad text to enter.",
+    "examples": [
+      "SCRATCHPAD I2L"
+    ],
+    "delayable": false,
+    "primary": "SCRATCHPAD"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "STRIP {BAY}",
+    "description": "Pushes all flight strips for the aircraft to the defined flight strip bay.",
+    "aliases": [],
+    "parameters": "bay - The name of the strip bay to push to. Must match the name entered in the facility flight strip configuration.",
+    "examples": [
+      "STRIP LOCAL"
+    ],
+    "delayable": false,
+    "primary": "STRIP"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "TEMPALT [ALTITUDE]",
+    "description": "Sets the temporary altitude for the specified aircraft.",
+    "aliases": [
+      "TA",
+      "TEMP",
+      "QQ"
+    ],
+    "parameters": "altitude - The altitude to set in the temp alt field.",
+    "examples": [
+      "TEMPALT 111"
+    ],
+    "delayable": false,
+    "primary": "TEMPALT"
+  },
+  {
+    "category": "ATC Commands",
+    "syntax": "TRACK {HANDOFFID}",
+    "description": "Tracks the selected aircraft with the specified position.",
+    "aliases": [],
+    "parameters": "handoffId - Handoff ID of the target position",
+    "examples": [
+      "TRACK B1D"
+    ],
+    "delayable": false,
+    "primary": "TRACK"
+  },
+  {
+    "category": "Debug Commands",
+    "syntax": "APPS",
+    "description": "Displays the names of all available approaches.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "APPS"
+  },
+  {
+    "category": "Debug Commands",
+    "syntax": "CMN {ALTITUDE}",
+    "description": "The aircraft will instantaneously go to the specified altitude.",
+    "aliases": [
+      "DMN"
+    ],
+    "parameters": "altitude - Altitude in feet or hundreds of feet.",
+    "examples": [
+      "CMN 240 DMN 5000"
+    ],
+    "delayable": false,
+    "primary": "CMN"
+  },
+  {
+    "category": "Debug Commands",
+    "syntax": "FHN {HEADING}",
+    "description": "Instructs the aircraft to instantaneously fly the specific heading.",
+    "aliases": [],
+    "parameters": "heading - The new heading to fly.",
+    "examples": [
+      "FHN 360"
+    ],
+    "delayable": false,
+    "primary": "FHN"
+  },
+  {
+    "category": "Debug Commands",
+    "syntax": "HIDEPATH",
+    "description": "ATCTrainer will delete any aircraft with the callsign 'WPT#' removing a previously shown path.",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "HIDEPATH"
+  },
+  {
+    "category": "Debug Commands",
+    "syntax": "SHOWPATH",
+    "description": "ATCTrainer will generate aircraft with the callsign 'WPT#' at all of the waypoints in the selected aircraft's path",
+    "aliases": [],
+    "parameters": "",
+    "examples": [],
+    "delayable": false,
+    "primary": "SHOWPATH"
+  },
+  {
+    "category": "Debug Commands",
+    "syntax": "SLN {SPEED}",
+    "description": "Instructs the aircraft to instantaneously increase/decrease to the specified speed.",
+    "aliases": [
+      "ISN"
+    ],
+    "parameters": "speed - The speed to maintain.",
+    "examples": [
+      "SLN 0 SLN 250"
+    ],
+    "delayable": false,
+    "primary": "SLN"
+  }
+]

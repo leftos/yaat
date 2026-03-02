@@ -232,7 +232,7 @@ src/Yaat.Server/
 
 ### Command Rules
 
-- Match existing ATCTrainer/VICE names. See `docs/command-aliases-reference.md`.
+- Match existing ATCTrainer/VICE names where applicable. See `docs/command-aliases/reference.md` for the full comparison (🟢 marks YAAT-only commands). Source JSON extracts and the build script that produces them are in the same directory.
 - **Completeness (MANDATORY):** Every `CanonicalCommandType` must exist in: `CommandScheme.AtcTrainer()`, `CommandScheme.Vice()`, `CommandMetadata.AllCommands`. Tests in `tests/Yaat.Client.Tests/CommandSchemeCompletenessTests.cs` enforce this.
 
 ### Communication Flow
