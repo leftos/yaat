@@ -450,7 +450,8 @@ public record CrcRoomMembersChangedDto(
 public record GroundLayoutDto(
     string AirportId,
     List<GroundNodeDto> Nodes,
-    List<GroundEdgeDto> Edges);
+    List<GroundEdgeDto> Edges,
+    List<GroundRunwayDto>? Runways);
 
 public record GroundNodeDto(
     int Id, double Latitude, double Longitude,
@@ -460,6 +461,9 @@ public record GroundNodeDto(
 public record GroundEdgeDto(
     int FromNodeId, int ToNodeId, string TaxiwayName,
     double DistanceNm, List<double[]>? IntermediatePoints);
+
+public record GroundRunwayDto(
+    string Name, List<double[]> Coordinates, double WidthFt);
 
 public record VideoMapInfoDto(
     string Id, string Name, string ShortName,

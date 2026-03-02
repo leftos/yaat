@@ -157,9 +157,16 @@ public static class GeoJsonParser
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
         foreach (var rwy in runways)
         {
-            DetectRunwayCrossings(
+            double rwyWidthFt = DetectRunwayCrossings(
                 rwy, layout, coordIndex, ref nextNodeId, logger,
                 runwayLookup, runwayAirportCode);
+
+            layout.Runways.Add(new GroundRunway
+            {
+                Name = rwy.Name,
+                Coordinates = new List<(double Lat, double Lon)>(rwy.Coords),
+                WidthFt = rwyWidthFt,
+            });
         }
 
         // Step 6: Create parking nodes and connect to nearest taxiway
@@ -392,7 +399,7 @@ public static class GeoJsonParser
         }
     }
 
-    private static void DetectRunwayCrossings(
+    private static double DetectRunwayCrossings(
         RunwayFeature rwy, AirportGroundLayout layout,
         CoordinateIndex coordIndex, ref int nextNodeId,
         ILogger? logger,
@@ -467,6 +474,8 @@ public static class GeoJsonParser
                 layout, edge, onNode, offNode, rect,
                 coordIndex, ref nextNodeId, logger);
         }
+
+        return widthFt;
     }
 
     private static RunwayRectangle BuildRunwayRectangle(

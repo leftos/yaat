@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
@@ -10,6 +11,7 @@ namespace Yaat.Client.Views.Radar;
 public partial class RadarView : UserControl
 {
     private RadarCanvas? _canvas;
+    private ContextMenu? _activeContextMenu;
 
     public RadarView()
     {
@@ -29,6 +31,7 @@ public partial class RadarView : UserControl
         _canvas.AircraftRightClicked += OnAircraftRightClicked;
         _canvas.MapRightClicked += OnMapRightClicked;
         _canvas.AircraftLeftClicked += OnAircraftLeftClicked;
+        _canvas.PointerPressed += OnCanvasPointerPressed;
 
         // Sync brightness from ViewModel
         if (DataContext is RadarViewModel vm)
@@ -48,6 +51,7 @@ public partial class RadarView : UserControl
             _canvas.AircraftRightClicked -= OnAircraftRightClicked;
             _canvas.MapRightClicked -= OnMapRightClicked;
             _canvas.AircraftLeftClicked -= OnAircraftLeftClicked;
+            _canvas.PointerPressed -= OnCanvasPointerPressed;
         }
     }
 
@@ -293,6 +297,25 @@ public partial class RadarView : UserControl
         return item;
     }
 
+    private void OnCanvasPointerPressed(
+        object? sender, PointerPressedEventArgs e)
+    {
+        var props = e.GetCurrentPoint(_canvas!).Properties;
+        if (props.IsLeftButtonPressed)
+        {
+            CloseActiveContextMenu();
+        }
+    }
+
+    private void CloseActiveContextMenu()
+    {
+        if (_activeContextMenu is not null)
+        {
+            _activeContextMenu.Close();
+            _activeContextMenu = null;
+        }
+    }
+
     private void ShowContextMenu(ContextMenu menu, Point pos)
     {
         if (_canvas is null)
@@ -300,6 +323,15 @@ public partial class RadarView : UserControl
             return;
         }
 
+        CloseActiveContextMenu();
+        _activeContextMenu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (_activeContextMenu == menu)
+            {
+                _activeContextMenu = null;
+            }
+        };
         menu.PlacementTarget = _canvas;
         menu.Placement = PlacementMode.Pointer;
         menu.Open(_canvas);

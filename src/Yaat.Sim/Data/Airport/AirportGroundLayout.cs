@@ -48,11 +48,19 @@ public sealed class GroundEdge
     public List<(double Lat, double Lon)> IntermediatePoints { get; init; } = [];
 }
 
+public sealed class GroundRunway
+{
+    public required string Name { get; init; }
+    public required List<(double Lat, double Lon)> Coordinates { get; init; }
+    public required double WidthFt { get; init; }
+}
+
 public sealed class AirportGroundLayout
 {
     public required string AirportId { get; init; }
     public Dictionary<int, GroundNode> Nodes { get; } = [];
     public List<GroundEdge> Edges { get; } = [];
+    public List<GroundRunway> Runways { get; } = [];
 
     public GroundNode? FindParkingByName(string name)
     {

@@ -2,6 +2,7 @@ using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Ground;
@@ -13,6 +14,8 @@ namespace Yaat.Client.Views.Ground;
 public sealed class GroundRenderer : IDisposable
 {
     private static readonly SKColor BackgroundColor = SKColor.Parse("#0e0e1a");
+    private static readonly SKColor RunwayFillColor = new(60, 60, 60);
+    private static readonly SKColor RunwayOutlineColor = new(100, 100, 100);
     private static readonly SKColor RunwayColor = new(120, 120, 120);
     private static readonly SKColor TaxiwayColor = new(200, 180, 60);
     private static readonly SKColor TaxiLabelColor = new(200, 180, 60, 160);
@@ -28,6 +31,26 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor AircraftDimmed = new(80, 80, 100);
     private static readonly SKColor HoverRingColor = new(255, 255, 255, 160);
     private static readonly SKColor CallsignColor = new(220, 220, 220);
+
+    private readonly SKPaint _runwayFillPaint = new()
+    {
+        Color = RunwayFillColor, Style = SKPaintStyle.Fill,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _runwayOutlinePaint = new()
+    {
+        Color = RunwayOutlineColor, StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke, IsAntialias = true,
+    };
+
+    private readonly SKPaint _runwayLabelPaint = new()
+    {
+        Color = new SKColor(180, 180, 180), TextSize = 12,
+        IsAntialias = true,
+        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        TextAlign = SKTextAlign.Center,
+    };
 
     private readonly SKPaint _runwayPaint = new()
     {
@@ -102,10 +125,79 @@ public sealed class GroundRenderer : IDisposable
             return;
         }
 
+        DrawRunways(canvas, vp, layout);
         DrawEdges(canvas, vp, layout);
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawNodes(canvas, vp, layout, hoveredNodeId);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft);
+    }
+
+    private void DrawRunways(
+        SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
+    {
+        if (layout.Runways is null)
+        {
+            return;
+        }
+
+        foreach (var rwy in layout.Runways)
+        {
+            if (rwy.Coordinates.Count < 2)
+            {
+                continue;
+            }
+
+            var first = rwy.Coordinates[0];
+            var last = rwy.Coordinates[^1];
+            if (first.Length < 2 || last.Length < 2)
+            {
+                continue;
+            }
+
+            double heading = GeoMath.BearingTo(
+                first[0], first[1], last[0], last[1]);
+            double halfWidthNm = (rwy.WidthFt / 2.0) / GeoMath.FeetPerNm;
+
+            // Perpendicular angle (heading + 90)
+            double perpRad = (heading + 90.0) * Math.PI / 180.0;
+            double dLat = halfWidthNm / 60.0 * Math.Cos(perpRad);
+            double dLon = halfWidthNm / 60.0 * Math.Sin(perpRad)
+                / Math.Cos(first[0] * Math.PI / 180.0);
+
+            // Build the 4 corners of the runway rectangle
+            var (x1, y1) = vp.LatLonToScreen(
+                first[0] + dLat, first[1] + dLon);
+            var (x2, y2) = vp.LatLonToScreen(
+                first[0] - dLat, first[1] - dLon);
+            var (x3, y3) = vp.LatLonToScreen(
+                last[0] - dLat, last[1] - dLon);
+            var (x4, y4) = vp.LatLonToScreen(
+                last[0] + dLat, last[1] + dLon);
+
+            using var path = new SKPath();
+            path.MoveTo(x1, y1);
+            path.LineTo(x2, y2);
+            path.LineTo(x3, y3);
+            path.LineTo(x4, y4);
+            path.Close();
+
+            canvas.DrawPath(path, _runwayFillPaint);
+            canvas.DrawPath(path, _runwayOutlinePaint);
+
+            // Draw centerline dashed
+            var (cx1, cy1) = vp.LatLonToScreen(first[0], first[1]);
+            var (cx2, cy2) = vp.LatLonToScreen(last[0], last[1]);
+            canvas.DrawLine(cx1, cy1, cx2, cy2, _runwayPaint);
+
+            // Runway label at midpoint
+            double midLat = (first[0] + last[0]) / 2.0;
+            double midLon = (first[1] + last[1]) / 2.0;
+            var (mx, my) = vp.LatLonToScreen(midLat, midLon);
+
+            // Parse runway IDs from name (e.g. "10L - 28R")
+            string label = rwy.Name.Replace(" - ", "/");
+            canvas.DrawText(label, mx, my + 4, _runwayLabelPaint);
+        }
     }
 
     private void DrawEdges(
@@ -327,6 +419,9 @@ public sealed class GroundRenderer : IDisposable
 
     public void Dispose()
     {
+        _runwayFillPaint.Dispose();
+        _runwayOutlinePaint.Dispose();
+        _runwayLabelPaint.Dispose();
         _runwayPaint.Dispose();
         _taxiwayPaint.Dispose();
         _taxiLabelPaint.Dispose();
