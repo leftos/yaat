@@ -113,55 +113,57 @@ If an aircraft is already selected (clicked in the grid), you can omit the calls
 FH 270
 ```
 
-### Command Schemes
+### Command Reference
 
-YAAT supports two command schemes, switchable in Settings:
+YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and VICE. Commands are space-separated by default (e.g., `FH 270`), but numeric arguments can be written without a space when unambiguous (e.g., `FH270`, `H270`, `CM240`).
 
-| Command | ATCTrainer | VICE |
-|---------|-----------|------|
-| Fly heading | `FH 270` | `H270` |
-| Turn left | `TL 180` | `L180` |
-| Turn right | `TR 090` | `R090` |
-| Relative left | `LT 30` | `T30L` |
-| Relative right | `RT 30` | `T30R` |
-| Fly present heading | `FPH` | `H` |
-| Climb and maintain | `CM 240` | `C240` |
-| Descend and maintain | `DM 050` | `D050` |
-| Speed | `SPD 250` | `S250` |
-| Squawk | `SQ 4521` | `SQ4521` |
-| Squawk (reset) | `SQ` | `SQ` |
-| Squawk VFR | `SQVFR` | `SQVFR` |
-| Squawk normal | `SQNORM` | `SQNORM` |
-| Squawk standby | `SQSBY` | `SQSBY` |
-| Ident | `IDENT` / `SQI` | `IDENT` / `SQI` |
-| Random squawk | `RANDSQ` | `RANDSQ` |
-| Direct to fix | `DCT SUNOL` | `DCT SUNOL` |
-| Pushback | `PUSH` | `PUSH` |
-| Taxi | `TAXI S T U` | `TAXI S T U` |
-| Hold position | `HOLD` | `HOLD` |
-| Resume taxi | `RES` | `RES` |
-| Cross runway | `CROSS 28L` | `CROSS 28L` |
-| Hold short | `HS B` | `HS B` |
-| Follow | `FOLLOW SWA123` | `FOLLOW SWA123` |
-| Track | `TRACK` | `TRACK` |
-| Drop | `DROP` | `DROP` |
-| Handoff | `HO 3Y` | `HO 3Y` |
-| Accept | `ACCEPT` / `A` | `ACCEPT` / `A` |
-| Cancel | `CANCEL` | `CANCEL` |
-| Accept all | `ACCEPTALL` | `ACCEPTALL` |
-| Handoff all | `HOALL 3Y` | `HOALL 3Y` |
-| Pointout | `PO 3Y` | `PO 3Y` |
-| Acknowledge | `OK` | `OK` |
-| Annotate | `ANNOTATE` / `AN` | `ANNOTATE` / `AN` |
-| Scratchpad | `SP TEST` | `SP TEST` |
-| Temp altitude | `TA 120` / `QQ 120` | `TA 120` / `QQ 120` |
-| Cruise | `CRUISE 240` / `QZ 240` | `CRUISE 240` / `QZ 240` |
-| On-handoff | `ONHO` / `ONH` | `ONHO` / `ONH` |
-| Freq change | — | `FC` |
-| Contact TCP | — | `CT3Y` |
-| Contact tower | — | `TO` |
-| Active position | `AS 2B` | `AS 2B` |
-| Delete aircraft | `DEL` | `X` |
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
+| Fly heading | `FH 270` | `H` | `FH270`, `H270` |
+| Turn left | `TL 180` | `L` | `TL180`, `L180` |
+| Turn right | `TR 090` | `R` | `TR090`, `R090` |
+| Relative left | `LT 30` | `T30L` | — |
+| Relative right | `RT 30` | `T30R` | — |
+| Fly present heading | `FPH` | `FCH`, `H` | — |
+| Climb and maintain | `CM 240` | `C` | `CM240`, `C240` |
+| Descend and maintain | `DM 050` | `D` | `DM050`, `D050` |
+| Speed | `SPD 250` | `S`, `SLOW`, `SL`, `SPEED` | `SPD250`, `S250` |
+| Squawk | `SQ 4521` | `SQUAWK` | `SQ4521` |
+| Squawk (reset) | `SQ` | — | — |
+| Squawk VFR | `SQVFR` | `SQV` | — |
+| Squawk normal | `SQNORM` | `SN`, `SQA`, `SQON` | — |
+| Squawk standby | `SQSBY` | `SS`, `SQS` | — |
+| Ident | `IDENT` | `ID`, `SQI`, `SQID` | — |
+| Random squawk | `RANDSQ` | — | — |
+| Direct to fix | `DCT SUNOL` | — | — |
+| Pushback | `PUSH` | — | — |
+| Taxi | `TAXI S T U` | — | — |
+| Hold position | `HOLD` | `HP` | — |
+| Resume taxi | `RES` | `RESUME` | — |
+| Cross runway | `CROSS 28L` | — | — |
+| Hold short | `HS B` | — | — |
+| Follow | `FOLLOW SWA123` | `FOL` | — |
+| Track | `TRACK` | — | — |
+| Drop | `DROP` | — | — |
+| Handoff | `HO 3Y` | — | `HO3Y` |
+| Accept | `ACCEPT` | `A` | — |
+| Cancel | `CANCEL` | — | — |
+| Accept all | `ACCEPTALL` | — | — |
+| Handoff all | `HOALL 3Y` | — | — |
+| Pointout | `PO 3Y` | — | — |
+| Acknowledge | `OK` | — | — |
+| Annotate | `ANNOTATE` | `AN`, `BOX` | — |
+| Scratchpad | `SCRATCHPAD TEST` | `SP` | — |
+| Temp altitude | `TEMPALT 120` | `TA`, `TEMP`, `QQ` | — |
+| Cruise | `CRUISE 240` | `QZ` | — |
+| On-handoff | `ONHO` | `ONH` | — |
+| Freq change | `FC` | — | — |
+| Contact TCP | `CT 3Y` | — | — |
+| Contact tower | `TO` | — | — |
+| Active position | `AS 2B` | — | — |
+| Delete aircraft | `DEL` | `X` | — |
+
+Aliases are fully editable in **Settings > Commands**.
 
 ### Altitude Arguments
 
@@ -380,12 +382,10 @@ Resolution order: per-command `AS` prefix > persistent active position > student
 | `CRUISE 240` / `QZ 240` | Set cruise altitude |
 | `ONHO` / `ONH` | Toggle on-handoff status |
 
-VICE-only commands:
-
 | Command | Effect |
 |---------|--------|
 | `FC` | Approve frequency change |
-| `CT3Y` | Tell pilot to contact TCP 3Y |
+| `CT 3Y` | Tell pilot to contact TCP 3Y |
 | `TO` | Tell pilot to contact tower |
 
 #### Coordination (Rundown List)
@@ -716,7 +716,7 @@ Open **File > Settings** to configure:
 - **Connection** — Server URL for the yaat-server instance
 - **Identity** — VATSIM CID, user initials (required before connecting), and ARTCC ID
 - **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), and auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking)
-- **Commands** — Command scheme: ATCTrainer (space-separated) or VICE (concatenated)
+- **Commands** — Alias editor for customizing command verbs
 - **Advanced** — Server admin mode
 
 ## Autocomplete

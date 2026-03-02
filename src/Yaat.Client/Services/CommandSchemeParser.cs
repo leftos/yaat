@@ -191,17 +191,12 @@ public static class CommandSchemeParser
             return textArgMatch;
         }
 
-        if (scheme.ParseMode == CommandParseMode.Concatenated)
-        {
-            return ParseConcatenated(trimmed, scheme);
-        }
-
         return ParseSpaceSeparated(trimmed, scheme);
     }
 
     public static string ToCanonical(CanonicalCommandType type, string? argument)
     {
-        var canonical = CommandScheme.AtcTrainer();
+        var canonical = CommandScheme.Default();
         if (!canonical.Patterns.TryGetValue(type, out var pattern))
         {
             return "";
@@ -298,6 +293,49 @@ public static class CommandSchemeParser
         return false;
     }
 
+    private static bool StartsWithAnyAlias(string input, CommandPattern pattern, out string matchedAlias)
+    {
+        foreach (var alias in pattern.Aliases)
+        {
+            if (input.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
+            {
+                matchedAlias = alias;
+                return true;
+            }
+        }
+
+        matchedAlias = "";
+        return false;
+    }
+
+    /// <summary>
+    /// Commands that should NOT be matched by the concatenation fallback
+    /// because they are text-arg, always space-separated, or have special handling.
+    /// </summary>
+    private static bool IsConcatenationExcluded(CanonicalCommandType type)
+    {
+        return type
+            is CanonicalCommandType.RelativeLeft
+                or CanonicalCommandType.RelativeRight
+                or CanonicalCommandType.Pause
+                or CanonicalCommandType.Unpause
+                or CanonicalCommandType.SimRate
+                or CanonicalCommandType.Wait
+                or CanonicalCommandType.WaitDistance
+                or CanonicalCommandType.Add
+                or CanonicalCommandType.DirectTo
+                or CanonicalCommandType.HoldAtFixLeft
+                or CanonicalCommandType.HoldAtFixRight
+                or CanonicalCommandType.HoldAtFixHover
+                or CanonicalCommandType.SpawnNow
+                or CanonicalCommandType.SpawnDelay
+                or CanonicalCommandType.Taxi
+                or CanonicalCommandType.CrossRunway
+                or CanonicalCommandType.HoldShort
+                or CanonicalCommandType.Follow
+                or CanonicalCommandType.Say;
+    }
+
     private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme)
     {
         var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
@@ -311,6 +349,27 @@ public static class CommandSchemeParser
             if (rewritten is not null)
             {
                 return new ParsedInput(CanonicalCommandType.Taxi, rewritten);
+            }
+        }
+
+        // Relative turns: T{digits}L / T{digits}R
+        if (scheme.Patterns.TryGetValue(CanonicalCommandType.RelativeLeft, out var relLeftPattern))
+        {
+            foreach (var alias in relLeftPattern.Aliases)
+            {
+                if (verb.Length > alias.Length + 1 && verb.StartsWith(alias, StringComparison.OrdinalIgnoreCase) && char.IsDigit(verb[alias.Length]))
+                {
+                    var lastChar = verb[^1];
+                    if (lastChar is 'L' or 'R')
+                    {
+                        var deg = verb[alias.Length..^1];
+                        if (int.TryParse(deg, out _))
+                        {
+                            var type = lastChar == 'L' ? CanonicalCommandType.RelativeLeft : CanonicalCommandType.RelativeRight;
+                            return new ParsedInput(type, deg);
+                        }
+                    }
+                }
             }
         }
 
@@ -343,237 +402,50 @@ public static class CommandSchemeParser
             return new ParsedInput(type, arg);
         }
 
-        return null;
-    }
-
-    private static bool StartsWithAnyAlias(string input, CommandPattern pattern, out string matchedAlias)
-    {
-        foreach (var alias in pattern.Aliases)
-        {
-            if (input.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
-            {
-                matchedAlias = alias;
-                return true;
-            }
-        }
-
-        matchedAlias = "";
-        return false;
-    }
-
-    private static ParsedInput? ParseConcatenated(string input, CommandScheme scheme)
-    {
-        // Concatenated relative turns: T{deg}L or T{deg}R
-        // Check any alias for RelativeLeft/RelativeRight that matches pattern {alias}{digits}{L|R}
-        if (scheme.Patterns.TryGetValue(CanonicalCommandType.RelativeLeft, out var relLeftPattern))
-        {
-            foreach (var alias in relLeftPattern.Aliases)
-            {
-                if (
-                    input.Length > alias.Length + 1
-                    && input.StartsWith(alias, StringComparison.OrdinalIgnoreCase)
-                    && char.IsDigit(input[alias.Length])
-                )
-                {
-                    var lastChar = input[^1];
-                    if (lastChar is 'L' or 'R')
-                    {
-                        var deg = input[alias.Length..^1];
-                        if (int.TryParse(deg, out _))
-                        {
-                            var type = lastChar == 'L' ? CanonicalCommandType.RelativeLeft : CanonicalCommandType.RelativeRight;
-                            return new ParsedInput(type, deg);
-                        }
-                    }
-                }
-            }
-        }
-
-        // No-arg and optional-arg concatenated commands (Delete, FlyPresentHeading, pattern entry)
+        // Concatenation fallback: try prefix-matching aliases when verb+digits are
+        // written without a space (e.g. FH270, CM240, H270, SQ1234).
+        // Try longer aliases first to avoid matching "S" when "SQ" would work.
+        var candidates = new List<(string Alias, CanonicalCommandType Type, CommandPattern Pattern)>();
         foreach (var (type, pattern) in scheme.Patterns)
         {
-            if (pattern.Format.Contains("{arg}") && !pattern.Format.Contains("{arg?}"))
+            if (!pattern.Format.Contains("{arg"))
             {
                 continue;
             }
 
-            if (
-                type
-                is CanonicalCommandType.Pause
-                    or CanonicalCommandType.Unpause
-                    or CanonicalCommandType.SimRate
-                    or CanonicalCommandType.Add
-                    or CanonicalCommandType.SpawnNow
-                    or CanonicalCommandType.SpawnDelay
-            )
+            if (IsConcatenationExcluded(type))
             {
                 continue;
             }
 
-            // Exact match (no arg)
-            if (MatchesAnyAlias(input, pattern))
+            foreach (var alias in pattern.Aliases)
             {
-                return new ParsedInput(type, null);
-            }
-
-            // Optional-arg commands: check for space-separated arg after verb
-            if (
-                pattern.Format.Contains("{arg?}")
-                && StartsWithAnyAlias(input, pattern, out var optAlias)
-                && input.Length > optAlias.Length
-                && input[optAlias.Length] == ' '
-            )
-            {
-                var optArg = input[(optAlias.Length + 1)..].Trim();
-                if (optArg.Length > 0)
-                {
-                    return new ParsedInput(type, optArg);
-                }
+                candidates.Add((alias, type, pattern));
             }
         }
 
-        // Space-separated global commands (PAUSE, UNPAUSE, SIMRATE)
-        if (input.StartsWith("PAUSE"))
-        {
-            return new ParsedInput(CanonicalCommandType.Pause, null);
-        }
+        candidates.Sort((a, b) => b.Alias.Length.CompareTo(a.Alias.Length));
 
-        if (input.StartsWith("UNPAUSE"))
+        foreach (var (alias, type, _) in candidates)
         {
-            return new ParsedInput(CanonicalCommandType.Unpause, null);
-        }
-
-        if (input.StartsWith("SIMRATE"))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.SimRate, parts[1].Trim()) : null;
-        }
-
-        if (input.StartsWith("WAITD "))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.WaitDistance, parts[1].Trim()) : null;
-        }
-
-        if (input.StartsWith("WAIT "))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.Wait, parts[1].Trim()) : null;
-        }
-
-        if (input.StartsWith("ADD ", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.Add, parts[1].Trim()) : null;
-        }
-
-        if (string.Equals(input, "SPAWN", StringComparison.OrdinalIgnoreCase))
-        {
-            return new ParsedInput(CanonicalCommandType.SpawnNow, null);
-        }
-
-        // Ground commands (always space-separated, even in concatenated mode)
-        if (input.StartsWith("TAXI ", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.Taxi, parts[1].Trim()) : null;
-        }
-
-        if (input.StartsWith("RWY ", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 1)
-            {
-                var rewritten = RewriteRwyToTaxiArg(parts[1].Trim());
-                if (rewritten is not null)
-                {
-                    return new ParsedInput(CanonicalCommandType.Taxi, rewritten);
-                }
-            }
-            return null;
-        }
-
-        if (input.StartsWith("CROSS ", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.CrossRunway, parts[1].Trim()) : null;
-        }
-
-        if (input.StartsWith("HS ", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.HoldShort, parts[1].Trim()) : null;
-        }
-
-        if (input.StartsWith("FOLLOW ", StringComparison.OrdinalIgnoreCase) || input.StartsWith("FOL ", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            return parts.Length > 1 ? new ParsedInput(CanonicalCommandType.Follow, parts[1].Trim()) : null;
-        }
-
-        if (input.StartsWith("DELAY ", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 1)
-            {
-                var normalized = NormalizeDelayArg(parts[1].Trim());
-                return normalized is not null ? new ParsedInput(CanonicalCommandType.SpawnDelay, normalized) : null;
-            }
-            return null;
-        }
-
-        // Concatenated verb + digits: H270, L180, C240, SQ1234...
-        // Try longer verb matches first (SQ before S)
-        foreach (var (type, pattern) in scheme.Patterns)
-        {
-            if (!pattern.Format.Contains("{arg}"))
+            if (!input.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (
-                type
-                is CanonicalCommandType.RelativeLeft
-                    or CanonicalCommandType.RelativeRight
-                    or CanonicalCommandType.Pause
-                    or CanonicalCommandType.Unpause
-                    or CanonicalCommandType.SimRate
-                    or CanonicalCommandType.Wait
-                    or CanonicalCommandType.WaitDistance
-                    or CanonicalCommandType.Add
-                    or CanonicalCommandType.DirectTo
-                    or CanonicalCommandType.HoldAtFixLeft
-                    or CanonicalCommandType.HoldAtFixRight
-                    or CanonicalCommandType.HoldAtFixHover
-                    or CanonicalCommandType.SpawnNow
-                    or CanonicalCommandType.SpawnDelay
-                    or CanonicalCommandType.Taxi
-                    or CanonicalCommandType.CrossRunway
-                    or CanonicalCommandType.HoldShort
-                    or CanonicalCommandType.Follow
-            )
-            {
-                continue;
-            }
-
-            if (!StartsWithAnyAlias(input, pattern, out var matchedAlias))
-            {
-                continue;
-            }
-
-            var arg = input[matchedAlias.Length..];
-            if (arg.Length == 0)
+            var remainder = input[alias.Length..];
+            if (remainder.Length == 0)
             {
                 continue;
             }
 
             bool isAltitudeCommand = type is CanonicalCommandType.ClimbMaintain or CanonicalCommandType.DescendMaintain;
-            if (isAltitudeCommand ? !IsAltitudeArg(arg) : !int.TryParse(arg, out _))
+            if (isAltitudeCommand ? !IsAltitudeArg(remainder) : !int.TryParse(remainder, out _))
             {
                 continue;
             }
 
-            return new ParsedInput(type, arg);
+            return new ParsedInput(type, remainder);
         }
 
         return null;

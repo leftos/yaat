@@ -9,24 +9,13 @@ public class CommandSchemeCompletenessTests
     private static readonly CanonicalCommandType[] AllCommandTypes = Enum.GetValues<CanonicalCommandType>();
 
     [Fact]
-    public void AtcTrainerScheme_CoversAllCommandTypes()
+    public void DefaultScheme_CoversAllCommandTypes()
     {
-        var scheme = CommandScheme.AtcTrainer();
+        var scheme = CommandScheme.Default();
 
         foreach (var type in AllCommandTypes)
         {
-            Assert.True(scheme.Patterns.ContainsKey(type), $"AtcTrainer scheme is missing CanonicalCommandType.{type}");
-        }
-    }
-
-    [Fact]
-    public void ViceScheme_CoversAllCommandTypes()
-    {
-        var scheme = CommandScheme.Vice();
-
-        foreach (var type in AllCommandTypes)
-        {
-            Assert.True(scheme.Patterns.ContainsKey(type), $"VICE scheme is missing CanonicalCommandType.{type}");
+            Assert.True(scheme.Patterns.ContainsKey(type), $"Default scheme is missing CanonicalCommandType.{type}");
         }
     }
 
@@ -51,83 +40,49 @@ public class CommandSchemeCompletenessTests
     }
 
     [Fact]
-    public void AllSchemeAliases_AreNonEmpty()
+    public void DefaultSchemeAliases_AreNonEmpty()
     {
-        var schemes = new[] { ("ATCTrainer", CommandScheme.AtcTrainer()), ("VICE", CommandScheme.Vice()) };
-
-        foreach (var (name, scheme) in schemes)
-        {
-            foreach (var (type, pattern) in scheme.Patterns)
-            {
-                Assert.True(pattern.Aliases.Count > 0, $"{name} scheme has no aliases for CanonicalCommandType.{type}");
-
-                foreach (var alias in pattern.Aliases)
-                {
-                    Assert.True(!string.IsNullOrWhiteSpace(alias), $"{name} scheme has empty/whitespace alias for CanonicalCommandType.{type}");
-                }
-            }
-        }
-    }
-
-    [Fact]
-    public void AllSchemeAliases_HaveNoDuplicatesWithinCommand()
-    {
-        var schemes = new[] { ("ATCTrainer", CommandScheme.AtcTrainer()), ("VICE", CommandScheme.Vice()) };
-
-        foreach (var (name, scheme) in schemes)
-        {
-            foreach (var (type, pattern) in scheme.Patterns)
-            {
-                var duplicates = pattern
-                    .Aliases.GroupBy(a => a, StringComparer.OrdinalIgnoreCase)
-                    .Where(g => g.Count() > 1)
-                    .Select(g => g.Key)
-                    .ToList();
-
-                Assert.True(
-                    duplicates.Count == 0,
-                    $"{name} scheme has duplicate aliases [{string.Join(", ", duplicates)}] within CanonicalCommandType.{type}"
-                );
-            }
-        }
-    }
-
-    [Fact]
-    public void AtcTrainerAliases_AreUniqueAcrossCommands()
-    {
-        var scheme = CommandScheme.AtcTrainer();
-        var aliasToTypes = new Dictionary<string, List<CanonicalCommandType>>(StringComparer.OrdinalIgnoreCase);
+        var scheme = CommandScheme.Default();
 
         foreach (var (type, pattern) in scheme.Patterns)
         {
+            Assert.True(pattern.Aliases.Count > 0, $"Default scheme has no aliases for CanonicalCommandType.{type}");
+
             foreach (var alias in pattern.Aliases)
             {
-                if (!aliasToTypes.TryGetValue(alias, out var list))
-                {
-                    list = [];
-                    aliasToTypes[alias] = list;
-                }
-
-                list.Add(type);
+                Assert.True(!string.IsNullOrWhiteSpace(alias), $"Default scheme has empty/whitespace alias for CanonicalCommandType.{type}");
             }
         }
-
-        var conflicts = aliasToTypes.Where(kv => kv.Value.Count > 1).Select(kv => $"'{kv.Key}' used by: {string.Join(", ", kv.Value)}").ToList();
-
-        Assert.True(conflicts.Count == 0, $"ATCTrainer scheme has aliases shared across commands:\n{string.Join("\n", conflicts)}");
     }
 
     [Fact]
-    public void ViceAliases_AreUniqueAcrossCommands_ExceptKnownShared()
+    public void DefaultSchemeAliases_HaveNoDuplicatesWithinCommand()
     {
-        // VICE scheme intentionally shares: T for RelativeLeft/RelativeRight, H for FlyHeading/FlyPresentHeading
+        var scheme = CommandScheme.Default();
+
+        foreach (var (type, pattern) in scheme.Patterns)
+        {
+            var duplicates = pattern.Aliases.GroupBy(a => a, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+
+            Assert.True(
+                duplicates.Count == 0,
+                $"Default scheme has duplicate aliases [{string.Join(", ", duplicates)}] within CanonicalCommandType.{type}"
+            );
+        }
+    }
+
+    [Fact]
+    public void DefaultSchemeAliases_AreUniqueAcrossCommands_ExceptKnownShared()
+    {
+        // Unified scheme intentionally shares:
+        // T for RelativeLeft/RelativeRight, H for FlyHeading/FlyPresentHeading
         var knownShared = new HashSet<(CanonicalCommandType, CanonicalCommandType)>
         {
             (CanonicalCommandType.RelativeLeft, CanonicalCommandType.RelativeRight),
             (CanonicalCommandType.FlyHeading, CanonicalCommandType.FlyPresentHeading),
         };
 
-        var scheme = CommandScheme.Vice();
+        var scheme = CommandScheme.Default();
         var aliasToTypes = new Dictionary<string, List<CanonicalCommandType>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (type, pattern) in scheme.Patterns)
@@ -173,6 +128,6 @@ public class CommandSchemeCompletenessTests
             }
         }
 
-        Assert.True(conflicts.Count == 0, $"VICE scheme has unexpected aliases shared across commands:\n{string.Join("\n", conflicts)}");
+        Assert.True(conflicts.Count == 0, $"Default scheme has unexpected aliases shared across commands:\n{string.Join("\n", conflicts)}");
     }
 }

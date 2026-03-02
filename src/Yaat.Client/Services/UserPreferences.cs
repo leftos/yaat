@@ -43,7 +43,7 @@ public sealed class UserPreferences
     public UserPreferences()
     {
         var saved = Load();
-        _commandScheme = saved.Scheme ?? CommandScheme.AtcTrainer();
+        _commandScheme = saved.Scheme ?? CommandScheme.Default();
         _serverUrl = saved.ServerUrl;
         _vatsimCid = saved.VatsimCid;
         _userInitials = saved.UserInitials;
@@ -305,8 +305,7 @@ public sealed class UserPreferences
     {
         var patterns = new Dictionary<CanonicalCommandType, CommandPattern>();
 
-        // Start from ATCTrainer defaults, overlay saved patterns
-        var defaults = CommandScheme.AtcTrainer();
+        var defaults = CommandScheme.Default();
         foreach (var (type, pattern) in defaults.Patterns)
         {
             patterns[type] = new CommandPattern { Aliases = [.. pattern.Aliases], Format = pattern.Format };
@@ -333,18 +332,7 @@ public sealed class UserPreferences
             }
         }
 
-        // Reapply correct formats based on parse mode
-        var reference = s.ParseMode == CommandParseMode.Concatenated ? CommandScheme.Vice() : CommandScheme.AtcTrainer();
-
-        var result = new Dictionary<CanonicalCommandType, CommandPattern>();
-        foreach (var (type, pattern) in patterns)
-        {
-            var format = reference.Patterns.TryGetValue(type, out var refPattern) ? refPattern.Format : pattern.Format;
-
-            result[type] = new CommandPattern { Aliases = pattern.Aliases, Format = format };
-        }
-
-        return new CommandScheme { ParseMode = s.ParseMode, Patterns = result };
+        return new CommandScheme { Patterns = patterns };
     }
 
     private static SavedCommandScheme ToSaved(CommandScheme scheme)
@@ -355,7 +343,7 @@ public sealed class UserPreferences
             patterns[type.ToString()] = new SavedPattern { Aliases = pattern.Aliases, Format = pattern.Format };
         }
 
-        return new SavedCommandScheme { ParseMode = scheme.ParseMode, Patterns = patterns };
+        return new SavedCommandScheme { Patterns = patterns };
     }
 
     private sealed class SavedPrefs
@@ -385,8 +373,6 @@ public sealed class UserPreferences
 
     private sealed class SavedCommandScheme
     {
-        public CommandParseMode ParseMode { get; set; }
-
         public Dictionary<string, SavedPattern> Patterns { get; set; } = [];
     }
 

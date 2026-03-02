@@ -77,9 +77,6 @@ public partial class MainViewModel : ObservableObject
     public static int[] SimRateOptions { get; } = [1, 2, 4, 8, 16];
 
     [ObservableProperty]
-    private string _commandSchemeName = "ATCTrainer";
-
-    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LeaveRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
@@ -594,8 +591,6 @@ public partial class MainViewModel : ObservableObject
 
     public void RefreshCommandScheme()
     {
-        CommandSchemeName = CommandScheme.DetectPresetName(_preferences.CommandScheme) ?? "Custom";
-
         if (ActiveRoomId is not null)
         {
             _ = SendAutoAcceptDelay();

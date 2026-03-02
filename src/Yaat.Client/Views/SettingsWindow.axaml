@@ -132,19 +132,6 @@
             <TabItem Header="Commands">
                 <DockPanel Margin="12">
 
-                    <!-- Scheme selector -->
-                    <StackPanel DockPanel.Dock="Top"
-                                Orientation="Horizontal"
-                                Spacing="8"
-                                Margin="0,0,0,12">
-                        <TextBlock Text="Command Scheme:"
-                                   VerticalAlignment="Center" />
-                        <ComboBox ItemsSource="{Binding PresetNames_}"
-                                  SelectedIndex="{Binding SelectedPresetIndex}"
-                                  PlaceholderText="Custom"
-                                  Width="160" />
-                    </StackPanel>
-
                     <!-- Verb mapping table -->
                     <DataGrid ItemsSource="{Binding VerbMappings}"
                               AutoGenerateColumns="False"

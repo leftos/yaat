@@ -40,12 +40,9 @@ Models/
 
 Services/
   ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs
-  CommandScheme.cs              # CanonicalCommandType → CommandPattern; AtcTrainer()/Vice() factories
-  AtcTrainerPreset.cs           # SpaceSeparated: FH 270, CM 240, DM 50, SPD 250
-  VicePreset.cs                 # Concatenated: H270, C240, D50, S250
-  CommandSchemeParser.cs        # Parse/ParseCompound (;/, syntax); ToCanonical() → ATCTrainer format
+  CommandScheme.cs              # CanonicalCommandType → CommandPattern; Default() unified scheme
+  CommandSchemeParser.cs        # Parse/ParseCompound (;/, syntax); concatenation fallback; ToCanonical()
   CommandMetadata.cs            # Static CommandInfo registry per type
-  CommandParseMode.cs           # Enum: parse mode for command input processing
   CommandInputController.cs     # Autocomplete (callsign/command/fix), history nav, FixDb binary search
   FixSuggester.cs               # Fix name suggestions from FixDb
   AddCommandSuggester.cs        # ADD command callsign/model suggestions
@@ -288,7 +285,7 @@ src/Yaat.Server/
 
 1. User input → `MainViewModel.SendCommandAsync()` resolves callsign via partial match
 2. `CommandSchemeParser.ParseCompound()`: `;` = sequential blocks, `,` = parallel, `LV`/`AT` = conditions
-3. Translated to canonical ATCTrainer format → sent to server via `SendCommand(callsign, canonical)`
+3. Translated to canonical format → sent to server via `SendCommand(callsign, canonical)`
 4. Server builds `CommandQueue` of `CommandBlock`s; `FlightPhysics.UpdateCommandQueue()` checks triggers each tick
 
 **Track commands** (TRACK, DROP, HO, ACCEPT, etc.) bypass CommandDispatcher — RoomEngine routes to TrackCommandHandler, mutating ownership fields. `AS` prefix resolves RPO identity.
@@ -298,7 +295,7 @@ src/Yaat.Server/
 ### Command Rules
 
 - Match existing ATCTrainer/VICE names where applicable. See `docs/command-aliases/reference.md` for the full comparison (🟢 marks YAAT-only commands). Source JSON extracts and the build script that produces them are in the same directory.
-- **Completeness (MANDATORY):** Every `CanonicalCommandType` must exist in: `CommandScheme.AtcTrainer()`, `CommandScheme.Vice()`, `CommandMetadata.AllCommands`. Tests in `tests/Yaat.Client.Tests/CommandSchemeCompletenessTests.cs` enforce this.
+- **Completeness (MANDATORY):** Every `CanonicalCommandType` must exist in: `CommandScheme.Default()`, `CommandMetadata.AllCommands`. Tests in `tests/Yaat.Client.Tests/CommandSchemeCompletenessTests.cs` enforce this.
 
 ### Communication Flow
 
