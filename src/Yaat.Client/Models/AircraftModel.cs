@@ -259,6 +259,9 @@ public partial class AircraftModel : ObservableObject
     private string? _scratchpad1;
 
     [ObservableProperty]
+    private string? _scratchpad2;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TempAltDisplay))]
     private int? _temporaryAltitude;
 
@@ -323,6 +326,7 @@ public partial class AircraftModel : ObservableObject
             HandoffPeerSectorCode = dto.HandoffPeerSectorCode,
             PointoutStatus = dto.PointoutStatus,
             Scratchpad1 = dto.Scratchpad1,
+            Scratchpad2 = dto.Scratchpad2,
             TemporaryAltitude = dto.TemporaryAltitude,
             IsAnnotated = dto.IsAnnotated,
         };
@@ -371,6 +375,7 @@ public partial class AircraftModel : ObservableObject
         HandoffPeerSectorCode = dto.HandoffPeerSectorCode;
         PointoutStatus = dto.PointoutStatus;
         Scratchpad1 = dto.Scratchpad1;
+        Scratchpad2 = dto.Scratchpad2;
         TemporaryAltitude = dto.TemporaryAltitude;
         IsAnnotated = dto.IsAnnotated;
         DistanceFromFix = computeDistance?.Invoke(this);

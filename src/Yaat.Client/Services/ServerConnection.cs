@@ -366,6 +366,7 @@ public record AircraftDto(
     string? HandoffPeerSectorCode = null,
     string? PointoutStatus = null,
     string? Scratchpad1 = null,
+    string? Scratchpad2 = null,
     int? TemporaryAltitude = null,
     bool IsAnnotated = false
 );
