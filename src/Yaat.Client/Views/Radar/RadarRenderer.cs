@@ -104,13 +104,25 @@ public sealed class RadarRenderer : IDisposable
 
         var (cx, cy) = vp.LatLonToScreen(centerLat, centerLon);
 
-        // Convert nautical miles to approximate screen pixels
-        // 1 nm = 1/60 degree latitude
-        var degreesLat = rangeRingSizeNm / 60.0;
-        var (_, edgeY) = vp.LatLonToScreen(centerLat + degreesLat, centerLon);
-        float radiusPx = MathF.Abs(cy - edgeY);
+        // Pixels-per-nm: convert one step to screen pixels
+        var stepDeg = rangeRingSizeNm / 60.0;
+        var (_, edgeY) = vp.LatLonToScreen(centerLat + stepDeg, centerLon);
+        float stepPx = MathF.Abs(cy - edgeY);
 
-        canvas.DrawCircle(cx, cy, radiusPx, _rangeRingPaint);
+        if (stepPx < 1)
+        {
+            return;
+        }
+
+        // Draw concentric circles until they exceed the visible viewport diagonal
+        float maxExtent = MathF.Sqrt(vp.PixelWidth * vp.PixelWidth + vp.PixelHeight * vp.PixelHeight);
+        float radiusPx = stepPx;
+
+        while (radiusPx <= maxExtent)
+        {
+            canvas.DrawCircle(cx, cy, radiusPx, _rangeRingPaint);
+            radiusPx += stepPx;
+        }
     }
 
     private void DrawFixes(SKCanvas canvas, MapViewport vp, IReadOnlyList<(string Name, double Lat, double Lon)> fixes)

@@ -5,7 +5,6 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
@@ -19,13 +18,10 @@ public partial class RadarView : UserControl
     private Func<string, Task>? _pendingInputAction;
     private Func<object, Task>? _pendingListAction;
 
-    public static readonly FuncValueConverter<bool, IBrush> BoolToMapColor = new(v => v ? Brushes.Lime : new SolidColorBrush(Color.Parse("#888")));
+    public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeMain = new(v => v == DcbMenuMode.Main);
+    public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeAux = new(v => v == DcbMenuMode.Aux);
 
     public static readonly FuncValueConverter<bool, string> BoolToLockLabel = new(v => v ? "LOCK" : "UNLK");
-
-    public static readonly FuncValueConverter<bool, IBrush> BoolToLockColor = new(v => v ? new SolidColorBrush(Color.Parse("#888")) : Brushes.Yellow);
-
-    public static readonly FuncValueConverter<bool, IBrush> BoolToLatchColor = new(v => v ? Brushes.Cyan : new SolidColorBrush(Color.Parse("#CCC")));
 
     public RadarView()
     {
@@ -75,7 +71,7 @@ public partial class RadarView : UserControl
 
     private void OnMapShortcutClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: MapShortcutItem shortcut })
+        if (sender is not Button { Tag: MapShortcutItem shortcut } btn)
         {
             return;
         }
@@ -83,6 +79,7 @@ public partial class RadarView : UserControl
         if (DataContext is RadarViewModel vm)
         {
             vm.ToggleMapShortcut(shortcut);
+            btn.Classes.Set("active", shortcut.IsEnabled);
         }
     }
 
@@ -103,21 +100,21 @@ public partial class RadarView : UserControl
         }
     }
 
-    private void OnMapIdSubmit(object? sender, RoutedEventArgs e)
+    private void OnMapSearchKeyDown(object? sender, KeyEventArgs e)
     {
-        var input = this.FindControl<TextBox>("MapIdInput");
-        var popup = this.FindControl<Popup>("MapPopup");
+        if (e.Key != Key.Enter || DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
 
-        if (input?.Text is not null && int.TryParse(input.Text, CultureInfo.InvariantCulture, out var starsId) && DataContext is RadarViewModel vm)
+        var text = vm.MapSearchText.Trim();
+        if (int.TryParse(text, CultureInfo.InvariantCulture, out var starsId))
         {
             vm.ToggleMapByStarsId(starsId);
-            input.Text = "";
         }
 
-        if (popup is not null)
-        {
-            popup.IsOpen = false;
-        }
+        vm.MapSearchText = "";
+        e.Handled = true;
     }
 
     private void OnMapToggleClick(object? sender, RoutedEventArgs e)
@@ -133,6 +130,27 @@ public partial class RadarView : UserControl
         }
     }
 
+    private void OnRangeClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        vm.IsAdjustingRange = !vm.IsAdjustingRange;
+        if (vm.IsAdjustingRange)
+        {
+            vm.IsAdjustingRangeRingSize = false;
+            var btn = this.FindControl<Button>("RangeButton");
+            btn?.Classes.Set("active", true);
+        }
+        else
+        {
+            var btn = this.FindControl<Button>("RangeButton");
+            btn?.Classes.Set("active", false);
+        }
+    }
+
     private void OnRrSizeClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not RadarViewModel vm)
@@ -143,7 +161,70 @@ public partial class RadarView : UserControl
         vm.IsAdjustingRangeRingSize = !vm.IsAdjustingRangeRingSize;
         if (vm.IsAdjustingRangeRingSize)
         {
+            vm.IsAdjustingRange = false;
+            var rangeBtn = this.FindControl<Button>("RangeButton");
+            rangeBtn?.Classes.Set("active", false);
             _canvas?.Focus();
+        }
+
+        var rrBtn = this.FindControl<Button>("RrButton");
+        rrBtn?.Classes.Set("active", vm.IsAdjustingRangeRingSize);
+    }
+
+    private void OnFixClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        vm.ToggleFixesCommand.Execute(null);
+        var btn = this.FindControl<Button>("FixButton");
+        btn?.Classes.Set("active", vm.ShowFixes);
+    }
+
+    private void OnTopDownClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        vm.ToggleTopDownCommand.Execute(null);
+        var btn = this.FindControl<Button>("TopDownButton");
+        btn?.Classes.Set("active", vm.ShowTopDown);
+    }
+
+    private void OnLockClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        vm.TogglePanZoomLockCommand.Execute(null);
+        var btn = this.FindControl<Button>("LockButton");
+        btn?.Classes.Set("active", vm.IsPanZoomLocked);
+    }
+
+    private void OnDcbPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        var delta = e.Delta.Y > 0 ? 1 : -1;
+
+        if (vm.IsAdjustingRange)
+        {
+            vm.AdjustRange(-delta);
+            e.Handled = true;
+        }
+        else if (vm.IsAdjustingRangeRingSize)
+        {
+            vm.RangeRingSizeNm = RadarViewModel.CycleRangeRingSize(vm.RangeRingSizeNm, delta);
+            e.Handled = true;
         }
     }
 

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using SkiaSharp;
 using Yaat.Client.Models;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim.Data;
 
@@ -77,8 +78,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<bool> ShowTopDownProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(ShowTopDown));
 
+    private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
+
     private readonly RadarRenderer _renderer = new();
     private bool _initialFitDone;
+    private bool _suppressRangeFit;
+    private bool _rightButtonDown;
+    private bool _rightDragStarted;
+    private Point _rightPressPos;
     private Dictionary<string, string> _brightnessLookup = [];
 
     public IReadOnlyList<AircraftModel>? Aircraft
@@ -261,6 +268,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             FitToRange();
         }
 
+        // RANGE spinner drives viewport zoom
+        if (change.Property == RangeNmProperty && _initialFitDone && !_suppressRangeFit)
+        {
+            FitToRange();
+        }
+
         if (change.Property == IsPanZoomLockedProperty)
         {
             IsPanZoomEnabled = !IsPanZoomLocked;
@@ -335,14 +348,30 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         if (props.IsRightButtonPressed)
         {
-            HandleRightClick(pos);
-            e.Handled = true;
+            var ac = FindAircraftAtPoint(pos);
+            if (ac is not null)
+            {
+                AircraftRightClicked?.Invoke(ac.Callsign, pos);
+                e.Handled = true;
+                return;
+            }
+
+            // Track right-button state to distinguish click from drag
+            _rightButtonDown = true;
+            _rightDragStarted = false;
+            _rightPressPos = pos;
+
+            if (IsPanZoomEnabled)
+            {
+                // Let base prepare for panning (sets _isPanning)
+                base.OnPointerPressed(e);
+            }
+
             return;
         }
 
         if (props.IsLeftButtonPressed)
         {
-            // Range ring placement mode
             if (IsPlacingRangeRing)
             {
                 var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
@@ -364,17 +393,39 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         base.OnPointerPressed(e);
     }
 
-    private void HandleRightClick(Point screenPos)
+    protected override void OnPointerMoved(PointerEventArgs e)
     {
-        var ac = FindAircraftAtPoint(screenPos);
-        if (ac is not null)
+        // Detect when a right-click becomes a drag (past threshold)
+        if (_rightButtonDown && !_rightDragStarted)
         {
-            AircraftRightClicked?.Invoke(ac.Callsign, screenPos);
-            return;
+            var pos = e.GetPosition(this);
+            var dx = pos.X - _rightPressPos.X;
+            var dy = pos.Y - _rightPressPos.Y;
+            if (dx * dx + dy * dy > DragThresholdSq)
+            {
+                _rightDragStarted = true;
+            }
         }
 
-        var (lat, lon) = Viewport.ScreenToLatLon((float)screenPos.X, (float)screenPos.Y);
-        MapRightClicked?.Invoke(lat, lon, screenPos);
+        base.OnPointerMoved(e);
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        if (_rightButtonDown && e.InitialPressMouseButton == MouseButton.Right)
+        {
+            _rightButtonDown = false;
+
+            if (!_rightDragStarted)
+            {
+                // Quick right-click (no drag) — show map context menu
+                var pos = e.GetPosition(this);
+                var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+                MapRightClicked?.Invoke(lat, lon, pos);
+            }
+        }
+
+        base.OnPointerReleased(e);
     }
 
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
@@ -443,14 +494,26 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     protected override void OnViewportChanged()
     {
         UpdateViewRangeNm();
+
+        // Sync RangeNm back from viewport zoom (suppress re-fit to avoid feedback loop)
+        if (_initialFitDone)
+        {
+            var rounded = Math.Max(1, (int)Math.Round(ViewRangeNm));
+            if (Math.Abs(rounded - RangeNm) >= 1)
+            {
+                _suppressRangeFit = true;
+                RangeNm = rounded;
+                _suppressRangeFit = false;
+            }
+        }
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         if (IsAdjustingRangeRingSize)
         {
-            var delta = e.Delta.Y > 0 ? 5.0 : -5.0;
-            RangeRingSizeNm = Math.Clamp(RangeRingSizeNm + delta, 1, 200);
+            var direction = e.Delta.Y > 0 ? 1 : -1;
+            RangeRingSizeNm = RadarViewModel.CycleRangeRingSize(RangeRingSizeNm, direction);
             MarkDirty();
             e.Handled = true;
             return;
@@ -464,6 +527,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         if (IsAdjustingRangeRingSize && (e.Key == Key.Enter || e.Key == Key.Escape))
         {
             IsAdjustingRangeRingSize = false;
+            e.Handled = true;
+            return;
+        }
+
+        if (IsPlacingRangeRing && e.Key == Key.Escape)
+        {
+            IsPlacingRangeRing = false;
             e.Handled = true;
             return;
         }

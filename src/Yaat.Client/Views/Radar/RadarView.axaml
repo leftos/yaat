@@ -5,115 +5,329 @@
              x:Class="Yaat.Client.Views.Radar.RadarView"
              x:DataType="vm:RadarViewModel">
 
+    <UserControl.Styles>
+        <!-- STARS DCB button: strip Fluent chrome, dark-green theme -->
+        <Style Selector="Button.dcb">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#00B800" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#1A3A1A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="MinWidth" Value="50" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.dcb:pointerover">
+            <Setter Property="Background" Value="#0A1F0A" />
+        </Style>
+        <Style Selector="Button.dcb:pressed">
+            <Setter Property="Background" Value="#1A4A1A" />
+            <Setter Property="Foreground" Value="#00DD00" />
+        </Style>
+        <Style Selector="Button.dcb.active">
+            <Setter Property="Background" Value="#1A4A1A" />
+            <Setter Property="Foreground" Value="#00DD00" />
+        </Style>
+        <Style Selector="Button.dcb:disabled">
+            <Setter Property="Foreground" Value="#004400" />
+        </Style>
+
+        <!-- Half-height DCB button for split cells -->
+        <Style Selector="Button.dcb-half">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#00B800" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#1A3A1A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="4,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.dcb-half:pointerover">
+            <Setter Property="Background" Value="#0A1F0A" />
+        </Style>
+        <Style Selector="Button.dcb-half:pressed">
+            <Setter Property="Background" Value="#1A4A1A" />
+            <Setter Property="Foreground" Value="#00DD00" />
+        </Style>
+        <Style Selector="Button.dcb-half.active">
+            <Setter Property="Background" Value="#1A4A1A" />
+            <Setter Property="Foreground" Value="#00DD00" />
+        </Style>
+        <Style Selector="Button.dcb-half:disabled">
+            <Setter Property="Foreground" Value="#004400" />
+        </Style>
+
+        <!-- Map shortcut button (double-height, no MinWidth) -->
+        <Style Selector="Button.dcb-map">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#00B800" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="#1A3A1A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="MinWidth" Value="44" />
+            <Setter Property="Padding" Value="3,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.dcb-map:pointerover">
+            <Setter Property="Background" Value="#0A1F0A" />
+        </Style>
+        <Style Selector="Button.dcb-map:pressed">
+            <Setter Property="Background" Value="#1A4A1A" />
+            <Setter Property="Foreground" Value="#00DD00" />
+        </Style>
+        <Style Selector="Button.dcb-map.active">
+            <Setter Property="Background" Value="#1A4A1A" />
+            <Setter Property="Foreground" Value="#00DD00" />
+        </Style>
+    </UserControl.Styles>
+
     <DockPanel>
-        <!-- DCB bar (Display Control Bar) -->
-        <StackPanel DockPanel.Dock="Top"
-                    Orientation="Horizontal"
-                    Spacing="4"
-                    Margin="4"
-                    Background="#1A1A1A">
-            <!-- Map shortcut buttons -->
-            <ItemsControl x:Name="MapShortcutsPanel"
-                          ItemsSource="{Binding MapShortcuts}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="2" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:MapShortcutItem">
-                        <Button Content="{Binding ShortName}"
-                                Tag="{Binding}"
-                                Click="OnMapShortcutClick"
-                                Padding="10,4" FontSize="11"
-                                Foreground="{Binding IsEnabled, Converter={x:Static radar:RadarView.BoolToMapColor}}" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+        <!-- DCB Container -->
+        <Border x:Name="DcbContainer" DockPanel.Dock="Top" Background="#0D1A0D" Height="80" PointerWheelChanged="OnDcbPointerWheelChanged">
+          <Panel>
 
-            <Rectangle Width="1" Fill="#444" Margin="2,2" />
+            <!-- ==================== MAIN MENU ==================== -->
+            <Grid x:Name="DcbMainMenu" RowDefinitions="40,40" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeMain}}">
 
-            <Button x:Name="MapButton"
-                    Content="MAP"
-                    Click="OnMapButtonClick"
-                    Padding="6,2" FontSize="11" />
-            <Popup x:Name="MapPopup"
-                   IsLightDismissEnabled="True"
-                   PlacementTarget="{Binding #MapButton}"
-                   Placement="Bottom">
-                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="6">
-                    <StackPanel Spacing="4" Width="240">
-                        <TextBox Watermark="Search maps..." Text="{Binding MapSearchText}" FontSize="11" />
-                        <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding MapToggles}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:VideoMapToggleItem">
-                                        <CheckBox IsChecked="{Binding IsEnabled}"
-                                                  IsVisible="{Binding IsVisible}"
-                                                  Click="OnMapToggleClick"
-                                                  Margin="0,1"
-                                                  FontSize="11"
-                                                  Foreground="#CCC">
-                                            <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
-                                        </CheckBox>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                        <Rectangle Height="1" Fill="#444" Margin="0,2" />
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBox x:Name="MapIdInput"
-                                     Watermark="Map #"
-                                     Width="60" FontSize="11" />
-                            <Button Content="OK"
-                                    Click="OnMapIdSubmit"
-                                    Padding="6,2" FontSize="11" />
-                        </StackPanel>
+                <!-- Col 0: RANGE spinner (spans 2 rows) -->
+                <Button x:Name="RangeButton" Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Click="OnRangeClick">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="RANGE" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="{Binding RangeNm, StringFormat='{}{0:F0}'}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
                     </StackPanel>
-                </Border>
-            </Popup>
+                </Button>
 
-            <Rectangle Width="1" Fill="#444" Margin="2,2" />
+                <!-- Col 1: PLACE CNTR / OFF CNTR (split) -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="1" Content="PLACE CNTR" IsEnabled="False" />
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="1" Content="OFF CNTR" Command="{Binding ResetCenterCommand}" />
 
-            <Button Content="RR"
-                    Command="{Binding ToggleRangeRingsCommand}"
-                    Padding="6,2" FontSize="11" />
-            <Button x:Name="RrSizeButton"
-                    Click="OnRrSizeClick"
-                    Padding="6,2" FontSize="11"
-                    Foreground="{Binding IsAdjustingRangeRingSize, Converter={x:Static radar:RadarView.BoolToLatchColor}}">
-                <Button.Content>
-                    <TextBlock Text="{Binding RangeRingSizeNm, StringFormat='RR {0:F0}'}" />
-                </Button.Content>
-            </Button>
-            <Button Content="RR POS"
-                    Command="{Binding StartPlaceRangeRingCommand}"
-                    Padding="6,2" FontSize="11" />
+                <!-- Col 2: RR spinner (spans 2 rows) — click toggles size adjust, scroll changes size -->
+                <Button x:Name="RrButton" Classes="dcb" Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Click="OnRrSizeClick">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="RR" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="{Binding RangeRingSizeNm, StringFormat='{}{0:F0}'}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    </StackPanel>
+                </Button>
 
-            <Rectangle Width="1" Fill="#444" Margin="2,2" />
+                <!-- Col 3: PLACE RR / RR CNTR (split) -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="3" Content="PLACE RR" Command="{Binding StartPlaceRangeRingCommand}" />
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="3" Content="RR CNTR" IsEnabled="False" />
 
-            <Button Content="FIX"
-                    Command="{Binding ToggleFixesCommand}"
-                    Padding="6,2" FontSize="11" />
-            <Button Content="TOP-DOWN"
-                    Command="{Binding ToggleTopDownCommand}"
-                    Foreground="{Binding ShowTopDown, Converter={x:Static radar:RadarView.BoolToMapColor}}"
-                    Padding="6,2" FontSize="11" />
+                <!-- Col 4: MAPS (spans 2 rows) — opens scrollable map list popup -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" Content="MAPS" Click="OnMapButtonClick" />
 
-            <Rectangle Width="1" Fill="#444" Margin="2,2" />
+                <!-- Col 5: Map shortcut buttons 3x2 grid (spans 2 rows) -->
+                <ItemsControl Grid.Row="0" Grid.Column="5" Grid.RowSpan="2" Width="240" Height="80" ItemsSource="{Binding MapShortcuts}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="3" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MapShortcutItem">
+                            <Button Classes="dcb-map" Tag="{Binding}" Click="OnMapShortcutClick" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding StarsId}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="12" />
+                                    <TextBlock Text="{Binding ShortName}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="9" TextTrimming="CharacterEllipsis" MaxWidth="72" />
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-            <Button Content="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockLabel}}"
-                    Command="{Binding TogglePanZoomLockCommand}"
-                    Foreground="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockColor}}"
-                    Padding="6,2" FontSize="11" />
+                <!-- Col 6: FIX (spans 2 rows) — toggle fix display -->
+                <Button x:Name="FixButton" Classes="dcb" Grid.Row="0" Grid.Column="6" Grid.RowSpan="2" Content="FIX" Click="OnFixClick" />
 
-            <TextBlock Text="{Binding #Canvas.ViewRangeNm, StringFormat='Range: {0:F0}nm'}"
-                       VerticalAlignment="Center"
-                       Foreground="#00B800"
-                       FontFamily="Consolas"
-                       FontSize="11"
-                       Margin="8,0" />
-        </StackPanel>
+                <!-- Col 7: TOP-DOWN (spans 2 rows) — toggle top-down view -->
+                <Button x:Name="TopDownButton" Classes="dcb" Grid.Row="0" Grid.Column="7" Grid.RowSpan="2" Content="TOP-DN" Click="OnTopDownClick" />
+
+                <!-- Col 8: LOCK/UNLK (spans 2 rows) — toggle pan/zoom lock -->
+                <Button x:Name="LockButton" Classes="dcb" Grid.Row="0" Grid.Column="8" Grid.RowSpan="2" Content="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockLabel}}" Click="OnLockClick" />
+
+                <!-- Col 9-14: WX1-WX6 (disabled placeholders, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="WX1" IsEnabled="False" MinWidth="36" />
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="10" Grid.RowSpan="2" Content="WX2" IsEnabled="False" MinWidth="36" />
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="11" Grid.RowSpan="2" Content="WX3" IsEnabled="False" MinWidth="36" />
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" Content="WX4" IsEnabled="False" MinWidth="36" />
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="13" Grid.RowSpan="2" Content="WX5" IsEnabled="False" MinWidth="36" />
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" Content="WX6" IsEnabled="False" MinWidth="36" />
+
+                <!-- Col 15: BRITE (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" Content="BRITE" IsEnabled="False" />
+
+                <!-- Col 16: LDR DIR/N / LDR/2 (disabled split) -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="16" IsEnabled="False">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="LDR DIR" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="N" FontFamily="Consolas" FontSize="11" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="16" IsEnabled="False">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="LDR" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="2" FontFamily="Consolas" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Col 17: CHAR SIZE (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="17" Grid.RowSpan="2" IsEnabled="False">
+                    <TextBlock Text="CHAR&#x0a;SIZE" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                </Button>
+
+                <!-- Col 18: MODE / FSL (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="18" Grid.RowSpan="2" IsEnabled="False">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="MODE" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="FSL" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Col 19: PREF (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="19" Grid.RowSpan="2" Content="PREF" IsEnabled="False" />
+
+                <!-- Col 20: SITE / FUSED (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="20" Grid.RowSpan="2" IsEnabled="False">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="SITE" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="FUSED" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Col 21: SSA FILTER / GI TEXT FILTER (disabled split) -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="21" Content="SSA FILTER" IsEnabled="False" />
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="21" Content="GI TEXT FILTER" IsEnabled="False" />
+
+                <!-- Col 22: SHIFT (spans 2 rows) — switches to Aux -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="22" Grid.RowSpan="2" Content="SHIFT" Command="{Binding OpenAuxMenuCommand}" />
+            </Grid>
+
+            <!-- ==================== AUX MENU ==================== -->
+            <Grid x:Name="DcbAuxMenu" RowDefinitions="40,40" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeAux}}">
+
+                <!-- Col 0: VOL (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Content="VOL" IsEnabled="False" />
+
+                <!-- Col 1: HISTORY (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Content="HISTORY" IsEnabled="False" />
+
+                <!-- Col 2: H_RATE (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Content="H_RATE" IsEnabled="False" />
+
+                <!-- Col 3: CURSOR HOME (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" IsEnabled="False">
+                    <TextBlock Text="CURSOR&#x0a;HOME" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                </Button>
+
+                <!-- Col 4: CSR SPD (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" Content="CSR SPD" IsEnabled="False" />
+
+                <!-- Col 5: MAP UNCOR (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="5" Grid.RowSpan="2" IsEnabled="False">
+                    <TextBlock Text="MAP&#x0a;UNCOR" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                </Button>
+
+                <!-- Col 6: UNCOR (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="6" Grid.RowSpan="2" Content="UNCOR" IsEnabled="False" />
+
+                <!-- Col 7: BEACON MODE-2 (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="7" Grid.RowSpan="2" IsEnabled="False">
+                    <TextBlock Text="BEACON&#x0a;MODE-2" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                </Button>
+
+                <!-- Col 8: RTQC (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="8" Grid.RowSpan="2" Content="RTQC" IsEnabled="False" />
+
+                <!-- Col 9: MCP (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="MCP" IsEnabled="False" />
+
+                <!-- Col 10: DCB TOP / DCB LEFT (disabled split) -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="10" Content="DCB TOP" IsEnabled="False" />
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="10" Content="DCB LEFT" IsEnabled="False" />
+
+                <!-- Col 11: DCB RIGHT / DCB BOTTOM (disabled split) -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="11" Content="DCB RIGHT" IsEnabled="False" />
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="11" Content="DCB BOTTOM" IsEnabled="False" />
+
+                <!-- Col 12: PTL LNTH (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" IsEnabled="False">
+                    <TextBlock Text="PTL&#x0a;LNTH" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                </Button>
+
+                <!-- Col 13: PTL OWN / PTL ALL (disabled split) -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="13" Content="PTL OWN" IsEnabled="False" />
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="13" Content="PTL ALL" IsEnabled="False" />
+
+                <!-- Col 14: DWELL ON (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" IsEnabled="False">
+                    <TextBlock Text="DWELL&#x0a;ON" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                </Button>
+
+                <!-- Col 15: TPA/ATPA (disabled, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" IsEnabled="False">
+                    <TextBlock Text="TPA/&#x0a;ATPA" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                </Button>
+
+                <!-- Col 16: TSAS / TIME LINE (disabled split) -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="16" Content="TSAS" IsEnabled="False" />
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="16" Content="TIME LINE" IsEnabled="False" />
+
+                <!-- Col 17: SHIFT (back to Main) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="17" Grid.RowSpan="2" Content="SHIFT" Command="{Binding CloseDcbSubmenuCommand}" />
+            </Grid>
+
+          </Panel>
+        </Border>
 
         <!-- Radar canvas + overlay popups -->
         <Grid>
@@ -122,7 +336,7 @@
                                SelectedAircraft="{Binding SelectedAircraft}"
                                VideoMaps="{Binding ActiveVideoMaps}"
                                ShowRangeRings="{Binding ShowRangeRings}"
-                               RangeNm="{Binding RangeNm}"
+                               RangeNm="{Binding RangeNm, Mode=TwoWay}"
                                RadarCenterLat="{Binding CenterLat}"
                                RadarCenterLon="{Binding CenterLon}"
                                ShowFixes="{Binding ShowFixes}"
@@ -134,6 +348,35 @@
                                IsPlacingRangeRing="{Binding IsPlacingRangeRing}"
                                IsAdjustingRangeRingSize="{Binding IsAdjustingRangeRingSize, Mode=TwoWay}"
                                ShowTopDown="{Binding ShowTopDown}" />
+
+            <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
+            <Popup x:Name="MapPopup"
+                   IsLightDismissEnabled="True"
+                   PlacementTarget="{Binding #DcbContainer}"
+                   Placement="Bottom">
+                <Border Background="#0D1A0D" BorderBrush="#1A3A1A" BorderThickness="1" Padding="6">
+                    <StackPanel Spacing="4" Width="240">
+                        <TextBox x:Name="MapSearchInput" Watermark="Search by name or #..." Text="{Binding MapSearchText}" FontSize="11" FontFamily="Consolas" Foreground="#00B800" Background="#0D1A0D" KeyDown="OnMapSearchKeyDown" />
+                        <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding MapToggles}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:VideoMapToggleItem">
+                                        <CheckBox IsChecked="{Binding IsEnabled}"
+                                                  IsVisible="{Binding IsVisible}"
+                                                  Click="OnMapToggleClick"
+                                                  Margin="0,1"
+                                                  FontSize="11"
+                                                  FontFamily="Consolas"
+                                                  Foreground="#00B800">
+                                            <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+            </Popup>
 
             <!-- Input popup (free-text entry for commands) -->
             <Popup x:Name="InputPopup"

@@ -9,8 +9,16 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Client.ViewModels;
 
+public enum DcbMenuMode
+{
+    Main,
+    Aux,
+}
+
 public partial class RadarViewModel : ObservableObject
 {
+    public static readonly double[] RangeRingSizeSteps = [2, 5, 10, 15, 20];
+
     private readonly ILogger _log = AppLog.CreateLogger<RadarViewModel>();
 
     private readonly ServerConnection _connection;
@@ -76,6 +84,15 @@ public partial class RadarViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _showTopDown;
+
+    [ObservableProperty]
+    private DcbMenuMode _dcbMode = DcbMenuMode.Main;
+
+    [ObservableProperty]
+    private bool _isAdjustingRange;
+
+    [ObservableProperty]
+    private bool _isOffCenter;
 
     public ObservableCollection<VideoMapToggleItem> MapToggles { get; } = [];
 
@@ -253,7 +270,8 @@ public partial class RadarViewModel : ObservableObject
         var filter = value.Trim();
         foreach (var toggle in MapToggles)
         {
-            toggle.IsVisible = filter.Length == 0
+            toggle.IsVisible =
+                filter.Length == 0
                 || toggle.DisplayLabel.Contains(filter, StringComparison.OrdinalIgnoreCase)
                 || toggle.Name.Contains(filter, StringComparison.OrdinalIgnoreCase);
         }
@@ -359,6 +377,77 @@ public partial class RadarViewModel : ObservableObject
     private void StartPlaceRangeRing()
     {
         IsPlacingRangeRing = true;
+    }
+
+    [RelayCommand]
+    private void OpenAuxMenu()
+    {
+        DcbMode = DcbMenuMode.Aux;
+    }
+
+    [RelayCommand]
+    private void CloseDcbSubmenu()
+    {
+        DcbMode = DcbMenuMode.Main;
+    }
+
+    [RelayCommand]
+    private void ClearAllMaps()
+    {
+        foreach (var t in MapToggles)
+        {
+            t.IsEnabled = false;
+        }
+
+        foreach (var sc in MapShortcuts)
+        {
+            sc.IsEnabled = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ResetCenter()
+    {
+        IsOffCenter = false;
+    }
+
+    public void AdjustRange(int delta)
+    {
+        var newRange = RangeNm + delta;
+        if (newRange is >= 1 and <= 256)
+        {
+            RangeNm = newRange;
+            SaveSettings();
+        }
+    }
+
+    /// <summary>
+    /// Returns the next discrete RR SIZE step in the given direction.
+    /// </summary>
+    public static double CycleRangeRingSize(double current, int direction)
+    {
+        if (direction > 0)
+        {
+            foreach (var step in RangeRingSizeSteps)
+            {
+                if (step > current)
+                {
+                    return step;
+                }
+            }
+
+            return RangeRingSizeSteps[^1];
+        }
+
+        for (int i = RangeRingSizeSteps.Length - 1; i >= 0; i--)
+        {
+            if (RangeRingSizeSteps[i] < current)
+            {
+                return RangeRingSizeSteps[i];
+            }
+        }
+
+        return RangeRingSizeSteps[0];
     }
 
     private void SaveSettings()
