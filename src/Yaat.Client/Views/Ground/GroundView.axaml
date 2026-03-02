@@ -10,6 +10,7 @@
                              Layout="{Binding Layout}"
                              SelectedAircraft="{Binding SelectedAircraft}"
                              ActiveRoute="{Binding ActiveRoute}"
+                             PreviewRoute="{Binding PreviewRoute}"
                              Aircraft="{Binding $parent[Window].DataContext.Aircraft}" />
 
         <!-- No layout message -->

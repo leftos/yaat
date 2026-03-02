@@ -26,6 +26,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     public static readonly StyledProperty<TaxiRoute?> ActiveRouteProperty =
         AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(nameof(ActiveRoute));
 
+    public static readonly StyledProperty<TaxiRoute?> PreviewRouteProperty =
+        AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(nameof(PreviewRoute));
+
     private readonly GroundRenderer _renderer = new();
     private int? _hoveredNodeId;
     private bool _hasFitBounds;
@@ -54,6 +57,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(ActiveRouteProperty, value);
     }
 
+    public TaxiRoute? PreviewRoute
+    {
+        get => GetValue(PreviewRouteProperty);
+        set => SetValue(PreviewRouteProperty, value);
+    }
+
     public int? HoveredNodeId => _hoveredNodeId;
 
     /// <summary>Fired when a node is right-clicked. Args: nodeId, screen position.</summary>
@@ -80,7 +89,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
         else if (change.Property == AircraftProperty
             || change.Property == SelectedAircraftProperty
-            || change.Property == ActiveRouteProperty)
+            || change.Property == ActiveRouteProperty
+            || change.Property == PreviewRouteProperty)
         {
             MarkDirty();
         }
@@ -91,7 +101,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<AircraftModel> Aircraft,
         AircraftModel? SelectedAircraft,
         int? HoveredNodeId,
-        TaxiRoute? ActiveRoute);
+        TaxiRoute? ActiveRoute,
+        TaxiRoute? PreviewRoute);
 
     protected override object? CreateRenderSnapshot()
     {
@@ -100,7 +111,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             Aircraft ?? Array.Empty<AircraftModel>(),
             SelectedAircraft,
             _hoveredNodeId,
-            ActiveRoute);
+            ActiveRoute,
+            PreviewRoute);
     }
 
     protected override void RenderFromSnapshot(
@@ -113,7 +125,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         _renderer.Render(canvas, viewport, s.Layout,
             s.Aircraft, s.SelectedAircraft,
-            s.HoveredNodeId, s.ActiveRoute);
+            s.HoveredNodeId, s.ActiveRoute, s.PreviewRoute);
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)

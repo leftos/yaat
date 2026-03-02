@@ -25,6 +25,9 @@ public partial class GroundViewModel : ObservableObject
     [ObservableProperty]
     private TaxiRoute? _activeRoute;
 
+    [ObservableProperty]
+    private TaxiRoute? _previewRoute;
+
     public ObservableCollection<AircraftModel> GroundAircraft { get; } = [];
 
     public GroundViewModel(
@@ -65,6 +68,7 @@ public partial class GroundViewModel : ObservableObject
         Layout = null;
         _domainLayout = null;
         ActiveRoute = null;
+        PreviewRoute = null;
         GroundAircraft.Clear();
     }
 
@@ -404,59 +408,57 @@ public partial class GroundViewModel : ObservableObject
             return [];
         }
 
-        var routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
-        if (routeTaxiways.Count == 0)
+        // Resolve the actual remaining path from the aircraft's position
+        var route = ResolveRemainingRoute(ac);
+        if (route is null || route.Segments.Count == 0)
         {
             return [];
         }
 
+        var routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
+        var routeSet = new HashSet<string>(routeTaxiways, StringComparer.OrdinalIgnoreCase);
         var runways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var taxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var routeSet = new HashSet<string>(routeTaxiways, StringComparer.OrdinalIgnoreCase);
 
-        // Walk the layout edges that belong to route taxiways;
-        // at each node, collect runway hold-shorts and crossing taxiways
-        foreach (var edge in _domainLayout.Edges)
+        // Collect all node IDs along the resolved path
+        var routeNodeIds = new HashSet<int> { route.Segments[0].FromNodeId };
+        foreach (var seg in route.Segments)
         {
-            if (!routeSet.Contains(edge.TaxiwayName))
+            routeNodeIds.Add(seg.ToNodeId);
+        }
+
+        // Scan only nodes on the actual path
+        foreach (int nodeId in routeNodeIds)
+        {
+            if (!_domainLayout.Nodes.TryGetValue(nodeId, out var node))
             {
                 continue;
             }
 
-            foreach (int nodeId in new[] { edge.FromNodeId, edge.ToNodeId })
+            if (node.Type == GroundNodeType.RunwayHoldShort
+                && node.RunwayId is not null)
             {
-                if (!_domainLayout.Nodes.TryGetValue(nodeId, out var node))
+                foreach (var part in node.RunwayId.Split('/'))
+                {
+                    runways.Add(part);
+                }
+            }
+
+            foreach (var adj in node.Edges)
+            {
+                var name = adj.TaxiwayName;
+                if (routeSet.Contains(name))
                 {
                     continue;
                 }
 
-                // Runway hold-short at this node
-                if (node.Type == GroundNodeType.RunwayHoldShort
-                    && node.RunwayId is not null)
+                if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
                 {
-                    foreach (var part in node.RunwayId.Split('/'))
-                    {
-                        runways.Add(part);
-                    }
+                    continue;
                 }
 
-                // Other taxiways that intersect at this node
-                foreach (var adj in node.Edges)
-                {
-                    var name = adj.TaxiwayName;
-                    if (routeSet.Contains(name))
-                    {
-                        continue;
-                    }
-
-                    if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    taxiways.Add(name);
-                }
+                taxiways.Add(name);
             }
         }
 
@@ -472,6 +474,95 @@ public partial class GroundViewModel : ObservableObject
         }
 
         return results;
+    }
+
+    public TaxiRoute? FindHoldShortPreviewRoute(
+        AircraftModel ac, string target)
+    {
+        if (_domainLayout is null)
+        {
+            return null;
+        }
+
+        var route = ResolveRemainingRoute(ac);
+        if (route is null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < route.Segments.Count; i++)
+        {
+            var seg = route.Segments[i];
+            int nodeId = seg.ToNodeId;
+
+            if (!_domainLayout.Nodes.TryGetValue(nodeId, out var node))
+            {
+                continue;
+            }
+
+            bool matches = node.Type == GroundNodeType.RunwayHoldShort
+                && node.RunwayId is not null
+                && node.RunwayId.Contains(target, StringComparison.OrdinalIgnoreCase);
+
+            if (!matches)
+            {
+                foreach (var edge in node.Edges)
+                {
+                    if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
+                    {
+                        matches = true;
+                        break;
+                    }
+                }
+            }
+
+            if (matches)
+            {
+                return new TaxiRoute
+                {
+                    Segments = route.Segments.GetRange(0, i + 1),
+                    HoldShortPoints = [],
+                };
+            }
+        }
+
+        return null;
+    }
+
+    private TaxiRoute? ResolveRemainingRoute(AircraftModel ac)
+    {
+        if (_domainLayout is null)
+        {
+            return null;
+        }
+
+        var routeTaxiways = ParseRouteTaxiways(ac.TaxiRoute);
+        if (routeTaxiways.Count == 0)
+        {
+            return null;
+        }
+
+        var nodeId = GetAircraftNearestNodeId(ac);
+        if (nodeId is null)
+        {
+            return null;
+        }
+
+        // Trim to start from the aircraft's current taxiway
+        if (!string.IsNullOrEmpty(ac.CurrentTaxiway))
+        {
+            int startIdx = routeTaxiways.FindIndex(
+                tw => string.Equals(tw, ac.CurrentTaxiway,
+                    StringComparison.OrdinalIgnoreCase));
+            if (startIdx > 0)
+            {
+                routeTaxiways = routeTaxiways.GetRange(
+                    startIdx, routeTaxiways.Count - startIdx);
+            }
+        }
+
+        return TaxiPathfinder.ResolveExplicitPath(
+            _domainLayout, nodeId.Value, routeTaxiways, out _);
     }
 
     private static List<string> ParseRouteTaxiways(string taxiRoute)

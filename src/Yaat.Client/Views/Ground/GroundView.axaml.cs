@@ -138,6 +138,17 @@ public partial class GroundView : UserControl
         var menu = new ContextMenu();
         var phase = ac?.CurrentPhase ?? "";
 
+        var headerText = ac is not null
+            ? $"{callsign} — {ac.AircraftType}"
+            : callsign;
+        menu.Items.Add(new MenuItem
+        {
+            Header = headerText,
+            IsEnabled = false,
+            FontWeight = Avalonia.Media.FontWeight.Bold,
+        });
+        menu.Items.Add(new Separator());
+
         if (phase == "At Parking")
         {
             menu.Items.Add(CreateMenuItem("Push back",
@@ -321,12 +332,14 @@ public partial class GroundView : UserControl
             var displayName = vm.GetTaxiwayDisplayName(route);
             var command = vm.BuildTaxiCommandWithCrossings(route);
 
-            menu.Items.Add(CreateMenuItem($"Taxi {displayName}",
+            var item = CreateMenuItem($"Taxi {displayName}",
                 () =>
                 {
                     vm.ActiveRoute = route;
                     return vm.SendRawCommandAsync(callsign, initials, command);
-                }));
+                });
+            AttachPreviewHover(item, vm, route);
+            menu.Items.Add(item);
         }
         else
         {
@@ -337,16 +350,31 @@ public partial class GroundView : UserControl
                 var displayName = vm.GetTaxiwayDisplayName(r);
                 var command = vm.BuildTaxiCommandWithCrossings(r);
 
-                parent.Items.Add(CreateMenuItem(displayName,
+                var item = CreateMenuItem(displayName,
                     () =>
                     {
                         vm.ActiveRoute = r;
                         return vm.SendRawCommandAsync(callsign, initials, command);
-                    }));
+                    });
+                AttachPreviewHover(item, vm, r);
+                parent.Items.Add(item);
             }
 
             menu.Items.Add(parent);
         }
+    }
+
+    private static void AttachPreviewHover(
+        MenuItem item, GroundViewModel vm, TaxiRoute route)
+    {
+        item.PointerEntered += (_, _) => vm.PreviewRoute = route;
+        item.PointerExited += (_, _) =>
+        {
+            if (vm.PreviewRoute == route)
+            {
+                vm.PreviewRoute = null;
+            }
+        };
     }
 
     private static string? ExtractHoldingShortRunway(
@@ -419,8 +447,16 @@ public partial class GroundView : UserControl
         foreach (var (displayName, target) in targets)
         {
             var t = target;
-            parent.Items.Add(CreateMenuItem(displayName,
-                () => vm.HoldShortAsync(callsign, initials, t)));
+            var item = CreateMenuItem(displayName,
+                () => vm.HoldShortAsync(callsign, initials, t));
+
+            var previewRoute = vm.FindHoldShortPreviewRoute(ac, t);
+            if (previewRoute is not null)
+            {
+                AttachPreviewHover(item, vm, previewRoute);
+            }
+
+            parent.Items.Add(item);
         }
 
         menu.Items.Add(parent);
@@ -466,6 +502,11 @@ public partial class GroundView : UserControl
             if (_activeContextMenu == menu)
             {
                 _activeContextMenu = null;
+            }
+
+            if (DataContext is GroundViewModel vm)
+            {
+                vm.PreviewRoute = null;
             }
         };
         menu.PlacementTarget = _canvas;
