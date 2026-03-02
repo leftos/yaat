@@ -1,5 +1,9 @@
-CTOR270 / CTOL270
-Filter datagrid by active
-Assume identify of another position for one command
+
 Time-based hold legs
-video map view
+
+approach evaluator 
+visual approach 
+expect approach 
+direct failure if not programmed
+
+one control scheme inspired by both 
