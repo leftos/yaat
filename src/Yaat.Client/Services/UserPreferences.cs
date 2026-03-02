@@ -491,11 +491,12 @@ public sealed class SavedRadarSettings
     public List<int> EnabledStarsIds { get; set; } = [];
     public double CenterLat { get; set; }
     public double CenterLon { get; set; }
-    public double RangeNm { get; set; } = 60;
+    public double RangeNm { get; set; } = 40;
     public double RangeRingCenterLat { get; set; }
     public double RangeRingCenterLon { get; set; }
     public double RangeRingSizeNm { get; set; } = 5;
     public bool ShowRangeRings { get; set; } = true;
     public bool ShowFixes { get; set; }
     public bool IsPanZoomLocked { get; set; } = true;
+    public bool ShowTopDown { get; set; }
 }

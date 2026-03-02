@@ -627,6 +627,20 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private void SetRadarAirportPosition(string? airportId)
+    {
+        if (string.IsNullOrEmpty(airportId))
+        {
+            return;
+        }
+
+        var pos = _commandInput.FixDb?.GetFixPosition(airportId);
+        if (pos.HasValue)
+        {
+            Radar.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
+        }
+    }
+
     public void SetDistanceReference(string fixOrFrd)
     {
         if (string.IsNullOrWhiteSpace(fixOrFrd))

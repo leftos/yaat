@@ -218,6 +218,7 @@ public partial class MainViewModel
         ActiveScenarioName = result.Name;
         _commandInput.PrimaryAirportId = result.PrimaryAirportId;
         Radar.SetPrimaryAirportId(result.PrimaryAirportId);
+        SetRadarAirportPosition(result.PrimaryAirportId);
         ApplySimState(result.IsPaused, result.SimRate);
 
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))

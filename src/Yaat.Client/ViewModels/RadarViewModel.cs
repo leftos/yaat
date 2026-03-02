@@ -31,8 +31,11 @@ public partial class RadarViewModel : ObservableObject
 
     public string? PrimaryAirportId { get; private set; }
 
+    private double _primaryAirportLat;
+    private double _primaryAirportLon;
+
     [ObservableProperty]
-    private double _rangeNm = 60;
+    private double _rangeNm = 40;
 
     [ObservableProperty]
     private double _centerLat;
@@ -125,6 +128,12 @@ public partial class RadarViewModel : ObservableObject
         PrimaryAirportId = id;
     }
 
+    public void SetPrimaryAirportPosition(double lat, double lon)
+    {
+        _primaryAirportLat = lat;
+        _primaryAirportLon = lon;
+    }
+
     public double GetFieldElevation(string? destination)
     {
         if (_getAirportElevation is null)
@@ -193,16 +202,24 @@ public partial class RadarViewModel : ObservableObject
             BrightnessLookup[map.Id] = map.BrightnessCategory;
         }
 
-        // Set center from first area
-        if (dto.Areas.Count > 0)
+        // Set center: prefer primary airport, fall back to ARTCC area center
+        if (_primaryAirportLat != 0 || _primaryAirportLon != 0)
+        {
+            CenterLat = _primaryAirportLat;
+            CenterLon = _primaryAirportLon;
+            RangeRingCenterLat = _primaryAirportLat;
+            RangeRingCenterLon = _primaryAirportLon;
+        }
+        else if (dto.Areas.Count > 0)
         {
             var area = dto.Areas[0];
             CenterLat = area.CenterLat;
             CenterLon = area.CenterLon;
-            RangeNm = area.SurveillanceRange;
             RangeRingCenterLat = area.CenterLat;
             RangeRingCenterLon = area.CenterLon;
         }
+
+        RangeNm = 40;
 
         // Build toggle list
         MapToggles.Clear();
@@ -215,7 +232,7 @@ public partial class RadarViewModel : ObservableObject
                 Name = map.Name,
                 BrightnessCategory = map.BrightnessCategory,
                 StarsId = map.StarsId,
-                IsEnabled = map.AlwaysVisible,
+                IsEnabled = false,
             };
             item.PropertyChanged += (_, _) =>
             {
@@ -371,6 +388,7 @@ public partial class RadarViewModel : ObservableObject
     private void ToggleTopDown()
     {
         ShowTopDown = !ShowTopDown;
+        SaveSettings();
     }
 
     [RelayCommand]
@@ -478,6 +496,7 @@ public partial class RadarViewModel : ObservableObject
             ShowRangeRings = ShowRangeRings,
             ShowFixes = ShowFixes,
             IsPanZoomLocked = IsPanZoomLocked,
+            ShowTopDown = ShowTopDown,
         };
 
         _preferences.SetRadarSettings(_activeScenarioId, settings);
@@ -518,6 +537,7 @@ public partial class RadarViewModel : ObservableObject
         ShowRangeRings = saved.ShowRangeRings;
         ShowFixes = saved.ShowFixes;
         IsPanZoomLocked = saved.IsPanZoomLocked;
+        ShowTopDown = saved.ShowTopDown;
     }
 
     private void UpdateActiveMaps()

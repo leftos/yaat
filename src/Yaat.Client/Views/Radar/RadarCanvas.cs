@@ -268,10 +268,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             FitToRange();
         }
 
-        // RANGE spinner drives viewport zoom
+        // RANGE spinner drives viewport zoom (without re-centering after initial fit)
         if (change.Property == RangeNmProperty && _initialFitDone && !_suppressRangeFit)
         {
-            FitToRange();
+            ZoomToRange();
         }
 
         if (change.Property == IsPanZoomLockedProperty)
@@ -458,6 +458,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     /// <summary>
     /// Centers the viewport on the radar center and fits the range.
+    /// Used for the initial fit only.
     /// </summary>
     public void FitToRange()
     {
@@ -474,6 +475,26 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         // Range in degrees latitude (1 nm = 1/60 degree)
         var rangeDeg = RangeNm / 60.0;
         Viewport.FitBounds(RadarCenterLat - rangeDeg, RadarCenterLat + rangeDeg, RadarCenterLon - rangeDeg, RadarCenterLon + rangeDeg);
+
+        // Sync properties back so VM always reflects actual viewport center
+        SyncCenterFromViewport();
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Adjusts viewport zoom to match RangeNm without changing the center.
+    /// </summary>
+    private void ZoomToRange()
+    {
+        if (Viewport.PixelWidth < 1 || Viewport.PixelHeight < 1)
+        {
+            return;
+        }
+
+        const double defaultPixelsPerDeg = 5000.0;
+        var maxPixels = Math.Max(Viewport.PixelWidth, Viewport.PixelHeight);
+        var targetZoom = maxPixels * 60.0 / (defaultPixelsPerDeg * RangeNm);
+        Viewport.Zoom = Math.Clamp(targetZoom, 0.02, 10000.0);
         InvalidateVisual();
     }
 
@@ -495,9 +516,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         UpdateViewRangeNm();
 
-        // Sync RangeNm back from viewport zoom (suppress re-fit to avoid feedback loop)
         if (_initialFitDone)
         {
+            // Sync RangeNm back from viewport zoom (suppress re-fit to avoid feedback loop)
             var rounded = Math.Max(1, (int)Math.Round(ViewRangeNm));
             if (Math.Abs(rounded - RangeNm) >= 1)
             {
@@ -505,6 +526,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 RangeNm = rounded;
                 _suppressRangeFit = false;
             }
+
+            // Sync center back so VM persists the actual panned position
+            SyncCenterFromViewport();
         }
     }
 
@@ -539,6 +563,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         base.OnKeyDown(e);
+    }
+
+    private void SyncCenterFromViewport()
+    {
+        RadarCenterLat = Viewport.CenterLat;
+        RadarCenterLon = Viewport.CenterLon;
     }
 
     private void UpdateViewRangeNm()
