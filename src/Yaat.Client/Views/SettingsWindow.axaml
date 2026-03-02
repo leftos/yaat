@@ -243,8 +243,7 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Button Content="X"
-                                                Command="{Binding $parent[DataGrid].((vm:SettingsViewModel)DataContext).RemoveMacroCommand}"
-                                                CommandParameter="{Binding}"
+                                                Command="{Binding RemoveCommand}"
                                                 Padding="4,0"
                                                 FontSize="11"
                                                 VerticalAlignment="Center"

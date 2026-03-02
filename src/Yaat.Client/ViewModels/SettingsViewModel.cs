@@ -43,6 +43,8 @@ public partial class VerbMappingRow : ObservableObject
 
 public partial class MacroRow : ObservableObject
 {
+    public Action<MacroRow>? RemoveAction { get; set; }
+
     [ObservableProperty]
     private string _name = "";
 
@@ -51,6 +53,12 @@ public partial class MacroRow : ObservableObject
 
     [ObservableProperty]
     private string _preview = "";
+
+    [RelayCommand]
+    private void Remove()
+    {
+        RemoveAction?.Invoke(this);
+    }
 
     partial void OnNameChanged(string value)
     {
@@ -258,13 +266,7 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void AddMacro()
     {
-        MacroRows.Add(new MacroRow());
-    }
-
-    [RelayCommand]
-    private void RemoveMacro(MacroRow row)
-    {
-        MacroRows.Remove(row);
+        MacroRows.Add(new MacroRow { RemoveAction = r => MacroRows.Remove(r) });
     }
 
     [RelayCommand]
@@ -287,7 +289,14 @@ public partial class SettingsViewModel : ObservableObject
             }
             else
             {
-                MacroRows.Add(new MacroRow { Name = m.Name, Expansion = m.Expansion });
+                MacroRows.Add(
+                    new MacroRow
+                    {
+                        Name = m.Name,
+                        Expansion = m.Expansion,
+                        RemoveAction = r => MacroRows.Remove(r),
+                    }
+                );
             }
         }
     }
@@ -305,7 +314,14 @@ public partial class SettingsViewModel : ObservableObject
         MacroRows.Clear();
         foreach (var m in _preferences.Macros)
         {
-            MacroRows.Add(new MacroRow { Name = m.Name, Expansion = m.Expansion });
+            MacroRows.Add(
+                new MacroRow
+                {
+                    Name = m.Name,
+                    Expansion = m.Expansion,
+                    RemoveAction = r => MacroRows.Remove(r),
+                }
+            );
         }
     }
 
