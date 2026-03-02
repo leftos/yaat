@@ -17,10 +17,16 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
     private readonly Dictionary<string, double> _elevations =
         new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, HashSet<string>> _sidFixes =
+    private readonly Dictionary<string, List<string>> _sidBodies =
         new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, HashSet<string>> _starFixes =
+    private readonly Dictionary<string, List<string>> _sidAllFixes =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<string, List<string>> _starBodies =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly Dictionary<string, List<string>> _starAllFixes =
         new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, List<RunwayInfo>> _runways =
@@ -82,8 +88,8 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
     /// <summary>
     /// Expands a route string into constituent fix names.
-    /// SID/STAR identifiers are expanded to their body + transition
-    /// fixes. Regular fix names pass through as-is.
+    /// SID/STAR identifiers are expanded to all body + transition
+    /// fixes (ordered). Used for autocomplete highlighting.
     /// </summary>
     public IReadOnlyList<string> ExpandRoute(string route)
     {
@@ -102,13 +108,13 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                 continue;
             }
 
-            if (_sidFixes.TryGetValue(token, out var sidSet))
+            if (_sidAllFixes.TryGetValue(token, out var sidList))
             {
-                result.AddRange(sidSet);
+                result.AddRange(sidList);
             }
-            else if (_starFixes.TryGetValue(token, out var starSet))
+            else if (_starAllFixes.TryGetValue(token, out var starList))
             {
-                result.AddRange(starSet);
+                result.AddRange(starList);
             }
             else
             {
@@ -117,6 +123,91 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Expands a route string for navigation. Only emits ordered body
+    /// fixes for published SIDs/STARs. Skips radar-vector procedures
+    /// (body ≤ 1 fix). Strips leading fixes within 1nm of the departure
+    /// airport and deduplicates adjacent identical names.
+    /// </summary>
+    public IReadOnlyList<string> ExpandRouteForNavigation(
+        string route, string? departureAirport)
+    {
+        if (string.IsNullOrWhiteSpace(route))
+        {
+            return [];
+        }
+
+        var raw = new List<string>();
+        var tokens = route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var token in tokens)
+        {
+            if (double.TryParse(token, out _))
+            {
+                continue;
+            }
+
+            if (_sidBodies.TryGetValue(token, out var sidBody))
+            {
+                if (sidBody.Count > 1)
+                {
+                    raw.AddRange(sidBody);
+                }
+            }
+            else if (_starBodies.TryGetValue(token, out var starBody))
+            {
+                if (starBody.Count > 1)
+                {
+                    raw.AddRange(starBody);
+                }
+            }
+            else
+            {
+                raw.Add(token);
+            }
+        }
+
+        // Deduplicate adjacent identical names
+        var deduped = new List<string>(raw.Count);
+        foreach (var name in raw)
+        {
+            if (deduped.Count == 0
+                || !string.Equals(deduped[^1], name, StringComparison.OrdinalIgnoreCase))
+            {
+                deduped.Add(name);
+            }
+        }
+
+        // Strip leading fixes within 1nm of departure airport
+        if (departureAirport is not null)
+        {
+            var airportPos = GetFixPosition(departureAirport);
+            if (airportPos is not null)
+            {
+                while (deduped.Count > 0)
+                {
+                    var fixPos = GetFixPosition(deduped[0]);
+                    if (fixPos is null)
+                    {
+                        break;
+                    }
+
+                    double dist = GeoMath.DistanceNm(
+                        airportPos.Value.Lat, airportPos.Value.Lon,
+                        fixPos.Value.Lat, fixPos.Value.Lon);
+                    if (dist > 1.0)
+                    {
+                        break;
+                    }
+
+                    deduped.RemoveAt(0);
+                }
+            }
+        }
+
+        return deduped;
     }
 
     private void BuildIndex(NavDataSet? navData)
@@ -229,45 +320,65 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
         foreach (var sid in navData.Sids)
         {
-            var fixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var body = new List<string>(sid.Body);
+            _sidBodies.TryAdd(sid.Id, body);
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var allFixes = new List<string>();
             foreach (var fix in sid.Body)
             {
-                fixes.Add(fix);
+                if (seen.Add(fix))
+                {
+                    allFixes.Add(fix);
+                }
             }
 
             foreach (var trans in sid.Transitions)
             {
                 foreach (var fix in trans.Fixes)
                 {
-                    fixes.Add(fix);
+                    if (seen.Add(fix))
+                    {
+                        allFixes.Add(fix);
+                    }
                 }
             }
 
-            _sidFixes.TryAdd(sid.Id, fixes);
+            _sidAllFixes.TryAdd(sid.Id, allFixes);
         }
 
         foreach (var star in navData.Stars)
         {
-            var fixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var body = new List<string>(star.Body);
+            _starBodies.TryAdd(star.Id, body);
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var allFixes = new List<string>();
             foreach (var fix in star.Body)
             {
-                fixes.Add(fix);
+                if (seen.Add(fix))
+                {
+                    allFixes.Add(fix);
+                }
             }
 
             foreach (var trans in star.Transitions)
             {
                 foreach (var fix in trans.Fixes)
                 {
-                    fixes.Add(fix);
+                    if (seen.Add(fix))
+                    {
+                        allFixes.Add(fix);
+                    }
                 }
             }
 
-            _starFixes.TryAdd(star.Id, fixes);
+            _starAllFixes.TryAdd(star.Id, allFixes);
         }
 
         _logger?.LogInformation(
             "Procedure index: {Sids} SIDs, {Stars} STARs",
-            _sidFixes.Count, _starFixes.Count);
+            _sidBodies.Count, _starBodies.Count);
     }
 
     private void LoadCustomFixes(string? baseDir)

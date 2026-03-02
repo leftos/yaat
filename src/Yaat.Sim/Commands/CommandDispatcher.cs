@@ -197,6 +197,7 @@ public static class CommandDispatcher
             case DirectToCommand cmd:
                 aircraft.Targets.NavigationRoute.Clear();
                 var resolved = cmd.Fixes.ToList();
+                int originalCount = resolved.Count;
                 if (fixes is not null)
                 {
                     RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, fixes);
@@ -211,7 +212,10 @@ public static class CommandDispatcher
                     });
                 }
                 var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
-                return Ok($"Proceed direct {fixNames}");
+                bool routeRejoined = resolved.Count > originalCount;
+                return routeRejoined
+                    ? Ok($"Proceed direct {fixNames}, then filed route")
+                    : Ok($"Proceed direct {fixNames}");
 
             case SquawkCommand cmd:
                 aircraft.BeaconCode = cmd.Code;
@@ -920,21 +924,48 @@ public static class CommandDispatcher
 
             case DefaultDeparture when !aircraft.IsVfr && aircraft.Route is not null:
             {
-                var expanded = fixes.ExpandRoute(aircraft.Route);
+                var expanded = fixes.ExpandRouteForNavigation(
+                    aircraft.Route, aircraft.Departure);
                 var targets = new List<NavigationTarget>();
+
+                // Resolve fix positions, skipping unknown fixes
+                var airportPos = aircraft.Departure is not null
+                    ? fixes.GetFixPosition(aircraft.Departure)
+                    : null;
+
                 foreach (var name in expanded)
                 {
                     var pos = fixes.GetFixPosition(name);
-                    if (pos is not null)
+                    if (pos is null)
                     {
-                        targets.Add(new NavigationTarget
+                        continue;
+                    }
+
+                    targets.Add(new NavigationTarget
+                    {
+                        Name = name,
+                        Latitude = pos.Value.Lat,
+                        Longitude = pos.Value.Lon,
+                    });
+                }
+
+                // Safety net: strip leading targets within 1nm of departure
+                if (airportPos is not null)
+                {
+                    while (targets.Count > 0)
+                    {
+                        double dist = GeoMath.DistanceNm(
+                            airportPos.Value.Lat, airportPos.Value.Lon,
+                            targets[0].Latitude, targets[0].Longitude);
+                        if (dist > 1.0)
                         {
-                            Name = name,
-                            Latitude = pos.Value.Lat,
-                            Longitude = pos.Value.Lon,
-                        });
+                            break;
+                        }
+
+                        targets.RemoveAt(0);
                     }
                 }
+
                 return targets.Count > 0 ? targets : null;
             }
 

@@ -173,6 +173,8 @@ public class ApproachGateDatabaseTests
         public (double Lat, double Lon)? GetFixPosition(string name) => null;
         public double? GetAirportElevation(string code) => null;
         public IReadOnlyList<string> ExpandRoute(string route) => [];
+        public IReadOnlyList<string> ExpandRouteForNavigation(
+            string route, string? departureAirport) => [];
     }
 
     private class StubRunwayLookup : IRunwayLookup
