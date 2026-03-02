@@ -16,7 +16,7 @@ public static class CommandSchemeParser
 
     /// <summary>
     /// Returns true if the argument is a valid altitude: numeric (e.g., "050", "5000")
-    /// or AGL format with an airport prefix (e.g., "KOAK010").
+    /// or AGL format with '+' separator (e.g., "KOAK+010").
     /// </summary>
     private static bool IsAltitudeArg(string arg)
     {
@@ -25,23 +25,14 @@ public static class CommandSchemeParser
             return true;
         }
 
-        // AGL: leading letters + trailing digits
-        int splitIndex = -1;
-        for (int i = 0; i < arg.Length; i++)
-        {
-            if (char.IsDigit(arg[i]))
-            {
-                splitIndex = i;
-                break;
-            }
-        }
-
-        if (splitIndex <= 0)
+        // AGL: {letters}+{digits}
+        var plusIndex = arg.IndexOf('+');
+        if (plusIndex <= 0 || plusIndex == arg.Length - 1)
         {
             return false;
         }
 
-        return int.TryParse(arg[splitIndex..], out _);
+        return int.TryParse(arg[(plusIndex + 1)..], out _);
     }
 
     /// <summary>

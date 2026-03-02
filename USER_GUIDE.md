@@ -101,7 +101,7 @@ Type commands in the command bar at the bottom and press **Enter**.
 
 ### Selecting an Aircraft
 
-Type the callsign (or a unique prefix) before the command:
+Type the callsign (or any partial match that uniquely identifies one aircraft) before the command:
 
 ```
 UAL123 FH 270
@@ -171,9 +171,9 @@ Altitude arguments (used by CM, DM, LV, and GA) accept three formats:
 |--------|---------|--------|
 | Hundreds (1-3 digits) | `050` | 5,000 ft |
 | Absolute (4+ digits) | `5000` | 5,000 ft |
-| AGL (airport + altitude) | `KOAK010` | 1,000 ft above KOAK field elevation |
+| AGL (airport`+`altitude) | `KOAK+010` | 1,000 ft above KOAK field elevation |
 
-The hundreds-vs-absolute rule: values under 1,000 are multiplied by 100; values 1,000+ are used as-is. This applies to both numeric and AGL formats — `KOAK010` means 1,000 ft AGL, `KOAK1500` means 1,500 ft AGL. The airport code can be FAA (e.g., `OAK`) or ICAO (e.g., `KOAK`).
+The hundreds-vs-absolute rule: values under 1,000 are multiplied by 100; values 1,000+ are used as-is. This applies to both numeric and AGL formats — `KOAK+010` means 1,000 ft AGL, `KOAK+1500` means 1,500 ft AGL. The airport code can be FAA (e.g., `OAK`) or ICAO (e.g., `KOAK`), followed by `+` and the AGL value.
 
 ### Command Chaining
 

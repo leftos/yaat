@@ -6,7 +6,7 @@ public static class AltitudeResolver
 {
     /// <summary>
     /// Resolves an altitude argument that may be numeric (e.g., "050", "5000")
-    /// or AGL with an airport prefix (e.g., "KOAK010").
+    /// or AGL with an airport prefix (e.g., "KOAK+010").
     /// Returns the final MSL altitude in feet, or null if the argument is invalid.
     /// </summary>
     public static int? Resolve(string? arg, IFixLookup? fixes)
@@ -26,24 +26,15 @@ public static class AltitudeResolver
             return value < 1000 ? value * 100 : value;
         }
 
-        // AGL format: {letters}{digits} e.g., "KOAK010"
-        int splitIndex = -1;
-        for (int i = 0; i < arg.Length; i++)
-        {
-            if (char.IsDigit(arg[i]))
-            {
-                splitIndex = i;
-                break;
-            }
-        }
-
-        if (splitIndex <= 0)
+        // AGL format: {airport}+{digits} e.g., "KOAK+010"
+        var plusIndex = arg.IndexOf('+');
+        if (plusIndex <= 0 || plusIndex == arg.Length - 1)
         {
             return null;
         }
 
-        var airportCode = arg[..splitIndex];
-        var digitsPart = arg[splitIndex..];
+        var airportCode = arg[..plusIndex];
+        var digitsPart = arg[(plusIndex + 1)..];
 
         if (!int.TryParse(digitsPart, out var aglValue) || aglValue <= 0)
         {
