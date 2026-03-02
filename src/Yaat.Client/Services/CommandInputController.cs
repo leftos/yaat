@@ -90,6 +90,9 @@ public partial class CommandInputController : ObservableObject
         // If the first token is a callsign (not a verb), find it in the list.
         var targetAircraft = ResolveTargetAircraft(firstToken, hasSpace, aircraft, selectedAircraft, scheme);
 
+        // Check if the trailing token is a macro reference (#NAME) at any position
+        var trailingToken = hasSpace ? GetTrailingToken(fragmentForSuggestion) : null;
+
         if (!hasSpace)
         {
             if (firstToken.StartsWith('#'))
@@ -103,6 +106,10 @@ public partial class CommandInputController : ObservableObject
                 AddCommandVerbSuggestions(firstToken, text, scheme, targetAircraft);
                 AddConditionSuggestions(firstToken);
             }
+        }
+        else if (trailingToken is not null && trailingToken.StartsWith('#'))
+        {
+            AddMacroSuggestions(trailingToken, text);
         }
         else if (
             AddCommandSuggester.TryAddAddArgumentSuggestions(
@@ -562,6 +569,18 @@ public partial class CommandInputController : ObservableObject
             );
             count++;
         }
+    }
+
+    private static string? GetTrailingToken(string fragment)
+    {
+        var lastSpace = fragment.LastIndexOf(' ');
+        if (lastSpace < 0)
+        {
+            return null;
+        }
+
+        var token = fragment[(lastSpace + 1)..];
+        return token.Length > 0 ? token : null;
     }
 
     private static string GetTextBeforeCurrentToken(string text)
