@@ -45,21 +45,54 @@ Services/
   VicePreset.cs                 # Concatenated: H270, C240, D50, S250
   CommandSchemeParser.cs        # Parse/ParseCompound (;/, syntax); ToCanonical() → ATCTrainer format
   CommandMetadata.cs            # Static CommandInfo registry per type
+  CommandParseMode.cs           # Enum: parse mode for command input processing
   CommandInputController.cs     # Autocomplete (callsign/command/fix), history nav, FixDb binary search
+  FixSuggester.cs               # Fix name suggestions from FixDb
+  AddCommandSuggester.cs        # ADD command callsign/model suggestions
+  SuggestionItem.cs             # Suggestion display model (text, kind, description)
+  ScenarioDifficultyHelper.cs   # Scenario difficulty classification
+  VideoMapService.cs            # Video map download/cache/parse
   UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json
 
 ViewModels/
-  MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init; distance reference
+  MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
+  MainViewModel.Rooms.cs        # Partial: room lifecycle (create/join/leave)
+  MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update)
+  MainViewModel.Scenario.cs     # Partial: scenario load/unload
+  GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
+  RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
   SettingsViewModel.cs          # Alias editing; preset detection
-  *Converter.cs                 # IValueConverters for UI bindings
+  *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor)
 
 Views/
-  MainWindow.axaml.cs           # DataGrid column/sort persistence; distance reference flyout
+  MainWindow.axaml.cs           # Tab layout (DataGrid/Ground/Radar); room bar; pop-out management
   CommandInputView.axaml.cs     # Keyboard: Esc/Up/Down/Tab/Enter for suggestions/history
+  DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)
+  DataGridWindow.axaml.cs       # Pop-out data grid window
   TerminalPanelView.axaml.cs    # Auto-scroll with user-scroll detection
   TerminalWindow.axaml.cs       # Pop-out terminal (shares MainViewModel)
-  SettingsWindow.axaml.cs       # Modal settings
+  SettingsWindow.axaml.cs       # Modal settings (Identity/Scenarios tabs)
   WindowGeometryHelper.cs       # Save/restore window position+size
+
+Views/Map/
+  MapViewport.cs                # Shared equirectangular projection for map views
+  MapCanvasBase.cs              # ICustomDrawOperation base + pan/zoom input handling
+
+Views/Ground/
+  GroundView.axaml.cs           # Ground view control with context menus
+  GroundViewWindow.axaml.cs     # Pop-out ground window
+  GroundCanvas.cs               # SkiaSharp canvas with StyledProperties + hit-testing
+  GroundRenderer.cs             # Stateless SkiaSharp ground renderer
+
+Views/Radar/
+  RadarView.axaml.cs            # Radar view control with DCB (range, map shortcuts, FIX, LOCK)
+  RadarView.ContextMenus.cs     # Partial: context menu handlers
+  RadarView.Popups.cs           # Partial: popup menu handlers (MAP, RR)
+  RadarViewWindow.axaml.cs      # Pop-out radar window
+  RadarCanvas.cs                # SkiaSharp canvas with pan/zoom lock
+  RadarRenderer.cs              # Stateless SkiaSharp radar renderer
+  VideoMapRenderer.cs           # Video map line/label rendering
+  TargetRenderer.cs             # Aircraft target/datablock rendering
 ```
 
 ### Yaat.Sim — Shared simulation library (`src/Yaat.Sim/`)
@@ -90,19 +123,24 @@ CoordinationItem.cs            # Single coordination entry: status lifecycle, ex
 StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→Recalled→Expiry→Void
 
 # Commands/
-Commands/CanonicalCommandType.cs  # Enum of every command type
-Commands/ParsedCommand.cs      # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition
-Commands/CommandDispatcher.cs  # Static: DispatchCompound (phase interaction), ApplyCommand, TryTaxi
-Commands/CommandDescriber.cs   # Static: DescribeCommand, DescribeNatural, classification helpers
-Commands/AltitudeResolver.cs   # Plain int or AGL format → feet MSL
-Commands/RouteChainer.cs       # After DCT to on-route fix, appends remaining route fixes
+Commands/CanonicalCommandType.cs    # Enum of every command type
+Commands/ParsedCommand.cs           # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition
+Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interaction), ApplyCommand, TryTaxi
+Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
+Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
+Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
+Commands/DepartureClearanceHandler.cs  # Departure clearance command logic
+Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
+Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, etc.)
 
 # Phases/ — clearance-gated behavior
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance
 Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, mutations
 Phases/PhaseRunner.cs          # Static lifecycle: start→tick→advance; auto-appends exit/pattern phases
 Phases/PhaseContext.cs         # Readonly tick context
+Phases/PhaseStatus.cs          # Enum: phase lifecycle status
 Phases/CommandAcceptance.cs    # Enum: Allowed, Rejected, ClearsPhase
+Phases/ClearanceRequirement.cs # Clearance requirement definitions
 Phases/ExitPreference.cs       # ExitSide enum + ExitPreference class for exit commands
 Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff/Land/Option/TouchAndGo/StopAndGo, RunwayCrossing
 Phases/RunwayInfo.cs           # Runway geometry
@@ -134,22 +172,33 @@ Data/IRunwayLookup.cs          # Interface: GetRunway, GetRunways
 Data/FixDatabase.cs            # Implements both; VNAS protobuf + custom fixes; AllFixNames, ExpandRoute
 Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
+Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
+Data/VideoMapMetadata.cs       # Video map metadata model
+Data/VideoMapData.cs           # Video map data structures (lines, labels, filters)
+Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 
 # Data/Airport/
-IAirportGroundData.cs          # GetLayout(airportId) → AirportGroundLayout?
-AirportGroundLayout.cs         # Graph: Nodes + Edges; FindNearestExit, GetRunwayHoldShortNodes
-GroundNode.cs / GroundEdge.cs  # Graph primitives
+IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGroundLayout?
+AirportGroundLayout.cs         # Graph: Nodes + Edges (GroundNode, GroundEdge); FindNearestExit, GetRunwayHoldShortNodes
+RunwayIdentifier.cs            # Struct: runway designator parsing/matching
 TaxiRoute.cs                   # Resolved path: Segments + HoldShortPoints + completion
 TaxiPathfinder.cs              # ResolveExplicitPath, FindRoute (A*), variant inference
+TaxiVariantResolver.cs         # Variant path resolution (e.g., A vs A1)
+TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
 GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode
+CoordinateIndex.cs             # Spatial index for coordinate-based lookups
+RunwayCrossingDetector.cs      # Detect taxiway/runway intersections
+HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes
 
 # Data/Vnas/
 VnasDataService.cs             # Downloads NavData protobuf + specs; serial-based cache
 AiracCycle.cs                  # AIRAC cycle calculator (epoch Jan 23 2025, 28-day)
 VnasConfig.cs                  # Config API DTO
+CacheManifest.cs               # Cache manifest tracking serials
+AircraftSpecEntry.cs           # VNAS aircraft specs model
+AircraftCwtEntry.cs            # VNAS aircraft CWT model
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
 CifpParser.cs                  # ARINC 424 parser: FAF fixes + terminal waypoints
-Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
 
 # Scenarios/
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
@@ -172,6 +221,8 @@ src/Yaat.Server/
     TrainingHub.cs             # /hubs/training (JSON); room lifecycle + delegates to RoomEngine
     CrcWebSocketHandler.cs     # Raw WebSocket /hubs/client for CRC; resolves room via JWT CID
     CrcClientState.cs          # Per-CRC state machine; holds RoomEngine ref; topic subscriptions
+    CrcClientState.Session.cs  # Partial: session-related state (StartSession, ActivateSession)
+    CrcClientState.Stars.cs    # Partial: STARS display-related state (consolidation, datablock format)
     CrcClientManager.cs        # Client registry; BroadcastAsync fan-out
     NegotiateHandler.cs        # POST /hubs/client/negotiate; JWT extraction → CrcNegotiateTokenStore
     CrcNegotiateTokenStore.cs  # ConcurrentDictionary token→CID for CRC room resolution
@@ -187,6 +238,7 @@ src/Yaat.Server/
     TrackCommandHandler.cs     # Stateless track command logic (HO, ACCEPT, DROP, etc.)
     CoordinationCommandHandler.cs # Stateless coordination logic (RD, RDH, RDR, RDACK, RDAUTO)
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic
+    ScenarioState.cs           # Per-room active scenario state: queues, positions, generators, channels
     TrainingBroadcastService.cs # SignalR hub context wrapper for training clients
     CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch
     CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules
@@ -194,6 +246,8 @@ src/Yaat.Server/
 
   Commands/
     CommandParser.cs           # Server-side canonical parsing; IsTrackCommand(), IsCoordinationCommand()
+    DepartureCommandParser.cs  # Departure-specific command parsing
+    GroundCommandParser.cs     # Ground operation command parsing
     ServerCommands.cs          # Server-only records (DEL, PAUSE, etc.)
 
   Scenarios/
@@ -201,13 +255,24 @@ src/Yaat.Server/
     ScenarioModels.cs          # Deserialization models
 
   Spawn/SpawnParser.cs         # ADD command → SpawnRequest
-  Protocol/                    # CRC binary: VarintCodec, MessageFraming, SignalR MessagePack parser/builder
-  Dtos/                        # TrainingDtos (JSON), CrcDtos (MessagePack), CrcEnums, TopicFormatter
+  Protocol/                    # CRC binary: VarintCodec, MessageFraming, SignalRMessageParser, SignalRMessageBuilder
+  Dtos/
+    TrainingDtos.cs            # JSON DTOs for training client communication
+    CrcDtos.cs                 # Main CRC binary DTOs (MessagePack)
+    CrcDtos.FlightPlan.cs      # Partial: flight plan-related CRC DTOs
+    CrcDtos.Session.cs         # Partial: session/StartSession CRC DTOs
+    CrcDtos.Stars.cs           # Partial: STARS display-related CRC DTOs
+    CrcEnums.cs                # Enums for CRC protocol
+    CrcFormatters.cs           # Formatting helpers for CRC DTOs
+    TopicFormatter.cs          # Topic subscription/message formatting
   Data/
     AirportGroundDataService.cs  # IAirportGroundData impl; lazy GeoJSON load from ArtccResources/
-    ArtccConfig.cs / ArtccConfigService.cs  # VNAS ARTCC config; position/TCP resolution
+    ArtccConfig.cs             # VNAS ARTCC config deserialization models (VideoMapConfig, StarsAreaConfig, etc.)
+    ArtccConfigService.cs      # Downloads + caches ARTCC config; position/TCP resolution
+    ArtccConfigService.Consolidation.cs  # Partial: STARS consolidation hierarchy
+    ArtccConfigService.VideoMaps.cs      # Partial: video map extraction
     PositionRegistry.cs        # Thread-safe CRC + RPO position tracking
-  Udp/UdpStubServer.cs        # UDP port 6809 stub
+  Udp/UdpStubServer.cs        # UDP port 6809 stub (CRC keepalive/registration)
   Logging/FileLoggerProvider.cs
 ```
 
