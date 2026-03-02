@@ -59,6 +59,7 @@ public class AircraftState
     public string? Scratchpad1 { get; set; }
     public string? Scratchpad2 { get; set; }
     public int? TemporaryAltitude { get; set; }
+    public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }
     public bool FrequencyChangeApproved { get; set; }
     public string? ContactPosition { get; set; }
