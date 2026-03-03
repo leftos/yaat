@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -18,7 +19,8 @@ public static class CommandDispatcher
         IRunwayLookup? runways,
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
-        ILogger logger
+        ILogger logger,
+        IApproachLookup? approachLookup = null
     )
     {
         // Phase interaction: check if aircraft has active phases
@@ -88,7 +90,7 @@ public static class CommandDispatcher
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes),
+                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes, approachLookup),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
                 IsWaitBlock = isWait,
@@ -126,24 +128,31 @@ public static class CommandDispatcher
         IRunwayLookup? runways,
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
-        ILogger logger
+        ILogger logger,
+        IApproachLookup? approachLookup = null
     )
     {
         // Route ground commands through DispatchCompound for phase interaction
         if (CommandDescriber.IsGroundCommand(command))
         {
             var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
-            return DispatchCompound(compound, aircraft, runways, groundLayout, fixes, logger);
+            return DispatchCompound(compound, aircraft, runways, groundLayout, fixes, logger, approachLookup);
         }
 
         // Clear any existing queue when a new single command is issued
         aircraft.Queue.Blocks.Clear();
         aircraft.Queue.CurrentBlockIndex = 0;
 
-        return ApplyCommand(command, aircraft, fixes);
+        return ApplyCommand(command, aircraft, fixes, approachLookup, logger);
     }
 
-    private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, IFixLookup? fixes = null)
+    private static CommandResult ApplyCommand(
+        ParsedCommand command,
+        AircraftState aircraft,
+        IFixLookup? fixes = null,
+        IApproachLookup? approachLookup = null,
+        ILogger? logger = null
+    )
     {
         switch (command)
         {
@@ -300,6 +309,37 @@ public static class CommandDispatcher
 
             case SayCommand:
                 return Ok(""); // SAY is a broadcast; handled before dispatch
+
+            // --- Approach/navigation commands (Chunks 5, 6, 7) ---
+
+            case JoinRadialOutboundCommand jrado:
+                return DispatchJrado(jrado, aircraft);
+
+            case JoinRadialInboundCommand jradi:
+                return DispatchJradi(jradi, aircraft);
+
+            case DepartFixCommand depart:
+                return DispatchDepartFix(depart, aircraft);
+
+            case CrossFixCommand cfix:
+                return DispatchCrossFix(cfix, aircraft);
+
+            case DescendViaCommand dvia:
+                if (dvia.Altitude is not null)
+                {
+                    aircraft.Targets.TargetAltitude = dvia.Altitude;
+                    return Ok($"Descend via, maintain {dvia.Altitude:N0}");
+                }
+                return Ok("Descend via");
+
+            case ListApproachesCommand apps:
+                return DispatchListApproaches(apps, aircraft, approachLookup);
+
+            case JoinStarCommand jarr:
+                return DispatchJarr(jarr, aircraft, fixes);
+
+            case HoldingPatternCommand hold:
+                return DispatchHoldingPattern(hold, aircraft, logger);
 
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
@@ -651,6 +691,393 @@ public static class CommandDispatcher
         }
     }
 
+    // --- Multi-block navigation command dispatchers ---
+
+    private static CommandResult DispatchJrado(JoinRadialOutboundCommand cmd, AircraftState aircraft)
+    {
+        // Block 0 (immediate): fly present heading
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
+        aircraft.Targets.PreferredTurnDirection = null;
+
+        // Block 1: on radial intercept, fly outbound heading
+        var interceptBlock = new CommandBlock
+        {
+            Trigger = new BlockTrigger
+            {
+                Type = BlockTriggerType.InterceptRadial,
+                FixName = cmd.FixName,
+                FixLat = cmd.FixLat,
+                FixLon = cmd.FixLon,
+                Radial = cmd.Radial,
+            },
+            ApplyAction = ac =>
+            {
+                ac.Targets.NavigationRoute.Clear();
+                ac.Targets.TargetHeading = cmd.Radial;
+                ac.Targets.PreferredTurnDirection = null;
+            },
+            Description = $"at {cmd.FixName} R{cmd.Radial:D3}: FH {cmd.Radial:D3}",
+            NaturalDescription = $"On {cmd.FixName} {cmd.Radial:D3} radial: fly heading {cmd.Radial:D3}",
+        };
+        interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
+        aircraft.Queue.Blocks.Add(interceptBlock);
+
+        return Ok($"Fly present heading, intercept {cmd.FixName} {cmd.Radial:D3} radial outbound");
+    }
+
+    private static CommandResult DispatchJradi(JoinRadialInboundCommand cmd, AircraftState aircraft)
+    {
+        // Block 0 (immediate): fly present heading
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
+        aircraft.Targets.PreferredTurnDirection = null;
+
+        // Block 1: on radial intercept, navigate inbound to fix
+        var interceptBlock = new CommandBlock
+        {
+            Trigger = new BlockTrigger
+            {
+                Type = BlockTriggerType.InterceptRadial,
+                FixName = cmd.FixName,
+                FixLat = cmd.FixLat,
+                FixLon = cmd.FixLon,
+                Radial = cmd.Radial,
+            },
+            ApplyAction = ac =>
+            {
+                ac.Targets.NavigationRoute.Clear();
+                ac.Targets.NavigationRoute.Add(
+                    new NavigationTarget
+                    {
+                        Name = cmd.FixName,
+                        Latitude = cmd.FixLat,
+                        Longitude = cmd.FixLon,
+                    }
+                );
+            },
+            Description = $"at {cmd.FixName} R{cmd.Radial:D3}: DCT {cmd.FixName}",
+            NaturalDescription = $"On {cmd.FixName} {cmd.Radial:D3} radial: proceed inbound to {cmd.FixName}",
+        };
+        interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
+        aircraft.Queue.Blocks.Add(interceptBlock);
+
+        return Ok($"Fly present heading, intercept {cmd.FixName} {cmd.Radial:D3} radial inbound");
+    }
+
+    private static CommandResult DispatchDepartFix(DepartFixCommand cmd, AircraftState aircraft)
+    {
+        // Block 0 (immediate): navigate to fix
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = cmd.FixName,
+                Latitude = cmd.FixLat,
+                Longitude = cmd.FixLon,
+            }
+        );
+
+        // Block 1: on reaching fix, fly heading
+        var departBlock = new CommandBlock
+        {
+            Trigger = new BlockTrigger
+            {
+                Type = BlockTriggerType.ReachFix,
+                FixName = cmd.FixName,
+                FixLat = cmd.FixLat,
+                FixLon = cmd.FixLon,
+            },
+            ApplyAction = ac =>
+            {
+                ac.Targets.NavigationRoute.Clear();
+                ac.Targets.TargetHeading = cmd.Heading;
+                ac.Targets.PreferredTurnDirection = null;
+            },
+            Description = $"at {cmd.FixName}: FH {cmd.Heading:D3}",
+            NaturalDescription = $"At {cmd.FixName}: fly heading {cmd.Heading:D3}",
+        };
+        departBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
+        aircraft.Queue.Blocks.Add(departBlock);
+
+        return Ok($"Proceed direct {cmd.FixName}, depart heading {cmd.Heading:D3}");
+    }
+
+    private static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft)
+    {
+        // Capture current altitude for revert after fix passage
+        double? previousAlt = aircraft.Targets.TargetAltitude;
+
+        // Block 0 (immediate): navigate to fix + set crossing altitude
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = cmd.FixName,
+                Latitude = cmd.FixLat,
+                Longitude = cmd.FixLon,
+            }
+        );
+
+        switch (cmd.AltType)
+        {
+            case CrossFixAltitudeType.At:
+                aircraft.Targets.TargetAltitude = cmd.Altitude;
+                break;
+            case CrossFixAltitudeType.AtOrAbove when aircraft.Altitude < cmd.Altitude:
+                aircraft.Targets.TargetAltitude = cmd.Altitude;
+                break;
+            case CrossFixAltitudeType.AtOrBelow when aircraft.Altitude > cmd.Altitude:
+                aircraft.Targets.TargetAltitude = cmd.Altitude;
+                break;
+        }
+
+        if (cmd.Speed is not null)
+        {
+            aircraft.Targets.TargetSpeed = cmd.Speed;
+        }
+
+        // Block 1: on reaching fix, revert to previous altitude target
+        var revertBlock = new CommandBlock
+        {
+            Trigger = new BlockTrigger
+            {
+                Type = BlockTriggerType.ReachFix,
+                FixName = cmd.FixName,
+                FixLat = cmd.FixLat,
+                FixLon = cmd.FixLon,
+            },
+            ApplyAction = ac =>
+            {
+                if (previousAlt is not null)
+                {
+                    ac.Targets.TargetAltitude = previousAlt;
+                }
+            },
+            Description = $"at {cmd.FixName}: revert altitude",
+            NaturalDescription = $"At {cmd.FixName}: resume assigned altitude",
+        };
+        revertBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Immediate });
+        aircraft.Queue.Blocks.Add(revertBlock);
+
+        var altTypeStr = cmd.AltType switch
+        {
+            CrossFixAltitudeType.AtOrAbove => "at or above",
+            CrossFixAltitudeType.AtOrBelow => "at or below",
+            _ => "at",
+        };
+        var cfixMsg = $"Cross {cmd.FixName} {altTypeStr} {cmd.Altitude:N0}";
+        if (cmd.Speed is not null)
+        {
+            cfixMsg += $", speed {cmd.Speed}";
+        }
+        return Ok(cfixMsg);
+    }
+
+    private static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft, IApproachLookup? approachLookup)
+    {
+        if (approachLookup is null)
+        {
+            return new CommandResult(false, "Approach data not available");
+        }
+
+        string airport = cmd.AirportCode ?? aircraft.Destination ?? "";
+        if (string.IsNullOrEmpty(airport))
+        {
+            return new CommandResult(false, "No airport specified and no destination in flight plan");
+        }
+
+        var approaches = approachLookup.GetApproaches(airport);
+        if (approaches.Count == 0)
+        {
+            return Ok($"No approaches found for {airport.ToUpperInvariant()}");
+        }
+
+        var grouped = approaches.GroupBy(a => a.Runway ?? "").OrderBy(g => g.Key);
+
+        var parts = grouped.Select(g =>
+        {
+            var items = string.Join(", ", g.Select(a => FormatApproachDisplay(a)));
+            return g.Key.Length > 0 ? $"RWY {g.Key}: {items}" : items;
+        });
+
+        return Ok($"{airport.ToUpperInvariant()} approaches: {string.Join(" | ", parts)}");
+    }
+
+    private static string FormatApproachDisplay(Data.Vnas.CifpApproachProcedure approach)
+    {
+        string typeName = approach.ApproachTypeName;
+        int parenIdx = typeName.IndexOf('(');
+        if (parenIdx >= 0)
+        {
+            typeName = typeName[..parenIdx];
+        }
+
+        string rwy = approach.Runway ?? "";
+
+        // Extract variant: anything in ApproachId after type code + runway
+        string variant = "";
+        if (approach.ApproachId.Length > 1 + rwy.Length)
+        {
+            variant = approach.ApproachId[(1 + rwy.Length)..];
+        }
+
+        return $"{typeName}{rwy}{variant}";
+    }
+
+    private static CommandResult DispatchJarr(JoinStarCommand cmd, AircraftState aircraft, IFixLookup? fixes)
+    {
+        if (fixes is null)
+        {
+            return new CommandResult(false, "Fix database not available");
+        }
+
+        var starBody = fixes.GetStarBody(cmd.StarId);
+        if (starBody is null || starBody.Count == 0)
+        {
+            return new CommandResult(false, $"Unknown STAR: {cmd.StarId}");
+        }
+
+        List<string> routeFixes;
+
+        if (cmd.Transition is not null)
+        {
+            var transitions = fixes.GetStarTransitions(cmd.StarId);
+            var match = transitions?.FirstOrDefault(t => t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
+            if (match is null || match.Value.Fixes is null)
+            {
+                return new CommandResult(false, $"Unknown transition '{cmd.Transition}' for STAR {cmd.StarId}");
+            }
+
+            routeFixes = [.. match.Value.Fixes, .. starBody];
+        }
+        else
+        {
+            routeFixes = FindStarFixesAhead(aircraft, starBody, fixes);
+        }
+
+        if (routeFixes.Count == 0)
+        {
+            return new CommandResult(false, $"No navigable fixes found for STAR {cmd.StarId}");
+        }
+
+        // Deduplicate adjacent identical fix names
+        var deduped = new List<string>(routeFixes.Count);
+        foreach (var name in routeFixes)
+        {
+            if (deduped.Count == 0 || !string.Equals(deduped[^1], name, StringComparison.OrdinalIgnoreCase))
+            {
+                deduped.Add(name);
+            }
+        }
+
+        aircraft.Targets.NavigationRoute.Clear();
+        foreach (var fixName in deduped)
+        {
+            var pos = fixes.GetFixPosition(fixName);
+            if (pos is not null)
+            {
+                aircraft.Targets.NavigationRoute.Add(
+                    new NavigationTarget
+                    {
+                        Name = fixName,
+                        Latitude = pos.Value.Lat,
+                        Longitude = pos.Value.Lon,
+                    }
+                );
+            }
+        }
+
+        if (aircraft.Targets.NavigationRoute.Count == 0)
+        {
+            return new CommandResult(false, $"Could not resolve fixes for STAR {cmd.StarId}");
+        }
+
+        var fixListStr = string.Join(" ", deduped);
+        return Ok($"Join STAR {cmd.StarId}: {fixListStr}");
+    }
+
+    /// <summary>
+    /// Find the subset of STAR body fixes ahead of the aircraft (within ±90° of heading),
+    /// starting from the nearest such fix. Prevents U-turns to fixes behind the aircraft.
+    /// </summary>
+    private static List<string> FindStarFixesAhead(AircraftState aircraft, IReadOnlyList<string> bodyFixes, IFixLookup fixes)
+    {
+        int bestIdx = -1;
+        double bestDist = double.MaxValue;
+
+        for (int i = 0; i < bodyFixes.Count; i++)
+        {
+            var pos = fixes.GetFixPosition(bodyFixes[i]);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
+            double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+            if (angleDiff > 180)
+            {
+                angleDiff = 360 - angleDiff;
+            }
+
+            if (angleDiff > 90)
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+
+        if (bestIdx < 0)
+        {
+            // No fixes ahead — use first fix as fallback
+            return [.. bodyFixes];
+        }
+
+        return bodyFixes.Skip(bestIdx).ToList();
+    }
+
+    private static CommandResult DispatchHoldingPattern(HoldingPatternCommand cmd, AircraftState aircraft, ILogger? logger)
+    {
+        var phase = new HoldingPatternPhase
+        {
+            FixName = cmd.FixName,
+            FixLat = cmd.FixLat,
+            FixLon = cmd.FixLon,
+            InboundCourse = cmd.InboundCourse,
+            LegLength = cmd.LegLength,
+            IsMinuteBased = cmd.IsMinuteBased,
+            Direction = cmd.Direction,
+            Entry = cmd.Entry,
+        };
+
+        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
+        if (aircraft.Phases is not null && logger is not null)
+        {
+            var ctx = BuildMinimalContext(aircraft, logger);
+            aircraft.Phases.Clear(ctx);
+        }
+
+        aircraft.Phases = runway is not null ? new PhaseList { AssignedRunway = runway } : new PhaseList();
+        aircraft.Phases.Add(phase);
+
+        if (logger is not null)
+        {
+            var startCtx = BuildMinimalContext(aircraft, logger);
+            aircraft.Phases.Start(startCtx);
+        }
+
+        var dirStr = cmd.Direction == TurnDirection.Left ? "left" : "right";
+        var legStr = cmd.IsMinuteBased ? $"{cmd.LegLength}min" : $"{cmd.LegLength}nm";
+        return Ok($"Hold at {cmd.FixName}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
+    }
+
     /// <summary>
     /// Replace the first pending approach-ending phase (LandingPhase,
     /// TouchAndGoPhase, StopAndGoPhase, or LowApproachPhase) with the
@@ -752,7 +1179,12 @@ public static class CommandDispatcher
     /// Builds a deferred action that applies all commands in a block to the aircraft.
     /// This is stored on the CommandBlock and executed when the block becomes active.
     /// </summary>
-    private static Action<AircraftState> BuildApplyAction(List<ParsedCommand> commands, AircraftState aircraft, IFixLookup? fixes = null)
+    private static Action<AircraftState> BuildApplyAction(
+        List<ParsedCommand> commands,
+        AircraftState aircraft,
+        IFixLookup? fixes = null,
+        IApproachLookup? approachLookup = null
+    )
     {
         // Capture the parsed commands; they'll be applied when the block activates
         var captured = commands.ToList();
@@ -760,7 +1192,7 @@ public static class CommandDispatcher
         {
             foreach (var cmd in captured)
             {
-                ApplyCommand(cmd, ac, fixes);
+                ApplyCommand(cmd, ac, fixes, approachLookup);
             }
         };
     }

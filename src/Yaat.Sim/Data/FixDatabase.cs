@@ -24,6 +24,8 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
     private readonly Dictionary<string, List<string>> _starAllFixes = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Dictionary<string, List<(string Name, List<string> Fixes)>> _starTransitions = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Dictionary<string, List<RunwayInfo>> _runways = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly ILogger? _logger;
@@ -75,6 +77,21 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
     public IReadOnlyList<RunwayInfo> GetRunways(string airportCode)
     {
         return _runways.TryGetValue(airportCode, out var list) ? list : [];
+    }
+
+    public IReadOnlyList<string>? GetStarBody(string starId)
+    {
+        return _starBodies.TryGetValue(starId, out var body) ? body : null;
+    }
+
+    public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId)
+    {
+        if (!_starTransitions.TryGetValue(starId, out var transitions))
+        {
+            return null;
+        }
+
+        return transitions.Select(t => (t.Name, (IReadOnlyList<string>)t.Fixes)).ToList();
     }
 
     /// <summary>
@@ -405,6 +422,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
             var body = new List<string>(star.Body);
             _starBodies.TryAdd(star.Id, body);
 
+            var transitions = new List<(string Name, List<string> Fixes)>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var allFixes = new List<string>();
             foreach (var fix in star.Body)
@@ -417,6 +435,11 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
             foreach (var trans in star.Transitions)
             {
+                if (trans.Fixes.Count > 0)
+                {
+                    transitions.Add((trans.Fixes[0], new List<string>(trans.Fixes)));
+                }
+
                 foreach (var fix in trans.Fixes)
                 {
                     if (seen.Add(fix))
@@ -426,6 +449,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                 }
             }
 
+            _starTransitions.TryAdd(star.Id, transitions);
             _starAllFixes.TryAdd(star.Id, allFixes);
         }
 

@@ -19,4 +19,15 @@ public interface IFixLookup
     /// Deduplicates adjacent identical fix names.
     /// </summary>
     IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport);
+
+    /// <summary>
+    /// Returns the ordered body fix names for a STAR, or null if unknown.
+    /// </summary>
+    IReadOnlyList<string>? GetStarBody(string starId);
+
+    /// <summary>
+    /// Returns all transitions for a STAR with their entry fix name and ordered fix list.
+    /// Returns null if the STAR is unknown.
+    /// </summary>
+    IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId);
 }

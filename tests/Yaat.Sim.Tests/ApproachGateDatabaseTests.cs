@@ -152,6 +152,10 @@ public class ApproachGateDatabaseTests
         public IReadOnlyList<string> ExpandRoute(string route) => [];
 
         public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
+
+        public IReadOnlyList<string>? GetStarBody(string starId) => null;
+
+        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
     }
 
     private class StubRunwayLookup : IRunwayLookup

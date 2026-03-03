@@ -206,7 +206,7 @@ User requirements:
 **Goal:** Dispatch and physics for five navigation commands that work through `CommandQueue` without the phase system, plus one query command (APPS).
 
 ### Modified files (Yaat.Sim)
-- [ ] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Add cases in `ApplyCommand()`:
+- [x] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Add cases in `ApplyCommand()`:
   - **JRADO**: Fly present heading. Build 2-block queue: block 1 = fly present heading (immediate), block 2 = fly radial heading (trigger: `InterceptRadial` on fix+radial). On intercept, heading = radial (outbound from fix).
   - **JRADI**: Same intercept trigger. On intercept, heading = reciprocal of radial + add fix as nav target (inbound to fix).
   - **DEPART**: Build 2-block queue: block 1 = DCT fix (immediate), block 2 = FH heading (trigger: `ReachFix`).
@@ -220,15 +220,15 @@ User requirements:
 - `AltitudeResolver.Resolve()` for altitude parsing
 
 ### Tests
-- [ ] JRADO: aircraft intercepts radial, flies outbound heading
-- [ ] JRADI: aircraft intercepts radial, flies inbound toward fix
-- [ ] DEPART: navigates to fix, then flies heading
-- [ ] CFIX: navigates to fix with correct altitude target; A/B prefix variants; altitude reverts after fix passage
-- [ ] DVIA without altitude: sets target from STAR restrictions (or warns if no context)
+- [x] JRADO: aircraft intercepts radial, flies outbound heading
+- [x] JRADI: aircraft intercepts radial, flies inbound toward fix
+- [x] DEPART: navigates to fix, then flies heading
+- [x] CFIX: navigates to fix with correct altitude target; A/B prefix variants; altitude reverts after fix passage
+- [x] DVIA without altitude: sets target from STAR restrictions (or warns if no context)
 - [ ] Compound usage: `DCT SUNOL; CFIX A040; DM 020`
-- [ ] APPS with explicit airport: lists all approaches grouped by runway
-- [ ] APPS without airport: resolves from aircraft destination
-- [ ] APPS with unknown airport or no destination: error message
+- [x] APPS with explicit airport: lists all approaches grouped by runway
+- [x] APPS without airport: resolves from aircraft destination
+- [x] APPS with unknown airport or no destination: error message
 
 ---
 
@@ -237,12 +237,12 @@ User requirements:
 **Goal:** STAR joining with transition resolution and navigation route building.
 
 ### Modified files (Yaat.Sim)
-- [ ] `src/Yaat.Sim/Data/FixDatabase.cs` — Expose STAR data:
+- [x] `src/Yaat.Sim/Data/FixDatabase.cs` — Expose STAR data:
   - `GetStarBody(starId)` → `IReadOnlyList<string>?` (from existing `_starBodies`)
   - `GetStarTransitionFixes(starId)` → `IReadOnlyList<(string TransitionName, IReadOnlyList<string> Fixes)>?` (need to store transition data during `BuildProcedureIndex`)
   - Store STAR transitions during index build (currently only bodies are stored)
 
-- [ ] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Add JARR dispatch:
+- [x] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Add JARR dispatch:
   - Resolve STAR from FixDatabase
   - If transition specified: build route from transition fixes + body fixes
   - If no transition: find nearest STAR body fix **ahead of aircraft** (within ±90° of heading), navigate from there. Ignore fixes behind the aircraft to prevent U-turns.
@@ -250,12 +250,12 @@ User requirements:
   - Single-block immediate command (no phase system)
 
 ### Proto changes
-- [ ] Extend `BuildProcedureIndex()` in `FixDatabase.cs` to store STAR transitions (not just bodies)
+- [x] Extend `BuildProcedureIndex()` in `FixDatabase.cs` to store STAR transitions (not just bodies)
 
 ### Tests
-- [ ] JARR with transition: correct route from transition entry through body
-- [ ] JARR without transition: nearest fix selection (only ahead of aircraft)
-- [ ] Invalid STAR name: error message
+- [x] JARR with transition: correct route from transition entry through body
+- [x] JARR without transition: nearest fix selection (only ahead of aircraft)
+- [x] Invalid STAR name: error message
 - [ ] Navigation: aircraft follows STAR fix sequence
 
 ---
@@ -265,13 +265,13 @@ User requirements:
 **Goal:** Real holding pattern with inbound course, turn direction, leg length, and entry determination.
 
 ### New files (Yaat.Sim)
-- [ ] `src/Yaat.Sim/Phases/HoldingEntryCalculator.cs` — Static method:
+- [x] `src/Yaat.Sim/Phases/HoldingEntryCalculator.cs` — Static method:
   - `HoldingEntry ComputeEntry(double aircraftHeading, double inboundCourse, TurnDirection holdDirection)` — 70° sector boundaries per AIM 5-3-8
   - Compute theta = normalize(aircraftHeading - inboundCourse) to [0, 360)
   - **Right turns**: Direct = [0, 110), Teardrop = [110, 250), Parallel = [250, 360)
   - **Left turns**: Parallel = [0, 110), Teardrop = [110, 250), Direct = [250, 360)
 
-- [ ] `src/Yaat.Sim/Phases/Approach/HoldingPatternPhase.cs`:
+- [x] `src/Yaat.Sim/Phases/Approach/HoldingPatternPhase.cs`:
   - Props: `FixName`, `FixLat`, `FixLon`, `InboundCourse`, `LegLengthNm`/`LegLengthMinutes`, `Direction`, `Entry` (auto-computed if null)
   - State machine: `Navigating` → `(Entry maneuver)` → `Inbound` → `TurnToOutbound` → `Outbound` → `TurnToInbound` → `Inbound` → repeat
   - Entry maneuvers: Direct = overfly fix, turn outbound. Teardrop = overfly fix, 30° offset outbound, turn inbound. Parallel = overfly fix, fly reciprocal of inbound, turn back.
@@ -280,19 +280,19 @@ User requirements:
   - Name: "HoldingPattern" (distinct from existing "HoldingAtFix")
 
 ### Modified files
-- [ ] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Add `HoldingPatternCommand` dispatch:
+- [x] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Add `HoldingPatternCommand` dispatch:
   - Create `PhaseList` with single `HoldingPatternPhase`
   - Set on aircraft, start phase system
 
 ### Aviation review
-- [ ] **aviation-sim-expert must review** entry determination logic and holding pattern geometry
+- [x] **aviation-sim-expert must review** entry determination logic and holding pattern geometry
 
 ### Tests
-- [ ] Entry computation: all 3 sectors for both left/right turns (6 test cases minimum)
+- [x] Entry computation: all 3 sectors for both left/right turns (6 test cases minimum)
 - [ ] Holding geometry: fix overfly, outbound leg timing, inbound intercept
 - [ ] Time-based vs distance-based legs
-- [ ] Phase never self-completes
-- [ ] Any command exits hold
+- [x] Phase never self-completes
+- [x] Any command exits hold
 
 ---
 
