@@ -90,7 +90,7 @@ public static class CommandDispatcher
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes, approachLookup),
+                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes, approachLookup, runways),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
                 IsWaitBlock = isWait,
@@ -143,7 +143,7 @@ public static class CommandDispatcher
         aircraft.Queue.Blocks.Clear();
         aircraft.Queue.CurrentBlockIndex = 0;
 
-        return ApplyCommand(command, aircraft, fixes, approachLookup, logger);
+        return ApplyCommand(command, aircraft, fixes, approachLookup, logger, runways);
     }
 
     private static CommandResult ApplyCommand(
@@ -151,7 +151,8 @@ public static class CommandDispatcher
         AircraftState aircraft,
         IFixLookup? fixes = null,
         IApproachLookup? approachLookup = null,
-        ILogger? logger = null
+        ILogger? logger = null,
+        IRunwayLookup? runways = null
     )
     {
         switch (command)
@@ -340,6 +341,9 @@ public static class CommandDispatcher
 
             case HoldingPatternCommand hold:
                 return DispatchHoldingPattern(hold, aircraft, logger);
+
+            case JoinFinalApproachCourseCommand jfac:
+                return DispatchJfac(jfac, aircraft, approachLookup, runways, logger);
 
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
@@ -1078,6 +1082,116 @@ public static class CommandDispatcher
         return Ok($"Hold at {cmd.FixName}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
     }
 
+    private static CommandResult DispatchJfac(
+        JoinFinalApproachCourseCommand cmd,
+        AircraftState aircraft,
+        IApproachLookup? approachLookup,
+        IRunwayLookup? runways,
+        ILogger? logger
+    )
+    {
+        if (approachLookup is null)
+        {
+            return new CommandResult(false, "Approach data not available");
+        }
+
+        string airport = ResolveAirport(aircraft);
+        if (string.IsNullOrEmpty(airport))
+        {
+            return new CommandResult(false, "Cannot determine airport for approach");
+        }
+
+        string? resolvedId = approachLookup.ResolveApproachId(airport, cmd.ApproachId);
+        if (resolvedId is null)
+        {
+            return new CommandResult(false, $"Unknown approach: {cmd.ApproachId} at {airport}");
+        }
+
+        var procedure = approachLookup.GetApproach(airport, resolvedId);
+        if (procedure?.Runway is null)
+        {
+            return new CommandResult(false, $"No runway for approach {resolvedId}");
+        }
+
+        if (runways is null)
+        {
+            return new CommandResult(false, "Runway data not available");
+        }
+
+        var runway = runways.GetRunway(airport, procedure.Runway);
+        if (runway is null)
+        {
+            return new CommandResult(false, $"Unknown runway {procedure.Runway} at {airport}");
+        }
+
+        // Ensure the runway designator matches the approach runway
+        var approachRunway = runway.Designator.Equals(procedure.Runway, StringComparison.OrdinalIgnoreCase)
+            ? runway
+            : runway.ForApproach(procedure.Runway);
+
+        double finalCourse = approachRunway.TrueHeading;
+
+        // Clear existing phases
+        if (aircraft.Phases is not null && logger is not null)
+        {
+            var ctx = BuildMinimalContext(aircraft, logger);
+            aircraft.Phases.Clear(ctx);
+        }
+
+        // Build phase sequence: InterceptCourse → FinalApproach → Landing
+        var interceptPhase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = finalCourse,
+            ThresholdLat = approachRunway.ThresholdLatitude,
+            ThresholdLon = approachRunway.ThresholdLongitude,
+        };
+
+        var finalPhase = new FinalApproachPhase();
+        var landingPhase = new LandingPhase();
+
+        var clearance = new ApproachClearance
+        {
+            ApproachId = resolvedId,
+            AirportCode = airport,
+            RunwayId = procedure.Runway,
+            FinalApproachCourse = finalCourse,
+            Procedure = procedure,
+        };
+
+        aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+
+        aircraft.Phases.Add(interceptPhase);
+        aircraft.Phases.Add(finalPhase);
+        aircraft.Phases.Add(landingPhase);
+
+        if (logger is not null)
+        {
+            var startCtx = BuildMinimalContext(aircraft, logger);
+            aircraft.Phases.Start(startCtx);
+        }
+
+        return Ok($"Join final approach course, {resolvedId}, runway {procedure.Runway}");
+    }
+
+    private static string ResolveAirport(AircraftState aircraft)
+    {
+        // Try destination airport from flight plan
+        if (!string.IsNullOrWhiteSpace(aircraft.Destination))
+        {
+            string dest = aircraft.Destination;
+            return dest.StartsWith('K') && dest.Length == 4 ? dest[1..] : dest;
+        }
+
+        // Try assigned runway's airport
+        if (aircraft.Phases?.AssignedRunway is { } rwy)
+        {
+            string apt = rwy.AirportId;
+            return apt.StartsWith('K') && apt.Length == 4 ? apt[1..] : apt;
+        }
+
+        return "";
+    }
+
     /// <summary>
     /// Replace the first pending approach-ending phase (LandingPhase,
     /// TouchAndGoPhase, StopAndGoPhase, or LowApproachPhase) with the
@@ -1183,7 +1297,8 @@ public static class CommandDispatcher
         List<ParsedCommand> commands,
         AircraftState aircraft,
         IFixLookup? fixes = null,
-        IApproachLookup? approachLookup = null
+        IApproachLookup? approachLookup = null,
+        IRunwayLookup? runways = null
     )
     {
         // Capture the parsed commands; they'll be applied when the block activates
@@ -1192,7 +1307,7 @@ public static class CommandDispatcher
         {
             foreach (var cmd in captured)
             {
-                ApplyCommand(cmd, ac, fixes, approachLookup);
+                ApplyCommand(cmd, ac, fixes, approachLookup, runways: runways);
             }
         };
     }

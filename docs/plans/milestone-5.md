@@ -301,13 +301,13 @@ User requirements:
 **Goal:** Add `ApproachClearance` as a PhaseList-level property. Implement `InterceptCoursePhase` and JFAC as the simplest approach-joining command.
 
 ### New files (Yaat.Sim)
-- [ ] `src/Yaat.Sim/Phases/ApproachClearance.cs` — Record:
+- [x] `src/Yaat.Sim/Phases/ApproachClearance.cs` — Record:
   - `string ApproachId`, `string AirportCode`, `string RunwayId`
   - `double FinalApproachCourse` (heading)
   - `bool StraightIn`, `bool Force`
   - `CifpApproachProcedure? Procedure` (resolved CIFP data, if available)
 
-- [ ] `src/Yaat.Sim/Phases/Approach/InterceptCoursePhase.cs`:
+- [x] `src/Yaat.Sim/Phases/Approach/InterceptCoursePhase.cs`:
   - Flies aircraft on current heading until intercepting final approach course
   - Cross-track distance check + heading alignment (similar to `FinalApproachPhase.CheckInterceptDistance` pattern)
   - On intercept: turns onto course heading, completes phase
@@ -315,10 +315,10 @@ User requirements:
   - `CanAcceptCommand()`: approach commands = Allowed, others = ClearsPhase
 
 ### Modified files
-- [ ] `src/Yaat.Sim/Phases/PhaseList.cs` — Add:
+- [x] `src/Yaat.Sim/Phases/PhaseList.cs` — Add:
   - `ApproachClearance? ActiveApproach { get; set; }`
 
-- [ ] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Add JFAC dispatch:
+- [x] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Add JFAC dispatch:
   - Resolve approach from `ApproachDatabase`
   - Get final approach course from runway heading
   - Set `PhaseList.ActiveApproach`
@@ -326,9 +326,9 @@ User requirements:
   - Build phase sequence: `InterceptCoursePhase` → `FinalApproachPhase` → `LandingPhase`
 
 ### Tests
-- [ ] JFAC: aircraft vectored, intercepts FAC, transitions to final approach
-- [ ] InterceptCoursePhase: correct intercept detection + course alignment
-- [ ] ApproachClearance stored on PhaseList and accessible by FinalApproachPhase
+- [x] JFAC: aircraft vectored, intercepts FAC, transitions to final approach
+- [x] InterceptCoursePhase: correct intercept detection + course alignment
+- [x] ApproachClearance stored on PhaseList and accessible by FinalApproachPhase
 
 ---
 

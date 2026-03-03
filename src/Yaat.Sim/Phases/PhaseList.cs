@@ -62,6 +62,12 @@ public sealed class PhaseList
     /// </summary>
     public ExitPreference? RequestedExit { get; set; }
 
+    /// <summary>
+    /// Active approach clearance. Set by JFAC/CAPP/JAPP/PTAC commands.
+    /// Used by FinalApproachPhase and approach navigation phases.
+    /// </summary>
+    public ApproachClearance? ActiveApproach { get; set; }
+
     public int CurrentIndex { get; private set; }
 
     /// <summary>
