@@ -23,143 +23,93 @@ public sealed class UserPreferences
         Converters = { new JsonStringEnumConverter() },
     };
 
+    private readonly SavedPrefs _data;
     private CommandScheme _commandScheme;
-    private string _serverUrl = "http://localhost:5000";
-    private string _vatsimCid = "";
-    private string _userInitials = "";
-    private string _artccId = "";
-    private bool _isAdminMode;
-    private string _adminPassword = "";
-    private SavedWindowGeometry? _mainWindowGeometry;
-    private SavedWindowGeometry? _settingsWindowGeometry;
-    private SavedWindowGeometry? _terminalWindowGeometry;
-    private SavedWindowGeometry? _groundViewWindowGeometry;
-    private SavedWindowGeometry? _radarViewWindowGeometry;
-    private SavedWindowGeometry? _dataGridWindowGeometry;
-    private SavedGridLayout? _gridLayout;
-    private bool _autoAcceptEnabled;
-    private int _autoAcceptDelaySeconds;
-    private string _autoDeleteOverride;
-    private bool _isDataGridPoppedOut;
-    private bool _isGroundViewPoppedOut;
-    private bool _isRadarViewPoppedOut;
-    private Dictionary<string, SavedRadarSettings> _radarSettings;
-    private bool _isDelayedGroupCollapsed;
-    private string? _lastScenarioFolder;
-    private string? _lastWeatherFolder;
     private List<MacroDefinition> _macros;
-    private bool _validateDctFixes;
-    private List<FavoriteCommand> _favoriteCommands;
-    private List<RecentScenario> _recentScenarios;
 
     public UserPreferences()
     {
-        var saved = Load();
-        _commandScheme = saved.Scheme ?? CommandScheme.Default();
-        _serverUrl = saved.ServerUrl;
-        _vatsimCid = saved.VatsimCid;
-        _userInitials = saved.UserInitials;
-        _artccId = saved.ArtccId;
-        _isAdminMode = saved.IsAdmin;
-        _adminPassword = saved.AdminPassword;
-        _mainWindowGeometry = saved.MainWindowGeometry;
-        _settingsWindowGeometry = saved.SettingsWindowGeometry;
-        _terminalWindowGeometry = saved.TerminalWindowGeometry;
-        _groundViewWindowGeometry = saved.GroundViewWindowGeometry;
-        _radarViewWindowGeometry = saved.RadarViewWindowGeometry;
-        _dataGridWindowGeometry = saved.DataGridWindowGeometry;
-        _gridLayout = saved.GridLayout;
-        _autoAcceptEnabled = saved.AutoAcceptEnabled;
-        _autoAcceptDelaySeconds = saved.AutoAcceptDelaySeconds;
-        _autoDeleteOverride = saved.AutoDeleteOverride;
-        _isDataGridPoppedOut = saved.IsDataGridPoppedOut;
-        _isGroundViewPoppedOut = saved.IsGroundViewPoppedOut;
-        _isRadarViewPoppedOut = saved.IsRadarViewPoppedOut;
-        _radarSettings = saved.RadarSettings;
-        _isDelayedGroupCollapsed = saved.IsDelayedGroupCollapsed;
-        _lastScenarioFolder = saved.LastScenarioFolder;
-        _lastWeatherFolder = saved.LastWeatherFolder;
-        _macros = saved.Macros;
-        _validateDctFixes = saved.ValidateDctFixes;
-        _favoriteCommands = saved.FavoriteCommands;
-        _recentScenarios = saved.RecentScenarios;
+        _data = Load();
+        _commandScheme = _data.CommandScheme is not null ? FromSaved(_data.CommandScheme) ?? CommandScheme.Default() : CommandScheme.Default();
+        _macros = _data.Macros.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList();
     }
 
     public CommandScheme CommandScheme => _commandScheme;
-    public string ServerUrl => _serverUrl;
-    public string VatsimCid => _vatsimCid;
-    public string UserInitials => _userInitials;
-    public string ArtccId => _artccId;
-    public bool IsAdminMode => _isAdminMode;
-    public string AdminPassword => _adminPassword;
-    public SavedWindowGeometry? MainWindowGeometry => _mainWindowGeometry;
-    public SavedWindowGeometry? SettingsWindowGeometry => _settingsWindowGeometry;
-    public SavedWindowGeometry? TerminalWindowGeometry => _terminalWindowGeometry;
-    public SavedWindowGeometry? GroundViewWindowGeometry => _groundViewWindowGeometry;
-    public SavedWindowGeometry? RadarViewWindowGeometry => _radarViewWindowGeometry;
-    public SavedWindowGeometry? DataGridWindowGeometry => _dataGridWindowGeometry;
-    public SavedGridLayout? GridLayout => _gridLayout;
-    public bool AutoAcceptEnabled => _autoAcceptEnabled;
-    public int AutoAcceptDelaySeconds => _autoAcceptDelaySeconds;
-    public string AutoDeleteOverride => _autoDeleteOverride;
-    public bool IsDataGridPoppedOut => _isDataGridPoppedOut;
-    public bool IsGroundViewPoppedOut => _isGroundViewPoppedOut;
-    public bool IsRadarViewPoppedOut => _isRadarViewPoppedOut;
-    public bool IsDelayedGroupCollapsed => _isDelayedGroupCollapsed;
-    public string? LastScenarioFolder => _lastScenarioFolder;
-    public string? LastWeatherFolder => _lastWeatherFolder;
+    public string ServerUrl => _data.ServerUrl;
+    public string VatsimCid => _data.VatsimCid;
+    public string UserInitials => _data.UserInitials;
+    public string ArtccId => _data.ArtccId;
+    public bool IsAdminMode => _data.IsAdminMode;
+    public string AdminPassword => _data.AdminPassword;
+    public SavedWindowGeometry? MainWindowGeometry => _data.MainWindowGeometry;
+    public SavedWindowGeometry? SettingsWindowGeometry => _data.SettingsWindowGeometry;
+    public SavedWindowGeometry? TerminalWindowGeometry => _data.TerminalWindowGeometry;
+    public SavedWindowGeometry? GroundViewWindowGeometry => _data.GroundViewWindowGeometry;
+    public SavedWindowGeometry? RadarViewWindowGeometry => _data.RadarViewWindowGeometry;
+    public SavedWindowGeometry? DataGridWindowGeometry => _data.DataGridWindowGeometry;
+    public SavedGridLayout? GridLayout => _data.GridLayout;
+    public bool AutoAcceptEnabled => _data.AutoAcceptEnabled;
+    public int AutoAcceptDelaySeconds => _data.AutoAcceptDelaySeconds;
+    public string AutoDeleteOverride => _data.AutoDeleteOverride;
+    public bool IsDataGridPoppedOut => _data.IsDataGridPoppedOut;
+    public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
+    public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
+    public bool IsDelayedGroupCollapsed => _data.IsDelayedGroupCollapsed;
+    public string? LastScenarioFolder => _data.LastScenarioFolder;
+    public string? LastWeatherFolder => _data.LastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
-    public bool ValidateDctFixes => _validateDctFixes;
-    public IReadOnlyList<FavoriteCommand> FavoriteCommands => _favoriteCommands;
-    public IReadOnlyList<RecentScenario> RecentScenarios => _recentScenarios;
+    public bool ValidateDctFixes => _data.ValidateDctFixes;
+    public IReadOnlyList<FavoriteCommand> FavoriteCommands => _data.FavoriteCommands;
+    public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
 
     public void SetServerUrl(string url)
     {
-        _serverUrl = url.Trim();
+        _data.ServerUrl = url.Trim();
         Save();
     }
 
     public void SetAutoAcceptSettings(bool enabled, int delaySeconds)
     {
-        _autoAcceptEnabled = enabled;
-        _autoAcceptDelaySeconds = Math.Clamp(delaySeconds, 0, 60);
+        _data.AutoAcceptEnabled = enabled;
+        _data.AutoAcceptDelaySeconds = Math.Clamp(delaySeconds, 0, 60);
         Save();
     }
 
     public void SetAutoDeleteOverride(string value)
     {
-        _autoDeleteOverride = value;
+        _data.AutoDeleteOverride = value;
         Save();
     }
 
     public void SetCommandScheme(CommandScheme scheme)
     {
         _commandScheme = scheme;
+        _data.CommandScheme = ToSaved(scheme);
         Save();
     }
 
     public void SetVatsimCid(string cid)
     {
-        _vatsimCid = cid.Trim();
+        _data.VatsimCid = cid.Trim();
         Save();
     }
 
     public void SetUserInitials(string initials)
     {
-        _userInitials = initials.ToUpperInvariant();
+        _data.UserInitials = initials.ToUpperInvariant();
         Save();
     }
 
     public void SetArtccId(string artccId)
     {
-        _artccId = artccId.ToUpperInvariant().Trim();
+        _data.ArtccId = artccId.ToUpperInvariant().Trim();
         Save();
     }
 
     public void SetAdminSettings(bool isAdmin, string password)
     {
-        _isAdminMode = isAdmin;
-        _adminPassword = password;
+        _data.IsAdminMode = isAdmin;
+        _data.AdminPassword = password;
         Save();
     }
 
@@ -168,22 +118,22 @@ public sealed class UserPreferences
         switch (windowName)
         {
             case "Main":
-                _mainWindowGeometry = geometry;
+                _data.MainWindowGeometry = geometry;
                 break;
             case "Settings":
-                _settingsWindowGeometry = geometry;
+                _data.SettingsWindowGeometry = geometry;
                 break;
             case "Terminal":
-                _terminalWindowGeometry = geometry;
+                _data.TerminalWindowGeometry = geometry;
                 break;
             case "GroundView":
-                _groundViewWindowGeometry = geometry;
+                _data.GroundViewWindowGeometry = geometry;
                 break;
             case "RadarView":
-                _radarViewWindowGeometry = geometry;
+                _data.RadarViewWindowGeometry = geometry;
                 break;
             case "DataGrid":
-                _dataGridWindowGeometry = geometry;
+                _data.DataGridWindowGeometry = geometry;
                 break;
         }
         Save();
@@ -194,13 +144,13 @@ public sealed class UserPreferences
         switch (tabName)
         {
             case "DataGrid":
-                _isDataGridPoppedOut = poppedOut;
+                _data.IsDataGridPoppedOut = poppedOut;
                 break;
             case "GroundView":
-                _isGroundViewPoppedOut = poppedOut;
+                _data.IsGroundViewPoppedOut = poppedOut;
                 break;
             case "RadarView":
-                _isRadarViewPoppedOut = poppedOut;
+                _data.IsRadarViewPoppedOut = poppedOut;
                 break;
         }
         Save();
@@ -208,81 +158,82 @@ public sealed class UserPreferences
 
     public void SetGridLayout(SavedGridLayout layout)
     {
-        _gridLayout = layout;
+        _data.GridLayout = layout;
         Save();
     }
 
     public void SetDelayedGroupCollapsed(bool collapsed)
     {
-        _isDelayedGroupCollapsed = collapsed;
+        _data.IsDelayedGroupCollapsed = collapsed;
         Save();
     }
 
     public void SetLastScenarioFolder(string? folder)
     {
-        _lastScenarioFolder = folder;
+        _data.LastScenarioFolder = folder;
         Save();
     }
 
     public void SetLastWeatherFolder(string? folder)
     {
-        _lastWeatherFolder = folder;
+        _data.LastWeatherFolder = folder;
         Save();
     }
 
     public void SetValidateDctFixes(bool validate)
     {
-        _validateDctFixes = validate;
+        _data.ValidateDctFixes = validate;
         Save();
     }
 
     public void SetMacros(List<MacroDefinition> macros)
     {
         _macros = macros;
+        _data.Macros = macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList();
         Save();
     }
 
     public void SetFavoriteCommands(List<FavoriteCommand> favorites)
     {
-        _favoriteCommands = favorites;
+        _data.FavoriteCommands = favorites;
         Save();
     }
 
     public void AddRecentScenario(string filePath, string name)
     {
-        _recentScenarios.RemoveAll(r => r.FilePath == filePath);
-        _recentScenarios.Insert(0, new RecentScenario { FilePath = filePath, Name = name });
-        if (_recentScenarios.Count > 10)
+        _data.RecentScenarios.RemoveAll(r => r.FilePath == filePath);
+        _data.RecentScenarios.Insert(0, new RecentScenario { FilePath = filePath, Name = name });
+        if (_data.RecentScenarios.Count > 10)
         {
-            _recentScenarios.RemoveRange(10, _recentScenarios.Count - 10);
+            _data.RecentScenarios.RemoveRange(10, _data.RecentScenarios.Count - 10);
         }
         Save();
     }
 
     public void ResetGridLayout()
     {
-        _gridLayout = null;
-        _isDelayedGroupCollapsed = false;
+        _data.GridLayout = null;
+        _data.IsDelayedGroupCollapsed = false;
         Save();
     }
 
     public SavedRadarSettings? GetRadarSettings(string scenarioId)
     {
-        _radarSettings.TryGetValue(scenarioId, out var settings);
+        _data.RadarSettings.TryGetValue(scenarioId, out var settings);
         return settings;
     }
 
     public void SetRadarSettings(string scenarioId, SavedRadarSettings settings)
     {
-        _radarSettings[scenarioId] = settings;
+        _data.RadarSettings[scenarioId] = settings;
         Save();
     }
 
-    private static LoadedPrefs Load()
+    private static SavedPrefs Load()
     {
         if (!File.Exists(ConfigPath))
         {
-            return new LoadedPrefs();
+            return new SavedPrefs();
         }
 
         string json;
@@ -293,7 +244,7 @@ public sealed class UserPreferences
         catch (IOException ex)
         {
             Log.LogWarning(ex, "Could not read preferences from {Path}", ConfigPath);
-            return new LoadedPrefs();
+            return new SavedPrefs();
         }
 
         // Fast path: full deserialization
@@ -302,7 +253,7 @@ public sealed class UserPreferences
             var saved = JsonSerializer.Deserialize<SavedPrefs>(json, JsonOptions);
             if (saved is not null)
             {
-                return BuildLoadedPrefs(saved);
+                return saved;
             }
         }
         catch (JsonException)
@@ -316,44 +267,7 @@ public sealed class UserPreferences
         return RecoverFields(json);
     }
 
-    private static LoadedPrefs BuildLoadedPrefs(SavedPrefs saved)
-    {
-        var scheme = saved.CommandScheme is not null ? FromSaved(saved.CommandScheme) : null;
-
-        return new LoadedPrefs
-        {
-            Scheme = scheme,
-            ServerUrl = saved.ServerUrl ?? "http://localhost:5000",
-            VatsimCid = saved.VatsimCid ?? "",
-            UserInitials = saved.UserInitials ?? "",
-            ArtccId = saved.ArtccId ?? "",
-            IsAdmin = saved.IsAdminMode,
-            AdminPassword = saved.AdminPassword ?? "",
-            MainWindowGeometry = saved.MainWindowGeometry,
-            SettingsWindowGeometry = saved.SettingsWindowGeometry,
-            TerminalWindowGeometry = saved.TerminalWindowGeometry,
-            GroundViewWindowGeometry = saved.GroundViewWindowGeometry,
-            RadarViewWindowGeometry = saved.RadarViewWindowGeometry,
-            DataGridWindowGeometry = saved.DataGridWindowGeometry,
-            GridLayout = saved.GridLayout,
-            AutoAcceptEnabled = saved.AutoAcceptEnabled,
-            AutoAcceptDelaySeconds = saved.AutoAcceptDelaySeconds,
-            AutoDeleteOverride = saved.AutoDeleteOverride ?? "",
-            IsDataGridPoppedOut = saved.IsDataGridPoppedOut,
-            IsGroundViewPoppedOut = saved.IsGroundViewPoppedOut,
-            IsRadarViewPoppedOut = saved.IsRadarViewPoppedOut,
-            RadarSettings = saved.RadarSettings ?? [],
-            IsDelayedGroupCollapsed = saved.IsDelayedGroupCollapsed,
-            LastScenarioFolder = saved.LastScenarioFolder,
-            LastWeatherFolder = saved.LastWeatherFolder,
-            Macros = saved.Macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
-            ValidateDctFixes = saved.ValidateDctFixes,
-            FavoriteCommands = saved.FavoriteCommands ?? [],
-            RecentScenarios = saved.RecentScenarios ?? [],
-        };
-    }
-
-    private static LoadedPrefs RecoverFields(string json)
+    private static SavedPrefs RecoverFields(string json)
     {
         JsonObject? obj;
         try
@@ -363,25 +277,22 @@ public sealed class UserPreferences
         catch (Exception ex)
         {
             Log.LogError(ex, "Preferences JSON is completely unparseable");
-            return new LoadedPrefs();
+            return new SavedPrefs();
         }
 
         if (obj is null)
         {
-            return new LoadedPrefs();
+            return new SavedPrefs();
         }
 
-        var savedScheme = GetFieldOr<SavedCommandScheme?>(obj, "commandScheme", null);
-        var macros = GetFieldOr<List<SavedMacro>?>(obj, "macros", null);
-
-        return new LoadedPrefs
+        return new SavedPrefs
         {
-            Scheme = savedScheme is not null ? FromSaved(savedScheme) : null,
+            CommandScheme = GetFieldOr<SavedCommandScheme?>(obj, "commandScheme", null),
             ServerUrl = GetFieldOr(obj, "serverUrl", "http://localhost:5000"),
             VatsimCid = GetFieldOr(obj, "vatsimCid", ""),
             UserInitials = GetFieldOr(obj, "userInitials", ""),
             ArtccId = GetFieldOr(obj, "artccId", ""),
-            IsAdmin = GetFieldOr(obj, "isAdminMode", false),
+            IsAdminMode = GetFieldOr(obj, "isAdminMode", false),
             AdminPassword = GetFieldOr(obj, "adminPassword", ""),
             MainWindowGeometry = GetFieldOr<SavedWindowGeometry?>(obj, "mainWindowGeometry", null),
             SettingsWindowGeometry = GetFieldOr<SavedWindowGeometry?>(obj, "settingsWindowGeometry", null),
@@ -400,7 +311,7 @@ public sealed class UserPreferences
             IsDelayedGroupCollapsed = GetFieldOr(obj, "isDelayedGroupCollapsed", false),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
-            Macros = macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
+            Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
@@ -437,75 +348,15 @@ public sealed class UserPreferences
         }
     }
 
-    private sealed class LoadedPrefs
-    {
-        public CommandScheme? Scheme { get; init; }
-        public string ServerUrl { get; init; } = "http://localhost:5000";
-        public string VatsimCid { get; init; } = "";
-        public string UserInitials { get; init; } = "";
-        public string ArtccId { get; init; } = "";
-        public bool IsAdmin { get; init; }
-        public string AdminPassword { get; init; } = "";
-        public SavedWindowGeometry? MainWindowGeometry { get; init; }
-        public SavedWindowGeometry? SettingsWindowGeometry { get; init; }
-        public SavedWindowGeometry? TerminalWindowGeometry { get; init; }
-        public SavedWindowGeometry? GroundViewWindowGeometry { get; init; }
-        public SavedWindowGeometry? RadarViewWindowGeometry { get; init; }
-        public SavedWindowGeometry? DataGridWindowGeometry { get; init; }
-        public SavedGridLayout? GridLayout { get; init; }
-        public bool AutoAcceptEnabled { get; init; } = true;
-        public int AutoAcceptDelaySeconds { get; init; } = 5;
-        public string AutoDeleteOverride { get; init; } = "";
-        public bool IsDataGridPoppedOut { get; init; }
-        public bool IsGroundViewPoppedOut { get; init; }
-        public bool IsRadarViewPoppedOut { get; init; }
-        public Dictionary<string, SavedRadarSettings> RadarSettings { get; init; } = [];
-        public bool IsDelayedGroupCollapsed { get; init; }
-        public string? LastScenarioFolder { get; init; }
-        public string? LastWeatherFolder { get; init; }
-        public List<MacroDefinition> Macros { get; init; } = [];
-        public bool ValidateDctFixes { get; init; }
-        public List<FavoriteCommand> FavoriteCommands { get; init; } = [];
-        public List<RecentScenario> RecentScenarios { get; init; } = [];
-    }
-
     private void Save()
     {
         Directory.CreateDirectory(ConfigDir);
 
-        var saved = new SavedPrefs
-        {
-            CommandScheme = ToSaved(_commandScheme),
-            ServerUrl = _serverUrl,
-            VatsimCid = _vatsimCid,
-            UserInitials = _userInitials,
-            ArtccId = _artccId,
-            IsAdminMode = _isAdminMode,
-            AdminPassword = _adminPassword,
-            MainWindowGeometry = _mainWindowGeometry,
-            SettingsWindowGeometry = _settingsWindowGeometry,
-            TerminalWindowGeometry = _terminalWindowGeometry,
-            GroundViewWindowGeometry = _groundViewWindowGeometry,
-            RadarViewWindowGeometry = _radarViewWindowGeometry,
-            DataGridWindowGeometry = _dataGridWindowGeometry,
-            GridLayout = _gridLayout,
-            AutoAcceptEnabled = _autoAcceptEnabled,
-            AutoAcceptDelaySeconds = _autoAcceptDelaySeconds,
-            AutoDeleteOverride = _autoDeleteOverride,
-            IsDataGridPoppedOut = _isDataGridPoppedOut,
-            IsGroundViewPoppedOut = _isGroundViewPoppedOut,
-            IsRadarViewPoppedOut = _isRadarViewPoppedOut,
-            RadarSettings = _radarSettings,
-            IsDelayedGroupCollapsed = _isDelayedGroupCollapsed,
-            LastScenarioFolder = _lastScenarioFolder,
-            LastWeatherFolder = _lastWeatherFolder,
-            Macros = _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList(),
-            ValidateDctFixes = _validateDctFixes,
-            FavoriteCommands = [.. _favoriteCommands],
-            RecentScenarios = [.. _recentScenarios],
-        };
+        // Sync cached conversions back to _data before serializing
+        _data.CommandScheme = ToSaved(_commandScheme);
+        _data.Macros = _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList();
 
-        var json = JsonSerializer.Serialize(saved, JsonOptions);
+        var json = JsonSerializer.Serialize(_data, JsonOptions);
 
         // Atomic write: write to .tmp then move, so a crash mid-write can't corrupt the real file
         var tmpPath = ConfigPath + ".tmp";
