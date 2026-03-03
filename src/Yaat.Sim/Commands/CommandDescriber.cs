@@ -96,6 +96,9 @@ public static class CommandDescriber
             CrossFixCommand => CanonicalCommandType.CrossFix,
             DepartFixCommand => CanonicalCommandType.DepartFix,
             ListApproachesCommand => CanonicalCommandType.ListApproaches,
+            ClearedVisualApproachCommand => CanonicalCommandType.ClearedVisualApproach,
+            ReportFieldInSightCommand => CanonicalCommandType.ReportFieldInSight,
+            ReportTrafficInSightCommand => CanonicalCommandType.ReportTrafficInSight,
             _ => CanonicalCommandType.FlyHeading, // fallback
         };
     }
@@ -134,6 +137,9 @@ public static class CommandDescriber
             CrossFixCommand => TrackedCommandType.Navigation,
             DepartFixCommand => TrackedCommandType.Navigation,
             ListApproachesCommand => TrackedCommandType.Immediate,
+            ClearedVisualApproachCommand => TrackedCommandType.Immediate,
+            ReportFieldInSightCommand => TrackedCommandType.Immediate,
+            ReportTrafficInSightCommand => TrackedCommandType.Immediate,
             _ => TrackedCommandType.Immediate,
         };
     }
@@ -228,6 +234,9 @@ public static class CommandDescriber
             CrossFixCommand cmd => FormatCfixCanonical(cmd),
             DepartFixCommand cmd => $"DEPART {cmd.FixName} {cmd.Heading:000}",
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"APPS {cmd.AirportCode}" : "APPS",
+            ClearedVisualApproachCommand cmd => FormatCvaCanonical(cmd),
+            ReportFieldInSightCommand => "RFIS",
+            ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null ? $"RTIS {cmd.TargetCallsign}" : "RTIS",
             _ => command.ToString() ?? "?",
         };
     }
@@ -327,6 +336,11 @@ public static class CommandDescriber
             CrossFixCommand cmd => FormatCfixNatural(cmd),
             DepartFixCommand cmd => $"Depart {cmd.FixName}, fly heading {cmd.Heading:000}",
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"List approaches for {cmd.AirportCode}" : "List approaches",
+            ClearedVisualApproachCommand cmd => FormatCvaNatural(cmd),
+            ReportFieldInSightCommand => "Report field in sight",
+            ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null
+                ? $"Report traffic in sight, {cmd.TargetCallsign}"
+                : "Report traffic in sight",
             _ => command.ToString() ?? "?",
         };
     }
@@ -370,7 +384,8 @@ public static class CommandDescriber
                 or ClearedApproachStraightInCommand
                 or JoinApproachStraightInCommand
                 or JoinFinalApproachCourseCommand
-                or PositionTurnAltitudeClearanceCommand;
+                or PositionTurnAltitudeClearanceCommand
+                or ClearedVisualApproachCommand;
     }
 
     internal static bool IsGroundCommand(ParsedCommand command)
@@ -608,6 +623,46 @@ public static class CommandDescriber
         if (cmd.Speed is not null)
         {
             msg += $", {cmd.Speed} knots";
+        }
+        return msg;
+    }
+
+    private static string FormatCvaCanonical(ClearedVisualApproachCommand cmd)
+    {
+        var parts = new List<string> { "CVA", cmd.RunwayId };
+        if (cmd.AirportCode is not null)
+        {
+            parts.Add(cmd.AirportCode);
+        }
+        if (cmd.TrafficDirection is PatternDirection.Left)
+        {
+            parts.Add("LEFT");
+        }
+        else if (cmd.TrafficDirection is PatternDirection.Right)
+        {
+            parts.Add("RIGHT");
+        }
+        if (cmd.FollowCallsign is not null)
+        {
+            parts.Add($"FOLLOW {cmd.FollowCallsign}");
+        }
+        return string.Join(' ', parts);
+    }
+
+    private static string FormatCvaNatural(ClearedVisualApproachCommand cmd)
+    {
+        var msg = $"Cleared visual approach runway {cmd.RunwayId}";
+        if (cmd.TrafficDirection is PatternDirection.Left)
+        {
+            msg += ", left traffic";
+        }
+        else if (cmd.TrafficDirection is PatternDirection.Right)
+        {
+            msg += ", right traffic";
+        }
+        if (cmd.FollowCallsign is not null)
+        {
+            msg += $", follow {cmd.FollowCallsign}";
         }
         return msg;
     }

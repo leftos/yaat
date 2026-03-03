@@ -92,6 +92,11 @@ public class AircraftState
     public int? SidViaCeiling { get; set; }
     public int? StarViaFloor { get; set; }
 
+    // Visual approach state
+    public bool HasReportedFieldInSight { get; set; }
+    public bool HasReportedTrafficInSight { get; set; }
+    public string? FollowingCallsign { get; set; }
+
     // Sequence state
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }

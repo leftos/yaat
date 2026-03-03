@@ -171,6 +171,11 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 | Climb via | `CVIA` | — | — |
 | Depart heading | `DEPART 270` | — | — |
 | Holding pattern | `HOLD SUNOL R 180 1M` | — | — |
+| Expect approach | `EAPP I28R` | `EXPECT` | — |
+| Visual approach | `CVA 28R` | `VISUAL` | — |
+| Report field | `RFIS` | — | — |
+| Report traffic | `RTIS AAL123` | — | — |
+| Force direct to | `DCTF SJC` | — | — |
 | List approaches | `APPS` | `APPS OAK` | — |
 | Track | `TRACK` | — | — |
 | Drop | `DROP` | — | — |
@@ -381,6 +386,28 @@ Approach clearances use FAA CIFP procedure data. Approach IDs can be full CIFP i
 **Intercept angle validation:** Approach clearances validate the intercept angle per 7110.65 §5-9-2 — max 20° within 2nm of the approach gate, max 30° beyond. Use force variants (`CAPPF`/`JAPPF`) to override.
 
 **Hold-in-lieu:** When a procedure includes a hold-in-lieu of procedure turn (e.g., at an IAF), `JAPP` automatically executes one holding circuit before proceeding. Use `CAPPSI`/`JAPPSI` to skip it.
+
+**Expect approach:** `EAPP I28R` tells the pilot to expect the ILS 28R approach. This sets the expected approach on the aircraft state (visible in the data grid) and programs the approach fix names for display. Does not clear the aircraft for the approach.
+
+**Force direct to:** `DCTF` works like `DCT` but bypasses the check that the target fix must be on or ahead of the current route.
+
+**Visual approach:** `CVA 28R` clears the aircraft for a visual approach to runway 28R. No CIFP procedure is required — the aircraft navigates visually. Options:
+
+| Command | Effect |
+|---------|--------|
+| `CVA 28R` | Cleared visual approach runway 28R |
+| `CVA 28R LEFT` | Visual approach with left traffic pattern |
+| `CVA 28R RIGHT` | Visual approach with right traffic pattern |
+| `CVA 28R FOLLOW AAL123` | Visual approach following AAL123 |
+
+The aircraft execution path depends on its position relative to the runway:
+- **Straight-in** (≤30° off final course): flies directly to final approach and landing
+- **Angled join** (30°–90° off): navigates to an intercept point, then final
+- **Pattern entry** (>90° off): enters downwind → base → final
+
+**Field/traffic in sight:** Aircraft on a visual approach automatically report "field in sight" or "traffic in sight" when detection conditions are met (forward hemisphere, within visibility range, below ceiling). Use `RFIS` (report field in sight) or `RTIS` (report traffic in sight) to get the pilot's current visual status on demand.
+
+**Approach scoring:** When an aircraft completes an approach (lands or goes around), the terminal shows an approach report evaluating the quality of the approach setup. Scored criteria include intercept angle, glideslope interception altitude, final approach speed, and stabilization. This provides feedback to the controller-in-training.
 
 ### Navigation Commands
 

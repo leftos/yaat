@@ -106,6 +106,7 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops
                                # IndicatedAirspeed (IAS, primary speed state), Track (ground track = heading + wind drift)
                                # ActiveSidId/ActiveStarId, SidViaMode/StarViaMode, SidViaCeiling/StarViaFloor
+                               # HasReportedFieldInSight, HasReportedTrafficInSight, FollowingCallsign (visual approach)
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
                                # NavigationTarget: optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
 FlightPhysics.cs               # Static 6-step Update: navigation→heading→altitude→speed→position→queue
@@ -119,8 +120,12 @@ AircraftCategory.cs            # Enum + AircraftCategorization (static Init from
                                # CategoryPerformance: all aviation constants (validated by aviation-sim-expert)
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
+                               # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
 WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360), IasToTas (8-point
                                # lookup table), ComputeWindCorrectionAngle; gusts stored but not applied to physics
+MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record
+MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm
+VisualDetection.cs             # Static: CanSeeAirport, CanSeeAirportForRunway, CanSeeTraffic — forward hemisphere, visibility, ceiling, FL180
 
 # Track operations
 TrackOwner.cs                  # Record: Callsign, FacilityId, Subset, SectorId, OwnerType
@@ -141,7 +146,7 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
-Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI)
+Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CVA visual approach)
 Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution (runway transitions, ResolveLegsToTargets)
 Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, etc.)

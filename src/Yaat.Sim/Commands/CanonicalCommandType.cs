@@ -141,4 +141,7 @@ public enum CanonicalCommandType
     CrossFix,
     DepartFix,
     ListApproaches,
+    ClearedVisualApproach,
+    ReportFieldInSight,
+    ReportTrafficInSight,
 }

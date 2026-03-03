@@ -493,6 +493,15 @@ public static class CommandDispatcher
             case PositionTurnAltitudeClearanceCommand ptac:
                 return ApproachCommandHandler.TryPtac(ptac, aircraft, approachLookup, runways, logger);
 
+            case ClearedVisualApproachCommand cva:
+                return ApproachCommandHandler.TryClearedVisualApproach(cva, aircraft, runways, logger);
+
+            case ReportFieldInSightCommand:
+                return DispatchReportFieldInSight(aircraft);
+
+            case ReportTrafficInSightCommand rtis:
+                return DispatchReportTrafficInSight(aircraft, rtis.TargetCallsign);
+
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
@@ -1801,5 +1810,30 @@ public static class CommandDispatcher
         }
 
         return at.FixName;
+    }
+
+    private static CommandResult DispatchReportFieldInSight(AircraftState aircraft)
+    {
+        if (aircraft.HasReportedFieldInSight)
+        {
+            aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the field in sight");
+            return Ok("Field in sight");
+        }
+
+        return new CommandResult(false, "Unable, field not in sight");
+    }
+
+    private static CommandResult DispatchReportTrafficInSight(AircraftState aircraft, string? targetCallsign)
+    {
+        if (aircraft.HasReportedTrafficInSight)
+        {
+            var msg = targetCallsign is not null
+                ? $"{aircraft.Callsign} has the traffic in sight ({targetCallsign})"
+                : $"{aircraft.Callsign} has the traffic in sight";
+            aircraft.PendingNotifications.Add(msg);
+            return Ok("Traffic in sight");
+        }
+
+        return new CommandResult(false, "Unable, traffic not in sight");
     }
 }

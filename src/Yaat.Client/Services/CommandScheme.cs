@@ -153,6 +153,9 @@ public class CommandScheme
                 [CanonicalCommandType.CrossFix] = new() { Aliases = ["CFIX"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.DepartFix] = new() { Aliases = ["DEPART", "DEP"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ListApproaches] = new() { Aliases = ["APPS"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.ClearedVisualApproach] = new() { Aliases = ["CVA", "VISUAL"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ReportFieldInSight] = new() { Aliases = ["RFIS"], Format = "{verb}" },
+                [CanonicalCommandType.ReportTrafficInSight] = new() { Aliases = ["RTIS"], Format = "{verb} {arg?}" },
             },
         };
     }

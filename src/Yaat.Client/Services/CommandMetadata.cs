@@ -142,5 +142,8 @@ public static class CommandMetadata
         new(CanonicalCommandType.CrossFix, "Cross Fix", "SUNOL A040", false, "Approach"),
         new(CanonicalCommandType.DepartFix, "Depart Fix", "SUNOL 270", false, "Approach"),
         new(CanonicalCommandType.ListApproaches, "List Approaches", "OAK", true, "Approach"),
+        new(CanonicalCommandType.ClearedVisualApproach, "Cleared Visual Approach", "28R", false, "Approach"),
+        new(CanonicalCommandType.ReportFieldInSight, "Report Field In Sight", "", true, "Approach"),
+        new(CanonicalCommandType.ReportTrafficInSight, "Report Traffic In Sight", "AAL123", true, "Approach"),
     ];
 }

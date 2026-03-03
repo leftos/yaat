@@ -319,3 +319,10 @@ public record CrossFixCommand(string FixName, double FixLat, double FixLon, int 
 public record DepartFixCommand(string FixName, double FixLat, double FixLon, int Heading) : ParsedCommand;
 
 public record ListApproachesCommand(string? AirportCode) : ParsedCommand;
+
+public record ClearedVisualApproachCommand(string RunwayId, string? AirportCode, PatternDirection? TrafficDirection, string? FollowCallsign)
+    : ParsedCommand;
+
+public record ReportFieldInSightCommand : ParsedCommand;
+
+public record ReportTrafficInSightCommand(string? TargetCallsign) : ParsedCommand;

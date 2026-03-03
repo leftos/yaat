@@ -248,6 +248,127 @@ public static class ApproachCommandHandler
         );
     }
 
+    public static CommandResult TryClearedVisualApproach(
+        ClearedVisualApproachCommand cmd,
+        AircraftState aircraft,
+        IRunwayLookup? runways,
+        ILogger? logger
+    )
+    {
+        if (runways is null)
+        {
+            return new CommandResult(false, "Runway data not available");
+        }
+
+        string airport = cmd.AirportCode ?? CommandDispatcher.ResolveAirport(aircraft);
+        if (string.IsNullOrEmpty(airport))
+        {
+            return new CommandResult(false, "Cannot determine airport for visual approach");
+        }
+
+        var runway = runways.GetRunway(airport, cmd.RunwayId);
+        if (runway is null)
+        {
+            return new CommandResult(false, $"Unknown runway {cmd.RunwayId} at {airport}");
+        }
+
+        var approachRunway = runway.Designator.Equals(cmd.RunwayId, StringComparison.OrdinalIgnoreCase) ? runway : runway.ForApproach(cmd.RunwayId);
+
+        // Cancel speed restrictions per 7110.65 §5-7-4
+        aircraft.Targets.TargetSpeed = null;
+
+        // Clear existing phases
+        ClearExistingPhases(aircraft, logger);
+
+        var clearance = new ApproachClearance
+        {
+            ApproachId = $"VIS{cmd.RunwayId}",
+            AirportCode = airport,
+            RunwayId = cmd.RunwayId,
+            FinalApproachCourse = approachRunway.TrueHeading,
+            Procedure = null,
+        };
+
+        aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+
+        // Determine execution path based on aircraft position
+        double finalCourse = approachRunway.TrueHeading;
+        double bearingToThreshold = GeoMath.BearingTo(
+            aircraft.Latitude,
+            aircraft.Longitude,
+            approachRunway.ThresholdLatitude,
+            approachRunway.ThresholdLongitude
+        );
+        double angleOff = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - finalCourse));
+
+        if (cmd.FollowCallsign is not null)
+        {
+            aircraft.FollowingCallsign = cmd.FollowCallsign;
+        }
+
+        var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+        bool isHeli = category == AircraftCategory.Helicopter;
+
+        if (angleOff <= 30.0)
+        {
+            // Straight-in: direct to final approach + landing
+            aircraft.Phases.Add(new FinalApproachPhase());
+            aircraft.Phases.Add(isHeli ? new HelicopterLandingPhase() : new LandingPhase());
+        }
+        else if (angleOff <= 90.0)
+        {
+            // Angled join: navigate to intercept point, then final
+            double interceptDistNm = category is AircraftCategory.Jet ? 5.0 : 3.0;
+            var interceptPoint = ComputeInterceptPoint(approachRunway, interceptDistNm);
+
+            aircraft.Phases.Add(new ApproachNavigationPhase { Fixes = [new ApproachFix("INTCP", interceptPoint.Lat, interceptPoint.Lon)] });
+            aircraft.Phases.Add(new FinalApproachPhase());
+            aircraft.Phases.Add(isHeli ? new HelicopterLandingPhase() : new LandingPhase());
+        }
+        else
+        {
+            // Pattern entry: downwind → base → final → landing
+            var direction = cmd.TrafficDirection ?? DeterminePatternDirection(aircraft, approachRunway);
+
+            var phases = PatternBuilder.BuildCircuit(approachRunway, category, direction, PatternEntryLeg.Downwind, false);
+            foreach (var phase in phases)
+            {
+                aircraft.Phases.Add(phase);
+            }
+        }
+
+        StartPhases(aircraft, logger);
+
+        var msg = $"Cleared visual approach runway {cmd.RunwayId}";
+        if (cmd.FollowCallsign is not null)
+        {
+            msg += $", follow {cmd.FollowCallsign}";
+        }
+        return new CommandResult(true, msg);
+    }
+
+    private static (double Lat, double Lon) ComputeInterceptPoint(RunwayInfo runway, double distanceNm)
+    {
+        // Project back from threshold along the reciprocal of the runway heading
+        double reciprocal = (runway.TrueHeading + 180.0) % 360.0;
+        return GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, distanceNm);
+    }
+
+    private static PatternDirection DeterminePatternDirection(AircraftState aircraft, RunwayInfo runway)
+    {
+        // Determine which side of the runway the aircraft is on
+        double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
+            aircraft.Latitude,
+            aircraft.Longitude,
+            runway.ThresholdLatitude,
+            runway.ThresholdLongitude,
+            runway.TrueHeading
+        );
+
+        // Positive = right of runway heading → right downwind; negative → left downwind
+        return crossTrack >= 0 ? PatternDirection.Left : PatternDirection.Right;
+    }
+
     // --- Shared helpers ---
 
     internal static ResolvedApproach ResolveApproach(
@@ -477,6 +598,11 @@ public static class ApproachCommandHandler
             var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
             aircraft.Phases.Clear(ctx);
         }
+
+        // Clear visual approach state
+        aircraft.HasReportedFieldInSight = false;
+        aircraft.HasReportedTrafficInSight = false;
+        aircraft.FollowingCallsign = null;
     }
 
     private static void StartPhases(AircraftState aircraft, ILogger? logger)

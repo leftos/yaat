@@ -1,0 +1,176 @@
+using System.Text.RegularExpressions;
+
+namespace Yaat.Sim;
+
+public static partial class MetarParser
+{
+    public record ParsedMetar(string StationId, int? CeilingFeetAgl, double? VisibilityStatuteMiles);
+
+    // Visibility patterns: "P6SM", "10SM", "3SM", "1/2SM", "1 1/2SM"
+    [GeneratedRegex(@"(?<!\S)(P?\d+(?:\s+\d+/\d+)?(?:/\d+)?)\s*SM(?!\S)", RegexOptions.Compiled)]
+    private static partial Regex VisibilityRegex();
+
+    // Cloud layer: FEW/SCT/BKN/OVC followed by 3-digit hundreds of feet
+    [GeneratedRegex(@"\b(FEW|SCT|BKN|OVC)(\d{3})\b", RegexOptions.Compiled)]
+    private static partial Regex CloudLayerRegex();
+
+    // Clear sky: CLR or SKC
+    [GeneratedRegex(@"\b(CLR|SKC)\b", RegexOptions.Compiled)]
+    private static partial Regex ClearSkyRegex();
+
+    public static ParsedMetar? Parse(string? metar)
+    {
+        if (string.IsNullOrWhiteSpace(metar))
+        {
+            return null;
+        }
+
+        var tokens = metar.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length < 2)
+        {
+            return null;
+        }
+
+        // Station ID: first token that looks like an ICAO identifier (4 uppercase letters)
+        string? stationId = null;
+        foreach (var token in tokens)
+        {
+            if (token.Length == 4 && token.All(c => c is >= 'A' and <= 'Z'))
+            {
+                stationId = token;
+                break;
+            }
+        }
+
+        if (stationId is null)
+        {
+            return null;
+        }
+
+        double? visibility = ParseVisibility(metar);
+        int? ceiling = ParseCeiling(metar);
+
+        return new ParsedMetar(stationId, ceiling, visibility);
+    }
+
+    public static ParsedMetar? FindStation(IEnumerable<string> metars, string airportId)
+    {
+        string icao = ToIcao(airportId);
+
+        foreach (var metar in metars)
+        {
+            var parsed = Parse(metar);
+            if (parsed is not null && parsed.StationId.Equals(icao, StringComparison.OrdinalIgnoreCase))
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    internal static string ToIcao(string airportId)
+    {
+        // If already 4 chars starting with K, assume ICAO
+        if (airportId.Length == 4 && airportId[0] is 'K' or 'k')
+        {
+            return airportId.ToUpperInvariant();
+        }
+
+        // 3-letter FAA ID → prepend K
+        if (airportId.Length == 3)
+        {
+            return "K" + airportId.ToUpperInvariant();
+        }
+
+        return airportId.ToUpperInvariant();
+    }
+
+    private static double? ParseVisibility(string metar)
+    {
+        var match = VisibilityRegex().Match(metar);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var raw = match.Groups[1].Value.Trim();
+
+        // P6SM → greater than 6
+        if (raw.StartsWith('P'))
+        {
+            if (double.TryParse(raw[1..], out double pVal))
+            {
+                return pVal;
+            }
+            return null;
+        }
+
+        // Mixed fraction: "1 1/2" → 1.5
+        if (raw.Contains(' ') && raw.Contains('/'))
+        {
+            var parts = raw.Split(' ');
+            if (parts.Length == 2 && int.TryParse(parts[0], out int whole) && TryParseFraction(parts[1], out double frac))
+            {
+                return whole + frac;
+            }
+            return null;
+        }
+
+        // Pure fraction: "1/2" → 0.5
+        if (raw.Contains('/'))
+        {
+            return TryParseFraction(raw, out double fracVal) ? fracVal : null;
+        }
+
+        // Whole number: "10", "3"
+        return double.TryParse(raw, out double val) ? val : null;
+    }
+
+    private static bool TryParseFraction(string s, out double result)
+    {
+        result = 0;
+        var parts = s.Split('/');
+        if (parts.Length != 2)
+        {
+            return false;
+        }
+        if (int.TryParse(parts[0], out int num) && int.TryParse(parts[1], out int den) && den != 0)
+        {
+            result = (double)num / den;
+            return true;
+        }
+        return false;
+    }
+
+    private static int? ParseCeiling(string metar)
+    {
+        // CLR/SKC = no ceiling
+        if (ClearSkyRegex().IsMatch(metar))
+        {
+            return null;
+        }
+
+        int? lowestCeiling = null;
+
+        foreach (Match match in CloudLayerRegex().Matches(metar))
+        {
+            var coverage = match.Groups[1].Value;
+            if (coverage is not ("BKN" or "OVC"))
+            {
+                continue;
+            }
+
+            if (int.TryParse(match.Groups[2].Value, out int hundreds))
+            {
+                int altFeet = hundreds * 100;
+                if (lowestCeiling is null || altFeet < lowestCeiling)
+                {
+                    lowestCeiling = altFeet;
+                }
+            }
+        }
+
+        return lowestCeiling;
+    }
+}
