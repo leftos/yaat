@@ -31,6 +31,9 @@ public sealed class InitialClimbPhase : Phase
     /// <summary>Filed cruise altitude (feet MSL).</summary>
     public int CruiseAltitude { get; init; }
 
+    /// <summary>SID procedure ID to activate on start (e.g. "PORTE3").</summary>
+    public string? DepartureSidId { get; init; }
+
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
@@ -50,15 +53,15 @@ public sealed class InitialClimbPhase : Phase
             ctx.Targets.NavigationRoute.Clear();
             foreach (var target in DepartureRoute)
             {
-                ctx.Targets.NavigationRoute.Add(
-                    new NavigationTarget
-                    {
-                        Name = target.Name,
-                        Latitude = target.Latitude,
-                        Longitude = target.Longitude,
-                    }
-                );
+                ctx.Targets.NavigationRoute.Add(target);
             }
+        }
+
+        // Activate SID procedure state (via mode ON by default for departures)
+        if (DepartureSidId is not null)
+        {
+            ctx.Aircraft.ActiveSidId = DepartureSidId;
+            ctx.Aircraft.SidViaMode = true;
         }
     }
 

@@ -135,6 +135,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.JoinRadialInbound, "Join Radial Inbound", "OAK090", false, "Approach"),
         new(CanonicalCommandType.HoldingPattern, "Holding Pattern", "SUNOL 090 3 R", false, "Approach"),
         new(CanonicalCommandType.PositionTurnAltitudeClearance, "PTAC", "280 025 ILS30", false, "Approach"),
+        new(CanonicalCommandType.ClimbVia, "Climb Via", "190", false, "Approach"),
         new(CanonicalCommandType.DescendVia, "Descend Via", "40", false, "Approach"),
         new(CanonicalCommandType.CrossFix, "Cross Fix", "SUNOL A040", false, "Approach"),
         new(CanonicalCommandType.DepartFix, "Depart Fix", "SUNOL 270", false, "Approach"),

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Ground;
@@ -20,13 +21,14 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         ILogger logger,
-        IApproachLookup? approachLookup = null
+        IApproachLookup? approachLookup = null,
+        IProcedureLookup? procedureLookup = null
     )
     {
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways, groundLayout, fixes, logger);
+            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways, groundLayout, fixes, logger, procedureLookup);
             if (result is not null)
             {
                 return result;
@@ -90,7 +92,7 @@ public static class CommandDispatcher
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes, approachLookup, runways),
+                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes, approachLookup, runways, procedureLookup),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
                 IsWaitBlock = isWait,
@@ -129,21 +131,25 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         ILogger logger,
-        IApproachLookup? approachLookup = null
+        IApproachLookup? approachLookup = null,
+        IProcedureLookup? procedureLookup = null
     )
     {
         // Route ground commands through DispatchCompound for phase interaction
         if (CommandDescriber.IsGroundCommand(command))
         {
             var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
-            return DispatchCompound(compound, aircraft, runways, groundLayout, fixes, logger, approachLookup);
+            return DispatchCompound(compound, aircraft, runways, groundLayout, fixes, logger, approachLookup, procedureLookup);
         }
 
         // Clear any existing queue when a new single command is issued
         aircraft.Queue.Blocks.Clear();
         aircraft.Queue.CurrentBlockIndex = 0;
 
-        return ApplyCommand(command, aircraft, fixes, approachLookup, logger, runways);
+        bool hadProcedure = aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null;
+        var result = ApplyCommand(command, aircraft, fixes, approachLookup, logger, runways, procedureLookup);
+        CheckVectoringWarning(aircraft, [command], hadProcedure);
+        return result;
     }
 
     private static CommandResult ApplyCommand(
@@ -152,30 +158,35 @@ public static class CommandDispatcher
         IFixLookup? fixes = null,
         IApproachLookup? approachLookup = null,
         ILogger? logger = null,
-        IRunwayLookup? runways = null
+        IRunwayLookup? runways = null,
+        IProcedureLookup? procedureLookup = null
     )
     {
         switch (command)
         {
             case FlyHeadingCommand cmd:
+                ClearActiveProcedure(aircraft);
                 aircraft.Targets.NavigationRoute.Clear();
                 aircraft.Targets.TargetHeading = cmd.Heading;
                 aircraft.Targets.PreferredTurnDirection = null;
                 return Ok($"Fly heading {cmd.Heading:000}");
 
             case TurnLeftCommand cmd:
+                ClearActiveProcedure(aircraft);
                 aircraft.Targets.NavigationRoute.Clear();
                 aircraft.Targets.TargetHeading = cmd.Heading;
                 aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
                 return Ok($"Turn left heading {cmd.Heading:000}");
 
             case TurnRightCommand cmd:
+                ClearActiveProcedure(aircraft);
                 aircraft.Targets.NavigationRoute.Clear();
                 aircraft.Targets.TargetHeading = cmd.Heading;
                 aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
                 return Ok($"Turn right heading {cmd.Heading:000}");
 
             case LeftTurnCommand cmd:
+                ClearActiveProcedure(aircraft);
                 aircraft.Targets.NavigationRoute.Clear();
                 var leftHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading - cmd.Degrees);
                 aircraft.Targets.TargetHeading = leftHdg;
@@ -183,6 +194,7 @@ public static class CommandDispatcher
                 return Ok($"Turn {cmd.Degrees} degrees left, heading {leftHdg:000}");
 
             case RightTurnCommand cmd:
+                ClearActiveProcedure(aircraft);
                 aircraft.Targets.NavigationRoute.Clear();
                 var rightHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading + cmd.Degrees);
                 aircraft.Targets.TargetHeading = rightHdg;
@@ -190,16 +202,21 @@ public static class CommandDispatcher
                 return Ok($"Turn {cmd.Degrees} degrees right, heading {rightHdg:000}");
 
             case FlyPresentHeadingCommand:
+                ClearActiveProcedure(aircraft);
                 aircraft.Targets.NavigationRoute.Clear();
                 aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
                 aircraft.Targets.PreferredTurnDirection = null;
                 return Ok("Fly present heading");
 
             case ClimbMaintainCommand cmd:
+                aircraft.SidViaMode = false;
+                aircraft.SidViaCeiling = null;
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
                 return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
 
             case DescendMaintainCommand cmd:
+                aircraft.StarViaMode = false;
+                aircraft.StarViaFloor = null;
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
                 return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
 
@@ -222,6 +239,7 @@ public static class CommandDispatcher
             }
 
             case DirectToCommand cmd:
+                ClearActiveProcedure(aircraft);
                 aircraft.Targets.NavigationRoute.Clear();
                 var resolved = cmd.Fixes.ToList();
                 int originalCount = resolved.Count;
@@ -339,19 +357,17 @@ public static class CommandDispatcher
             case CrossFixCommand cfix:
                 return DispatchCrossFix(cfix, aircraft);
 
+            case ClimbViaCommand cvia:
+                return DispatchClimbVia(cvia, aircraft);
+
             case DescendViaCommand dvia:
-                if (dvia.Altitude is not null)
-                {
-                    aircraft.Targets.TargetAltitude = dvia.Altitude;
-                    return Ok($"Descend via, maintain {dvia.Altitude:N0}");
-                }
-                return Ok("Descend via");
+                return DispatchDescendVia(dvia, aircraft);
 
             case ListApproachesCommand apps:
                 return DispatchListApproaches(apps, aircraft, approachLookup);
 
             case JoinStarCommand jarr:
-                return DispatchJarr(jarr, aircraft, fixes);
+                return DispatchJarr(jarr, aircraft, fixes, procedureLookup);
 
             case HoldingPatternCommand hold:
                 return DispatchHoldingPattern(hold, aircraft, logger);
@@ -424,7 +440,8 @@ public static class CommandDispatcher
         IRunwayLookup? runways,
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
-        ILogger logger
+        ILogger logger,
+        IProcedureLookup? procedureLookup = null
     )
     {
         // Extract the first command to check acceptance
@@ -432,7 +449,7 @@ public static class CommandDispatcher
         var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
 
         // Try tower/ground-specific handling first (phase-interactive commands)
-        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, runways, groundLayout, fixes, logger);
+        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, runways, groundLayout, fixes, logger, procedureLookup);
         if (towerResult is not null)
         {
             return towerResult;
@@ -467,7 +484,8 @@ public static class CommandDispatcher
         IRunwayLookup? runways,
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
-        ILogger logger
+        ILogger logger,
+        IProcedureLookup? procedureLookup = null
     )
     {
         switch (command)
@@ -475,7 +493,7 @@ public static class CommandDispatcher
             case ClearedForTakeoffCommand cto:
                 if (currentPhase is LinedUpAndWaitingPhase luaw)
                 {
-                    return DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, fixes);
+                    return DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, fixes, procedureLookup);
                 }
                 return DepartureClearanceHandler.TryDepartureClearance(
                     aircraft,
@@ -1048,13 +1066,36 @@ public static class CommandDispatcher
         return $"{typeName}{rwy}{variant}";
     }
 
-    private static CommandResult DispatchJarr(JoinStarCommand cmd, AircraftState aircraft, IFixLookup? fixes)
+    private static CommandResult DispatchJarr(
+        JoinStarCommand cmd,
+        AircraftState aircraft,
+        IFixLookup? fixes,
+        IProcedureLookup? procedureLookup = null
+    )
     {
         if (fixes is null)
         {
             return new CommandResult(false, "Fix database not available");
         }
 
+        // Try CIFP STAR first for constrained navigation targets
+        var cifpResult = TryResolveStarFromCifp(cmd, aircraft, fixes, procedureLookup);
+        if (cifpResult is not null)
+        {
+            aircraft.Targets.NavigationRoute.Clear();
+            foreach (var target in cifpResult)
+            {
+                aircraft.Targets.NavigationRoute.Add(target);
+            }
+
+            aircraft.ActiveStarId = cmd.StarId;
+            aircraft.StarViaMode = false; // STAR via mode OFF by default
+
+            var cifpFixList = string.Join(" ", cifpResult.Select(t => t.Name));
+            return Ok($"Join STAR {cmd.StarId}: {cifpFixList}");
+        }
+
+        // Fallback to NavData body fixes (lateral path only, no constraints)
         var starBody = fixes.GetStarBody(cmd.StarId);
         if (starBody is null || starBody.Count == 0)
         {
@@ -1116,8 +1157,112 @@ public static class CommandDispatcher
             return new CommandResult(false, $"Could not resolve fixes for STAR {cmd.StarId}");
         }
 
+        // Set STAR state even for NavData fallback (allows DVIA later)
+        aircraft.ActiveStarId = cmd.StarId;
+        aircraft.StarViaMode = false;
+
         var fixListStr = string.Join(" ", deduped);
         return Ok($"Join STAR {cmd.StarId}: {fixListStr}");
+    }
+
+    /// <summary>
+    /// Attempts to resolve a STAR from CIFP data with altitude/speed constraints.
+    /// Builds ordered leg sequence: enroute transition → common → runway transition.
+    /// Returns null if CIFP data is unavailable or STAR cannot be resolved.
+    /// </summary>
+    private static List<NavigationTarget>? TryResolveStarFromCifp(
+        JoinStarCommand cmd,
+        AircraftState aircraft,
+        IFixLookup fixes,
+        IProcedureLookup? procedures
+    )
+    {
+        if (procedures is null || aircraft.Destination is null)
+        {
+            return null;
+        }
+
+        var star = procedures.GetStar(aircraft.Destination, cmd.StarId);
+        if (star is null)
+        {
+            return null;
+        }
+
+        // Build ordered leg sequence: enroute transition → common → runway transition
+        var orderedLegs = new List<CifpLeg>();
+
+        // Enroute transition (if specified)
+        if (cmd.Transition is not null && star.EnrouteTransitions.TryGetValue(cmd.Transition, out var enTransition))
+        {
+            orderedLegs.AddRange(enTransition.Legs);
+        }
+
+        orderedLegs.AddRange(star.CommonLegs);
+
+        // Runway transition (if assigned runway available)
+        if (aircraft.Phases?.AssignedRunway is { } rwy)
+        {
+            var rwKey = "RW" + rwy.Designator;
+            if (star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+            {
+                orderedLegs.AddRange(rwTransition.Legs);
+            }
+        }
+
+        if (orderedLegs.Count == 0)
+        {
+            return null;
+        }
+
+        // Convert legs to NavigationTargets with constraints
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs, fixes);
+
+        // Filter to fixes ahead of aircraft (same logic as NavData fallback)
+        if (cmd.Transition is null && targets.Count > 1)
+        {
+            targets = FindTargetsAhead(aircraft, targets);
+        }
+
+        return targets.Count > 0 ? targets : null;
+    }
+
+    /// <summary>
+    /// Filters NavigationTargets to those ahead of the aircraft (within ±90° of heading),
+    /// starting from the nearest such target.
+    /// </summary>
+    private static List<NavigationTarget> FindTargetsAhead(AircraftState aircraft, List<NavigationTarget> targets)
+    {
+        int bestIdx = -1;
+        double bestDist = double.MaxValue;
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, targets[i].Latitude, targets[i].Longitude);
+            double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+            if (angleDiff > 180)
+            {
+                angleDiff = 360 - angleDiff;
+            }
+
+            if (angleDiff > 90)
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, targets[i].Latitude, targets[i].Longitude);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+
+        if (bestIdx < 0)
+        {
+            return targets;
+        }
+
+        return targets.GetRange(bestIdx, targets.Count - bestIdx);
     }
 
     /// <summary>
@@ -1388,6 +1533,52 @@ public static class CommandDispatcher
         return runway is not null ? $", Runway {runway.Designator}" : "";
     }
 
+    private static CommandResult DispatchClimbVia(ClimbViaCommand cmd, AircraftState aircraft)
+    {
+        if (aircraft.ActiveSidId is null)
+        {
+            return new CommandResult(false, "No active SID — climb via requires an active SID");
+        }
+
+        aircraft.SidViaMode = true;
+        aircraft.SidViaCeiling = cmd.Altitude;
+
+        if (cmd.Altitude is not null)
+        {
+            return Ok($"Climb via SID, except maintain {cmd.Altitude:N0}");
+        }
+
+        return Ok("Climb via SID");
+    }
+
+    private static CommandResult DispatchDescendVia(DescendViaCommand cmd, AircraftState aircraft)
+    {
+        if (aircraft.ActiveStarId is null)
+        {
+            return new CommandResult(false, "No active STAR — descend via requires an active STAR");
+        }
+
+        aircraft.StarViaMode = true;
+        aircraft.StarViaFloor = cmd.Altitude;
+
+        if (cmd.Altitude is not null)
+        {
+            return Ok($"Descend via STAR, except maintain {cmd.Altitude:N0}");
+        }
+
+        return Ok("Descend via STAR");
+    }
+
+    private static void ClearActiveProcedure(AircraftState aircraft)
+    {
+        aircraft.ActiveSidId = null;
+        aircraft.ActiveStarId = null;
+        aircraft.SidViaMode = false;
+        aircraft.StarViaMode = false;
+        aircraft.SidViaCeiling = null;
+        aircraft.StarViaFloor = null;
+    }
+
     private static string AltitudeVerb(AircraftState aircraft, int targetAltitude)
     {
         return aircraft.Altitude > targetAltitude ? "Descend and maintain" : "Climb and maintain";
@@ -1421,18 +1612,63 @@ public static class CommandDispatcher
         AircraftState aircraft,
         IFixLookup? fixes = null,
         IApproachLookup? approachLookup = null,
-        IRunwayLookup? runways = null
+        IRunwayLookup? runways = null,
+        IProcedureLookup? procedureLookup = null
     )
     {
         // Capture the parsed commands; they'll be applied when the block activates
         var captured = commands.ToList();
         return ac =>
         {
+            bool hadProcedure = ac.ActiveSidId is not null || ac.ActiveStarId is not null;
+
             foreach (var cmd in captured)
             {
-                ApplyCommand(cmd, ac, fixes, approachLookup, runways: runways);
+                ApplyCommand(cmd, ac, fixes, approachLookup, runways: runways, procedureLookup: procedureLookup);
             }
+
+            CheckVectoringWarning(ac, captured, hadProcedure);
         };
+    }
+
+    /// <summary>
+    /// Warns when an aircraft is vectored off a procedure (SID/STAR) without both
+    /// a heading and an altitude assignment in the same block.
+    /// </summary>
+    private static void CheckVectoringWarning(AircraftState aircraft, List<ParsedCommand> commands, bool hadProcedure)
+    {
+        if (!hadProcedure)
+        {
+            return;
+        }
+
+        // Procedure was cleared if all SID/STAR identifiers are now null
+        if (aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null)
+        {
+            return;
+        }
+
+        bool hasHeadingCmd = commands.Any(c =>
+            c
+                is FlyHeadingCommand
+                    or TurnLeftCommand
+                    or TurnRightCommand
+                    or LeftTurnCommand
+                    or RightTurnCommand
+                    or FlyPresentHeadingCommand
+                    or DirectToCommand
+        );
+
+        if (!hasHeadingCmd)
+        {
+            return;
+        }
+
+        bool hasAltCmd = commands.Any(c => c is ClimbMaintainCommand or DescendMaintainCommand);
+        if (!hasAltCmd)
+        {
+            aircraft.PendingWarnings.Add("Vectored off procedure without an altitude assignment");
+        }
     }
 
     private static BlockTrigger? ConvertCondition(BlockCondition? condition)

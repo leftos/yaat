@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Vnas;
+
 namespace Yaat.Sim;
 
 public static class FlightPhysics
@@ -58,10 +60,13 @@ public static class FlightPhysics
             {
                 aircraft.Targets.TargetHeading = null;
                 aircraft.Targets.PreferredTurnDirection = null;
+                ClearProcedureState(aircraft);
                 return;
             }
 
+            // Apply constraints from the next fix proactively
             nav = route[0];
+            ApplyFixConstraints(aircraft, nav);
         }
 
         double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
@@ -77,6 +82,92 @@ public static class FlightPhysics
 
         aircraft.Targets.TargetHeading = NormalizeHeading(bearing + wca);
         aircraft.Targets.PreferredTurnDirection = null;
+    }
+
+    /// <summary>
+    /// Applies altitude and speed constraints from a navigation target when via mode is active.
+    /// SID via mode enforces climb restrictions; STAR via mode enforces descent restrictions.
+    /// </summary>
+    internal static void ApplyFixConstraints(AircraftState aircraft, NavigationTarget target)
+    {
+        bool sidVia = aircraft.SidViaMode;
+        bool starVia = aircraft.StarViaMode;
+        if (!sidVia && !starVia)
+        {
+            return;
+        }
+
+        if (target.AltitudeRestriction is { } alt)
+        {
+            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, alt);
+            if (resolvedAlt is { } targetAlt)
+            {
+                // Apply ceiling/floor limits
+                if (sidVia && aircraft.SidViaCeiling is { } ceiling)
+                {
+                    targetAlt = Math.Min(targetAlt, ceiling);
+                }
+
+                if (starVia && aircraft.StarViaFloor is { } floor)
+                {
+                    targetAlt = Math.Max(targetAlt, floor);
+                }
+
+                aircraft.Targets.TargetAltitude = targetAlt;
+            }
+        }
+
+        if (target.SpeedRestriction is { } spd)
+        {
+            aircraft.Targets.TargetSpeed = spd.SpeedKts;
+        }
+    }
+
+    /// <summary>
+    /// Resolves an altitude restriction to a concrete target altitude based on the aircraft's
+    /// current altitude and the restriction type (At, AtOrAbove, AtOrBelow, Between).
+    /// Returns null if the aircraft already satisfies the restriction.
+    /// </summary>
+    private static double? ResolveAltitudeRestriction(AircraftState aircraft, CifpAltitudeRestriction alt)
+    {
+        return alt.Type switch
+        {
+            CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.GlideSlopeIntercept => alt.Altitude1Ft,
+            CifpAltitudeRestrictionType.AtOrAbove => aircraft.Altitude < alt.Altitude1Ft ? alt.Altitude1Ft : null,
+            CifpAltitudeRestrictionType.AtOrBelow => aircraft.Altitude > alt.Altitude1Ft ? alt.Altitude1Ft : null,
+            CifpAltitudeRestrictionType.Between => ResolveBetweenRestriction(aircraft, alt),
+            _ => null,
+        };
+    }
+
+    private static double? ResolveBetweenRestriction(AircraftState aircraft, CifpAltitudeRestriction alt)
+    {
+        if (alt.Altitude2Ft is not { } lower)
+        {
+            return null;
+        }
+
+        if (aircraft.Altitude > alt.Altitude1Ft)
+        {
+            return alt.Altitude1Ft;
+        }
+
+        if (aircraft.Altitude < lower)
+        {
+            return lower;
+        }
+
+        return null;
+    }
+
+    private static void ClearProcedureState(AircraftState aircraft)
+    {
+        aircraft.ActiveSidId = null;
+        aircraft.ActiveStarId = null;
+        aircraft.SidViaMode = false;
+        aircraft.StarViaMode = false;
+        aircraft.SidViaCeiling = null;
+        aircraft.StarViaFloor = null;
     }
 
     private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)

@@ -77,6 +77,14 @@ public class AircraftState
     public double? HandoffInitiatedAt { get; set; }
     public int? AssignedAltitude { get; set; }
 
+    // Procedure state (SID/STAR)
+    public string? ActiveSidId { get; set; }
+    public string? ActiveStarId { get; set; }
+    public bool SidViaMode { get; set; }
+    public bool StarViaMode { get; set; }
+    public int? SidViaCeiling { get; set; }
+    public int? StarViaFloor { get; set; }
+
     // Sequence state
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }

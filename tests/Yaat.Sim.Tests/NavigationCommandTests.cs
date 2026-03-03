@@ -208,30 +208,46 @@ public class NavigationCommandTests
     // --- DVIA ---
 
     [Fact]
-    public void Dvia_WithAltitude_SetsTargetAltitude()
+    public void Dvia_WithAltitude_EnablesStarViaModeWithFloor()
     {
         var aircraft = MakeAircraft(altitude: 10000);
+        aircraft.ActiveStarId = "BDEGA3";
 
         var cmd = new DescendViaCommand(5000);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Logger);
 
         Assert.True(result.Success);
-        Assert.Equal(5000, aircraft.Targets.TargetAltitude);
+        Assert.True(aircraft.StarViaMode);
+        Assert.Equal(5000, aircraft.StarViaFloor);
     }
 
     [Fact]
-    public void Dvia_WithoutAltitude_NoChange()
+    public void Dvia_WithoutAltitude_EnablesStarViaMode()
     {
         var aircraft = MakeAircraft(altitude: 10000);
-        aircraft.Targets.TargetAltitude = 10000;
+        aircraft.ActiveStarId = "BDEGA3";
 
         var cmd = new DescendViaCommand(null);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Logger);
 
         Assert.True(result.Success);
-        Assert.Equal(10000, aircraft.Targets.TargetAltitude);
+        Assert.True(aircraft.StarViaMode);
+        Assert.Null(aircraft.StarViaFloor);
+    }
+
+    [Fact]
+    public void Dvia_WithoutActiveStar_Rejected()
+    {
+        var aircraft = MakeAircraft(altitude: 10000);
+
+        var cmd = new DescendViaCommand(null);
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Logger);
+
+        Assert.False(result.Success);
+        Assert.Contains("No active STAR", result.Message);
     }
 
     // --- APPS ---

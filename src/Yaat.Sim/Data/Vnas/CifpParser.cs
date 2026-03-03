@@ -190,21 +190,208 @@ public static partial class CifpParser
         return results;
     }
 
-    private static RawApproachLeg? ParseApproachLeg(string line)
+    /// <summary>
+    /// Extracts shared column data from an ARINC 424 procedure leg record.
+    /// Columns are identical for subsections D (SID), E (STAR), and F (approach).
+    /// </summary>
+    public static IReadOnlyList<CifpSidProcedure> ParseSids(string cifpFilePath, string airportIcao, ILogger? logger = null)
     {
-        // Approach ID at positions 14-19 (0-indexed: 13-18)
-        string approachId = line[13..19].Trim();
-        if (approachId.Length == 0)
+        return ParseSidStarProcedures<CifpSidProcedure>(cifpFilePath, airportIcao, 'D', BuildSidProcedure, logger);
+    }
+
+    public static IReadOnlyList<CifpStarProcedure> ParseStars(string cifpFilePath, string airportIcao, ILogger? logger = null)
+    {
+        return ParseSidStarProcedures<CifpStarProcedure>(cifpFilePath, airportIcao, 'E', BuildStarProcedure, logger);
+    }
+
+    private static IReadOnlyList<T> ParseSidStarProcedures<T>(
+        string cifpFilePath,
+        string airportIcao,
+        char subsection,
+        Func<string, string, List<RawProcedureLeg>, T?> builder,
+        ILogger? logger
+    )
+    {
+        string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
+
+        var legsByProcedure = new Dictionary<string, List<RawProcedureLeg>>(StringComparer.Ordinal);
+
+        foreach (var line in File.ReadLines(cifpFilePath))
+        {
+            if (line.Length < 100)
+            {
+                continue;
+            }
+
+            if (!line.StartsWith("SUSAP", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (line[12] != subsection)
+            {
+                continue;
+            }
+
+            string icao = line[6..10];
+            if (!icao.Equals(normalizedIcao, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var leg = ParseProcedureLeg(line);
+            if (leg is null)
+            {
+                continue;
+            }
+
+            if (!legsByProcedure.TryGetValue(leg.ProcedureId, out var list))
+            {
+                list = [];
+                legsByProcedure[leg.ProcedureId] = list;
+            }
+
+            list.Add(leg);
+        }
+
+        string faaAirport = normalizedIcao.Trim();
+        if (faaAirport.StartsWith('K'))
+        {
+            faaAirport = faaAirport[1..];
+        }
+
+        var results = new List<T>(legsByProcedure.Count);
+        foreach (var (procedureId, rawLegs) in legsByProcedure)
+        {
+            var procedure = builder(faaAirport, procedureId, rawLegs);
+            if (procedure is not null)
+            {
+                results.Add(procedure);
+            }
+        }
+
+        string kind = subsection == 'D' ? "SIDs" : "STARs";
+        logger?.LogInformation("CIFP {Kind} for {Airport}: {Count} procedures parsed", kind, faaAirport, results.Count);
+
+        return results;
+    }
+
+    /// <summary>
+    /// Classifies SID/STAR transition legs by their transition name prefix.
+    /// "RW*" → runway transition, empty/"ALL" → common, anything else → enroute.
+    /// </summary>
+    private static (
+        List<CifpLeg> CommonLegs,
+        Dictionary<string, CifpTransition> RunwayTransitions,
+        Dictionary<string, CifpTransition> EnrouteTransitions
+    ) ClassifySidStarLegs(List<RawProcedureLeg> rawLegs)
+    {
+        rawLegs.Sort(
+            (a, b) =>
+            {
+                int cmp = a.RouteType.CompareTo(b.RouteType);
+                return cmp != 0 ? cmp : a.Sequence.CompareTo(b.Sequence);
+            }
+        );
+
+        var commonLegs = new List<CifpLeg>();
+        var runwayLegs = new Dictionary<string, List<CifpLeg>>(StringComparer.Ordinal);
+        var enrouteLegs = new Dictionary<string, List<CifpLeg>>(StringComparer.Ordinal);
+
+        foreach (var raw in rawLegs)
+        {
+            var leg = new CifpLeg(
+                raw.FixIdentifier,
+                raw.PathTerminator,
+                raw.TurnDirection,
+                raw.Altitude,
+                raw.Speed,
+                raw.FixRole,
+                raw.Sequence,
+                null,
+                null,
+                null
+            );
+
+            string transName = raw.TransitionName;
+
+            if (transName.Length == 0 || transName.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                commonLegs.Add(leg);
+            }
+            else if (transName.StartsWith("RW", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!runwayLegs.TryGetValue(transName, out var list))
+                {
+                    list = [];
+                    runwayLegs[transName] = list;
+                }
+
+                list.Add(leg);
+            }
+            else
+            {
+                if (!enrouteLegs.TryGetValue(transName, out var list))
+                {
+                    list = [];
+                    enrouteLegs[transName] = list;
+                }
+
+                list.Add(leg);
+            }
+        }
+
+        var runwayTransitions = new Dictionary<string, CifpTransition>(runwayLegs.Count, StringComparer.Ordinal);
+        foreach (var (name, legs) in runwayLegs)
+        {
+            runwayTransitions[name] = new CifpTransition(name, legs);
+        }
+
+        var enrouteTransitions = new Dictionary<string, CifpTransition>(enrouteLegs.Count, StringComparer.Ordinal);
+        foreach (var (name, legs) in enrouteLegs)
+        {
+            enrouteTransitions[name] = new CifpTransition(name, legs);
+        }
+
+        return (commonLegs, runwayTransitions, enrouteTransitions);
+    }
+
+    private static CifpSidProcedure? BuildSidProcedure(string airport, string procedureId, List<RawProcedureLeg> rawLegs)
+    {
+        if (procedureId.Length == 0)
+        {
+            return null;
+        }
+
+        var (common, runway, enroute) = ClassifySidStarLegs(rawLegs);
+        return new CifpSidProcedure(airport, procedureId, common, runway, enroute);
+    }
+
+    private static CifpStarProcedure? BuildStarProcedure(string airport, string procedureId, List<RawProcedureLeg> rawLegs)
+    {
+        if (procedureId.Length == 0)
+        {
+            return null;
+        }
+
+        var (common, runway, enroute) = ClassifySidStarLegs(rawLegs);
+        return new CifpStarProcedure(airport, procedureId, common, enroute, runway);
+    }
+
+    private static RawProcedureLeg? ParseProcedureLeg(string line)
+    {
+        // Procedure ID at positions 14-19 (0-indexed: 13-18)
+        string procedureId = line[13..19].Trim();
+        if (procedureId.Length == 0)
         {
             return null;
         }
 
         // Route type at position 20 (0-indexed: 19)
-        // 'A' = transition, digits or other = common/runway transition
         char routeType = line[19];
 
         // Transition identifier at positions 21-25 (0-indexed: 20-24)
-        string transitionName = routeType == 'A' ? line[20..25].Trim() : "";
+        string transitionName = line[20..25].Trim();
 
         // Sequence number at positions 27-29 (0-indexed: 26-28)
         string seqStr = line[26..29].Trim();
@@ -261,7 +448,33 @@ public static partial class CifpParser
             speed = new CifpSpeedRestriction(speedKts, true);
         }
 
-        return new RawApproachLeg(approachId, routeType, transitionName, fixId, pathTerm, pathTermStr, turnDir, altitude, speed, fixRole, sequence);
+        return new RawProcedureLeg(procedureId, routeType, transitionName, fixId, pathTerm, pathTermStr, turnDir, altitude, speed, fixRole, sequence);
+    }
+
+    private static RawApproachLeg? ParseApproachLeg(string line)
+    {
+        var raw = ParseProcedureLeg(line);
+        if (raw is null)
+        {
+            return null;
+        }
+
+        // For approaches: route type 'A' = named transition, others = common
+        string transName = raw.RouteType == 'A' ? raw.TransitionName : "";
+
+        return new RawApproachLeg(
+            raw.ProcedureId,
+            raw.RouteType,
+            transName,
+            raw.FixIdentifier,
+            raw.PathTerminator,
+            raw.PathTerminatorRaw,
+            raw.TurnDirection,
+            raw.Altitude,
+            raw.Speed,
+            raw.FixRole,
+            raw.Sequence
+        );
     }
 
     private static CifpApproachProcedure? BuildApproachProcedure(string airport, string approachId, List<RawApproachLeg> rawLegs)
@@ -447,6 +660,20 @@ public static partial class CifpParser
 
         return int.TryParse(s, out int val) ? val * 10 : null;
     }
+
+    private sealed record RawProcedureLeg(
+        string ProcedureId,
+        char RouteType,
+        string TransitionName,
+        string FixIdentifier,
+        CifpPathTerminator PathTerminator,
+        string PathTerminatorRaw,
+        char? TurnDirection,
+        CifpAltitudeRestriction? Altitude,
+        CifpSpeedRestriction? Speed,
+        CifpFixRole FixRole,
+        int Sequence
+    );
 
     private sealed record RawApproachLeg(
         string ApproachId,

@@ -58,6 +58,22 @@ public sealed record CifpLeg(
 
 public sealed record CifpTransition(string Name, IReadOnlyList<CifpLeg> Legs);
 
+public sealed record CifpSidProcedure(
+    string Airport,
+    string ProcedureId,
+    IReadOnlyList<CifpLeg> CommonLegs,
+    IReadOnlyDictionary<string, CifpTransition> RunwayTransitions,
+    IReadOnlyDictionary<string, CifpTransition> EnrouteTransitions
+);
+
+public sealed record CifpStarProcedure(
+    string Airport,
+    string ProcedureId,
+    IReadOnlyList<CifpLeg> CommonLegs,
+    IReadOnlyDictionary<string, CifpTransition> EnrouteTransitions,
+    IReadOnlyDictionary<string, CifpTransition> RunwayTransitions
+);
+
 public sealed record CifpApproachProcedure(
     string Airport,
     string ApproachId,

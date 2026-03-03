@@ -167,7 +167,8 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 | Join radial out | `JRADO SJC 150` | — | — |
 | Join radial in | `JRADI SJC 150` | — | — |
 | Cross fix alt | `CFIX A034` | — | — |
-| Depart via | `DVIA SJC` | — | — |
+| Descend via | `DVIA` | — | — |
+| Climb via | `CVIA` | — | — |
 | Depart heading | `DEPART 270` | — | — |
 | Holding pattern | `HOLD SUNOL R 180 1M` | — | — |
 | List approaches | `APPS` | `APPS OAK` | — |
@@ -306,7 +307,7 @@ All CTO modifiers accept an optional altitude suffix using the same format as CM
 3. VFR without cruise → pattern altitude
 4. IFR → self-clear at 1,500 ft AGL
 
-**Navigation** — IFR `CTO` (default departure) automatically expands the filed route including SID waypoints and navigates the aircraft along it. `CTO DCT {fix}` turns the aircraft toward the fix after liftoff. `CTO OC` navigates toward the destination airport.
+**Navigation** — IFR `CTO` (default departure) automatically expands the filed route including SID waypoints and navigates the aircraft along it. When CIFP data is available, SID legs include published altitude and speed constraints; SID via mode activates automatically so the aircraft follows the published climb profile. Use `CM` to override (disables via mode), or `CVIA` to re-enable it. `CTO DCT {fix}` turns the aircraft toward the fix after liftoff. `CTO OC` navigates toward the destination airport.
 
 The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments above). `RH` in the heading position means "runway heading." `GA MRT`/`GA MLT` sets the aircraft into pattern mode (make right/left traffic) and climbs to pattern altitude. Auto go-around (no landing clearance by 0.5nm) broadcasts a warning; VFR and pattern traffic re-enter the pattern automatically, while IFR non-pattern traffic flies runway heading at 2,000 AGL.
 
@@ -387,12 +388,24 @@ Approach clearances use FAA CIFP procedure data. Approach IDs can be full CIFP i
 |---------|--------|
 | `DCT SUNOL` | Direct to fix SUNOL |
 | `ADCT SUNOL` | Append direct to — adds SUNOL to the end of the current route |
-| `JARR OAK.SALI2` | Join STAR: navigate to nearest fix on the SALI2 arrival into OAK |
+| `JARR OAK.SALI2` | Join STAR: navigate to nearest fix on the SALI2 arrival into OAK (with CIFP altitude/speed constraints when available) |
 | `JRADO SJC 150` | Join radial outbound: fly to SJC VOR, then outbound on the 150° radial |
 | `JRADI SJC 150` | Join radial inbound: intercept and fly inbound on the 150° radial to SJC |
 | `CFIX A034` | Cross next fix at or above 3,400 ft (modifies current target altitude) |
-| `DVIA SJC` | Depart via — sets first navigation target to SJC |
+| `DVIA` | Descend via STAR — enables altitude/speed constraint following on active STAR |
+| `DVIA 240` | Descend via STAR, except maintain FL240 (altitude floor) |
+| `CVIA` | Climb via SID — re-enables altitude/speed constraint following on active SID |
+| `CVIA 190` | Climb via SID, except maintain FL190 (altitude ceiling) |
 | `DEPART 270` | Depart heading 270 (sets heading after departure) |
+
+**SID/STAR via mode** — When CIFP procedure data is available, SID and STAR fixes carry published altitude and speed restrictions. Via mode controls whether the aircraft follows those restrictions:
+
+| Procedure | Default | Enable via mode | Disable via mode |
+|-----------|---------|-----------------|------------------|
+| SID (after CTO) | **ON** — aircraft follows published climb restrictions | `CVIA` (re-enable after CM override) | `CM` (any altitude command) |
+| STAR (after JARR) | **OFF** — aircraft maintains altitude, follows lateral path only | `DVIA` (enable descent restrictions) | `DM` (any altitude command) |
+
+`CVIA 190` and `DVIA 240` enable via mode with an altitude cap/floor — "climb/descend via, except maintain." `FH`, `DCT`, and heading commands clear the entire procedure (lateral path + via mode). When CIFP data is unavailable, JARR and CTO fall back to NavData fix lists (lateral path only, no constraints).
 
 ### Holding Patterns
 

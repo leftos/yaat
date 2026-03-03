@@ -306,6 +306,8 @@ public record HoldingPatternCommand(
 
 public record PositionTurnAltitudeClearanceCommand(int Heading, int Altitude, string ApproachId) : ParsedCommand;
 
+public record ClimbViaCommand(int? Altitude) : ParsedCommand;
+
 public record DescendViaCommand(int? Altitude) : ParsedCommand;
 
 public record CrossFixCommand(string FixName, double FixLat, double FixLon, int Altitude, CrossFixAltitudeType AltType, int? Speed) : ParsedCommand;

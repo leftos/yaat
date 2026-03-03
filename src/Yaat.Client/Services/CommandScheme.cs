@@ -146,6 +146,7 @@ public class CommandScheme
                 [CanonicalCommandType.JoinRadialInbound] = new() { Aliases = ["JRADI", "JICRS"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.HoldingPattern] = new() { Aliases = ["HOLDP"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.PositionTurnAltitudeClearance] = new() { Aliases = ["PTAC"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ClimbVia] = new() { Aliases = ["CVIA"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.DescendVia] = new() { Aliases = ["DVIA"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.CrossFix] = new() { Aliases = ["CFIX"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.DepartFix] = new() { Aliases = ["DEPART", "DEP"], Format = "{verb} {arg}" },

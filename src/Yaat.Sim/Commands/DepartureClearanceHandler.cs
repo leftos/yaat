@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Pattern;
@@ -8,13 +9,16 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Commands;
 
+internal sealed record DepartureRouteResult(List<NavigationTarget> Targets, string? SidId);
+
 internal static class DepartureClearanceHandler
 {
     internal static CommandResult TryClearedForTakeoff(
         ClearedForTakeoffCommand cto,
         AircraftState aircraft,
         LinedUpAndWaitingPhase luaw,
-        IFixLookup? fixes
+        IFixLookup? fixes,
+        IProcedureLookup? procedures = null
     )
     {
         if (aircraft.Phases?.AssignedRunway is null)
@@ -29,7 +33,7 @@ internal static class DepartureClearanceHandler
         // Propagate departure to TakeoffPhase and InitialClimbPhase
         if (aircraft.Phases is not null)
         {
-            var departureRoute = ResolveDepartureRoute(cto.Departure, aircraft, fixes);
+            var routeResult = ResolveDepartureRoute(cto.Departure, aircraft, fixes, procedures);
 
             foreach (var p in aircraft.Phases.Phases)
             {
@@ -43,7 +47,7 @@ internal static class DepartureClearanceHandler
                 }
                 else if (p is InitialClimbPhase climb && p.Status == PhaseStatus.Pending)
                 {
-                    SetInitialClimbProperties(climb, cto.Departure, cto.AssignedAltitude, departureRoute, aircraft);
+                    SetInitialClimbProperties(climb, cto.Departure, cto.AssignedAltitude, routeResult, aircraft);
                 }
             }
 
@@ -177,7 +181,7 @@ internal static class DepartureClearanceHandler
         depHoldShort.IsCleared = true;
 
         // Pre-resolve navigation targets for route-based departures
-        var departureRoute = ResolveDepartureRoute(departure, aircraft, fixes);
+        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes);
 
         // Set runway and store departure clearance for TaxiingPhase to consume
         aircraft.Phases!.AssignedRunway = runway;
@@ -186,7 +190,8 @@ internal static class DepartureClearanceHandler
             Type = clearanceType,
             Departure = departure,
             AssignedAltitude = assignedAltitude,
-            DepartureRoute = departureRoute,
+            DepartureRoute = routeResult?.Targets,
+            DepartureSidId = routeResult?.SidId,
         };
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
@@ -203,7 +208,7 @@ internal static class DepartureClearanceHandler
         ILogger logger
     )
     {
-        var departureRoute = ResolveDepartureRoute(departure, aircraft, fixes);
+        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes);
 
         var lineup = new LineUpPhase(holdShortNodeId);
         var luawPhase = new LinedUpAndWaitingPhase();
@@ -214,7 +219,8 @@ internal static class DepartureClearanceHandler
         {
             Departure = departure,
             AssignedAltitude = assignedAltitude,
-            DepartureRoute = departureRoute,
+            DepartureRoute = routeResult?.Targets,
+            DepartureSidId = routeResult?.SidId,
             IsVfr = aircraft.IsVfr,
             CruiseAltitude = aircraft.CruiseAltitude,
         };
@@ -294,7 +300,7 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, "Aircraft is not lined up and waiting");
         }
 
-        var departureRoute = ResolveDepartureRoute(departure, aircraft, fixes);
+        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes);
 
         luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
         luaw.Departure = departure;
@@ -310,7 +316,7 @@ internal static class DepartureClearanceHandler
 
         if (climb is not null)
         {
-            SetInitialClimbProperties(climb, departure, assignedAltitude, departureRoute, aircraft);
+            SetInitialClimbProperties(climb, departure, assignedAltitude, routeResult, aircraft);
         }
 
         if (departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
@@ -372,7 +378,12 @@ internal static class DepartureClearanceHandler
     /// Pre-resolves navigation targets for route-based departure instructions.
     /// Keeps IFixLookup out of the phase layer.
     /// </summary>
-    internal static List<NavigationTarget>? ResolveDepartureRoute(DepartureInstruction departure, AircraftState aircraft, IFixLookup? fixes)
+    internal static DepartureRouteResult? ResolveDepartureRoute(
+        DepartureInstruction departure,
+        AircraftState aircraft,
+        IFixLookup? fixes,
+        IProcedureLookup? procedures = null
+    )
     {
         if (fixes is null)
         {
@@ -382,15 +393,17 @@ internal static class DepartureClearanceHandler
         switch (departure)
         {
             case DirectFixDeparture dfd:
-                return
-                [
-                    new NavigationTarget
-                    {
-                        Name = dfd.FixName,
-                        Latitude = dfd.Lat,
-                        Longitude = dfd.Lon,
-                    },
-                ];
+                return new DepartureRouteResult(
+                    [
+                        new NavigationTarget
+                        {
+                            Name = dfd.FixName,
+                            Latitude = dfd.Lat,
+                            Longitude = dfd.Lon,
+                        },
+                    ],
+                    null
+                );
 
             case OnCourseDeparture when aircraft.Destination is not null:
             {
@@ -399,19 +412,29 @@ internal static class DepartureClearanceHandler
                 {
                     return null;
                 }
-                return
-                [
-                    new NavigationTarget
-                    {
-                        Name = aircraft.Destination,
-                        Latitude = pos.Value.Lat,
-                        Longitude = pos.Value.Lon,
-                    },
-                ];
+                return new DepartureRouteResult(
+                    [
+                        new NavigationTarget
+                        {
+                            Name = aircraft.Destination,
+                            Latitude = pos.Value.Lat,
+                            Longitude = pos.Value.Lon,
+                        },
+                    ],
+                    null
+                );
             }
 
             case DefaultDeparture when !aircraft.IsVfr && aircraft.Route is not null:
             {
+                // Try CIFP SID first for constrained navigation targets
+                var cifpResult = TryResolveSidFromCifp(aircraft, fixes, procedures);
+                if (cifpResult is not null)
+                {
+                    return cifpResult;
+                }
+
+                // Fallback to NavData body-fix expansion (lateral path only, no constraints)
                 var expanded = fixes.ExpandRouteForNavigation(aircraft.Route, aircraft.Departure);
                 var targets = new List<NavigationTarget>();
 
@@ -451,12 +474,181 @@ internal static class DepartureClearanceHandler
                     }
                 }
 
-                return targets.Count > 0 ? targets : null;
+                return targets.Count > 0 ? new DepartureRouteResult(targets, null) : null;
             }
 
             default:
                 return null;
         }
+    }
+
+    /// <summary>
+    /// Attempts to resolve a SID from CIFP data. Extracts SID name from the first
+    /// route token, selects the runway transition matching the assigned runway,
+    /// and builds an ordered leg sequence with altitude/speed constraints.
+    /// Appends remaining enroute fixes from the filed route after the SID.
+    /// Returns null if CIFP data is unavailable or SID cannot be resolved.
+    /// </summary>
+    internal static DepartureRouteResult? TryResolveSidFromCifp(AircraftState aircraft, IFixLookup fixes, IProcedureLookup? procedures)
+    {
+        if (procedures is null || aircraft.Route is null || aircraft.Departure is null)
+        {
+            return null;
+        }
+
+        var routeTokens = aircraft.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (routeTokens.Length == 0)
+        {
+            return null;
+        }
+
+        // First route token is the SID name
+        var sidName = routeTokens[0];
+        var sid = procedures.GetSid(aircraft.Departure, sidName);
+        if (sid is null)
+        {
+            return null;
+        }
+
+        // Build ordered leg sequence: runway transition → common → enroute transition
+        var orderedLegs = new List<CifpLeg>();
+
+        // Select runway transition matching assigned runway ("RW" + designator)
+        if (aircraft.Phases?.AssignedRunway is { } rwy)
+        {
+            var rwKey = "RW" + rwy.Designator;
+            if (sid.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+            {
+                orderedLegs.AddRange(rwTransition.Legs);
+            }
+        }
+
+        orderedLegs.AddRange(sid.CommonLegs);
+
+        // If the route specifies an enroute transition (second token matches a transition name)
+        if (routeTokens.Length > 1)
+        {
+            var enrouteKey = routeTokens[1].ToUpperInvariant();
+            if (sid.EnrouteTransitions.TryGetValue(enrouteKey, out var enTransition))
+            {
+                orderedLegs.AddRange(enTransition.Legs);
+            }
+        }
+
+        if (orderedLegs.Count == 0)
+        {
+            return null;
+        }
+
+        // Convert SID legs to NavigationTargets with constraints
+        var targets = ResolveLegsToTargets(orderedLegs, fixes);
+        if (targets.Count == 0)
+        {
+            return null;
+        }
+
+        // Append remaining enroute fixes from filed route (post-SID tokens) without constraints.
+        // Skip the SID token and any enroute transition token that was consumed.
+        int startIdx = 1;
+        if (routeTokens.Length > 1)
+        {
+            var secondToken = routeTokens[1].ToUpperInvariant();
+            if (sid.EnrouteTransitions.ContainsKey(secondToken))
+            {
+                startIdx = 2;
+            }
+        }
+
+        var lastSidFix = targets[^1].Name;
+        bool pastSidFix = false;
+        for (int i = startIdx; i < routeTokens.Length; i++)
+        {
+            var token = routeTokens[i];
+            if (double.TryParse(token, out _))
+            {
+                continue;
+            }
+
+            // Skip until we're past the last SID fix to avoid duplicates
+            if (!pastSidFix)
+            {
+                if (string.Equals(token, lastSidFix, StringComparison.OrdinalIgnoreCase))
+                {
+                    pastSidFix = true;
+                }
+                continue;
+            }
+
+            var pos = fixes.GetFixPosition(token);
+            if (pos is not null)
+            {
+                targets.Add(
+                    new NavigationTarget
+                    {
+                        Name = token.ToUpperInvariant(),
+                        Latitude = pos.Value.Lat,
+                        Longitude = pos.Value.Lon,
+                    }
+                );
+            }
+        }
+
+        // Safety net: strip leading targets within 1nm of departure
+        var airportPos = fixes.GetFixPosition(aircraft.Departure);
+        if (airportPos is not null)
+        {
+            while (targets.Count > 0)
+            {
+                double dist = GeoMath.DistanceNm(airportPos.Value.Lat, airportPos.Value.Lon, targets[0].Latitude, targets[0].Longitude);
+                if (dist > 1.0)
+                {
+                    break;
+                }
+                targets.RemoveAt(0);
+            }
+        }
+
+        return targets.Count > 0 ? new DepartureRouteResult(targets, sid.ProcedureId) : null;
+    }
+
+    /// <summary>
+    /// Converts CIFP legs to NavigationTargets with altitude/speed constraints.
+    /// Resolves fix positions, skips unknown fixes, carries restrictions.
+    /// </summary>
+    internal static List<NavigationTarget> ResolveLegsToTargets(IReadOnlyList<CifpLeg> legs, IFixLookup fixes)
+    {
+        var targets = new List<NavigationTarget>();
+        foreach (var leg in legs)
+        {
+            if (string.IsNullOrWhiteSpace(leg.FixIdentifier))
+            {
+                continue;
+            }
+
+            var pos = fixes.GetFixPosition(leg.FixIdentifier);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            // Deduplicate adjacent identical fix names
+            if (targets.Count > 0 && string.Equals(targets[^1].Name, leg.FixIdentifier, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            targets.Add(
+                new NavigationTarget
+                {
+                    Name = leg.FixIdentifier,
+                    Latitude = pos.Value.Lat,
+                    Longitude = pos.Value.Lon,
+                    AltitudeRestriction = leg.Altitude,
+                    SpeedRestriction = leg.Speed,
+                }
+            );
+        }
+        return targets;
     }
 
     /// <summary>
@@ -468,7 +660,7 @@ internal static class DepartureClearanceHandler
         InitialClimbPhase existing,
         DepartureInstruction departure,
         int? assignedAltitude,
-        List<NavigationTarget>? departureRoute,
+        DepartureRouteResult? routeResult,
         AircraftState aircraft
     )
     {
@@ -484,7 +676,8 @@ internal static class DepartureClearanceHandler
         {
             Departure = departure,
             AssignedAltitude = assignedAltitude,
-            DepartureRoute = departureRoute,
+            DepartureRoute = routeResult?.Targets,
+            DepartureSidId = routeResult?.SidId,
             IsVfr = aircraft.IsVfr,
             CruiseAltitude = aircraft.CruiseAltitude,
         };

@@ -105,9 +105,12 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 # Core
 AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops
                                # IndicatedAirspeed (IAS, primary speed state), Track (ground track = heading + wind drift)
+                               # ActiveSidId/ActiveStarId, SidViaMode/StarViaMode, SidViaCeiling/StarViaFloor
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
+                               # NavigationTarget: optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
 FlightPhysics.cs               # Static 6-step Update: navigation→heading→altitude→speed→position→queue
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
+                               # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
@@ -134,17 +137,18 @@ StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→
 Commands/CanonicalCommandType.cs    # Enum of every command type
 Commands/ParsedCommand.cs           # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition
 Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interaction), ApplyCommand, TryTaxi
+                                    # CVIA/DVIA dispatch, JARR CIFP STAR resolution, procedure clearing on vectoring
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
 Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI)
-Commands/DepartureClearanceHandler.cs  # Departure clearance command logic
+Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution (runway transitions, ResolveLegsToTargets)
 Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, etc.)
 
 # Phases/ — clearance-gated behavior
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance
-Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, ActiveApproach, mutations
+Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, ActiveApproach, DepartureClearance, mutations
 Phases/PhaseRunner.cs          # Static lifecycle: start→tick→advance; auto-appends exit/pattern phases
 Phases/PhaseContext.cs         # Readonly tick context; includes WeatherProfile? Weather for wind-aware phases
 Phases/PhaseStatus.cs          # Enum: phase lifecycle status
@@ -161,7 +165,7 @@ Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, UpdateWaypoints
 LineUpPhase.cs                 # Taxi from hold-short to runway centerline + align heading
 LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
-InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned
+InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode when DepartureSidId set
 FinalApproachPhase.cs          # Glideslope; auto-go-around at 0.5nm; illegal intercept check (§5-9-1)
 LandingPhase.cs                # Flare→touchdown→rollout to 20kts
 GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern alt for VFR/pattern traffic)
@@ -189,6 +193,8 @@ Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
 Data/IApproachLookup.cs        # Interface: GetApproach, GetApproaches, ResolveApproachId
 Data/ApproachDatabase.cs       # IApproachLookup impl; lazy CIFP per-airport parsing; shorthand resolution
+Data/IProcedureLookup.cs       # Interface: GetSid, GetSids, GetStar, GetStars
+Data/ProcedureDatabase.cs      # IProcedureLookup impl; lazy CIFP per-airport SID/STAR parsing
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
 Data/VideoMapMetadata.cs       # Video map metadata model
 Data/VideoMapData.cs           # Video map data structures (lines, labels, filters)
@@ -215,8 +221,8 @@ CacheManifest.cs               # Cache manifest tracking serials
 AircraftSpecEntry.cs           # VNAS aircraft specs model
 AircraftCwtEntry.cs            # VNAS aircraft CWT model
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
-CifpParser.cs                  # ARINC 424 parser: FAF fixes, terminal waypoints, full approach procedures
-CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpLeg, CifpTransition, etc.
+CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E); FAF fixes, terminal waypoints
+CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSidProcedure, CifpStarProcedure, CifpLeg, CifpTransition
 
 # Scenarios/
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult

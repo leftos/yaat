@@ -18,6 +18,12 @@ public sealed class DepartureClearanceInfo
     /// Set by the dispatcher so phases don't need IFixLookup.
     /// </summary>
     public List<NavigationTarget>? DepartureRoute { get; init; }
+
+    /// <summary>
+    /// SID procedure ID if departure route was resolved from CIFP data.
+    /// Used to activate SID via mode during initial climb.
+    /// </summary>
+    public string? DepartureSidId { get; init; }
 }
 
 public sealed class PhaseList

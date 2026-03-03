@@ -431,7 +431,257 @@ public class CifpParserTests
         }
     }
 
+    // --- SID/STAR parser tests ---
+
+    [Fact]
+    public void ParseSids_BasicSid_ExtractsCommonAndRunwayTransitions()
+    {
+        var lines = new[]
+        {
+            // Runway transition "RW28R"
+            BuildSidStarLine('D', "KOAK", "PORTE3", "RW28R", 10, "OAK  "),
+            BuildSidStarLine('D', "KOAK", "PORTE3", "RW28R", 20, "REBAS"),
+            // Common legs
+            BuildSidStarLine('D', "KOAK", "PORTE3", "", 30, "PORTE"),
+            BuildSidStarLine('D', "KOAK", "PORTE3", "", 40, "BRIXX"),
+            // Enroute transition "MOLIN"
+            BuildSidStarLine('D', "KOAK", "PORTE3", "MOLIN", 50, "MOLIN"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var sids = CifpParser.ParseSids(tmpFile, "KOAK");
+
+            Assert.Single(sids);
+            var sid = sids[0];
+            Assert.Equal("OAK", sid.Airport);
+            Assert.Equal("PORTE3", sid.ProcedureId);
+
+            // Common legs
+            Assert.Equal(2, sid.CommonLegs.Count);
+            Assert.Equal("PORTE", sid.CommonLegs[0].FixIdentifier);
+            Assert.Equal("BRIXX", sid.CommonLegs[1].FixIdentifier);
+
+            // Runway transition
+            Assert.Single(sid.RunwayTransitions);
+            Assert.True(sid.RunwayTransitions.ContainsKey("RW28R"));
+            Assert.Equal(2, sid.RunwayTransitions["RW28R"].Legs.Count);
+            Assert.Equal("OAK", sid.RunwayTransitions["RW28R"].Legs[0].FixIdentifier);
+
+            // Enroute transition
+            Assert.Single(sid.EnrouteTransitions);
+            Assert.True(sid.EnrouteTransitions.ContainsKey("MOLIN"));
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseStars_BasicStar_ExtractsTransitions()
+    {
+        var lines = new[]
+        {
+            // Enroute transition "FAITH"
+            BuildSidStarLine('E', "KOAK", "SUNOL1", "FAITH", 10, "FAITH"),
+            BuildSidStarLine('E', "KOAK", "SUNOL1", "FAITH", 20, "KENNO"),
+            // Common legs
+            BuildSidStarLine('E', "KOAK", "SUNOL1", "", 30, "SUNOL"),
+            BuildSidStarLine('E', "KOAK", "SUNOL1", "", 40, "GROVE"),
+            // Runway transition "RW28L"
+            BuildSidStarLine('E', "KOAK", "SUNOL1", "RW28L", 50, "FITKI"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var stars = CifpParser.ParseStars(tmpFile, "KOAK");
+
+            Assert.Single(stars);
+            var star = stars[0];
+            Assert.Equal("OAK", star.Airport);
+            Assert.Equal("SUNOL1", star.ProcedureId);
+
+            Assert.Equal(2, star.CommonLegs.Count);
+            Assert.Equal("SUNOL", star.CommonLegs[0].FixIdentifier);
+            Assert.Equal("GROVE", star.CommonLegs[1].FixIdentifier);
+
+            Assert.Single(star.EnrouteTransitions);
+            Assert.True(star.EnrouteTransitions.ContainsKey("FAITH"));
+            Assert.Equal(2, star.EnrouteTransitions["FAITH"].Legs.Count);
+
+            Assert.Single(star.RunwayTransitions);
+            Assert.True(star.RunwayTransitions.ContainsKey("RW28L"));
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseSids_WithAltitudeRestrictions_ExtractsConstraints()
+    {
+        var lines = new[]
+        {
+            BuildSidStarLineWithAlt('D', "KOAK", "PORTE3", "", 10, "PORTE", '+', "00400", "     "),
+            BuildSidStarLineWithAlt('D', "KOAK", "PORTE3", "", 20, "BRIXX", '-', "01800", "     "),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var sids = CifpParser.ParseSids(tmpFile, "KOAK");
+
+            Assert.Single(sids);
+            var sid = sids[0];
+            Assert.Equal(2, sid.CommonLegs.Count);
+
+            var alt0 = sid.CommonLegs[0].Altitude;
+            Assert.NotNull(alt0);
+            Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, alt0.Type);
+            Assert.Equal(4000, alt0.Altitude1Ft);
+
+            var alt1 = sid.CommonLegs[1].Altitude;
+            Assert.NotNull(alt1);
+            Assert.Equal(CifpAltitudeRestrictionType.AtOrBelow, alt1.Type);
+            Assert.Equal(18000, alt1.Altitude1Ft);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseSids_WrongAirport_ReturnsEmpty()
+    {
+        var lines = new[] { BuildSidStarLine('D', "KSFO", "PORTE3", "", 10, "PORTE") };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var sids = CifpParser.ParseSids(tmpFile, "KOAK");
+
+            Assert.Empty(sids);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseStars_AllTransitionName_TreatedAsCommon()
+    {
+        var lines = new[]
+        {
+            BuildSidStarLine('E', "KOAK", "SUNOL1", "ALL  ", 10, "SUNOL"),
+            BuildSidStarLine('E', "KOAK", "SUNOL1", "ALL  ", 20, "GROVE"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var stars = CifpParser.ParseStars(tmpFile, "KOAK");
+
+            Assert.Single(stars);
+            Assert.Equal(2, stars[0].CommonLegs.Count);
+            Assert.Empty(stars[0].EnrouteTransitions);
+            Assert.Empty(stars[0].RunwayTransitions);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseSids_MultipleRunwayTransitions_AllCaptured()
+    {
+        var lines = new[]
+        {
+            BuildSidStarLine('D', "KOAK", "PORTE3", "RW28R", 10, "OAK  "),
+            BuildSidStarLine('D', "KOAK", "PORTE3", "RW28L", 10, "REBAS"),
+            BuildSidStarLine('D', "KOAK", "PORTE3", "", 20, "PORTE"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var sids = CifpParser.ParseSids(tmpFile, "KOAK");
+
+            Assert.Single(sids);
+            Assert.Equal(2, sids[0].RunwayTransitions.Count);
+            Assert.True(sids[0].RunwayTransitions.ContainsKey("RW28R"));
+            Assert.True(sids[0].RunwayTransitions.ContainsKey("RW28L"));
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
     // --- Helpers ---
+
+    /// <summary>
+    /// Builds a minimal ARINC 424 SID/STAR record line (subsection D or E).
+    /// </summary>
+    private static string BuildSidStarLine(char subsection, string icao, string procedureId, string transition, int sequence, string fixId)
+    {
+        var line = new char[120];
+        Array.Fill(line, ' ');
+        "SUSAP".CopyTo(0, line, 0, 5);
+        icao.PadRight(4).CopyTo(0, line, 6, 4);
+        line[12] = subsection;
+        procedureId.PadRight(6).CopyTo(0, line, 13, 6);
+        line[19] = ' ';
+        transition.PadRight(5).CopyTo(0, line, 20, 5);
+        sequence.ToString("D3").CopyTo(0, line, 26, 3);
+        fixId.PadRight(5).CopyTo(0, line, 29, 5);
+        "TF".CopyTo(0, line, 47, 2);
+        return new string(line);
+    }
+
+    /// <summary>
+    /// Builds a SID/STAR record with altitude restriction fields.
+    /// </summary>
+    private static string BuildSidStarLineWithAlt(
+        char subsection,
+        string icao,
+        string procedureId,
+        string transition,
+        int sequence,
+        string fixId,
+        char altDesc,
+        string alt1,
+        string alt2
+    )
+    {
+        var line = new char[120];
+        Array.Fill(line, ' ');
+        "SUSAP".CopyTo(0, line, 0, 5);
+        icao.PadRight(4).CopyTo(0, line, 6, 4);
+        line[12] = subsection;
+        procedureId.PadRight(6).CopyTo(0, line, 13, 6);
+        line[19] = ' ';
+        transition.PadRight(5).CopyTo(0, line, 20, 5);
+        sequence.ToString("D3").CopyTo(0, line, 26, 3);
+        fixId.PadRight(5).CopyTo(0, line, 29, 5);
+        "TF".CopyTo(0, line, 47, 2);
+        line[82] = altDesc;
+        alt1.PadRight(5).CopyTo(0, line, 83, 5);
+        alt2.PadRight(5).CopyTo(0, line, 88, 5);
+        return new string(line);
+    }
 
     /// <summary>
     /// Builds a minimal ARINC 424 approach record line (subsection F).
