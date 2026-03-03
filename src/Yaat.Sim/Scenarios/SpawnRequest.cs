@@ -26,6 +26,7 @@ public enum SpawnPositionType
     Runway,
     OnFinal,
     AtFix,
+    Parking,
 }
 
 public sealed class SpawnRequest
@@ -48,6 +49,9 @@ public sealed class SpawnRequest
 
     // AtFix variant
     public string FixId { get; init; } = "";
+
+    // Parking variant
+    public string ParkingName { get; init; } = "";
 
     // Optional overrides
     public string? ExplicitType { get; init; }

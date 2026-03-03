@@ -22,6 +22,7 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor TaxiLabelColor = new(200, 180, 60, 160);
     private static readonly SKColor NodeIntersection = new(80, 120, 200);
     private static readonly SKColor NodeParking = new(60, 180, 80);
+    private static readonly SKColor NodeHelipad = new(180, 60, 220);
     private static readonly SKColor NodeSpot = new(220, 160, 40);
     private static readonly SKColor NodeHoldShort = new(220, 60, 60);
     private static readonly SKColor ActiveRouteColor = new(60, 220, 60);
@@ -389,6 +390,7 @@ public sealed class GroundRenderer : IDisposable
             _nodePaint.Color = node.Type switch
             {
                 "Parking" => NodeParking,
+                "Helipad" => NodeHelipad,
                 "Spot" => NodeSpot,
                 "RunwayHoldShort" => NodeHoldShort,
                 _ => NodeIntersection,
@@ -397,13 +399,21 @@ public sealed class GroundRenderer : IDisposable
             float radius = node.Type switch
             {
                 "Parking" => 4f,
+                "Helipad" => 5f,
                 "RunwayHoldShort" => 3.5f,
                 _ => 2.5f,
             };
 
             canvas.DrawCircle(sx, sy, radius, _nodePaint);
 
-            if (node.Name is not null && node.Type is "Parking" or "Spot")
+            // Draw "H" marker on helipads
+            if (node.Type == "Helipad")
+            {
+                _nodeLabelPaint.Color = NodeHelipad;
+                canvas.DrawText("H", sx - 3, sy + 3, _nodeLabelPaint);
+            }
+
+            if (node.Name is not null && node.Type is "Parking" or "Helipad" or "Spot")
             {
                 _labelCandidates.Add(new LabelCandidate(node.Name, sx + 5, sy - 3, LabelPriority.ParkingSpot, _nodeLabelPaint, null));
             }

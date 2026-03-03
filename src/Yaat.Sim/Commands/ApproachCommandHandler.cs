@@ -81,7 +81,8 @@ public static class ApproachCommandHandler
         }
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        aircraft.Phases.Add(new LandingPhase());
+        var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
 
         StartPhases(aircraft, logger);
 
@@ -177,7 +178,8 @@ public static class ApproachCommandHandler
         }
 
         aircraft.Phases.Add(new FinalApproachPhase());
-        aircraft.Phases.Add(new LandingPhase());
+        var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
 
         StartPhases(aircraft, logger);
 
@@ -235,7 +237,8 @@ public static class ApproachCommandHandler
             }
         );
         aircraft.Phases.Add(new FinalApproachPhase());
-        aircraft.Phases.Add(new LandingPhase());
+        var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
 
         StartPhases(aircraft, logger);
 
@@ -301,6 +304,19 @@ public static class ApproachCommandHandler
         double finalCourse = runway.TrueHeading;
         double interceptAngle = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - finalCourse));
 
+        // Helicopters: 45° max intercept angle per §5-9-2
+        bool isHelicopter = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        if (isHelicopter)
+        {
+            if (interceptAngle > 45.0)
+            {
+                return new CommandResult(false, $"Intercept angle {interceptAngle:F0}° exceeds 45° helicopter limit [7110.65 §5-9-2]");
+            }
+
+            return null;
+        }
+
+        // Fixed-wing: distance-based angle limits per TBL 5-9-1
         // Compute where aircraft's track intersects the final approach course.
         // The FAC extends from the threshold along the reciprocal of the runway heading.
         double facReciprocalDeg = (finalCourse + 180) % 360;

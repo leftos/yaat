@@ -8,6 +8,7 @@ public enum GroundNodeType
     Parking,
     Spot,
     RunwayHoldShort,
+    Helipad,
 }
 
 public sealed class GroundNode
@@ -75,6 +76,41 @@ public sealed class AirportGroundLayout
         return null;
     }
 
+    public GroundNode? FindHelipadByName(string name)
+    {
+        foreach (var node in Nodes.Values)
+        {
+            if (node.Type == GroundNodeType.Helipad && string.Equals(node.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return node;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Find a named spot, searching helipads first, then parking, then spot nodes.
+    /// Used by LAND command to resolve destination by name.
+    /// </summary>
+    public GroundNode? FindSpotByName(string name)
+    {
+        return FindHelipadByName(name) ?? FindParkingByName(name) ?? FindSpotNode(name);
+    }
+
+    private GroundNode? FindSpotNode(string name)
+    {
+        foreach (var node in Nodes.Values)
+        {
+            if (node.Type == GroundNodeType.Spot && string.Equals(node.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return node;
+            }
+        }
+
+        return null;
+    }
+
     public GroundNode? FindNearestNode(double lat, double lon)
     {
         GroundNode? best = null;
@@ -104,7 +140,7 @@ public sealed class AirportGroundLayout
 
         foreach (var node in Nodes.Values)
         {
-            if (node.Type == GroundNodeType.Parking)
+            if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
             {
                 continue;
             }
@@ -155,7 +191,7 @@ public sealed class AirportGroundLayout
 
         foreach (var node in Nodes.Values)
         {
-            if (node.Type == GroundNodeType.Parking)
+            if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
             {
                 continue;
             }
@@ -216,7 +252,7 @@ public sealed class AirportGroundLayout
 
         foreach (var node in Nodes.Values)
         {
-            if (node.Type == GroundNodeType.Parking)
+            if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
             {
                 continue;
             }

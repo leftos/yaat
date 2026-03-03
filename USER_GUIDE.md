@@ -416,6 +416,21 @@ Aircraft automatically hold short at all runway crossings along the taxi route. 
 
 Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop.
 
+### Helicopter Commands
+
+Helicopters are detected automatically from the ICAO type designator. They use tighter traffic patterns (500ft AGL), steeper glideslopes (6°), and can take off/land vertically from non-runway positions.
+
+| Command | Effect |
+|---------|--------|
+| `CTOPP` | Cleared for takeoff, present position — vertical liftoff from ramp, helipad, or parking |
+| `ATXI H1` | Air taxi to spot H1 — airborne below 100ft AGL, ~40 KIAS |
+| `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position) |
+| `LAND H1 NODEL` | Land at H1, exempt from auto-delete |
+
+Helicopters can also use all standard tower commands (`CTO`, `CTL`, `LUAW`, `TG`, `SG`, `GA`) with runway assignments — they hover-taxi onto the runway, hold position, and take off/land like fixed-wing aircraft. This is typical for IFR operations. `CTO` requires a runway; `CTOPP` does not.
+
+**Spawning helicopters:** Use the ADD command with a helicopter type (e.g., `H60`, `EC35`, `R44`). Use `%` prefix for helipad/parking spawn: `ADD V S P %H1 H60`.
+
 ### Track Operations
 
 Track operations control aircraft ownership, handoffs, and coordination. These commands use STARS-style TCP codes (e.g., "2B" = subset 2, sector B).

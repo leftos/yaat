@@ -5,6 +5,7 @@ public enum AircraftCategory
     Jet,
     Turboprop,
     Piston,
+    Helicopter,
 }
 
 /// <summary>
@@ -51,6 +52,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 2.5,
             AircraftCategory.Turboprop => 3.0,
             AircraftCategory.Piston => 3.0,
+            AircraftCategory.Helicopter => 5.0,
             _ => 3.0,
         };
     }
@@ -63,6 +65,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => belowTenK ? 2500 : 1800,
             AircraftCategory.Turboprop => belowTenK ? 1500 : 1200,
             AircraftCategory.Piston => belowTenK ? 700 : 500,
+            AircraftCategory.Helicopter => belowTenK ? 1200 : 800,
             _ => 1800,
         };
     }
@@ -74,6 +77,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 1800,
             AircraftCategory.Turboprop => 1200,
             AircraftCategory.Piston => 500,
+            AircraftCategory.Helicopter => 800,
             _ => 1800,
         };
     }
@@ -85,6 +89,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 2.5,
             AircraftCategory.Turboprop => 1.5,
             AircraftCategory.Piston => 1.0,
+            AircraftCategory.Helicopter => 2.0,
             _ => 2.5,
         };
     }
@@ -96,11 +101,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 3.5,
             AircraftCategory.Turboprop => 2.5,
             AircraftCategory.Piston => 2.0,
+            AircraftCategory.Helicopter => 3.0,
             _ => 3.5,
         };
     }
 
-    /// <summary>Ground acceleration during takeoff roll (kts/sec).</summary>
+    /// <summary>Ground acceleration during takeoff roll (kts/sec). Helicopter: N/A, vertical liftoff.</summary>
     public static double GroundAccelRate(AircraftCategory cat)
     {
         return cat switch
@@ -108,11 +114,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 5.0,
             AircraftCategory.Turboprop => 3.0,
             AircraftCategory.Piston => 2.0,
+            AircraftCategory.Helicopter => 2.0,
             _ => 5.0,
         };
     }
 
-    /// <summary>Approximate rotation speed Vr (knots).</summary>
+    /// <summary>Approximate rotation speed Vr (knots). Helicopter: 0 (vertical liftoff).</summary>
     public static double RotationSpeed(AircraftCategory cat)
     {
         return cat switch
@@ -120,11 +127,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 150,
             AircraftCategory.Turboprop => 110,
             AircraftCategory.Piston => 65,
+            AircraftCategory.Helicopter => 0,
             _ => 150,
         };
     }
 
-    /// <summary>Target speed after liftoff, approximately V2+10 (knots).</summary>
+    /// <summary>Target speed after liftoff (knots). Helicopter: 60 KIAS climb speed.</summary>
     public static double InitialClimbSpeed(AircraftCategory cat)
     {
         return cat switch
@@ -132,6 +140,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 180,
             AircraftCategory.Turboprop => 130,
             AircraftCategory.Piston => 80,
+            AircraftCategory.Helicopter => 60,
             _ => 180,
         };
     }
@@ -144,11 +153,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 3000,
             AircraftCategory.Turboprop => 1800,
             AircraftCategory.Piston => 800,
+            AircraftCategory.Helicopter => 1200,
             _ => 3000,
         };
     }
 
-    /// <summary>Final approach speed (Vref + additive, knots).</summary>
+    /// <summary>Final approach speed (knots). Helicopter: 70 KIAS.</summary>
     public static double ApproachSpeed(AircraftCategory cat)
     {
         return cat switch
@@ -156,11 +166,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 140,
             AircraftCategory.Turboprop => 110,
             AircraftCategory.Piston => 75,
+            AircraftCategory.Helicopter => 70,
             _ => 140,
         };
     }
 
-    /// <summary>Flare initiation altitude (feet AGL).</summary>
+    /// <summary>Flare initiation altitude (feet AGL). Helicopter: 50ft for hover transition.</summary>
     public static double FlareAltitude(AircraftCategory cat)
     {
         return cat switch
@@ -168,11 +179,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 30,
             AircraftCategory.Turboprop => 20,
             AircraftCategory.Piston => 15,
+            AircraftCategory.Helicopter => 50,
             _ => 30,
         };
     }
 
-    /// <summary>Descent rate during flare (fpm).</summary>
+    /// <summary>Descent rate during flare (fpm). Helicopter: 150 fpm slow descent to hover.</summary>
     public static double FlareDescentRate(AircraftCategory cat)
     {
         return cat switch
@@ -180,11 +192,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 200,
             AircraftCategory.Turboprop => 150,
             AircraftCategory.Piston => 100,
+            AircraftCategory.Helicopter => 150,
             _ => 200,
         };
     }
 
-    /// <summary>Speed at touchdown (knots).</summary>
+    /// <summary>Speed at touchdown (knots). Helicopter: 0 (hover to touchdown).</summary>
     public static double TouchdownSpeed(AircraftCategory cat)
     {
         return cat switch
@@ -192,11 +205,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 135,
             AircraftCategory.Turboprop => 105,
             AircraftCategory.Piston => 65,
+            AircraftCategory.Helicopter => 0,
             _ => 135,
         };
     }
 
-    /// <summary>Ground braking deceleration during rollout (kts/sec).</summary>
+    /// <summary>Ground braking deceleration during rollout (kts/sec). Helicopter: 0 (no rollout).</summary>
     public static double RolloutDecelRate(AircraftCategory cat)
     {
         return cat switch
@@ -204,11 +218,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 5.0,
             AircraftCategory.Turboprop => 3.5,
             AircraftCategory.Piston => 2.5,
+            AircraftCategory.Helicopter => 0,
             _ => 5.0,
         };
     }
 
-    /// <summary>Traffic pattern altitude above field (feet AGL).</summary>
+    /// <summary>Traffic pattern altitude above field (feet AGL). Helicopter: 500ft per AIM §4-3-3.</summary>
     public static double PatternAltitudeAgl(AircraftCategory cat)
     {
         return cat switch
@@ -216,11 +231,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 1500,
             AircraftCategory.Turboprop => 1000,
             AircraftCategory.Piston => 1000,
+            AircraftCategory.Helicopter => 500,
             _ => 1500,
         };
     }
 
-    /// <summary>Downwind offset from runway centerline (nm).</summary>
+    /// <summary>Downwind offset from runway centerline (nm). Helicopter: 0.5nm (tighter per AIM).</summary>
     public static double PatternSizeNm(AircraftCategory cat)
     {
         return cat switch
@@ -228,6 +244,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 1.5,
             AircraftCategory.Turboprop => 1.0,
             AircraftCategory.Piston => 0.75,
+            AircraftCategory.Helicopter => 0.5,
             _ => 1.5,
         };
     }
@@ -240,6 +257,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 0.75,
             AircraftCategory.Turboprop => 0.5,
             AircraftCategory.Piston => 0.3,
+            AircraftCategory.Helicopter => 0.2,
             _ => 0.75,
         };
     }
@@ -252,6 +270,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 1.0,
             AircraftCategory.Turboprop => 0.75,
             AircraftCategory.Piston => 0.5,
+            AircraftCategory.Helicopter => 0.3,
             _ => 1.0,
         };
     }
@@ -264,6 +283,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 200,
             AircraftCategory.Turboprop => 150,
             AircraftCategory.Piston => 90,
+            AircraftCategory.Helicopter => 70,
             _ => 200,
         };
     }
@@ -276,6 +296,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 170,
             AircraftCategory.Turboprop => 130,
             AircraftCategory.Piston => 80,
+            AircraftCategory.Helicopter => 60,
             _ => 170,
         };
     }
@@ -288,6 +309,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 3.0,
             AircraftCategory.Turboprop => 4.0,
             AircraftCategory.Piston => 5.0,
+            AircraftCategory.Helicopter => 6.0,
             _ => 3.0,
         };
     }
@@ -300,11 +322,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 1000,
             AircraftCategory.Turboprop => 800,
             AircraftCategory.Piston => 700,
+            AircraftCategory.Helicopter => 500,
             _ => 1000,
         };
     }
 
-    /// <summary>Touch-and-go rollout duration before reaccelerating (seconds).</summary>
+    /// <summary>Touch-and-go rollout duration (seconds). Helicopter: brief hover transition.</summary>
     public static double TouchAndGoRolloutSeconds(AircraftCategory cat)
     {
         return cat switch
@@ -312,11 +335,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 4.0,
             AircraftCategory.Turboprop => 4.0,
             AircraftCategory.Piston => 3.0,
+            AircraftCategory.Helicopter => 3.0,
             _ => 4.0,
         };
     }
 
-    /// <summary>Stop-and-go pause duration at zero speed before takeoff roll (seconds).</summary>
+    /// <summary>Stop-and-go pause duration at zero speed (seconds). Helicopter: hover pause.</summary>
     public static double StopAndGoPauseSeconds(AircraftCategory cat)
     {
         return cat switch
@@ -324,6 +348,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 5.0,
             AircraftCategory.Turboprop => 4.0,
             AircraftCategory.Piston => 3.0,
+            AircraftCategory.Helicopter => 3.0,
             _ => 5.0,
         };
     }
@@ -336,11 +361,12 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 100,
             AircraftCategory.Turboprop => 75,
             AircraftCategory.Piston => 50,
+            AircraftCategory.Helicopter => 30,
             _ => 100,
         };
     }
 
-    /// <summary>Minimum groundspeed (kts) for a rejected landing / go-around during rollout.</summary>
+    /// <summary>Minimum groundspeed (kts) for a rejected landing / go-around. Helicopter: 0 (can always go around).</summary>
     public static double RejectedLandingMinSpeed(AircraftCategory cat)
     {
         return cat switch
@@ -348,6 +374,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 60,
             AircraftCategory.Turboprop => 50,
             AircraftCategory.Piston => 40,
+            AircraftCategory.Helicopter => 0,
             _ => 60,
         };
     }
@@ -363,7 +390,7 @@ public static class CategoryPerformance
         };
     }
 
-    /// <summary>Taxi ground speed (knots). Simulation-pragmatic values.</summary>
+    /// <summary>Taxi ground speed (knots). Helicopter: wheeled ground taxi at 15 kts.</summary>
     public static double TaxiSpeed(AircraftCategory cat)
     {
         return cat switch
@@ -371,6 +398,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 18,
             AircraftCategory.Turboprop => 15,
             AircraftCategory.Piston => 12,
+            AircraftCategory.Helicopter => 15,
             _ => 18,
         };
     }
@@ -382,7 +410,7 @@ public static class CategoryPerformance
         return 5;
     }
 
-    /// <summary>Ground turn rate while taxiing (deg/sec). Simulation-pragmatic.</summary>
+    /// <summary>Ground turn rate while taxiing (deg/sec). Helicopter: 30 (pedal turn).</summary>
     public static double GroundTurnRate(AircraftCategory cat)
     {
         return cat switch
@@ -390,6 +418,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 15,
             AircraftCategory.Turboprop => 20,
             AircraftCategory.Piston => 20,
+            AircraftCategory.Helicopter => 30,
             _ => 15,
         };
     }
@@ -416,6 +445,7 @@ public static class CategoryPerformance
             AircraftCategory.Jet => 20,
             AircraftCategory.Turboprop => 20,
             AircraftCategory.Piston => 15,
+            AircraftCategory.Helicopter => 15,
             _ => 20,
         };
     }
@@ -448,7 +478,27 @@ public static class CategoryPerformance
                 < 10000 => 110,
                 _ => 120,
             },
+            AircraftCategory.Helicopter => altitude switch
+            {
+                < 10000 => 100,
+                _ => 120,
+            },
             _ => 250,
         };
     }
+
+    /// <summary>Air taxi speed (knots). §3-11-1.c: above 20 KIAS, below 100ft AGL. 40 KIAS nominal.</summary>
+    public static double AirTaxiSpeed(AircraftCategory cat)
+    {
+        _ = cat;
+        return 40;
+    }
+
+    /// <summary>Air taxi altitude above field (feet AGL). §3-11-1.c: below 100ft AGL.</summary>
+    public static double AirTaxiAltitudeAgl(AircraftCategory cat)
+    {
+        _ = cat;
+        return 50;
+    }
+
 }

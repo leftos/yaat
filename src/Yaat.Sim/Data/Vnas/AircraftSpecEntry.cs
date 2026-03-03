@@ -24,4 +24,7 @@ public class AircraftSpecEntry
 
     [JsonPropertyName("WTG")]
     public string Wtg { get; set; } = "";
+
+    [JsonPropertyName("AircraftDescription")]
+    public string AircraftDescription { get; set; } = "";
 }

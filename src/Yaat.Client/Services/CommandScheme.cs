@@ -81,6 +81,10 @@ public class CommandScheme
                 [CanonicalCommandType.HoldAtFixLeft] = new() { Aliases = ["HFIXL"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.HoldAtFixRight] = new() { Aliases = ["HFIXR"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.HoldAtFixHover] = new() { Aliases = ["HFIX"], Format = "{verb} {arg}" },
+                // Helicopter
+                [CanonicalCommandType.AirTaxi] = new() { Aliases = ["ATXI"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.Land] = new() { Aliases = ["LAND"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ClearedTakeoffPresent] = new() { Aliases = ["CTOPP"], Format = "{verb}" },
                 // Ground
                 [CanonicalCommandType.Pushback] = new() { Aliases = ["PUSH"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.Taxi] = new() { Aliases = ["TAXI"], Format = "{verb} {arg}" },

@@ -1,4 +1,5 @@
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Scenarios;
 
@@ -24,7 +25,8 @@ public static class AircraftGenerator
         string? primaryAirportId,
         IFixLookup fixes,
         IRunwayLookup runways,
-        IReadOnlyCollection<AircraftState> existingAircraft
+        IReadOnlyCollection<AircraftState> existingAircraft,
+        AirportGroundLayout? groundLayout = null
     )
     {
         var aircraftType = ResolveType(request);
@@ -62,6 +64,19 @@ public static class AircraftGenerator
 
             case SpawnPositionType.AtFix:
                 return GenerateAtFix(request, primaryAirportId, fixes, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
+
+            case SpawnPositionType.Parking:
+                return GenerateAtParking(
+                    request,
+                    primaryAirportId,
+                    fixes,
+                    groundLayout,
+                    callsign,
+                    aircraftType,
+                    beaconCode,
+                    transponderMode,
+                    flightRules
+                );
 
             default:
                 return (null, $"Unknown position type: {request.PositionType}");
@@ -187,7 +202,8 @@ public static class AircraftGenerator
             return (null, $"Could not find runway {request.RunwayId} at {airportId}");
         }
 
-        var init = AircraftInitializer.InitializeOnRunway(rwy);
+        var category = AircraftCategorization.Categorize(aircraftType);
+        var init = AircraftInitializer.InitializeOnRunway(rwy, category);
 
         var state = new AircraftState
         {
@@ -233,8 +249,8 @@ public static class AircraftGenerator
             return (null, $"Could not find runway {request.RunwayId} at {airportId}");
         }
 
-        // Convert distance to altitude for AircraftInitializer (3° glide slope ~ 300ft/nm)
-        double altFromDist = rwy.ElevationFt + (request.FinalDistanceNm * 300.0);
+        double gsAngle = Phases.GlideSlopeGeometry.AngleForCategory(category);
+        double altFromDist = rwy.ElevationFt + (request.FinalDistanceNm * Phases.GlideSlopeGeometry.FeetPerNm(gsAngle));
 
         var init = AircraftInitializer.InitializeOnFinal(rwy, category, altFromDist);
 
@@ -253,6 +269,54 @@ public static class AircraftGenerator
             TransponderMode = transponderMode,
             FlightRules = flightRules,
             Phases = init.Phases,
+        };
+
+        return (state, null);
+    }
+
+    private static (AircraftState? State, string? Error) GenerateAtParking(
+        SpawnRequest request,
+        string? primaryAirportId,
+        IFixLookup fixes,
+        AirportGroundLayout? groundLayout,
+        string callsign,
+        string aircraftType,
+        uint beaconCode,
+        string transponderMode,
+        string flightRules
+    )
+    {
+        if (groundLayout is null)
+        {
+            return (null, "Parking position requires airport ground data");
+        }
+
+        // Search parking first, then helipads/spots
+        var node = groundLayout.FindParkingByName(request.ParkingName) ?? groundLayout.FindSpotByName(request.ParkingName);
+        if (node is null)
+        {
+            return (null, $"Parking/helipad '{request.ParkingName}' not found");
+        }
+
+        var elevation = fixes.GetAirportElevation(primaryAirportId ?? "") ?? 0;
+        var init = AircraftInitializer.InitializeAtParking(node, elevation);
+
+        var state = new AircraftState
+        {
+            Callsign = callsign,
+            AircraftType = aircraftType,
+            Latitude = init.Latitude,
+            Longitude = init.Longitude,
+            Heading = init.Heading,
+            Altitude = init.Altitude,
+            GroundSpeed = init.Speed,
+            IsOnGround = init.IsOnGround,
+            AssignedBeaconCode = beaconCode,
+            BeaconCode = beaconCode,
+            TransponderMode = transponderMode,
+            FlightRules = flightRules,
+            Phases = init.Phases,
+            AutoDeleteExempt = true,
         };
 
         return (state, null);

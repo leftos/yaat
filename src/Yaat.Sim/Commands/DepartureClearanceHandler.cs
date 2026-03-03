@@ -37,6 +37,10 @@ internal static class DepartureClearanceHandler
                 {
                     tkoff.SetAssignedDeparture(cto.Departure);
                 }
+                else if (p is HelicopterTakeoffPhase htkoff)
+                {
+                    htkoff.SetAssignedDeparture(cto.Departure);
+                }
                 else if (p is InitialClimbPhase climb && p.Status == PhaseStatus.Pending)
                 {
                     SetInitialClimbProperties(climb, cto.Departure, cto.AssignedAltitude, departureRoute, aircraft);
@@ -203,7 +207,9 @@ internal static class DepartureClearanceHandler
 
         var lineup = new LineUpPhase(holdShortNodeId);
         var luawPhase = new LinedUpAndWaitingPhase();
-        var takeoff = new TakeoffPhase();
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        bool isHeli = cat == AircraftCategory.Helicopter;
+        Phase takeoffPhase = isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase();
         var climb = new InitialClimbPhase
         {
             Departure = departure,
@@ -212,19 +218,25 @@ internal static class DepartureClearanceHandler
             IsVfr = aircraft.IsVfr,
             CruiseAltitude = aircraft.CruiseAltitude,
         };
-        aircraft.Phases!.InsertAfterCurrent(new Phase[] { lineup, luawPhase, takeoff, climb });
+        aircraft.Phases!.InsertAfterCurrent(new Phase[] { lineup, luawPhase, takeoffPhase, climb });
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
         {
             luawPhase.SatisfyClearance(ClearanceType.ClearedForTakeoff);
             luawPhase.Departure = departure;
             luawPhase.AssignedAltitude = assignedAltitude;
-            takeoff.SetAssignedDeparture(departure);
+            if (takeoffPhase is TakeoffPhase fw)
+            {
+                fw.SetAssignedDeparture(departure);
+            }
+            else if (takeoffPhase is HelicopterTakeoffPhase hp)
+            {
+                hp.SetAssignedDeparture(departure);
+            }
 
             if (departure is ClosedTrafficDeparture ct)
             {
                 aircraft.Phases.TrafficDirection = ct.Direction;
-                var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
                 var circuit = PatternBuilder.BuildCircuit(runway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
                 aircraft.Phases.Phases.AddRange(circuit);
             }
@@ -252,9 +264,9 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, "No active phase sequence");
         }
 
-        // Find the pending LinedUpAndWaitingPhase, TakeoffPhase, InitialClimbPhase
+        // Find the pending LinedUpAndWaitingPhase, TakeoffPhase/HelicopterTakeoffPhase, InitialClimbPhase
         LinedUpAndWaitingPhase? luaw = null;
-        TakeoffPhase? takeoff = null;
+        Phase? takeoff = null;
         InitialClimbPhase? climb = null;
         foreach (var p in phases.Phases)
         {
@@ -267,9 +279,9 @@ internal static class DepartureClearanceHandler
             {
                 luaw = l;
             }
-            else if (takeoff is null && p is TakeoffPhase t)
+            else if (takeoff is null && p is TakeoffPhase or HelicopterTakeoffPhase)
             {
-                takeoff = t;
+                takeoff = p;
             }
             else if (climb is null && p is InitialClimbPhase c)
             {
@@ -287,7 +299,14 @@ internal static class DepartureClearanceHandler
         luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
         luaw.Departure = departure;
         luaw.AssignedAltitude = assignedAltitude;
-        takeoff?.SetAssignedDeparture(departure);
+        if (takeoff is TakeoffPhase fwTakeoff)
+        {
+            fwTakeoff.SetAssignedDeparture(departure);
+        }
+        else if (takeoff is HelicopterTakeoffPhase heliTakeoff)
+        {
+            heliTakeoff.SetAssignedDeparture(departure);
+        }
 
         if (climb is not null)
         {

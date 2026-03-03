@@ -524,9 +524,8 @@ Detailed chunk plan: [M9 Helicopter Operations](milestone-9.md) (9 chunks)
 #### Commands
 
 - `ATXI {spot}` — Air taxi to spot (below 100ft AGL, 20-80 KIAS) — §3-11-1.c
-- `HTAXI {spot}` — Hover taxi to spot (below 20 KIAS) — §3-11-1.b
 - `LAND {spot}` — Land at named parking/helipad position — §3-11-6
-- `CTOPP` — Cleared to operate (helicopter-specific)
+- `CTOPP` — Cleared for takeoff, present position (vertical liftoff from ramp/helipad)
 - Existing CTO/CTL/LUAW/GA/TG/SG/HPP/HFIX work with helicopter-aware behavior
 - NODEL suffix support for LAND (exempts from auto-delete)
 

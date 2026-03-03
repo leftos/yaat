@@ -265,13 +265,21 @@ public sealed class VnasDataService : IDisposable
                 continue;
             }
 
-            var cat = spec.EngineType switch
+            AircraftCategory cat;
+            if (spec.AircraftDescription.Equals("Helicopter", StringComparison.OrdinalIgnoreCase))
             {
-                "Piston" => AircraftCategory.Piston,
-                "Turboprop" => AircraftCategory.Turboprop,
-                "Jet" => AircraftCategory.Jet,
-                _ => AircraftCategory.Jet,
-            };
+                cat = AircraftCategory.Helicopter;
+            }
+            else
+            {
+                cat = spec.EngineType switch
+                {
+                    "Piston" => AircraftCategory.Piston,
+                    "Turboprop" or "Turboprop/Turboshaft" => AircraftCategory.Turboprop,
+                    "Jet" => AircraftCategory.Jet,
+                    _ => AircraftCategory.Jet,
+                };
+            }
 
             lookup.TryAdd(spec.Designator, cat);
         }

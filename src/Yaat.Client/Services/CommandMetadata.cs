@@ -69,6 +69,10 @@ public static class CommandMetadata
         new(CanonicalCommandType.HoldAtFixLeft, "Hold at Fix (Left)", "FIX", false, "Hold"),
         new(CanonicalCommandType.HoldAtFixRight, "Hold at Fix (Right)", "FIX", false, "Hold"),
         new(CanonicalCommandType.HoldAtFixHover, "Hold at Fix", "FIX", false, "Hold"),
+        // Helicopter
+        new(CanonicalCommandType.AirTaxi, "Air Taxi", "H1", false, "Helicopter"),
+        new(CanonicalCommandType.Land, "Land", "H1", false, "Helicopter"),
+        new(CanonicalCommandType.ClearedTakeoffPresent, "Cleared Takeoff Present Position", null, false, "Helicopter"),
         // Ground
         new(CanonicalCommandType.Pushback, "Pushback", "270", false, "Ground"),
         new(CanonicalCommandType.Taxi, "Taxi", "S T U W W1", false, "Ground"),

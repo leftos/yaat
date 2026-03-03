@@ -152,6 +152,13 @@ public record HoldAtFixOrbitCommand(string FixName, double Lat, double Lon, Turn
 /// <summary>HFIX: helicopter fly to fix and hover.</summary>
 public record HoldAtFixHoverCommand(string FixName, double Lat, double Lon) : ParsedCommand;
 
+// Helicopter commands
+public record AirTaxiCommand(string? Destination) : ParsedCommand;
+
+public record LandCommand(string SpotName, bool NoDelete = false) : ParsedCommand;
+
+public record ClearedTakeoffPresentCommand : ParsedCommand;
+
 // Ground commands
 public record PushbackCommand(int? Heading = null, string? Taxiway = null) : ParsedCommand;
 

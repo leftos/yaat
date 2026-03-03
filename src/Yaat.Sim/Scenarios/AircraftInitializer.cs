@@ -26,11 +26,12 @@ public static class AircraftInitializer
     /// Creates the phase list and starting state for an aircraft
     /// lined up and waiting on a runway.
     /// </summary>
-    public static PhaseInitResult InitializeOnRunway(RunwayInfo runway)
+    public static PhaseInitResult InitializeOnRunway(RunwayInfo runway, AircraftCategory category = AircraftCategory.Jet)
     {
         var phases = new PhaseList { AssignedRunway = runway };
         phases.Add(new LinedUpAndWaitingPhase());
-        phases.Add(new TakeoffPhase());
+        bool isHeli = category == AircraftCategory.Helicopter;
+        phases.Add(isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase());
         phases.Add(new InitialClimbPhase());
 
         return new PhaseInitResult
@@ -78,6 +79,7 @@ public static class AircraftInitializer
         double? requestedDistanceNm = null
     )
     {
+        double gsAngle = GlideSlopeGeometry.AngleForCategory(category);
         double distNm;
         if (requestedDistanceNm is > 0)
         {
@@ -86,14 +88,14 @@ public static class AircraftInitializer
         else if (requestedAltitude is > 0)
         {
             double agl = requestedAltitude.Value - runway.ElevationFt;
-            distNm = agl > 0 ? agl / 300.0 : 5.0;
+            distNm = agl > 0 ? agl / GlideSlopeGeometry.FeetPerNm(gsAngle) : 5.0;
         }
         else
         {
             distNm = 5.0;
         }
 
-        double alt = GlideSlopeGeometry.AltitudeAtDistance(distNm, runway.ElevationFt);
+        double alt = GlideSlopeGeometry.AltitudeAtDistance(distNm, runway.ElevationFt, gsAngle);
         double speed;
         if (requestedSpeed.HasValue)
         {
@@ -121,7 +123,8 @@ public static class AircraftInitializer
 
         var phases = new PhaseList { AssignedRunway = runway };
         phases.Add(new FinalApproachPhase { SkipInterceptCheck = true });
-        phases.Add(new LandingPhase());
+        bool isHeli = category == AircraftCategory.Helicopter;
+        phases.Add(isHeli ? new HelicopterLandingPhase() : new LandingPhase());
 
         return new PhaseInitResult
         {

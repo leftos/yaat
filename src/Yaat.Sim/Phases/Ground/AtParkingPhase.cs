@@ -32,6 +32,9 @@ public sealed class AtParkingPhase : Phase
         {
             CanonicalCommandType.Pushback => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.ClearedTakeoffPresent => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };

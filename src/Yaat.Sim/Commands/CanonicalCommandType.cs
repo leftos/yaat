@@ -79,6 +79,11 @@ public enum CanonicalCommandType
     ExitRight,
     ExitTaxiway,
 
+    // Helicopter commands
+    AirTaxi,
+    Land,
+    ClearedTakeoffPresent,
+
     // Spawn control
     Add,
     SpawnNow,

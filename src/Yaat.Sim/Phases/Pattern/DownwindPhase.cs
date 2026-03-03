@@ -11,9 +11,6 @@ public sealed class DownwindPhase : Phase
 {
     private const double AlongTrackToleranceNm = 0.3;
 
-    /// <summary>Feet of altitude per nm for a 3° glideslope (standard rule of thumb).</summary>
-    private const double GlideslopeFtPerNm = 300.0;
-
     private double _baseTurnAlongTrack;
     private double _abeamAlongTrack;
     private double _thresholdLat;
@@ -105,7 +102,8 @@ public sealed class DownwindPhase : Phase
                 double patternSize = CategoryPerformance.PatternSizeNm(ctx.Category);
                 double baseExt = CategoryPerformance.BaseExtensionNm(ctx.Category);
                 double finalApproachDist = Math.Sqrt(patternSize * patternSize + baseExt * baseExt);
-                _altitudeFloor = thresholdElev + finalApproachDist * GlideslopeFtPerNm;
+                double gsAngle = GlideSlopeGeometry.AngleForCategory(ctx.Category);
+                _altitudeFloor = thresholdElev + finalApproachDist * GlideSlopeGeometry.FeetPerNm(gsAngle);
 
                 // Begin decelerating toward base speed
                 ctx.Targets.TargetSpeed = CategoryPerformance.BaseSpeed(ctx.Category);

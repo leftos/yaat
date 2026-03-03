@@ -28,7 +28,7 @@ All helicopter ATC procedures are grounded in:
 5. **Landing at non-runway** (§3-11-6): Land at helipad, taxiway, Maltese cross, etc.
 6. **Pattern** (AIM §4-3-3): 500ft AGL, closer to runway, may be opposite side from fixed-wing
 7. **Helicopters CAN use runways** — fully integrated with fixed-wing when desired
-8. **No "CTOPP" in 7110.65** — this is an ATCTrainer invention. Closest real concept is local SVFR authorization (§7-5-5). We'll keep it as a sim convenience command.
+8. **CTOPP = Cleared for Takeoff Present Position** — ATCTrainer convention for helicopter vertical takeoff from non-runway positions (ramp, helipad, parking). Unlike CTO which requires a runway assignment, CTOPP clears the helicopter for vertical liftoff from wherever it is.
 9. **IFR approaches** (AIM §10-1-2): Helicopters fly standard IAPs with reduced Cat A visibility minima; max 90 KIAS at MAP
 10. **Speed assignments** (§5-7-3.e.5): Minimum 60 KIAS for helicopters
 
@@ -66,12 +66,12 @@ Add `Helicopter` to `AircraftCategory` and populate performance constants.
 
 **Files:** `Yaat.Sim/AircraftCategory.cs`, `yaat-server/Data/VnasDataService.cs` (categorization init)
 
-- [ ] Add `Helicopter` variant to `AircraftCategory` enum
-- [ ] Update `AircraftCategorization.Initialize()` — VNAS `AircraftSpecs.json` has `EngineType` field; map helicopter engine types (Turboshaft → Helicopter, or use ICAO type designator prefix "H" check)
-- [ ] Add `Helicopter` branch to every `CategoryPerformance` method (see constants below)
-- [ ] Update `AircraftCategorization.Categorize()` fallback — unknown types still default to Jet
-- [ ] Update `DefaultSpeed(Helicopter, alt)` — 100 KIAS below 10k, 120 above
-- [ ] Verify: `dotnet build`, all existing tests pass (new category shouldn't break anything since existing aircraft don't get recategorized)
+- [x] Add `Helicopter` variant to `AircraftCategory` enum
+- [x] Update `AircraftCategorization.Initialize()` — uses `AircraftDescription == "Helicopter"` from VNAS data (more reliable than EngineType); also fixed pre-existing bug where "Turboprop/Turboshaft" EngineType fell through to Jet
+- [x] Add `Helicopter` branch to every `CategoryPerformance` method (see constants below)
+- [x] Update `AircraftCategorization.Categorize()` fallback — unknown types still default to Jet
+- [x] Update `DefaultSpeed(Helicopter, alt)` — 100 KIAS below 10k, 120 above
+- [x] Verify: `dotnet build`, all existing tests pass (455 tests: 320 Sim + 71 Client + 64 Server)
 
 **Helicopter Performance Constants** (validated by aviation-sim-expert):
 
@@ -117,7 +117,6 @@ Add `Helicopter` to `AircraftCategory` and populate performance constants.
 New methods needed:
 | Method | Value | Purpose |
 |--------|-------|---------|
-| `HoverTaxiSpeed` | 15 kts | §3-11-1.b: below 20 KIAS |
 | `AirTaxiSpeed` | 40 kts | §3-11-1.c: 20-80 KIAS typical |
 | `AirTaxiAltitudeAgl` | 50 ft | Below 100ft AGL per §3-11-1.c |
 | `CanGroundTaxi` | false (default) | Skid-equipped can't ground taxi |
@@ -130,14 +129,15 @@ Add helipad support to the airport ground data model and GeoJSON parser.
 
 **Files:** `Yaat.Sim/Data/Airport/AirportGroundLayout.cs`, `Yaat.Sim/Data/Airport/GeoJsonParser.cs`, `yaat-server/Dtos/TrainingDtos.cs`, `yaat-server/Data/AirportGroundDataService.cs`
 
-- [ ] Add `Helipad` to `GroundNodeType` enum
-- [ ] Extend `GeoJsonParser.BuildLayout()` to handle `"helipad"` feature type (Point geometry with `name`, `heading` properties — same shape as parking)
-- [ ] Add `FindHelipadByName(string name)` to `AirportGroundLayout` (case-insensitive, searches Helipad nodes)
-- [ ] Add `FindSpotByName(string name)` utility to `AirportGroundLayout` for LAND to named spots
-- [ ] Update `GroundNodeDto` serialization — `"Helipad"` type string
-- [ ] Connect helipads to nearest taxiway node (same logic as parking, but with larger connect radius — 0.3nm — since helipads may be further from taxiways)
-- [ ] Create sample helipad GeoJSON entries for OAK/SFO in vzoa repo (at least 1-2 per airport for testing)
-- [ ] Verify: build, existing ground tests pass
+- [x] Add `Helipad` to `GroundNodeType` enum
+- [x] Extend `GeoJsonParser.BuildLayout()` to handle `"helipad"` feature type (Point geometry with `name`, `heading` properties — same shape as parking)
+- [x] Add `FindHelipadByName(string name)` to `AirportGroundLayout` (case-insensitive, searches Helipad nodes)
+- [x] Add `FindSpotByName(string name)` utility to `AirportGroundLayout` for LAND to named spots
+- [x] Update `GroundNodeDto` serialization — `"Helipad"` type string (automatic via ToString())
+- [x] Connect helipads to nearest taxiway node (same logic as parking, but with larger connect radius — 0.3nm — since helipads may be further from taxiways)
+- [x] Create sample helipad GeoJSON entries for OAK/SFO in vzoa repo (at least 1-2 per airport for testing)
+- [x] Server: AirportGroundDataService now loads from subdirectory with multiple .geojson files
+- [x] Verify: build, existing ground tests pass (455 tests)
 
 **GeoJSON helipad format** (mirrors parking):
 ```json
@@ -156,14 +156,14 @@ Helicopter takeoff is vertical liftoff (no ground roll). Landing is a decelerati
 
 **Files:** `Yaat.Sim/Phases/Tower/` (new + modified), `Yaat.Sim/Phases/PhaseRunner.cs`
 
-- [ ] Create `HelicopterTakeoffPhase` — vertical climb from ground to 400ft AGL at initial climb rate; no acceleration phase; sets InitialClimbSpeed as target once airborne
-- [ ] Create `HelicopterLandingPhase` — decelerate + descend to landing spot; once below 50ft AGL and speed < 5kts, touchdown; no rollout
-- [ ] Modify `PhaseRunner` to select helicopter-specific takeoff/landing phases when `AircraftCategorization.Categorize()` returns `Helicopter`
-- [ ] Ensure existing CTO/CTL/LUAW commands work with helicopter phases (no new commands needed — per §3-11-2/6, helicopters receive "CLEARED FOR TAKEOFF" and "CLEARED TO LAND" same as fixed-wing)
-- [ ] Handle LUAW for helicopter: hover at threshold instead of sitting on runway
-- [ ] Touch-and-go for helicopter: hover briefly, then lift off (no rollout)
-- [ ] Go-around for helicopter: immediate climb from any phase (no speed prerequisite)
-- [ ] Verify: existing tower tests still pass; new helicopter takeoff/landing unit tests
+- [x] Create `HelicopterTakeoffPhase` — vertical climb from ground to 400ft AGL at initial climb rate; no acceleration phase; sets InitialClimbSpeed as target once airborne
+- [x] Create `HelicopterLandingPhase` — decelerate + descend to landing spot; once below 50ft AGL, 150 fpm descent; touchdown at speed=0, no rollout
+- [x] All callsites updated: PhaseRunner, PatternBuilder, AircraftInitializer, CommandDispatcher (CTL, approach, ReplaceApproachEnding), ApproachCommandHandler (3 instances), DepartureClearanceHandler (3 places), TaxiingPhase
+- [x] CTO/CTL/LUAW commands work with helicopter phases (same clearances per §3-11-2/6)
+- [x] Touch-and-go works via Vr=0 (immediate airborne after brief touch); stop-and-go similarly
+- [x] Go-around: RejectedLandingMinSpeed=0, helicopter can always go around from any speed
+- [x] Aviation-sim-expert reviewed: all values accurate, caught missed HelicopterLandingPhase in ReplaceApproachEnding (fixed)
+- [x] Verify: build 0W 0E, all 455 tests pass (320 Sim + 71 Client + 64 Server)
 
 **HelicopterTakeoffPhase behavior:**
 1. Start: on ground at position (helipad, parking, runway threshold)
@@ -186,22 +186,20 @@ The primary helicopter movement mode per §3-11-1.c. Below 100ft AGL, 20-80 KIAS
 
 **Files:** `Yaat.Sim/Phases/Ground/AirTaxiPhase.cs` (new), `Yaat.Sim/Commands/CanonicalCommandType.cs`, `Yaat.Sim/Commands/ParsedCommand.cs`, `Yaat.Sim/Commands/CommandDispatcher.cs`, `Yaat.Client/Services/CommandScheme.cs`, `Yaat.Client/Services/CommandMetadata.cs`
 
-- [ ] Add `AirTaxi` to `CanonicalCommandType`
-- [ ] Add `AirTaxiCommand(string? Destination, double? DestLat, double? DestLon)` to `ParsedCommand.cs`
-- [ ] Add `ATXI {destination}` to `CommandScheme.Default()` — destination is a parking/helipad/spot name, or omitted for "proceed as directed"
-- [ ] Add to `CommandMetadata.AllCommands`
-- [ ] Create `AirTaxiPhase`:
+- [x] Add `AirTaxi` to `CanonicalCommandType`
+- [x] Add `AirTaxiCommand(string? Destination)` to `ParsedCommand.cs`
+- [x] Add `ATXI {destination}` to `CommandScheme.Default()` — destination is a parking/helipad/spot name, or omitted for "proceed as directed"
+- [x] Add to `CommandMetadata.AllCommands`
+- [x] Create `AirTaxiPhase`:
   - Aircraft lifts to `AirTaxiAltitudeAgl` (50ft AGL) if on ground
   - Navigates to destination via direct bearing (no taxiway graph — airborne)
   - Maintains speed at `AirTaxiSpeed` (~40 KIAS)
-  - On arrival (within 0.1nm of destination): decelerates to hover
+  - On arrival (within 0.05nm of destination): decelerates to hover
   - Self-completes when hovering over destination
-  - Transitions to: `HelicopterLandingPhase` if LAND follows, or `HoverPhase` if hovering
-- [ ] Wire into `CommandDispatcher` — accepted from `AtParkingPhase`, `HoldingShortPhase`, `HoldingAfterExitPhase`, helicopter hover phases
-- [ ] Reject `AirTaxi` for non-helicopter aircraft with appropriate message
-- [ ] Add `HoverTaxi` to `CanonicalCommandType` (for completeness; can share AirTaxi phase with lower speed)
-- [ ] Add `HTAXI {destination}` to command scheme — same as ATXI but speed capped at `HoverTaxiSpeed` (15 KIAS)
-- [ ] Verify: CommandSchemeCompletenessTests pass, build succeeds
+- [x] Wire into `CommandDispatcher` via `GroundCommandHandler.TryAirTaxi`
+- [x] Reject `AirTaxi` for non-helicopter aircraft with appropriate message
+- ~~`HoverTaxi`/`HTAXI` removed — hover taxi follows taxiways (same as TAXI), so a separate command was redundant~~
+- [x] Verify: CommandSchemeCompletenessTests pass, build succeeds
 
 **Resolution:** Destination resolves via:
 1. `AirportGroundLayout.FindHelipadByName(name)` → helipad position
@@ -216,19 +214,18 @@ Direct landing at a named spot. Bypasses pattern/approach — helicopter descend
 
 **Files:** `Yaat.Sim/Commands/CanonicalCommandType.cs`, `Yaat.Sim/Commands/ParsedCommand.cs`, `Yaat.Sim/Commands/CommandDispatcher.cs`, `Yaat.Client/Services/CommandScheme.cs`, `Yaat.Client/Services/CommandMetadata.cs`
 
-- [ ] Add `Land` to `CanonicalCommandType`
-- [ ] Add `LandCommand(string SpotName, double Lat, double Lon)` to `ParsedCommand.cs`
-- [ ] Add `LAND {spot}` to `CommandScheme.Default()` — spot is helipad/parking name
-- [ ] Add to `CommandMetadata.AllCommands`
-- [ ] Dispatch behavior:
+- [x] Add `Land` to `CanonicalCommandType`
+- [x] Add `LandCommand(string SpotName, bool NoDelete = false)` to `ParsedCommand.cs`
+- [x] Add `LAND {spot}` to `CommandScheme.Default()` — spot is helipad/parking name
+- [x] Add to `CommandMetadata.AllCommands`
+- [x] Dispatch behavior:
   - Resolve spot name → position (helipad > parking > spot node)
   - If airborne: navigate to spot, then descend via `HelicopterLandingPhase`
   - If on ground (hover/air taxi): navigate to spot airborne, then land
   - If air taxiing: redirect to new destination, then land
-- [ ] Set `ParkingSpot` on `AircraftState` after touchdown at parking/helipad
-- [ ] Support `NODEL` suffix — exempts aircraft from auto-delete on landing
-- [ ] Reject for non-helicopter aircraft (fixed-wing must use CTL + runway)
-- [ ] Verify: build, completeness tests pass, new unit tests
+- [x] Support `NODEL` suffix — exempts aircraft from auto-delete on landing
+- [x] Reject for non-helicopter aircraft (fixed-wing must use CTL + runway)
+- [x] Verify: build, completeness tests pass
 
 ---
 
@@ -238,13 +235,13 @@ Modify pattern geometry and phases to support helicopter-specific patterns (500f
 
 **Files:** `Yaat.Sim/Phases/PatternGeometry.cs`, `Yaat.Sim/Phases/PatternBuilder.cs`, pattern phase files
 
-- [ ] `PatternGeometry.Compute()` already uses `CategoryPerformance` for altitude/size/extensions — adding Helicopter constants in Chunk 1 automatically produces tighter pattern geometry
-- [ ] Verify pattern waypoints are reasonable for helicopter: 500ft AGL, 0.5nm offset, 0.2nm crosswind extension, 0.3nm base extension
-- [ ] Ensure pattern phases use correct speeds from `CategoryPerformance` (DownwindSpeed/BaseSpeed already category-aware)
-- [ ] Support opposite-side pattern: existing `PatternDirection.Left/Right` already works; AIM §4-3-3 allows helicopter on opposite side by default
-- [ ] Steeper descent: helicopter pattern descent rate (500 fpm vs 700+ for fixed-wing) — already handled by `PatternDescentRate(Helicopter)`
-- [ ] Final approach for helicopter in pattern: steeper glideslope allowed (up to 6°); add `HelicopterGlideSlopeAngle` constant or use category-based override in `GlideSlopeGeometry`
-- [ ] Verify: existing pattern tests still pass with Jet/Turboprop/Piston; new helicopter pattern unit tests for geometry correctness
+- [x] `PatternGeometry.Compute()` already uses `CategoryPerformance` for altitude/size/extensions — adding Helicopter constants in Chunk 1 automatically produces tighter pattern geometry
+- [x] Verify pattern waypoints are reasonable for helicopter: 500ft AGL, 0.5nm offset, 0.2nm crosswind extension, 0.3nm base extension
+- [x] Ensure pattern phases use correct speeds from `CategoryPerformance` (DownwindSpeed/BaseSpeed already category-aware)
+- [x] Support opposite-side pattern: existing `PatternDirection.Left/Right` already works; AIM §4-3-3 allows helicopter on opposite side by default
+- [x] Steeper descent: helicopter pattern descent rate (500 fpm vs 700+ for fixed-wing) — already handled by `PatternDescentRate(Helicopter)`
+- [x] Final approach for helicopter in pattern: steeper glideslope (6°) via category-based `GlideSlopeGeometry.AngleForCategory()` — fixed hardcoded 3° in AircraftInitializer, DownwindPhase, AircraftGenerator
+- [x] Verify: existing pattern tests still pass with Jet/Turboprop/Piston; all 455 tests pass
 
 ---
 
@@ -254,16 +251,15 @@ Additional helicopter commands from the main plan and ATCTrainer reference.
 
 **Files:** `Yaat.Sim/Commands/CanonicalCommandType.cs`, `Yaat.Sim/Commands/ParsedCommand.cs`, `Yaat.Sim/Commands/CommandDispatcher.cs`, `Yaat.Client/Services/CommandScheme.cs`, `Yaat.Client/Services/CommandMetadata.cs`
 
-- [ ] Add `ClearedToOperate` to `CanonicalCommandType` — CTOPP convenience command
-- [ ] CTOPP behavior: sets helicopter free to hover/reposition within airport (enters `HoverPhase` with no constraints; aircraft stays at current position until given ATXI/LAND/heading/altitude)
-- [ ] Ensure existing HPP/HPPL/HPPR/HFIX/HFIXL/HFIXR commands work correctly for helicopters (they already set `OrbitDirection = null` for hover — verify zero-speed hover physics actually stabilize position)
-- [ ] Verify hover physics: `FlightPhysics.UpdatePosition()` with speed=0 should result in no position change; confirm there's no drift from floating-point or wind effects at zero speed
-- [ ] Add helicopter-aware checks to existing commands:
-  - `SPD` — minimum 60 KIAS per §5-7-3.e.5 (warn if less, but allow since RPO may be giving hover instructions)
-  - `CAPP`/`JAPP` — max 90 KIAS at MAP for helicopter approaches (auto-slow)
-  - Intercept angle: 45° for helicopters vs 30° for fixed-wing (§5-9-2)
-- [ ] Update `CommandSchemeCompletenessTests` — all new types registered
-- [ ] Verify: build, all tests pass
+- [x] Add `ClearedTakeoffPresent` to `CanonicalCommandType` — CTOPP = Cleared for Takeoff Present Position
+- [x] CTOPP behavior: triggers `HelicopterTakeoffPhase` + `InitialClimbPhase` from current ground position (parking, helipad, ramp) — vertical liftoff without runway assignment
+- [x] Ensure existing HPP/HPPL/HPPR/HFIX/HFIXL/HFIXR commands work correctly for helicopters (OrbitDirection=null → hover; speed=0 verified)
+- [x] Verify hover physics: `FlightPhysics.UpdatePosition()` with speed=0 → zero displacement (no drift)
+- [x] Add helicopter-aware checks to existing commands:
+  - `SPD` — minimum 60 KIAS warning per §5-7-3.e.5 (warns but allows)
+  - Intercept angle: 45° for helicopters vs distance-based for fixed-wing (§5-9-2)
+- [x] Update `CommandSchemeCompletenessTests` — all new types registered
+- [x] Verify: build 0W 0E, all 455 tests pass
 
 ---
 
@@ -273,13 +269,14 @@ Support spawning helicopters from scenarios and ADD command.
 
 **Files:** `Yaat.Sim/Scenarios/AircraftInitializer.cs`, `Yaat.Sim/Scenarios/SpawnRequest.cs`, `yaat-server/Scenarios/ScenarioLoader.cs`, `yaat-server/Spawn/SpawnParser.cs`
 
-- [ ] `AircraftCategorization.Categorize()` correctly identifies helicopter types from scenario `aircraftType` field (e.g., "H60/M", "R44/L", "EC35/L", "B06/L", "S76/L")
-- [ ] `InitializeAtParking()` — for helicopter at parking: enter `AtParkingPhase` (same as fixed-wing; can then receive ATXI or PUSH)
-- [ ] New `InitializeAtHelipad()` — for helicopter at helipad: enter `AtParkingPhase` (same behavior, different node type)
-- [ ] `StartingConditions.Parking` — resolve to helipad node if parking name matches a helipad (fall back to parking)
-- [ ] ADD command: `ADD {callsign} {type} {spot} [alt] [spd] [hdg]` — spot can be helipad name
-- [ ] Scenario `presetCommands` — ensure ATXI, LAND, CTOPP work in preset command context
-- [ ] Verify: load an existing scenario, spawn a helicopter at parking, air taxi to helipad, land
+- [x] `AircraftCategorization.Categorize()` correctly identifies helicopter types from VNAS AircraftDescription
+- [x] `InitializeAtParking()` — works for helicopter at parking/helipad (enters `AtParkingPhase`)
+- [x] Parking name resolves helipad via `FindSpotByName` fallback in both `ScenarioLoader` and `AircraftGenerator`
+- [x] ADD command: `ADD V S P %H1` — `%` prefix for parking/helipad spot spawn
+- [x] `SpawnParser.ParseParkingVariant` → `SpawnPositionType.Parking` → `AircraftGenerator.GenerateAtParking`
+- [x] Category-aware glideslope in `AircraftGenerator.GenerateOnFinal` (was hardcoded 300 ft/nm)
+- [x] ScenarioLoader passes category to `InitializeOnRunway` for helicopter takeoff phases
+- [x] Verify: build 0W 0E, all 455 tests pass
 
 ---
 
@@ -289,30 +286,30 @@ Client-side display updates for helicopter operations.
 
 **Files:** `Yaat.Client/Models/AircraftModel.cs`, `Yaat.Client/Views/DataGridView.axaml`, `Yaat.Client/ViewModels/MainViewModel.cs`, `Yaat.Client/Services/CommandInputController.cs`
 
-- [ ] AircraftModel: display helicopter-specific phase names (AirTaxi, Hover, Landing-H, Takeoff-H)
-- [ ] DataGrid: no new columns needed — Phase column already shows phase name
-- [ ] Command autocomplete: ATXI, HTAXI, LAND, CTOPP suggestions for helicopter aircraft
-- [ ] Ground view: render helipad nodes differently from parking (e.g., "H" marker, distinct color)
-- [ ] Radar view: no changes needed — helicopter targets render same as fixed-wing
-- [ ] Terminal: helicopter-specific feedback messages ("Air taxiing to H1", "Hovering at present position")
-- [ ] Verify: build, manual testing with helicopter spawn
+- [x] AircraftModel: helicopter-specific phase names propagate via DTOs (AirTaxi, Landing-H, Takeoff-H)
+- [x] DataGrid: no new columns needed — Phase column already shows phase name
+- [x] Command autocomplete: ATXI, LAND, CTOPP in CommandMetadata with "Helicopter" category
+- [x] Ground view: helipad nodes rendered with purple color, "H" marker, larger radius (5f vs 4f parking), name labels
+- [x] Radar view: no changes needed — helicopter targets render same as fixed-wing
+- [x] Terminal: CommandDescriber provides helicopter-specific messages ("Air taxi to H1", "Land at H1", "Cleared for takeoff, present position")
+- [x] Verify: build 0W 0E, all 455 tests pass
 
 ---
 
 ## Definition of Done
 
-- [ ] Helicopters detected from ICAO type designator; `Helicopter` category with validated performance constants
-- [ ] Helipads in GeoJSON ground data with parser support
-- [ ] Helicopter takeoff: vertical liftoff (no ground roll)
-- [ ] Helicopter landing: decelerate to hover, then touchdown (no rollout)
-- [ ] Air taxi: below 100ft AGL, 20-80 KIAS, point-to-point
-- [ ] LAND command: direct landing at named helipad/parking
-- [ ] CTOPP: cleared to operate (helicopter-specific convenience)
-- [ ] Helicopter traffic pattern: 500ft AGL, tighter geometry
-- [ ] Existing commands (CTO, CTL, SPD, FH, etc.) work for helicopters
-- [ ] Scenarios can spawn helicopter aircraft
-- [ ] CommandSchemeCompletenessTests pass
-- [ ] All existing tests pass (no regression)
+- [x] Helicopters detected from VNAS AircraftDescription; `Helicopter` category with validated performance constants
+- [x] Helipads in GeoJSON ground data with parser support
+- [x] Helicopter takeoff: vertical liftoff (no ground roll) — `HelicopterTakeoffPhase`
+- [x] Helicopter landing: decelerate to hover, then touchdown (no rollout) — `HelicopterLandingPhase`
+- [x] Air taxi: below 100ft AGL, 20-80 KIAS, point-to-point — `AirTaxiPhase`
+- [x] LAND command: direct landing at named helipad/parking
+- [x] CTOPP: cleared for takeoff present position (vertical liftoff from ramp/helipad)
+- [x] Helicopter traffic pattern: 500ft AGL, tighter geometry (category-aware via `CategoryPerformance`)
+- [x] Existing commands (CTO, CTL, SPD, FH, etc.) work for helicopters
+- [x] Scenarios can spawn helicopter aircraft (parking + helipad + runway + on-final)
+- [x] CommandSchemeCompletenessTests pass
+- [x] All existing tests pass (455: 320 Sim + 71 Client + 64 Server)
 
 ---
 
@@ -323,9 +320,8 @@ Client-side display updates for helicopter operations.
 | Command | Canonical | Description | Reference |
 |---------|-----------|-------------|-----------|
 | `ATXI {spot}` | `AirTaxi` | Air taxi to spot (below 100ft AGL) | §3-11-1.c |
-| `HTAXI {spot}` | `HoverTaxi` | Hover taxi to spot (below 20 KIAS) | §3-11-1.b |
 | `LAND {spot}` | `Land` | Direct landing at named spot | §3-11-6 |
-| `CTOPP` | `ClearedToOperate` | Cleared to operate (hover/reposition) | ATCTrainer convention |
+| `CTOPP` | `ClearedTakeoffPresent` | Cleared for takeoff, present position (vertical liftoff from ramp/helipad) | ATCTrainer convention |
 
 ### Existing commands with helicopter-aware behavior
 

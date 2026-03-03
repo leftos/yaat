@@ -204,8 +204,22 @@ public static class CommandDispatcher
                 return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
 
             case SpeedCommand cmd:
+            {
                 aircraft.Targets.TargetSpeed = cmd.Speed == 0 ? null : cmd.Speed;
-                return cmd.Speed == 0 ? Ok("Resume normal speed") : Ok($"Speed {cmd.Speed}");
+                if (cmd.Speed == 0)
+                {
+                    return Ok("Resume normal speed");
+                }
+
+                // Helicopter min radar speed warning per §5-7-3.e.5
+                var spdCat = AircraftCategorization.Categorize(aircraft.AircraftType);
+                if (spdCat == AircraftCategory.Helicopter && cmd.Speed > 0 && cmd.Speed < 60)
+                {
+                    aircraft.PendingWarnings.Add($"Speed {cmd.Speed} below helicopter minimum 60 KIAS [7110.65 §5-7-3.e.5]");
+                }
+
+                return Ok($"Speed {cmd.Speed}");
+            }
 
             case DirectToCommand cmd:
                 aircraft.Targets.NavigationRoute.Clear();
@@ -517,7 +531,9 @@ public static class CommandDispatcher
                     aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
                     aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
                     aircraft.Phases.TrafficDirection = null;
-                    ReplaceApproachEnding(aircraft.Phases, new LandingPhase());
+                    var isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+                    Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();
+                    ReplaceApproachEnding(aircraft.Phases, landingCtl);
                     if (ctl.NoDelete)
                     {
                         aircraft.AutoDeleteExempt = true;
@@ -703,6 +719,68 @@ public static class CommandDispatcher
 
             case HoldAtFixHoverCommand hfixH:
                 return PatternCommandHandler.TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null, logger);
+
+            // Hold/resume during air taxi (airborne, so ground handler's IsOnGround check would reject)
+            case HoldPositionCommand when currentPhase is AirTaxiPhase:
+                aircraft.IsHeld = true;
+                return Ok("Hold position");
+
+            case ResumeCommand when currentPhase is AirTaxiPhase:
+                aircraft.IsHeld = false;
+                return Ok("Resume taxi");
+
+            // Helicopter commands
+            case AirTaxiCommand atxi:
+                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, groundLayout, logger);
+
+            case LandCommand land:
+                return GroundCommandHandler.TryLand(aircraft, land, groundLayout, logger);
+
+            case ClearedTakeoffPresentCommand:
+            {
+                var ctoppCat = AircraftCategorization.Categorize(aircraft.AircraftType);
+                if (ctoppCat != AircraftCategory.Helicopter)
+                {
+                    return new CommandResult(false, "CTOPP is only valid for helicopters");
+                }
+
+                if (!aircraft.IsOnGround)
+                {
+                    return new CommandResult(false, "CTOPP requires the aircraft to be on the ground");
+                }
+
+                // Clear existing phases and set up vertical takeoff
+                var ctoppCtx = BuildMinimalContext(aircraft, logger, groundLayout);
+                if (aircraft.Phases is not null)
+                {
+                    aircraft.Phases.Clear(ctoppCtx);
+                }
+
+                aircraft.IsHeld = false;
+                aircraft.Phases = new PhaseList();
+                aircraft.Phases.Add(new Phases.Tower.HelicopterTakeoffPhase());
+                aircraft.Phases.Add(new Phases.Tower.InitialClimbPhase
+                {
+                    IsVfr = aircraft.IsVfr,
+                    CruiseAltitude = aircraft.CruiseAltitude,
+                });
+
+                // Field elevation = current altitude (on ground)
+                ctoppCtx = new PhaseContext
+                {
+                    Aircraft = aircraft,
+                    Targets = aircraft.Targets,
+                    Category = ctoppCat,
+                    DeltaSeconds = 0,
+                    Runway = null,
+                    FieldElevation = aircraft.Altitude,
+                    GroundLayout = groundLayout,
+                    Logger = logger,
+                };
+                aircraft.Phases.Start(ctoppCtx);
+
+                return Ok("Cleared for takeoff, present position");
+            }
 
             // Ground commands
             case PushbackCommand push:
@@ -1195,7 +1273,8 @@ public static class CommandDispatcher
         };
 
         var finalPhase = new FinalApproachPhase();
-        var landingPhase = new LandingPhase();
+        var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        Phase landingPhase = isHeliApch ? new HelicopterLandingPhase() : new LandingPhase();
 
         var clearance = new ApproachClearance
         {
@@ -1241,7 +1320,7 @@ public static class CommandDispatcher
     }
 
     /// <summary>
-    /// Replace the first pending approach-ending phase (LandingPhase,
+    /// Replace the first pending approach-ending phase (LandingPhase, HelicopterLandingPhase,
     /// TouchAndGoPhase, StopAndGoPhase, or LowApproachPhase) with the
     /// given replacement. Returns true if a replacement was made.
     /// </summary>
@@ -1255,7 +1334,7 @@ public static class CommandDispatcher
                 continue;
             }
 
-            if (phase is LandingPhase or TouchAndGoPhase or StopAndGoPhase or LowApproachPhase)
+            if (phase is LandingPhase or HelicopterLandingPhase or TouchAndGoPhase or StopAndGoPhase or LowApproachPhase)
             {
                 phases.Phases[i] = replacement;
                 return true;

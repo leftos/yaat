@@ -246,6 +246,109 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Follow {follow.TargetCallsign}");
     }
 
+    internal static CommandResult TryAirTaxi(
+        AircraftState aircraft,
+        string? destination,
+        AirportGroundLayout? groundLayout,
+        ILogger logger
+    )
+    {
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        if (cat != AircraftCategory.Helicopter)
+        {
+            return new CommandResult(false, "Air taxi is only available for helicopters");
+        }
+
+        if (destination is null)
+        {
+            return new CommandResult(false, "ATXI requires a destination (helipad, parking, or spot name)");
+        }
+
+        // Resolve destination to coordinates
+        if (groundLayout is null)
+        {
+            return new CommandResult(false, "No airport ground layout available");
+        }
+
+        var spot = groundLayout.FindSpotByName(destination);
+        if (spot is null)
+        {
+            return new CommandResult(false, $"Cannot find spot '{destination}' in airport layout");
+        }
+
+        double destLat = spot.Latitude;
+        double destLon = spot.Longitude;
+        string resolvedName = destination.ToUpperInvariant();
+
+        // Clear current phases and start air taxi
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        if (aircraft.Phases is not null)
+        {
+            aircraft.Phases.Clear(ctx);
+        }
+
+        aircraft.IsHeld = false;
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
+        ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        aircraft.Phases.Start(ctx);
+
+        return CommandDispatcher.Ok($"Air taxi to {resolvedName}");
+    }
+
+    internal static CommandResult TryLand(
+        AircraftState aircraft,
+        LandCommand land,
+        AirportGroundLayout? groundLayout,
+        ILogger logger
+    )
+    {
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        if (cat != AircraftCategory.Helicopter)
+        {
+            return new CommandResult(false, "LAND is only available for helicopters (use CTL for fixed-wing)");
+        }
+
+        if (groundLayout is null)
+        {
+            return new CommandResult(false, "No airport ground layout available");
+        }
+
+        var spot = groundLayout.FindSpotByName(land.SpotName);
+        if (spot is null)
+        {
+            return new CommandResult(false, $"Cannot find spot '{land.SpotName}' in airport layout");
+        }
+
+        double destLat = spot.Latitude;
+        double destLon = spot.Longitude;
+        string resolvedName = land.SpotName.ToUpperInvariant();
+
+        if (land.NoDelete)
+        {
+            aircraft.AutoDeleteExempt = true;
+        }
+
+        // Clear current phases and set up air taxi → land sequence
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        if (aircraft.Phases is not null)
+        {
+            aircraft.Phases.Clear(ctx);
+        }
+
+        aircraft.IsHeld = false;
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
+        aircraft.Phases.Add(new Phases.Tower.HelicopterLandingPhase());
+        aircraft.Phases.Add(new AtParkingPhase());
+        ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        aircraft.Phases.Start(ctx);
+
+        aircraft.ParkingSpot = resolvedName;
+
+        return CommandDispatcher.Ok($"Land at {resolvedName}");
+    }
+
     internal static CommandResult TryExitCommand(AircraftState aircraft, ExitPreference preference, bool noDelete)
     {
         if (aircraft.Phases is null)

@@ -383,7 +383,8 @@ public sealed class TaxiingPhase : Phase
 
         var lineup = new LineUpPhase(holdShortNodeId);
         var luaw = new LinedUpAndWaitingPhase();
-        var takeoff = new TakeoffPhase();
+        bool isHeli = ctx.Category == AircraftCategory.Helicopter;
+        Phase takeoffPhase = isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase();
         var climb = new InitialClimbPhase
         {
             Departure = dep.Departure,
@@ -392,14 +393,21 @@ public sealed class TaxiingPhase : Phase
             IsVfr = ctx.Aircraft.IsVfr,
             CruiseAltitude = ctx.Aircraft.CruiseAltitude,
         };
-        phases.InsertAfterCurrent(new Phase[] { lineup, luaw, takeoff, climb });
+        phases.InsertAfterCurrent(new Phase[] { lineup, luaw, takeoffPhase, climb });
 
         if (dep.Type == ClearanceType.ClearedForTakeoff)
         {
             luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
             luaw.Departure = dep.Departure;
             luaw.AssignedAltitude = dep.AssignedAltitude;
-            takeoff.SetAssignedDeparture(dep.Departure);
+            if (takeoffPhase is TakeoffPhase fwT)
+            {
+                fwT.SetAssignedDeparture(dep.Departure);
+            }
+            else if (takeoffPhase is HelicopterTakeoffPhase hpT)
+            {
+                hpT.SetAssignedDeparture(dep.Departure);
+            }
 
             if (dep.Departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
             {

@@ -59,7 +59,8 @@ public static class PatternBuilder
         }
 
         phases.Add(new FinalApproachPhase());
-        phases.Add(touchAndGo ? new TouchAndGoPhase() : new LandingPhase());
+        Phase landingPhase = category == AircraftCategory.Helicopter ? new HelicopterLandingPhase() : new LandingPhase();
+        phases.Add(touchAndGo ? new TouchAndGoPhase() : landingPhase);
 
         return phases;
     }

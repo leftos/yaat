@@ -32,6 +32,7 @@ public static class GeoJsonParser
         var features = root.GetProperty("features");
 
         var parkingFeatures = new List<ParkingFeature>();
+        var helipadFeatures = new List<ParkingFeature>();
         var spotFeatures = new List<SpotFeature>();
         var taxiwayFeatures = new List<TaxiwayFeature>();
         var runwayFeatures = new List<RunwayFeature>();
@@ -46,6 +47,9 @@ public static class GeoJsonParser
             {
                 case "parking":
                     parkingFeatures.Add(ParseParking(props, geom));
+                    break;
+                case "helipad":
+                    helipadFeatures.Add(ParseParking(props, geom));
                     break;
                 case "spot":
                     spotFeatures.Add(ParseSpot(props, geom));
@@ -62,7 +66,7 @@ public static class GeoJsonParser
             }
         }
 
-        return BuildLayout(airportId, parkingFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, logger, runwayLookup, runwayAirportCode);
+        return BuildLayout(airportId, parkingFeatures, helipadFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, logger, runwayLookup, runwayAirportCode);
     }
 
     /// <summary>
@@ -99,9 +103,13 @@ public static class GeoJsonParser
         return Parse(airportId, combined, logger, runwayLookup, runwayAirportCode);
     }
 
+    /// <summary>Max distance to connect a helipad to a taxiway (nm). Larger than parking since helipads may be further from taxiways.</summary>
+    private const double HelipadConnectMaxNm = 0.3;
+
     private static AirportGroundLayout BuildLayout(
         string airportId,
         List<ParkingFeature> parkings,
+        List<ParkingFeature> helipads,
         List<SpotFeature> spots,
         List<TaxiwayFeature> taxiways,
         List<RunwayFeature> runways,
@@ -191,6 +199,24 @@ public static class GeoJsonParser
             ConnectParkingToTaxiway(node, layout);
         }
 
+        // Step 6b: Create helipad nodes and connect to nearest taxiway (larger radius)
+        foreach (var hp in helipads)
+        {
+            int id = nextNodeId++;
+            var node = new GroundNode
+            {
+                Id = id,
+                Latitude = hp.Lat,
+                Longitude = hp.Lon,
+                Type = GroundNodeType.Helipad,
+                Name = hp.Name,
+                Heading = hp.Heading,
+            };
+            layout.Nodes[id] = node;
+
+            ConnectToNearestTaxiway(node, layout, HelipadConnectMaxNm);
+        }
+
         // Step 7: Wire up adjacency lists
         foreach (var edge in layout.Edges)
         {
@@ -206,11 +232,12 @@ public static class GeoJsonParser
         }
 
         logger?.LogInformation(
-            "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, " + "{ParkingCount} parking spots",
+            "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, " + "{ParkingCount} parking, {HelipadCount} helipads",
             airportId,
             layout.Nodes.Count,
             layout.Edges.Count,
-            parkings.Count
+            parkings.Count,
+            helipads.Count
         );
 
         return layout;
@@ -218,33 +245,38 @@ public static class GeoJsonParser
 
     private static void ConnectParkingToTaxiway(GroundNode parking, AirportGroundLayout layout)
     {
+        ConnectToNearestTaxiway(parking, layout, ParkingConnectMaxNm);
+    }
+
+    private static void ConnectToNearestTaxiway(GroundNode node, AirportGroundLayout layout, double maxDistNm)
+    {
         GroundNode? nearest = null;
         double nearestDist = double.MaxValue;
 
-        foreach (var node in layout.Nodes.Values)
+        foreach (var candidate in layout.Nodes.Values)
         {
-            if (node.Id == parking.Id || node.Type == GroundNodeType.Parking)
+            if (candidate.Id == node.Id || candidate.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
             {
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(parking.Latitude, parking.Longitude, node.Latitude, node.Longitude);
+            double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, candidate.Latitude, candidate.Longitude);
 
             if (dist < nearestDist)
             {
                 nearestDist = dist;
-                nearest = node;
+                nearest = candidate;
             }
         }
 
-        if (nearest is null || nearestDist > ParkingConnectMaxNm)
+        if (nearest is null || nearestDist > maxDistNm)
         {
             return;
         }
 
         var edge = new GroundEdge
         {
-            FromNodeId = parking.Id,
+            FromNodeId = node.Id,
             ToNodeId = nearest.Id,
             TaxiwayName = "RAMP",
             DistanceNm = nearestDist,
