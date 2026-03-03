@@ -40,68 +40,73 @@
 
             <!-- Connection tab -->
             <TabItem Header="Connection">
-                <StackPanel Margin="12" Spacing="12">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Server URL:"
-                                   Foreground="{DynamicResource SubtleTextBrush}" />
-                        <TextBox Text="{Binding ServerUrl}"
-                                 Watermark="http://localhost:5000"
-                                 Width="400"
-                                 HorizontalAlignment="Left" />
-                        <TextBlock Text="The URL of the yaat-server instance to connect to. Default is http://localhost:5000 for a local server."
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="11" />
+                <ScrollViewer>
+                    <StackPanel Margin="12" Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Server URL:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <TextBox Text="{Binding ServerUrl}"
+                                     Watermark="http://localhost:5000"
+                                     Width="400"
+                                     HorizontalAlignment="Left" />
+                            <TextBlock Text="The URL of the yaat-server instance to connect to. Default is http://localhost:5000 for a local server."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- Identity tab -->
             <TabItem Header="Identity">
-                <StackPanel Margin="12" Spacing="12">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="VATSIM CID:"
-                                   Foreground="{DynamicResource SubtleTextBrush}" />
-                        <TextBox Text="{Binding VatsimCid}"
-                                 Watermark="e.g. 1234567"
-                                 Width="120"
-                                 HorizontalAlignment="Left" />
-                        <TextBlock Text="Your VATSIM CID. Used to link your CRC client to the correct training room."
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="11" />
+                <ScrollViewer>
+                    <StackPanel Margin="12" Spacing="12">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="VATSIM CID:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <TextBox Text="{Binding VatsimCid}"
+                                     Watermark="e.g. 1234567"
+                                     Width="120"
+                                     HorizontalAlignment="Left" />
+                            <TextBlock Text="Your VATSIM CID. Used to link your CRC client to the correct training room."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Initials (2 letters):"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <TextBox Text="{Binding UserInitials}"
+                                     MaxLength="2"
+                                     Watermark="e.g. AB"
+                                     Width="80"
+                                     HorizontalAlignment="Left" />
+                            <TextBlock Text="Shown in the terminal panel so other RPOs can see who issued each command."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="ARTCC:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <TextBox Text="{Binding ArtccId}"
+                                     MaxLength="4"
+                                     Watermark="e.g. ZOA"
+                                     Width="80"
+                                     HorizontalAlignment="Left" />
+                            <TextBlock Text="Your ARTCC identifier. Used in room names and to determine facility data."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
                     </StackPanel>
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Initials (2 letters):"
-                                   Foreground="{DynamicResource SubtleTextBrush}" />
-                        <TextBox Text="{Binding UserInitials}"
-                                 MaxLength="2"
-                                 Watermark="e.g. AB"
-                                 Width="80"
-                                 HorizontalAlignment="Left" />
-                        <TextBlock Text="Shown in the terminal panel so other RPOs can see who issued each command."
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="11" />
-                    </StackPanel>
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="ARTCC:"
-                                   Foreground="{DynamicResource SubtleTextBrush}" />
-                        <TextBox Text="{Binding ArtccId}"
-                                 MaxLength="4"
-                                 Watermark="e.g. ZOA"
-                                 Width="80"
-                                 HorizontalAlignment="Left" />
-                        <TextBlock Text="Your ARTCC identifier. Used in room names and to determine facility data."
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="11" />
-                    </StackPanel>
-                </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- Scenarios tab -->
             <TabItem Header="Scenarios">
+                <ScrollViewer>
                 <StackPanel Margin="12" Spacing="12">
                     <StackPanel Spacing="4">
                         <CheckBox Content="Auto-accept handoffs to unattended positions"
@@ -166,6 +171,7 @@
                                    Margin="28,0,0,0" />
                     </StackPanel>
                 </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- Commands tab -->
@@ -289,24 +295,26 @@
 
             <!-- Advanced tab -->
             <TabItem Header="Advanced">
-                <StackPanel Margin="12" Spacing="12">
-                    <CheckBox Content="Server Admin Mode"
-                              IsChecked="{Binding IsAdminMode}" />
-                    <StackPanel Spacing="4"
-                                IsVisible="{Binding IsAdminMode}">
-                        <TextBlock Text="Admin Password:"
-                                   Foreground="{DynamicResource SubtleTextBrush}" />
-                        <TextBox Text="{Binding AdminPassword}"
-                                 PasswordChar="*"
-                                 Watermark="Enter server admin password"
-                                 Width="300"
-                                 HorizontalAlignment="Left" />
+                <ScrollViewer>
+                    <StackPanel Margin="12" Spacing="12">
+                        <CheckBox Content="Server Admin Mode"
+                                  IsChecked="{Binding IsAdminMode}" />
+                        <StackPanel Spacing="4"
+                                    IsVisible="{Binding IsAdminMode}">
+                            <TextBlock Text="Admin Password:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <TextBox Text="{Binding AdminPassword}"
+                                     PasswordChar="*"
+                                     Watermark="Enter server admin password"
+                                     Width="300"
+                                     HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Text="Admin mode allows you to see all scenarios running on the server, filter the aircraft list by scenario, and manage aircraft across all scenarios." />
                     </StackPanel>
-                    <TextBlock TextWrapping="Wrap"
-                               Foreground="{DynamicResource SubtleTextBrush}"
-                               FontSize="11"
-                               Text="Admin mode allows you to see all scenarios running on the server, filter the aircraft list by scenario, and manage aircraft across all scenarios." />
-                </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
         </TabControl>
