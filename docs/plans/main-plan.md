@@ -508,28 +508,36 @@ Detailed chunk plan: [M4 STARS Track Operations](track-operations.md) (9 chunks)
 
 **Goal:** Full rotary-wing tower control — hover, air taxi, CTOPP, LAND at designated spots.
 
+Detailed chunk plan: [M9 Helicopter Operations](milestone-9.md) (9 chunks)
+
 #### Yaat.Sim
 
-1. **Helicopter detection**: Category/engine-type-based detection for rotary-wing behavior
-2. **Hover physics**: Stationary hover, hover taxi at ~10 kts, stable altitude hold
-3. **Air taxi**: Low-altitude taxi at ~30-60 kts, avoid runway/taxiway conflicts
-4. **LAND command**: Direct landing at a named parking/helipad spot (bypasses runway/pattern)
-5. **CTOPP**: Cleared to operate (hover ops, repositioning within the airport)
-6. **Helicopter pattern**: Modified traffic pattern (tighter, lower, different speeds)
+1. **Helicopter category**: `AircraftCategory.Helicopter` with validated performance constants (500ft AGL pattern, tighter geometry, vertical liftoff/landing)
+2. **Helipad ground data**: `GroundNodeType.Helipad` in GeoJSON parser and ground layout
+3. **Helicopter takeoff/landing phases**: Vertical liftoff (no ground roll), decelerate-to-hover landing (no rollout)
+4. **Air taxi phase**: Below 100ft AGL, 20-80 KIAS, point-to-point navigation (§3-11-1.c)
+5. **LAND command**: Direct landing at named helipad/parking (bypasses runway/pattern)
+6. **Helicopter pattern**: 500ft AGL, 0.5nm offset, tighter turns (AIM §4-3-3)
+7. **CTOPP**: Cleared to operate — helicopter free to hover/reposition within airport
+8. **Scenario support**: Spawn helicopter types; ATXI/LAND in preset commands
 
 #### Commands
 
-- `LAND {spot}` — Land at named parking/helipad position
+- `ATXI {spot}` — Air taxi to spot (below 100ft AGL, 20-80 KIAS) — §3-11-1.c
+- `HTAXI {spot}` — Hover taxi to spot (below 20 KIAS) — §3-11-1.b
+- `LAND {spot}` — Land at named parking/helipad position — §3-11-6
 - `CTOPP` — Cleared to operate (helicopter-specific)
-- `AIRTAXI {path}` — Air taxi via route (low altitude, off taxiway graph)
-- `HOVER` — Hold position in hover
+- Existing CTO/CTL/LUAW/GA/TG/SG/HPP/HFIX work with helicopter-aware behavior
 - NODEL suffix support for LAND (exempts from auto-delete)
 
 #### Definition of Done
-- Helicopters hover at parking spots
+- Helicopters detected from ICAO type designator
+- Helicopter takeoff: vertical liftoff; landing: hover to touchdown
 - Air taxi between helipads/parking
 - LAND at designated spot
+- Helicopter traffic pattern at 500ft AGL with tighter geometry
 - Full tower control workflow for rotary-wing
+- All existing tests pass (no regression)
 
 ---
 
@@ -613,6 +621,8 @@ Entity updates are **not** sent over UDP yet; CRC receives them via WebSocket in
 - [Milestone 2: Local Control (Tower)](milestone-2.md)
 - [Milestone 3: Ground Operations](encapsulated-crunching-sutherland.md)
 - [Milestone 4: STARS Track Operations](track-operations.md)
+- [Milestone 5: Approach Control](milestone-5.md)
+- [Milestone 9: Helicopter Operations](milestone-9.md)
 
 ---
 
