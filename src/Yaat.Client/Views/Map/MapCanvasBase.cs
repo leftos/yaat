@@ -20,7 +20,6 @@ public abstract class MapCanvasBase : Control
 
     private readonly MapViewport _viewport = new();
     private readonly DispatcherTimer _invalidateTimer;
-    private bool _isDirty;
     private bool _isPanning;
     private Point _lastPanPoint;
     private bool _isPanZoomEnabled = true;
@@ -46,10 +45,10 @@ public abstract class MapCanvasBase : Control
         set => _isPanZoomEnabled = value;
     }
 
-    /// <summary>Marks the canvas as needing a repaint on the next timer tick.</summary>
+    /// <summary>Triggers an immediate repaint (before the next timer tick).</summary>
     public void MarkDirty()
     {
-        _isDirty = true;
+        InvalidateVisual();
     }
 
     /// <summary>
@@ -152,11 +151,11 @@ public abstract class MapCanvasBase : Control
 
     private void OnInvalidateTick(object? sender, EventArgs e)
     {
-        if (_isDirty)
-        {
-            _isDirty = false;
-            InvalidateVisual();
-        }
+        // Always repaint at ~10fps. Aircraft positions change via property
+        // updates on items within the bound ObservableCollection, which don't
+        // trigger styled-property change notifications on the canvas. Continuous
+        // refresh matches real radar/ground display behavior.
+        InvalidateVisual();
     }
 
     private sealed class MapDrawOperation : ICustomDrawOperation
