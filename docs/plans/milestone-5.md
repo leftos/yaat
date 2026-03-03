@@ -61,30 +61,30 @@ User requirements:
 **Goal:** Create a lazy-loading service that indexes CIFP approach procedures per airport and provides lookup + route-building methods.
 
 ### New files (Yaat.Sim)
-- [ ] `src/Yaat.Sim/Data/IApproachLookup.cs` — Interface:
+- [x] `src/Yaat.Sim/Data/IApproachLookup.cs` — Interface:
   - `CifpApproachProcedure? GetApproach(string airportCode, string approachId)`
   - `IReadOnlyList<CifpApproachProcedure> GetApproaches(string airportCode)`
   - `string? ResolveApproachId(string airportCode, string shorthand)` — maps "ILS30"/"I28R"/"28R" → full CIFP approach ID
   - `IReadOnlyList<NavigationTarget> BuildApproachRoute(CifpApproachProcedure approach, string? transitionName, IFixLookup fixes)` — resolve CIFP legs to nav targets
 
-- [ ] `src/Yaat.Sim/Data/ApproachDatabase.cs` — Implementation:
+- [x] `src/Yaat.Sim/Data/ApproachDatabase.cs` — Implementation:
   - Constructor takes `CifpDataService` (for the CIFP file path) and `IFixLookup` (for waypoint resolution)
   - Lazy per-airport: first `GetApproach(airport, ...)` triggers `CifpParser.ParseApproaches()` + cache
   - `ResolveApproachId()`: parses shorthand — extract type code + runway from user input (e.g., "ILS28R" → type 'I', runway "28R"), search cached approaches
   - `BuildApproachRoute()`: iterate transition legs (if any) + common legs, resolve each fix via `IFixLookup.GetFixPosition()`, skip legs without fixes (CA/VA/VM types), return ordered `NavigationTarget` list
 
 ### Modified files
-- [ ] `src/Yaat.Sim/Phases/PhaseContext.cs` — Add `IApproachLookup? ApproachLookup` property
+- [x] `src/Yaat.Sim/Phases/PhaseContext.cs` — Add `IApproachLookup? ApproachLookup` property
 
 ### Server wiring (yaat-server)
 - [ ] Wire `ApproachDatabase` in DI (Program.cs or RoomEngineFactory)
 - [ ] Pass through `RoomEngine` to command dispatch and phase context
 
 ### Tests
-- [ ] Approach ID resolution: "ILS28R" → correct, "28R" → any approach for runway, "RNAV17LZ" → specific variant
-- [ ] Route building: correct fix sequence from CIFP legs
-- [ ] Transition + common route concatenation
-- [ ] Missing fix graceful handling (skip with warning)
+- [x] Approach ID resolution: "ILS28R" → correct, "28R" → any approach for runway, "RNAV17LZ" → specific variant
+- [ ] Route building: correct fix sequence from CIFP legs (deferred to Chunk 8)
+- [ ] Transition + common route concatenation (deferred to Chunk 8)
+- [x] Missing fix graceful handling (returns empty list)
 
 ---
 
