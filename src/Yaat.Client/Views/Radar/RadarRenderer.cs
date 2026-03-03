@@ -79,7 +79,8 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlyList<(string Name, double Lat, double Lon)>? fixes,
         double rangeRingCenterLat = 0,
         double rangeRingCenterLon = 0,
-        double rangeRingSizeNm = 5
+        double rangeRingSizeNm = 5,
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets = null
     )
     {
         canvas.Clear(BackgroundColor);
@@ -103,7 +104,7 @@ public sealed class RadarRenderer : IDisposable
         }
 
         // Aircraft targets
-        _targetRenderer.Render(canvas, vp, aircraft, selectedAircraft);
+        _targetRenderer.Render(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets);
     }
 
     private void DrawRangeRing(SKCanvas canvas, MapViewport vp, double centerLat, double centerLon, double rangeRingSizeNm)

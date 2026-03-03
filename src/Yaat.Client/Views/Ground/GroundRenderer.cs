@@ -32,7 +32,6 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor AircraftSelected = new(255, 255, 255);
     private static readonly SKColor AircraftDimmed = new(80, 80, 100);
     private static readonly SKColor HoverRingColor = new(255, 255, 255, 160);
-    private static readonly SKColor CallsignColor = new(220, 220, 220);
 
     private enum LabelPriority
     {
@@ -40,7 +39,6 @@ public sealed class GroundRenderer : IDisposable
         HoldShort,
         Taxiway,
         ParkingSpot,
-        Callsign,
     }
 
     private record struct LabelCandidate(string Text, float X, float Y, LabelPriority Priority, SKPaint Paint, SKColor? ColorOverride);
@@ -126,13 +124,21 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _aircraftPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
 
-    private readonly SKPaint _callsignPaint = new()
+    private readonly SKPaint _dataBlockLeaderPaint = new()
     {
-        Color = CallsignColor,
-        TextSize = 13,
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _dataBlockTextPaint = new()
+    {
+        TextSize = 12,
         IsAntialias = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
+
+    private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(14, 14, 26, 180), Style = SKPaintStyle.Fill };
 
     private readonly SKPaint _hoverPaint = new()
     {
@@ -154,7 +160,8 @@ public sealed class GroundRenderer : IDisposable
         AircraftModel? selectedAircraft,
         int? hoveredNodeId,
         TaxiRoute? activeRoute,
-        TaxiRoute? previewRoute
+        TaxiRoute? previewRoute,
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets
     )
     {
         canvas.Clear(BackgroundColor);
@@ -172,6 +179,7 @@ public sealed class GroundRenderer : IDisposable
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
         DrawNodes(canvas, vp, layout, hoveredNodeId);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft);
+        DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets);
         DrawLabels(canvas);
     }
 
@@ -428,10 +436,7 @@ public sealed class GroundRenderer : IDisposable
                 : selectedAircraft is not null ? AircraftDimmed
                 : GetAircraftColor(ac);
 
-            DrawTriangle(canvas, sx, sy, (float)ac.Heading, isSelected ? 14f : 11f, _aircraftPaint);
-
-            var callsignColor = isSelected ? SKColors.White : new SKColor(180, 180, 180);
-            _labelCandidates.Add(new LabelCandidate(ac.Callsign, sx + 16, sy + 4, LabelPriority.Callsign, _callsignPaint, callsignColor));
+            DrawTriangle(canvas, sx, sy, (float)ac.Heading, isSelected ? 19f : 16f, _aircraftPaint);
         }
     }
 
@@ -461,6 +466,71 @@ public sealed class GroundRenderer : IDisposable
         path.LineTo(right);
         path.Close();
         canvas.DrawPath(path, paint);
+    }
+
+    private void DrawDataBlocks(
+        SKCanvas canvas,
+        MapViewport vp,
+        IReadOnlyList<AircraftModel> aircraft,
+        AircraftModel? selectedAircraft,
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets
+    )
+    {
+        foreach (var ac in aircraft)
+        {
+            if (!ac.IsOnGround)
+            {
+                continue;
+            }
+
+            var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
+
+            SKPoint offset = new(30, -25);
+            if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
+            {
+                offset = customOffset;
+            }
+
+            float blockX = sx + offset.X;
+            float blockY = sy + offset.Y;
+
+            bool isSelected = ac == selectedAircraft;
+            var color =
+                isSelected ? AircraftSelected
+                : selectedAircraft is not null ? AircraftDimmed
+                : GetAircraftColor(ac);
+
+            string line1 = ac.Callsign;
+            string line2 = ac.AircraftType ?? "";
+
+            _dataBlockTextPaint.Color = color;
+            float w1 = _dataBlockTextPaint.MeasureText(line1);
+            float w2 = _dataBlockTextPaint.MeasureText(line2);
+            float textW = MathF.Max(w1, w2);
+            float lineH = _dataBlockTextPaint.TextSize + 2;
+
+            const float pad = 3f;
+            var blockRect = new SKRect(blockX - pad, blockY - _dataBlockTextPaint.TextSize - pad, blockX + textW + pad, blockY + lineH + pad);
+
+            canvas.DrawRect(blockRect, _dataBlockBgPaint);
+
+            var leaderEnd = ClampToBlockEdge(sx, sy, blockRect);
+            _dataBlockLeaderPaint.Color = color;
+            canvas.DrawLine(sx, sy, leaderEnd.X, leaderEnd.Y, _dataBlockLeaderPaint);
+
+            canvas.DrawText(line1, blockX, blockY, _dataBlockTextPaint);
+            canvas.DrawText(line2, blockX, blockY + lineH, _dataBlockTextPaint);
+        }
+    }
+
+    private static SKPoint ClampToBlockEdge(float pointX, float pointY, SKRect rect)
+    {
+        if (rect.Contains(pointX, pointY))
+        {
+            return new SKPoint(pointX, pointY);
+        }
+
+        return new SKPoint(Math.Clamp(pointX, rect.Left, rect.Right), Math.Clamp(pointY, rect.Top, rect.Bottom));
     }
 
     private void DrawLabels(SKCanvas canvas)
@@ -517,8 +587,10 @@ public sealed class GroundRenderer : IDisposable
         _nodePaint.Dispose();
         _nodeLabelPaint.Dispose();
         _aircraftPaint.Dispose();
-        _callsignPaint.Dispose();
         _hoverPaint.Dispose();
+        _dataBlockLeaderPaint.Dispose();
+        _dataBlockTextPaint.Dispose();
+        _dataBlockBgPaint.Dispose();
         _bgPaint.Dispose();
     }
 }

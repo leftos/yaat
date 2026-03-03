@@ -78,9 +78,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<bool> ShowTopDownProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(ShowTopDown));
 
+    private static readonly SKPoint DefaultDataBlockOffset = new(28, -28);
+    private const float DataBlockPad = 3f;
     private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
 
     private readonly RadarRenderer _renderer = new();
+    private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
+    private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = SKTypeface.FromFamilyName("Consolas") };
     private bool _initialFitDone;
     private bool _suppressRangeFit;
     private bool _suppressCenterSync;
@@ -88,6 +92,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private bool _rightDragStarted;
     private Point _rightPressPos;
     private Dictionary<string, string> _brightnessLookup = [];
+    private bool _isDraggingDataBlock;
+    private string? _dragCallsign;
+    private SKPoint _dragStartOffset;
+    private Point _dragStartMousePos;
+    private bool _dragThresholdMet;
 
     public RadarCanvas()
     {
@@ -319,7 +328,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<(string Name, double Lat, double Lon)>? Fixes,
         double RangeRingCenterLat,
         double RangeRingCenterLon,
-        double RangeRingSizeNm
+        double RangeRingSizeNm,
+        IReadOnlyDictionary<string, SKPoint> DataBlockOffsets
     );
 
     protected override object? CreateRenderSnapshot()
@@ -337,7 +347,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             Fixes,
             RangeRingCenterLat,
             RangeRingCenterLon,
-            RangeRingSizeNm
+            RangeRingSizeNm,
+            new Dictionary<string, SKPoint>(_dataBlockOffsets)
         );
     }
 
@@ -363,7 +374,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.Fixes,
             s.RangeRingCenterLat,
             s.RangeRingCenterLon,
-            s.RangeRingSizeNm
+            s.RangeRingSizeNm,
+            s.DataBlockOffsets
         );
     }
 
@@ -371,6 +383,28 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         var pos = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
+
+        var dataBlockAc = FindDataBlockAtPoint(pos);
+        if (dataBlockAc is not null)
+        {
+            if (props.IsRightButtonPressed)
+            {
+                AircraftRightClicked?.Invoke(dataBlockAc.Callsign, pos);
+                e.Handled = true;
+                return;
+            }
+
+            if (props.IsLeftButtonPressed)
+            {
+                _isDraggingDataBlock = true;
+                _dragCallsign = dataBlockAc.Callsign;
+                _dragStartOffset = _dataBlockOffsets.TryGetValue(dataBlockAc.Callsign, out var off) ? off : DefaultDataBlockOffset;
+                _dragStartMousePos = pos;
+                _dragThresholdMet = false;
+                e.Handled = true;
+                return;
+            }
+        }
 
         if (props.IsRightButtonPressed)
         {
@@ -382,14 +416,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 return;
             }
 
-            // Track right-button state to distinguish click from drag
             _rightButtonDown = true;
             _rightDragStarted = false;
             _rightPressPos = pos;
 
             if (IsPanZoomEnabled)
             {
-                // Let base prepare for panning (sets _isPanning)
                 base.OnPointerPressed(e);
             }
 
@@ -421,7 +453,27 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
-        // Detect when a right-click becomes a drag (past threshold)
+        if (_isDraggingDataBlock)
+        {
+            var pos = e.GetPosition(this);
+            var dx = (float)(pos.X - _dragStartMousePos.X);
+            var dy = (float)(pos.Y - _dragStartMousePos.Y);
+
+            if (!_dragThresholdMet && dx * dx + dy * dy > 16)
+            {
+                _dragThresholdMet = true;
+            }
+
+            if (_dragThresholdMet && _dragCallsign is not null)
+            {
+                _dataBlockOffsets[_dragCallsign] = new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy);
+                MarkDirty();
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         if (_rightButtonDown && !_rightDragStarted)
         {
             var pos = e.GetPosition(this);
@@ -438,6 +490,20 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
+        if (_isDraggingDataBlock)
+        {
+            _isDraggingDataBlock = false;
+
+            if (!_dragThresholdMet && _dragCallsign is not null)
+            {
+                AircraftLeftClicked?.Invoke(_dragCallsign);
+            }
+
+            _dragCallsign = null;
+            e.Handled = true;
+            return;
+        }
+
         if (_rightButtonDown && e.InitialPressMouseButton == MouseButton.Right)
         {
             _rightButtonDown = false;
@@ -452,6 +518,52 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         base.OnPointerReleased(e);
+    }
+
+    public AircraftModel? FindDataBlockAtPoint(Point screenPos)
+    {
+        if (Aircraft is null)
+        {
+            return null;
+        }
+
+        foreach (var ac in FilterAircraft(Aircraft, ShowTopDown))
+        {
+            var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
+
+            SKPoint offset = DefaultDataBlockOffset;
+            if (_dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
+            {
+                offset = customOffset;
+            }
+
+            float blockX = sx + offset.X;
+            float blockY = sy + offset.Y;
+
+            string line1 = ac.Callsign;
+            var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
+            var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
+            string line2 = $"{altHundreds} {spdTens}";
+
+            float w1 = _hitTestPaint.MeasureText(line1);
+            float w2 = _hitTestPaint.MeasureText(line2);
+            float textW = MathF.Max(w1, w2);
+            float lineH = _hitTestPaint.TextSize + 2;
+
+            var blockRect = new SKRect(
+                blockX - DataBlockPad,
+                blockY - _hitTestPaint.TextSize - DataBlockPad,
+                blockX + textW + DataBlockPad,
+                blockY + lineH + DataBlockPad
+            );
+
+            if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
+            {
+                return ac;
+            }
+        }
+
+        return null;
     }
 
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
@@ -640,5 +752,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     public void Dispose()
     {
         _renderer.Dispose();
+        _hitTestPaint.Dispose();
     }
 }

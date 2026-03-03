@@ -44,10 +44,18 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
+    private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(0, 0, 0, 180), Style = SKPaintStyle.Fill };
+
     private const float SymbolSize = 5f;
     private const float LeaderLength = 40f;
 
-    public void Render(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, AircraftModel? selectedAircraft)
+    public void Render(
+        SKCanvas canvas,
+        MapViewport vp,
+        IReadOnlyList<AircraftModel> aircraft,
+        AircraftModel? selectedAircraft,
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets
+    )
     {
         foreach (var ac in aircraft)
         {
@@ -57,7 +65,7 @@ public sealed class TargetRenderer : IDisposable
             var color = GetTargetColor(ac, isSelected);
 
             DrawPositionSymbol(canvas, sx, sy, color);
-            DrawLeaderAndDataBlock(canvas, sx, sy, ac, color);
+            DrawLeaderAndDataBlock(canvas, sx, sy, ac, color, dataBlockOffsets);
         }
     }
 
@@ -90,26 +98,56 @@ public sealed class TargetRenderer : IDisposable
         canvas.DrawCircle(cx, cy, SymbolSize, _symbolPaint);
     }
 
-    private void DrawLeaderAndDataBlock(SKCanvas canvas, float cx, float cy, AircraftModel ac, SKColor color)
+    private void DrawLeaderAndDataBlock(
+        SKCanvas canvas,
+        float cx,
+        float cy,
+        AircraftModel ac,
+        SKColor color,
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets
+    )
     {
-        // Leader line: default to upper-right (NE direction)
-        float angle = -MathF.PI / 4f; // 45 degrees up-right
-        float endX = cx + MathF.Cos(angle) * LeaderLength;
-        float endY = cy + MathF.Sin(angle) * LeaderLength;
+        SKPoint offset = new(28, -28);
+        if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
+        {
+            offset = customOffset;
+        }
 
-        _leaderPaint.Color = color;
-        canvas.DrawLine(cx, cy, endX, endY, _leaderPaint);
+        float blockX = cx + offset.X;
+        float blockY = cy + offset.Y;
 
-        // Data block at end of leader line
         _dataBlockPaint.Color = color;
-
-        // Line 1: Callsign
-        canvas.DrawText(ac.Callsign, endX + 2, endY, _dataBlockPaint);
-
-        // Line 2: Altitude (hundreds) + groundspeed (tens)
+        string line1 = ac.Callsign;
         var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
         var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
-        canvas.DrawText($"{altHundreds} {spdTens}", endX + 2, endY + 14, _dataBlockPaint);
+        string line2 = $"{altHundreds} {spdTens}";
+
+        float w1 = _dataBlockPaint.MeasureText(line1);
+        float w2 = _dataBlockPaint.MeasureText(line2);
+        float textW = MathF.Max(w1, w2);
+        float lineH = _dataBlockPaint.TextSize + 2;
+
+        const float pad = 3f;
+        var blockRect = new SKRect(blockX - pad, blockY - _dataBlockPaint.TextSize - pad, blockX + textW + pad, blockY + lineH + pad);
+
+        canvas.DrawRect(blockRect, _dataBlockBgPaint);
+
+        var leaderEnd = ClampToBlockEdge(cx, cy, blockRect);
+        _leaderPaint.Color = color;
+        canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
+
+        canvas.DrawText(line1, blockX, blockY, _dataBlockPaint);
+        canvas.DrawText(line2, blockX, blockY + lineH, _dataBlockPaint);
+    }
+
+    private static SKPoint ClampToBlockEdge(float pointX, float pointY, SKRect rect)
+    {
+        if (rect.Contains(pointX, pointY))
+        {
+            return new SKPoint(pointX, pointY);
+        }
+
+        return new SKPoint(Math.Clamp(pointX, rect.Left, rect.Right), Math.Clamp(pointY, rect.Top, rect.Bottom));
     }
 
     public void Dispose()
@@ -118,5 +156,6 @@ public sealed class TargetRenderer : IDisposable
         _leaderPaint.Dispose();
         _dataBlockPaint.Dispose();
         _historyPaint.Dispose();
+        _dataBlockBgPaint.Dispose();
     }
 }

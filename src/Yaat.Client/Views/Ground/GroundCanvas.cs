@@ -33,9 +33,19 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(PreviewRoute)
     );
 
+    private static readonly SKPoint DefaultDataBlockOffset = new(30, -25);
+    private const float DataBlockPad = 3f;
+
     private readonly GroundRenderer _renderer = new();
+    private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
+    private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = SKTypeface.FromFamilyName("Consolas") };
     private int? _hoveredNodeId;
     private bool _hasFitBounds;
+    private bool _isDraggingDataBlock;
+    private string? _dragCallsign;
+    private SKPoint _dragStartOffset;
+    private Point _dragStartMousePos;
+    private bool _dragThresholdMet;
 
     public GroundLayoutDto? Layout
     {
@@ -88,6 +98,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         if (change.Property == LayoutProperty)
         {
             _hasFitBounds = false;
+            _dataBlockOffsets.Clear();
             FitToLayout();
             InvalidateVisual();
         }
@@ -108,12 +119,21 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         AircraftModel? SelectedAircraft,
         int? HoveredNodeId,
         TaxiRoute? ActiveRoute,
-        TaxiRoute? PreviewRoute
+        TaxiRoute? PreviewRoute,
+        IReadOnlyDictionary<string, SKPoint> DataBlockOffsets
     );
 
     protected override object? CreateRenderSnapshot()
     {
-        return new RenderSnapshot(Layout, Aircraft ?? Array.Empty<AircraftModel>(), SelectedAircraft, _hoveredNodeId, ActiveRoute, PreviewRoute);
+        return new RenderSnapshot(
+            Layout,
+            Aircraft ?? Array.Empty<AircraftModel>(),
+            SelectedAircraft,
+            _hoveredNodeId,
+            ActiveRoute,
+            PreviewRoute,
+            new Dictionary<string, SKPoint>(_dataBlockOffsets)
+        );
     }
 
     protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot)
@@ -123,11 +143,42 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        _renderer.Render(canvas, viewport, s.Layout, s.Aircraft, s.SelectedAircraft, s.HoveredNodeId, s.ActiveRoute, s.PreviewRoute);
+        _renderer.Render(
+            canvas,
+            viewport,
+            s.Layout,
+            s.Aircraft,
+            s.SelectedAircraft,
+            s.HoveredNodeId,
+            s.ActiveRoute,
+            s.PreviewRoute,
+            s.DataBlockOffsets
+        );
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
+        if (_isDraggingDataBlock)
+        {
+            var pos = e.GetPosition(this);
+            var dx = (float)(pos.X - _dragStartMousePos.X);
+            var dy = (float)(pos.Y - _dragStartMousePos.Y);
+
+            if (!_dragThresholdMet && dx * dx + dy * dy > 16)
+            {
+                _dragThresholdMet = true;
+            }
+
+            if (_dragThresholdMet && _dragCallsign is not null)
+            {
+                _dataBlockOffsets[_dragCallsign] = new SKPoint(_dragStartOffset.X + dx, _dragStartOffset.Y + dy);
+                MarkDirty();
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         base.OnPointerMoved(e);
         UpdateHoveredNode(e.GetPosition(this));
     }
@@ -137,6 +188,28 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         var pos = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
 
+        var dataBlockAc = FindDataBlockAtPoint(pos);
+        if (dataBlockAc is not null)
+        {
+            if (props.IsRightButtonPressed)
+            {
+                AircraftRightClicked?.Invoke(dataBlockAc.Callsign, pos);
+                e.Handled = true;
+                return;
+            }
+
+            if (props.IsLeftButtonPressed)
+            {
+                _isDraggingDataBlock = true;
+                _dragCallsign = dataBlockAc.Callsign;
+                _dragStartOffset = _dataBlockOffsets.TryGetValue(dataBlockAc.Callsign, out var off) ? off : DefaultDataBlockOffset;
+                _dragStartMousePos = pos;
+                _dragThresholdMet = false;
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (props.IsRightButtonPressed)
         {
             if (HandleRightClick(pos))
@@ -144,8 +217,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                 e.Handled = true;
                 return;
             }
-
-            // No target hit — fall through to base for panning
         }
 
         if (props.IsLeftButtonPressed)
@@ -162,6 +233,25 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
 
         base.OnPointerPressed(e);
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        if (_isDraggingDataBlock)
+        {
+            _isDraggingDataBlock = false;
+
+            if (!_dragThresholdMet && _dragCallsign is not null)
+            {
+                AircraftLeftClicked?.Invoke(_dragCallsign);
+            }
+
+            _dragCallsign = null;
+            e.Handled = true;
+            return;
+        }
+
+        base.OnPointerReleased(e);
     }
 
     /// <summary>Returns true if a context menu target was hit.</summary>
@@ -212,6 +302,55 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         return closest;
     }
 
+    public AircraftModel? FindDataBlockAtPoint(Point screenPos)
+    {
+        if (Aircraft is null)
+        {
+            return null;
+        }
+
+        foreach (var ac in Aircraft)
+        {
+            if (!ac.IsOnGround)
+            {
+                continue;
+            }
+
+            var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
+
+            SKPoint offset = DefaultDataBlockOffset;
+            if (_dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
+            {
+                offset = customOffset;
+            }
+
+            float blockX = sx + offset.X;
+            float blockY = sy + offset.Y;
+
+            string line1 = ac.Callsign;
+            string line2 = ac.AircraftType ?? "";
+
+            float w1 = _hitTestPaint.MeasureText(line1);
+            float w2 = _hitTestPaint.MeasureText(line2);
+            float textW = MathF.Max(w1, w2);
+            float lineH = _hitTestPaint.TextSize + 2;
+
+            var blockRect = new SKRect(
+                blockX - DataBlockPad,
+                blockY - _hitTestPaint.TextSize - DataBlockPad,
+                blockX + textW + DataBlockPad,
+                blockY + lineH + DataBlockPad
+            );
+
+            if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
+            {
+                return ac;
+            }
+        }
+
+        return null;
+    }
+
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
     {
         if (Aircraft is null)
@@ -219,7 +358,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        const float hitRadius = 14f;
+        const float hitRadius = 19f;
         AircraftModel? closest = null;
         float closestDist = hitRadius;
 
@@ -297,5 +436,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     public void Dispose()
     {
         _renderer.Dispose();
+        _hitTestPaint.Dispose();
     }
 }
