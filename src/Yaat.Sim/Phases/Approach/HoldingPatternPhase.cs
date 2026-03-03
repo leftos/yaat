@@ -14,6 +14,11 @@ public sealed class HoldingPatternPhase : Phase
     private const double HeadingToleranceDeg = 5.0;
     private const double TeardropOffsetDeg = 30.0;
 
+    // AIM 5-3-8(j)(8)(c): when outbound, triple the inbound drift correction.
+    private const double TripleDriftFactor = 3.0;
+    private const double MinOutboundSeconds = 20.0;
+    private const double MaxOutboundSeconds = 300.0;
+
     public required string FixName { get; init; }
     public required double FixLat { get; init; }
     public required double FixLon { get; init; }
@@ -33,6 +38,7 @@ public sealed class HoldingPatternPhase : Phase
     private HoldState _state = HoldState.NavigatingToFix;
     private HoldingEntry _entry;
     private double _outboundHeading;
+    private double _correctedOutboundHeading;
     private double _legTimerSeconds;
     private int _circuitsCompleted;
 
@@ -132,7 +138,7 @@ public sealed class HoldingPatternPhase : Phase
 
     private void TickTurnToOutbound(PhaseContext ctx)
     {
-        if (IsHeadingClose(ctx.Aircraft.Heading, _outboundHeading))
+        if (IsHeadingClose(ctx.Aircraft.Heading, _correctedOutboundHeading))
         {
             StartOutbound(ctx);
         }
@@ -230,15 +236,16 @@ public sealed class HoldingPatternPhase : Phase
     private void StartTurnToOutbound(PhaseContext ctx)
     {
         _state = HoldState.TurnToOutbound;
-        ctx.Targets.TargetHeading = _outboundHeading;
+        _correctedOutboundHeading = ComputeOutboundHeading(ctx);
+        ctx.Targets.TargetHeading = _correctedOutboundHeading;
         ctx.Targets.PreferredTurnDirection = Direction;
     }
 
     private void StartOutbound(PhaseContext ctx)
     {
         _state = HoldState.Outbound;
-        _legTimerSeconds = GetLegTimerSeconds(ctx);
-        ctx.Targets.TargetHeading = _outboundHeading;
+        _legTimerSeconds = ComputeOutboundSeconds(ctx);
+        ctx.Targets.TargetHeading = _correctedOutboundHeading;
         ctx.Targets.PreferredTurnDirection = null;
     }
 
@@ -264,6 +271,7 @@ public sealed class HoldingPatternPhase : Phase
         );
     }
 
+    /// <summary>Entry leg timer (teardrop / parallel): nominal leg length, no wind adjustment.</summary>
     private double GetLegTimerSeconds(PhaseContext ctx)
     {
         if (IsMinuteBased)
@@ -271,9 +279,81 @@ public sealed class HoldingPatternPhase : Phase
             return LegLength * 60.0;
         }
 
-        // Distance-based: estimate time from current speed
+        // Distance-based: estimate time from current speed.
         double speedNmPerSec = ctx.Aircraft.GroundSpeed / 3600.0;
         return speedNmPerSec > 0 ? LegLength / speedNmPerSec : 60.0;
+    }
+
+    /// <summary>
+    /// Standard outbound leg timer with wind compensation (AIM 5-3-8).
+    /// Predictive: computes the outbound time needed so that the resulting inbound ground distance
+    /// equals the target inbound duration at current inbound groundspeed.
+    /// Distance-based holds are unchanged (distance determines the outbound endpoint).
+    /// </summary>
+    private double ComputeOutboundSeconds(PhaseContext ctx)
+    {
+        if (!IsMinuteBased)
+        {
+            double speedNmPerSec = ctx.Aircraft.GroundSpeed / 3600.0;
+            return speedNmPerSec > 0 ? LegLength / speedNmPerSec : 60.0;
+        }
+
+        double targetInboundSeconds = LegLength * 60.0;
+
+        if (ctx.Weather is null)
+        {
+            return targetInboundSeconds;
+        }
+
+        double tas = WindInterpolator.IasToTas(ctx.Aircraft.IndicatedAirspeed, ctx.Aircraft.Altitude);
+        if (tas <= 0)
+        {
+            return targetInboundSeconds;
+        }
+
+        var wind = WindInterpolator.GetWindAt(ctx.Weather, ctx.Aircraft.Altitude);
+        if (wind.SpeedKts <= 0)
+        {
+            return targetInboundSeconds;
+        }
+
+        // Positive headwind = wind opposing inbound direction = reduces inbound groundspeed.
+        const double DegToRad = Math.PI / 180.0;
+        double headwindInbound = wind.SpeedKts * Math.Cos((wind.DirectionDeg - InboundCourse) * DegToRad);
+        double gsInbound = Math.Max(tas - headwindInbound, 1.0);
+
+        // Outbound course is the reciprocal: what was a headwind inbound is a tailwind outbound.
+        double gsOutbound = Math.Max(tas + headwindInbound, 1.0);
+
+        // Distance covered at inbound groundspeed during the target inbound time.
+        double inboundDistanceNm = gsInbound * (LegLength / 60.0);
+
+        // Time to cover that same distance at outbound groundspeed.
+        double outboundSeconds = (inboundDistanceNm / gsOutbound) * 3600.0;
+
+        return Math.Clamp(outboundSeconds, MinOutboundSeconds, MaxOutboundSeconds);
+    }
+
+    /// <summary>
+    /// Computes the outbound heading with AIM 5-3-8(j)(8)(c) triple-drift correction.
+    /// Applies 3× the inbound WCA in the opposite sense to pre-compensate for crosswind
+    /// on the outbound leg, so the inbound track stays close to the inbound course.
+    /// </summary>
+    private double ComputeOutboundHeading(PhaseContext ctx)
+    {
+        if (ctx.Weather is null)
+        {
+            return _outboundHeading;
+        }
+
+        double tas = WindInterpolator.IasToTas(ctx.Aircraft.IndicatedAirspeed, ctx.Aircraft.Altitude);
+        var wind = WindInterpolator.GetWindAt(ctx.Weather, ctx.Aircraft.Altitude);
+
+        // inboundWca > 0 means crab right to maintain inbound track.
+        // Triple-drift outbound: subtract 3× WCA from the outbound heading
+        // (correcting in the opposite sense, tripled — AIM 5-3-8(j)(8)(c)).
+        double inboundWca = WindInterpolator.ComputeWindCorrectionAngle(InboundCourse, tas, wind.DirectionDeg, wind.SpeedKts);
+        return ((_outboundHeading - TripleDriftFactor * inboundWca) % 360 + 360) % 360;
     }
 
     private bool AtFix(PhaseContext ctx)

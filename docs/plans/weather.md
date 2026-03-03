@@ -109,7 +109,7 @@ This is the most impactful physics change since the original flight model — it
   - 250kt below 10,000ft (14 CFR 91.117) — find where enforced, switch to `IndicatedAirspeed`
   - Holding speed limits (AIM 5-3-8: 200/230/265 KIAS) — `MaxHoldingSpeed()` must compare against `IndicatedAirspeed`
 
-- [ ] Phases that set explicit headings (holding outbound, intercept courses, pattern legs) should apply WCA via `PhaseContext.Weather` when setting `TargetHeading` for fixed-course segments. *(deferred to Chunk 5)*
+- [x] Phases that set explicit headings (holding outbound, intercept courses, pattern legs) should apply WCA via `PhaseContext.Weather` when setting `TargetHeading` for fixed-course segments. *(deferred to Chunk 5)*
 
 **Tests:**
 
@@ -186,7 +186,7 @@ This is the most impactful physics change since the original flight model — it
 
 - [x] **Update `USER_GUIDE.md`** with weather loading instructions
 - [x] **Update CLAUDE.md** Architecture section with weather fields
-- [ ] **Holding pattern wind compensation** (tier 2, optional): after first circuit, measure actual inbound leg time and adjust outbound timing so inbound leg matches target (1 min / 1.5 min). ~20 lines in `HoldingPatternPhase`.
+- [x] **Holding pattern wind compensation** (tier 2, optional): after first circuit, measure actual inbound leg time and adjust outbound timing so inbound leg matches target (1 min / 1.5 min). ~20 lines in `HoldingPatternPhase`.
 
 ---
 
