@@ -84,10 +84,12 @@ public partial class RadarView
     private void ShowListPopup(IReadOnlyList<object> items, object? selectedValue, Func<object, Task> action)
     {
         _pendingListAction = action;
+        _listPopupInitializing = true;
         var popup = this.FindControl<Popup>("ListPopup");
         var listBox = this.FindControl<ListBox>("ListPopupItems");
         if (popup is null || listBox is null)
         {
+            _listPopupInitializing = false;
             return;
         }
 
@@ -108,6 +110,8 @@ public partial class RadarView
                 listBox.ScrollIntoView(items[idx]);
             }
         }
+
+        _listPopupInitializing = false;
     }
 
     private static int FindExactIndex(IReadOnlyList<object> items, object target)
@@ -150,6 +154,11 @@ public partial class RadarView
 
     private void OnListPopupSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_listPopupInitializing)
+        {
+            return;
+        }
+
         if (e.AddedItems.Count == 0 || _pendingListAction is null)
         {
             return;
@@ -183,6 +192,187 @@ public partial class RadarView
         }
     }
 
+    // --- Filtered list popup ---
+
+    private void ShowFilteredListPopup(string[] sortedNames, Func<string, Task> action, IReadOnlyList<object>? priorityItems = null)
+    {
+        _pendingFilteredListAction = action;
+        _filteredListAllNames = sortedNames;
+        var popup = this.FindControl<Popup>("FilteredListPopup");
+        var textBox = this.FindControl<TextBox>("FilteredListText");
+        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        if (popup is null || textBox is null || listBox is null)
+        {
+            return;
+        }
+
+        textBox.Text = "";
+        listBox.ItemsSource = priorityItems ?? Array.Empty<object>();
+        popup.IsOpen = true;
+        textBox.Focus();
+    }
+
+    private void OnFilteredListTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        var textBox = this.FindControl<TextBox>("FilteredListText");
+        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        if (textBox is null || listBox is null || _filteredListAllNames is null)
+        {
+            return;
+        }
+
+        var prefix = textBox.Text?.Trim().ToUpperInvariant() ?? "";
+        if (prefix.Length == 0)
+        {
+            listBox.ItemsSource = Array.Empty<object>();
+            return;
+        }
+
+        var results = PrefixSearch(_filteredListAllNames, prefix, 50);
+        listBox.ItemsSource = results;
+        if (results.Count > 0)
+        {
+            listBox.SelectedIndex = 0;
+        }
+    }
+
+    private void OnFilteredListKeyDown(object? sender, KeyEventArgs e)
+    {
+        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        if (listBox is null)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Down)
+        {
+            if (listBox.ItemCount > 0)
+            {
+                listBox.SelectedIndex = Math.Min(listBox.SelectedIndex + 1, listBox.ItemCount - 1);
+                listBox.ScrollIntoView(listBox.SelectedItem!);
+            }
+
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Up)
+        {
+            if (listBox.ItemCount > 0)
+            {
+                listBox.SelectedIndex = Math.Max(listBox.SelectedIndex - 1, 0);
+                listBox.ScrollIntoView(listBox.SelectedItem!);
+            }
+
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            SubmitFilteredListPopup();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseFilteredListPopup();
+            e.Handled = true;
+        }
+    }
+
+    private void OnFilteredListSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (e.AddedItems.Count == 0 || _pendingFilteredListAction is null)
+        {
+            return;
+        }
+
+        var textBox = this.FindControl<TextBox>("FilteredListText");
+        if (textBox is not null && textBox.IsFocused)
+        {
+            return;
+        }
+
+        var selected = e.AddedItems[0]?.ToString();
+        if (!string.IsNullOrEmpty(selected))
+        {
+            var action = _pendingFilteredListAction;
+            CloseFilteredListPopup();
+            _ = action(selected);
+        }
+    }
+
+    private void SubmitFilteredListPopup()
+    {
+        var textBox = this.FindControl<TextBox>("FilteredListText");
+        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        if (_pendingFilteredListAction is null)
+        {
+            CloseFilteredListPopup();
+            return;
+        }
+
+        string? value = null;
+        if (listBox?.SelectedItem is not null)
+        {
+            value = listBox.SelectedItem.ToString();
+        }
+
+        if (string.IsNullOrEmpty(value))
+        {
+            value = textBox?.Text?.Trim().ToUpperInvariant();
+        }
+
+        if (!string.IsNullOrEmpty(value))
+        {
+            var action = _pendingFilteredListAction;
+            CloseFilteredListPopup();
+            _ = action(value);
+        }
+        else
+        {
+            CloseFilteredListPopup();
+        }
+    }
+
+    private void CloseFilteredListPopup()
+    {
+        _pendingFilteredListAction = null;
+        _filteredListAllNames = null;
+        var popup = this.FindControl<Popup>("FilteredListPopup");
+        var listBox = this.FindControl<ListBox>("FilteredListItems");
+        if (listBox is not null)
+        {
+            listBox.SelectedIndex = -1;
+            listBox.ItemsSource = null;
+        }
+
+        if (popup is not null)
+        {
+            popup.IsOpen = false;
+        }
+    }
+
+    private static IReadOnlyList<object> PrefixSearch(string[] sortedNames, string prefix, int maxResults)
+    {
+        var results = new List<object>();
+        var idx = Array.BinarySearch(sortedNames, prefix, StringComparer.OrdinalIgnoreCase);
+        if (idx < 0)
+        {
+            idx = ~idx;
+        }
+
+        for (var i = idx; i < sortedNames.Length && results.Count < maxResults; i++)
+        {
+            if (sortedNames[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                results.Add(sortedNames[i]);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return results;
+    }
+
     // --- Heading/altitude/route list builders ---
 
     private static IReadOnlyList<object> BuildHeadingList()
@@ -196,48 +386,26 @@ public partial class RadarView
         return items;
     }
 
-    private static IReadOnlyList<object> BuildAltitudeList(double fieldElevation, double currentAlt, bool climb)
+    private static IReadOnlyList<object> BuildFullAltitudeList(double fieldElevation)
     {
         var items = new List<object>();
         var lowThreshold = (int)(fieldElevation + 5000);
 
-        // Round to nearest 100
         var roundedLow = (int)(Math.Ceiling(fieldElevation / 100.0) * 100);
         if (roundedLow < 100)
         {
             roundedLow = 100;
         }
 
-        // Below threshold: every 100ft
         for (var alt = roundedLow; alt < lowThreshold; alt += 100)
         {
-            if (climb && alt > (int)currentAlt)
-            {
-                items.Add(alt);
-            }
-            else if (!climb && alt < (int)currentAlt)
-            {
-                items.Add(alt);
-            }
+            items.Add(alt);
         }
 
-        // At/above threshold: every 500ft up to FL600
         var start500 = (int)(Math.Ceiling(lowThreshold / 500.0) * 500);
         for (var alt = start500; alt <= 60000; alt += 500)
         {
-            if (climb && alt > (int)currentAlt)
-            {
-                items.Add(alt);
-            }
-            else if (!climb && alt < (int)currentAlt)
-            {
-                items.Add(alt);
-            }
-        }
-
-        if (!climb)
-        {
-            items.Reverse();
+            items.Add(alt);
         }
 
         return items;

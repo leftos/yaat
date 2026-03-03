@@ -80,7 +80,8 @@ public sealed class RadarRenderer : IDisposable
         double rangeRingCenterLat = 0,
         double rangeRingCenterLon = 0,
         double rangeRingSizeNm = 5,
-        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets = null
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets = null,
+        string? hoveredFixName = null
     )
     {
         canvas.Clear(BackgroundColor);
@@ -100,7 +101,7 @@ public sealed class RadarRenderer : IDisposable
         // Fix overlay
         if (showFixes && fixes is not null)
         {
-            DrawFixes(canvas, vp, fixes);
+            DrawFixes(canvas, vp, fixes, hoveredFixName);
         }
 
         // Aircraft targets
@@ -137,20 +138,27 @@ public sealed class RadarRenderer : IDisposable
         }
     }
 
-    private void DrawFixes(SKCanvas canvas, MapViewport vp, IReadOnlyList<(string Name, double Lat, double Lon)> fixes)
+    private void DrawFixes(SKCanvas canvas, MapViewport vp, IReadOnlyList<(string Name, double Lat, double Lon)> fixes, string? hoveredFixName)
     {
         const float crossSize = 4f;
+        const float margin = 50f;
 
         foreach (var fix in fixes)
         {
             var (sx, sy) = vp.LatLonToScreen(fix.Lat, fix.Lon);
 
-            // Draw small + symbol
+            if (sx < -margin || sx > vp.PixelWidth + margin || sy < -margin || sy > vp.PixelHeight + margin)
+            {
+                continue;
+            }
+
             canvas.DrawLine(sx - crossSize, sy, sx + crossSize, sy, _fixPaint);
             canvas.DrawLine(sx, sy - crossSize, sx, sy + crossSize, _fixPaint);
 
-            // Label
-            canvas.DrawText(fix.Name, sx + 6, sy - 2, _fixLabelPaint);
+            if (fix.Name == hoveredFixName)
+            {
+                canvas.DrawText(fix.Name, sx + 6, sy - 2, _fixLabelPaint);
+            }
         }
     }
 

@@ -511,6 +511,26 @@
                              SelectionChanged="OnListPopupSelectionChanged" />
                 </Border>
             </Popup>
+
+            <!-- Filtered list popup (text filter + scrollable list for fix name entry) -->
+            <Popup x:Name="FilteredListPopup"
+                   IsLightDismissEnabled="True"
+                   PlacementTarget="{Binding #Canvas}"
+                   Placement="Pointer">
+                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="4" CornerRadius="2">
+                    <StackPanel Width="200" Spacing="4">
+                        <TextBox x:Name="FilteredListText"
+                                 FontSize="12" FontFamily="Consolas"
+                                 Watermark="Fix name..."
+                                 KeyDown="OnFilteredListKeyDown" />
+                        <ListBox x:Name="FilteredListItems"
+                                 MaxHeight="250"
+                                 FontSize="12" FontFamily="Consolas"
+                                 Background="#222" Foreground="#CCC"
+                                 SelectionChanged="OnFilteredListSelectionChanged" />
+                    </StackPanel>
+                </Border>
+            </Popup>
         </Grid>
     </DockPanel>
 

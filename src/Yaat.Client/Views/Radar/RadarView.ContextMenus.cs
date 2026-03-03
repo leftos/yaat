@@ -63,7 +63,7 @@ public partial class RadarView
 
         menu.Items.Add(BuildHeadingSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildAltitudeSubmenu(vm, callsign, initials, ac));
-        menu.Items.Add(BuildSpeedSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildSpeedSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildNavigationSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildHoldSubmenu(vm, callsign, initials));
 
@@ -82,7 +82,20 @@ public partial class RadarView
 
     private MenuItem BuildHeadingSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var menu = new MenuItem { Header = "Heading" };
+        var hdgLabel = "Heading";
+        if (ac is not null)
+        {
+            if (!string.IsNullOrEmpty(ac.NavigatingTo))
+            {
+                hdgLabel = $"Heading (\u2192 {ac.NavigatingTo})";
+            }
+            else if (ac.AssignedHeading.HasValue)
+            {
+                hdgLabel = $"Heading (\u2192 {ac.AssignedHeading.Value:F0})";
+            }
+        }
+
+        var menu = new MenuItem { Header = hdgLabel };
         menu.Items.Add(CreateMenuItem("Present heading", () => vm.PresentHeadingAsync(cs, init)));
 
         var headings = BuildHeadingList();
@@ -101,33 +114,29 @@ public partial class RadarView
 
     private MenuItem BuildAltitudeSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var menu = new MenuItem { Header = "Altitude" };
-        var currentAlt = ac?.Altitude ?? 0;
-        var fieldElev = vm.GetFieldElevation(ac?.Destination);
-
-        var climbAlts = BuildAltitudeList(fieldElev, currentAlt, true);
-        if (climbAlts.Count > 0)
+        var altLabel = "Altitude";
+        if (ac?.AssignedAltitude is not null)
         {
-            menu.Items.Add(
-                CreateListMenuItem(
-                    "Climb and maintain",
-                    climbAlts,
-                    (int)currentAlt,
-                    val => vm.ClimbAndMaintainAsync(cs, init, (int)val),
-                    FormatAltitude
-                )
-            );
+            altLabel = $"Altitude (\u2192 {FormatAltitude((int)ac.AssignedAltitude.Value)})";
         }
 
-        var descAlts = BuildAltitudeList(fieldElev, currentAlt, false);
-        if (descAlts.Count > 0)
+        var menu = new MenuItem { Header = altLabel };
+        var currentAlt = (int)(ac?.Altitude ?? 0);
+        var fieldElev = vm.GetFieldElevation(ac?.Destination);
+
+        var altitudes = BuildFullAltitudeList(fieldElev);
+        if (altitudes.Count > 0)
         {
             menu.Items.Add(
                 CreateListMenuItem(
-                    "Descend and maintain",
-                    descAlts,
-                    (int)currentAlt,
-                    val => vm.DescendAndMaintainAsync(cs, init, (int)val),
+                    "Maintain",
+                    altitudes,
+                    currentAlt,
+                    val =>
+                    {
+                        var selected = (int)val;
+                        return selected > currentAlt ? vm.ClimbAndMaintainAsync(cs, init, selected) : vm.DescendAndMaintainAsync(cs, init, selected);
+                    },
                     FormatAltitude
                 )
             );
@@ -136,9 +145,15 @@ public partial class RadarView
         return menu;
     }
 
-    private MenuItem BuildSpeedSubmenu(RadarViewModel vm, string cs, string init)
+    private MenuItem BuildSpeedSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var menu = new MenuItem { Header = "Speed" };
+        var spdLabel = "Speed";
+        if (ac?.AssignedSpeed is not null && ac.AssignedSpeed.Value > 0)
+        {
+            spdLabel = $"Speed (\u2192 {ac.AssignedSpeed.Value:F0})";
+        }
+
+        var menu = new MenuItem { Header = spdLabel };
         menu.Items.Add(CreateInputMenuItem("Speed...", "Speed (knots)", input => vm.SpeedAsync(cs, init, int.Parse(input))));
         menu.Items.Add(CreateMenuItem("Resume normal speed", () => vm.SpeedNormalAsync(cs, init)));
         return menu;
@@ -146,19 +161,29 @@ public partial class RadarView
 
     private MenuItem BuildNavigationSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
     {
-        var menu = new MenuItem { Header = "Navigation" };
-
-        if (ac is not null)
+        var navLabel = "Navigation";
+        if (ac is not null && !string.IsNullOrEmpty(ac.NavigatingTo))
         {
-            var fixes = BuildRouteFixList(ac);
-            if (fixes.Count > 0)
-            {
-                menu.Items.Add(CreateListMenuItem("Direct to", fixes, fixes[0], val => vm.DirectToAsync(cs, init, (string)val)));
-            }
-            else
-            {
-                menu.Items.Add(CreateInputMenuItem("Direct to...", "Fix name", input => vm.DirectToAsync(cs, init, input)));
-            }
+            navLabel = $"Navigation (\u2192 {ac.NavigatingTo})";
+        }
+
+        var menu = new MenuItem { Header = navLabel };
+
+        var routeFixes = ac is not null ? BuildRouteFixList(ac) : [];
+        if (vm.FixNames is not null)
+        {
+            menu.Items.Add(
+                CreateFilteredListMenuItem(
+                    "Direct to...",
+                    vm.FixNames,
+                    fix => vm.DirectToAsync(cs, init, fix),
+                    routeFixes.Count > 0 ? routeFixes : null
+                )
+            );
+        }
+        else if (routeFixes.Count > 0)
+        {
+            menu.Items.Add(CreateListMenuItem("Direct to", routeFixes, routeFixes[0], val => vm.DirectToAsync(cs, init, (string)val)));
         }
         else
         {
@@ -173,8 +198,18 @@ public partial class RadarView
         var menu = new MenuItem { Header = "Hold" };
         menu.Items.Add(CreateMenuItem("Hold present position (left)", () => vm.HoldPresentLeftAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Hold present position (right)", () => vm.HoldPresentRightAsync(cs, init)));
-        menu.Items.Add(CreateInputMenuItem("Hold at fix (left)...", "Fix name", input => vm.HoldAtFixLeftAsync(cs, init, input)));
-        menu.Items.Add(CreateInputMenuItem("Hold at fix (right)...", "Fix name", input => vm.HoldAtFixRightAsync(cs, init, input)));
+
+        if (vm.FixNames is not null)
+        {
+            menu.Items.Add(CreateFilteredListMenuItem("Hold at fix (left)...", vm.FixNames, fix => vm.HoldAtFixLeftAsync(cs, init, fix)));
+            menu.Items.Add(CreateFilteredListMenuItem("Hold at fix (right)...", vm.FixNames, fix => vm.HoldAtFixRightAsync(cs, init, fix)));
+        }
+        else
+        {
+            menu.Items.Add(CreateInputMenuItem("Hold at fix (left)...", "Fix name", input => vm.HoldAtFixLeftAsync(cs, init, input)));
+            menu.Items.Add(CreateInputMenuItem("Hold at fix (right)...", "Fix name", input => vm.HoldAtFixRightAsync(cs, init, input)));
+        }
+
         return menu;
     }
 
@@ -246,10 +281,10 @@ public partial class RadarView
         var initials = GetInitials();
         var menu = new ContextMenu();
 
-        var heading = (int)Math.Round(GeoMath.BearingTo(vm.SelectedAircraft.Latitude, vm.SelectedAircraft.Longitude, lat, lon));
+        var heading = (int)(Math.Round(GeoMath.BearingTo(vm.SelectedAircraft.Latitude, vm.SelectedAircraft.Longitude, lat, lon) / 5.0) * 5);
         if (heading <= 0)
         {
-            heading += 360;
+            heading = 360;
         }
 
         menu.Items.Add(CreateMenuItem($"Fly heading {heading:D3}", () => vm.FlyHeadingAsync(callsign, initials, heading)));
@@ -307,6 +342,21 @@ public partial class RadarView
         item.Click += (_, _) =>
         {
             ShowInputPopup(placeholder, action);
+        };
+        return item;
+    }
+
+    private MenuItem CreateFilteredListMenuItem(
+        string header,
+        string[] sortedNames,
+        Func<string, Task> action,
+        IReadOnlyList<object>? priorityItems = null
+    )
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += (_, _) =>
+        {
+            ShowFilteredListPopup(sortedNames, action, priorityItems);
         };
         return item;
     }

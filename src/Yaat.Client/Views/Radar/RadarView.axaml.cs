@@ -17,6 +17,9 @@ public partial class RadarView : UserControl
     private ContextMenu? _activeContextMenu;
     private Func<string, Task>? _pendingInputAction;
     private Func<object, Task>? _pendingListAction;
+    private bool _listPopupInitializing;
+    private Func<string, Task>? _pendingFilteredListAction;
+    private string[]? _filteredListAllNames;
 
     public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeMain = new(v => v == DcbMenuMode.Main);
     public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeAux = new(v => v == DcbMenuMode.Aux);
@@ -44,6 +47,12 @@ public partial class RadarView : UserControl
         _canvas.AircraftLeftClicked += OnAircraftLeftClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.RangeRingPlaced += OnRangeRingPlaced;
+
+        var filteredText = this.FindControl<TextBox>("FilteredListText");
+        if (filteredText is not null)
+        {
+            filteredText.TextChanged += OnFilteredListTextChanged;
+        }
 
         // Sync brightness from ViewModel
         if (DataContext is RadarViewModel vm)
@@ -307,6 +316,7 @@ public partial class RadarView : UserControl
             CloseActiveContextMenu();
             CloseInputPopup();
             CloseListPopup();
+            CloseFilteredListPopup();
         }
     }
 

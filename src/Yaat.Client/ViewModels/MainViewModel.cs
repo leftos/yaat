@@ -250,6 +250,7 @@ public partial class MainViewModel : ObservableObject
 
             _commandInput.FixDb = fixDb;
             Radar.SetElevationLookup(fixDb.GetAirportElevation);
+            Radar.SetFixDb(fixDb);
             _log.LogInformation("Navdata loaded: {Count} fixes available for autocomplete", fixDb.Count);
         }
         catch (Exception ex)

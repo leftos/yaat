@@ -36,6 +36,7 @@ public partial class RadarViewModel : ObservableObject
     private string? _activeScenarioId;
     private UserPreferences? _preferences;
     private Func<string, double?>? _getAirportElevation;
+    private FixDatabase? _fixDb;
 
     public string? PrimaryAirportId { get; private set; }
 
@@ -132,6 +133,36 @@ public partial class RadarViewModel : ObservableObject
     public void SetElevationLookup(Func<string, double?> lookup)
     {
         _getAirportElevation = lookup;
+    }
+
+    public void SetFixDb(FixDatabase fixDb)
+    {
+        _fixDb = fixDb;
+        FixNames = fixDb.AllFixNames;
+        SetFixes(BuildVisibleFixes());
+    }
+
+    public string[]? FixNames { get; private set; }
+
+    private IReadOnlyList<(string Name, double Lat, double Lon)> BuildVisibleFixes()
+    {
+        if (_fixDb is null)
+        {
+            return [];
+        }
+
+        var names = _fixDb.AllFixNames;
+        var result = new List<(string, double, double)>(names.Length);
+        foreach (var name in names)
+        {
+            var pos = _fixDb.GetFixPosition(name);
+            if (pos.HasValue)
+            {
+                result.Add((name, pos.Value.Lat, pos.Value.Lon));
+            }
+        }
+
+        return result;
     }
 
     public void SetPrimaryAirportId(string? id)

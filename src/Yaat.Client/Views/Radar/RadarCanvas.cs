@@ -97,6 +97,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private SKPoint _dragStartOffset;
     private Point _dragStartMousePos;
     private bool _dragThresholdMet;
+    private Point _lastPointerPos;
 
     public RadarCanvas()
     {
@@ -329,11 +330,18 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         double RangeRingCenterLat,
         double RangeRingCenterLon,
         double RangeRingSizeNm,
-        IReadOnlyDictionary<string, SKPoint> DataBlockOffsets
+        IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
+        string? HoveredFixName
     );
 
     protected override object? CreateRenderSnapshot()
     {
+        string? hoveredFix = null;
+        if (ShowFixes && Fixes is not null)
+        {
+            hoveredFix = FindHoveredFixName(Fixes, _lastPointerPos);
+        }
+
         return new RenderSnapshot(
             VideoMaps ?? Array.Empty<VideoMapData>(),
             _brightnessLookup,
@@ -348,8 +356,31 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             RangeRingCenterLat,
             RangeRingCenterLon,
             RangeRingSizeNm,
-            new Dictionary<string, SKPoint>(_dataBlockOffsets)
+            new Dictionary<string, SKPoint>(_dataBlockOffsets),
+            hoveredFix
         );
+    }
+
+    private string? FindHoveredFixName(IReadOnlyList<(string Name, double Lat, double Lon)> fixes, Point mousePos)
+    {
+        const float hitRadius = 20f;
+        string? bestName = null;
+        float bestDist = hitRadius;
+
+        foreach (var fix in fixes)
+        {
+            var (sx, sy) = Viewport.LatLonToScreen(fix.Lat, fix.Lon);
+            var dx = (float)mousePos.X - sx;
+            var dy = (float)mousePos.Y - sy;
+            var dist = MathF.Sqrt(dx * dx + dy * dy);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestName = fix.Name;
+            }
+        }
+
+        return bestName;
     }
 
     protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot)
@@ -375,7 +406,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.RangeRingCenterLat,
             s.RangeRingCenterLon,
             s.RangeRingSizeNm,
-            s.DataBlockOffsets
+            s.DataBlockOffsets,
+            s.HoveredFixName
         );
     }
 
@@ -474,11 +506,18 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return;
         }
 
+        var currentPos = e.GetPosition(this);
+        _lastPointerPos = currentPos;
+
+        if (ShowFixes)
+        {
+            MarkDirty();
+        }
+
         if (_rightButtonDown && !_rightDragStarted)
         {
-            var pos = e.GetPosition(this);
-            var dx = pos.X - _rightPressPos.X;
-            var dy = pos.Y - _rightPressPos.Y;
+            var dx = currentPos.X - _rightPressPos.X;
+            var dy = currentPos.Y - _rightPressPos.Y;
             if (dx * dx + dy * dy > DragThresholdSq)
             {
                 _rightDragStarted = true;
