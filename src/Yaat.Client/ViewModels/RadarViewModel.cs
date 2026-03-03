@@ -136,7 +136,7 @@ public partial class RadarViewModel : ObservableObject
     private bool _showTopDown;
 
     [ObservableProperty]
-    private double _ptlLengthMinutes;
+    private double _ptlLengthMinutes = 0.5;
 
     [ObservableProperty]
     private bool _ptlOwn;
@@ -492,7 +492,7 @@ public partial class RadarViewModel : ObservableObject
     public void AdjustPtlLength(int delta)
     {
         var next = PtlLengthMinutes + delta * 0.5;
-        PtlLengthMinutes = Math.Clamp(next, 0.0, 3.0);
+        PtlLengthMinutes = Math.Clamp(next, 0.5, 3.0);
         SaveSettings();
     }
 
