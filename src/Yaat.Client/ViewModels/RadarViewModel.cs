@@ -18,9 +18,23 @@ public enum DcbMenuMode
 
 public enum BriteTarget
 {
+    Dcb,
+    Bkc,
     MapA,
     MapB,
+    Fdb,
+    Lst,
+    Pos,
+    Ldb,
+    Oth,
+    Tls,
     RangeRing,
+    Cmp,
+    Bcn,
+    Pri,
+    Hst,
+    Wx,
+    Wxc,
 }
 
 public partial class RadarViewModel : ObservableObject
@@ -61,14 +75,35 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private AircraftModel? _selectedAircraft;
 
-    [ObservableProperty]
-    private float _mapBrightnessA = 1.0f;
+    private readonly Dictionary<BriteTarget, int> _brightnessValues = new()
+    {
+        [BriteTarget.Dcb] = 100,
+        [BriteTarget.Bkc] = 100,
+        [BriteTarget.MapA] = 100,
+        [BriteTarget.MapB] = 60,
+        [BriteTarget.Fdb] = 100,
+        [BriteTarget.Lst] = 100,
+        [BriteTarget.Pos] = 100,
+        [BriteTarget.Ldb] = 100,
+        [BriteTarget.Oth] = 100,
+        [BriteTarget.Tls] = 100,
+        [BriteTarget.RangeRing] = 60,
+        [BriteTarget.Cmp] = 100,
+        [BriteTarget.Bcn] = 100,
+        [BriteTarget.Pri] = 100,
+        [BriteTarget.Hst] = 100,
+        [BriteTarget.Wx] = 100,
+        [BriteTarget.Wxc] = 100,
+    };
 
     [ObservableProperty]
-    private float _mapBrightnessB = 0.6f;
+    private BriteTarget? _activeBriteTarget;
 
-    [ObservableProperty]
-    private float _rangeRingBrightness = 0.6f;
+    public float MapBrightnessA => _brightnessValues[BriteTarget.MapA] / 100f;
+
+    public float MapBrightnessB => _brightnessValues[BriteTarget.MapB] / 100f;
+
+    public float RangeRingBrightness => _brightnessValues[BriteTarget.RangeRing] / 100f;
 
     [ObservableProperty]
     private IReadOnlyList<VideoMapData>? _activeVideoMaps;
@@ -284,14 +319,23 @@ public partial class RadarViewModel : ObservableObject
             MapToggles.Add(item);
         }
 
-        // Build map shortcuts from first mapGroup (indices 0-5)
+        // Build map shortcuts from first mapGroup (indices 0-5).
+        // vNAS stores them column-major (top-to-bottom, left-to-right for a 2-row grid)
+        // but UniformGrid fills row-major, so transpose: [0,2,4,1,3,5].
         MapShortcuts.Clear();
         if (dto.MapGroups.Count > 0)
         {
             var group = dto.MapGroups[0];
-            for (var i = 0; i < Math.Min(6, group.MapIds.Count); i++)
+            var count = Math.Min(6, group.MapIds.Count);
+            int[] rowMajorOrder = [0, 2, 4, 1, 3, 5];
+            foreach (var srcIdx in rowMajorOrder)
             {
-                var starsId = group.MapIds[i];
+                if (srcIdx >= count)
+                {
+                    continue;
+                }
+
+                var starsId = group.MapIds[srcIdx];
                 if (starsId is null)
                 {
                     continue;
@@ -301,7 +345,7 @@ public partial class RadarViewModel : ObservableObject
                 var shortName = toggle?.ShortName ?? $"M{starsId}";
                 var shortcut = new MapShortcutItem
                 {
-                    Index = i,
+                    Index = srcIdx,
                     StarsId = starsId.Value,
                     ShortName = shortName,
                     IsEnabled = toggle?.IsEnabled ?? false,
@@ -442,6 +486,7 @@ public partial class RadarViewModel : ObservableObject
     [RelayCommand]
     private void OpenAuxMenu()
     {
+        ActiveBriteTarget = null;
         DcbMode = DcbMenuMode.Aux;
     }
 
@@ -454,6 +499,7 @@ public partial class RadarViewModel : ObservableObject
     [RelayCommand]
     private void CloseDcbSubmenu()
     {
+        ActiveBriteTarget = null;
         DcbMode = DcbMenuMode.Main;
     }
 
@@ -487,35 +533,28 @@ public partial class RadarViewModel : ObservableObject
         }
     }
 
-    /// <summary>
-    /// Adjusts a brightness value by <paramref name="delta"/> (typically +5 or -5),
-    /// clamping to [0, 100] and returning the result as 0.0–1.0.
-    /// </summary>
+    public int GetBrightnessPercent(BriteTarget target)
+    {
+        return _brightnessValues.TryGetValue(target, out var val) ? val : 100;
+    }
+
     public void AdjustBrightness(BriteTarget target, int delta)
     {
-        float current = target switch
-        {
-            BriteTarget.MapA => MapBrightnessA,
-            BriteTarget.MapB => MapBrightnessB,
-            BriteTarget.RangeRing => RangeRingBrightness,
-            _ => 0f,
-        };
-
-        var pct = (int)MathF.Round(current * 100);
+        var pct = GetBrightnessPercent(target);
         pct = Math.Clamp(pct + delta, 0, 100);
-        var value = MathF.Round(pct / 100f, 2);
+        _brightnessValues[target] = pct;
 
-        switch (target)
+        if (target is BriteTarget.MapA or BriteTarget.MapB or BriteTarget.RangeRing)
         {
-            case BriteTarget.MapA:
-                MapBrightnessA = value;
-                break;
-            case BriteTarget.MapB:
-                MapBrightnessB = value;
-                break;
-            case BriteTarget.RangeRing:
-                RangeRingBrightness = value;
-                break;
+            OnPropertyChanged(
+                target switch
+                {
+                    BriteTarget.MapA => nameof(MapBrightnessA),
+                    BriteTarget.MapB => nameof(MapBrightnessB),
+                    BriteTarget.RangeRing => nameof(RangeRingBrightness),
+                    _ => "",
+                }
+            );
         }
 
         SaveSettings();
@@ -566,6 +605,12 @@ public partial class RadarViewModel : ObservableObject
             }
         }
 
+        var brightnessDict = new Dictionary<string, int>();
+        foreach (var (target, value) in _brightnessValues)
+        {
+            brightnessDict[target.ToString()] = value;
+        }
+
         var settings = new SavedRadarSettings
         {
             EnabledStarsIds = enabledIds,
@@ -579,9 +624,7 @@ public partial class RadarViewModel : ObservableObject
             ShowFixes = ShowFixes,
             IsPanZoomLocked = IsPanZoomLocked,
             ShowTopDown = ShowTopDown,
-            MapBrightnessA = MapBrightnessA,
-            MapBrightnessB = MapBrightnessB,
-            RangeRingBrightness = RangeRingBrightness,
+            BrightnessValues = brightnessDict,
         };
 
         _preferences.SetRadarSettings(_activeScenarioId, settings);
@@ -623,9 +666,21 @@ public partial class RadarViewModel : ObservableObject
         ShowFixes = saved.ShowFixes;
         IsPanZoomLocked = saved.IsPanZoomLocked;
         ShowTopDown = saved.ShowTopDown;
-        MapBrightnessA = saved.MapBrightnessA;
-        MapBrightnessB = saved.MapBrightnessB;
-        RangeRingBrightness = saved.RangeRingBrightness;
+
+        if (saved.BrightnessValues is { Count: > 0 })
+        {
+            foreach (var (key, value) in saved.BrightnessValues)
+            {
+                if (Enum.TryParse<BriteTarget>(key, out var target))
+                {
+                    _brightnessValues[target] = Math.Clamp(value, 0, 100);
+                }
+            }
+
+            OnPropertyChanged(nameof(MapBrightnessA));
+            OnPropertyChanged(nameof(MapBrightnessB));
+            OnPropertyChanged(nameof(RangeRingBrightness));
+        }
     }
 
     private void UpdateActiveMaps()

@@ -1,12 +1,16 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;
 
 public sealed class UserPreferences
 {
+    private static readonly ILogger Log = AppLog.CreateLogger<UserPreferences>();
+
     private static readonly string ConfigDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "yaat");
 
     private static readonly string ConfigPath = Path.Combine(ConfigDir, "preferences.json");
@@ -289,8 +293,17 @@ public sealed class UserPreferences
                 RecentScenarios = saved?.RecentScenarios ?? [],
             };
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            Log.LogError(ex, "Failed to deserialize {Path} — preferences reset to defaults. Backup saved to .bak", ConfigPath);
+            try
+            {
+                File.Copy(ConfigPath, ConfigPath + ".bak", overwrite: true);
+            }
+            catch (IOException backupEx)
+            {
+                Log.LogWarning(backupEx, "Could not back up preferences file");
+            }
             return new LoadedPrefs();
         }
     }
@@ -358,7 +371,11 @@ public sealed class UserPreferences
         };
 
         var json = JsonSerializer.Serialize(saved, JsonOptions);
-        File.WriteAllText(ConfigPath, json);
+
+        // Atomic write: write to .tmp then move, so a crash mid-write can't corrupt the real file
+        var tmpPath = ConfigPath + ".tmp";
+        File.WriteAllText(tmpPath, json);
+        File.Move(tmpPath, ConfigPath, overwrite: true);
     }
 
     private static CommandScheme? FromSaved(SavedCommandScheme s)
@@ -505,7 +522,5 @@ public sealed class SavedRadarSettings
     public bool ShowFixes { get; set; }
     public bool IsPanZoomLocked { get; set; } = true;
     public bool ShowTopDown { get; set; }
-    public float MapBrightnessA { get; set; } = 1.0f;
-    public float MapBrightnessB { get; set; } = 0.6f;
-    public float RangeRingBrightness { get; set; } = 0.6f;
+    public Dictionary<string, int>? BrightnessValues { get; set; }
 }

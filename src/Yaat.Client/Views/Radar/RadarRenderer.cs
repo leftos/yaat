@@ -36,8 +36,8 @@ public sealed class RadarRenderer : IDisposable
 
     private readonly SKPaint _fixLabelPaint = new()
     {
-        Color = FixColor,
-        TextSize = 10,
+        Color = SKColors.White,
+        TextSize = 14,
         IsAntialias = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };

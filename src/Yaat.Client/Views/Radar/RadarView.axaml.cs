@@ -54,13 +54,11 @@ public partial class RadarView : UserControl
             filteredText.TextChanged += OnFilteredListTextChanged;
         }
 
-        // Sync brightness from ViewModel
+        // Sync brightness and button states from ViewModel
         if (DataContext is RadarViewModel vm)
         {
             _canvas.SetBrightnessLookup(vm.BrightnessLookup);
-            _canvas.BrightnessA = vm.MapBrightnessA;
-            _canvas.BrightnessB = vm.MapBrightnessB;
-            _canvas.RangeRingBrightness = vm.RangeRingBrightness;
+            SyncCanvasBrightness(vm);
         }
     }
 
@@ -190,8 +188,6 @@ public partial class RadarView : UserControl
         }
 
         vm.ToggleFixesCommand.Execute(null);
-        var btn = this.FindControl<Button>("FixButton");
-        btn?.Classes.Set("active", vm.ShowFixes);
     }
 
     private void OnTopDownClick(object? sender, RoutedEventArgs e)
@@ -202,8 +198,6 @@ public partial class RadarView : UserControl
         }
 
         vm.ToggleTopDownCommand.Execute(null);
-        var btn = this.FindControl<Button>("TopDownButton");
-        btn?.Classes.Set("active", vm.ShowTopDown);
     }
 
     private void OnLockClick(object? sender, RoutedEventArgs e)
@@ -214,66 +208,88 @@ public partial class RadarView : UserControl
         }
 
         vm.TogglePanZoomLockCommand.Execute(null);
-        var btn = this.FindControl<Button>("LockButton");
-        btn?.Classes.Set("active", vm.IsPanZoomLocked);
     }
+
+    private static readonly (BriteTarget Target, string Label, string TextBlockName)[] BriteButtons =
+    [
+        (BriteTarget.Dcb, "DCB", "BriteDcbText"),
+        (BriteTarget.Bkc, "BKC", "BriteBkcText"),
+        (BriteTarget.MapA, "MPA", "BriteMpaText"),
+        (BriteTarget.MapB, "MPB", "BriteMpbText"),
+        (BriteTarget.Fdb, "FDB", "BriteFdbText"),
+        (BriteTarget.Lst, "LST", "BriteLstText"),
+        (BriteTarget.Pos, "POS", "BritePosText"),
+        (BriteTarget.Ldb, "LDB", "BriteLdbText"),
+        (BriteTarget.Oth, "OTH", "BriteOthText"),
+        (BriteTarget.Tls, "TLS", "BriteTlsText"),
+        (BriteTarget.RangeRing, "RR", "BriteRrText"),
+        (BriteTarget.Cmp, "CMP", "BriteCmpText"),
+        (BriteTarget.Bcn, "BCN", "BriteBcnText"),
+        (BriteTarget.Pri, "PRI", "BritePriText"),
+        (BriteTarget.Hst, "HST", "BriteHstText"),
+        (BriteTarget.Wx, "WX", "BriteWxText"),
+        (BriteTarget.Wxc, "WXC", "BriteWxcText"),
+    ];
 
     private void OnBriteClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is RadarViewModel vm)
         {
             vm.OpenBriteMenuCommand.Execute(null);
-            UpdateBriteDisplay(vm);
+            UpdateAllBriteButtons(vm);
         }
     }
 
-    private void OnBriteMpaUp(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.MapA, 5);
-
-    private void OnBriteMpaDown(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.MapA, -5);
-
-    private void OnBriteMpbUp(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.MapB, 5);
-
-    private void OnBriteMpbDown(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.MapB, -5);
-
-    private void OnBriteRrUp(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.RangeRing, 5);
-
-    private void OnBriteRrDown(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.RangeRing, -5);
-
-    private void AdjustBrite(BriteTarget target, int delta)
+    private void OnBriteButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not RadarViewModel vm)
+        if (sender is not Button { Tag: BriteTarget target } || DataContext is not RadarViewModel vm)
         {
             return;
         }
 
-        vm.AdjustBrightness(target, delta);
+        // Toggle latch: clicking the active target unlatches, clicking a new one latches it
+        vm.ActiveBriteTarget = vm.ActiveBriteTarget == target ? null : target;
 
+        // Update active class on all brite buttons
+        var briteMenu = this.FindControl<Grid>("DcbBriteMenu");
+        if (briteMenu is null)
+        {
+            return;
+        }
+
+        foreach (var child in briteMenu.Children)
+        {
+            if (child is Button btn && btn.Tag is BriteTarget btnTarget)
+            {
+                btn.Classes.Set("active", btnTarget == vm.ActiveBriteTarget);
+            }
+        }
+    }
+
+    private void UpdateBriteButtonText(RadarViewModel vm, BriteTarget target, string label, string textBlockName)
+    {
+        var tb = this.FindControl<TextBlock>(textBlockName);
+        if (tb is not null)
+        {
+            tb.Text = $"{label} {vm.GetBrightnessPercent(target)}";
+        }
+    }
+
+    private void UpdateAllBriteButtons(RadarViewModel vm)
+    {
+        foreach (var (target, label, name) in BriteButtons)
+        {
+            UpdateBriteButtonText(vm, target, label, name);
+        }
+    }
+
+    private void SyncCanvasBrightness(RadarViewModel vm)
+    {
         if (_canvas is not null)
         {
             _canvas.BrightnessA = vm.MapBrightnessA;
             _canvas.BrightnessB = vm.MapBrightnessB;
             _canvas.RangeRingBrightness = vm.RangeRingBrightness;
-        }
-
-        UpdateBriteDisplay(vm);
-    }
-
-    private void UpdateBriteDisplay(RadarViewModel vm)
-    {
-        var mpaText = this.FindControl<TextBlock>("BriteMpaValue");
-        var mpbText = this.FindControl<TextBlock>("BriteMpbValue");
-        var rrText = this.FindControl<TextBlock>("BriteRrValue");
-        if (mpaText is not null)
-        {
-            mpaText.Text = ((int)(vm.MapBrightnessA * 100)).ToString(CultureInfo.InvariantCulture);
-        }
-        if (mpbText is not null)
-        {
-            mpbText.Text = ((int)(vm.MapBrightnessB * 100)).ToString(CultureInfo.InvariantCulture);
-        }
-        if (rrText is not null)
-        {
-            rrText.Text = ((int)(vm.RangeRingBrightness * 100)).ToString(CultureInfo.InvariantCulture);
         }
     }
 
@@ -295,6 +311,33 @@ public partial class RadarView : UserControl
         {
             vm.RangeRingSizeNm = RadarViewModel.CycleRangeRingSize(vm.RangeRingSizeNm, delta);
             e.Handled = true;
+        }
+        else if (vm.ActiveBriteTarget is { } briteTarget)
+        {
+            vm.AdjustBrightness(briteTarget, delta * 5);
+            SyncCanvasBrightness(vm);
+
+            // Update just the affected button text
+            foreach (var (target, label, name) in BriteButtons)
+            {
+                if (target == briteTarget)
+                {
+                    UpdateBriteButtonText(vm, target, label, name);
+                    break;
+                }
+            }
+
+            e.Handled = true;
+        }
+        else
+        {
+            // No spinner latched — horizontal scroll the DCB
+            var scroller = this.FindControl<ScrollViewer>("DcbScroller");
+            if (scroller is not null)
+            {
+                scroller.Offset = scroller.Offset.WithX(scroller.Offset.X - delta * 40);
+                e.Handled = true;
+            }
         }
     }
 
