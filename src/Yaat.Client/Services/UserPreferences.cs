@@ -45,6 +45,7 @@ public sealed class UserPreferences
     private bool _isRadarViewPoppedOut;
     private Dictionary<string, SavedRadarSettings> _radarSettings;
     private bool _isDelayedGroupCollapsed;
+    private string? _lastScenarioFolder;
     private List<MacroDefinition> _macros;
     private List<FavoriteCommand> _favoriteCommands;
     private List<RecentScenario> _recentScenarios;
@@ -74,6 +75,7 @@ public sealed class UserPreferences
         _isRadarViewPoppedOut = saved.IsRadarViewPoppedOut;
         _radarSettings = saved.RadarSettings;
         _isDelayedGroupCollapsed = saved.IsDelayedGroupCollapsed;
+        _lastScenarioFolder = saved.LastScenarioFolder;
         _macros = saved.Macros;
         _favoriteCommands = saved.FavoriteCommands;
         _recentScenarios = saved.RecentScenarios;
@@ -100,6 +102,7 @@ public sealed class UserPreferences
     public bool IsGroundViewPoppedOut => _isGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _isRadarViewPoppedOut;
     public bool IsDelayedGroupCollapsed => _isDelayedGroupCollapsed;
+    public string? LastScenarioFolder => _lastScenarioFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _favoriteCommands;
     public IReadOnlyList<RecentScenario> RecentScenarios => _recentScenarios;
@@ -206,6 +209,12 @@ public sealed class UserPreferences
     public void SetDelayedGroupCollapsed(bool collapsed)
     {
         _isDelayedGroupCollapsed = collapsed;
+        Save();
+    }
+
+    public void SetLastScenarioFolder(string? folder)
+    {
+        _lastScenarioFolder = folder;
         Save();
     }
 
@@ -317,6 +326,7 @@ public sealed class UserPreferences
             IsRadarViewPoppedOut = saved.IsRadarViewPoppedOut,
             RadarSettings = saved.RadarSettings ?? [],
             IsDelayedGroupCollapsed = saved.IsDelayedGroupCollapsed,
+            LastScenarioFolder = saved.LastScenarioFolder,
             Macros = saved.Macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
             FavoriteCommands = saved.FavoriteCommands ?? [],
             RecentScenarios = saved.RecentScenarios ?? [],
@@ -368,6 +378,7 @@ public sealed class UserPreferences
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             IsDelayedGroupCollapsed = GetFieldOr(obj, "isDelayedGroupCollapsed", false),
+            LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
             Macros = macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
@@ -428,6 +439,7 @@ public sealed class UserPreferences
         public bool IsRadarViewPoppedOut { get; init; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; init; } = [];
         public bool IsDelayedGroupCollapsed { get; init; }
+        public string? LastScenarioFolder { get; init; }
         public List<MacroDefinition> Macros { get; init; } = [];
         public List<FavoriteCommand> FavoriteCommands { get; init; } = [];
         public List<RecentScenario> RecentScenarios { get; init; } = [];
@@ -461,6 +473,7 @@ public sealed class UserPreferences
             IsRadarViewPoppedOut = _isRadarViewPoppedOut,
             RadarSettings = _radarSettings,
             IsDelayedGroupCollapsed = _isDelayedGroupCollapsed,
+            LastScenarioFolder = _lastScenarioFolder,
             Macros = _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList(),
             FavoriteCommands = [.. _favoriteCommands],
             RecentScenarios = [.. _recentScenarios],
@@ -551,6 +564,7 @@ public sealed class UserPreferences
         public bool IsRadarViewPoppedOut { get; set; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public bool IsDelayedGroupCollapsed { get; set; }
+        public string? LastScenarioFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
         public List<RecentScenario> RecentScenarios { get; set; } = [];

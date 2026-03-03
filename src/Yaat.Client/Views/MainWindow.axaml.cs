@@ -2,7 +2,6 @@ using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
-using Avalonia.Platform.Storage;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -620,23 +619,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        var files = await StorageProvider.OpenFilePickerAsync(
-            new FilePickerOpenOptions
-            {
-                Title = "Open Scenario",
-                AllowMultiple = false,
-                FileTypeFilter = [new FilePickerFileType("JSON Files") { Patterns = ["*.json"] }, FilePickerFileTypes.All],
-            }
-        );
-
-        if (files.Count > 0)
+        var window = new LoadScenarioWindow(vm.Preferences);
+        var filePath = await window.ShowDialog<string?>(this);
+        if (filePath is not null)
         {
-            var path = files[0].TryGetLocalPath();
-            if (path is not null)
-            {
-                vm.ScenarioFilePath = path;
-                await vm.LoadScenarioCommand.ExecuteAsync(null);
-            }
+            vm.ScenarioFilePath = filePath;
+            await vm.LoadScenarioCommand.ExecuteAsync(null);
         }
     }
 

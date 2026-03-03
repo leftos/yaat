@@ -1,0 +1,79 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.LoadScenarioWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Load Scenario"
+        Width="580"
+        Height="500"
+        MinWidth="400"
+        MinHeight="350"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel Margin="12">
+
+        <!-- Top: folder row + filter row -->
+        <Grid DockPanel.Dock="Top"
+              RowDefinitions="Auto,Auto"
+              Margin="0,0,0,8">
+
+            <!-- Row 0: folder picker -->
+            <Grid Grid.Row="0"
+                  ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0"
+                         x:Name="FolderPathBox"
+                         IsReadOnly="True"
+                         Watermark="Select a folder…" />
+                <Button Grid.Column="1"
+                        Content="Browse…"
+                        x:Name="BrowseButton"
+                        Margin="8,0,0,0" />
+            </Grid>
+
+            <!-- Row 1: filters + status -->
+            <StackPanel Grid.Row="1"
+                        Orientation="Horizontal"
+                        Spacing="12"
+                        Margin="0,8,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="Airport:" VerticalAlignment="Center" />
+                    <ComboBox x:Name="AirportFilter" MinWidth="100" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="Rating:" VerticalAlignment="Center" />
+                    <ComboBox x:Name="RatingFilter" MinWidth="80" />
+                </StackPanel>
+                <TextBlock x:Name="StatusText"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource SubtleTextBrush}" />
+            </StackPanel>
+
+        </Grid>
+
+        <!-- Bottom: action buttons -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,8,0,0">
+            <Button Content="Load"
+                    x:Name="LoadButton"
+                    Width="80"
+                    IsEnabled="False" />
+            <Button Content="Cancel"
+                    x:Name="CancelButton"
+                    Width="80" />
+        </StackPanel>
+
+        <!-- Scenario list fills remaining space -->
+        <ListBox x:Name="ScenarioList"
+                 SelectionMode="Single">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+    </DockPanel>
+</Window>
