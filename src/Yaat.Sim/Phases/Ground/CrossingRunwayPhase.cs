@@ -43,6 +43,12 @@ public sealed class CrossingRunwayPhase : Phase
             return true;
         }
 
+        if (ctx.Aircraft.IsHeld)
+        {
+            ctx.Aircraft.GroundSpeed = 0;
+            return false;
+        }
+
         double crossSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
 
         // Accelerate to crossing speed
@@ -77,6 +83,8 @@ public sealed class CrossingRunwayPhase : Phase
     {
         return cmd switch
         {
+            CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
+            CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };

@@ -44,6 +44,12 @@ public sealed class PushbackPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        if (ctx.Aircraft.IsHeld)
+        {
+            ctx.Aircraft.GroundSpeed = 0;
+            return false;
+        }
+
         double pushSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
         double turnRate = CategoryPerformance.GroundTurnRate(ctx.Category);
 
@@ -104,6 +110,7 @@ public sealed class PushbackPhase : Phase
         {
             CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
+            CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };

@@ -135,9 +135,7 @@ internal static class GroundCommandHandler
 
     internal static CommandResult TryHoldPosition(AircraftState aircraft)
     {
-        bool isGround = aircraft.Phases?.CurrentPhase is AtParkingPhase or PushbackPhase or TaxiingPhase or HoldingShortPhase or CrossingRunwayPhase;
-
-        if (!isGround)
+        if (!aircraft.IsOnGround)
         {
             return new CommandResult(false, "Hold position requires aircraft on the ground");
         }
@@ -219,7 +217,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Hold short of {hs.Target}");
     }
 
-    internal static CommandResult TryFollow(AircraftState aircraft, FollowCommand follow, ILogger logger)
+    internal static CommandResult TryFollow(AircraftState aircraft, FollowCommand follow, AirportGroundLayout? groundLayout, ILogger logger)
     {
         var currentPhase = aircraft.Phases?.CurrentPhase;
         if (currentPhase is null)
@@ -241,9 +239,9 @@ internal static class GroundCommandHandler
 
         // Replace phases with FollowingPhase
         var phases = aircraft.Phases!;
-        phases.Clear(CommandDispatcher.BuildMinimalContext(aircraft, logger));
+        phases.Clear(CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout));
         phases.Phases.Add(new FollowingPhase(follow.TargetCallsign));
-        phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, logger));
+        phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout));
 
         return CommandDispatcher.Ok($"Follow {follow.TargetCallsign}");
     }

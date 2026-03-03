@@ -231,12 +231,15 @@ public sealed class TaxiingPhase : Phase
                 holdShort.Reason
             );
 
-            // Insert a HoldingShortPhase before continuing
             ctx.Aircraft.GroundSpeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
             var holdPhase = new HoldingShortPhase(holdShort);
-            ctx.Aircraft.Phases?.InsertAfterCurrent(holdPhase);
+            var resumePhases = BuildResumePhases(ctx, route, holdShort);
+
+            var insertList = new List<Phase> { holdPhase };
+            insertList.AddRange(resumePhases);
+            ctx.Aircraft.Phases?.InsertAfterCurrent(insertList);
             return true;
         }
 
@@ -253,6 +256,85 @@ public sealed class TaxiingPhase : Phase
 
         SetupCurrentSegment(ctx);
         return false;
+    }
+
+    /// <summary>
+    /// Build the phases to insert after a HoldingShortPhase, depending on the hold-short reason.
+    /// Advances CurrentSegmentIndex past the hold-short segment (and crossing segments for runway crossings).
+    /// </summary>
+    private static List<Phase> BuildResumePhases(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort)
+    {
+        var phases = new List<Phase>();
+
+        // Advance past the hold-short segment
+        route.CurrentSegmentIndex++;
+
+        if (holdShort.Reason == HoldShortReason.DestinationRunway)
+        {
+            // Destination runway: no resume — departure clearance will take over
+            ApplyDepartureClearanceIfPending(ctx);
+            return phases;
+        }
+
+        if (holdShort.Reason == HoldShortReason.RunwayCrossing)
+        {
+            int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort);
+            if (exitNodeId is not null)
+            {
+                phases.Add(new CrossingRunwayPhase(exitNodeId.Value));
+
+                // Advance past crossing segments (runway edges) up to and including the exit node
+                while (!route.IsComplete)
+                {
+                    var seg = route.CurrentSegment;
+                    if (seg is null)
+                    {
+                        break;
+                    }
+
+                    route.CurrentSegmentIndex++;
+                    if (seg.ToNodeId == exitNodeId.Value)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // If there are remaining segments, resume taxiing
+        if (!route.IsComplete)
+        {
+            phases.Add(new TaxiingPhase());
+        }
+
+        return phases;
+    }
+
+    /// <summary>
+    /// Scan remaining segments for the paired exit hold-short node (same RunwayId) on the far side of the crossing.
+    /// Falls back to the next segment's ToNodeId if no explicit exit node is found.
+    /// </summary>
+    private static int? FindRunwayCrossingExitNode(TaxiRoute route, HoldShortPoint entryHoldShort)
+    {
+        for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
+        {
+            var seg = route.Segments[i];
+            var exitHs = route.GetHoldShortAt(seg.ToNodeId);
+            if (exitHs is not null && exitHs.Reason == HoldShortReason.RunwayCrossing && exitHs.NodeId != entryHoldShort.NodeId)
+            {
+                // Mark exit hold-short as cleared (we're crossing through it)
+                exitHs.IsCleared = true;
+                return exitHs.NodeId;
+            }
+        }
+
+        // Fallback: use the next segment's target node
+        if (route.CurrentSegmentIndex < route.Segments.Count)
+        {
+            return route.Segments[route.CurrentSegmentIndex].ToNodeId;
+        }
+
+        return null;
     }
 
     private static void TurnToward(PhaseContext ctx, double targetBearing)

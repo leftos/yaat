@@ -187,11 +187,11 @@ public static class CommandDispatcher
 
             case ClimbMaintainCommand cmd:
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
-                return Ok($"Climb and maintain {cmd.Altitude}");
+                return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
 
             case DescendMaintainCommand cmd:
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
-                return Ok($"Descend and maintain {cmd.Altitude}");
+                return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
 
             case SpeedCommand cmd:
                 aircraft.Targets.TargetSpeed = cmd.Speed == 0 ? null : cmd.Speed;
@@ -567,7 +567,7 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout, logger);
 
             case FollowCommand follow:
-                return GroundCommandHandler.TryFollow(aircraft, follow, logger);
+                return GroundCommandHandler.TryFollow(aircraft, follow, groundLayout, logger);
 
             case ExitLeftCommand el:
                 return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left }, el.NoDelete);
@@ -654,6 +654,11 @@ public static class CommandDispatcher
     {
         var runway = aircraft.Phases?.AssignedRunway;
         return runway is not null ? $", Runway {runway.Designator}" : "";
+    }
+
+    private static string AltitudeVerb(AircraftState aircraft, int targetAltitude)
+    {
+        return aircraft.Altitude > targetAltitude ? "Descend and maintain" : "Climb and maintain";
     }
 
     internal static CommandResult Ok(string message)
