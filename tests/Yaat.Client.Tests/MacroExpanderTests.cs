@@ -153,7 +153,10 @@ public class MacroExpanderTests
     public void SelfReferencingMacro_StabilizesWithoutInfiniteLoop()
     {
         // #SELF expands to "#SELF" — the result equals the input, so expansion stops
-        var macros = new List<MacroDefinition> { new() { Name = "SELF", Expansion = "#SELF" } };
+        var macros = new List<MacroDefinition>
+        {
+            new() { Name = "SELF", Expansion = "#SELF" },
+        };
         var result = MacroExpander.TryExpand("#SELF", macros, out var error);
         // First pass: "#SELF" → "#SELF" (same string) → no effective change → returns null
         Assert.Null(error);

@@ -20,6 +20,7 @@ public partial class RadarView : UserControl
 
     public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeMain = new(v => v == DcbMenuMode.Main);
     public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeAux = new(v => v == DcbMenuMode.Aux);
+    public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeBrite = new(v => v == DcbMenuMode.Brite);
 
     public static readonly FuncValueConverter<bool, string> BoolToLockLabel = new(v => v ? "LOCK" : "UNLK");
 
@@ -50,6 +51,7 @@ public partial class RadarView : UserControl
             _canvas.SetBrightnessLookup(vm.BrightnessLookup);
             _canvas.BrightnessA = vm.MapBrightnessA;
             _canvas.BrightnessB = vm.MapBrightnessB;
+            _canvas.RangeRingBrightness = vm.RangeRingBrightness;
         }
     }
 
@@ -205,6 +207,65 @@ public partial class RadarView : UserControl
         vm.TogglePanZoomLockCommand.Execute(null);
         var btn = this.FindControl<Button>("LockButton");
         btn?.Classes.Set("active", vm.IsPanZoomLocked);
+    }
+
+    private void OnBriteClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is RadarViewModel vm)
+        {
+            vm.OpenBriteMenuCommand.Execute(null);
+            UpdateBriteDisplay(vm);
+        }
+    }
+
+    private void OnBriteMpaUp(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.MapA, 5);
+
+    private void OnBriteMpaDown(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.MapA, -5);
+
+    private void OnBriteMpbUp(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.MapB, 5);
+
+    private void OnBriteMpbDown(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.MapB, -5);
+
+    private void OnBriteRrUp(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.RangeRing, 5);
+
+    private void OnBriteRrDown(object? sender, RoutedEventArgs e) => AdjustBrite(BriteTarget.RangeRing, -5);
+
+    private void AdjustBrite(BriteTarget target, int delta)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        vm.AdjustBrightness(target, delta);
+
+        if (_canvas is not null)
+        {
+            _canvas.BrightnessA = vm.MapBrightnessA;
+            _canvas.BrightnessB = vm.MapBrightnessB;
+            _canvas.RangeRingBrightness = vm.RangeRingBrightness;
+        }
+
+        UpdateBriteDisplay(vm);
+    }
+
+    private void UpdateBriteDisplay(RadarViewModel vm)
+    {
+        var mpaText = this.FindControl<TextBlock>("BriteMpaValue");
+        var mpbText = this.FindControl<TextBlock>("BriteMpbValue");
+        var rrText = this.FindControl<TextBlock>("BriteRrValue");
+        if (mpaText is not null)
+        {
+            mpaText.Text = ((int)(vm.MapBrightnessA * 100)).ToString(CultureInfo.InvariantCulture);
+        }
+        if (mpbText is not null)
+        {
+            mpbText.Text = ((int)(vm.MapBrightnessB * 100)).ToString(CultureInfo.InvariantCulture);
+        }
+        if (rrText is not null)
+        {
+            rrText.Text = ((int)(vm.RangeRingBrightness * 100)).ToString(CultureInfo.InvariantCulture);
+        }
     }
 
     private void OnDcbPointerWheelChanged(object? sender, PointerWheelEventArgs e)

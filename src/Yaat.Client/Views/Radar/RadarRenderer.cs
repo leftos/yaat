@@ -12,14 +12,15 @@ namespace Yaat.Client.Views.Radar;
 public sealed class RadarRenderer : IDisposable
 {
     private static readonly SKColor BackgroundColor = SKColors.Black;
-    private static readonly SKColor RangeRingColor = new(0, 100, 0);
     private static readonly SKColor FixColor = new(0, 140, 0);
     private readonly VideoMapRenderer _videoMapRenderer = new();
     private readonly TargetRenderer _targetRenderer = new();
 
+    private float _rangeRingBrightness = 0.6f;
+
     private readonly SKPaint _rangeRingPaint = new()
     {
-        Color = RangeRingColor,
+        Color = new SKColor(0, 100, 0, 153),
         StrokeWidth = 1,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -51,6 +52,16 @@ public sealed class RadarRenderer : IDisposable
     {
         get => _videoMapRenderer.BrightnessB;
         set => _videoMapRenderer.BrightnessB = value;
+    }
+
+    public float RangeRingBrightness
+    {
+        get => _rangeRingBrightness;
+        set
+        {
+            _rangeRingBrightness = value;
+            _rangeRingPaint.Color = new SKColor(0, 100, 0, (byte)(value * 255));
+        }
     }
 
     public void Render(

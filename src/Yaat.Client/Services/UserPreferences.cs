@@ -505,4 +505,7 @@ public sealed class SavedRadarSettings
     public bool ShowFixes { get; set; }
     public bool IsPanZoomLocked { get; set; } = true;
     public bool ShowTopDown { get; set; }
+    public float MapBrightnessA { get; set; } = 1.0f;
+    public float MapBrightnessB { get; set; } = 0.6f;
+    public float RangeRingBrightness { get; set; } = 0.6f;
 }

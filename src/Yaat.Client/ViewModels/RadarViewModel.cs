@@ -13,6 +13,14 @@ public enum DcbMenuMode
 {
     Main,
     Aux,
+    Brite,
+}
+
+public enum BriteTarget
+{
+    MapA,
+    MapB,
+    RangeRing,
 }
 
 public partial class RadarViewModel : ObservableObject
@@ -57,6 +65,9 @@ public partial class RadarViewModel : ObservableObject
 
     [ObservableProperty]
     private float _mapBrightnessB = 0.6f;
+
+    [ObservableProperty]
+    private float _rangeRingBrightness = 0.6f;
 
     [ObservableProperty]
     private IReadOnlyList<VideoMapData>? _activeVideoMaps;
@@ -404,6 +415,12 @@ public partial class RadarViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void OpenBriteMenu()
+    {
+        DcbMode = DcbMenuMode.Brite;
+    }
+
+    [RelayCommand]
     private void CloseDcbSubmenu()
     {
         DcbMode = DcbMenuMode.Main;
@@ -437,6 +454,40 @@ public partial class RadarViewModel : ObservableObject
             RangeNm = newRange;
             SaveSettings();
         }
+    }
+
+    /// <summary>
+    /// Adjusts a brightness value by <paramref name="delta"/> (typically +5 or -5),
+    /// clamping to [0, 100] and returning the result as 0.0–1.0.
+    /// </summary>
+    public void AdjustBrightness(BriteTarget target, int delta)
+    {
+        float current = target switch
+        {
+            BriteTarget.MapA => MapBrightnessA,
+            BriteTarget.MapB => MapBrightnessB,
+            BriteTarget.RangeRing => RangeRingBrightness,
+            _ => 0f,
+        };
+
+        var pct = (int)MathF.Round(current * 100);
+        pct = Math.Clamp(pct + delta, 0, 100);
+        var value = MathF.Round(pct / 100f, 2);
+
+        switch (target)
+        {
+            case BriteTarget.MapA:
+                MapBrightnessA = value;
+                break;
+            case BriteTarget.MapB:
+                MapBrightnessB = value;
+                break;
+            case BriteTarget.RangeRing:
+                RangeRingBrightness = value;
+                break;
+        }
+
+        SaveSettings();
     }
 
     /// <summary>
@@ -497,6 +548,9 @@ public partial class RadarViewModel : ObservableObject
             ShowFixes = ShowFixes,
             IsPanZoomLocked = IsPanZoomLocked,
             ShowTopDown = ShowTopDown,
+            MapBrightnessA = MapBrightnessA,
+            MapBrightnessB = MapBrightnessB,
+            RangeRingBrightness = RangeRingBrightness,
         };
 
         _preferences.SetRadarSettings(_activeScenarioId, settings);
@@ -538,6 +592,9 @@ public partial class RadarViewModel : ObservableObject
         ShowFixes = saved.ShowFixes;
         IsPanZoomLocked = saved.IsPanZoomLocked;
         ShowTopDown = saved.ShowTopDown;
+        MapBrightnessA = saved.MapBrightnessA;
+        MapBrightnessB = saved.MapBrightnessB;
+        RangeRingBrightness = saved.RangeRingBrightness;
     }
 
     private void UpdateActiveMaps()

@@ -218,6 +218,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public float RangeRingBrightness
+    {
+        get => _renderer.RangeRingBrightness;
+        set
+        {
+            _renderer.RangeRingBrightness = value;
+            MarkDirty();
+        }
+    }
+
     /// <summary>
     /// Sets the brightness category lookup (mapId → "A"/"B").
     /// </summary>

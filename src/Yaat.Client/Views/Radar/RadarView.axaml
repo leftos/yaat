@@ -209,8 +209,8 @@
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="13" Grid.RowSpan="2" Content="WX5" IsEnabled="False" MinWidth="36" />
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" Content="WX6" IsEnabled="False" MinWidth="36" />
 
-                <!-- Col 15: BRITE (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" Content="BRITE" IsEnabled="False" />
+                <!-- Col 15: BRITE (spans 2 rows) — opens brightness submenu -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" Content="BRITE" Click="OnBriteClick" />
 
                 <!-- Col 16: LDR DIR/N / LDR/2 (disabled split) -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="16" IsEnabled="False">
@@ -330,6 +330,98 @@
 
                 <!-- Col 17: SHIFT (back to Main) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="17" Grid.RowSpan="2" Content="SHIFT" Command="{Binding CloseDcbSubmenuCommand}" />
+            </Grid>
+
+            <!-- ==================== BRITE MENU ==================== -->
+            <Grid x:Name="DcbBriteMenu" RowDefinitions="40,40" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding DcbMode, Converter={x:Static radar:RadarView.IsDcbModeBrite}}">
+
+                <!-- Col 0: DCB (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Content="DCB" IsEnabled="False" />
+
+                <!-- Col 1: BKC (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Content="BKC" IsEnabled="False" />
+
+                <!-- Col 2: MPA - (spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Content="-" Click="OnBriteMpaDown" MinWidth="28" />
+
+                <!-- Col 3: MPA value (spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" IsEnabled="False">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="MPA" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock x:Name="BriteMpaValue" Text="100" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Col 4: MPA + (spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="4" Grid.RowSpan="2" Content="+" Click="OnBriteMpaUp" MinWidth="28" />
+
+                <!-- Col 5: MPB - (spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="5" Grid.RowSpan="2" Content="-" Click="OnBriteMpbDown" MinWidth="28" />
+
+                <!-- Col 6: MPB value (spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="6" Grid.RowSpan="2" IsEnabled="False">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="MPB" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock x:Name="BriteMpbValue" Text="60" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Col 7: MPB + (spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="7" Grid.RowSpan="2" Content="+" Click="OnBriteMpbUp" MinWidth="28" />
+
+                <!-- Col 8: FDB (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="8" Grid.RowSpan="2" Content="FDB" IsEnabled="False" />
+
+                <!-- Col 9: LST (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="LST" IsEnabled="False" />
+
+                <!-- Col 10: POS (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="10" Grid.RowSpan="2" Content="POS" IsEnabled="False" />
+
+                <!-- Col 11: LDB (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="11" Grid.RowSpan="2" Content="LDB" IsEnabled="False" />
+
+                <!-- Col 12: OTH (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" Content="OTH" IsEnabled="False" />
+
+                <!-- Col 13: TLS (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="13" Grid.RowSpan="2" Content="TLS" IsEnabled="False" />
+
+                <!-- Col 14: RR - (spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" Content="-" Click="OnBriteRrDown" MinWidth="28" />
+
+                <!-- Col 15: RR value (spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" IsEnabled="False">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="RR" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock x:Name="BriteRrValue" Text="60" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Col 16: RR + (spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="16" Grid.RowSpan="2" Content="+" Click="OnBriteRrUp" MinWidth="28" />
+
+                <!-- Col 17: CMP (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="17" Grid.RowSpan="2" Content="CMP" IsEnabled="False" />
+
+                <!-- Col 18: BCN (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="18" Grid.RowSpan="2" Content="BCN" IsEnabled="False" />
+
+                <!-- Col 19: PRI (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="19" Grid.RowSpan="2" Content="PRI" IsEnabled="False" />
+
+                <!-- Col 20: HST (disabled placeholder, spans 2 rows) -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="20" Grid.RowSpan="2" Content="HST" IsEnabled="False" />
+
+                <!-- Col 21: WX / WXC (disabled split) -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="21" Content="WX" IsEnabled="False" />
+                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="21" Content="WXC" IsEnabled="False" />
+
+                <!-- Col 22: DONE (spans 2 rows) — returns to Main -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="22" Grid.RowSpan="2" Content="DONE" Command="{Binding CloseDcbSubmenuCommand}" />
+
+                <!-- Col 23: SHIFT (spans 2 rows) — switches to Aux -->
+                <Button Classes="dcb" Grid.Row="0" Grid.Column="23" Grid.RowSpan="2" Content="SHIFT" Command="{Binding OpenAuxMenuCommand}" />
             </Grid>
 
           </Panel>
