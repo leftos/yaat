@@ -7,12 +7,42 @@ public static partial class MacroExpander
 {
     private static readonly Regex ParamSlotRegex = GetParamSlotRegex();
 
+    private const int MaxExpansionDepth = 20;
+
     /// <summary>
     /// Expands macro references (#NAME args...) in commandText.
+    /// Expands recursively until no macros remain or the result stabilizes.
     /// Returns the expanded string, or null if no macros were found.
     /// Sets error if a macro is referenced but args are missing or name is unknown.
     /// </summary>
     public static string? TryExpand(string commandText, IReadOnlyList<MacroDefinition> macros, out string? error)
+    {
+        error = null;
+
+        var current = commandText;
+        var everExpanded = false;
+
+        for (var depth = 0; depth < MaxExpansionDepth; depth++)
+        {
+            var result = ExpandOnce(current, macros, out error);
+            if (error is not null)
+            {
+                return null;
+            }
+
+            if (result is null || result == current)
+            {
+                break;
+            }
+
+            current = result;
+            everExpanded = true;
+        }
+
+        return everExpanded ? current : null;
+    }
+
+    private static string? ExpandOnce(string commandText, IReadOnlyList<MacroDefinition> macros, out string? error)
     {
         error = null;
 

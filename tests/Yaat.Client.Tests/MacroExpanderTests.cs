@@ -121,6 +121,57 @@ public class MacroExpanderTests
         Assert.Null(result);
         Assert.Null(error);
     }
+
+    [Fact]
+    public void NestedMacro_ExpandsRecursively()
+    {
+        var macros = new List<MacroDefinition>
+        {
+            new() { Name = "INNER", Expansion = "FH 270, CM 5000" },
+            new() { Name = "OUTER", Expansion = "#INNER; DCT SUNOL" },
+        };
+        var result = MacroExpander.TryExpand("#OUTER", macros, out var error);
+        Assert.Null(error);
+        Assert.Equal("FH 270, CM 5000; DCT SUNOL", result);
+    }
+
+    [Fact]
+    public void NestedMacro_ThreeDeep()
+    {
+        var macros = new List<MacroDefinition>
+        {
+            new() { Name = "A", Expansion = "FH 270" },
+            new() { Name = "B", Expansion = "#A, CM 5000" },
+            new() { Name = "C", Expansion = "#B; DCT SUNOL" },
+        };
+        var result = MacroExpander.TryExpand("#C", macros, out var error);
+        Assert.Null(error);
+        Assert.Equal("FH 270, CM 5000; DCT SUNOL", result);
+    }
+
+    [Fact]
+    public void SelfReferencingMacro_StabilizesWithoutInfiniteLoop()
+    {
+        // #SELF expands to "#SELF" — the result equals the input, so expansion stops
+        var macros = new List<MacroDefinition> { new() { Name = "SELF", Expansion = "#SELF" } };
+        var result = MacroExpander.TryExpand("#SELF", macros, out var error);
+        // First pass: "#SELF" → "#SELF" (same string) → no effective change → returns null
+        Assert.Null(error);
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void NestedMacroWithParams_ExpandsRecursively()
+    {
+        var macros = new List<MacroDefinition>
+        {
+            new() { Name = "HDG", Expansion = "FH $1" },
+            new() { Name = "HCLI", Expansion = "#HDG $1, CM $2" },
+        };
+        var result = MacroExpander.TryExpand("#HCLI 270 5000", macros, out var error);
+        Assert.Null(error);
+        Assert.Equal("FH 270, CM 5000", result);
+    }
 }
 
 public class MacroDefinitionTests
