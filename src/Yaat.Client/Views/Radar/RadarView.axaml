@@ -199,7 +199,7 @@
                 <Button x:Name="TopDownButton" Classes="dcb" Grid.Row="0" Grid.Column="7" Grid.RowSpan="2" Content="TOP-DN" Click="OnTopDownClick" />
 
                 <!-- Col 8: LOCK/UNLK (spans 2 rows) — toggle pan/zoom lock -->
-                <Button x:Name="LockButton" Classes="dcb" Grid.Row="0" Grid.Column="8" Grid.RowSpan="2" Content="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockLabel}}" Click="OnLockClick" />
+                <Button x:Name="LockButton" Classes="dcb" Classes.active="{Binding IsPanZoomLocked}" Grid.Row="0" Grid.Column="8" Grid.RowSpan="2" Content="{Binding IsPanZoomLocked, Converter={x:Static radar:RadarView.BoolToLockLabel}}" Click="OnLockClick" />
 
                 <!-- Col 9-14: WX1-WX6 (disabled placeholders, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="9" Grid.RowSpan="2" Content="WX1" IsEnabled="False" MinWidth="36" />

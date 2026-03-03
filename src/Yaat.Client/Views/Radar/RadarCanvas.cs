@@ -34,7 +34,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         defaultValue: true
     );
 
-    public static readonly StyledProperty<double> RangeNmProperty = AvaloniaProperty.Register<RadarCanvas, double>(nameof(RangeNm), defaultValue: 60);
+    public static readonly StyledProperty<double> RangeNmProperty = AvaloniaProperty.Register<RadarCanvas, double>(nameof(RangeNm), defaultValue: 40);
 
     public static readonly StyledProperty<double> RadarCenterLatProperty = AvaloniaProperty.Register<RadarCanvas, double>(nameof(RadarCenterLat));
 
@@ -69,7 +69,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<double> ViewRangeNmProperty = AvaloniaProperty.Register<RadarCanvas, double>(
         nameof(ViewRangeNm),
-        defaultValue: 60
+        defaultValue: 40
     );
 
     public static readonly StyledProperty<bool> IsAdjustingRangeRingSizeProperty = AvaloniaProperty.Register<RadarCanvas, bool>(
@@ -83,10 +83,18 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private readonly RadarRenderer _renderer = new();
     private bool _initialFitDone;
     private bool _suppressRangeFit;
+    private bool _suppressCenterSync;
     private bool _rightButtonDown;
     private bool _rightDragStarted;
     private Point _rightPressPos;
     private Dictionary<string, string> _brightnessLookup = [];
+
+    public RadarCanvas()
+    {
+        // IsPanZoomLocked defaults to true, so match the base class state.
+        // OnPropertyChanged won't fire when binding sets true→true.
+        IsPanZoomEnabled = false;
+    }
 
     public IReadOnlyList<AircraftModel>? Aircraft
     {
@@ -252,23 +260,31 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             MarkDirty();
         }
 
-        // Only FitToRange on initial load (center set for first time).
+        // Sync center from binding → viewport. On initial load, also zoom to range.
         // Don't mark as done unless the viewport has pixel dimensions;
         // otherwise OnSizeChanged will handle it when the tab becomes visible.
         if (
             (change.Property == RadarCenterLatProperty || change.Property == RadarCenterLonProperty)
-            && !_initialFitDone
+            && !_suppressCenterSync
             && RadarCenterLat != 0
             && RadarCenterLon != 0
-            && Viewport.PixelWidth >= 1
-            && Viewport.PixelHeight >= 1
         )
         {
-            _initialFitDone = true;
-            FitToRange();
+            if (Viewport.PixelWidth >= 1 && Viewport.PixelHeight >= 1)
+            {
+                _suppressCenterSync = true;
+                Viewport.CenterLat = RadarCenterLat;
+                Viewport.CenterLon = RadarCenterLon;
+                if (!_initialFitDone)
+                {
+                    _initialFitDone = true;
+                    ZoomToRange();
+                }
+                _suppressCenterSync = false;
+            }
         }
 
-        // RANGE spinner drives viewport zoom (without re-centering after initial fit)
+        // RANGE spinner drives viewport zoom
         if (change.Property == RangeNmProperty && _initialFitDone && !_suppressRangeFit)
         {
             ZoomToRange();
@@ -457,8 +473,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// Centers the viewport on the radar center and fits the range.
-    /// Used for the initial fit only.
+    /// Centers the viewport on the radar center and zooms to match RangeNm.
+    /// Called when the canvas first gets pixel dimensions (deferred initial fit).
     /// </summary>
     public void FitToRange()
     {
@@ -472,13 +488,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return;
         }
 
-        // Range in degrees latitude (1 nm = 1/60 degree)
-        var rangeDeg = RangeNm / 60.0;
-        Viewport.FitBounds(RadarCenterLat - rangeDeg, RadarCenterLat + rangeDeg, RadarCenterLon - rangeDeg, RadarCenterLon + rangeDeg);
-
-        // Sync properties back so VM always reflects actual viewport center
-        SyncCenterFromViewport();
-        InvalidateVisual();
+        Viewport.CenterLat = RadarCenterLat;
+        Viewport.CenterLon = RadarCenterLon;
+        ZoomToRange();
     }
 
     /// <summary>
@@ -528,7 +540,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             }
 
             // Sync center back so VM persists the actual panned position
-            SyncCenterFromViewport();
+            if (!_suppressCenterSync)
+            {
+                _suppressCenterSync = true;
+                SyncCenterFromViewport();
+                _suppressCenterSync = false;
+            }
         }
     }
 
