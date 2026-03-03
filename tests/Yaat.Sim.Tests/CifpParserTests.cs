@@ -149,6 +149,290 @@ public class CifpParserTests
         }
     }
 
+    // --- ParseApproaches tests ---
+
+    [Fact]
+    public void ParseApproaches_IlsApproach_ExtractsCommonLegs()
+    {
+        var lines = new[]
+        {
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "FITKI", CifpFixRole.IF, "TF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "MUXED", CifpFixRole.FAF, "TF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAHP, "CF"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+
+            Assert.Single(approaches);
+            var proc = approaches[0];
+            Assert.Equal("OAK", proc.Airport);
+            Assert.Equal("I28L", proc.ApproachId);
+            Assert.Equal('I', proc.TypeCode);
+            Assert.Equal("ILS", proc.ApproachTypeName);
+            Assert.Equal("28L", proc.Runway);
+            Assert.Equal(4, proc.CommonLegs.Count);
+            Assert.Equal("GROVE", proc.CommonLegs[0].FixIdentifier);
+            Assert.Equal(CifpFixRole.IAF, proc.CommonLegs[0].FixRole);
+            Assert.Equal("FITKI", proc.CommonLegs[1].FixIdentifier);
+            Assert.Equal(CifpFixRole.IF, proc.CommonLegs[1].FixRole);
+            Assert.Equal("MUXED", proc.CommonLegs[2].FixIdentifier);
+            Assert.Equal(CifpFixRole.FAF, proc.CommonLegs[2].FixRole);
+            Assert.Equal("RW28L", proc.CommonLegs[3].FixIdentifier);
+            Assert.Equal(CifpFixRole.MAHP, proc.CommonLegs[3].FixRole);
+            Assert.Empty(proc.Transitions);
+            Assert.Empty(proc.MissedApproachLegs);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseApproaches_WithTransition_SeparatesTransitionAndCommon()
+    {
+        var lines = new[]
+        {
+            // Transition "SUNOL" with route type 'A'
+            BuildFullApproachLine("KOAK", "I28L  ", 'A', "SUNOL", 10, "SUNOL", CifpFixRole.IAF, "IF"),
+            BuildFullApproachLine("KOAK", "I28L  ", 'A', "SUNOL", 20, "GROVE", CifpFixRole.None, "TF"),
+            // Common legs
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "FITKI", CifpFixRole.IF, "TF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "MUXED", CifpFixRole.FAF, "TF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 50, "RW28L", CifpFixRole.MAHP, "CF"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+
+            Assert.Single(approaches);
+            var proc = approaches[0];
+            Assert.Single(proc.Transitions);
+            Assert.True(proc.Transitions.ContainsKey("SUNOL"));
+            Assert.Equal(2, proc.Transitions["SUNOL"].Legs.Count);
+            Assert.Equal("SUNOL", proc.Transitions["SUNOL"].Legs[0].FixIdentifier);
+            Assert.Equal(3, proc.CommonLegs.Count);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseApproaches_MissedApproach_SeparatedAfterMahp()
+    {
+        var lines = new[]
+        {
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.IF, "TF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "MUXED", CifpFixRole.FAF, "TF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "RW28L", CifpFixRole.MAHP, "CF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "GROVE", CifpFixRole.None, "TF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 50, "SUNOL", CifpFixRole.None, "DF"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+
+            var proc = approaches[0];
+            // MAHP itself is in common legs (3 = IF, FAF, MAHP)
+            Assert.Equal(3, proc.CommonLegs.Count);
+            Assert.Equal(2, proc.MissedApproachLegs.Count);
+            Assert.Equal("GROVE", proc.MissedApproachLegs[0].FixIdentifier);
+            Assert.Equal("SUNOL", proc.MissedApproachLegs[1].FixIdentifier);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseApproaches_HoldInLieu_Detected()
+    {
+        var lines = new[]
+        {
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
+            // HA = hold-in-lieu path terminator
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "FITKI", CifpFixRole.IF, "HA"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "MUXED", CifpFixRole.FAF, "TF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 40, "RW28L", CifpFixRole.MAHP, "CF"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+
+            var proc = approaches[0];
+            Assert.True(proc.HasHoldInLieu);
+            Assert.NotNull(proc.HoldInLieuLeg);
+            Assert.Equal("FITKI", proc.HoldInLieuLeg.FixIdentifier);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseApproaches_RnavApproach_CorrectTypeName()
+    {
+        var lines = new[]
+        {
+            BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 10, "GROVE", CifpFixRole.IAF, "IF"),
+            BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "TF"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+
+            Assert.Single(approaches);
+            Assert.Equal('H', approaches[0].TypeCode);
+            Assert.Equal("RNAV(GPS)", approaches[0].ApproachTypeName);
+            Assert.Equal("28L", approaches[0].Runway);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseApproaches_MultipleApproaches_AllReturned()
+    {
+        var lines = new[]
+        {
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF"),
+            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "CF"),
+            BuildFullApproachLine("KOAK", "I30   ", ' ', "", 10, "DUMBA", CifpFixRole.FAF, "TF"),
+            BuildFullApproachLine("KOAK", "I30   ", ' ', "", 20, "RW30 ", CifpFixRole.MAHP, "CF"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+
+            Assert.Equal(2, approaches.Count);
+            Assert.Contains(approaches, a => a.ApproachId == "I28L");
+            Assert.Contains(approaches, a => a.ApproachId == "I30");
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseApproaches_WrongAirport_ReturnsEmpty()
+    {
+        var lines = new[] { BuildFullApproachLine("KSFO", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF") };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KOAK");
+
+            Assert.Empty(approaches);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Theory]
+    [InlineData('+', 170, null, CifpAltitudeRestrictionType.AtOrAbove, 1700)]
+    [InlineData('-', 400, null, CifpAltitudeRestrictionType.AtOrBelow, 4000)]
+    [InlineData('@', 340, null, CifpAltitudeRestrictionType.At, 3400)]
+    [InlineData(' ', 340, null, CifpAltitudeRestrictionType.At, 3400)]
+    [InlineData('B', 500, 300, CifpAltitudeRestrictionType.Between, 5000)]
+    [InlineData('G', 340, null, CifpAltitudeRestrictionType.GlideSlopeIntercept, 3400)]
+    public void ParseAltitudeRestriction_VariousTypes(
+        char desc,
+        int alt1Tens,
+        int? alt2Tens,
+        CifpAltitudeRestrictionType expectedType,
+        int expectedAlt1
+    )
+    {
+        string alt1Str = alt1Tens.ToString().PadLeft(5);
+        string alt2Str = alt2Tens?.ToString().PadLeft(5) ?? "     ";
+        var result = CifpParser.ParseAltitudeRestriction(desc, alt1Str, alt2Str);
+
+        Assert.NotNull(result);
+        Assert.Equal(expectedType, result.Type);
+        Assert.Equal(expectedAlt1, result.Altitude1Ft);
+    }
+
+    [Fact]
+    public void ParseArinc424Altitude_FlightLevel_ReturnsCorrectFeet()
+    {
+        Assert.Equal(28000, CifpParser.ParseArinc424Altitude("FL280"));
+        Assert.Equal(28000, CifpParser.ParseArinc424Altitude("FL28 "));
+        Assert.Equal(18000, CifpParser.ParseArinc424Altitude("FL180"));
+    }
+
+    [Fact]
+    public void ParseArinc424Altitude_TensOfFeet_ReturnsCorrectFeet()
+    {
+        Assert.Equal(3400, CifpParser.ParseArinc424Altitude("  340"));
+        Assert.Equal(17000, CifpParser.ParseArinc424Altitude(" 1700"));
+    }
+
+    [Fact]
+    public void ParseArinc424Altitude_EmptyOrZero_ReturnsNull()
+    {
+        Assert.Null(CifpParser.ParseArinc424Altitude("     "));
+        Assert.Null(CifpParser.ParseArinc424Altitude("  000"));
+    }
+
+    [Fact]
+    public void ParseApproaches_ExistingParseMethod_StillWorks()
+    {
+        // Regression: ensure the original Parse() method is unaffected
+        var lines = new[]
+        {
+            BuildApproachLine("KOAK", "I28L  ", "FITKI", 'D'),
+            BuildTerminalWaypointLine("KOAK", "FITKI", "N37424600", "W122131200"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var result = CifpParser.Parse(tmpFile);
+
+            Assert.True(result.FafFixes.ContainsKey(("OAK", "28L")));
+            Assert.Equal("FITKI", result.FafFixes[("OAK", "28L")]);
+            Assert.True(result.TerminalWaypoints.ContainsKey("FITKI"));
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    // --- Helpers ---
+
     /// <summary>
     /// Builds a minimal ARINC 424 approach record line (subsection F).
     /// Positions are 0-indexed; the record must be at least 50 chars.
@@ -207,6 +491,56 @@ public class CifpParserTests
         ident.PadRight(5).CopyTo(0, line, 13, 5);
         latArinc.CopyTo(0, line, 32, latArinc.Length);
         lonArinc.CopyTo(0, line, 32 + latArinc.Length, lonArinc.Length);
+        return new string(line);
+    }
+
+    /// <summary>
+    /// Builds a full-length ARINC 424 approach record (subsection F) with altitude/speed fields.
+    /// Line is 120 chars to cover all parsed positions.
+    /// </summary>
+    private static string BuildFullApproachLine(
+        string icao,
+        string approachId,
+        char routeType,
+        string transition,
+        int sequence,
+        string fixId,
+        CifpFixRole fixRole,
+        string pathTerminator
+    )
+    {
+        var line = new char[120];
+        Array.Fill(line, ' ');
+        "SUSAP".CopyTo(0, line, 0, 5);
+        icao.PadRight(4).CopyTo(0, line, 6, 4);
+        line[12] = 'F';
+        approachId.PadRight(6).CopyTo(0, line, 13, 6);
+        line[19] = routeType == '\0' ? ' ' : routeType;
+        if (transition.Length > 0)
+        {
+            transition.PadRight(5).CopyTo(0, line, 20, 5);
+        }
+
+        sequence.ToString("D3").CopyTo(0, line, 26, 3);
+        fixId.PadRight(5).CopyTo(0, line, 29, 5);
+
+        // Waypoint description code at position 42 (fix role)
+        line[42] = fixRole switch
+        {
+            CifpFixRole.IAF => 'A',
+            CifpFixRole.IF => 'B',
+            CifpFixRole.FAF => 'F',
+            CifpFixRole.MAHP => 'M',
+            _ => ' ',
+        };
+
+        // Path terminator at positions 47-48
+        if (pathTerminator.Length >= 2)
+        {
+            line[47] = pathTerminator[0];
+            line[48] = pathTerminator[1];
+        }
+
         return new string(line);
     }
 }

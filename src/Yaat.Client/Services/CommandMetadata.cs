@@ -118,5 +118,22 @@ public static class CommandMetadata
         new(CanonicalCommandType.CoordinationAutoAck, "Toggle Auto-Ack", "POAK", true, "Coordination"),
         // Broadcast
         new(CanonicalCommandType.Say, "Say", "REQUEST VFR TRANSITION", false, "Broadcast"),
+        // Approach
+        new(CanonicalCommandType.ClearedApproach, "Cleared Approach", "ILS28R", false, "Approach"),
+        new(CanonicalCommandType.JoinApproach, "Join Approach", "ILS28R", false, "Approach"),
+        new(CanonicalCommandType.ClearedApproachStraightIn, "Cleared Straight-In", "ILS28R", false, "Approach"),
+        new(CanonicalCommandType.JoinApproachStraightIn, "Join Straight-In", "ILS28R", false, "Approach"),
+        new(CanonicalCommandType.ClearedApproachForce, "Cleared Approach (Force)", "ILS28R", false, "Approach"),
+        new(CanonicalCommandType.JoinApproachForce, "Join Approach (Force)", "ILS28R", false, "Approach"),
+        new(CanonicalCommandType.JoinFinalApproachCourse, "Join Final Approach Course", "ILS28R", false, "Approach"),
+        new(CanonicalCommandType.JoinStar, "Join STAR", "SUNOL1 KENNO", false, "Approach"),
+        new(CanonicalCommandType.JoinRadialOutbound, "Join Radial Outbound", "OAK090", false, "Approach"),
+        new(CanonicalCommandType.JoinRadialInbound, "Join Radial Inbound", "OAK090", false, "Approach"),
+        new(CanonicalCommandType.HoldingPattern, "Holding Pattern", "SUNOL 090 3 R", false, "Approach"),
+        new(CanonicalCommandType.PositionTurnAltitudeClearance, "PTAC", "280 025 ILS30", false, "Approach"),
+        new(CanonicalCommandType.DescendVia, "Descend Via", "40", false, "Approach"),
+        new(CanonicalCommandType.CrossFix, "Cross Fix", "SUNOL A040", false, "Approach"),
+        new(CanonicalCommandType.DepartFix, "Depart Fix", "SUNOL 270", false, "Approach"),
+        new(CanonicalCommandType.ListApproaches, "List Approaches", "OAK", true, "Approach"),
     ];
 }

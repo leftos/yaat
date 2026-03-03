@@ -21,7 +21,7 @@ User requirements:
 **Goal:** Expand CifpParser to extract complete approach procedures from ARINC 424 data.
 
 ### New files (Yaat.Sim)
-- [ ] `src/Yaat.Sim/Data/Vnas/CifpModels.cs` — Data model types:
+- [x] `src/Yaat.Sim/Data/Vnas/CifpModels.cs` — Data model types:
   - `CifpAltitudeRestrictionType` enum: `At`, `AtOrAbove`, `AtOrBelow`, `Between`, `GlideSlopeIntercept`
   - `CifpAltitudeRestriction` record: `Type`, `Altitude1Ft`, `Altitude2Ft?`
   - `CifpSpeedRestriction` record: `SpeedKts`, `IsMaximum`
@@ -32,7 +32,7 @@ User requirements:
   - `CifpApproachProcedure` record: `Airport`, `ApproachId`, `TypeCode` (char), `ApproachTypeName` (string), `Runway?`, `CommonLegs`, `Transitions` (dict), `MissedApproachLegs`, `HasHoldInLieu`, `HoldInLieuLeg?`
 
 ### Modified files
-- [ ] `src/Yaat.Sim/Data/Vnas/CifpParser.cs` — Add `ParseApproaches(cifpFilePath, airportIcao)` method:
+- [x] `src/Yaat.Sim/Data/Vnas/CifpParser.cs` — Add `ParseApproaches(cifpFilePath, airportIcao)` method:
   - Single-pass ARINC 424 parse for subsection F records matching the airport
   - Column positions from zoa-reference-cli: pos 12=subsection, 13-18=approach ID, 19=route type (A=transition), 20-24=transition name, 26-28=sequence, 29-33=fix ID, 39-42=waypoint description, 43=turn dir, 47-48=path terminator, 82=alt description, 83-87=alt1, 88-92=alt2, 99-101=speed
   - Fix role from waypoint description char at position 42: A/I=IAF, B=IF, D/F=FAF, M=MAHP
@@ -42,8 +42,8 @@ User requirements:
   - Approach type name mapping: I=ILS, L=LOC, H=RNAV(GPS), R=RNAV, P=GPS, etc.
 
 ### Tests
-- [ ] `tests/Yaat.Sim.Tests/CifpApproachParserTests.cs`:
-  - Parse ILS, RNAV, LOC approach records from real CIFP data
+- [x] `tests/Yaat.Sim.Tests/CifpParserTests.cs` (extended):
+  - Parse ILS, RNAV approach records
   - Correct IAF/IF/FAF/MAHP extraction
   - Transition parsing and common route separation
   - Hold-in-lieu detection
@@ -93,7 +93,7 @@ User requirements:
 **Goal:** Add all M5 CanonicalCommandType values, ParsedCommand records, CommandScheme aliases, and CommandMetadata. No simulation logic — just vocabulary.
 
 ### Modified files (Yaat.Sim)
-- [ ] `src/Yaat.Sim/Commands/CanonicalCommandType.cs` — Add:
+- [x] `src/Yaat.Sim/Commands/CanonicalCommandType.cs` — Add:
   ```
   // Approach commands
   ClearedApproach, JoinApproach,
@@ -106,7 +106,7 @@ User requirements:
   ListApproaches
   ```
 
-- [ ] `src/Yaat.Sim/Commands/ParsedCommand.cs` — Add records:
+- [x] `src/Yaat.Sim/Commands/ParsedCommand.cs` — Add records:
   - `CrossFixAltitudeType` enum: `At`, `AtOrAbove`, `AtOrBelow`
   - `HoldingEntry` enum: `Direct`, `Teardrop`, `Parallel`
   - `ClearedApproachCommand(string ApproachId, string? AirportCode, bool Force, string? AtFix, double? AtFixLat, double? AtFixLon, string? DctFix, double? DctFixLat, double? DctFixLon, int? CrossFixAltitude, CrossFixAltitudeType? CrossFixAltType)` — rich single-verb form
@@ -124,10 +124,10 @@ User requirements:
   - `DepartFixCommand(string FixName, double FixLat, double FixLon, int Heading)` — DEPART
   - `ListApproachesCommand(string? AirportCode)` — APPS
 
-- [ ] `src/Yaat.Sim/Commands/CommandDescriber.cs` — Add all new types to `ToCanonicalType()`, `DescribeCommand()`, `DescribeNatural()`, `ClassifyCommand()`
+- [x] `src/Yaat.Sim/Commands/CommandDescriber.cs` — Add all new types to `ToCanonicalType()`, `DescribeCommand()`, `DescribeNatural()`, `ClassifyCommand()`
 
 ### Modified files (Yaat.Client)
-- [ ] `src/Yaat.Client/Services/CommandScheme.cs` — Add `Default()` entries:
+- [x] `src/Yaat.Client/Services/CommandScheme.cs` — Add `Default()` entries:
   - `ClearedApproach` → `["CAPP"]`, `JoinApproach` → `["JAPP"]`
   - `ClearedApproachStraightIn` → `["CAPPSI"]`, `JoinApproachStraightIn` → `["JAPPSI"]`
   - `ClearedApproachForce` → `["CAPPF"]`, `JoinApproachForce` → `["JAPPF"]`
@@ -142,10 +142,10 @@ User requirements:
   - `DepartFix` → `["DEPART", "DEP"]`
   - `ListApproaches` → `["APPS"]`
 
-- [ ] `src/Yaat.Client/Services/CommandMetadata.cs` — Add 16 entries
+- [x] `src/Yaat.Client/Services/CommandMetadata.cs` — Add 16 entries
 
 ### Tests
-- [ ] `CommandSchemeCompletenessTests` must pass (all enum values in scheme + metadata)
+- [x] `CommandSchemeCompletenessTests` must pass (all enum values in scheme + metadata)
 
 ---
 

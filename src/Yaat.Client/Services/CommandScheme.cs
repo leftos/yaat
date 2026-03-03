@@ -129,6 +129,23 @@ public class CommandScheme
                 [CanonicalCommandType.CoordinationAutoAck] = new() { Aliases = ["RDAUTO"], Format = "{verb} {arg}" },
                 // Broadcast
                 [CanonicalCommandType.Say] = new() { Aliases = ["SAY"], Format = "{verb} {arg}" },
+                // Approach
+                [CanonicalCommandType.ClearedApproach] = new() { Aliases = ["CAPP"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.JoinApproach] = new() { Aliases = ["JAPP"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ClearedApproachStraightIn] = new() { Aliases = ["CAPPSI"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.JoinApproachStraightIn] = new() { Aliases = ["JAPPSI"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ClearedApproachForce] = new() { Aliases = ["CAPPF"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.JoinApproachForce] = new() { Aliases = ["JAPPF"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.JoinFinalApproachCourse] = new() { Aliases = ["JFAC", "JLOC", "JF"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.JoinStar] = new() { Aliases = ["JARR", "ARR", "STAR", "JSTAR"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.JoinRadialOutbound] = new() { Aliases = ["JRADO", "JRAD"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.JoinRadialInbound] = new() { Aliases = ["JRADI", "JICRS"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.HoldingPattern] = new() { Aliases = ["HOLDP"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.PositionTurnAltitudeClearance] = new() { Aliases = ["PTAC"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.DescendVia] = new() { Aliases = ["DVIA"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.CrossFix] = new() { Aliases = ["CFIX"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.DepartFix] = new() { Aliases = ["DEPART", "DEP"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ListApproaches] = new() { Aliases = ["APPS"], Format = "{verb} {arg?}" },
             },
         };
     }

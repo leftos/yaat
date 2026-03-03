@@ -113,4 +113,22 @@ public enum CanonicalCommandType
 
     // Broadcast
     Say,
+
+    // Approach commands
+    ClearedApproach,
+    JoinApproach,
+    ClearedApproachStraightIn,
+    JoinApproachStraightIn,
+    ClearedApproachForce,
+    JoinApproachForce,
+    JoinFinalApproachCourse,
+    JoinStar,
+    JoinRadialOutbound,
+    JoinRadialInbound,
+    HoldingPattern,
+    PositionTurnAltitudeClearance,
+    DescendVia,
+    CrossFix,
+    DepartFix,
+    ListApproaches,
 }

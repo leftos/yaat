@@ -241,3 +241,68 @@ public record CoordinationRecallCommand(string? ListId) : ParsedCommand;
 public record CoordinationAcknowledgeCommand(string? ListId) : ParsedCommand;
 
 public record CoordinationAutoAckCommand(string ListId) : ParsedCommand;
+
+// Approach commands
+
+public enum CrossFixAltitudeType
+{
+    At,
+    AtOrAbove,
+    AtOrBelow,
+}
+
+public enum HoldingEntry
+{
+    Direct,
+    Teardrop,
+    Parallel,
+}
+
+public record ClearedApproachCommand(
+    string ApproachId,
+    string? AirportCode,
+    bool Force,
+    string? AtFix,
+    double? AtFixLat,
+    double? AtFixLon,
+    string? DctFix,
+    double? DctFixLat,
+    double? DctFixLon,
+    int? CrossFixAltitude,
+    CrossFixAltitudeType? CrossFixAltType
+) : ParsedCommand;
+
+public record JoinApproachCommand(string ApproachId, string? AirportCode, bool Force) : ParsedCommand;
+
+public record ClearedApproachStraightInCommand(string ApproachId, string? AirportCode) : ParsedCommand;
+
+public record JoinApproachStraightInCommand(string ApproachId, string? AirportCode) : ParsedCommand;
+
+public record JoinFinalApproachCourseCommand(string ApproachId) : ParsedCommand;
+
+public record JoinStarCommand(string StarId, string? Transition) : ParsedCommand;
+
+public record JoinRadialOutboundCommand(string FixName, double FixLat, double FixLon, int Radial) : ParsedCommand;
+
+public record JoinRadialInboundCommand(string FixName, double FixLat, double FixLon, int Radial) : ParsedCommand;
+
+public record HoldingPatternCommand(
+    string FixName,
+    double FixLat,
+    double FixLon,
+    int InboundCourse,
+    double LegLength,
+    bool IsMinuteBased,
+    TurnDirection Direction,
+    HoldingEntry? Entry
+) : ParsedCommand;
+
+public record PositionTurnAltitudeClearanceCommand(int Heading, int Altitude, string ApproachId) : ParsedCommand;
+
+public record DescendViaCommand(int? Altitude) : ParsedCommand;
+
+public record CrossFixCommand(string FixName, double FixLat, double FixLon, int Altitude, CrossFixAltitudeType AltType, int? Speed) : ParsedCommand;
+
+public record DepartFixCommand(string FixName, double FixLat, double FixLon, int Heading) : ParsedCommand;
+
+public record ListApproachesCommand(string? AirportCode) : ParsedCommand;

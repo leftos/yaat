@@ -95,6 +95,373 @@ public static partial class CifpParser
         return new CifpParseResult(fafFixes, terminalWaypoints);
     }
 
+    // Approach type code → human-readable name
+    private static readonly Dictionary<char, string> ApproachTypeNames = new()
+    {
+        ['B'] = "LOC/DME BC",
+        ['D'] = "VOR/DME",
+        ['F'] = "FMS",
+        ['G'] = "IGS",
+        ['H'] = "RNAV(GPS)",
+        ['I'] = "ILS",
+        ['J'] = "GNSS",
+        ['L'] = "LOC",
+        ['N'] = "NDB",
+        ['P'] = "GPS",
+        ['Q'] = "NDB/DME",
+        ['R'] = "RNAV",
+        ['S'] = "VOR",
+        ['T'] = "TACAN",
+        ['U'] = "SDF",
+        ['V'] = "VOR",
+        ['W'] = "MLS",
+        ['X'] = "LDA",
+    };
+
+    // Hold-in-lieu path terminators per AIM 5-4-9.1.5
+    private static readonly HashSet<string> HoldInLieuTerminators = ["HA", "HF", "HM"];
+
+    public static IReadOnlyList<CifpApproachProcedure> ParseApproaches(string cifpFilePath, string airportIcao, ILogger? logger = null)
+    {
+        string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
+
+        // Accumulate raw leg data keyed by approach ID
+        // Each leg tagged with route type and transition name
+        var approachLegs = new Dictionary<string, List<RawApproachLeg>>(StringComparer.Ordinal);
+
+        foreach (var line in File.ReadLines(cifpFilePath))
+        {
+            if (line.Length < 100)
+            {
+                continue;
+            }
+
+            if (!line.StartsWith("SUSAP", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            // Subsection F = approach
+            if (line[12] != 'F')
+            {
+                continue;
+            }
+
+            // Airport ICAO at positions 7-10 (0-indexed: 6-9)
+            string icao = line[6..10];
+            if (!icao.Equals(normalizedIcao, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var leg = ParseApproachLeg(line);
+            if (leg is null)
+            {
+                continue;
+            }
+
+            if (!approachLegs.TryGetValue(leg.ApproachId, out var list))
+            {
+                list = [];
+                approachLegs[leg.ApproachId] = list;
+            }
+
+            list.Add(leg);
+        }
+
+        var results = new List<CifpApproachProcedure>(approachLegs.Count);
+        string faaAirport = normalizedIcao.Trim();
+        if (faaAirport.StartsWith('K'))
+        {
+            faaAirport = faaAirport[1..];
+        }
+
+        foreach (var (approachId, rawLegs) in approachLegs)
+        {
+            var procedure = BuildApproachProcedure(faaAirport, approachId, rawLegs);
+            if (procedure is not null)
+            {
+                results.Add(procedure);
+            }
+        }
+
+        logger?.LogInformation("CIFP approaches for {Airport}: {Count} procedures parsed", faaAirport, results.Count);
+
+        return results;
+    }
+
+    private static RawApproachLeg? ParseApproachLeg(string line)
+    {
+        // Approach ID at positions 14-19 (0-indexed: 13-18)
+        string approachId = line[13..19].Trim();
+        if (approachId.Length == 0)
+        {
+            return null;
+        }
+
+        // Route type at position 20 (0-indexed: 19)
+        // 'A' = transition, digits or other = common/runway transition
+        char routeType = line[19];
+
+        // Transition identifier at positions 21-25 (0-indexed: 20-24)
+        string transitionName = routeType == 'A' ? line[20..25].Trim() : "";
+
+        // Sequence number at positions 27-29 (0-indexed: 26-28)
+        string seqStr = line[26..29].Trim();
+        if (!int.TryParse(seqStr, out int sequence))
+        {
+            sequence = 0;
+        }
+
+        // Fix identifier at positions 30-34 (0-indexed: 29-33)
+        string fixId = line[29..34].Trim();
+
+        // Waypoint description at positions 40-43 (0-indexed: 39-42)
+        // Fix role from character at position 43 (0-indexed: 42)
+        CifpFixRole fixRole = CifpFixRole.None;
+        if (line.Length > 42)
+        {
+            fixRole = line[42] switch
+            {
+                'A' or 'I' => CifpFixRole.IAF,
+                'B' => CifpFixRole.IF,
+                'D' or 'F' => CifpFixRole.FAF,
+                'M' => CifpFixRole.MAHP,
+                _ => CifpFixRole.None,
+            };
+        }
+
+        // Turn direction at position 44 (0-indexed: 43)
+        char? turnDir = null;
+        if (line.Length > 43 && line[43] is 'L' or 'R')
+        {
+            turnDir = line[43];
+        }
+
+        // Path terminator at positions 48-49 (0-indexed: 47-48)
+        string pathTermStr = line.Length > 48 ? line[47..49].Trim() : "";
+        CifpPathTerminator pathTerm = ParsePathTerminator(pathTermStr);
+
+        // Altitude description at position 83 (0-indexed: 82)
+        char altDesc = line.Length > 82 ? line[82] : ' ';
+
+        // Altitude 1 at positions 84-88 (0-indexed: 83-87)
+        string alt1Str = line.Length > 87 ? line[83..88] : "";
+
+        // Altitude 2 at positions 89-93 (0-indexed: 88-92)
+        string alt2Str = line.Length > 92 ? line[88..93] : "";
+
+        var altitude = ParseAltitudeRestriction(altDesc, alt1Str, alt2Str);
+
+        // Speed at positions 100-102 (0-indexed: 99-101)
+        string speedStr = line.Length > 101 ? line[99..102].Trim() : "";
+        CifpSpeedRestriction? speed = null;
+        if (int.TryParse(speedStr, out int speedKts) && speedKts > 0)
+        {
+            speed = new CifpSpeedRestriction(speedKts, true);
+        }
+
+        return new RawApproachLeg(approachId, routeType, transitionName, fixId, pathTerm, pathTermStr, turnDir, altitude, speed, fixRole, sequence);
+    }
+
+    private static CifpApproachProcedure? BuildApproachProcedure(string airport, string approachId, List<RawApproachLeg> rawLegs)
+    {
+        if (approachId.Length == 0)
+        {
+            return null;
+        }
+
+        char typeCode = approachId[0];
+        string typeName = ApproachTypeNames.GetValueOrDefault(typeCode, "UNKNOWN");
+        string? runway = ParseRunwayFromApproachId(approachId);
+
+        // Separate transition legs, common legs, and missed approach legs
+        var transitionLegs = new Dictionary<string, List<CifpLeg>>(StringComparer.Ordinal);
+        var commonLegs = new List<CifpLeg>();
+        var missedLegs = new List<CifpLeg>();
+        bool pastMahp = false;
+        CifpLeg? holdInLieuLeg = null;
+
+        // Sort by route type then sequence for deterministic ordering
+        rawLegs.Sort(
+            (a, b) =>
+            {
+                int cmp = a.RouteType.CompareTo(b.RouteType);
+                return cmp != 0 ? cmp : a.Sequence.CompareTo(b.Sequence);
+            }
+        );
+
+        foreach (var raw in rawLegs)
+        {
+            var leg = new CifpLeg(
+                raw.FixIdentifier,
+                raw.PathTerminator,
+                raw.TurnDirection,
+                raw.Altitude,
+                raw.Speed,
+                raw.FixRole,
+                raw.Sequence,
+                null,
+                null,
+                null
+            );
+
+            if (raw.RouteType == 'A')
+            {
+                // Transition leg
+                if (!transitionLegs.TryGetValue(raw.TransitionName, out var tList))
+                {
+                    tList = [];
+                    transitionLegs[raw.TransitionName] = tList;
+                }
+
+                tList.Add(leg);
+
+                // Hold-in-lieu can appear in transitions too
+                if (holdInLieuLeg is null && HoldInLieuTerminators.Contains(raw.PathTerminatorRaw))
+                {
+                    holdInLieuLeg = leg;
+                }
+            }
+            else
+            {
+                // Common leg or missed approach leg
+                if (pastMahp || raw.FixRole == CifpFixRole.MAHP)
+                {
+                    if (raw.FixRole == CifpFixRole.MAHP)
+                    {
+                        // MAHP itself goes in common legs; legs after it are missed approach
+                        commonLegs.Add(leg);
+                        pastMahp = true;
+                    }
+                    else
+                    {
+                        missedLegs.Add(leg);
+                    }
+                }
+                else
+                {
+                    commonLegs.Add(leg);
+                }
+
+                // Check for hold-in-lieu in common legs
+                if (holdInLieuLeg is null && HoldInLieuTerminators.Contains(raw.PathTerminatorRaw))
+                {
+                    holdInLieuLeg = leg;
+                }
+            }
+        }
+
+        var transitions = new Dictionary<string, CifpTransition>(transitionLegs.Count, StringComparer.Ordinal);
+        foreach (var (name, legs) in transitionLegs)
+        {
+            transitions[name] = new CifpTransition(name, legs);
+        }
+
+        return new CifpApproachProcedure(
+            airport,
+            approachId,
+            typeCode,
+            typeName,
+            runway,
+            commonLegs,
+            transitions,
+            missedLegs,
+            holdInLieuLeg is not null,
+            holdInLieuLeg
+        );
+    }
+
+    private static CifpPathTerminator ParsePathTerminator(string s)
+    {
+        return s switch
+        {
+            "IF" => CifpPathTerminator.IF,
+            "TF" => CifpPathTerminator.TF,
+            "CF" => CifpPathTerminator.CF,
+            "DF" => CifpPathTerminator.DF,
+            "RF" => CifpPathTerminator.RF,
+            "AF" => CifpPathTerminator.AF,
+            "HA" => CifpPathTerminator.HA,
+            "HF" => CifpPathTerminator.HF,
+            "HM" => CifpPathTerminator.HM,
+            "PI" => CifpPathTerminator.PI,
+            "CA" => CifpPathTerminator.CA,
+            "FA" => CifpPathTerminator.FA,
+            "VA" => CifpPathTerminator.VA,
+            "VM" => CifpPathTerminator.VM,
+            "VI" => CifpPathTerminator.VI,
+            "CI" => CifpPathTerminator.CI,
+            _ => CifpPathTerminator.Other,
+        };
+    }
+
+    internal static CifpAltitudeRestriction? ParseAltitudeRestriction(char description, string alt1Str, string alt2Str)
+    {
+        int? alt1 = ParseArinc424Altitude(alt1Str);
+        int? alt2 = ParseArinc424Altitude(alt2Str);
+
+        if (alt1 is null)
+        {
+            return null;
+        }
+
+        var type = description switch
+        {
+            '+' or 'H' => CifpAltitudeRestrictionType.AtOrAbove,
+            '-' => CifpAltitudeRestrictionType.AtOrBelow,
+            'B' when alt2 is not null => CifpAltitudeRestrictionType.Between,
+            'G' or 'I' or 'J' => CifpAltitudeRestrictionType.GlideSlopeIntercept,
+            _ => CifpAltitudeRestrictionType.At,
+        };
+
+        return new CifpAltitudeRestriction(type, alt1.Value, alt2);
+    }
+
+    internal static int? ParseArinc424Altitude(string s)
+    {
+        s = s.Trim();
+        if (s.Length == 0)
+        {
+            return null;
+        }
+
+        // Flight level: "FL280", "FL28", " FL28"
+        if (s.StartsWith("FL", StringComparison.Ordinal))
+        {
+            string flStr = s[2..].Trim();
+            if (int.TryParse(flStr, out int fl))
+            {
+                return fl < 100 ? fl * 1000 : fl * 100;
+            }
+
+            return null;
+        }
+
+        // Numeric: value in tens of feet (e.g., "1700" = 17000ft)
+        s = s.TrimStart('0');
+        if (s.Length == 0)
+        {
+            return null;
+        }
+
+        return int.TryParse(s, out int val) ? val * 10 : null;
+    }
+
+    private sealed record RawApproachLeg(
+        string ApproachId,
+        char RouteType,
+        string TransitionName,
+        string FixIdentifier,
+        CifpPathTerminator PathTerminator,
+        string PathTerminatorRaw,
+        char? TurnDirection,
+        CifpAltitudeRestriction? Altitude,
+        CifpSpeedRestriction? Speed,
+        CifpFixRole FixRole,
+        int Sequence
+    );
+
     private static void ProcessApproachRecord(string line, Dictionary<string, FafCandidate> fafByApproach)
     {
         // Waypoint description code at position 43 (0-indexed: 42)

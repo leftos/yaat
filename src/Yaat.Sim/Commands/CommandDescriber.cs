@@ -76,6 +76,20 @@ public static class CommandDescriber
             ExitRightCommand => CanonicalCommandType.ExitRight,
             ExitTaxiwayCommand => CanonicalCommandType.ExitTaxiway,
             SayCommand => CanonicalCommandType.Say,
+            ClearedApproachCommand cmd => cmd.Force ? CanonicalCommandType.ClearedApproachForce : CanonicalCommandType.ClearedApproach,
+            JoinApproachCommand cmd => cmd.Force ? CanonicalCommandType.JoinApproachForce : CanonicalCommandType.JoinApproach,
+            ClearedApproachStraightInCommand => CanonicalCommandType.ClearedApproachStraightIn,
+            JoinApproachStraightInCommand => CanonicalCommandType.JoinApproachStraightIn,
+            JoinFinalApproachCourseCommand => CanonicalCommandType.JoinFinalApproachCourse,
+            JoinStarCommand => CanonicalCommandType.JoinStar,
+            JoinRadialOutboundCommand => CanonicalCommandType.JoinRadialOutbound,
+            JoinRadialInboundCommand => CanonicalCommandType.JoinRadialInbound,
+            HoldingPatternCommand => CanonicalCommandType.HoldingPattern,
+            PositionTurnAltitudeClearanceCommand => CanonicalCommandType.PositionTurnAltitudeClearance,
+            DescendViaCommand => CanonicalCommandType.DescendVia,
+            CrossFixCommand => CanonicalCommandType.CrossFix,
+            DepartFixCommand => CanonicalCommandType.DepartFix,
+            ListApproachesCommand => CanonicalCommandType.ListApproaches,
             _ => CanonicalCommandType.FlyHeading, // fallback
         };
     }
@@ -97,6 +111,20 @@ public static class CommandDescriber
             AppendDirectToCommand => TrackedCommandType.Navigation,
             WaitCommand => TrackedCommandType.Wait,
             WaitDistanceCommand => TrackedCommandType.Wait,
+            ClearedApproachCommand => TrackedCommandType.Immediate,
+            JoinApproachCommand => TrackedCommandType.Immediate,
+            ClearedApproachStraightInCommand => TrackedCommandType.Immediate,
+            JoinApproachStraightInCommand => TrackedCommandType.Immediate,
+            JoinFinalApproachCourseCommand => TrackedCommandType.Immediate,
+            JoinStarCommand => TrackedCommandType.Navigation,
+            JoinRadialOutboundCommand => TrackedCommandType.Navigation,
+            JoinRadialInboundCommand => TrackedCommandType.Navigation,
+            HoldingPatternCommand => TrackedCommandType.Navigation,
+            PositionTurnAltitudeClearanceCommand => TrackedCommandType.Immediate,
+            DescendViaCommand => TrackedCommandType.Altitude,
+            CrossFixCommand => TrackedCommandType.Navigation,
+            DepartFixCommand => TrackedCommandType.Navigation,
+            ListApproachesCommand => TrackedCommandType.Immediate,
             _ => TrackedCommandType.Immediate,
         };
     }
@@ -171,6 +199,20 @@ public static class CommandDescriber
             ExitRightCommand => "ER",
             ExitTaxiwayCommand et => $"EXIT {et.Taxiway}",
             SayCommand say => $"SAY {say.Text}",
+            ClearedApproachCommand cmd => FormatCappCanonical(cmd),
+            JoinApproachCommand cmd => $"JAPP {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
+            ClearedApproachStraightInCommand cmd => $"CAPPSI {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
+            JoinApproachStraightInCommand cmd => $"JAPPSI {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
+            JoinFinalApproachCourseCommand cmd => $"JFAC {cmd.ApproachId}",
+            JoinStarCommand cmd => cmd.Transition is not null ? $"JARR {cmd.StarId} {cmd.Transition}" : $"JARR {cmd.StarId}",
+            JoinRadialOutboundCommand cmd => $"JRADO {cmd.FixName}{cmd.Radial:000}",
+            JoinRadialInboundCommand cmd => $"JRADI {cmd.FixName}{cmd.Radial:000}",
+            HoldingPatternCommand cmd => FormatHoldCanonical(cmd),
+            PositionTurnAltitudeClearanceCommand cmd => $"PTAC {cmd.Heading:000} {cmd.Altitude:000} {cmd.ApproachId}",
+            DescendViaCommand cmd => cmd.Altitude is not null ? $"DVIA {cmd.Altitude}" : "DVIA",
+            CrossFixCommand cmd => FormatCfixCanonical(cmd),
+            DepartFixCommand cmd => $"DEPART {cmd.FixName} {cmd.Heading:000}",
+            ListApproachesCommand cmd => cmd.AirportCode is not null ? $"APPS {cmd.AirportCode}" : "APPS",
             _ => command.ToString() ?? "?",
         };
     }
@@ -249,6 +291,21 @@ public static class CommandDescriber
             ExitTaxiwayCommand et => $"Exit at {et.Taxiway}",
             SayCommand say => say.Text,
             UnsupportedCommand cmd => cmd.RawText,
+            ClearedApproachCommand cmd => FormatCappNatural(cmd),
+            JoinApproachCommand cmd => $"Join {cmd.ApproachId} approach{(cmd.AirportCode is not null ? $" at {cmd.AirportCode}" : "")}",
+            ClearedApproachStraightInCommand cmd => $"Cleared straight-in {cmd.ApproachId} approach",
+            JoinApproachStraightInCommand cmd => $"Join straight-in {cmd.ApproachId} approach",
+            JoinFinalApproachCourseCommand cmd => $"Join final approach course, {cmd.ApproachId}",
+            JoinStarCommand cmd => cmd.Transition is not null ? $"Join {cmd.StarId} arrival via {cmd.Transition}" : $"Join {cmd.StarId} arrival",
+            JoinRadialOutboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial outbound",
+            JoinRadialInboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial inbound",
+            HoldingPatternCommand cmd => FormatHoldNatural(cmd),
+            PositionTurnAltitudeClearanceCommand cmd =>
+                $"Fly heading {cmd.Heading:000}, maintain {cmd.Altitude:N0}, cleared {cmd.ApproachId} approach",
+            DescendViaCommand cmd => cmd.Altitude is not null ? $"Descend via, maintain {cmd.Altitude:N0}" : "Descend via",
+            CrossFixCommand cmd => FormatCfixNatural(cmd),
+            DepartFixCommand cmd => $"Depart {cmd.FixName}, fly heading {cmd.Heading:000}",
+            ListApproachesCommand cmd => cmd.AirportCode is not null ? $"List approaches for {cmd.AirportCode}" : "List approaches",
             _ => command.ToString() ?? "?",
         };
     }
@@ -286,7 +343,13 @@ public static class CommandDescriber
                 or ClearedForOptionCommand
                 or ExitLeftCommand
                 or ExitRightCommand
-                or ExitTaxiwayCommand;
+                or ExitTaxiwayCommand
+                or ClearedApproachCommand
+                or JoinApproachCommand
+                or ClearedApproachStraightInCommand
+                or JoinApproachStraightInCommand
+                or JoinFinalApproachCourseCommand
+                or PositionTurnAltitudeClearanceCommand;
     }
 
     internal static bool IsGroundCommand(ParsedCommand command)
@@ -419,6 +482,112 @@ public static class CommandDescriber
             msg += $", {distNm:G}nm final";
         }
 
+        return msg;
+    }
+
+    private static string FormatCappCanonical(ClearedApproachCommand cmd)
+    {
+        var parts = new List<string> { cmd.Force ? "CAPPF" : "CAPP" };
+        if (cmd.AtFix is not null)
+        {
+            parts.Add($"AT {cmd.AtFix}");
+        }
+        if (cmd.DctFix is not null)
+        {
+            parts.Add($"DCT {cmd.DctFix}");
+        }
+        if (cmd.CrossFixAltitude is not null && cmd.CrossFixAltType is not null)
+        {
+            string prefix = cmd.CrossFixAltType switch
+            {
+                CrossFixAltitudeType.AtOrAbove => "A",
+                CrossFixAltitudeType.AtOrBelow => "B",
+                _ => "",
+            };
+            parts.Add($"CFIX {prefix}{cmd.CrossFixAltitude / 100:000}");
+        }
+        parts.Add(cmd.ApproachId);
+        return string.Join(' ', parts);
+    }
+
+    private static string FormatCappNatural(ClearedApproachCommand cmd)
+    {
+        var msg = "Cleared";
+        if (cmd.AtFix is not null)
+        {
+            msg += $" at {cmd.AtFix},";
+        }
+        if (cmd.DctFix is not null)
+        {
+            msg += $" direct {cmd.DctFix},";
+        }
+        if (cmd.CrossFixAltitude is not null && cmd.CrossFixAltType is not null)
+        {
+            string altWord = cmd.CrossFixAltType switch
+            {
+                CrossFixAltitudeType.AtOrAbove => " at or above",
+                CrossFixAltitudeType.AtOrBelow => " at or below",
+                _ => "",
+            };
+            msg += $" cross{altWord} {cmd.CrossFixAltitude:N0},";
+        }
+        msg += $" {cmd.ApproachId} approach";
+        return msg;
+    }
+
+    private static string FormatHoldCanonical(HoldingPatternCommand cmd)
+    {
+        var unit = cmd.IsMinuteBased ? "M" : "";
+        var dir = cmd.Direction == TurnDirection.Left ? "L" : "R";
+        var entry = cmd.Entry switch
+        {
+            HoldingEntry.Direct => " D",
+            HoldingEntry.Teardrop => " T",
+            HoldingEntry.Parallel => " P",
+            _ => "",
+        };
+        return $"HOLDP {cmd.FixName} {cmd.InboundCourse:000} {cmd.LegLength}{unit} {dir}{entry}";
+    }
+
+    private static string FormatHoldNatural(HoldingPatternCommand cmd)
+    {
+        var dir = cmd.Direction == TurnDirection.Left ? "left" : "right";
+        var unit = cmd.IsMinuteBased ? "minute" : "nm";
+        var entry = cmd.Entry switch
+        {
+            HoldingEntry.Direct => ", direct entry",
+            HoldingEntry.Teardrop => ", teardrop entry",
+            HoldingEntry.Parallel => ", parallel entry",
+            _ => "",
+        };
+        return $"Hold at {cmd.FixName}, {cmd.InboundCourse:000} inbound, {cmd.LegLength}{unit} legs, {dir} turns{entry}";
+    }
+
+    private static string FormatCfixCanonical(CrossFixCommand cmd)
+    {
+        string prefix = cmd.AltType switch
+        {
+            CrossFixAltitudeType.AtOrAbove => "A",
+            CrossFixAltitudeType.AtOrBelow => "B",
+            _ => "",
+        };
+        var alt = $"{prefix}{cmd.Altitude / 100:000}";
+        return cmd.Speed is not null ? $"CFIX {cmd.FixName} {alt} {cmd.Speed}" : $"CFIX {cmd.FixName} {alt}";
+    }
+
+    private static string FormatCfixNatural(CrossFixCommand cmd)
+    {
+        string altWord = cmd.AltType switch
+        {
+            CrossFixAltitudeType.AtOrAbove => "at or above",
+            CrossFixAltitudeType.AtOrBelow => "at or below",
+            _ => "at",
+        };
+        var msg = $"Cross {cmd.FixName} {altWord} {cmd.Altitude:N0}";
+        if (cmd.Speed is not null)
+        {
+            msg += $", {cmd.Speed} knots";
+        }
         return msg;
     }
 }
