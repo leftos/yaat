@@ -63,7 +63,7 @@
                         <TextBlock Text="VATSIM CID:"
                                    Foreground="{DynamicResource SubtleTextBrush}" />
                         <TextBox Text="{Binding VatsimCid}"
-                                 Watermark="e.g. 1826127"
+                                 Watermark="e.g. 1234567"
                                  Width="120"
                                  HorizontalAlignment="Left" />
                         <TextBlock Text="Your VATSIM CID. Used to link your CRC client to the correct training room."
