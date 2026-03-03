@@ -13,12 +13,12 @@ public partial class LoadScenarioWindow : Window
 {
     private static readonly ILogger Log = AppLog.CreateLogger<LoadScenarioWindow>();
 
-    // Matches "S1-", "C1-", "OI-", etc. at the start of a scenario name to infer a rating prefix.
-    private static readonly Regex RatingPrefixRegex = new(@"^([A-Z]+\d+)-", RegexOptions.Compiled);
+    // Matches "S1-OAK", "C1-SFO", etc. at the start of a scenario name to infer rating + facility.
+    private static readonly Regex NamePrefixRegex = new(@"^([A-Z]+\d+)-([A-Z]+)", RegexOptions.Compiled);
 
     private readonly UserPreferences _preferences;
     private readonly TextBox _folderPathBox;
-    private readonly ComboBox _airportFilter;
+    private readonly ComboBox _facilityFilter;
     private readonly ComboBox _ratingFilter;
     private readonly TextBlock _statusText;
     private readonly ListBox _scenarioList;
@@ -34,7 +34,7 @@ public partial class LoadScenarioWindow : Window
         InitializeComponent();
 
         _folderPathBox = this.FindControl<TextBox>("FolderPathBox")!;
-        _airportFilter = this.FindControl<ComboBox>("AirportFilter")!;
+        _facilityFilter = this.FindControl<ComboBox>("FacilityFilter")!;
         _ratingFilter = this.FindControl<ComboBox>("RatingFilter")!;
         _statusText = this.FindControl<TextBlock>("StatusText")!;
         _scenarioList = this.FindControl<ListBox>("ScenarioList")!;
@@ -45,7 +45,7 @@ public partial class LoadScenarioWindow : Window
         _loadButton.Click += OnLoadClick;
         _scenarioList.SelectionChanged += OnSelectionChanged;
         _scenarioList.DoubleTapped += OnDoubleTapped;
-        _airportFilter.SelectionChanged += (_, _) => ApplyFilter();
+        _facilityFilter.SelectionChanged += (_, _) => ApplyFilter();
         _ratingFilter.SelectionChanged += (_, _) => ApplyFilter();
 
         var lastFolder = preferences.LastScenarioFolder;
@@ -88,36 +88,19 @@ public partial class LoadScenarioWindow : Window
                 var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
                 name = string.IsNullOrWhiteSpace(name) ? Path.GetFileNameWithoutExtension(filePath) : name;
 
-                var airport = "Unknown";
-                if (root.TryGetProperty("primaryAirportId", out var airportProp))
-                {
-                    var raw = airportProp.GetString()?.Trim();
-                    if (!string.IsNullOrEmpty(raw))
-                    {
-                        airport = raw;
-                    }
-                }
-
+                var facility = "Unknown";
                 var rating = "Unknown";
-                if (root.TryGetProperty("minimumRating", out var ratingProp))
+                if (name is not null)
                 {
-                    var raw = ratingProp.GetString()?.Trim();
-                    if (!string.IsNullOrEmpty(raw))
-                    {
-                        rating = raw;
-                    }
-                }
-
-                if (rating == "Unknown" && name is not null)
-                {
-                    var match = RatingPrefixRegex.Match(name);
+                    var match = NamePrefixRegex.Match(name);
                     if (match.Success)
                     {
                         rating = match.Groups[1].Value;
+                        facility = match.Groups[2].Value;
                     }
                 }
 
-                items.Add(new ScenarioItem(filePath, name!, airport, rating));
+                items.Add(new ScenarioItem(filePath, name!, facility, rating));
             }
             catch (Exception ex)
             {
@@ -136,11 +119,11 @@ public partial class LoadScenarioWindow : Window
 
     private void RebuildFilters()
     {
-        var airports = _allItems.Select(i => i.Airport).Distinct().OrderBy(a => a, StringComparer.OrdinalIgnoreCase).ToList();
+        var facilities = _allItems.Select(i => i.Facility).Distinct().OrderBy(a => a, StringComparer.OrdinalIgnoreCase).ToList();
         var ratings = _allItems.Select(i => i.Rating).Distinct().OrderBy(r => r, StringComparer.OrdinalIgnoreCase).ToList();
 
-        _airportFilter.ItemsSource = airports.Prepend("All").ToList();
-        _airportFilter.SelectedIndex = 0;
+        _facilityFilter.ItemsSource = facilities.Prepend("All").ToList();
+        _facilityFilter.SelectedIndex = 0;
 
         _ratingFilter.ItemsSource = ratings.Prepend("All").ToList();
         _ratingFilter.SelectedIndex = 0;
@@ -148,11 +131,11 @@ public partial class LoadScenarioWindow : Window
 
     private void ApplyFilter()
     {
-        var airportSel = _airportFilter.SelectedItem as string;
+        var facilitySel = _facilityFilter.SelectedItem as string;
         var ratingSel = _ratingFilter.SelectedItem as string;
 
         var filtered = _allItems
-            .Where(i => airportSel is null or "All" || i.Airport == airportSel)
+            .Where(i => facilitySel is null or "All" || i.Facility == facilitySel)
             .Where(i => ratingSel is null or "All" || i.Rating == ratingSel)
             .ToList();
 
@@ -192,4 +175,4 @@ public partial class LoadScenarioWindow : Window
     }
 }
 
-internal sealed record ScenarioItem(string FilePath, string Name, string Airport, string Rating);
+internal sealed record ScenarioItem(string FilePath, string Name, string Facility, string Rating);

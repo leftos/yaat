@@ -36,8 +36,8 @@
                         Spacing="12"
                         Margin="0,8,0,0">
                 <StackPanel Orientation="Horizontal" Spacing="4">
-                    <TextBlock Text="Airport:" VerticalAlignment="Center" />
-                    <ComboBox x:Name="AirportFilter" MinWidth="100" />
+                    <TextBlock Text="Facility:" VerticalAlignment="Center" />
+                    <ComboBox x:Name="FacilityFilter" MinWidth="100" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <TextBlock Text="Rating:" VerticalAlignment="Center" />
