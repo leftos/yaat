@@ -306,14 +306,17 @@
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="11" Content="DCB RIGHT" IsEnabled="False" />
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="11" Content="DCB BOTTOM" IsEnabled="False" />
 
-                <!-- Col 12: PTL LNTH (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="PTL&#x0a;LNTH" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                <!-- Col 12: PTL LNTH spinner (spans 2 rows) -->
+                <Button x:Name="PtlLnthButton" Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" Click="OnPtlLnthClick">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="PTL" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="{Binding PtlLengthMinutes, StringFormat='{}{0:F1}'}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    </StackPanel>
                 </Button>
 
-                <!-- Col 13: PTL OWN / PTL ALL (disabled split) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="13" Content="PTL OWN" IsEnabled="False" />
-                <Button Classes="dcb-half" Grid.Row="1" Grid.Column="13" Content="PTL ALL" IsEnabled="False" />
+                <!-- Col 13: PTL OWN / PTL ALL (split) -->
+                <Button Classes="dcb-half" Classes.active="{Binding PtlOwn}" Grid.Row="0" Grid.Column="13" Content="PTL OWN" Click="OnPtlOwnClick" />
+                <Button Classes="dcb-half" Classes.active="{Binding PtlAll}" Grid.Row="1" Grid.Column="13" Content="PTL ALL" Click="OnPtlAllClick" />
 
                 <!-- Col 14: DWELL ON (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" IsEnabled="False">
@@ -431,7 +434,10 @@
                                IsPanZoomLocked="{Binding IsPanZoomLocked}"
                                IsPlacingRangeRing="{Binding IsPlacingRangeRing}"
                                IsAdjustingRangeRingSize="{Binding IsAdjustingRangeRingSize, Mode=TwoWay}"
-                               ShowTopDown="{Binding ShowTopDown}" />
+                               ShowTopDown="{Binding ShowTopDown}"
+                               PtlLengthMinutes="{Binding PtlLengthMinutes}"
+                               PtlOwn="{Binding PtlOwn}"
+                               PtlAll="{Binding PtlAll}" />
 
             <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
             <Popup x:Name="MapPopup"

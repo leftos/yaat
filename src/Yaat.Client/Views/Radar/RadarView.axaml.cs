@@ -150,6 +150,8 @@ public partial class RadarView : UserControl
         if (vm.IsAdjustingRange)
         {
             vm.IsAdjustingRangeRingSize = false;
+            vm.IsAdjustingPtlLength = false;
+            this.FindControl<Button>("PtlLnthButton")?.Classes.Set("active", false);
             var btn = this.FindControl<Button>("RangeButton");
             btn?.Classes.Set("active", true);
         }
@@ -171,13 +173,50 @@ public partial class RadarView : UserControl
         if (vm.IsAdjustingRangeRingSize)
         {
             vm.IsAdjustingRange = false;
+            vm.IsAdjustingPtlLength = false;
             var rangeBtn = this.FindControl<Button>("RangeButton");
             rangeBtn?.Classes.Set("active", false);
+            this.FindControl<Button>("PtlLnthButton")?.Classes.Set("active", false);
             _canvas?.Focus();
         }
 
         var rrBtn = this.FindControl<Button>("RrButton");
         rrBtn?.Classes.Set("active", vm.IsAdjustingRangeRingSize);
+    }
+
+    private void OnPtlLnthClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        vm.IsAdjustingPtlLength = !vm.IsAdjustingPtlLength;
+        if (vm.IsAdjustingPtlLength)
+        {
+            vm.IsAdjustingRange = false;
+            vm.IsAdjustingRangeRingSize = false;
+            this.FindControl<Button>("RangeButton")?.Classes.Set("active", false);
+            this.FindControl<Button>("RrButton")?.Classes.Set("active", false);
+        }
+
+        this.FindControl<Button>("PtlLnthButton")?.Classes.Set("active", vm.IsAdjustingPtlLength);
+    }
+
+    private void OnPtlOwnClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is RadarViewModel vm)
+        {
+            vm.TogglePtlOwnCommand.Execute(null);
+        }
+    }
+
+    private void OnPtlAllClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is RadarViewModel vm)
+        {
+            vm.TogglePtlAllCommand.Execute(null);
+        }
     }
 
     private void OnFixClick(object? sender, RoutedEventArgs e)
@@ -310,6 +349,11 @@ public partial class RadarView : UserControl
         else if (vm.IsAdjustingRangeRingSize)
         {
             vm.RangeRingSizeNm = RadarViewModel.CycleRangeRingSize(vm.RangeRingSizeNm, delta);
+            e.Handled = true;
+        }
+        else if (vm.IsAdjustingPtlLength)
+        {
+            vm.AdjustPtlLength(delta);
             e.Handled = true;
         }
         else if (vm.ActiveBriteTarget is { } briteTarget)

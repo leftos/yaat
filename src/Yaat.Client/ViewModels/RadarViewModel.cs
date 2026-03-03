@@ -136,6 +136,18 @@ public partial class RadarViewModel : ObservableObject
     private bool _showTopDown;
 
     [ObservableProperty]
+    private double _ptlLengthMinutes;
+
+    [ObservableProperty]
+    private bool _ptlOwn;
+
+    [ObservableProperty]
+    private bool _ptlAll;
+
+    [ObservableProperty]
+    private bool _isAdjustingPtlLength;
+
+    [ObservableProperty]
     private DcbMenuMode _dcbMode = DcbMenuMode.Main;
 
     [ObservableProperty]
@@ -477,6 +489,27 @@ public partial class RadarViewModel : ObservableObject
         SaveSettings();
     }
 
+    public void AdjustPtlLength(int delta)
+    {
+        var next = PtlLengthMinutes + delta * 0.5;
+        PtlLengthMinutes = Math.Clamp(next, 0.0, 3.0);
+        SaveSettings();
+    }
+
+    [RelayCommand]
+    private void TogglePtlOwn()
+    {
+        PtlOwn = !PtlOwn;
+        SaveSettings();
+    }
+
+    [RelayCommand]
+    private void TogglePtlAll()
+    {
+        PtlAll = !PtlAll;
+        SaveSettings();
+    }
+
     [RelayCommand]
     private void StartPlaceRangeRing()
     {
@@ -624,6 +657,9 @@ public partial class RadarViewModel : ObservableObject
             ShowFixes = ShowFixes,
             IsPanZoomLocked = IsPanZoomLocked,
             ShowTopDown = ShowTopDown,
+            PtlLengthMinutes = PtlLengthMinutes,
+            PtlOwn = PtlOwn,
+            PtlAll = PtlAll,
             BrightnessValues = brightnessDict,
         };
 
@@ -666,6 +702,9 @@ public partial class RadarViewModel : ObservableObject
         ShowFixes = saved.ShowFixes;
         IsPanZoomLocked = saved.IsPanZoomLocked;
         ShowTopDown = saved.ShowTopDown;
+        PtlLengthMinutes = saved.PtlLengthMinutes;
+        PtlOwn = saved.PtlOwn;
+        PtlAll = saved.PtlAll;
 
         if (saved.BrightnessValues is { Count: > 0 })
         {

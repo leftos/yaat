@@ -1,6 +1,7 @@
 using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Views.Map;
+using Yaat.Sim;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -46,6 +47,13 @@ public sealed class TargetRenderer : IDisposable
 
     private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(0, 0, 0, 180), Style = SKPaintStyle.Fill };
 
+    private readonly SKPaint _ptlPaint = new()
+    {
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
     private const float SymbolSize = 5f;
     private const float LeaderLength = 40f;
 
@@ -54,7 +62,10 @@ public sealed class TargetRenderer : IDisposable
         MapViewport vp,
         IReadOnlyList<AircraftModel> aircraft,
         AircraftModel? selectedAircraft,
-        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        double ptlLengthMinutes = 0,
+        bool ptlOwn = false,
+        bool ptlAll = false
     )
     {
         foreach (var ac in aircraft)
@@ -64,9 +75,39 @@ public sealed class TargetRenderer : IDisposable
             bool isSelected = ac == selectedAircraft;
             var color = GetTargetColor(ac, isSelected);
 
+            if (ptlLengthMinutes > 0 && ShouldShowPtl(ac, ptlOwn, ptlAll))
+            {
+                DrawPtlLine(canvas, vp, sx, sy, ac, color, ptlLengthMinutes);
+            }
+
             DrawPositionSymbol(canvas, sx, sy, color);
             DrawLeaderAndDataBlock(canvas, sx, sy, ac, color, dataBlockOffsets);
         }
+    }
+
+    private void DrawPtlLine(SKCanvas canvas, MapViewport vp, float sx, float sy, AircraftModel ac, SKColor color, double minutes)
+    {
+        if (ac.GroundSpeed < 1)
+        {
+            return;
+        }
+
+        var distNm = ac.GroundSpeed * minutes / 60.0;
+        var (endLat, endLon) = GeoMath.ProjectPoint(ac.Latitude, ac.Longitude, ac.Heading, distNm);
+        var (ex, ey) = vp.LatLonToScreen(endLat, endLon);
+
+        _ptlPaint.Color = color;
+        canvas.DrawLine(sx, sy, ex, ey, _ptlPaint);
+    }
+
+    private static bool ShouldShowPtl(AircraftModel ac, bool ptlOwn, bool ptlAll)
+    {
+        if (ptlAll)
+        {
+            return true;
+        }
+
+        return ptlOwn && !string.IsNullOrEmpty(ac.Owner);
     }
 
     private static SKColor GetTargetColor(AircraftModel ac, bool isSelected)
@@ -157,5 +198,6 @@ public sealed class TargetRenderer : IDisposable
         _dataBlockPaint.Dispose();
         _historyPaint.Dispose();
         _dataBlockBgPaint.Dispose();
+        _ptlPaint.Dispose();
     }
 }

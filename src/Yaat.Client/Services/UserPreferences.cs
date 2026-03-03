@@ -618,5 +618,8 @@ public sealed class SavedRadarSettings
     public bool ShowFixes { get; set; }
     public bool IsPanZoomLocked { get; set; } = true;
     public bool ShowTopDown { get; set; }
+    public double PtlLengthMinutes { get; set; }
+    public bool PtlOwn { get; set; }
+    public bool PtlAll { get; set; }
     public Dictionary<string, int>? BrightnessValues { get; set; }
 }

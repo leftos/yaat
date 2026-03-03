@@ -78,6 +78,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<bool> ShowTopDownProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(ShowTopDown));
 
+    public static readonly StyledProperty<double> PtlLengthMinutesProperty = AvaloniaProperty.Register<RadarCanvas, double>(nameof(PtlLengthMinutes));
+
+    public static readonly StyledProperty<bool> PtlOwnProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(PtlOwn));
+
+    public static readonly StyledProperty<bool> PtlAllProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(PtlAll));
+
     private static readonly SKPoint DefaultDataBlockOffset = new(28, -28);
     private const float DataBlockPad = 3f;
     private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
@@ -208,6 +214,24 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(ShowTopDownProperty, value);
     }
 
+    public double PtlLengthMinutes
+    {
+        get => GetValue(PtlLengthMinutesProperty);
+        set => SetValue(PtlLengthMinutesProperty, value);
+    }
+
+    public bool PtlOwn
+    {
+        get => GetValue(PtlOwnProperty);
+        set => SetValue(PtlOwnProperty, value);
+    }
+
+    public bool PtlAll
+    {
+        get => GetValue(PtlAllProperty);
+        set => SetValue(PtlAllProperty, value);
+    }
+
     public float BrightnessA
     {
         get => _renderer.BrightnessA;
@@ -275,6 +299,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == RangeRingCenterLonProperty
             || change.Property == RangeRingSizeNmProperty
             || change.Property == ShowTopDownProperty
+            || change.Property == PtlLengthMinutesProperty
+            || change.Property == PtlOwnProperty
+            || change.Property == PtlAllProperty
         )
         {
             MarkDirty();
@@ -331,7 +358,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         double RangeRingCenterLon,
         double RangeRingSizeNm,
         IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
-        string? HoveredFixName
+        string? HoveredFixName,
+        double PtlLengthMinutes,
+        bool PtlOwn,
+        bool PtlAll
     );
 
     protected override object? CreateRenderSnapshot()
@@ -357,7 +387,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             RangeRingCenterLon,
             RangeRingSizeNm,
             new Dictionary<string, SKPoint>(_dataBlockOffsets),
-            hoveredFix
+            hoveredFix,
+            PtlLengthMinutes,
+            PtlOwn,
+            PtlAll
         );
     }
 
@@ -407,7 +440,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.RangeRingCenterLon,
             s.RangeRingSizeNm,
             s.DataBlockOffsets,
-            s.HoveredFixName
+            s.HoveredFixName,
+            s.PtlLengthMinutes,
+            s.PtlOwn,
+            s.PtlAll
         );
     }
 
