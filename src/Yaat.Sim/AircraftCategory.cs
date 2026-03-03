@@ -500,5 +500,4 @@ public static class CategoryPerformance
         _ = cat;
         return 50;
     }
-
 }

@@ -246,12 +246,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Follow {follow.TargetCallsign}");
     }
 
-    internal static CommandResult TryAirTaxi(
-        AircraftState aircraft,
-        string? destination,
-        AirportGroundLayout? groundLayout,
-        ILogger logger
-    )
+    internal static CommandResult TryAirTaxi(AircraftState aircraft, string? destination, AirportGroundLayout? groundLayout, ILogger logger)
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         if (cat != AircraftCategory.Helicopter)
@@ -296,12 +291,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Air taxi to {resolvedName}");
     }
 
-    internal static CommandResult TryLand(
-        AircraftState aircraft,
-        LandCommand land,
-        AirportGroundLayout? groundLayout,
-        ILogger logger
-    )
+    internal static CommandResult TryLand(AircraftState aircraft, LandCommand land, AirportGroundLayout? groundLayout, ILogger logger)
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         if (cat != AircraftCategory.Helicopter)

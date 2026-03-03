@@ -759,11 +759,7 @@ public static class CommandDispatcher
                 aircraft.IsHeld = false;
                 aircraft.Phases = new PhaseList();
                 aircraft.Phases.Add(new Phases.Tower.HelicopterTakeoffPhase());
-                aircraft.Phases.Add(new Phases.Tower.InitialClimbPhase
-                {
-                    IsVfr = aircraft.IsVfr,
-                    CruiseAltitude = aircraft.CruiseAltitude,
-                });
+                aircraft.Phases.Add(new Phases.Tower.InitialClimbPhase { IsVfr = aircraft.IsVfr, CruiseAltitude = aircraft.CruiseAltitude });
 
                 // Field elevation = current altitude (on ground)
                 ctoppCtx = new PhaseContext

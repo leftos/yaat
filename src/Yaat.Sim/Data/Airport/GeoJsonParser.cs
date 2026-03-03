@@ -66,7 +66,17 @@ public static class GeoJsonParser
             }
         }
 
-        return BuildLayout(airportId, parkingFeatures, helipadFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, logger, runwayLookup, runwayAirportCode);
+        return BuildLayout(
+            airportId,
+            parkingFeatures,
+            helipadFeatures,
+            spotFeatures,
+            taxiwayFeatures,
+            runwayFeatures,
+            logger,
+            runwayLookup,
+            runwayAirportCode
+        );
     }
 
     /// <summary>
