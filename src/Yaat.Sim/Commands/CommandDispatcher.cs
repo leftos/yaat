@@ -531,7 +531,7 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270, logger);
 
             case CircleAirportCommand:
-                return PatternCommandHandler.TryHoldPresentPosition(aircraft, TurnDirection.Left, logger);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left);
 
             case SequenceCommand seq:
                 aircraft.SequenceNumber = seq.Number;
