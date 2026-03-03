@@ -184,8 +184,8 @@ This is the most impactful physics change since the original flight model — it
 
 ## Chunk 5: Polish & Docs
 
-- [ ] **Update `USER_GUIDE.md`** with weather loading instructions
-- [ ] **Update CLAUDE.md** Architecture section with weather fields
+- [x] **Update `USER_GUIDE.md`** with weather loading instructions
+- [x] **Update CLAUDE.md** Architecture section with weather fields
 - [ ] **Holding pattern wind compensation** (tier 2, optional): after first circuit, measure actual inbound leg time and adjust outbound timing so inbound leg matches target (1 min / 1.5 min). ~20 lines in `HoldingPatternPhase`.
 
 ---

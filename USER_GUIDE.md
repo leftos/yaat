@@ -42,6 +42,20 @@ Initials and ARTCC ID are required — you cannot connect without them.
 
 **Scenario > Unload Scenario** removes all aircraft from the current scenario. A confirmation dialog appears if multiple clients are connected.
 
+### Loading a Weather Profile
+
+1. **Weather > Load Weather...** — opens a file picker for ATCTrainer-format weather JSON files
+2. Select a profile from the list; each entry shows the name and wind layer count
+3. Weather is room-level and persists across scenario loads/unloads
+
+The active weather name is shown in the terminal when weather is loaded or cleared.
+
+**Speed note:** Speed commands (`SPD`, `CM`, `DM`) assign IAS (indicated airspeed). Aircraft ground speed — what appears on the radar scope and in the aircraft grid — is derived from IAS + wind at altitude. Expect aircraft flying into a headwind to show a lower ground speed than their assigned IAS, and a higher ground speed when the wind is from behind. Aircraft on the ground are unaffected by wind.
+
+**Clear weather:** **Weather > Clear Weather** removes the active weather profile. All aircraft return to IAS = GS behavior.
+
+Weather profiles use the same JSON format as ATCTrainer standalone weather files.
+
 ## Aircraft List
 
 The main grid shows all aircraft in your scenario, grouped into **Active** and **Delayed** sections. Click the group header row to collapse or expand each section. Use **View > Reset Aircraft List Layout** to restore default column order, widths, and sorting.

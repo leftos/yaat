@@ -104,14 +104,20 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 ```
 # Core
 AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops
-ControlTargets.cs              # Autopilot targets: heading, altitude, speed, NavigationRoute
+                               # IndicatedAirspeed (IAS, primary speed state), Track (ground track = heading + wind drift)
+ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
 FlightPhysics.cs               # Static 6-step Update: navigation→heading→altitude→speed→position→queue
+                               # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
+                               # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
 CommandQueue.cs                # CommandBlock (trigger + closure + TrackedCommands), BlockTrigger
 AircraftCategory.cs            # Enum + AircraftCategorization (static Init from AircraftSpecs.json)
                                # CategoryPerformance: all aviation constants (validated by aviation-sim-expert)
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
+WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
+WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360), IasToTas (8-point
+                               # lookup table), ComputeWindCorrectionAngle; gusts stored but not applied to physics
 
 # Track operations
 TrackOwner.cs                  # Record: Callsign, FacilityId, Subset, SectorId, OwnerType
@@ -140,7 +146,7 @@ Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, r
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance
 Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, ActiveApproach, mutations
 Phases/PhaseRunner.cs          # Static lifecycle: start→tick→advance; auto-appends exit/pattern phases
-Phases/PhaseContext.cs         # Readonly tick context
+Phases/PhaseContext.cs         # Readonly tick context; includes WeatherProfile? Weather for wind-aware phases
 Phases/PhaseStatus.cs          # Enum: phase lifecycle status
 Phases/CommandAcceptance.cs    # Enum: Allowed, Rejected, ClearsPhase
 Phases/ClearanceRequirement.cs # Clearance requirement definitions
