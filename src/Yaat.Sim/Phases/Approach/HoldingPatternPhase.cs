@@ -23,10 +23,18 @@ public sealed class HoldingPatternPhase : Phase
     public required TurnDirection Direction { get; init; }
     public HoldingEntry? Entry { get; init; }
 
+    /// <summary>
+    /// When set, the phase self-completes after this many circuits.
+    /// Used for hold-in-lieu of procedure turn (1 circuit).
+    /// When null, the hold continues indefinitely (standard behavior).
+    /// </summary>
+    public int? MaxCircuits { get; init; }
+
     private HoldState _state = HoldState.NavigatingToFix;
     private HoldingEntry _entry;
     private double _outboundHeading;
     private double _legTimerSeconds;
+    private int _circuitsCompleted;
 
     public override string Name => "HoldingPattern";
 
@@ -70,7 +78,10 @@ public sealed class HoldingPatternPhase : Phase
                 TickTurnToInbound(ctx);
                 break;
             case HoldState.Inbound:
-                TickInbound(ctx);
+                if (TickInbound(ctx))
+                {
+                    return true;
+                }
                 break;
         }
 
@@ -155,13 +166,22 @@ public sealed class HoldingPatternPhase : Phase
         }
     }
 
-    private void TickInbound(PhaseContext ctx)
+    private bool TickInbound(PhaseContext ctx)
     {
         if (AtFix(ctx))
         {
+            _circuitsCompleted++;
+            if (MaxCircuits is { } max && _circuitsCompleted >= max)
+            {
+                ctx.Targets.NavigationRoute.Clear();
+                return true;
+            }
+
             ctx.Targets.NavigationRoute.Clear();
             StartTurnToOutbound(ctx);
         }
+
+        return false;
     }
 
     private void StartTeardropOutbound(PhaseContext ctx)

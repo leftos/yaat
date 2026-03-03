@@ -1,0 +1,444 @@
+using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Tower;
+
+namespace Yaat.Sim.Commands;
+
+public static class ApproachCommandHandler
+{
+    public static CommandResult TryClearedApproach(
+        ClearedApproachCommand cmd,
+        AircraftState aircraft,
+        IApproachLookup? approachLookup,
+        IRunwayLookup? runways,
+        IFixLookup? fixes,
+        ILogger? logger
+    )
+    {
+        var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft, approachLookup, runways);
+        if (!resolved.Success)
+        {
+            return new CommandResult(false, resolved.Error);
+        }
+
+        var (procedure, approachRunway, airport) = resolved;
+
+        // Validate intercept angle unless force
+        if (!cmd.Force)
+        {
+            var rejection = ValidateInterceptAngle(aircraft, approachRunway);
+            if (rejection is not null)
+            {
+                return rejection;
+            }
+        }
+
+        // Cancel existing speed restrictions per 7110.65 §5-7-4
+        aircraft.Targets.TargetSpeed = null;
+
+        double finalCourse = approachRunway.TrueHeading;
+
+        // Build approach fix sequence from common legs
+        var approachFixes = BuildApproachFixes(procedure, fixes);
+
+        // Clear existing phases
+        ClearExistingPhases(aircraft, logger);
+
+        var clearance = new ApproachClearance
+        {
+            ApproachId = procedure.ApproachId,
+            AirportCode = airport,
+            RunwayId = procedure.Runway!,
+            FinalApproachCourse = finalCourse,
+            Procedure = procedure,
+        };
+
+        aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+
+        // Handle rich CAPP forms: AT fix, DCT fix — prepend to approach fixes
+        if (cmd.AtFix is not null && cmd.AtFixLat is not null && cmd.AtFixLon is not null)
+        {
+            approachFixes.Insert(0, new ApproachFix(cmd.AtFix, cmd.AtFixLat.Value, cmd.AtFixLon.Value));
+        }
+        else if (cmd.DctFix is not null && cmd.DctFixLat is not null && cmd.DctFixLon is not null)
+        {
+            approachFixes.Insert(0, new ApproachFix(cmd.DctFix, cmd.DctFixLat.Value, cmd.DctFixLon.Value));
+        }
+
+        // Apply crossing fix altitude if specified
+        if (cmd.CrossFixAltitude is { } cxAlt && cxAlt > 0)
+        {
+            aircraft.Targets.TargetAltitude = cxAlt;
+        }
+
+        // Build phase sequence
+        if (approachFixes.Count > 0)
+        {
+            aircraft.Phases.Add(new ApproachNavigationPhase { Fixes = approachFixes });
+        }
+
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        StartPhases(aircraft, logger);
+
+        return new CommandResult(true, $"Cleared {procedure.ApproachId} approach, runway {procedure.Runway}");
+    }
+
+    public static CommandResult TryJoinApproach(
+        string approachId,
+        string? airportCode,
+        bool force,
+        bool straightIn,
+        AircraftState aircraft,
+        IApproachLookup? approachLookup,
+        IRunwayLookup? runways,
+        IFixLookup? fixes,
+        ILogger? logger
+    )
+    {
+        var resolved = ResolveApproach(approachId, airportCode, aircraft, approachLookup, runways);
+        if (!resolved.Success)
+        {
+            return new CommandResult(false, resolved.Error);
+        }
+
+        var (procedure, approachRunway, airport) = resolved;
+
+        // Validate intercept angle unless force
+        if (!force)
+        {
+            var rejection = ValidateInterceptAngle(aircraft, approachRunway);
+            if (rejection is not null)
+            {
+                return rejection;
+            }
+        }
+
+        // Cancel existing speed restrictions per 7110.65 §5-7-4
+        aircraft.Targets.TargetSpeed = null;
+
+        double finalCourse = approachRunway.TrueHeading;
+
+        // Build approach fix sequence from procedure
+        var approachFixes = BuildApproachFixes(procedure, fixes);
+
+        // For JAPP: find nearest IAF/IF ahead of aircraft
+        var trimmedFixes = TrimToNearestEntry(approachFixes, aircraft);
+
+        // Hold-in-lieu: if procedure has one and NOT straight-in, insert hold
+        bool needsHold = procedure.HasHoldInLieu && !straightIn;
+
+        // Clear existing phases
+        ClearExistingPhases(aircraft, logger);
+
+        var clearance = new ApproachClearance
+        {
+            ApproachId = procedure.ApproachId,
+            AirportCode = airport,
+            RunwayId = procedure.Runway!,
+            FinalApproachCourse = finalCourse,
+            StraightIn = straightIn,
+            Procedure = procedure,
+        };
+
+        aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+
+        // Insert hold-in-lieu if needed
+        if (needsHold && procedure.HoldInLieuLeg is { } holdLeg)
+        {
+            var holdFix = trimmedFixes.FirstOrDefault(f => f.Name.Equals(holdLeg.FixIdentifier, StringComparison.OrdinalIgnoreCase));
+            if (holdFix is not null)
+            {
+                aircraft.Phases.Add(
+                    new HoldingPatternPhase
+                    {
+                        FixName = holdFix.Name,
+                        FixLat = holdFix.Latitude,
+                        FixLon = holdFix.Longitude,
+                        InboundCourse = (int)finalCourse,
+                        LegLength = 1,
+                        IsMinuteBased = true,
+                        Direction = holdLeg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right,
+                        MaxCircuits = 1,
+                    }
+                );
+            }
+        }
+
+        if (trimmedFixes.Count > 0)
+        {
+            aircraft.Phases.Add(new ApproachNavigationPhase { Fixes = trimmedFixes });
+        }
+
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        StartPhases(aircraft, logger);
+
+        string prefix = straightIn ? "Cleared straight-in" : "Join";
+        return new CommandResult(true, $"{prefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
+    }
+
+    public static CommandResult TryPtac(
+        PositionTurnAltitudeClearanceCommand cmd,
+        AircraftState aircraft,
+        IApproachLookup? approachLookup,
+        IRunwayLookup? runways,
+        ILogger? logger
+    )
+    {
+        var resolved = ResolveApproach(cmd.ApproachId, null, aircraft, approachLookup, runways);
+        if (!resolved.Success)
+        {
+            return new CommandResult(false, resolved.Error);
+        }
+
+        var (procedure, approachRunway, airport) = resolved;
+
+        double finalCourse = approachRunway.TrueHeading;
+
+        // Cancel existing speed restrictions per 7110.65 §5-7-4
+        aircraft.Targets.TargetSpeed = null;
+
+        // Set heading and altitude immediately
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.TargetHeading = cmd.Heading;
+        aircraft.Targets.PreferredTurnDirection = null;
+        aircraft.Targets.TargetAltitude = cmd.Altitude;
+
+        // Clear existing phases
+        ClearExistingPhases(aircraft, logger);
+
+        var clearance = new ApproachClearance
+        {
+            ApproachId = procedure.ApproachId,
+            AirportCode = airport,
+            RunwayId = procedure.Runway!,
+            FinalApproachCourse = finalCourse,
+            Procedure = procedure,
+        };
+
+        aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+
+        aircraft.Phases.Add(
+            new InterceptCoursePhase
+            {
+                FinalApproachCourse = finalCourse,
+                ThresholdLat = approachRunway.ThresholdLatitude,
+                ThresholdLon = approachRunway.ThresholdLongitude,
+            }
+        );
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        StartPhases(aircraft, logger);
+
+        return new CommandResult(
+            true,
+            $"Turn heading {cmd.Heading:000}, maintain {cmd.Altitude}, cleared {procedure.ApproachId} approach, runway {procedure.Runway}"
+        );
+    }
+
+    // --- Shared helpers ---
+
+    private static ResolvedApproach ResolveApproach(
+        string approachId,
+        string? airportCode,
+        AircraftState aircraft,
+        IApproachLookup? approachLookup,
+        IRunwayLookup? runways
+    )
+    {
+        if (approachLookup is null)
+        {
+            return ResolvedApproach.Fail("Approach data not available");
+        }
+
+        string airport = airportCode ?? CommandDispatcher.ResolveAirport(aircraft);
+        if (string.IsNullOrEmpty(airport))
+        {
+            return ResolvedApproach.Fail("Cannot determine airport for approach");
+        }
+
+        string? resolvedId = approachLookup.ResolveApproachId(airport, approachId);
+        if (resolvedId is null)
+        {
+            return ResolvedApproach.Fail($"Unknown approach: {approachId} at {airport}");
+        }
+
+        var procedure = approachLookup.GetApproach(airport, resolvedId);
+        if (procedure?.Runway is null)
+        {
+            return ResolvedApproach.Fail($"No runway for approach {resolvedId}");
+        }
+
+        if (runways is null)
+        {
+            return ResolvedApproach.Fail("Runway data not available");
+        }
+
+        var runway = runways.GetRunway(airport, procedure.Runway);
+        if (runway is null)
+        {
+            return ResolvedApproach.Fail($"Unknown runway {procedure.Runway} at {airport}");
+        }
+
+        var approachRunway = runway.Designator.Equals(procedure.Runway, StringComparison.OrdinalIgnoreCase)
+            ? runway
+            : runway.ForApproach(procedure.Runway);
+
+        return new ResolvedApproach(procedure, approachRunway, airport);
+    }
+
+    internal static CommandResult? ValidateInterceptAngle(AircraftState aircraft, RunwayInfo runway)
+    {
+        double finalCourse = runway.TrueHeading;
+        double interceptAngle = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - finalCourse));
+
+        // Distance from aircraft to approach gate
+        double distToThreshold = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.ThresholdLatitude, runway.ThresholdLongitude);
+
+        double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(runway.AirportId, runway.Designator);
+
+        // Distance-based limits per 7110.65 §5-9-2
+        double maxAngle = distToThreshold < minIntercept ? 20.0 : 30.0;
+
+        if (interceptAngle > maxAngle)
+        {
+            return new CommandResult(
+                false,
+                $"Intercept angle {interceptAngle:F0}° exceeds {maxAngle:F0}° limit " + $"({distToThreshold:F1}nm from threshold) [7110.65 §5-9-2]"
+            );
+        }
+
+        return null;
+    }
+
+    private static List<ApproachFix> BuildApproachFixes(CifpApproachProcedure procedure, IFixLookup? fixes)
+    {
+        var result = new List<ApproachFix>();
+
+        foreach (var leg in procedure.CommonLegs)
+        {
+            if (string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                continue;
+            }
+
+            // Skip past MAHP (missed approach) — those are in MissedApproachLegs already
+            if (leg.FixRole == CifpFixRole.MAHP)
+            {
+                break;
+            }
+
+            var pos = fixes?.GetFixPosition(leg.FixIdentifier);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            result.Add(new ApproachFix(leg.FixIdentifier, pos.Value.Lat, pos.Value.Lon, leg.Altitude, leg.Speed?.SpeedKts, leg.FixRole));
+        }
+
+        return result;
+    }
+
+    private static List<ApproachFix> TrimToNearestEntry(List<ApproachFix> fixes, AircraftState aircraft)
+    {
+        if (fixes.Count == 0)
+        {
+            return fixes;
+        }
+
+        // Find nearest IAF or IF ahead of aircraft
+        int bestIndex = -1;
+        double bestDist = double.MaxValue;
+
+        for (int i = 0; i < fixes.Count; i++)
+        {
+            var fix = fixes[i];
+            if (fix.Role is not (CifpFixRole.IAF or CifpFixRole.IF))
+            {
+                continue;
+            }
+
+            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, fix.Latitude, fix.Longitude);
+            double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - aircraft.Heading));
+
+            // Only consider fixes within ±90° of current heading
+            if (angleDiff > 90)
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, fix.Latitude, fix.Longitude);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestIndex = i;
+            }
+        }
+
+        if (bestIndex >= 0)
+        {
+            return fixes.GetRange(bestIndex, fixes.Count - bestIndex);
+        }
+
+        // Fallback: use all fixes
+        return fixes;
+    }
+
+    private static void ClearExistingPhases(AircraftState aircraft, ILogger? logger)
+    {
+        if (aircraft.Phases is not null && logger is not null)
+        {
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            aircraft.Phases.Clear(ctx);
+        }
+    }
+
+    private static void StartPhases(AircraftState aircraft, ILogger? logger)
+    {
+        if (logger is not null && aircraft.Phases is not null)
+        {
+            var startCtx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            aircraft.Phases.Start(startCtx);
+        }
+    }
+
+    private readonly record struct ResolvedApproach
+    {
+        public bool Success { get; }
+        public string? Error { get; }
+        public CifpApproachProcedure? Procedure { get; }
+        public RunwayInfo? Runway { get; }
+        public string? Airport { get; }
+
+        public ResolvedApproach(CifpApproachProcedure procedure, RunwayInfo runway, string airport)
+        {
+            Success = true;
+            Procedure = procedure;
+            Runway = runway;
+            Airport = airport;
+        }
+
+        private ResolvedApproach(string error)
+        {
+            Success = false;
+            Error = error;
+        }
+
+        public static ResolvedApproach Fail(string error) => new(error);
+
+        public void Deconstruct(out CifpApproachProcedure procedure, out RunwayInfo runway, out string airport)
+        {
+            procedure = Procedure!;
+            runway = Runway!;
+            airport = Airport!;
+        }
+    }
+}

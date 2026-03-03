@@ -345,6 +345,51 @@ public static class CommandDispatcher
             case JoinFinalApproachCourseCommand jfac:
                 return DispatchJfac(jfac, aircraft, approachLookup, runways, logger);
 
+            case ClearedApproachCommand capp:
+                return ApproachCommandHandler.TryClearedApproach(capp, aircraft, approachLookup, runways, fixes, logger);
+
+            case JoinApproachCommand japp:
+                return ApproachCommandHandler.TryJoinApproach(
+                    japp.ApproachId,
+                    japp.AirportCode,
+                    japp.Force,
+                    straightIn: false,
+                    aircraft,
+                    approachLookup,
+                    runways,
+                    fixes,
+                    logger
+                );
+
+            case ClearedApproachStraightInCommand cappsi:
+                return ApproachCommandHandler.TryJoinApproach(
+                    cappsi.ApproachId,
+                    cappsi.AirportCode,
+                    force: false,
+                    straightIn: true,
+                    aircraft,
+                    approachLookup,
+                    runways,
+                    fixes,
+                    logger
+                );
+
+            case JoinApproachStraightInCommand jappsi:
+                return ApproachCommandHandler.TryJoinApproach(
+                    jappsi.ApproachId,
+                    jappsi.AirportCode,
+                    force: false,
+                    straightIn: true,
+                    aircraft,
+                    approachLookup,
+                    runways,
+                    fixes,
+                    logger
+                );
+
+            case PositionTurnAltitudeClearanceCommand ptac:
+                return ApproachCommandHandler.TryPtac(ptac, aircraft, approachLookup, runways, logger);
+
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
@@ -1173,7 +1218,7 @@ public static class CommandDispatcher
         return Ok($"Join final approach course, {resolvedId}, runway {procedure.Runway}");
     }
 
-    private static string ResolveAirport(AircraftState aircraft)
+    internal static string ResolveAirport(AircraftState aircraft)
     {
         // Try destination airport from flight plan
         if (!string.IsNullOrWhiteSpace(aircraft.Destination))

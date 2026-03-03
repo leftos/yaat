@@ -337,7 +337,7 @@ User requirements:
 **Goal:** Full procedure navigation, approach clearance combos, intercept validation.
 
 ### New files (Yaat.Sim)
-- [ ] `src/Yaat.Sim/Commands/ApproachCommandHandler.cs` — Static methods:
+- [x] `src/Yaat.Sim/Commands/ApproachCommandHandler.cs` — Static methods:
   - `TryClearedApproach(aircraft, command, approachDb, fixes, runways, logger)`:
     - Resolve approach from ApproachDatabase
     - Handle rich CAPP forms: AT fix → queue DCT to fix first; DCT fix → queue DCT; CFIX → queue altitude constraint
@@ -356,7 +356,7 @@ User requirements:
     - Set approach clearance
     - Build phase sequence: `InterceptCoursePhase` → `FinalApproachPhase` → `LandingPhase`
 
-- [ ] `src/Yaat.Sim/Phases/Approach/ApproachNavigationPhase.cs`:
+- [x] `src/Yaat.Sim/Phases/Approach/ApproachNavigationPhase.cs`:
   - Navigates aircraft through approach fix sequence (from BuildApproachRoute)
   - Respects altitude/speed restrictions from CIFP legs (at-or-above → ensure aircraft climbs/descends to constraint before fix)
   - Hold-in-lieu: if `HasHoldInLieu` and NOT `StraightIn`, insert one circuit of holding at the CIFP-identified hold fix before continuing
@@ -364,8 +364,8 @@ User requirements:
   - Name: "Approach" (or "ApproachNav")
 
 ### Modified files
-- [ ] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Route CAPP/JAPP/CAPPSI/JAPPSI/CAPPF/JAPPF/PTAC to `ApproachCommandHandler` via `TryApplyTowerCommand()`
-- [ ] `src/Yaat.Sim/Phases/Tower/FinalApproachPhase.cs` — When `PhaseList.ActiveApproach` is set, use its runway info to initialize glideslope (currently gets runway from PhaseList.AssignedRunway, which we set in the approach handler)
+- [x] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Route CAPP/JAPP/CAPPSI/JAPPSI/CAPPF/JAPPF/PTAC to `ApproachCommandHandler` via `ApplyCommand()`
+- [x] `src/Yaat.Sim/Phases/Tower/FinalApproachPhase.cs` — Uses PhaseList.AssignedRunway set by approach handler
 
 ### Intercept Angle Validation (7110.65 §5-9-2 TBL 5-9-1)
 - Compute intercept angle: `abs(NormalizeAngle(aircraftHeading - finalApproachCourse))`
@@ -375,19 +375,19 @@ User requirements:
 - CAPPF/JAPPF: skip check entirely
 
 ### Aviation review
-- [ ] **aviation-sim-expert must review** approach navigation, hold-in-lieu execution, intercept validation
+- [x] **aviation-sim-expert must review** approach navigation, hold-in-lieu execution, intercept validation
 
 ### Tests
-- [ ] CAPP basic: approach navigation → final → landing
-- [ ] CAPP AT FIX: navigates to fix first, then approach
-- [ ] CAPP DCT FIX CFIX A034: DCT + altitude constraint + approach
-- [ ] JAPP: joins at nearest IAF
-- [ ] JAPP with hold-in-lieu: executes one hold circuit
-- [ ] CAPPSI/JAPPSI: skips hold-in-lieu
-- [ ] PTAC: heading → intercept → final approach → landing
-- [ ] Intercept rejection: 30° at ≥2nm, 20° at <2nm from gate + force override
-- [ ] CAPPF: bypasses intercept check
-- [ ] Speed restriction canceled on approach clearance
+- [x] CAPP basic: approach navigation → final → landing
+- [x] CAPP AT FIX: navigates to fix first, then approach
+- [x] CAPP DCT FIX CFIX A034: DCT + altitude constraint + approach
+- [x] JAPP: joins at nearest IAF
+- [x] JAPP with hold-in-lieu: executes one hold circuit
+- [x] CAPPSI/JAPPSI: skips hold-in-lieu
+- [x] PTAC: heading → intercept → final approach → landing
+- [x] Intercept rejection: 30° at ≥2nm, 20° at <2nm from gate + force override
+- [x] CAPPF: bypasses intercept check
+- [x] Speed restriction canceled on approach clearance
 
 ---
 
