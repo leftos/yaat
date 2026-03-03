@@ -431,6 +431,157 @@ public class CifpParserTests
         }
     }
 
+    // --- ParseTerminalWaypoints (per-airport) ---
+
+    [Fact]
+    public void ParseTerminalWaypoints_FiltersbyAirport()
+    {
+        var lines = new[]
+        {
+            BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818"),
+            BuildTerminalWaypointLine("KABQ", "CFDXH", "N35010000", "W106400000"),
+            BuildTerminalWaypointLine("KOAK", "CFOAK", "N37424600", "W122131200"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var waypoints = CifpParser.ParseTerminalWaypoints(tmpFile, "KABQ");
+
+            Assert.Equal(2, waypoints.Count);
+            Assert.True(waypoints.ContainsKey("CFPTK"));
+            Assert.True(waypoints.ContainsKey("CFDXH"));
+            Assert.False(waypoints.ContainsKey("CFOAK"));
+
+            // Verify coordinate parsing: N35°00'46.12" → 35.012811
+            var (lat, lon) = waypoints["CFPTK"];
+            Assert.Equal(35.0128, lat, precision: 3);
+            Assert.Equal(-106.7217, lon, precision: 3);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseTerminalWaypoints_EmptyForUnknownAirport()
+    {
+        var lines = new[] { BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818") };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var waypoints = CifpParser.ParseTerminalWaypoints(tmpFile, "KJFK");
+
+            Assert.Empty(waypoints);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    // --- RF/AF arc field extraction ---
+
+    [Fact]
+    public void ParseApproaches_RfLeg_ExtractsArcData()
+    {
+        // Build an approach with an RF leg including arc radius, center fix, theta
+        var lines = new[]
+        {
+            // Terminal waypoint for the center fix
+            BuildTerminalWaypointLine("KABQ", "CFPTK", "N35004612", "W106431818"),
+            // RF leg with arc radius 002790 (2.790 NM), theta 1234 (123.4°), center fix CFPTK
+            BuildArcApproachLine(
+                "KABQ",
+                "H03Z  ",
+                ' ',
+                "",
+                10,
+                "WAYPT",
+                CifpFixRole.None,
+                "RF",
+                arcRadius: "002790",
+                theta: "1234",
+                rho: "0000",
+                centerFix: "CFPTK",
+                turnDir: 'R'
+            ),
+            BuildFullApproachLine("KABQ", "H03Z  ", ' ', "", 20, "RW03 ", CifpFixRole.MAHP, "TF"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KABQ");
+
+            Assert.Single(approaches);
+            var rfLeg = approaches[0].CommonLegs[0];
+            Assert.Equal(CifpPathTerminator.RF, rfLeg.PathTerminator);
+            Assert.Equal(2.79, rfLeg.ArcRadiusNm!.Value, precision: 3);
+            Assert.Equal(123.4, rfLeg.Theta!.Value, precision: 1);
+            Assert.Equal('R', rfLeg.TurnDirection);
+            // Center fix resolved from terminal waypoints
+            Assert.NotNull(rfLeg.ArcCenterLat);
+            Assert.NotNull(rfLeg.ArcCenterLon);
+            Assert.Equal(35.0128, rfLeg.ArcCenterLat!.Value, precision: 3);
+            Assert.Equal(-106.7217, rfLeg.ArcCenterLon!.Value, precision: 3);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
+    [Fact]
+    public void ParseApproaches_AfLeg_ExtractsNavaidAndRho()
+    {
+        var lines = new[]
+        {
+            // AF leg with recommended navaid ABQ, rho 0100 (10.0 NM), theta 2700 (270.0°)
+            BuildArcApproachLine(
+                "KABQ",
+                "D28   ",
+                ' ',
+                "",
+                10,
+                "DMFIX",
+                CifpFixRole.None,
+                "AF",
+                arcRadius: "000000",
+                theta: "2700",
+                rho: "0100",
+                centerFix: "     ",
+                turnDir: 'L',
+                navaid: "ABQ  "
+            ),
+            BuildFullApproachLine("KABQ", "D28   ", ' ', "", 20, "RW28 ", CifpFixRole.MAHP, "TF"),
+        };
+
+        var tmpFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(tmpFile, lines);
+            var approaches = CifpParser.ParseApproaches(tmpFile, "KABQ");
+
+            Assert.Single(approaches);
+            var afLeg = approaches[0].CommonLegs[0];
+            Assert.Equal(CifpPathTerminator.AF, afLeg.PathTerminator);
+            Assert.Equal("ABQ", afLeg.RecommendedNavaidId);
+            Assert.Equal(10.0, afLeg.Rho!.Value, precision: 1);
+            Assert.Equal(270.0, afLeg.Theta!.Value, precision: 1);
+            Assert.Equal('L', afLeg.TurnDirection);
+        }
+        finally
+        {
+            File.Delete(tmpFile);
+        }
+    }
+
     // --- SID/STAR parser tests ---
 
     [Fact]
@@ -741,6 +892,79 @@ public class CifpParserTests
         ident.PadRight(5).CopyTo(0, line, 13, 5);
         latArinc.CopyTo(0, line, 32, latArinc.Length);
         lonArinc.CopyTo(0, line, 32 + latArinc.Length, lonArinc.Length);
+        return new string(line);
+    }
+
+    /// <summary>
+    /// Builds an ARINC 424 approach record with arc-specific fields (RF/AF legs).
+    /// Line is 120 chars, with arc radius, theta, rho, center fix, and optional navaid.
+    /// </summary>
+    private static string BuildArcApproachLine(
+        string icao,
+        string approachId,
+        char routeType,
+        string transition,
+        int sequence,
+        string fixId,
+        CifpFixRole fixRole,
+        string pathTerminator,
+        string arcRadius,
+        string theta,
+        string rho,
+        string centerFix,
+        char turnDir,
+        string navaid = "     "
+    )
+    {
+        var line = new char[120];
+        Array.Fill(line, ' ');
+        "SUSAP".CopyTo(0, line, 0, 5);
+        icao.PadRight(4).CopyTo(0, line, 6, 4);
+        line[12] = 'F';
+        approachId.PadRight(6).CopyTo(0, line, 13, 6);
+        line[19] = routeType == '\0' ? ' ' : routeType;
+        if (transition.Length > 0)
+        {
+            transition.PadRight(5).CopyTo(0, line, 20, 5);
+        }
+
+        sequence.ToString("D3").CopyTo(0, line, 26, 3);
+        fixId.PadRight(5).CopyTo(0, line, 29, 5);
+
+        line[42] = fixRole switch
+        {
+            CifpFixRole.IAF => 'A',
+            CifpFixRole.IF => 'B',
+            CifpFixRole.FAF => 'F',
+            CifpFixRole.MAHP => 'M',
+            _ => ' ',
+        };
+
+        // Turn direction at position 43
+        line[43] = turnDir;
+
+        // Path terminator at positions 47-48
+        if (pathTerminator.Length >= 2)
+        {
+            line[47] = pathTerminator[0];
+            line[48] = pathTerminator[1];
+        }
+
+        // Recommended navaid at positions 49-53
+        navaid.PadRight(5).CopyTo(0, line, 49, 5);
+
+        // Arc radius at positions 55-60
+        arcRadius.PadRight(6).CopyTo(0, line, 55, 6);
+
+        // Theta at positions 61-64
+        theta.PadRight(4).CopyTo(0, line, 61, 4);
+
+        // Rho at positions 65-68
+        rho.PadRight(4).CopyTo(0, line, 65, 4);
+
+        // Center fix at positions 105-109
+        centerFix.PadRight(5).CopyTo(0, line, 105, 5);
+
         return new string(line);
     }
 

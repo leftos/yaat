@@ -53,7 +53,13 @@ public sealed record CifpLeg(
     int Sequence,
     double? OutboundCourse,
     double? LegDistanceNm,
-    double? VerticalAngle
+    double? VerticalAngle,
+    double? ArcRadiusNm = null,
+    double? ArcCenterLat = null,
+    double? ArcCenterLon = null,
+    string? RecommendedNavaidId = null,
+    double? Theta = null,
+    double? Rho = null
 );
 
 public sealed record CifpTransition(string Name, IReadOnlyList<CifpLeg> Legs);

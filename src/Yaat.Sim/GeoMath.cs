@@ -78,6 +78,61 @@ public static class GeoMath
     }
 
     /// <summary>
+    /// Generates intermediate waypoints along a circular arc from startBearing to endBearing,
+    /// centered at (centerLat, centerLon) with the given radius.
+    /// Does NOT include the start point; DOES include the end point.
+    /// </summary>
+    public static List<(double Lat, double Lon)> GenerateArcPoints(
+        double centerLat,
+        double centerLon,
+        double radiusNm,
+        double startBearingDeg,
+        double endBearingDeg,
+        bool turnRight,
+        double stepDeg = 5.0
+    )
+    {
+        var points = new List<(double Lat, double Lon)>();
+
+        double current = startBearingDeg;
+        double totalSweep;
+
+        if (turnRight)
+        {
+            totalSweep = endBearingDeg - startBearingDeg;
+            if (totalSweep <= 0)
+            {
+                totalSweep += 360.0;
+            }
+        }
+        else
+        {
+            totalSweep = startBearingDeg - endBearingDeg;
+            if (totalSweep <= 0)
+            {
+                totalSweep += 360.0;
+            }
+        }
+
+        double swept = 0;
+        while (swept + stepDeg < totalSweep)
+        {
+            swept += stepDeg;
+            current = turnRight ? startBearingDeg + swept : startBearingDeg - swept;
+            current = ((current % 360.0) + 360.0) % 360.0;
+
+            var pt = ProjectPoint(centerLat, centerLon, current, radiusNm);
+            points.Add(pt);
+        }
+
+        // Always include the end point at exact end bearing
+        var endPt = ProjectPoint(centerLat, centerLon, endBearingDeg, radiusNm);
+        points.Add(endPt);
+
+        return points;
+    }
+
+    /// <summary>
     /// Signed perpendicular distance from a point to a line defined by
     /// a reference point and heading. Positive = right of heading, negative = left.
     /// </summary>

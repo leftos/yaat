@@ -119,7 +119,15 @@ public static class FlightPhysics
 
         if (target.SpeedRestriction is { } spd)
         {
-            aircraft.Targets.TargetSpeed = spd.SpeedKts;
+            double targetSpeed = spd.SpeedKts;
+
+            // 14 CFR 91.117: cap speed restrictions at 250 KIAS below 10,000 ft MSL.
+            if (!aircraft.IsOnGround && aircraft.Altitude < 10_000)
+            {
+                targetSpeed = Math.Min(targetSpeed, 250);
+            }
+
+            aircraft.Targets.TargetSpeed = targetSpeed;
         }
     }
 
@@ -279,6 +287,12 @@ public static class FlightPhysics
         if (aircraft.IsOnGround && aircraft.GroundSpeedLimit is { } limit)
         {
             goal = Math.Min(goal, limit);
+        }
+
+        // 14 CFR 91.117: max 250 KIAS below 10,000 ft MSL when airborne.
+        if (!aircraft.IsOnGround && aircraft.Altitude < 10_000)
+        {
+            goal = Math.Min(goal, 250);
         }
 
         double diff = goal - current;

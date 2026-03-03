@@ -520,6 +520,7 @@ public static class ApproachCommandHandler
     private static List<ApproachFix> BuildApproachFixes(CifpApproachProcedure procedure, IFixLookup? fixes)
     {
         var result = new List<ApproachFix>();
+        (double Lat, double Lon)? previousFixPos = null;
 
         foreach (var leg in procedure.CommonLegs)
         {
@@ -534,16 +535,88 @@ public static class ApproachCommandHandler
                 break;
             }
 
+            // Skip procedure turn legs (handled by hold-in-lieu)
+            if (leg.PathTerminator == CifpPathTerminator.PI)
+            {
+                continue;
+            }
+
             var pos = fixes?.GetFixPosition(leg.FixIdentifier);
             if (pos is null)
             {
                 continue;
             }
 
+            // RF leg: expand arc from previous fix to terminator fix
+            if (
+                leg.PathTerminator == CifpPathTerminator.RF
+                && leg.ArcCenterLat is not null
+                && leg.ArcCenterLon is not null
+                && leg.ArcRadiusNm is not null
+                && previousFixPos is not null
+            )
+            {
+                ExpandApproachArcFixes(
+                    result,
+                    leg.ArcCenterLat.Value,
+                    leg.ArcCenterLon.Value,
+                    leg.ArcRadiusNm.Value,
+                    previousFixPos.Value,
+                    pos.Value,
+                    leg.TurnDirection == 'R'
+                );
+            }
+
+            // AF leg: expand DME arc from previous fix to terminator fix
+            if (
+                leg.PathTerminator == CifpPathTerminator.AF
+                && leg.RecommendedNavaidId is not null
+                && leg.Rho is not null
+                && previousFixPos is not null
+            )
+            {
+                var navaidPos = fixes?.GetFixPosition(leg.RecommendedNavaidId);
+                if (navaidPos is not null)
+                {
+                    ExpandApproachArcFixes(
+                        result,
+                        navaidPos.Value.Lat,
+                        navaidPos.Value.Lon,
+                        leg.Rho.Value,
+                        previousFixPos.Value,
+                        pos.Value,
+                        leg.TurnDirection != 'L'
+                    );
+                }
+            }
+
             result.Add(new ApproachFix(leg.FixIdentifier, pos.Value.Lat, pos.Value.Lon, leg.Altitude, leg.Speed?.SpeedKts, leg.FixRole));
+            previousFixPos = (pos.Value.Lat, pos.Value.Lon);
         }
 
         return result;
+    }
+
+    private static void ExpandApproachArcFixes(
+        List<ApproachFix> result,
+        double centerLat,
+        double centerLon,
+        double radiusNm,
+        (double Lat, double Lon) previousFix,
+        (double Lat, double Lon) terminatorFix,
+        bool turnRight
+    )
+    {
+        double startBearing = GeoMath.BearingTo(centerLat, centerLon, previousFix.Lat, previousFix.Lon);
+        double endBearing = GeoMath.BearingTo(centerLat, centerLon, terminatorFix.Lat, terminatorFix.Lon);
+
+        var arcPoints = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight);
+
+        // Insert intermediate points (skip the last one — that's the terminator fix)
+        for (int i = 0; i < arcPoints.Count - 1; i++)
+        {
+            result.Add(new ApproachFix($"ARC{i + 1:D2}", arcPoints[i].Lat, arcPoints[i].Lon));
+        }
     }
 
     private static List<ApproachFix> TrimToNearestEntry(List<ApproachFix> fixes, AircraftState aircraft)

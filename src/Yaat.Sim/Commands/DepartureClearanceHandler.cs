@@ -614,12 +614,22 @@ internal static class DepartureClearanceHandler
     /// <summary>
     /// Converts CIFP legs to NavigationTargets with altitude/speed constraints.
     /// Resolves fix positions, skips unknown fixes, carries restrictions.
+    /// RF/AF legs are expanded into intermediate arc waypoints.
+    /// PI (procedure turn) legs are skipped in SID/STAR context.
     /// </summary>
     internal static List<NavigationTarget> ResolveLegsToTargets(IReadOnlyList<CifpLeg> legs, IFixLookup fixes)
     {
         var targets = new List<NavigationTarget>();
+        (double Lat, double Lon)? previousFixPos = null;
+
         foreach (var leg in legs)
         {
+            // Skip procedure turn legs in SID/STAR context (approach-only, handled by hold-in-lieu)
+            if (leg.PathTerminator == CifpPathTerminator.PI)
+            {
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(leg.FixIdentifier))
             {
                 continue;
@@ -634,9 +644,54 @@ internal static class DepartureClearanceHandler
             // Deduplicate adjacent identical fix names
             if (targets.Count > 0 && string.Equals(targets[^1].Name, leg.FixIdentifier, StringComparison.OrdinalIgnoreCase))
             {
+                previousFixPos = (pos.Value.Lat, pos.Value.Lon);
                 continue;
             }
 
+            // RF leg: expand arc from previous fix to terminator fix
+            if (
+                leg.PathTerminator == CifpPathTerminator.RF
+                && leg.ArcCenterLat is not null
+                && leg.ArcCenterLon is not null
+                && leg.ArcRadiusNm is not null
+                && previousFixPos is not null
+            )
+            {
+                ExpandArcWaypoints(
+                    targets,
+                    leg.ArcCenterLat.Value,
+                    leg.ArcCenterLon.Value,
+                    leg.ArcRadiusNm.Value,
+                    previousFixPos.Value,
+                    pos.Value,
+                    leg.TurnDirection == 'R'
+                );
+            }
+
+            // AF leg: expand DME arc from previous fix to terminator fix
+            if (
+                leg.PathTerminator == CifpPathTerminator.AF
+                && leg.RecommendedNavaidId is not null
+                && leg.Rho is not null
+                && previousFixPos is not null
+            )
+            {
+                var navaidPos = fixes.GetFixPosition(leg.RecommendedNavaidId);
+                if (navaidPos is not null)
+                {
+                    ExpandArcWaypoints(
+                        targets,
+                        navaidPos.Value.Lat,
+                        navaidPos.Value.Lon,
+                        leg.Rho.Value,
+                        previousFixPos.Value,
+                        pos.Value,
+                        leg.TurnDirection != 'L'
+                    );
+                }
+            }
+
+            // Add the terminator fix with constraints
             targets.Add(
                 new NavigationTarget
                 {
@@ -647,8 +702,43 @@ internal static class DepartureClearanceHandler
                     SpeedRestriction = leg.Speed,
                 }
             );
+
+            previousFixPos = (pos.Value.Lat, pos.Value.Lon);
         }
         return targets;
+    }
+
+    /// <summary>
+    /// Expands an arc between two fixes into intermediate waypoints.
+    /// Computes start/end bearings from the arc center and generates points along the arc.
+    /// </summary>
+    private static void ExpandArcWaypoints(
+        List<NavigationTarget> targets,
+        double centerLat,
+        double centerLon,
+        double radiusNm,
+        (double Lat, double Lon) previousFix,
+        (double Lat, double Lon) terminatorFix,
+        bool turnRight
+    )
+    {
+        double startBearing = GeoMath.BearingTo(centerLat, centerLon, previousFix.Lat, previousFix.Lon);
+        double endBearing = GeoMath.BearingTo(centerLat, centerLon, terminatorFix.Lat, terminatorFix.Lon);
+
+        var arcPoints = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight);
+
+        // Insert intermediate points (skip the last one — that's the terminator fix itself)
+        for (int i = 0; i < arcPoints.Count - 1; i++)
+        {
+            targets.Add(
+                new NavigationTarget
+                {
+                    Name = $"ARC{i + 1:D2}",
+                    Latitude = arcPoints[i].Lat,
+                    Longitude = arcPoints[i].Lon,
+                }
+            );
+        }
     }
 
     /// <summary>

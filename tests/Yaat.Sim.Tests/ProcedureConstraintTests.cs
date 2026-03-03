@@ -194,6 +194,74 @@ public class ProcedureConstraintTests
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
 
+    // --- 14 CFR 91.117: 250 KIAS below 10,000 ft ---
+
+    [Fact]
+    public void UpdateSpeed_Below10000_CapsAt250()
+    {
+        var aircraft = CreateAircraft(altitude: 5000, ias: 250);
+        aircraft.Targets.TargetSpeed = 300;
+
+        FlightPhysics.Update(aircraft, 1.0);
+
+        // Should be decelerating toward 250 (the capped goal), not accelerating toward 300
+        Assert.True(aircraft.IndicatedAirspeed <= 250);
+    }
+
+    [Fact]
+    public void UpdateSpeed_Above10000_NoSpeedCap()
+    {
+        var aircraft = CreateAircraft(altitude: 12000, ias: 280);
+        aircraft.Targets.TargetSpeed = 300;
+
+        FlightPhysics.Update(aircraft, 1.0);
+
+        // Should be accelerating toward 300 (no cap above 10,000 ft)
+        Assert.True(aircraft.IndicatedAirspeed > 280);
+    }
+
+    [Fact]
+    public void UpdateSpeed_OnGround_NoSpeedCap()
+    {
+        var aircraft = CreateAircraft(altitude: 100, ias: 30);
+        aircraft.IsOnGround = true;
+        aircraft.GroundSpeed = 30;
+        aircraft.Targets.TargetSpeed = 300;
+
+        FlightPhysics.Update(aircraft, 1.0);
+
+        // Ground ops are not subject to 250 KIAS rule
+        Assert.True(aircraft.IndicatedAirspeed > 30);
+    }
+
+    [Fact]
+    public void ApplyFixConstraints_SpeedRestrictionCappedBelow10000()
+    {
+        var aircraft = CreateAircraft(altitude: 5000);
+        aircraft.SidViaMode = true;
+        aircraft.ActiveSidId = "PORTE3";
+
+        var target = MakeTarget(spd: new CifpSpeedRestriction(280, IsMaximum: true));
+        FlightPhysics.ApplyFixConstraints(aircraft, target);
+
+        // Speed restriction of 280 should be capped to 250 below 10,000 ft
+        Assert.Equal(250, aircraft.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void ApplyFixConstraints_SpeedRestrictionNotCappedAbove10000()
+    {
+        var aircraft = CreateAircraft(altitude: 12000);
+        aircraft.SidViaMode = true;
+        aircraft.ActiveSidId = "PORTE3";
+
+        var target = MakeTarget(spd: new CifpSpeedRestriction(280, IsMaximum: true));
+        FlightPhysics.ApplyFixConstraints(aircraft, target);
+
+        // Above 10,000 ft — no cap
+        Assert.Equal(280, aircraft.Targets.TargetSpeed);
+    }
+
     [Fact]
     public void ProcedureState_ClearedOnRouteCompletion()
     {

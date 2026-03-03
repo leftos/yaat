@@ -110,9 +110,10 @@ AircraftState.cs               # Mutable entity: position, flight plan, identity
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
                                # NavigationTarget: optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
 FlightPhysics.cs               # Static 6-step Update: navigation→heading→altitude→speed→position→queue
+                               # 14 CFR 91.117: 250 KIAS cap below 10,000 ft in UpdateSpeed() and ApplyFixConstraints()
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
                                # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
-GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward
+GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF)
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
 CommandQueue.cs                # CommandBlock (trigger + closure + TrackedCommands), BlockTrigger
@@ -146,8 +147,8 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
-Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CVA visual approach)
-Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution (runway transitions, ResolveLegsToTargets)
+Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
+Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution (runway transitions, ResolveLegsToTargets with RF/AF arc expansion)
 Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, etc.)
 
@@ -227,7 +228,9 @@ AircraftSpecEntry.cs           # VNAS aircraft specs model
 AircraftCwtEntry.cs            # VNAS aircraft CWT model
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
 CifpParser.cs                  # ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E); FAF fixes, terminal waypoints
+                               # ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix resolution
 CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSidProcedure, CifpStarProcedure, CifpLeg, CifpTransition
+                               # CifpLeg: ArcRadiusNm, ArcCenterLat/Lon (RF), RecommendedNavaidId, Theta, Rho (AF)
 
 # Scenarios/
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult

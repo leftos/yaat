@@ -611,6 +611,190 @@ public class ProcedureLoadingTests
         Assert.Equal(2, targets.Count);
     }
 
+    // --- GenerateArcPoints ---
+
+    [Fact]
+    public void GenerateArcPoints_RightTurn_ProducesCorrectArc()
+    {
+        double centerLat = 37.0;
+        double centerLon = -122.0;
+        double radiusNm = 3.0;
+        double startBearing = 0; // North
+        double endBearing = 90; // East (90° clockwise sweep)
+
+        var points = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight: true, stepDeg: 30);
+
+        // 90° sweep at 30° steps = 3 intermediate points (30°, 60°) + end point (90°) = 3 points
+        Assert.Equal(3, points.Count);
+
+        // Each point should be approximately radiusNm from center
+        foreach (var (lat, lon) in points)
+        {
+            double dist = GeoMath.DistanceNm(centerLat, centerLon, lat, lon);
+            Assert.Equal(radiusNm, dist, precision: 1);
+        }
+
+        // Last point should match the end bearing (east of center)
+        var last = points[^1];
+        double lastBearing = GeoMath.BearingTo(centerLat, centerLon, last.Lat, last.Lon);
+        Assert.Equal(endBearing, lastBearing, precision: 0);
+    }
+
+    [Fact]
+    public void GenerateArcPoints_LeftTurn_ProducesCorrectArc()
+    {
+        double centerLat = 37.0;
+        double centerLon = -122.0;
+        double radiusNm = 3.0;
+        double startBearing = 90; // East
+        double endBearing = 0; // North (90° counter-clockwise sweep)
+
+        var points = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight: false, stepDeg: 30);
+
+        // 90° sweep at 30° steps = 3 intermediate points + end point = 3
+        Assert.Equal(3, points.Count);
+
+        foreach (var (lat, lon) in points)
+        {
+            double dist = GeoMath.DistanceNm(centerLat, centerLon, lat, lon);
+            Assert.Equal(radiusNm, dist, precision: 1);
+        }
+    }
+
+    [Fact]
+    public void GenerateArcPoints_WrapAround_HandledCorrectly()
+    {
+        double centerLat = 37.0;
+        double centerLon = -122.0;
+        double radiusNm = 5.0;
+        double startBearing = 350; // NNW
+        double endBearing = 10; // NNE (20° clockwise sweep, wrapping through 360)
+
+        var points = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, startBearing, endBearing, turnRight: true, stepDeg: 5);
+
+        // 20° sweep at 5° steps = 3 intermediate + 1 end = 4
+        Assert.Equal(4, points.Count);
+
+        foreach (var (lat, lon) in points)
+        {
+            double dist = GeoMath.DistanceNm(centerLat, centerLon, lat, lon);
+            Assert.Equal(radiusNm, dist, precision: 1);
+        }
+    }
+
+    // --- Arc-aware ResolveLegsToTargets ---
+
+    [Fact]
+    public void ResolveLegsToTargets_RfLeg_ExpandsToArcWaypoints()
+    {
+        // Center at (37.0, -122.0), radius 3nm
+        // Previous fix at bearing 0° from center, terminator at bearing 90°
+        var centerLat = 37.0;
+        var centerLon = -122.0;
+        double radius = 3.0;
+        var startPt = GeoMath.ProjectPoint(centerLat, centerLon, 0, radius);
+        var endPt = GeoMath.ProjectPoint(centerLat, centerLon, 90, radius);
+
+        var fixes = new TestFixLookup(fixes: new Dictionary<string, (double Lat, double Lon)> { ["FIX1"] = startPt, ["FIX2"] = endPt });
+
+        var legs = new List<CifpLeg>
+        {
+            new("FIX1", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
+            new(
+                "FIX2",
+                CifpPathTerminator.RF,
+                'R',
+                null,
+                null,
+                CifpFixRole.None,
+                20,
+                null,
+                null,
+                null,
+                ArcRadiusNm: radius,
+                ArcCenterLat: centerLat,
+                ArcCenterLon: centerLon
+            ),
+        };
+
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, fixes);
+
+        // Should have: FIX1, intermediate arc points, FIX2
+        Assert.True(targets.Count > 2, $"Expected arc expansion, got {targets.Count} targets");
+        Assert.Equal("FIX1", targets[0].Name);
+        Assert.Equal("FIX2", targets[^1].Name);
+
+        // Intermediate points should be named ARC01, ARC02, etc.
+        for (int i = 1; i < targets.Count - 1; i++)
+        {
+            Assert.StartsWith("ARC", targets[i].Name);
+        }
+    }
+
+    [Fact]
+    public void ResolveLegsToTargets_AfLeg_ExpandsToArcWaypoints()
+    {
+        // Navaid at center, DME arc of 10nm
+        var navaidLat = 37.0;
+        var navaidLon = -122.0;
+        double rho = 10.0;
+        var startPt = GeoMath.ProjectPoint(navaidLat, navaidLon, 180, rho);
+        var endPt = GeoMath.ProjectPoint(navaidLat, navaidLon, 270, rho);
+
+        var fixes = new TestFixLookup(
+            fixes: new Dictionary<string, (double Lat, double Lon)>
+            {
+                ["FIX1"] = startPt,
+                ["FIX2"] = endPt,
+                ["ABQ"] = (navaidLat, navaidLon),
+            }
+        );
+
+        var legs = new List<CifpLeg>
+        {
+            new("FIX1", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
+            new(
+                "FIX2",
+                CifpPathTerminator.AF,
+                'R',
+                null,
+                null,
+                CifpFixRole.None,
+                20,
+                null,
+                null,
+                null,
+                RecommendedNavaidId: "ABQ",
+                Rho: rho,
+                Theta: 270.0
+            ),
+        };
+
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, fixes);
+
+        Assert.True(targets.Count > 2, $"Expected arc expansion, got {targets.Count} targets");
+        Assert.Equal("FIX1", targets[0].Name);
+        Assert.Equal("FIX2", targets[^1].Name);
+    }
+
+    [Fact]
+    public void ResolveLegsToTargets_SkipsProcedureTurnLegs()
+    {
+        var fixes = CreateFixLookup();
+        var legs = new List<CifpLeg>
+        {
+            new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
+            new("PORTE", CifpPathTerminator.PI, null, null, null, CifpFixRole.None, 20, null, null, null),
+            new("OAK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null),
+        };
+
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, fixes);
+
+        Assert.Equal(2, targets.Count);
+        Assert.Equal("MOLEN", targets[0].Name);
+        Assert.Equal("OAK", targets[1].Name);
+    }
+
     // --- Helper ---
 
     private static RunwayInfo MakeRunway(string designator) =>
