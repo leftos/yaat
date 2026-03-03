@@ -17,7 +17,13 @@ public sealed class HoldPresentPositionPhase : Phase
     /// <summary>Turn direction for winged aircraft. Null = helicopter hover.</summary>
     public TurnDirection? OrbitDirection { get; init; }
 
-    public override string Name => OrbitDirection is not null ? "HPP" : "HPP";
+    public override string Name =>
+        OrbitDirection switch
+        {
+            TurnDirection.Left => "HPP-L",
+            TurnDirection.Right => "HPP-R",
+            _ => "HPP",
+        };
 
     public override void OnStart(PhaseContext ctx)
     {

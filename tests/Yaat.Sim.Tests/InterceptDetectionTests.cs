@@ -113,7 +113,7 @@ public class InterceptDetectionTests
     {
         // Project aircraft position along reciprocal of runway heading
         double reciprocal = (TestRunway.TrueHeading + 180) % 360;
-        var (lat, lon) = FlightPhysics.ProjectPoint(TestRunway.ThresholdLatitude, TestRunway.ThresholdLongitude, reciprocal, distanceNm);
+        var (lat, lon) = GeoMath.ProjectPoint(TestRunway.ThresholdLatitude, TestRunway.ThresholdLongitude, reciprocal, distanceNm);
 
         var phaseList = new PhaseList { AssignedRunway = TestRunway };
 

@@ -340,6 +340,18 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>Minimum groundspeed (kts) for a rejected landing / go-around during rollout.</summary>
+    public static double RejectedLandingMinSpeed(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 60,
+            AircraftCategory.Turboprop => 50,
+            AircraftCategory.Piston => 40,
+            _ => 60,
+        };
+    }
+
     /// <summary>Maximum holding speed (KIAS) per AIM altitude band.</summary>
     public static double MaxHoldingSpeed(double altitude)
     {

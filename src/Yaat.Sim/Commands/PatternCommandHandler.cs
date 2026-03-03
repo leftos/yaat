@@ -59,7 +59,7 @@ internal static class PatternCommandHandler
                     : FlightPhysics.NormalizeHeading(runway.TrueHeading - 90.0);
 
             // Positive = pattern side, negative = wrong side
-            double patternSideOffset = FlightPhysics.AlongTrackDistanceNm(
+            double patternSideOffset = GeoMath.AlongTrackDistanceNm(
                 aircraft.Latitude,
                 aircraft.Longitude,
                 runway.ThresholdLatitude,
@@ -183,24 +183,48 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryExtendPattern(AircraftState aircraft)
     {
-        var phase = aircraft.Phases?.CurrentPhase;
-        switch (phase)
+        if (aircraft.Phases?.CurrentPhase is not DownwindPhase dw)
         {
-            case UpwindPhase p:
-                p.IsExtended = true;
-                return CommandDispatcher.Ok("Extend upwind");
-            case CrosswindPhase p:
-                p.IsExtended = true;
-                return CommandDispatcher.Ok("Extend crosswind");
-            case DownwindPhase p:
-                p.IsExtended = true;
-                return CommandDispatcher.Ok("Extend downwind");
-            case BasePhase p:
-                p.IsExtended = true;
-                return CommandDispatcher.Ok("Extend base");
-            default:
-                return new CommandResult(false, "Not in the pattern");
+            return new CommandResult(false, "Extend applies on downwind only");
         }
+
+        dw.IsExtended = true;
+        return CommandDispatcher.Ok("Extend downwind");
+    }
+
+    internal static CommandResult TryMakeShortApproach(AircraftState aircraft, ILogger logger)
+    {
+        if (aircraft.Phases?.CurrentPhase is DownwindPhase)
+        {
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            aircraft.Phases.SkipTo<BasePhase>(ctx);
+            return CommandDispatcher.Ok("Make short approach");
+        }
+
+        if (aircraft.Phases?.CurrentPhase is BasePhase bp)
+        {
+            bp.FinalDistanceNm = 0.5;
+            return CommandDispatcher.Ok("Make short approach");
+        }
+
+        return new CommandResult(false, "Make short approach requires downwind or base leg");
+    }
+
+    internal static CommandResult TryMakeTurn(AircraftState aircraft, TurnDirection direction, double degrees, ILogger logger)
+    {
+        if (aircraft.Phases is null || aircraft.Phases.IsComplete)
+        {
+            return new CommandResult(false, "No active phase for turn");
+        }
+
+        var turnPhase = new MakeTurnPhase { Direction = direction, TargetDegrees = degrees };
+        aircraft.Phases.InsertAfterCurrent(turnPhase);
+
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+        aircraft.Phases.AdvanceToNext(ctx);
+
+        var dirStr = direction == TurnDirection.Left ? "left" : "right";
+        return CommandDispatcher.Ok($"Make {dirStr} {degrees:F0}");
     }
 
     internal static CommandResult TrySetupTouchAndGo(AircraftState aircraft)
@@ -240,7 +264,7 @@ internal static class PatternCommandHandler
             return new CommandResult(false, "Aircraft has no active phase sequence");
         }
 
-        aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        aircraft.Phases.LandingClearance = ClearanceType.ClearedLowApproach;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
         EnsurePatternMode(aircraft.Phases);
         CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LowApproachPhase());

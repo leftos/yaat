@@ -36,6 +36,7 @@ public sealed class UpwindPhase : Phase
 
         ctx.Targets.TargetHeading = Waypoints.UpwindHeading;
         ctx.Targets.PreferredTurnDirection = null;
+        ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         ctx.Targets.NavigationRoute.Clear();
 
         // Climb to pattern altitude
@@ -53,7 +54,7 @@ public sealed class UpwindPhase : Phase
             return false;
         }
 
-        double dist = FlightPhysics.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
         return dist < ArrivalNm;
     }

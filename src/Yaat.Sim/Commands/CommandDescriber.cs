@@ -45,6 +45,13 @@ public static class CommandDescriber
             TurnDownwindCommand => CanonicalCommandType.TurnDownwind,
             TurnBaseCommand => CanonicalCommandType.TurnBase,
             ExtendDownwindCommand => CanonicalCommandType.ExtendDownwind,
+            MakeShortApproachCommand => CanonicalCommandType.MakeShortApproach,
+            MakeLeft360Command => CanonicalCommandType.MakeLeft360,
+            MakeRight360Command => CanonicalCommandType.MakeRight360,
+            MakeLeft270Command => CanonicalCommandType.MakeLeft270,
+            MakeRight270Command => CanonicalCommandType.MakeRight270,
+            CircleAirportCommand => CanonicalCommandType.CircleAirport,
+            SequenceCommand => CanonicalCommandType.Sequence,
             TouchAndGoCommand => CanonicalCommandType.TouchAndGo,
             StopAndGoCommand => CanonicalCommandType.StopAndGo,
             LowApproachCommand => CanonicalCommandType.LowApproach,
@@ -133,6 +140,13 @@ public static class CommandDescriber
             TurnDownwindCommand => "TD",
             TurnBaseCommand => "TB",
             ExtendDownwindCommand => "EXT",
+            MakeShortApproachCommand => "SA",
+            MakeLeft360Command => "L360",
+            MakeRight360Command => "R360",
+            MakeLeft270Command => "L270",
+            MakeRight270Command => "R270",
+            CircleAirportCommand => "CA",
+            SequenceCommand seq => seq.FollowCallsign is not null ? $"SEQ {seq.Number} {seq.FollowCallsign}" : $"SEQ {seq.Number}",
             TouchAndGoCommand => "TG",
             StopAndGoCommand => "SG",
             LowApproachCommand => "LA",
@@ -198,6 +212,15 @@ public static class CommandDescriber
             TurnDownwindCommand => "Turn downwind",
             TurnBaseCommand => "Turn base",
             ExtendDownwindCommand => "Extend downwind",
+            MakeShortApproachCommand => "Make short approach",
+            MakeLeft360Command => "Make left 360",
+            MakeRight360Command => "Make right 360",
+            MakeLeft270Command => "Make left 270",
+            MakeRight270Command => "Make right 270",
+            CircleAirportCommand => "Circle airport",
+            SequenceCommand seq => seq.FollowCallsign is not null
+                ? $"Number {seq.Number}, follow {seq.FollowCallsign}"
+                : $"Number {seq.Number} in sequence",
             TouchAndGoCommand => "Cleared touch-and-go",
             StopAndGoCommand => "Cleared stop-and-go",
             LowApproachCommand => "Cleared low approach",
@@ -246,6 +269,13 @@ public static class CommandDescriber
                 or TurnDownwindCommand
                 or TurnBaseCommand
                 or ExtendDownwindCommand
+                or MakeShortApproachCommand
+                or MakeLeft360Command
+                or MakeRight360Command
+                or MakeLeft270Command
+                or MakeRight270Command
+                or CircleAirportCommand
+                or SequenceCommand
                 or TouchAndGoCommand
                 or StopAndGoCommand
                 or LowApproachCommand

@@ -113,6 +113,20 @@ public record TurnBaseCommand : ParsedCommand;
 
 public record ExtendDownwindCommand : ParsedCommand;
 
+public record MakeShortApproachCommand : ParsedCommand;
+
+public record MakeLeft360Command : ParsedCommand;
+
+public record MakeRight360Command : ParsedCommand;
+
+public record MakeLeft270Command : ParsedCommand;
+
+public record MakeRight270Command : ParsedCommand;
+
+public record CircleAirportCommand : ParsedCommand;
+
+public record SequenceCommand(int Number, string? FollowCallsign) : ParsedCommand;
+
 // Option approach / special ops commands
 public record TouchAndGoCommand : ParsedCommand;
 

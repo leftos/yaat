@@ -14,6 +14,7 @@ public sealed class GoAroundPhase : Phase
 
     private double _fieldElevation;
     private double _runwayHeading;
+    private bool _headingAssigned;
 
     public override string Name => "GoAround";
 
@@ -38,14 +39,26 @@ public sealed class GoAroundPhase : Phase
         ctx.Targets.TargetAltitude = targetAlt;
         ctx.Targets.DesiredVerticalRate = climbRate;
         ctx.Targets.TargetSpeed = climbSpeed;
-        ctx.Targets.TargetHeading = AssignedHeading ?? _runwayHeading;
+        ctx.Targets.TargetHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
+
+        if (ctx.Aircraft.Phases?.TrafficDirection is not null)
+        {
+            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
     {
         double agl = ctx.Aircraft.Altitude - _fieldElevation;
+
+        if (!_headingAssigned && AssignedHeading is not null && agl >= NoTurnAgl)
+        {
+            _headingAssigned = true;
+            ctx.Targets.TargetHeading = AssignedHeading.Value;
+        }
+
         double targetAgl = TargetAltitude.HasValue ? TargetAltitude.Value - _fieldElevation : SelfClearAgl;
 
         return agl >= targetAgl;

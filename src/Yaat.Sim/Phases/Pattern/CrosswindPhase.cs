@@ -38,6 +38,7 @@ public sealed class CrosswindPhase : Phase
 
         ctx.Targets.TargetHeading = Waypoints.CrosswindHeading;
         ctx.Targets.PreferredTurnDirection = turnDir;
+        ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         ctx.Targets.NavigationRoute.Clear();
 
         // Continue climbing to pattern altitude if not there yet
@@ -55,7 +56,7 @@ public sealed class CrosswindPhase : Phase
             return false;
         }
 
-        double dist = FlightPhysics.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
         return dist < ArrivalNm;
     }

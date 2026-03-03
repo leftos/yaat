@@ -51,7 +51,6 @@ public static class PatternBuilder
                 break;
 
             case PatternEntryLeg.Base:
-                phases.Add(new DownwindPhase { Waypoints = waypoints });
                 phases.Add(new BasePhase { Waypoints = waypoints, FinalDistanceNm = finalDistanceNm });
                 break;
 

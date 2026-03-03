@@ -16,6 +16,12 @@ public class ControlTargets
     /// </summary>
     public TurnDirection? PreferredTurnDirection { get; set; }
 
+    /// <summary>
+    /// Turn rate override in deg/sec. Null means use category default.
+    /// Set by pattern phases to use the tighter pattern turn rate.
+    /// </summary>
+    public double? TurnRateOverride { get; set; }
+
     /// <summary>Target altitude in feet MSL.</summary>
     public double? TargetAltitude { get; set; }
 

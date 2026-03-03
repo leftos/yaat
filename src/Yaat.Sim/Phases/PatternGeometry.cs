@@ -37,10 +37,6 @@ public sealed class PatternWaypoints
     public double BaseTurnLat { get; init; }
     public double BaseTurnLon { get; init; }
 
-    /// <summary>Turn onto final (aligned with extended centerline).</summary>
-    public double FinalTurnLat { get; init; }
-    public double FinalTurnLon { get; init; }
-
     /// <summary>Runway threshold (end of final approach).</summary>
     public double ThresholdLat { get; init; }
     public double ThresholdLon { get; init; }
@@ -89,20 +85,16 @@ public static class PatternGeometry
         double depEndLon = runway.EndLongitude;
 
         // Crosswind turn point: departure end + extension along upwind
-        var crosswindTurn = FlightPhysics.ProjectPoint(depEndLat, depEndLon, upwindHdg, crosswindExt);
+        var crosswindTurn = GeoMath.ProjectPoint(depEndLat, depEndLon, upwindHdg, crosswindExt);
 
         // Downwind start: crosswind turn + offset perpendicular to runway
-        var downwindStart = FlightPhysics.ProjectPoint(crosswindTurn.Lat, crosswindTurn.Lon, crosswindHdg, patternSize);
+        var downwindStart = GeoMath.ProjectPoint(crosswindTurn.Lat, crosswindTurn.Lon, crosswindHdg, patternSize);
 
         // Downwind abeam: threshold offset perpendicular
-        var downwindAbeam = FlightPhysics.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, crosswindHdg, patternSize);
+        var downwindAbeam = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, crosswindHdg, patternSize);
 
         // Base turn point: downwind abeam + extension along downwind heading
-        var baseTurn = FlightPhysics.ProjectPoint(downwindAbeam.Lat, downwindAbeam.Lon, downwindHdg, baseExt);
-
-        // Final turn point: threshold offset perpendicular at pattern distance
-        // This is where the aircraft turns from base onto final
-        var finalTurn = FlightPhysics.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, crosswindHdg, patternSize);
+        var baseTurn = GeoMath.ProjectPoint(downwindAbeam.Lat, downwindAbeam.Lon, downwindHdg, baseExt);
 
         return new PatternWaypoints
         {
@@ -116,8 +108,6 @@ public static class PatternGeometry
             DownwindAbeamLon = downwindAbeam.Lon,
             BaseTurnLat = baseTurn.Lat,
             BaseTurnLon = baseTurn.Lon,
-            FinalTurnLat = finalTurn.Lat,
-            FinalTurnLon = finalTurn.Lon,
             ThresholdLat = runway.ThresholdLatitude,
             ThresholdLon = runway.ThresholdLongitude,
             UpwindHeading = upwindHdg,

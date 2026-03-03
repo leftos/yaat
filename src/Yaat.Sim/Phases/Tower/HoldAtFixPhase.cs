@@ -51,7 +51,7 @@ public sealed class HoldAtFixPhase : Phase
     {
         if (!_atFix)
         {
-            double dist = FlightPhysics.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, FixLat, FixLon);
+            double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, FixLat, FixLon);
 
             if (dist < ArrivalNm)
             {

@@ -66,6 +66,13 @@ public class CommandScheme
                 [CanonicalCommandType.TurnDownwind] = new() { Aliases = ["TD"], Format = "{verb}" },
                 [CanonicalCommandType.TurnBase] = new() { Aliases = ["TB"], Format = "{verb}" },
                 [CanonicalCommandType.ExtendDownwind] = new() { Aliases = ["EXT"], Format = "{verb}" },
+                [CanonicalCommandType.MakeShortApproach] = new() { Aliases = ["SA", "MSA"], Format = "{verb}" },
+                [CanonicalCommandType.MakeLeft360] = new() { Aliases = ["L360"], Format = "{verb}" },
+                [CanonicalCommandType.MakeRight360] = new() { Aliases = ["R360"], Format = "{verb}" },
+                [CanonicalCommandType.MakeLeft270] = new() { Aliases = ["L270"], Format = "{verb}" },
+                [CanonicalCommandType.MakeRight270] = new() { Aliases = ["R270"], Format = "{verb}" },
+                [CanonicalCommandType.CircleAirport] = new() { Aliases = ["CA", "CIRCLE"], Format = "{verb}" },
+                [CanonicalCommandType.Sequence] = new() { Aliases = ["SEQ"], Format = "{verb} {arg}" },
                 // Hold
                 [CanonicalCommandType.HoldPresentPosition360Left] = new() { Aliases = ["HPPL"], Format = "{verb}" },
                 [CanonicalCommandType.HoldPresentPosition360Right] = new() { Aliases = ["HPPR"], Format = "{verb}" },

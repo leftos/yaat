@@ -13,6 +13,7 @@ public sealed class LandingPhase : Phase
 
     private double _fieldElevation;
     private bool _touchedDown;
+    private bool _canGoAround;
 
     public override string Name => "Landing";
 
@@ -80,6 +81,9 @@ public sealed class LandingPhase : Phase
         ctx.Aircraft.GroundSpeed = newSpeed;
         ctx.Targets.TargetSpeed = null;
 
+        var cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
+        _canGoAround = ctx.Aircraft.GroundSpeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
+
         return ctx.Aircraft.GroundSpeed <= RolloutCompleteSpeed;
     }
 
@@ -106,7 +110,7 @@ public sealed class LandingPhase : Phase
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.GoAround => CommandAcceptance.Rejected,
+            CanonicalCommandType.GoAround => _canGoAround ? CommandAcceptance.Allowed : CommandAcceptance.Rejected,
             _ => CommandAcceptance.Rejected,
         };
     }

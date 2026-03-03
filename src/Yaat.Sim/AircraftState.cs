@@ -65,4 +65,8 @@ public class AircraftState
     public bool OnHandoff { get; set; }
     public double? HandoffInitiatedAt { get; set; }
     public int? AssignedAltitude { get; set; }
+
+    // Sequence state
+    public int? SequenceNumber { get; set; }
+    public string? FollowTarget { get; set; }
 }

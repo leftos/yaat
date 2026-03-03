@@ -305,6 +305,7 @@ public static class CommandDispatcher
             var ctx = BuildMinimalContext(aircraft, logger);
             aircraft.Phases?.Clear(ctx);
             aircraft.Phases = null;
+            aircraft.Targets.TurnRateOverride = null;
             return null;
         }
 
@@ -517,6 +518,29 @@ public static class CommandDispatcher
             case ExtendDownwindCommand:
                 return PatternCommandHandler.TryExtendPattern(aircraft);
 
+            case MakeShortApproachCommand:
+                return PatternCommandHandler.TryMakeShortApproach(aircraft, logger);
+
+            case MakeLeft360Command:
+                return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 360, logger);
+            case MakeRight360Command:
+                return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 360, logger);
+            case MakeLeft270Command:
+                return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 270, logger);
+            case MakeRight270Command:
+                return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270, logger);
+
+            case CircleAirportCommand:
+                return PatternCommandHandler.TryHoldPresentPosition(aircraft, TurnDirection.Left, logger);
+
+            case SequenceCommand seq:
+                aircraft.SequenceNumber = seq.Number;
+                aircraft.FollowTarget = seq.FollowCallsign;
+                var seqMsg = seq.FollowCallsign is not null
+                    ? $"Number {seq.Number}, follow {seq.FollowCallsign}"
+                    : $"Number {seq.Number} in sequence";
+                return Ok(seqMsg);
+
             // Option approach / special ops commands
             case TouchAndGoCommand:
                 return PatternCommandHandler.TrySetupTouchAndGo(aircraft);
@@ -725,7 +749,7 @@ public static class CommandDispatcher
 
     private static BlockTrigger ConvertFrdCondition(AtFixCondition at, int radial, int dist)
     {
-        var (targetLat, targetLon) = FlightPhysics.ProjectPoint(at.Lat, at.Lon, radial, dist);
+        var (targetLat, targetLon) = GeoMath.ProjectPoint(at.Lat, at.Lon, radial, dist);
         return new BlockTrigger
         {
             Type = BlockTriggerType.ReachFrdPoint,

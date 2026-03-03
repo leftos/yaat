@@ -44,7 +44,7 @@ public sealed class DownwindPhase : Phase
         _downwindHeading = Waypoints.DownwindHeading;
         _pastAbeam = false;
 
-        _abeamAlongTrack = FlightPhysics.AlongTrackDistanceNm(
+        _abeamAlongTrack = GeoMath.AlongTrackDistanceNm(
             Waypoints.DownwindAbeamLat,
             Waypoints.DownwindAbeamLon,
             _thresholdLat,
@@ -52,7 +52,7 @@ public sealed class DownwindPhase : Phase
             _downwindHeading
         );
 
-        _baseTurnAlongTrack = FlightPhysics.AlongTrackDistanceNm(
+        _baseTurnAlongTrack = GeoMath.AlongTrackDistanceNm(
             Waypoints.BaseTurnLat,
             Waypoints.BaseTurnLon,
             _thresholdLat,
@@ -64,6 +64,7 @@ public sealed class DownwindPhase : Phase
 
         ctx.Targets.TargetHeading = Waypoints.DownwindHeading;
         ctx.Targets.PreferredTurnDirection = turnDir;
+        ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         ctx.Targets.NavigationRoute.Clear();
 
         // Level off at pattern altitude
@@ -76,7 +77,7 @@ public sealed class DownwindPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        double aircraftAlongTrack = FlightPhysics.AlongTrackDistanceNm(
+        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
             ctx.Aircraft.Latitude,
             ctx.Aircraft.Longitude,
             _thresholdLat,

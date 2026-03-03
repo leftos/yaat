@@ -64,7 +64,7 @@ public sealed class FinalApproachPhase : Phase
             return false;
         }
 
-        double distNm = FlightPhysics.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+        double distNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
 
         CheckInterceptDistance(ctx, distNm);
 
@@ -79,7 +79,8 @@ public sealed class FinalApproachPhase : Phase
         double requiredFpm = timeToThresholdSec > 1 ? (altToLose / timeToThresholdSec) * 60.0 : altToLose * 60.0;
 
         // Clamp to reasonable range (don't dive or climb on approach)
-        double clampedFpm = Math.Clamp(requiredFpm, 200, 1500);
+        double maxFpm = distNm > 2.0 ? 2500 : 1500;
+        double clampedFpm = Math.Clamp(requiredFpm, 200, maxFpm);
         ctx.Targets.DesiredVerticalRate = -clampedFpm;
 
         // Check landing clearance from PhaseList (set earlier by CTL command)
@@ -106,7 +107,7 @@ public sealed class FinalApproachPhase : Phase
         }
 
         double crossTrack = Math.Abs(
-            FlightPhysics.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading)
+            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading)
         );
 
         double headingDiff = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - _runwayHeading));
@@ -141,7 +142,8 @@ public sealed class FinalApproachPhase : Phase
             is ClearanceType.ClearedToLand
                 or ClearanceType.ClearedForOption
                 or ClearanceType.ClearedTouchAndGo
-                or ClearanceType.ClearedStopAndGo;
+                or ClearanceType.ClearedStopAndGo
+                or ClearanceType.ClearedLowApproach;
     }
 
     private void TriggerGoAround(PhaseContext ctx)

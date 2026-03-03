@@ -39,7 +39,7 @@ public static class FlightPhysics
         }
 
         var nav = route[0];
-        double distNm = DistanceNm(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+        double distNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
         if (distNm < NavArrivalNm)
         {
             route.RemoveAt(0);
@@ -85,7 +85,7 @@ public static class FlightPhysics
             return;
         }
 
-        double turnRate = CategoryPerformance.TurnRate(cat);
+        double turnRate = aircraft.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(cat);
         double maxTurn = turnRate * deltaSeconds;
 
         double direction = ResolveDirection(diff, aircraft.Targets.PreferredTurnDirection);
@@ -323,14 +323,14 @@ public static class FlightPhysics
             BlockTriggerType.ReachAltitude => trigger.Altitude.HasValue && Math.Abs(aircraft.Altitude - trigger.Altitude.Value) < AltitudeSnapFt,
             BlockTriggerType.ReachFix => trigger.FixLat.HasValue
                 && trigger.FixLon.HasValue
-                && DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.FixLat.Value, trigger.FixLon.Value) < NavArrivalNm,
+                && GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.FixLat.Value, trigger.FixLon.Value) < NavArrivalNm,
             BlockTriggerType.InterceptRadial => trigger.FixLat.HasValue
                 && trigger.FixLon.HasValue
                 && trigger.Radial.HasValue
                 && IsRadialIntercepted(aircraft, trigger),
             BlockTriggerType.ReachFrdPoint => trigger.TargetLat.HasValue
                 && trigger.TargetLon.HasValue
-                && DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.TargetLat.Value, trigger.TargetLon.Value) < FrdArrivalNm,
+                && GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.TargetLat.Value, trigger.TargetLon.Value) < FrdArrivalNm,
             BlockTriggerType.GiveWay => IsGiveWayMet(aircraft, trigger, aircraftLookup),
             _ => true,
         };
@@ -407,7 +407,7 @@ public static class FlightPhysics
             return;
         }
 
-        double dist = DistanceNm(aircraft.Latitude, aircraft.Longitude, block.Trigger.TargetLat.Value, block.Trigger.TargetLon.Value);
+        double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, block.Trigger.TargetLat.Value, block.Trigger.TargetLon.Value);
 
         if (dist < block.TriggerClosestApproach)
         {
@@ -441,60 +441,6 @@ public static class FlightPhysics
             var desc = block.NaturalDescription.Length > 0 ? block.NaturalDescription : block.Description;
             aircraft.PendingNotifications.Add($"[Executing] {desc}");
         }
-    }
-
-    // --- Geo helpers ---
-
-    public static double DistanceNm(double lat1, double lon1, double lat2, double lon2)
-    {
-        double dLat = (lat2 - lat1) * DegToRad;
-        double dLon = (lon2 - lon1) * DegToRad;
-        double lat1Rad = lat1 * DegToRad;
-        double lat2Rad = lat2 * DegToRad;
-
-        double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) + Math.Cos(lat1Rad) * Math.Cos(lat2Rad) * Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
-        double c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-
-        return c * 3440.065; // Earth radius in nm
-    }
-
-    /// <summary>
-    /// Projects a point from a given lat/lon along a heading for a given distance.
-    /// Returns (latitude, longitude) of the projected point.
-    /// </summary>
-    public static (double Lat, double Lon) ProjectPoint(double lat, double lon, double headingDeg, double distanceNm)
-    {
-        double headingRad = headingDeg * DegToRad;
-        double latRad = lat * DegToRad;
-
-        double newLat = lat + (distanceNm * Math.Cos(headingRad) / NmPerDegLat);
-        double newLon = lon + (distanceNm * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad)));
-
-        return (newLat, newLon);
-    }
-
-    /// <summary>
-    /// Signed perpendicular distance from a point to a line defined by
-    /// a reference point and heading. Positive = right of heading, negative = left.
-    /// </summary>
-    public static double SignedCrossTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
-    {
-        double bearing = GeoMath.BearingTo(refLat, refLon, pointLat, pointLon);
-        double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
-        double angleDiff = (bearing - headingDeg) * DegToRad;
-        return dist * Math.Sin(angleDiff);
-    }
-
-    /// <summary>
-    /// Signed distance along a heading from a reference point to a target point.
-    /// Positive = ahead (in heading direction), negative = behind.
-    /// </summary>
-    public static double AlongTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
-    {
-        double bearing = GeoMath.BearingTo(refLat, refLon, pointLat, pointLon);
-        double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
-        double angleDiff = (bearing - headingDeg) * DegToRad;
-        return dist * Math.Cos(angleDiff);
     }
 
     // --- Math helpers ---

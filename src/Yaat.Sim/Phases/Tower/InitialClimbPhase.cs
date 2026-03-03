@@ -38,6 +38,7 @@ public sealed class InitialClimbPhase : Phase
 
         ctx.Targets.TargetAltitude = _targetAltitude;
         ctx.Targets.DesiredVerticalRate = null;
+        ctx.Targets.TurnRateOverride = null;
 
         // Accelerate to normal climb speed
         double normalSpeed = CategoryPerformance.DefaultSpeed(ctx.Category, _targetAltitude);

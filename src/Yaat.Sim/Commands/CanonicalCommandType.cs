@@ -50,6 +50,13 @@ public enum CanonicalCommandType
     TurnDownwind,
     TurnBase,
     ExtendDownwind,
+    MakeShortApproach,
+    MakeLeft360,
+    MakeRight360,
+    MakeLeft270,
+    MakeRight270,
+    CircleAirport,
+    Sequence,
 
     // Hold commands
     HoldPresentPosition360Left,
