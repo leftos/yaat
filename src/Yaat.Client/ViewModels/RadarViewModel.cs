@@ -745,6 +745,11 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, $"DCT {fix}", initials);
     }
 
+    public async Task AppendDirectToAsync(string callsign, string initials, string fix)
+    {
+        await _sendCommand(callsign, $"ADCT {fix}", initials);
+    }
+
     public async Task TrackAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "TRACK", initials);

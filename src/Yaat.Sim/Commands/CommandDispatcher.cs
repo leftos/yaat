@@ -220,6 +220,50 @@ public static class CommandDispatcher
                 bool routeRejoined = resolved.Count > originalCount;
                 return routeRejoined ? Ok($"Proceed direct {fixNames}, then filed route") : Ok($"Proceed direct {fixNames}");
 
+            case AppendDirectToCommand adct:
+                var adctResolved = adct.Fixes.ToList();
+                int adctOriginal = adctResolved.Count;
+                if (fixes is not null)
+                {
+                    RouteChainer.AppendRouteRemainder(adctResolved, aircraft.Route, fixes);
+                }
+                if (aircraft.Targets.NavigationRoute.Count == 0)
+                {
+                    foreach (var fix in adctResolved)
+                    {
+                        aircraft.Targets.NavigationRoute.Add(
+                            new NavigationTarget
+                            {
+                                Name = fix.Name,
+                                Latitude = fix.Lat,
+                                Longitude = fix.Lon,
+                            }
+                        );
+                    }
+                    var adctNames = string.Join(" ", adct.Fixes.Select(f => f.Name));
+                    return adctResolved.Count > adctOriginal
+                        ? Ok($"Proceed direct {adctNames}, then filed route")
+                        : Ok($"Proceed direct {adctNames}");
+                }
+                else
+                {
+                    foreach (var fix in adctResolved)
+                    {
+                        aircraft.Targets.NavigationRoute.Add(
+                            new NavigationTarget
+                            {
+                                Name = fix.Name,
+                                Latitude = fix.Lat,
+                                Longitude = fix.Lon,
+                            }
+                        );
+                    }
+                    var adctAppended = string.Join(" ", adct.Fixes.Select(f => f.Name));
+                    return adctResolved.Count > adctOriginal
+                        ? Ok($"Then direct {adctAppended}, then filed route")
+                        : Ok($"Then direct {adctAppended}");
+                }
+
             case SquawkCommand cmd:
                 aircraft.BeaconCode = cmd.Code;
                 return Ok($"Squawk {cmd.Code:D4}");

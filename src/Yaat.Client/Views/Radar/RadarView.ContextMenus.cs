@@ -190,6 +190,32 @@ public partial class RadarView
             menu.Items.Add(CreateInputMenuItem("Direct to...", "Fix name", input => vm.DirectToAsync(cs, init, input)));
         }
 
+        bool hasActiveRoute = ac is not null && !string.IsNullOrEmpty(ac.NavigatingTo);
+        if (hasActiveRoute)
+        {
+            if (vm.FixNames is not null)
+            {
+                menu.Items.Add(
+                    CreateFilteredListMenuItem(
+                        "Append direct to...",
+                        vm.FixNames,
+                        fix => vm.AppendDirectToAsync(cs, init, fix),
+                        routeFixes.Count > 0 ? routeFixes : null
+                    )
+                );
+            }
+            else if (routeFixes.Count > 0)
+            {
+                menu.Items.Add(
+                    CreateListMenuItem("Append direct to", routeFixes, routeFixes[0], val => vm.AppendDirectToAsync(cs, init, (string)val))
+                );
+            }
+            else
+            {
+                menu.Items.Add(CreateInputMenuItem("Append direct to...", "Fix name", input => vm.AppendDirectToAsync(cs, init, input)));
+            }
+        }
+
         return menu;
     }
 

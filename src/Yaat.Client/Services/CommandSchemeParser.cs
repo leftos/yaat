@@ -216,6 +216,7 @@ public static class CommandSchemeParser
         CanonicalCommandType.HoldAtFixRight,
         CanonicalCommandType.HoldAtFixHover,
         CanonicalCommandType.DirectTo,
+        CanonicalCommandType.AppendDirectTo,
         CanonicalCommandType.ClearedForTakeoff,
         CanonicalCommandType.Say,
     ];
@@ -324,6 +325,7 @@ public static class CommandSchemeParser
                 or CanonicalCommandType.WaitDistance
                 or CanonicalCommandType.Add
                 or CanonicalCommandType.DirectTo
+                or CanonicalCommandType.AppendDirectTo
                 or CanonicalCommandType.HoldAtFixLeft
                 or CanonicalCommandType.HoldAtFixRight
                 or CanonicalCommandType.HoldAtFixHover
