@@ -129,13 +129,14 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
+Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI)
 Commands/DepartureClearanceHandler.cs  # Departure clearance command logic
 Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
 Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, etc.)
 
 # Phases/ — clearance-gated behavior
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance
-Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, mutations
+Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, ActiveApproach, mutations
 Phases/PhaseRunner.cs          # Static lifecycle: start→tick→advance; auto-appends exit/pattern phases
 Phases/PhaseContext.cs         # Readonly tick context
 Phases/PhaseStatus.cs          # Enum: phase lifecycle status
@@ -159,6 +160,12 @@ GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
 HoldAtFixPhase.cs / HoldPresentPositionPhase.cs
 
+# Phases/Approach/
+ApproachNavigationPhase.cs     # Navigate through CIFP fix sequence (IAF→IF→FAF) with alt/speed restrictions
+InterceptCoursePhase.cs        # Fly current heading until intercepting final approach course
+HoldingPatternPhase.cs         # AIM 5-3-8 holding with entry determination; MaxCircuits for hold-in-lieu
+ApproachClearance.cs           # Record on PhaseList storing active approach state
+
 # Phases/Pattern/
 UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase
 
@@ -172,6 +179,8 @@ Data/IRunwayLookup.cs          # Interface: GetRunway, GetRunways
 Data/FixDatabase.cs            # Implements both; VNAS protobuf + custom fixes; AllFixNames, ExpandRoute
 Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
+Data/IApproachLookup.cs        # Interface: GetApproach, GetApproaches, ResolveApproachId
+Data/ApproachDatabase.cs       # IApproachLookup impl; lazy CIFP per-airport parsing; shorthand resolution
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
 Data/VideoMapMetadata.cs       # Video map metadata model
 Data/VideoMapData.cs           # Video map data structures (lines, labels, filters)
@@ -198,7 +207,8 @@ CacheManifest.cs               # Cache manifest tracking serials
 AircraftSpecEntry.cs           # VNAS aircraft specs model
 AircraftCwtEntry.cs            # VNAS aircraft CWT model
 CifpDataService.cs             # FAA CIFP zip download/extract per AIRAC cycle
-CifpParser.cs                  # ARINC 424 parser: FAF fixes + terminal waypoints
+CifpParser.cs                  # ARINC 424 parser: FAF fixes, terminal waypoints, full approach procedures
+CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpLeg, CifpTransition, etc.
 
 # Scenarios/
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult

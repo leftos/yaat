@@ -6,16 +6,23 @@ namespace Yaat.Sim.Data;
 
 public sealed class ApproachDatabase : IApproachLookup
 {
-    private readonly string? _cifpFilePath;
+    private string? _cifpFilePath;
     private readonly ILogger? _logger;
 
     // Lazy per-airport cache: FAA code → list of procedures
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpApproachProcedure>> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-    public ApproachDatabase(string? cifpFilePath, ILogger? logger = null)
+    public ApproachDatabase(string? cifpFilePath = null, ILogger? logger = null)
     {
         _cifpFilePath = cifpFilePath;
         _logger = logger;
+    }
+
+    /// <summary>Sets the CIFP file path after initialization (e.g., after async download).</summary>
+    public void SetCifpPath(string path)
+    {
+        _cifpFilePath = path;
+        _cache.Clear();
     }
 
     public CifpApproachProcedure? GetApproach(string airportCode, string approachId)

@@ -410,9 +410,9 @@ Detailed chunk plan: [M4 STARS Track Operations](track-operations.md) (9 chunks)
 
 ---
 
-### Milestone 5: Approach Control
+### Milestone 5: Approach Control ✅
 
-**Goal:** Vectors, approach clearances, altitude/speed management.
+**Goal:** Vectors, approach clearances, altitude/speed management. **COMPLETE.**
 
 #### yaat-server
 

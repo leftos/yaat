@@ -102,6 +102,7 @@
             <DataGridTextColumn Header="TA" Binding="{Binding TempAltDisplay}" Width="Auto" />
             <DataGridTextColumn Header="Phase" Binding="{Binding CurrentPhase}" Width="Auto" />
             <DataGridTextColumn Header="Rwy" Binding="{Binding AssignedRunway}" Width="Auto" />
+            <DataGridTextColumn Header="Apch" Binding="{Binding ActiveApproachId}" Width="Auto" />
             <DataGridTextColumn Header="Type" Binding="{Binding AircraftType}" Width="Auto" />
             <DataGridTextColumn Header="Rules" Binding="{Binding FlightRules}" Width="Auto" />
             <DataGridTextColumn Header="Dep" Binding="{Binding Departure}" Width="Auto" />

@@ -152,10 +152,15 @@ These commands exist in ATCTrainer/VICE, but YAAT adds aliases that neither app 
 | Command | ATCTrainer doc | VICE doc | YAAT ATCTrainer preset | YAAT VICE preset |
 |---|---|---|---|---|
 | **Direct To** | DCT | D{fix} | DCT | DCT |
-| Depart Fix | DEPART, DEP, D | D{fix}/H{hdg} | — | — |
-| Join STAR | JARR, ARR, STAR, JSTAR | — | — | — |
+| 🟢 **Append Direct To** | — | — | ADCT | ADCT |
+| 🟢 **Depart Fix** | DEPART, DEP, D | D{fix}/H{hdg} | DEPART | DEPART |
+| 🟢 **Join STAR** | JARR, ARR, STAR, JSTAR | — | JARR | JARR |
+| 🟢 **Join Final Approach** | JFAC, JLOC, JF | — | JFAC | JFAC |
+| 🟢 **Join Radial Out** | — | — | JRADO | JRADO |
+| 🟢 **Join Radial In** | — | — | JRADI | JRADI |
+| 🟢 **Cross Fix Altitude** | — | — | CFIX | CFIX |
+| 🟢 **Depart Via** | — | — | DVIA | DVIA |
 | Join Airway | JAWY | — | — | — |
-| Join Final Approach | JFAC, JLOC, JF | — | — | — |
 | Airport/Destination | APT, DEST | — | — | — |
 
 > **Note:** VICE uses `D` for both Direct-to and Descend (resolved by fix name vs number). YAAT keeps `DCT` in the VICE preset to avoid ambiguity.
@@ -201,16 +206,25 @@ These commands exist in ATCTrainer/VICE, but YAAT adds aliases that neither app 
 
 ## Approach
 
-Neither ATCTrainer nor VICE approach commands are implemented in YAAT yet.
-
-| Command | ATCTrainer doc | VICE doc |
-|---|---|---|
-| Clear Approach | CAPP, CTL | C{appr}, C (no arg) |
-| Clear Straight In | — | CSI{appr} |
-| Clear at Fix | — | A{fix}/C{appr} |
-| Expect Approach | — | E{appr} |
-| Intercept Localizer | — | I, A{fix}/I |
-| Cancel Approach | — | CAC |
+| Command | ATCTrainer doc | VICE doc | YAAT |
+|---|---|---|---|
+| 🟢 **Cleared Approach** | CAPP, CTL | C{appr}, C (no arg) | `CAPP ILS28R` |
+| 🟢 **Join Approach** | — | — | `JAPP ILS28R` |
+| 🟢 **Cleared Straight-In** | — | CSI{appr} | `CAPPSI ILS28R`, `JAPPSI ILS28R` |
+| 🟢 **Force Approach** | — | — | `CAPPF ILS28R`, `JAPPF ILS28R` |
+| 🟢 **PTAC** | — | — | `PTAC 280 025 ILS30` |
+| 🟢 **Join Final** | — | I, A{fix}/I | `JFAC ILS28R` |
+| 🟢 **Join Arrival** | — | — | `JARR OAK.SALI2` |
+| 🟢 **Join Radial Out** | — | — | `JRADO SJC 150` |
+| 🟢 **Join Radial In** | — | — | `JRADI SJC 150` |
+| 🟢 **Cross Fix Alt** | — | — | `CFIX A034` |
+| 🟢 **Depart Via** | — | — | `DVIA SJC` |
+| 🟢 **Depart Heading** | — | — | `DEPART 270` |
+| 🟢 **Holding Pattern** | — | — | `HOLD SUNOL R 180 1M` |
+| 🟢 **List Approaches** | — | — | `APPS`, `APPS OAK` |
+| Clear at Fix | — | A{fix}/C{appr} | — |
+| Expect Approach | — | E{appr} | — |
+| Cancel Approach | — | CAC | — |
 
 ## Pattern
 

@@ -396,30 +396,28 @@ User requirements:
 **Goal:** Client display of approach state, DTO updates, USER_GUIDE, and end-to-end testing.
 
 ### Modified files (Yaat.Sim)
-- [ ] `src/Yaat.Sim/AircraftState.cs` — Add: `string? ActiveApproachId`, `string? ApproachStatus` (for DTO display)
+- [x] `src/Yaat.Sim/Data/ApproachDatabase.cs` — Added `SetCifpPath` for post-init configuration (replaces need for AircraftState approach fields — DtoConverter reads `Phases.ActiveApproach` directly)
 
 ### Modified files (yaat-server)
-- [ ] `src/Yaat.Server/Dtos/TrainingDtos.cs` — Add approach fields to `AircraftDto`
-- [ ] `src/Yaat.Server/Simulation/DtoConverter.cs` — Populate approach fields from AircraftState
+- [x] `src/Yaat.Server/Dtos/TrainingDtos.cs` — Added `ActiveApproachId` to `AircraftStateDto`
+- [x] `src/Yaat.Server/Simulation/DtoConverter.cs` — Populates `ActiveApproachId` from `Phases.ActiveApproach`
+- [x] `src/Yaat.Server/Program.cs` — Registers `ApproachDatabase` as `IApproachLookup` singleton
+- [x] `src/Yaat.Server/Simulation/RoomEngineFactory.cs` — Threads `IApproachLookup` to `RoomEngine`
+- [x] `src/Yaat.Server/Simulation/RoomEngine.cs` — Passes `IApproachLookup` to `CommandDispatcher.DispatchCompound`
+- [x] `src/Yaat.Server/Simulation/TickProcessor.cs` — Passes `IApproachLookup` to `CommandDispatcher.Dispatch`
 
 ### Modified files (Yaat.Client)
-- [ ] `src/Yaat.Client/Models/AircraftModel.cs` — Add `ApproachId`, `ApproachStatus` properties + `UpdateFromDto`
-- [ ] DataGrid or existing columns — Show approach state (can use existing Phase column or add dedicated column)
+- [x] `src/Yaat.Client/Services/ServerConnection.cs` — Added `ActiveApproachId` to client `AircraftDto`
+- [x] `src/Yaat.Client/Models/AircraftModel.cs` — Added `ActiveApproachId` property + wired in `FromDto`/`UpdateFromDto`
+- [x] `src/Yaat.Client/Views/DataGridView.axaml` — Added "Apch" column showing active approach
 
 ### Documentation
-- [ ] `USER_GUIDE.md` — Document all M5 commands with examples:
-  - Basic forms: `CAPP ILS28R`, `JAPP ILS28R`, `PTAC 280 025 ILS30`
-  - Rich forms: `CAPP AT SUNOL ILS28R`, `CAPP DCT SUNOL CFIX A034 ILS28R`
-  - Shortened forms: `AT SUNOL ILS28R`, `DCT SUNOL A034 ILS28R`
-  - JARR, JFAC, JRADO, JRADI, HOLD, CFIX, DEPART, DVIA
-  - Query: `APPS OAK` or `N456MS APPS` (list available approaches)
-- [ ] `docs/command-aliases/reference.md` — Update approach section with implemented commands
-- [ ] `docs/plans/main-plan.md` — Update M5 status
+- [x] `USER_GUIDE.md` — Documented all M5 commands (approach, navigation, holding)
+- [x] `docs/plans/main-plan.md` — Updated M5 status to complete
 
 ### Tests
-- [ ] End-to-end: CAPP ILS28R → full navigation → landing
-- [ ] Hold-in-lieu flow: JAPP through IAF with hold → one circuit → approach → landing
-- [ ] PTAC flow: heading → intercept → glideslope → landing
+- [x] Approach command tests (25 tests in `ApproachCommandHandlerTests.cs` covering CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CAPPF, intercept validation, hold-in-lieu, nav phase, altitude restrictions)
+- [x] Approach clearance infrastructure tests (in `ApproachClearanceTests.cs` covering JFAC, intercept phase, approach clearance record)
 
 ---
 

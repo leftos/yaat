@@ -268,6 +268,9 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private bool _isAnnotated;
 
+    [ObservableProperty]
+    private string? _activeApproachId;
+
     public string OwnerDisplay => OwnerSectorCode ?? Owner ?? "";
 
     public string HandoffDisplay => HandoffPeerSectorCode ?? HandoffPeer ?? "";
@@ -329,6 +332,7 @@ public partial class AircraftModel : ObservableObject
             Scratchpad2 = dto.Scratchpad2,
             TemporaryAltitude = dto.TemporaryAltitude,
             IsAnnotated = dto.IsAnnotated,
+            ActiveApproachId = dto.ActiveApproachId,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         return model;
@@ -378,6 +382,7 @@ public partial class AircraftModel : ObservableObject
         Scratchpad2 = dto.Scratchpad2;
         TemporaryAltitude = dto.TemporaryAltitude;
         IsAnnotated = dto.IsAnnotated;
+        ActiveApproachId = dto.ActiveApproachId;
         DistanceFromFix = computeDistance?.Invoke(this);
     }
 

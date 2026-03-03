@@ -368,7 +368,8 @@ public record AircraftDto(
     string? Scratchpad1 = null,
     string? Scratchpad2 = null,
     int? TemporaryAltitude = null,
-    bool IsAnnotated = false
+    bool IsAnnotated = false,
+    string? ActiveApproachId = null
 );
 
 public record LoadScenarioResultDto(

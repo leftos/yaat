@@ -143,6 +143,20 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 | Cross runway | `CROSS 28L` | — | — |
 | Hold short | `HS B` | — | — |
 | Follow | `FOLLOW SWA123` | `FOL` | — |
+| Cleared approach | `CAPP ILS28R` | — | — |
+| Join approach | `JAPP ILS28R` | — | — |
+| Straight-in apch | `CAPPSI ILS28R` | `JAPPSI` | — |
+| Forced approach | `CAPPF ILS28R` | `JAPPF` | — |
+| Pos/Turn/Alt/Clr | `PTAC 280 025 ILS30` | — | — |
+| Join final | `JFAC ILS28R` | — | — |
+| Join arrival | `JARR OAK.SALI2` | — | — |
+| Join radial out | `JRADO SJC 150` | — | — |
+| Join radial in | `JRADI SJC 150` | — | — |
+| Cross fix alt | `CFIX A034` | — | — |
+| Depart via | `DVIA SJC` | — | — |
+| Depart heading | `DEPART 270` | — | — |
+| Holding pattern | `HOLD SUNOL R 180 1M` | — | — |
+| List approaches | `APPS` | `APPS OAK` | — |
 | Track | `TRACK` | — | — |
 | Drop | `DROP` | — | — |
 | Handoff | `HO 3Y` | — | `HO3Y` |
@@ -321,6 +335,60 @@ TG, SG, and LA set pattern mode — the aircraft will continue doing touch-and-g
 | `HFIX {fix}` | Fly to fix, then hover |
 
 Any heading, altitude, or speed command clears the hold.
+
+### Approach Control Commands
+
+Approach clearances use FAA CIFP procedure data. Approach IDs can be full CIFP identifiers (e.g., `I28R`) or common shorthand (e.g., `ILS28R`, `RNAV17L`, `LOC30`).
+
+| Command | Effect |
+|---------|--------|
+| `CAPP ILS28R` | Cleared ILS Runway 28R approach — navigates through the full procedure (IAF → IF → FAF → final) |
+| `JAPP ILS28R` | Join ILS 28R approach at nearest IAF/IF ahead of the aircraft |
+| `CAPPSI ILS28R` | Cleared straight-in ILS 28R (skips hold-in-lieu of procedure turn) |
+| `JAPPSI ILS28R` | Join straight-in ILS 28R (skips hold-in-lieu) |
+| `CAPPF ILS28R` | Forced approach clearance (bypasses intercept angle validation) |
+| `JAPPF ILS28R` | Forced join (bypasses intercept angle check) |
+| `PTAC 280 025 ILS30` | Position/Turn/Altitude/Clearance — turn heading 280, maintain 2,500, cleared ILS 30 |
+| `JFAC ILS28R` | Join final approach course (intercept and fly the localizer) |
+| `APPS` | List available approaches for the aircraft's destination airport |
+| `APPS OAK` | List available approaches at a specific airport |
+
+**Rich CAPP forms** combine approach clearance with navigation:
+
+| Command | Effect |
+|---------|--------|
+| `CAPP AT SUNOL ILS28R` | Navigate to fix SUNOL, then fly the ILS 28R |
+| `CAPP DCT SUNOL ILS28R` | Direct to SUNOL, then fly the ILS 28R |
+| `CAPP DCT SUNOL CFIX A034 ILS28R` | Direct to SUNOL, cross at or above 3,400, then ILS 28R |
+
+**CFIX altitude prefixes:** `A034` = at or above 3,400, `B034` = at or below 3,400, `034` = at 3,400.
+
+**Intercept angle validation:** Approach clearances validate the intercept angle per 7110.65 §5-9-2 — max 20° within 2nm of the approach gate, max 30° beyond. Use force variants (`CAPPF`/`JAPPF`) to override.
+
+**Hold-in-lieu:** When a procedure includes a hold-in-lieu of procedure turn (e.g., at an IAF), `JAPP` automatically executes one holding circuit before proceeding. Use `CAPPSI`/`JAPPSI` to skip it.
+
+### Navigation Commands
+
+| Command | Effect |
+|---------|--------|
+| `DCT SUNOL` | Direct to fix SUNOL |
+| `ADCT SUNOL` | Append direct to — adds SUNOL to the end of the current route |
+| `JARR OAK.SALI2` | Join STAR: navigate to nearest fix on the SALI2 arrival into OAK |
+| `JRADO SJC 150` | Join radial outbound: fly to SJC VOR, then outbound on the 150° radial |
+| `JRADI SJC 150` | Join radial inbound: intercept and fly inbound on the 150° radial to SJC |
+| `CFIX A034` | Cross next fix at or above 3,400 ft (modifies current target altitude) |
+| `DVIA SJC` | Depart via — sets first navigation target to SJC |
+| `DEPART 270` | Depart heading 270 (sets heading after departure) |
+
+### Holding Patterns
+
+| Command | Effect |
+|---------|--------|
+| `HOLD SUNOL R 180 1M` | Hold at SUNOL, right turns, 180° inbound, 1-minute legs |
+| `HOLD SUNOL L 090 5` | Hold at SUNOL, left turns, 090° inbound, 5nm legs |
+| `HOLD SUNOL R 180` | Hold at SUNOL, right turns, 180° inbound (default 1-minute legs) |
+
+Hold format: `HOLD {fix} {L/R} {inbound_course} {leg_length}`. Leg length ending in `M` is minutes; plain number is nautical miles. Any RPO command (heading, altitude, approach, etc.) exits the hold.
 
 ### Ground Commands
 
