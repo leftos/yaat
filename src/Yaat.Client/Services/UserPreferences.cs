@@ -42,7 +42,7 @@ public sealed class UserPreferences
     private bool _isDelayedGroupCollapsed;
     private List<MacroDefinition> _macros;
     private List<FavoriteCommand> _favoriteCommands;
-    private List<string> _recentScenarios;
+    private List<RecentScenario> _recentScenarios;
 
     public UserPreferences()
     {
@@ -97,7 +97,7 @@ public sealed class UserPreferences
     public bool IsDelayedGroupCollapsed => _isDelayedGroupCollapsed;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _favoriteCommands;
-    public IReadOnlyList<string> RecentScenarios => _recentScenarios;
+    public IReadOnlyList<RecentScenario> RecentScenarios => _recentScenarios;
 
     public void SetServerUrl(string url)
     {
@@ -216,10 +216,10 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void AddRecentScenario(string filePath)
+    public void AddRecentScenario(string filePath, string name)
     {
-        _recentScenarios.Remove(filePath);
-        _recentScenarios.Insert(0, filePath);
+        _recentScenarios.RemoveAll(r => r.FilePath == filePath);
+        _recentScenarios.Insert(0, new RecentScenario { FilePath = filePath, Name = name });
         if (_recentScenarios.Count > 10)
         {
             _recentScenarios.RemoveRange(10, _recentScenarios.Count - 10);
@@ -321,7 +321,7 @@ public sealed class UserPreferences
         public bool IsDelayedGroupCollapsed { get; init; }
         public List<MacroDefinition> Macros { get; init; } = [];
         public List<FavoriteCommand> FavoriteCommands { get; init; } = [];
-        public List<string> RecentScenarios { get; init; } = [];
+        public List<RecentScenario> RecentScenarios { get; init; } = [];
     }
 
     private void Save()
@@ -440,7 +440,7 @@ public sealed class UserPreferences
         public bool IsDelayedGroupCollapsed { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
-        public List<string> RecentScenarios { get; set; } = [];
+        public List<RecentScenario> RecentScenarios { get; set; } = [];
     }
 
     private sealed class SavedCommandScheme
@@ -471,6 +471,12 @@ public sealed class SavedGridLayout
     public string? SortColumn { get; set; }
     public ListSortDirection? SortDirection { get; set; }
     public Dictionary<string, double>? ColumnWidths { get; set; }
+}
+
+public sealed class RecentScenario
+{
+    public string FilePath { get; set; } = "";
+    public string Name { get; set; } = "";
 }
 
 public sealed class SavedMacro

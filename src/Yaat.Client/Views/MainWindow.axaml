@@ -57,7 +57,9 @@
                 <MenuItem Header="_Load Scenario..."
                           x:Name="LoadScenarioMenuItem" />
                 <MenuItem Header="Load _Recent Scenario"
-                          x:Name="RecentScenariosMenuItem" />
+                          x:Name="RecentScenariosMenuItem">
+                    <MenuItem Header="(No recent scenarios)" IsEnabled="False" />
+                </MenuItem>
                 <MenuItem Header="_Unload Scenario"
                           Command="{Binding UnloadScenarioCommand}" />
             </MenuItem>

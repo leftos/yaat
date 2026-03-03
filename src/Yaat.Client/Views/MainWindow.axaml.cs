@@ -44,6 +44,8 @@ public partial class MainWindow : Window
         var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
         {
+            recentItem.IsEnabled = vm.Preferences.RecentScenarios.Count > 0;
+            PopulateRecentScenarios(recentItem, vm);
             recentItem.SubmenuOpened += OnRecentScenariosSubmenuOpened;
         }
 
@@ -633,19 +635,26 @@ public partial class MainWindow : Window
             return;
         }
 
+        PopulateRecentScenarios(menu, vm);
+    }
+
+    private void PopulateRecentScenarios(MenuItem menu, MainViewModel vm)
+    {
         menu.Items.Clear();
         var recent = vm.Preferences.RecentScenarios;
         if (recent.Count == 0)
         {
+            menu.IsEnabled = false;
             menu.Items.Add(new MenuItem { Header = "(No recent scenarios)", IsEnabled = false });
             return;
         }
 
-        foreach (var path in recent)
+        menu.IsEnabled = true;
+        foreach (var entry in recent)
         {
-            var item = new MenuItem { Header = Path.GetFileNameWithoutExtension(path), Tag = path };
+            var item = new MenuItem { Header = entry.Name, Tag = entry.FilePath };
             item.Click += OnRecentScenarioClick;
-            ToolTip.SetTip(item, path);
+            ToolTip.SetTip(item, entry.FilePath);
             menu.Items.Add(item);
         }
     }
