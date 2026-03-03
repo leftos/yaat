@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -257,54 +258,149 @@ public sealed class UserPreferences
             return new LoadedPrefs();
         }
 
+        string json;
         try
         {
-            var json = File.ReadAllText(ConfigPath);
-            var saved = JsonSerializer.Deserialize<SavedPrefs>(json, JsonOptions);
-
-            var scheme = saved?.CommandScheme is not null ? FromSaved(saved.CommandScheme) : null;
-
-            return new LoadedPrefs
-            {
-                Scheme = scheme,
-                ServerUrl = saved?.ServerUrl ?? "http://localhost:5000",
-                VatsimCid = saved?.VatsimCid ?? "",
-                UserInitials = saved?.UserInitials ?? "",
-                ArtccId = saved?.ArtccId ?? "",
-                IsAdmin = saved?.IsAdminMode ?? false,
-                AdminPassword = saved?.AdminPassword ?? "",
-                MainWindowGeometry = saved?.MainWindowGeometry,
-                SettingsWindowGeometry = saved?.SettingsWindowGeometry,
-                TerminalWindowGeometry = saved?.TerminalWindowGeometry,
-                GroundViewWindowGeometry = saved?.GroundViewWindowGeometry,
-                RadarViewWindowGeometry = saved?.RadarViewWindowGeometry,
-                DataGridWindowGeometry = saved?.DataGridWindowGeometry,
-                GridLayout = saved?.GridLayout,
-                AutoAcceptEnabled = saved?.AutoAcceptEnabled ?? true,
-                AutoAcceptDelaySeconds = saved?.AutoAcceptDelaySeconds ?? 5,
-                AutoDeleteOverride = saved?.AutoDeleteOverride ?? "",
-                IsDataGridPoppedOut = saved?.IsDataGridPoppedOut ?? false,
-                IsGroundViewPoppedOut = saved?.IsGroundViewPoppedOut ?? false,
-                IsRadarViewPoppedOut = saved?.IsRadarViewPoppedOut ?? false,
-                RadarSettings = saved?.RadarSettings ?? [],
-                IsDelayedGroupCollapsed = saved?.IsDelayedGroupCollapsed ?? false,
-                Macros = saved?.Macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
-                FavoriteCommands = saved?.FavoriteCommands ?? [],
-                RecentScenarios = saved?.RecentScenarios ?? [],
-            };
+            json = File.ReadAllText(ConfigPath);
         }
-        catch (JsonException ex)
+        catch (IOException ex)
         {
-            Log.LogError(ex, "Failed to deserialize {Path} — preferences reset to defaults. Backup saved to .bak", ConfigPath);
-            try
-            {
-                File.Copy(ConfigPath, ConfigPath + ".bak", overwrite: true);
-            }
-            catch (IOException backupEx)
-            {
-                Log.LogWarning(backupEx, "Could not back up preferences file");
-            }
+            Log.LogWarning(ex, "Could not read preferences from {Path}", ConfigPath);
             return new LoadedPrefs();
+        }
+
+        // Fast path: full deserialization
+        try
+        {
+            var saved = JsonSerializer.Deserialize<SavedPrefs>(json, JsonOptions);
+            if (saved is not null)
+            {
+                return BuildLoadedPrefs(saved);
+            }
+        }
+        catch (JsonException)
+        {
+            // Fall through to field-by-field recovery
+        }
+
+        // Slow path: recover individual fields so one bad field doesn't wipe everything
+        Log.LogWarning("Full preferences deserialization failed — recovering individual fields from {Path}", ConfigPath);
+        BackupFile();
+        return RecoverFields(json);
+    }
+
+    private static LoadedPrefs BuildLoadedPrefs(SavedPrefs saved)
+    {
+        var scheme = saved.CommandScheme is not null ? FromSaved(saved.CommandScheme) : null;
+
+        return new LoadedPrefs
+        {
+            Scheme = scheme,
+            ServerUrl = saved.ServerUrl ?? "http://localhost:5000",
+            VatsimCid = saved.VatsimCid ?? "",
+            UserInitials = saved.UserInitials ?? "",
+            ArtccId = saved.ArtccId ?? "",
+            IsAdmin = saved.IsAdminMode,
+            AdminPassword = saved.AdminPassword ?? "",
+            MainWindowGeometry = saved.MainWindowGeometry,
+            SettingsWindowGeometry = saved.SettingsWindowGeometry,
+            TerminalWindowGeometry = saved.TerminalWindowGeometry,
+            GroundViewWindowGeometry = saved.GroundViewWindowGeometry,
+            RadarViewWindowGeometry = saved.RadarViewWindowGeometry,
+            DataGridWindowGeometry = saved.DataGridWindowGeometry,
+            GridLayout = saved.GridLayout,
+            AutoAcceptEnabled = saved.AutoAcceptEnabled,
+            AutoAcceptDelaySeconds = saved.AutoAcceptDelaySeconds,
+            AutoDeleteOverride = saved.AutoDeleteOverride ?? "",
+            IsDataGridPoppedOut = saved.IsDataGridPoppedOut,
+            IsGroundViewPoppedOut = saved.IsGroundViewPoppedOut,
+            IsRadarViewPoppedOut = saved.IsRadarViewPoppedOut,
+            RadarSettings = saved.RadarSettings ?? [],
+            IsDelayedGroupCollapsed = saved.IsDelayedGroupCollapsed,
+            Macros = saved.Macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
+            FavoriteCommands = saved.FavoriteCommands ?? [],
+            RecentScenarios = saved.RecentScenarios ?? [],
+        };
+    }
+
+    private static LoadedPrefs RecoverFields(string json)
+    {
+        JsonObject? obj;
+        try
+        {
+            obj = JsonNode.Parse(json)?.AsObject();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Preferences JSON is completely unparseable");
+            return new LoadedPrefs();
+        }
+
+        if (obj is null)
+        {
+            return new LoadedPrefs();
+        }
+
+        var savedScheme = GetFieldOr<SavedCommandScheme?>(obj, "commandScheme", null);
+        var macros = GetFieldOr<List<SavedMacro>?>(obj, "macros", null);
+
+        return new LoadedPrefs
+        {
+            Scheme = savedScheme is not null ? FromSaved(savedScheme) : null,
+            ServerUrl = GetFieldOr(obj, "serverUrl", "http://localhost:5000"),
+            VatsimCid = GetFieldOr(obj, "vatsimCid", ""),
+            UserInitials = GetFieldOr(obj, "userInitials", ""),
+            ArtccId = GetFieldOr(obj, "artccId", ""),
+            IsAdmin = GetFieldOr(obj, "isAdminMode", false),
+            AdminPassword = GetFieldOr(obj, "adminPassword", ""),
+            MainWindowGeometry = GetFieldOr<SavedWindowGeometry?>(obj, "mainWindowGeometry", null),
+            SettingsWindowGeometry = GetFieldOr<SavedWindowGeometry?>(obj, "settingsWindowGeometry", null),
+            TerminalWindowGeometry = GetFieldOr<SavedWindowGeometry?>(obj, "terminalWindowGeometry", null),
+            GroundViewWindowGeometry = GetFieldOr<SavedWindowGeometry?>(obj, "groundViewWindowGeometry", null),
+            RadarViewWindowGeometry = GetFieldOr<SavedWindowGeometry?>(obj, "radarViewWindowGeometry", null),
+            DataGridWindowGeometry = GetFieldOr<SavedWindowGeometry?>(obj, "dataGridWindowGeometry", null),
+            GridLayout = GetFieldOr<SavedGridLayout?>(obj, "gridLayout", null),
+            AutoAcceptEnabled = GetFieldOr(obj, "autoAcceptEnabled", true),
+            AutoAcceptDelaySeconds = GetFieldOr(obj, "autoAcceptDelaySeconds", 5),
+            AutoDeleteOverride = GetFieldOr(obj, "autoDeleteOverride", ""),
+            IsDataGridPoppedOut = GetFieldOr(obj, "isDataGridPoppedOut", false),
+            IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
+            IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
+            RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
+            IsDelayedGroupCollapsed = GetFieldOr(obj, "isDelayedGroupCollapsed", false),
+            Macros = macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
+            FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
+            RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
+        };
+    }
+
+    private static T GetFieldOr<T>(JsonObject obj, string name, T fallback)
+    {
+        if (!obj.TryGetPropertyValue(name, out var node) || node is null)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return node.Deserialize<T>(JsonOptions) ?? fallback;
+        }
+        catch (JsonException)
+        {
+            Log.LogWarning("Skipped unreadable preference field '{Field}'", name);
+            return fallback;
+        }
+    }
+
+    private static void BackupFile()
+    {
+        try
+        {
+            File.Copy(ConfigPath, ConfigPath + ".bak", overwrite: true);
+        }
+        catch (IOException ex)
+        {
+            Log.LogWarning(ex, "Could not back up preferences file");
         }
     }
 
