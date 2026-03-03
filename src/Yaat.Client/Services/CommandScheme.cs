@@ -43,6 +43,7 @@ public class CommandScheme
                 [CanonicalCommandType.SquawkStandbyAll] = new() { Aliases = ["SSALL"], Format = "{verb}" },
                 // Navigation
                 [CanonicalCommandType.DirectTo] = new() { Aliases = ["DCT"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ForceDirectTo] = new() { Aliases = ["DCTF"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.AppendDirectTo] = new() { Aliases = ["ADCT"], Format = "{verb} {arg}" },
                 // Tower
                 [CanonicalCommandType.LineUpAndWait] = new() { Aliases = ["LUAW", "POS", "LU", "PH"], Format = "{verb}" },
@@ -134,6 +135,7 @@ public class CommandScheme
                 // Broadcast
                 [CanonicalCommandType.Say] = new() { Aliases = ["SAY"], Format = "{verb} {arg}" },
                 // Approach
+                [CanonicalCommandType.ExpectApproach] = new() { Aliases = ["EAPP", "EXPECT"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ClearedApproach] = new() { Aliases = ["CAPP"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.JoinApproach] = new() { Aliases = ["JAPP"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ClearedApproachStraightIn] = new() { Aliases = ["CAPPSI"], Format = "{verb} {arg}" },

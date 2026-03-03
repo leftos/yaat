@@ -44,7 +44,11 @@ public record SquawkStandbyAllCommand : ParsedCommand;
 
 public record DirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
 
+public record ForceDirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
+
 public record AppendDirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
+
+public record ExpectApproachCommand(string ApproachId, string? AirportCode) : ParsedCommand;
 
 public record ResolvedFix(string Name, double Lat, double Lon);
 

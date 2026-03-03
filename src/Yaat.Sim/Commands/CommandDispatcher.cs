@@ -22,7 +22,8 @@ public static class CommandDispatcher
         IFixLookup? fixes,
         ILogger logger,
         IApproachLookup? approachLookup = null,
-        IProcedureLookup? procedureLookup = null
+        IProcedureLookup? procedureLookup = null,
+        bool validateDctFixes = true
     )
     {
         // Phase interaction: check if aircraft has active phases
@@ -92,7 +93,7 @@ public static class CommandDispatcher
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes, approachLookup, runways, procedureLookup),
+                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes, approachLookup, runways, procedureLookup, validateDctFixes),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
                 IsWaitBlock = isWait,
@@ -132,7 +133,8 @@ public static class CommandDispatcher
         IFixLookup? fixes,
         ILogger logger,
         IApproachLookup? approachLookup = null,
-        IProcedureLookup? procedureLookup = null
+        IProcedureLookup? procedureLookup = null,
+        bool validateDctFixes = true
     )
     {
         // Route ground commands through DispatchCompound for phase interaction
@@ -147,7 +149,7 @@ public static class CommandDispatcher
         aircraft.Queue.CurrentBlockIndex = 0;
 
         bool hadProcedure = aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null;
-        var result = ApplyCommand(command, aircraft, fixes, approachLookup, logger, runways, procedureLookup);
+        var result = ApplyCommand(command, aircraft, fixes, approachLookup, logger, runways, procedureLookup, validateDctFixes);
         CheckVectoringWarning(aircraft, [command], hadProcedure);
         return result;
     }
@@ -159,7 +161,8 @@ public static class CommandDispatcher
         IApproachLookup? approachLookup = null,
         ILogger? logger = null,
         IRunwayLookup? runways = null,
-        IProcedureLookup? procedureLookup = null
+        IProcedureLookup? procedureLookup = null,
+        bool validateDctFixes = true
     )
     {
         switch (command)
@@ -239,6 +242,21 @@ public static class CommandDispatcher
             }
 
             case DirectToCommand cmd:
+            {
+                if (validateDctFixes)
+                {
+                    var programmed = aircraft.GetProgrammedFixes(approachLookup);
+                    if (programmed.Count > 0)
+                    {
+                        var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
+                        if (unprogrammed.Count > 0)
+                        {
+                            var names = string.Join(", ", unprogrammed.Select(f => f.Name));
+                            return new CommandResult(false, $"Fix {names} not programmed — use DCTF to override");
+                        }
+                    }
+                }
+
                 ClearActiveProcedure(aircraft);
                 aircraft.Targets.NavigationRoute.Clear();
                 var resolved = cmd.Fixes.ToList();
@@ -261,8 +279,50 @@ public static class CommandDispatcher
                 var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
                 bool routeRejoined = resolved.Count > originalCount;
                 return routeRejoined ? Ok($"Proceed direct {fixNames}, then filed route") : Ok($"Proceed direct {fixNames}");
+            }
+
+            case ForceDirectToCommand fCmd:
+            {
+                ClearActiveProcedure(aircraft);
+                aircraft.Targets.NavigationRoute.Clear();
+                var fResolved = fCmd.Fixes.ToList();
+                int fOriginalCount = fResolved.Count;
+                if (fixes is not null)
+                {
+                    RouteChainer.AppendRouteRemainder(fResolved, aircraft.Route, fixes);
+                }
+                foreach (var fix in fResolved)
+                {
+                    aircraft.Targets.NavigationRoute.Add(
+                        new NavigationTarget
+                        {
+                            Name = fix.Name,
+                            Latitude = fix.Lat,
+                            Longitude = fix.Lon,
+                        }
+                    );
+                }
+                var fFixNames = string.Join(" ", fCmd.Fixes.Select(f => f.Name));
+                bool fRouteRejoined = fResolved.Count > fOriginalCount;
+                return fRouteRejoined ? Ok($"Proceed direct {fFixNames}, then filed route") : Ok($"Proceed direct {fFixNames}");
+            }
 
             case AppendDirectToCommand adct:
+            {
+                if (validateDctFixes)
+                {
+                    var adctProgrammed = aircraft.GetProgrammedFixes(approachLookup);
+                    if (adctProgrammed.Count > 0)
+                    {
+                        var adctUnprogrammed = adct.Fixes.Where(f => !adctProgrammed.Contains(f.Name)).ToList();
+                        if (adctUnprogrammed.Count > 0)
+                        {
+                            var adctBadNames = string.Join(", ", adctUnprogrammed.Select(f => f.Name));
+                            return new CommandResult(false, $"Fix {adctBadNames} not programmed — use DCTF to override");
+                        }
+                    }
+                }
+
                 var adctResolved = adct.Fixes.ToList();
                 int adctOriginal = adctResolved.Count;
                 if (fixes is not null)
@@ -305,6 +365,7 @@ public static class CommandDispatcher
                         ? Ok($"Then direct {adctAppended}, then filed route")
                         : Ok($"Then direct {adctAppended}");
                 }
+            }
 
             case SquawkCommand cmd:
                 aircraft.BeaconCode = cmd.Code;
@@ -362,6 +423,18 @@ public static class CommandDispatcher
 
             case DescendViaCommand dvia:
                 return DispatchDescendVia(dvia, aircraft);
+
+            case ExpectApproachCommand eapp:
+            {
+                var eappResolved = ApproachCommandHandler.ResolveApproach(eapp.ApproachId, eapp.AirportCode, aircraft, approachLookup, runways);
+                if (!eappResolved.Success)
+                {
+                    return new CommandResult(false, eappResolved.Error);
+                }
+                var (eappProc, _, _) = eappResolved;
+                aircraft.ExpectedApproach = eappProc.ApproachId;
+                return Ok($"Expecting {eappProc.ApproachId} approach");
+            }
 
             case ListApproachesCommand apps:
                 return DispatchListApproaches(apps, aircraft, approachLookup);
@@ -1613,7 +1686,8 @@ public static class CommandDispatcher
         IFixLookup? fixes = null,
         IApproachLookup? approachLookup = null,
         IRunwayLookup? runways = null,
-        IProcedureLookup? procedureLookup = null
+        IProcedureLookup? procedureLookup = null,
+        bool validateDctFixes = true
     )
     {
         // Capture the parsed commands; they'll be applied when the block activates
@@ -1624,7 +1698,7 @@ public static class CommandDispatcher
 
             foreach (var cmd in captured)
             {
-                ApplyCommand(cmd, ac, fixes, approachLookup, runways: runways, procedureLookup: procedureLookup);
+                ApplyCommand(cmd, ac, fixes, approachLookup, runways: runways, procedureLookup: procedureLookup, validateDctFixes: validateDctFixes);
             }
 
             CheckVectoringWarning(ac, captured, hadProcedure);
@@ -1657,6 +1731,7 @@ public static class CommandDispatcher
                     or RightTurnCommand
                     or FlyPresentHeadingCommand
                     or DirectToCommand
+                    or ForceDirectToCommand
         );
 
         if (!hasHeadingCmd)

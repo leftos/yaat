@@ -234,6 +234,7 @@ public partial class MainViewModel
 
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
+        _ = SendValidateDctFixes();
 
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {

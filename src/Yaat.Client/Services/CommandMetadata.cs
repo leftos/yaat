@@ -31,6 +31,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.SquawkStandbyAll, "Squawk Standby All", null, true, "Transponder"),
         // Navigation
         new(CanonicalCommandType.DirectTo, "Direct To", "FIX", false, "Navigation"),
+        new(CanonicalCommandType.ForceDirectTo, "Force Direct To Fix", "FIX", false, "Navigation"),
         new(CanonicalCommandType.AppendDirectTo, "Append Direct To", "FIX", false, "Navigation"),
         // Tower
         new(CanonicalCommandType.LineUpAndWait, "Line Up and Wait", null, false, "Tower"),
@@ -123,6 +124,7 @@ public static class CommandMetadata
         // Broadcast
         new(CanonicalCommandType.Say, "Say", "REQUEST VFR TRANSITION", false, "Broadcast"),
         // Approach
+        new(CanonicalCommandType.ExpectApproach, "Expect Approach", "I28R", false, "Approach"),
         new(CanonicalCommandType.ClearedApproach, "Cleared Approach", "ILS28R", false, "Approach"),
         new(CanonicalCommandType.JoinApproach, "Join Approach", "ILS28R", false, "Approach"),
         new(CanonicalCommandType.ClearedApproachStraightIn, "Cleared Straight-In", "ILS28R", false, "Approach"),

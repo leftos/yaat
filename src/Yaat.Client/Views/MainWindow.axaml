@@ -69,6 +69,10 @@
                 <MenuItem Header="_Clear Weather"
                           Command="{Binding ClearWeatherCommand}" />
             </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem Header="_Approach Report"
+                          x:Name="ApproachReportMenuItem" />
+            </MenuItem>
             <MenuItem Header="_Settings"
                         x:Name="SettingsMenuItem" />
         </Menu>

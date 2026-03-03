@@ -46,6 +46,12 @@ public partial class MainWindow : Window
             loadWeatherItem.Click += OnLoadWeatherClick;
         }
 
+        var approachReportItem = this.FindControl<MenuItem>("ApproachReportMenuItem");
+        if (approachReportItem is not null)
+        {
+            approachReportItem.Click += OnApproachReportClick;
+        }
+
         var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
         {
@@ -694,6 +700,32 @@ public partial class MainWindow : Window
         if (filePath is not null)
         {
             await vm.LoadWeatherCommand.ExecuteAsync(filePath);
+        }
+    }
+
+    private async void OnApproachReportClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || !vm.IsConnected)
+        {
+            return;
+        }
+
+        try
+        {
+            var report = await vm.Connection.GetApproachReportAsync();
+            if (report is null)
+            {
+                vm.StatusText = "No approach data available";
+                return;
+            }
+
+            var window = new ApproachReportWindow();
+            window.LoadReport(report);
+            await window.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            vm.StatusText = $"Approach report error: {ex.Message}";
         }
     }
 

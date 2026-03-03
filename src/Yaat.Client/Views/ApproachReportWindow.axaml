@@ -1,0 +1,100 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.ApproachReportWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Approach Report"
+        Width="900"
+        Height="560"
+        MinWidth="700"
+        MinHeight="400"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel Margin="12">
+
+        <!-- Bottom: close button -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button Content="Close"
+                    x:Name="CloseButton"
+                    Width="80" />
+        </StackPanel>
+
+        <!-- Header: overall grade + elapsed time -->
+        <StackPanel DockPanel.Dock="Top"
+                    Orientation="Horizontal"
+                    Spacing="16"
+                    Margin="0,0,0,8">
+            <TextBlock x:Name="OverallGradeText"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center" />
+            <TextBlock x:Name="ElapsedTimeText"
+                       Foreground="{DynamicResource SubtleTextBrush}"
+                       VerticalAlignment="Center" />
+            <TextBlock x:Name="StatusText"
+                       Foreground="{DynamicResource SubtleTextBrush}"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Content area -->
+        <DockPanel>
+
+            <!-- Runway stats at the bottom -->
+            <StackPanel DockPanel.Dock="Bottom"
+                        Margin="0,8,0,0">
+                <TextBlock Text="Runway Statistics"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,4" />
+                <DataGrid x:Name="RunwayStatsGrid"
+                          AutoGenerateColumns="False"
+                          GridLinesVisibility="Horizontal"
+                          CanUserResizeColumns="False"
+                          CanUserSortColumns="False"
+                          SelectionMode="Single"
+                          HeadersVisibility="Column"
+                          MaxHeight="140">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Runway" Binding="{Binding RunwayId}" Width="80" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Landings" Binding="{Binding LandingCount}" Width="80" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Rate/hr" Binding="{Binding ArrivalRatePerHour, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Avg Spacing (s)" Binding="{Binding AverageTimeBetweenLandingsSec, StringFormat={}{0:F0}}" Width="120" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Min Sep (nm)" Binding="{Binding MinSeparationNm, StringFormat={}{0:F1}}" Width="100" IsReadOnly="True" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </StackPanel>
+
+            <!-- Per-approach scores -->
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Text="Approach Scores"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,4" />
+                <DataGrid x:Name="ApproachScoresGrid"
+                          AutoGenerateColumns="False"
+                          GridLinesVisibility="Horizontal"
+                          CanUserResizeColumns="True"
+                          CanUserSortColumns="True"
+                          SelectionMode="Single"
+                          HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Grade" Binding="{Binding Grade}" Width="60" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Callsign" Binding="{Binding Callsign}" Width="90" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Type" Binding="{Binding AircraftType}" Width="60" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Approach" Binding="{Binding ApproachId}" Width="80" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Rwy" Binding="{Binding RunwayId}" Width="50" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Angle (°)" Binding="{Binding InterceptAngleDeg, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Dist (nm)" Binding="{Binding InterceptDistanceNm, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                        <DataGridTextColumn Header="GS Dev (ft)" Binding="{Binding GlideSlopeDeviationFt, StringFormat={}{0:+0;-0;0}}" Width="90" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Speed (kts)" Binding="{Binding SpeedAtInterceptKts, StringFormat={}{0:F0}}" Width="90" IsReadOnly="True" />
+                        <DataGridTextColumn Header="Sep (nm)" Binding="{Binding SeparationNm, StringFormat={}{0:F1}}" Width="80" IsReadOnly="True" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+
+        </DockPanel>
+
+    </DockPanel>
+</Window>

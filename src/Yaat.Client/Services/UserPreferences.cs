@@ -48,6 +48,7 @@ public sealed class UserPreferences
     private string? _lastScenarioFolder;
     private string? _lastWeatherFolder;
     private List<MacroDefinition> _macros;
+    private bool _validateDctFixes;
     private List<FavoriteCommand> _favoriteCommands;
     private List<RecentScenario> _recentScenarios;
 
@@ -79,6 +80,7 @@ public sealed class UserPreferences
         _lastScenarioFolder = saved.LastScenarioFolder;
         _lastWeatherFolder = saved.LastWeatherFolder;
         _macros = saved.Macros;
+        _validateDctFixes = saved.ValidateDctFixes;
         _favoriteCommands = saved.FavoriteCommands;
         _recentScenarios = saved.RecentScenarios;
     }
@@ -107,6 +109,7 @@ public sealed class UserPreferences
     public string? LastScenarioFolder => _lastScenarioFolder;
     public string? LastWeatherFolder => _lastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
+    public bool ValidateDctFixes => _validateDctFixes;
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _favoriteCommands;
     public IReadOnlyList<RecentScenario> RecentScenarios => _recentScenarios;
 
@@ -227,6 +230,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetValidateDctFixes(bool validate)
+    {
+        _validateDctFixes = validate;
+        Save();
+    }
+
     public void SetMacros(List<MacroDefinition> macros)
     {
         _macros = macros;
@@ -338,6 +347,7 @@ public sealed class UserPreferences
             LastScenarioFolder = saved.LastScenarioFolder,
             LastWeatherFolder = saved.LastWeatherFolder,
             Macros = saved.Macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
+            ValidateDctFixes = saved.ValidateDctFixes,
             FavoriteCommands = saved.FavoriteCommands ?? [],
             RecentScenarios = saved.RecentScenarios ?? [],
         };
@@ -391,6 +401,7 @@ public sealed class UserPreferences
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = macros?.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList() ?? [],
+            ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
         };
@@ -453,6 +464,7 @@ public sealed class UserPreferences
         public string? LastScenarioFolder { get; init; }
         public string? LastWeatherFolder { get; init; }
         public List<MacroDefinition> Macros { get; init; } = [];
+        public bool ValidateDctFixes { get; init; }
         public List<FavoriteCommand> FavoriteCommands { get; init; } = [];
         public List<RecentScenario> RecentScenarios { get; init; } = [];
     }
@@ -488,6 +500,7 @@ public sealed class UserPreferences
             LastScenarioFolder = _lastScenarioFolder,
             LastWeatherFolder = _lastWeatherFolder,
             Macros = _macros.Select(m => new SavedMacro { Name = m.Name, Expansion = m.Expansion }).ToList(),
+            ValidateDctFixes = _validateDctFixes,
             FavoriteCommands = [.. _favoriteCommands],
             RecentScenarios = [.. _recentScenarios],
         };
@@ -580,6 +593,7 @@ public sealed class UserPreferences
         public string? LastScenarioFolder { get; set; }
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
+        public bool ValidateDctFixes { get; set; }
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
         public List<RecentScenario> RecentScenarios { get; set; } = [];
     }

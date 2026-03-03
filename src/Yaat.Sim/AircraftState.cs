@@ -1,3 +1,5 @@
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -47,6 +49,8 @@ public class AircraftState
     public PhaseList? Phases { get; set; }
     public List<string> PendingWarnings { get; } = [];
     public List<string> PendingNotifications { get; } = [];
+    public List<ApproachScore> PendingApproachScores { get; } = [];
+    public ApproachScore? ActiveApproachScore { get; set; }
 
     // Ground operations state
     public TaxiRoute? AssignedTaxiRoute { get; set; }
@@ -77,6 +81,9 @@ public class AircraftState
     public double? HandoffInitiatedAt { get; set; }
     public int? AssignedAltitude { get; set; }
 
+    // Approach expectation
+    public string? ExpectedApproach { get; set; }
+
     // Procedure state (SID/STAR)
     public string? ActiveSidId { get; set; }
     public string? ActiveStarId { get; set; }
@@ -88,4 +95,51 @@ public class AircraftState
     // Sequence state
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }
+
+    public HashSet<string> GetProgrammedFixes(IApproachLookup? approachLookup)
+    {
+        var fixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Route fixes: split on spaces, strip airway suffixes (e.g., ".V25")
+        if (!string.IsNullOrEmpty(Route))
+        {
+            foreach (var token in Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var dotIndex = token.IndexOf('.');
+                var fixName = dotIndex >= 0 ? token[..dotIndex] : token;
+                if (!string.IsNullOrEmpty(fixName))
+                {
+                    fixes.Add(fixName);
+                }
+            }
+        }
+
+        // Expected approach fix names
+        if (!string.IsNullOrEmpty(ExpectedApproach) && approachLookup is not null)
+        {
+            string airport = !string.IsNullOrEmpty(Destination) ? Destination : Departure;
+            if (!string.IsNullOrEmpty(airport))
+            {
+                var procedure = approachLookup.GetApproach(airport, ExpectedApproach);
+                if (procedure is not null)
+                {
+                    foreach (var name in ApproachCommandHandler.GetApproachFixNames(procedure))
+                    {
+                        fixes.Add(name);
+                    }
+                }
+            }
+        }
+
+        // Active approach fix names
+        if (Phases?.ActiveApproach?.Procedure is { } activeProc)
+        {
+            foreach (var name in ApproachCommandHandler.GetApproachFixNames(activeProc))
+            {
+                fixes.Add(name);
+            }
+        }
+
+        return fixes;
+    }
 }

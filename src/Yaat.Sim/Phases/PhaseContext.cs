@@ -31,4 +31,7 @@ public sealed class PhaseContext
 
     /// <summary>Active weather profile. Null when no weather is loaded.</summary>
     public WeatherProfile? Weather { get; init; }
+
+    /// <summary>Scenario elapsed time in seconds. Used for approach score timestamps.</summary>
+    public double ScenarioElapsedSeconds { get; init; }
 }

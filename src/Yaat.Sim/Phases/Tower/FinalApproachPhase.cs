@@ -101,7 +101,7 @@ public sealed class FinalApproachPhase : Phase
 
     private void CheckInterceptDistance(PhaseContext ctx, double distNm)
     {
-        if (_interceptChecked || _isPatternTraffic || SkipInterceptCheck || ctx.Runway is null)
+        if (_interceptChecked || SkipInterceptCheck || ctx.Runway is null)
         {
             return;
         }
@@ -121,13 +121,59 @@ public sealed class FinalApproachPhase : Phase
         _interceptChecked = true;
 
         double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(ctx.Runway.AirportId, ctx.Runway.Designator);
+        double interceptAngle = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - _runwayHeading));
 
-        if (distNm < minIntercept)
+        bool isDistanceLegal = distNm >= minIntercept;
+        if (!isDistanceLegal && !_isPatternTraffic)
         {
             ctx.Aircraft.PendingWarnings.Add(
                 $"Illegal intercept: turned on final {distNm:F1}nm " + $"from threshold (min {minIntercept:F1}nm) " + "[7110.65 §5-9-1]"
             );
         }
+
+        // TBL 5-9-1: max intercept angle depends on distance to approach gate
+        double distToGate = distNm - minIntercept;
+        double maxAngle = distToGate < 2.0 ? 20.0 : 30.0;
+        bool isAngleLegal = interceptAngle <= maxAngle;
+
+        // Glideslope deviation at establishment
+        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation);
+        double gsDeviation = ctx.Aircraft.Altitude - gsAltitude;
+
+        // Speed at intercept
+        double speedAtIntercept = ctx.Aircraft.IndicatedAirspeed > 0 ? ctx.Aircraft.IndicatedAirspeed : ctx.Aircraft.GroundSpeed;
+
+        // Was this a forced approach clearance?
+        bool wasForced = ctx.Aircraft.Phases?.ActiveApproach?.Force ?? false;
+
+        // Capture approach score
+        var approachId = ctx.Aircraft.Phases?.ActiveApproach?.ApproachId ?? "";
+        var airportCode = ctx.Aircraft.Phases?.ActiveApproach?.AirportCode ?? ctx.Runway.AirportId;
+
+        var score = new ApproachScore
+        {
+            Callsign = ctx.Aircraft.Callsign,
+            AircraftType = ctx.Aircraft.AircraftType,
+            ApproachId = approachId,
+            RunwayId = ctx.Runway.Designator,
+            AirportCode = airportCode,
+            InterceptAngleDeg = interceptAngle,
+            InterceptDistanceNm = distNm,
+            MinInterceptDistanceNm = minIntercept,
+            GlideSlopeDeviationFt = gsDeviation,
+            SpeedAtInterceptKts = speedAtIntercept,
+            WasForced = wasForced,
+            IsPatternTraffic = _isPatternTraffic,
+            MaxAllowedAngleDeg = maxAngle,
+            IsInterceptAngleLegal = isAngleLegal,
+            IsInterceptDistanceLegal = isDistanceLegal,
+            EstablishedAtSeconds = ctx.ScenarioElapsedSeconds,
+            EstablishedLat = ctx.Aircraft.Latitude,
+            EstablishedLon = ctx.Aircraft.Longitude,
+        };
+
+        ctx.Aircraft.ActiveApproachScore = score;
+        ctx.Aircraft.PendingApproachScores.Add(score);
     }
 
     private static bool HasLandingClearance(PhaseContext ctx)

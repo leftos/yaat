@@ -36,6 +36,15 @@ public static class PhaseRunner
         if (complete)
         {
             bool wasLanding = current is LandingPhase or HelicopterLandingPhase;
+
+            // Stamp landing timestamp on approach score
+            if (wasLanding && aircraft.ActiveApproachScore is { } landingScore && landingScore.LandedAtSeconds is null)
+            {
+                landingScore.LandedAtSeconds = ctx.ScenarioElapsedSeconds;
+                aircraft.PendingApproachScores.Add(landingScore);
+                aircraft.ActiveApproachScore = null;
+            }
+
             phases.AdvanceToNext(ctx);
 
             // After a full-stop landing (not pattern mode), auto-exit the runway

@@ -222,6 +222,12 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("SetAutoDeleteMode", mode);
     }
 
+    public async Task SetValidateDctFixesAsync(bool validate)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetValidateDctFixes", validate);
+    }
+
     // --- Data queries ---
 
     public async Task<GroundLayoutDto?> GetAirportGroundLayoutAsync(string airportId)
@@ -240,6 +246,12 @@ public sealed class ServerConnection : IAsyncDisposable
     {
         EnsureConnected();
         return await _connection!.InvokeAsync<FacilityVideoMapsDto?>("GetFacilityVideoMapsForArtcc", artccId, airportId);
+    }
+
+    public async Task<ApproachReportDto?> GetApproachReportAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<ApproachReportDto?>("GetApproachReport");
     }
 
     // --- Admin ---
@@ -386,7 +398,8 @@ public record AircraftDto(
     string? Scratchpad2 = null,
     int? TemporaryAltitude = null,
     bool IsAnnotated = false,
-    string? ActiveApproachId = null
+    string? ActiveApproachId = null,
+    string? ExpectedApproach = null
 );
 
 public record LoadScenarioResultDto(
@@ -479,3 +492,40 @@ public record FacilityVideoMapsDto(
 public record WeatherChangedDto(string? Name, List<WindLayerDto>? WindLayers, string? Precipitation, List<string>? Metars);
 
 public record WindLayerDto(int Altitude, int Direction, int Speed, int? Gusts);
+
+// --- Approach Report DTOs ---
+
+public record ApproachScoreDto(
+    string Callsign,
+    string AircraftType,
+    string ApproachId,
+    string RunwayId,
+    double InterceptAngleDeg,
+    double InterceptDistanceNm,
+    double MinInterceptDistanceNm,
+    double GlideSlopeDeviationFt,
+    double SpeedAtInterceptKts,
+    bool WasForced,
+    bool IsPatternTraffic,
+    bool IsInterceptAngleLegal,
+    bool IsInterceptDistanceLegal,
+    string Grade,
+    double EstablishedAtSeconds,
+    double? LandedAtSeconds,
+    double? SeparationNm
+);
+
+public record RunwayStatsDto(
+    string RunwayId,
+    int LandingCount,
+    double ArrivalRatePerHour,
+    double AverageTimeBetweenLandingsSec,
+    double? MinSeparationNm
+);
+
+public record ApproachReportDto(
+    List<ApproachScoreDto> Approaches,
+    List<RunwayStatsDto> RunwayStats,
+    double ScenarioElapsedSeconds,
+    string OverallGrade
+);

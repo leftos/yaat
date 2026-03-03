@@ -271,6 +271,9 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private string? _activeApproachId;
 
+    [ObservableProperty]
+    private string? _expectedApproach;
+
     public string OwnerDisplay => OwnerSectorCode ?? Owner ?? "";
 
     public string HandoffDisplay => HandoffPeerSectorCode ?? HandoffPeer ?? "";
@@ -333,6 +336,7 @@ public partial class AircraftModel : ObservableObject
             TemporaryAltitude = dto.TemporaryAltitude,
             IsAnnotated = dto.IsAnnotated,
             ActiveApproachId = dto.ActiveApproachId,
+            ExpectedApproach = dto.ExpectedApproach,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         return model;
@@ -383,6 +387,7 @@ public partial class AircraftModel : ObservableObject
         TemporaryAltitude = dto.TemporaryAltitude;
         IsAnnotated = dto.IsAnnotated;
         ActiveApproachId = dto.ActiveApproachId;
+        ExpectedApproach = dto.ExpectedApproach;
         DistanceFromFix = computeDistance?.Invoke(this);
     }
 

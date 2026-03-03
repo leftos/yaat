@@ -1,3 +1,5 @@
+using Yaat.Sim.Phases;
+
 namespace Yaat.Sim;
 
 public sealed class SimulationWorld
@@ -106,6 +108,24 @@ public sealed class SimulationWorld
                     }
 
                     ac.PendingNotifications.Clear();
+                }
+            }
+        }
+
+        return result;
+    }
+
+    public List<ApproachScore> DrainAllApproachScores()
+    {
+        var result = new List<ApproachScore>();
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                if (ac.PendingApproachScores.Count > 0)
+                {
+                    result.AddRange(ac.PendingApproachScores);
+                    ac.PendingApproachScores.Clear();
                 }
             }
         }

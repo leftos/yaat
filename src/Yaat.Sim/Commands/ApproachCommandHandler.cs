@@ -250,7 +250,7 @@ public static class ApproachCommandHandler
 
     // --- Shared helpers ---
 
-    private static ResolvedApproach ResolveApproach(
+    internal static ResolvedApproach ResolveApproach(
         string approachId,
         string? airportCode,
         AircraftState aircraft,
@@ -378,6 +378,24 @@ public static class ApproachCommandHandler
         return null;
     }
 
+    internal static IReadOnlyList<string> GetApproachFixNames(CifpApproachProcedure procedure)
+    {
+        var names = new List<string>();
+        foreach (var leg in procedure.CommonLegs)
+        {
+            if (string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                continue;
+            }
+            if (leg.FixRole == CifpFixRole.MAHP)
+            {
+                break;
+            }
+            names.Add(leg.FixIdentifier);
+        }
+        return names;
+    }
+
     private static List<ApproachFix> BuildApproachFixes(CifpApproachProcedure procedure, IFixLookup? fixes)
     {
         var result = new List<ApproachFix>();
@@ -470,7 +488,7 @@ public static class ApproachCommandHandler
         }
     }
 
-    private readonly record struct ResolvedApproach
+    internal readonly record struct ResolvedApproach
     {
         public bool Success { get; }
         public string? Error { get; }

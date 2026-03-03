@@ -119,7 +119,11 @@ public enum CanonicalCommandType
     // Broadcast
     Say,
 
+    // Navigation (continued)
+    ForceDirectTo,
+
     // Approach commands
+    ExpectApproach,
     ClearedApproach,
     JoinApproach,
     ClearedApproachStraightIn,

@@ -135,6 +135,15 @@
                                    Foreground="{DynamicResource SubtleTextBrush}"
                                    FontSize="11" />
                     </StackPanel>
+                    <StackPanel Spacing="4">
+                        <CheckBox Content="Validate DCT fixes against programmed route"
+                                  IsChecked="{Binding ValidateDctFixes}" />
+                        <TextBlock Text="When enabled, DCT to a fix not in the aircraft's route or expected approach is rejected. Use DCTF to override. Requires issuing EAPP (Expect Approach) to program approach fixes."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Margin="28,0,0,0" />
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
 

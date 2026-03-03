@@ -365,6 +365,7 @@ public partial class MainViewModel
 
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
+        _ = SendValidateDctFixes();
         _ = RefreshCrcLobbyAsync();
     }
 

@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ILogger _log = AppLog.CreateLogger<MainViewModel>();
 
     private readonly ServerConnection _connection = new();
+    public ServerConnection Connection => _connection;
     private readonly UserPreferences _preferences = new();
     private readonly CommandInputController _commandInput = new();
     private readonly VideoMapService _videoMapService = new();
@@ -632,6 +633,7 @@ public partial class MainViewModel : ObservableObject
         {
             _ = SendAutoAcceptDelay();
             _ = SendAutoDeleteMode();
+            _ = SendValidateDctFixes();
         }
     }
 
@@ -766,6 +768,18 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to set auto-delete mode");
+        }
+    }
+
+    private async Task SendValidateDctFixes()
+    {
+        try
+        {
+            await _connection.SetValidateDctFixesAsync(_preferences.ValidateDctFixes);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set DCT validation mode");
         }
     }
 
