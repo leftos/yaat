@@ -444,6 +444,9 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.IsRadarViewPoppedOut):
                 HandleRadarViewPopOut(vm);
                 break;
+            case nameof(MainViewModel.ActiveScenarioId):
+                RefreshRecentScenariosEnabled(vm);
+                break;
         }
     }
 
@@ -599,6 +602,15 @@ public partial class MainWindow : Window
             vm.IsRadarViewPoppedOut = false;
         }
         _radarViewWindow = null;
+    }
+
+    private void RefreshRecentScenariosEnabled(MainViewModel vm)
+    {
+        var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
+        if (recentItem is not null)
+        {
+            recentItem.IsEnabled = vm.Preferences.RecentScenarios.Count > 0;
+        }
     }
 
     private async void OnLoadScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
