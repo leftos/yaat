@@ -371,7 +371,7 @@ public class ApproachCommandHandlerTests
     }
 
     [Fact]
-    public void ApproachNavPhase_ClearsPhaseOnNonApproachCommand()
+    public void ApproachNavPhase_ClearsPhaseOnHeadingCommand()
     {
         var phase = new ApproachNavigationPhase { Fixes = [] };
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
@@ -382,6 +382,60 @@ public class ApproachCommandHandlerTests
     {
         var phase = new ApproachNavigationPhase { Fixes = [] };
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClearedToLand));
+    }
+
+    [Fact]
+    public void ApproachNavPhase_AllowsSpeedCommand()
+    {
+        var phase = new ApproachNavigationPhase { Fixes = [] };
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.Speed));
+    }
+
+    [Fact]
+    public void ApproachNavPhase_AllowsAltitudeCommand()
+    {
+        var phase = new ApproachNavigationPhase { Fixes = [] };
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
+    }
+
+    [Fact]
+    public void InterceptPhase_AllowsSpeedCommand()
+    {
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = 280,
+            ThresholdLat = 37.72,
+            ThresholdLon = -122.22,
+        };
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.Speed));
+    }
+
+    [Fact]
+    public void InterceptPhase_ClearsPhaseOnHeadingCommand()
+    {
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = 280,
+            ThresholdLat = 37.72,
+            ThresholdLon = -122.22,
+        };
+        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
+    }
+
+    [Fact]
+    public void ApproachNavPhase_AppliesGlideSlopeInterceptAltitude()
+    {
+        var altRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.GlideSlopeIntercept, 1800);
+        var fixes = new List<ApproachFix> { new("FIX1", 37.80, -122.30, altRestriction), new("FIX2", 37.75, -122.25) };
+
+        var phase = new ApproachNavigationPhase { Fixes = fixes };
+        var aircraft = MakeAircraft(altitude: 3000, lat: 37.85, lon: -122.35);
+        var ctx = MakeContext(aircraft);
+
+        phase.OnStart(ctx);
+
+        Assert.Equal(1800, aircraft.Targets.TargetAltitude);
     }
 
     // --- Error cases ---

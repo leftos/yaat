@@ -1176,6 +1176,9 @@ public static class CommandDispatcher
 
         double finalCourse = approachRunway.TrueHeading;
 
+        // Cancel existing speed restrictions per 7110.65 §5-7-1.a.4
+        aircraft.Targets.TargetSpeed = null;
+
         // Clear existing phases
         if (aircraft.Phases is not null && logger is not null)
         {

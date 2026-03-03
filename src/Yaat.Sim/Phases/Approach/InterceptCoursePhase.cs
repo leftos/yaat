@@ -51,15 +51,20 @@ public sealed class InterceptCoursePhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        // Approach-related commands are accepted (e.g., landing clearance)
         return cmd switch
         {
+            // Approach-related commands pass through
             CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
+            // Speed/altitude adjust targets without leaving the approach
+            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
+            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
+            // Everything else (heading, direct-to, etc.) takes the aircraft off the approach
             _ => CommandAcceptance.ClearsPhase,
         };
     }

@@ -153,15 +153,17 @@ public static class ApproachCommandHandler
             var holdFix = trimmedFixes.FirstOrDefault(f => f.Name.Equals(holdLeg.FixIdentifier, StringComparison.OrdinalIgnoreCase));
             if (holdFix is not null)
             {
+                int inboundCourse = holdLeg.OutboundCourse.HasValue ? (int)((holdLeg.OutboundCourse.Value + 180) % 360) : (int)finalCourse;
+
                 aircraft.Phases.Add(
                     new HoldingPatternPhase
                     {
                         FixName = holdFix.Name,
                         FixLat = holdFix.Latitude,
                         FixLon = holdFix.Longitude,
-                        InboundCourse = (int)finalCourse,
-                        LegLength = 1,
-                        IsMinuteBased = true,
+                        InboundCourse = inboundCourse,
+                        LegLength = holdLeg.LegDistanceNm ?? 1.0,
+                        IsMinuteBased = holdLeg.LegDistanceNm is null,
                         Direction = holdLeg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right,
                         MaxCircuits = 1,
                     }
@@ -299,19 +301,61 @@ public static class ApproachCommandHandler
         double finalCourse = runway.TrueHeading;
         double interceptAngle = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - finalCourse));
 
-        // Distance from aircraft to approach gate
-        double distToThreshold = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.ThresholdLatitude, runway.ThresholdLongitude);
+        // Compute where aircraft's track intersects the final approach course.
+        // The FAC extends from the threshold along the reciprocal of the runway heading.
+        double facReciprocalDeg = (finalCourse + 180) % 360;
 
+        // Along-track distance of aircraft position relative to threshold on the FAC.
+        // Positive = on the approach side (away from airport along reciprocal).
+        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
+            aircraft.Latitude,
+            aircraft.Longitude,
+            runway.ThresholdLatitude,
+            runway.ThresholdLongitude,
+            facReciprocalDeg
+        );
+
+        double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
+            aircraft.Latitude,
+            aircraft.Longitude,
+            runway.ThresholdLatitude,
+            runway.ThresholdLongitude,
+            facReciprocalDeg
+        );
+
+        // Compute along-track distance of the interception point from the threshold.
+        // Using trig: the aircraft is at (crossTrack, alongTrack) in the FAC frame.
+        // Its heading relative to the FAC determines where it crosses.
+        double relativeAngleRad = FlightPhysics.NormalizeAngle(aircraft.Heading - finalCourse) * Math.PI / 180.0;
+        double tanAngle = Math.Tan(relativeAngleRad);
+
+        double interceptAlongTrack;
+        if (Math.Abs(tanAngle) < 0.001)
+        {
+            // Nearly parallel — use aircraft's along-track as approximation
+            interceptAlongTrack = aircraftAlongTrack;
+        }
+        else
+        {
+            // Distance along FAC from aircraft's along-track to where it crosses the course
+            interceptAlongTrack = aircraftAlongTrack - (crossTrack / tanAngle);
+        }
+
+        // The approach gate is on the FAC at (minIntercept - 2nm) from the threshold.
         double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(runway.AirportId, runway.Designator);
+        double approachGateAlongTrack = minIntercept - 2.0;
 
-        // Distance-based limits per 7110.65 §5-9-2
-        double maxAngle = distToThreshold < minIntercept ? 20.0 : 30.0;
+        // Distance from interception point to approach gate (along the FAC)
+        double distToGate = interceptAlongTrack - approachGateAlongTrack;
+
+        // TBL 5-9-1: distance from interception point to approach gate
+        double maxAngle = distToGate < 2.0 ? 20.0 : 30.0;
 
         if (interceptAngle > maxAngle)
         {
             return new CommandResult(
                 false,
-                $"Intercept angle {interceptAngle:F0}° exceeds {maxAngle:F0}° limit " + $"({distToThreshold:F1}nm from threshold) [7110.65 §5-9-2]"
+                $"Intercept angle {interceptAngle:F0}° exceeds {maxAngle:F0}° limit ({distToGate:F1}nm from approach gate) [7110.65 §5-9-2]"
             );
         }
 

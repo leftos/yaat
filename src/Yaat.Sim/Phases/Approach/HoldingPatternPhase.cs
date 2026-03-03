@@ -284,7 +284,7 @@ public sealed class HoldingPatternPhase : Phase
     private static void DecelerateToHoldingSpeed(PhaseContext ctx)
     {
         double maxHold = CategoryPerformance.MaxHoldingSpeed(ctx.Aircraft.Altitude);
-        if (ctx.Aircraft.GroundSpeed > maxHold)
+        if (ctx.Targets.TargetSpeed is null || ctx.Targets.TargetSpeed > maxHold)
         {
             ctx.Targets.TargetSpeed = maxHold;
         }
