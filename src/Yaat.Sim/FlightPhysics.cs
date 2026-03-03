@@ -178,11 +178,15 @@ public static class FlightPhysics
         aircraft.StarViaFloor = null;
     }
 
+    /// <summary>Constant for bank angle formula: (π/180) × 1.6878 / 32.174 ≈ 0.0009146.</summary>
+    private const double BankAngleCoeff = Math.PI / 180.0 * 1.6878 / 32.174;
+
     private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         var target = aircraft.Targets.TargetHeading;
         if (target is null)
         {
+            aircraft.BankAngle = 0;
             return;
         }
 
@@ -202,6 +206,7 @@ public static class FlightPhysics
             // assigned heading so it persists in the UI and autopilot
             // until the controller issues a new instruction.
             aircraft.Targets.PreferredTurnDirection = null;
+            aircraft.BankAngle = 0;
             return;
         }
 
@@ -213,6 +218,11 @@ public static class FlightPhysics
         double turnAmount = Math.Min(Math.Abs(diff), maxTurn) * direction;
 
         aircraft.Heading = NormalizeHeading(current + turnAmount);
+
+        // Compute bank angle: atan(TAS_kts × turnRate_deg/s × coeff)
+        double tasKts = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
+        double bankMag = Math.Atan(tasKts * turnRate * BankAngleCoeff) * (180.0 / Math.PI);
+        aircraft.BankAngle = bankMag * direction;
     }
 
     private static void UpdateAltitude(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)

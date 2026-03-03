@@ -407,6 +407,10 @@ The aircraft execution path depends on its position relative to the runway:
 
 **Field/traffic in sight:** Aircraft on a visual approach automatically report "field in sight" or "traffic in sight" when detection conditions are met (forward hemisphere, within visibility range, below ceiling). Use `RFIS` (report field in sight) or `RTIS` (report traffic in sight) to get the pilot's current visual status on demand.
 
+**Bank angle affects initial acquisition:** A pilot in a turn cannot initially spot targets hidden by the high wing. For example, during a right turn the raised left wing blocks the view of traffic to the left at or below the aircraft's altitude. Time your traffic calls for when the pilot can actually see the target — not during a turn that blocks the view. Once the pilot has the target in sight, they can track it through subsequent turns.
+
+**Aircraft size affects detection range:** Larger aircraft are visible from farther away. A Super (A388) can be spotted at up to 15nm, while a Small (C172) is only visible at about 3nm. Detection range scales with the target aircraft's FAA wake turbulence group (WTG).
+
 **Approach scoring:** When an aircraft completes an approach (lands or goes around), the terminal shows an approach report evaluating the quality of the approach setup. Scored criteria include intercept angle, glideslope interception altitude, final approach speed, and stabilization. This provides feedback to the controller-in-training.
 
 ### Navigation Commands

@@ -137,11 +137,140 @@ public class VisualDetectionTests
     }
 
     [Fact]
-    public void CanSeeTraffic_AboveFL180_False()
+    public void CanSeeTraffic_AboveFL180_True()
     {
+        // Pilots can see traffic in Class A — only visual separation is prohibited (7110.65 §7-1-1)
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 18000);
         var tgt = MakeAircraft(37.73, -122.221, heading: 180, altitude: 18000);
-        Assert.False(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, 10.0));
+        Assert.True(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, 10.0));
+    }
+
+    [Fact]
+    public void CanSeeAirport_AboveFL180_StillFalse()
+    {
+        // Visual approaches still prohibited in Class A
+        var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 18000);
+        Assert.False(VisualDetection.CanSeeAirport(ac, AptLat, AptLon, AptElev, null, 10.0));
+    }
+
+    // -------------------------------------------------------------------------
+    // Bank angle occlusion
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void BankOcclusion_RightTurn_TargetLeftAndBelow_Occluded()
+    {
+        // Right bank +25°, target on left (high-wing side) at same altitude
+        Assert.True(VisualDetection.IsOccludedByBank(25.0, 360, 315, 3000, 3000));
+    }
+
+    [Fact]
+    public void BankOcclusion_RightTurn_TargetLeftAndAbove_NotOccluded()
+    {
+        // Right bank +25°, target on left but well above (above 1000ft buffer)
+        Assert.False(VisualDetection.IsOccludedByBank(25.0, 360, 315, 3000, 4500));
+    }
+
+    [Fact]
+    public void BankOcclusion_RightTurn_TargetRightAndBelow_NotOccluded()
+    {
+        // Right bank +25°, target on right (low-wing side)
+        Assert.False(VisualDetection.IsOccludedByBank(25.0, 360, 45, 3000, 3000));
+    }
+
+    [Fact]
+    public void BankOcclusion_RightTurn_TargetAhead_NotOccluded()
+    {
+        // Right bank +25°, target ahead (within 10° nose cone)
+        Assert.False(VisualDetection.IsOccludedByBank(25.0, 360, 5, 3000, 3000));
+    }
+
+    [Fact]
+    public void BankOcclusion_LeftTurn_TargetRightAndBelow_Occluded()
+    {
+        // Left bank -25°, target on right (high-wing side) at same altitude
+        Assert.True(VisualDetection.IsOccludedByBank(-25.0, 360, 45, 3000, 3000));
+    }
+
+    [Fact]
+    public void BankOcclusion_ShallowBank_NotOccluded()
+    {
+        // Bank only 12° → below threshold
+        Assert.False(VisualDetection.IsOccludedByBank(12.0, 360, 315, 3000, 3000));
+    }
+
+    [Fact]
+    public void BankOcclusion_ModerateBank_SameAltitude_Occluded()
+    {
+        // Bank 20° (moderate), target at same altitude (within 500ft buffer)
+        Assert.True(VisualDetection.IsOccludedByBank(20.0, 360, 315, 3000, 3000));
+    }
+
+    [Fact]
+    public void BankOcclusion_ModerateBank_Target600Above_NotOccluded()
+    {
+        // Bank 20° (moderate), target 600ft above → above 500ft buffer for moderate bank
+        Assert.False(VisualDetection.IsOccludedByBank(20.0, 360, 315, 3000, 3600));
+    }
+
+    // -------------------------------------------------------------------------
+    // Aircraft size (WTG-based range)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void CanSeeTraffic_SmallTarget_ShortRange()
+    {
+        WakeTurbulenceData.Initialize(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["C172"] = "F" });
+
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
+        // Target ~2.4nm away (within 3nm WTG F range)
+        var tgt = MakeAircraft(37.71, -122.221, heading: 180, altitude: 3000);
+        tgt.AircraftType = "C172";
+        Assert.True(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, null));
+
+        // Target ~4nm away (beyond 3nm WTG F range)
+        var tgtFar = MakeAircraft(37.68, -122.221, heading: 180, altitude: 3000);
+        tgtFar.AircraftType = "C172";
+        Assert.False(VisualDetection.CanSeeTraffic(own, tgtFar, null, AptElev, null));
+    }
+
+    [Fact]
+    public void CanSeeTraffic_LargeJet_LongerRange()
+    {
+        WakeTurbulenceData.Initialize(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["B738"] = "D" });
+
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
+        // Target ~5nm away (within 8nm WTG D range)
+        var tgt = MakeAircraft(37.67, -122.221, heading: 180, altitude: 3000);
+        tgt.AircraftType = "B738";
+        Assert.True(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, null));
+    }
+
+    [Fact]
+    public void CanSeeTraffic_HeavyWidebody_LongRange()
+    {
+        WakeTurbulenceData.Initialize(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["B77W"] = "B" });
+
+        var own = MakeAircraft(37.85, -122.221, heading: 180, altitude: 5000);
+        // Target ~9nm away (within 12nm WTG B range)
+        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 5000);
+        tgt.AircraftType = "B77W";
+        Assert.True(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, null));
+    }
+
+    [Fact]
+    public void CanSeeTraffic_UnknownType_FallsBackToCategory()
+    {
+        WakeTurbulenceData.Initialize(new Dictionary<string, string>());
+        AircraftCategorization.Initialize(
+            new Dictionary<string, AircraftCategory>(StringComparer.OrdinalIgnoreCase) { ["ZZZZ"] = AircraftCategory.Piston }
+        );
+
+        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
+        // Target ~4nm away (beyond 3nm piston fallback range)
+        var tgt = MakeAircraft(37.68, -122.221, heading: 180, altitude: 3000);
+        tgt.AircraftType = "ZZZZ";
+        Assert.False(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, null));
     }
 
     // -------------------------------------------------------------------------

@@ -92,6 +92,9 @@ public class AircraftState
     public int? SidViaCeiling { get; set; }
     public int? StarViaFloor { get; set; }
 
+    /// <summary>Current bank angle in degrees. Positive = right bank, negative = left bank. Zero when wings level.</summary>
+    public double BankAngle { get; set; }
+
     // Visual approach state
     public bool HasReportedFieldInSight { get; set; }
     public bool HasReportedTrafficInSight { get; set; }

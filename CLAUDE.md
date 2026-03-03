@@ -105,6 +105,7 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 # Core
 AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops
                                # IndicatedAirspeed (IAS, primary speed state), Track (ground track = heading + wind drift)
+                               # BankAngle (degrees, +right/-left, computed by FlightPhysics.UpdateHeading from TAS + turn rate)
                                # ActiveSidId/ActiveStarId, SidViaMode/StarViaMode, SidViaCeiling/StarViaFloor
                                # HasReportedFieldInSight, HasReportedTrafficInSight, FollowingCallsign (visual approach)
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
@@ -113,6 +114,7 @@ FlightPhysics.cs               # Static 6-step Update: navigation→heading→al
                                # 14 CFR 91.117: 250 KIAS cap below 10,000 ft in UpdateSpeed() and ApplyFixConstraints()
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
                                # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
+                               # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF)
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
@@ -126,7 +128,10 @@ WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindCompon
                                # lookup table), ComputeWindCorrectionAngle; gusts stored but not applied to physics
 MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record
 MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm
-VisualDetection.cs             # Static: CanSeeAirport, CanSeeAirportForRunway, CanSeeTraffic — forward hemisphere, visibility, ceiling, FL180
+VisualDetection.cs             # Static: CanSeeAirport, CanSeeAirportForRunway, CanSeeTraffic, IsOccludedByBank
+                               # Forward hemisphere, visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
+                               # FL180 gate on airport (visual approach eligibility) but NOT traffic (pilots can see in Class A)
+WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
 
 # Track operations
 TrackOwner.cs                  # Record: Callsign, FacilityId, Subset, SectorId, OwnerType

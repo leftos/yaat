@@ -287,6 +287,29 @@ public sealed class VnasDataService : IDisposable
         AircraftCategorization.Initialize(lookup);
 
         _logger?.LogInformation("Aircraft categorization initialized: " + "{Count} type mappings", lookup.Count);
+
+        InitializeWakeTurbulenceData();
+    }
+
+    private void InitializeWakeTurbulenceData()
+    {
+        if (AircraftSpecs.Count == 0)
+        {
+            return;
+        }
+
+        var wtgLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var spec in AircraftSpecs)
+        {
+            if (!string.IsNullOrEmpty(spec.Designator) && !string.IsNullOrEmpty(spec.Wtg))
+            {
+                wtgLookup.TryAdd(spec.Designator, spec.Wtg);
+            }
+        }
+
+        WakeTurbulenceData.Initialize(wtgLookup);
+
+        _logger?.LogInformation("Wake turbulence data initialized: " + "{Count} WTG mappings", wtgLookup.Count);
     }
 
     private void LogSummary()
