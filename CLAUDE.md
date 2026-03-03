@@ -58,6 +58,7 @@ ViewModels/
   MainViewModel.Rooms.cs        # Partial: room lifecycle (create/join/leave)
   MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update)
   MainViewModel.Scenario.cs     # Partial: scenario load/unload
+  MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
   SettingsViewModel.cs          # Alias editing; preset detection
@@ -72,6 +73,7 @@ Views/
   TerminalWindow.axaml.cs       # Pop-out terminal (shares MainViewModel)
   SettingsWindow.axaml.cs       # Modal settings (Identity/Scenarios/Macros tabs)
   MacroImportWindow.axaml.cs    # Macro import selection dialog
+  LoadWeatherWindow.axaml.cs    # Weather profile picker modal (folder scan, name + layer count)
   WindowGeometryHelper.cs       # Save/restore window position+size
 
 Views/Map/

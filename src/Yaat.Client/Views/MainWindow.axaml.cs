@@ -40,6 +40,12 @@ public partial class MainWindow : Window
             loadItem.Click += OnLoadScenarioClick;
         }
 
+        var loadWeatherItem = this.FindControl<MenuItem>("LoadWeatherMenuItem");
+        if (loadWeatherItem is not null)
+        {
+            loadWeatherItem.Click += OnLoadWeatherClick;
+        }
+
         var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
         {
@@ -674,6 +680,21 @@ public partial class MainWindow : Window
 
         vm.ScenarioFilePath = path;
         await vm.LoadScenarioCommand.ExecuteAsync(null);
+    }
+
+    private async void OnLoadWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var window = new LoadWeatherWindow(vm.Preferences);
+        var filePath = await window.ShowDialog<string?>(this);
+        if (filePath is not null)
+        {
+            await vm.LoadWeatherCommand.ExecuteAsync(filePath);
+        }
     }
 
     private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

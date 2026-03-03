@@ -38,6 +38,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
     private bool _isConnected;
 
     public string ServerUrl
@@ -91,6 +93,10 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string? _activeScenarioName;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
+    private string? _activeWeatherName;
 
     [ObservableProperty]
     private bool _showUnloadScenarioConfirmation;
@@ -230,6 +236,7 @@ public partial class MainViewModel : ObservableObject
         _connection.RoomMemberChanged += OnRoomMemberChanged;
         _connection.CrcLobbyChanged += OnCrcLobbyChanged;
         _connection.CrcRoomMembersChanged += OnCrcRoomMembersChanged;
+        _connection.WeatherChanged += OnWeatherChanged;
 
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;

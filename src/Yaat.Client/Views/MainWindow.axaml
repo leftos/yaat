@@ -63,6 +63,12 @@
                 <MenuItem Header="_Unload Scenario"
                           Command="{Binding UnloadScenarioCommand}" />
             </MenuItem>
+            <MenuItem Header="_Weather">
+                <MenuItem Header="_Load Weather..."
+                          x:Name="LoadWeatherMenuItem" />
+                <MenuItem Header="_Clear Weather"
+                          Command="{Binding ClearWeatherCommand}" />
+            </MenuItem>
             <MenuItem Header="_Settings"
                         x:Name="SettingsMenuItem" />
         </Menu>

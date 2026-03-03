@@ -23,6 +23,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<RoomMemberChangedDto>? RoomMemberChanged;
     public event Action<CrcLobbyChangedDto>? CrcLobbyChanged;
     public event Action<CrcRoomMembersChangedDto>? CrcRoomMembersChanged;
+    public event Action<WeatherChangedDto>? WeatherChanged;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -53,6 +54,8 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<CrcLobbyChangedDto>("CrcLobbyChanged", dto => CrcLobbyChanged?.Invoke(dto));
 
         _connection.On<CrcRoomMembersChangedDto>("CrcRoomMembersChanged", dto => CrcRoomMembersChanged?.Invoke(dto));
+
+        _connection.On<WeatherChangedDto>("WeatherChanged", dto => WeatherChanged?.Invoke(dto));
 
         _connection.Reconnecting += error =>
         {
@@ -127,6 +130,20 @@ public sealed class ServerConnection : IAsyncDisposable
     {
         EnsureConnected();
         return await _connection!.InvokeAsync<LoadScenarioResultDto>("LoadScenario", scenarioJson);
+    }
+
+    // --- Weather ---
+
+    public async Task<CommandResultDto> LoadWeatherAsync(string weatherJson)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("LoadWeather", weatherJson);
+    }
+
+    public async Task ClearWeatherAsync()
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("ClearWeather");
     }
 
     // --- Aircraft commands ---
@@ -458,3 +475,7 @@ public record FacilityVideoMapsDto(
     List<VideoMapInfoDto> VideoMaps,
     List<MapGroupDto> MapGroups
 );
+
+public record WeatherChangedDto(string? Name, List<WindLayerDto>? WindLayers, string? Precipitation, List<string>? Metars);
+
+public record WindLayerDto(int Altitude, int Direction, int Speed, int? Gusts);

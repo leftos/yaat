@@ -162,23 +162,23 @@ This is the most impactful physics change since the original flight model — it
 
 ## Chunk 4: Client UI (Yaat.Client)
 
-- [ ] `ServerConnection.cs`:
+- [x] `ServerConnection.cs`:
   - Add `LoadWeatherAsync(string json) -> Task<CommandResultDto>`
   - Add `ClearWeatherAsync() -> Task`
   - Add `WeatherChanged` event + handler registration
   - Add client-side DTOs: `WeatherChangedDto`, `WindLayerDto`
 
-- [ ] `MainViewModel.cs`:
+- [x] `MainViewModel.cs`:
   - Add `ActiveWeatherName` observable property
   - Add `LoadWeatherAsync()` relay command (file picker -> read JSON -> send to server)
   - Add `ClearWeatherAsync()` relay command
   - Wire `WeatherChanged` event to update `ActiveWeatherName`
 
-- [ ] `MainWindow.axaml` — add weather controls near scenario controls:
-  - "Load Weather" button + active weather name display + "Clear" button
-  - Minimal UI — weather is secondary to scenarios
+- [x] `MainWindow.axaml` — add `_Weather` menu with Load Weather / Clear Weather items
 
-- [ ] `UserPreferences.cs` — add last-used weather directory (like scenario directory)
+- [x] `LoadWeatherWindow.axaml` + `.cs` — folder browser modal, scans JSONs for `windLayers`, shows name + layer count
+
+- [x] `UserPreferences.cs` — add last-used weather directory (like scenario directory)
 
 ---
 

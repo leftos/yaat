@@ -1,0 +1,74 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.LoadWeatherWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Load Weather"
+        Width="480"
+        Height="400"
+        MinWidth="360"
+        MinHeight="280"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel Margin="12">
+
+        <!-- Top: folder row + status -->
+        <Grid DockPanel.Dock="Top"
+              RowDefinitions="Auto,Auto"
+              Margin="0,0,0,8">
+
+            <!-- Row 0: folder picker -->
+            <Grid Grid.Row="0"
+                  ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0"
+                         x:Name="FolderPathBox"
+                         IsReadOnly="True"
+                         Watermark="Select a folder…" />
+                <Button Grid.Column="1"
+                        Content="Browse…"
+                        x:Name="BrowseButton"
+                        Margin="8,0,0,0" />
+            </Grid>
+
+            <!-- Row 1: status -->
+            <TextBlock Grid.Row="1"
+                       x:Name="StatusText"
+                       VerticalAlignment="Center"
+                       Margin="0,8,0,0"
+                       Foreground="{DynamicResource SubtleTextBrush}" />
+
+        </Grid>
+
+        <!-- Bottom: action buttons -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,8,0,0">
+            <Button Content="Load"
+                    x:Name="LoadButton"
+                    Width="80"
+                    IsEnabled="False" />
+            <Button Content="Cancel"
+                    x:Name="CancelButton"
+                    Width="80" />
+        </StackPanel>
+
+        <!-- Weather file list fills remaining space -->
+        <ListBox x:Name="WeatherList"
+                 SelectionMode="Single">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Name}" />
+                        <TextBlock Text="{Binding LayerCountText}"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+    </DockPanel>
+</Window>
