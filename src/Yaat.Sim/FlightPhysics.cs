@@ -15,22 +15,33 @@ public static class FlightPhysics
 
     public static void Update(AircraftState aircraft, double deltaSeconds)
     {
-        Update(aircraft, deltaSeconds, aircraftLookup: null);
+        Update(aircraft, deltaSeconds, aircraftLookup: null, weather: null);
     }
 
     public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
+        Update(aircraft, deltaSeconds, aircraftLookup, weather: null);
+    }
+
+    public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup, WeatherProfile? weather)
+    {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
-        UpdateNavigation(aircraft);
+        // Backward compat: airborne aircraft without IAS initialized derive it from GS.
+        if (!aircraft.IsOnGround && aircraft.IndicatedAirspeed <= 0 && aircraft.GroundSpeed > 0)
+        {
+            aircraft.IndicatedAirspeed = aircraft.GroundSpeed;
+        }
+
+        UpdateNavigation(aircraft, weather);
         UpdateHeading(aircraft, cat, deltaSeconds);
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
-        UpdatePosition(aircraft, deltaSeconds);
+        UpdatePosition(aircraft, deltaSeconds, weather);
         UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
     }
 
-    private static void UpdateNavigation(AircraftState aircraft)
+    private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather)
     {
         var route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
@@ -54,7 +65,17 @@ public static class FlightPhysics
         }
 
         double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
-        aircraft.Targets.TargetHeading = bearing;
+
+        // Apply wind correction angle so the aircraft flies a straight ground track, not a pursuit curve.
+        double wca = 0;
+        if (weather is not null && !aircraft.IsOnGround && aircraft.IndicatedAirspeed > 0)
+        {
+            double tas = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
+            var wind = WindInterpolator.GetWindAt(weather, aircraft.Altitude);
+            wca = WindInterpolator.ComputeWindCorrectionAngle(bearing, tas, wind.DirectionDeg, wind.SpeedKts);
+        }
+
+        aircraft.Targets.TargetHeading = NormalizeHeading(bearing + wca);
         aircraft.Targets.PreferredTurnDirection = null;
     }
 
@@ -159,10 +180,11 @@ public static class FlightPhysics
             return;
         }
 
-        double current = aircraft.GroundSpeed;
+        // IAS is the primary airspeed; TargetSpeed is an IAS command.
+        double current = aircraft.IndicatedAirspeed;
         double goal = target.Value;
 
-        // Clamp goal to ground conflict limit so phases don't accelerate past it
+        // Clamp goal to ground conflict limit (ground ops only).
         if (aircraft.IsOnGround && aircraft.GroundSpeedLimit is { } limit)
         {
             goal = Math.Min(goal, limit);
@@ -172,7 +194,12 @@ public static class FlightPhysics
 
         if (Math.Abs(diff) < SpeedSnapKts)
         {
-            aircraft.GroundSpeed = goal;
+            aircraft.IndicatedAirspeed = goal;
+            if (aircraft.IsOnGround)
+            {
+                aircraft.GroundSpeed = goal;
+            }
+
             aircraft.Targets.TargetSpeed = null;
             return;
         }
@@ -183,24 +210,62 @@ public static class FlightPhysics
         double maxChange = rate * deltaSeconds;
         double change = Math.Min(Math.Abs(diff), maxChange);
 
-        aircraft.GroundSpeed += accelerating ? change : -change;
+        aircraft.IndicatedAirspeed += accelerating ? change : -change;
+
+        // On the ground, GS tracks IAS directly (no wind effect on ground).
+        if (aircraft.IsOnGround)
+        {
+            aircraft.GroundSpeed = aircraft.IndicatedAirspeed;
+        }
     }
 
-    private static void UpdatePosition(AircraftState aircraft, double deltaSeconds)
+    private static void UpdatePosition(AircraftState aircraft, double deltaSeconds, WeatherProfile? weather)
     {
-        // Enforce ground conflict speed limit before computing displacement
-        if (aircraft.IsOnGround && aircraft.GroundSpeedLimit is { } limit && aircraft.GroundSpeed > limit)
-        {
-            aircraft.GroundSpeed = limit;
-        }
-
-        double speedNmPerSec = aircraft.GroundSpeed / 3600.0;
-        double headingRad = aircraft.Heading * DegToRad;
         double latRad = aircraft.Latitude * DegToRad;
 
-        aircraft.Latitude += speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / NmPerDegLat;
+        if (aircraft.IsOnGround)
+        {
+            // Enforce ground conflict speed limit before computing displacement.
+            if (aircraft.GroundSpeedLimit is { } limit && aircraft.GroundSpeed > limit)
+            {
+                aircraft.GroundSpeed = limit;
+            }
 
-        aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
+            double speedNmPerSec = aircraft.GroundSpeed / 3600.0;
+            double headingRad = aircraft.Heading * DegToRad;
+
+            aircraft.Latitude += speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / NmPerDegLat;
+            aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
+
+            // On the ground: IAS and Track follow GS/Heading directly.
+            aircraft.IndicatedAirspeed = aircraft.GroundSpeed;
+            aircraft.Track = aircraft.Heading;
+        }
+        else
+        {
+            // Airborne: derive ground speed vector from TAS + wind.
+            double tasKts = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
+            double headingRad = aircraft.Heading * DegToRad;
+            var (windNKts, windEKts) = WindInterpolator.GetWindComponents(weather, aircraft.Altitude);
+
+            // Ground speed vector (knots, N/E components).
+            double gsNKts = tasKts * Math.Cos(headingRad) + windNKts;
+            double gsEKts = tasKts * Math.Sin(headingRad) + windEKts;
+
+            double gsKts = Math.Sqrt(gsNKts * gsNKts + gsEKts * gsEKts);
+            double trackDeg = Math.Atan2(gsEKts, gsNKts) * (180.0 / Math.PI);
+            if (trackDeg < 0)
+            {
+                trackDeg += 360.0;
+            }
+
+            aircraft.GroundSpeed = gsKts;
+            aircraft.Track = trackDeg;
+
+            // Displace using the full ground speed vector.
+            aircraft.Latitude += (gsNKts / 3600.0) * deltaSeconds / NmPerDegLat;
+            aircraft.Longitude += (gsEKts / 3600.0) * deltaSeconds / (NmPerDegLat * Math.Cos(latRad));
+        }
     }
 
     private static void UpdateCommandQueue(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup = null)

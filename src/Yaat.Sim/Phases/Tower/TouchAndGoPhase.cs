@@ -67,6 +67,7 @@ public sealed class TouchAndGoPhase : Phase
             {
                 _airborne = true;
                 ctx.Aircraft.IsOnGround = false;
+                ctx.Aircraft.IndicatedAirspeed = ctx.Aircraft.GroundSpeed;
 
                 double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
                 double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);

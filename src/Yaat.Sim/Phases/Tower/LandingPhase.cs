@@ -64,6 +64,8 @@ public sealed class LandingPhase : Phase
             {
                 ctx.Aircraft.GroundSpeed = tdSpeed;
             }
+
+            ctx.Aircraft.IndicatedAirspeed = ctx.Aircraft.GroundSpeed;
         }
 
         return false;

@@ -21,12 +21,12 @@ This is the most impactful physics change since the original flight model — it
 
 **New files:**
 
-- [ ] `src/Yaat.Sim/WeatherProfile.cs` — `WeatherProfile` class + `WindLayer` class
+- [x] `src/Yaat.Sim/WeatherProfile.cs` — `WeatherProfile` class + `WindLayer` class
   - Deserializable from ATCTrainer JSON (camelCase: `id`, `artccId`, `name`, `precipitation`, `windLayers`, `metars`)
   - `WindLayer`: `Id`, `Altitude` (ft MSL), `Direction` (deg, wind FROM), `Speed` (kts), `Gusts` (kts, nullable)
   - `WeatherProfile`: `Id`, `ArtccId`, `Name`, `Precipitation`, `WindLayers` (sorted by altitude on load), `Metars`
 
-- [ ] `src/Yaat.Sim/WindInterpolator.cs` — static wind utilities
+- [x] `src/Yaat.Sim/WindInterpolator.cs` — static wind utilities
   - `WindAtAltitude` readonly record struct: `DirectionDeg`, `SpeedKts`
   - `GetWindAt(WeatherProfile?, double altitudeFt) -> WindAtAltitude`
     - null profile or empty layers -> zero wind `(0, 0)`
@@ -56,15 +56,15 @@ This is the most impactful physics change since the original flight model — it
 
 **Modified files:**
 
-- [ ] `src/Yaat.Sim/AircraftState.cs` — add two fields:
+- [x] `src/Yaat.Sim/AircraftState.cs` — add two fields:
   - `double IndicatedAirspeed { get; set; }` — what the pilot flies (IAS)
   - `double Track { get; set; }` — ground track direction (heading + wind drift)
 
-- [ ] `src/Yaat.Sim/ControlTargets.cs` — doc-only: clarify `TargetSpeed` is IAS
+- [x] `src/Yaat.Sim/ControlTargets.cs` — doc-only: clarify `TargetSpeed` is IAS
 
 **Tests:**
 
-- [ ] `tests/Yaat.Sim.Tests/WindInterpolatorTests.cs` (~20 tests)
+- [x] `tests/Yaat.Sim.Tests/WindInterpolatorTests.cs` (~20 tests)
   - Null profile, empty layers, single layer, below/above extremes, between layers
   - Vector interpolation: layers at 350deg and 10deg interpolate through 0, not 180
   - IasToTas: spot checks at FL100 (~1.165x), FL250 (~1.494x), FL350 (~1.796x)
@@ -78,7 +78,7 @@ This is the most impactful physics change since the original flight model — it
 
 **Core change: IAS becomes the primary airspeed state; GS becomes derived from IAS + wind.**
 
-- [ ] `src/Yaat.Sim/FlightPhysics.cs`:
+- [x] `src/Yaat.Sim/FlightPhysics.cs`:
   - Change `Update()` signature: add `WeatherProfile? weather = null` parameter
   - **`UpdateSpeed()`**: compare `IndicatedAirspeed` against `TargetSpeed` (both IAS). Today it compares `GroundSpeed` — change to `IndicatedAirspeed`.
   - **`UpdatePosition()`**:
@@ -87,33 +87,33 @@ This is the most impactful physics change since the original flight model — it
   - Auto-init guard: if `IndicatedAirspeed <= 0 && GroundSpeed > 0 && !IsOnGround` -> set `IndicatedAirspeed = GroundSpeed` (backward compat for tests/existing aircraft without explicit IAS)
   - **`UpdateNavigation()`**: Apply wind correction angle (WCA) when steering toward waypoints. Instead of `heading = bearing to fix`, compute `heading = bearing + WCA` using `WindInterpolator.ComputeWindCorrectionAngle()`. This gives straight-line ground tracks on the radar scope — critical for ATC training realism. Requires passing weather into `UpdateNavigation`.
 
-- [ ] `src/Yaat.Sim/SimulationWorld.cs`:
+- [x] `src/Yaat.Sim/SimulationWorld.cs`:
   - Add `WeatherProfile? Weather { get; set; }`
   - Pass `Weather` to `FlightPhysics.Update()` in `Tick()`
 
-- [ ] `src/Yaat.Sim/Phases/PhaseContext.cs`:
+- [x] `src/Yaat.Sim/Phases/PhaseContext.cs`:
   - Add `WeatherProfile? Weather { get; init; }` for phases that need wind info
 
-- [ ] Initialize `IndicatedAirspeed = GroundSpeed` and `Track = Heading` at spawn sites:
+- [x] Initialize `IndicatedAirspeed = GroundSpeed` and `Track = Heading` at spawn sites:
   - `src/Yaat.Sim/Scenarios/AircraftGenerator.cs` (~4 sites)
   - `src/Yaat.Sim/Scenarios/AircraftInitializer.cs` (OnRunway, OnFinal, AtParking)
   - `yaat-server: ScenarioLoader.cs` (~4 sites)
   - `yaat-server: RoomEngine.cs` WarpAircraft
 
-- [ ] Phase transition edge cases:
+- [x] Phase transition edge cases:
   - `TakeoffPhase`: at liftoff, set `IndicatedAirspeed = GroundSpeed` (ground->air transition)
   - `LandingPhase`: at touchdown, set `IndicatedAirspeed = GroundSpeed` (air->ground transition)
   - `TouchAndGoPhase`: same at touchdown
 
-- [ ] Speed limit checks must use IAS:
+- [x] Speed limit checks must use IAS:
   - 250kt below 10,000ft (14 CFR 91.117) — find where enforced, switch to `IndicatedAirspeed`
   - Holding speed limits (AIM 5-3-8: 200/230/265 KIAS) — `MaxHoldingSpeed()` must compare against `IndicatedAirspeed`
 
-- [ ] Phases that set explicit headings (holding outbound, intercept courses, pattern legs) should apply WCA via `PhaseContext.Weather` when setting `TargetHeading` for fixed-course segments.
+- [ ] Phases that set explicit headings (holding outbound, intercept courses, pattern legs) should apply WCA via `PhaseContext.Weather` when setting `TargetHeading` for fixed-course segments. *(deferred to Chunk 5)*
 
 **Tests:**
 
-- [ ] `tests/Yaat.Sim.Tests/WindPhysicsTests.cs` (~15 tests)
+- [x] `tests/Yaat.Sim.Tests/WindPhysicsTests.cs` (~15 tests)
   - Zero wind: IAS == GS, Track == Heading (within tolerance)
   - Headwind: GS < IAS, Track == Heading
   - Tailwind: GS > IAS, Track == Heading
@@ -122,41 +122,41 @@ This is the most impactful physics change since the original flight model — it
   - TAS at FL350: IAS 280 -> GS significantly higher than 280 with no wind
   - Backward compat: null weather = all existing behavior preserved
   - WCA in navigation: aircraft heading includes correction, track matches bearing to fix
-- [ ] Verify all 315+ existing Sim tests still pass (critical regression check)
+- [x] Verify all 315+ existing Sim tests still pass (critical regression check)
 
 ---
 
 ## Chunk 3: Server Wiring (yaat-server)
 
-- [ ] `TrainingRoom.cs` — add `WeatherProfile? Weather { get; set; }`
+- [x] `TrainingRoom.cs` — add `WeatherProfile? Weather { get; set; }`
 
-- [ ] `RoomEngine.cs` — add `LoadWeather(string json)` and `ClearWeather()`:
+- [x] `RoomEngine.cs` — add `LoadWeather(string json)` and `ClearWeather()`:
   - Deserialize `WeatherProfile` from JSON
   - Validate (non-empty wind layers)
   - Set `Room.Weather` and `World.Weather`
   - Broadcast `WeatherChanged` to training clients
   - Return `CommandResultDto`
 
-- [ ] `TrainingHub.cs` — add hub methods:
+- [x] `TrainingHub.cs` — add hub methods:
   - `LoadWeather(string weatherJson) -> CommandResultDto`
   - `ClearWeather()`
 
-- [ ] `TrainingDtos.cs` — add DTOs:
+- [x] `TrainingDtos.cs` — add DTOs:
   - `WeatherChangedDto(string? Name, List<WindLayerDto>? WindLayers, string? Precipitation, List<string>? Metars)`
   - `WindLayerDto(int Altitude, int Direction, int Speed, int? Gusts)`
 
-- [ ] `TrainingBroadcastService.cs` — add `BroadcastWeatherChanged(TrainingRoom)`
+- [x] `TrainingBroadcastService.cs` — add `BroadcastWeatherChanged(TrainingRoom)`
 
-- [ ] `TickProcessor.cs` — pass `Room.Weather` to `PhaseContext.Weather` in `PreTick`
+- [x] `TickProcessor.cs` — pass `Room.Weather` to `PhaseContext.Weather` in `PreTick`
 
-- [ ] `DtoConverter.cs` — use `aircraft.Track` for CRC DTO `GroundTrack` fields:
+- [x] `DtoConverter.cs` — use `aircraft.Track` for CRC DTO `GroundTrack` fields:
   - `StarsTrackDto`, `EramTargetDto`, `TowerCabAircraftDto`, `AsdexTargetDto`
 
-- [ ] `AircraftChangeTracker.cs` — add `Track` to fingerprint so track direction changes trigger CRC updates
+- [x] `AircraftChangeTracker.cs` — add `Track` to fingerprint so track direction changes trigger CRC updates
 
-- [ ] `LoadScenarioResult` / response DTO — include `WeatherName` if room has active weather
+- [x] `LoadScenarioResult` / response DTO — include `WeatherName` if room has active weather
 
-- [ ] Verify all 64 server tests still pass
+- [x] Verify all 64 server tests still pass
 
 ---
 

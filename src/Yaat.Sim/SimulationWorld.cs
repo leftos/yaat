@@ -5,6 +5,8 @@ public sealed class SimulationWorld
     private readonly object _lock = new();
     private readonly List<AircraftState> _aircraft = [];
 
+    public WeatherProfile? Weather { get; set; }
+
     public void AddAircraft(AircraftState aircraft)
     {
         lock (_lock)
@@ -58,10 +60,11 @@ public sealed class SimulationWorld
 
             GroundConflictDetector.ApplySpeedLimits(_aircraft);
 
+            var weather = Weather;
             foreach (var ac in _aircraft)
             {
                 preTick?.Invoke(ac, deltaSeconds);
-                FlightPhysics.Update(ac, deltaSeconds, Lookup);
+                FlightPhysics.Update(ac, deltaSeconds, Lookup, weather);
             }
         }
     }

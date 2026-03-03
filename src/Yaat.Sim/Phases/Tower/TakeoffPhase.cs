@@ -70,6 +70,7 @@ public sealed class TakeoffPhase : Phase
         {
             _airborne = true;
             ctx.Aircraft.IsOnGround = false;
+            ctx.Aircraft.IndicatedAirspeed = ctx.Aircraft.GroundSpeed;
 
             // Set climb targets
             double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);

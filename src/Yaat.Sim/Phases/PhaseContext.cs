@@ -28,4 +28,7 @@ public sealed class PhaseContext
     /// Logger for phase diagnostics. Provided by the server tick loop.
     /// </summary>
     public required ILogger Logger { get; init; }
+
+    /// <summary>Active weather profile. Null when no weather is loaded.</summary>
+    public WeatherProfile? Weather { get; init; }
 }

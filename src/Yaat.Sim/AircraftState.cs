@@ -13,8 +13,19 @@ public class AircraftState
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public double Heading { get; set; }
+
+    /// <summary>Ground track direction in degrees. Equals Heading when there is no wind.</summary>
+    public double Track { get; set; }
+
     public double Altitude { get; set; }
     public double GroundSpeed { get; set; }
+
+    /// <summary>
+    /// Indicated airspeed in knots. What the pilot flies and ATC commands.
+    /// Differs from GroundSpeed when wind is present or at altitude (TAS correction).
+    /// </summary>
+    public double IndicatedAirspeed { get; set; }
+
     public double VerticalSpeed { get; set; }
     public uint AssignedBeaconCode { get; set; }
     public uint BeaconCode { get; set; }
