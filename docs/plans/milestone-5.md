@@ -5,7 +5,7 @@
 M5 adds IFR approach control: approach clearances, STAR joining, radial interception, holding patterns, procedure navigation, and descent management. Aircraft will fly full procedure paths (transition → IAF → IF → FAF → threshold) from CIFP data, not just vector-to-final. This is the largest M5-era feature, touching CIFP parsing, phase system, command pipeline, and client display.
 
 User requirements:
-- All 11 commands from main-plan.md, plus force variants (CAPPF/JAPPF)
+- All 11 commands from main-plan.md, plus force variants (CAPPF/JAPPF), plus APPS query
 - Full CIFP approach procedure data (reference: `C:\Users\Leftos\source\repos\zoa-reference-cli\`)
 - Single-verb approach clearance combos: `CAPP AT FIX ILS30`, `CAPP DCT FIX CFIX A034 ILS30`, `PTAC 070 025 ILS30`
 - Shortened forms: `AT FIX ILS30`, `DCT FIX A034 ILS30`
@@ -102,7 +102,8 @@ User requirements:
   JoinFinalApproachCourse, JoinStar,
   JoinRadialOutbound, JoinRadialInbound,
   HoldingPattern, PositionTurnAltitudeClearance,
-  DescendVia, CrossFix, DepartFix
+  DescendVia, CrossFix, DepartFix,
+  ListApproaches
   ```
 
 - [ ] `src/Yaat.Sim/Commands/ParsedCommand.cs` — Add records:
@@ -121,6 +122,7 @@ User requirements:
   - `DescendViaCommand(int? Altitude)` — DVIA
   - `CrossFixCommand(string FixName, double FixLat, double FixLon, int Altitude, CrossFixAltitudeType AltType, int? Speed)` — CFIX
   - `DepartFixCommand(string FixName, double FixLat, double FixLon, int Heading)` — DEPART
+  - `ListApproachesCommand(string? AirportCode)` — APPS
 
 - [ ] `src/Yaat.Sim/Commands/CommandDescriber.cs` — Add all new types to `ToCanonicalType()`, `DescribeCommand()`, `DescribeNatural()`, `ClassifyCommand()`
 
@@ -138,8 +140,9 @@ User requirements:
   - `DescendVia` → `["DVIA"]`
   - `CrossFix` → `["CFIX"]`
   - `DepartFix` → `["DEPART", "DEP"]`
+  - `ListApproaches` → `["APPS"]`
 
-- [ ] `src/Yaat.Client/Services/CommandMetadata.cs` — Add 15 entries
+- [ ] `src/Yaat.Client/Services/CommandMetadata.cs` — Add 16 entries
 
 ### Tests
 - [ ] `CommandSchemeCompletenessTests` must pass (all enum values in scheme + metadata)
@@ -169,6 +172,7 @@ User requirements:
   - `ParseDvia(arg, fixes)` — `DVIA [alt]`
   - `ParseCfix(arg, fixes)` — `CFIX SUNOL A040 [250]` — altitude prefix: strip A/B, resolve via `AltitudeResolver.Resolve()`, map prefix to `CrossFixAltitudeType`
   - `ParseDepart(arg, fixes)` — `DEPART SUNOL 270`
+  - `ParseApps(arg)` — `APPS [airport]` (airport code optional; if omitted, resolved from aircraft destination)
 
 ### Modified files (yaat-server)
 - [ ] `src/Yaat.Server/Commands/CommandParser.cs` — Add verb entries in `Parse()`:
@@ -182,6 +186,7 @@ User requirements:
   - `"DVIA"` → ApproachCommandParser.ParseDvia
   - `"CFIX"` → ApproachCommandParser.ParseCfix
   - `"DEPART"` / `"DEP"` → ApproachCommandParser.ParseDepart
+  - `"APPS"` → ApproachCommandParser.ParseApps
   - Shortened forms without verb: `"AT"` and `"DCT"` when followed by fix + approach ID → route to CAPP parser
 
 ### Tests
@@ -196,9 +201,9 @@ User requirements:
 
 ---
 
-## Chunk 5: Simple Navigation Commands (JRADO, JRADI, DEPART, CFIX, DVIA)
+## Chunk 5: Simple Navigation Commands (JRADO, JRADI, DEPART, CFIX, DVIA, APPS)
 
-**Goal:** Dispatch and physics for five commands that work through `CommandQueue` without the phase system.
+**Goal:** Dispatch and physics for five navigation commands that work through `CommandQueue` without the phase system, plus one query command (APPS).
 
 ### Modified files (Yaat.Sim)
 - [ ] `src/Yaat.Sim/Commands/CommandDispatcher.cs` — Add cases in `ApplyCommand()`:
@@ -207,6 +212,7 @@ User requirements:
   - **DEPART**: Build 2-block queue: block 1 = DCT fix (immediate), block 2 = FH heading (trigger: `ReachFix`).
   - **CFIX**: Add fix to nav route. Set altitude target based on `CrossFixAltitudeType` (At → DM/CM toward alt; AtOrAbove → CM if below; AtOrBelow → DM if above). Optional speed. **Crossing restriction expires after fix passage** — use 2-block queue: block 1 = set alt/speed target + nav to fix (immediate), block 2 = revert altitude target to previously assigned altitude (trigger: `ReachFix`).
   - **DVIA**: If altitude provided, set as `TargetAltitude` (basic DM). If no altitude, per AIM 5-4-1.a.2.a, authorize descent per published STAR restrictions — set target to lowest mandatory crossing altitude on active STAR/route (if known from nav route). If no STAR context available, warn and no-op.
+  - **APPS**: Query command — no aircraft state change. Resolve airport: explicit airport arg always wins (even if an aircraft is selected), else fall back to selected aircraft's destination airport from flight plan. If neither, error. Query `ApproachDatabase.GetApproaches(airport)` and format as terminal broadcast. Each approach listed as its user-typable ID (e.g., `ILS28R`, `RNAV17L`, `LOC30`). Group by runway. Example output: `OAK approaches: RWY 28R: ILS28R, RNAV28R | RWY 30: ILS30, LOC30, RNAV30`.
 
 ### Existing infrastructure reused
 - `BlockTrigger.InterceptRadial` (already exists in `CommandQueue.cs`)
@@ -220,6 +226,9 @@ User requirements:
 - [ ] CFIX: navigates to fix with correct altitude target; A/B prefix variants; altitude reverts after fix passage
 - [ ] DVIA without altitude: sets target from STAR restrictions (or warns if no context)
 - [ ] Compound usage: `DCT SUNOL; CFIX A040; DM 020`
+- [ ] APPS with explicit airport: lists all approaches grouped by runway
+- [ ] APPS without airport: resolves from aircraft destination
+- [ ] APPS with unknown airport or no destination: error message
 
 ---
 
@@ -403,6 +412,7 @@ User requirements:
   - Rich forms: `CAPP AT SUNOL ILS28R`, `CAPP DCT SUNOL CFIX A034 ILS28R`
   - Shortened forms: `AT SUNOL ILS28R`, `DCT SUNOL A034 ILS28R`
   - JARR, JFAC, JRADO, JRADI, HOLD, CFIX, DEPART, DVIA
+  - Query: `APPS OAK` or `N456MS APPS` (list available approaches)
 - [ ] `docs/command-aliases/reference.md` — Update approach section with implemented commands
 - [ ] `docs/plans/main-plan.md` — Update M5 status
 
