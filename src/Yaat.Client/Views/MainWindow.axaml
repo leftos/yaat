@@ -62,14 +62,16 @@
                 </MenuItem>
                 <MenuItem Header="_Unload Scenario"
                           Command="{Binding UnloadScenarioCommand}" />
-            </MenuItem>
-            <MenuItem Header="_Weather">
-                <MenuItem Header="_Load Weather..."
+                <Separator />
+                <MenuItem Header="Load _Weather..."
                           x:Name="LoadWeatherMenuItem" />
+                <MenuItem Header="Load Recent W_eather"
+                          x:Name="RecentWeatherMenuItem">
+                    <MenuItem Header="(No recent weather)" IsEnabled="False" />
+                </MenuItem>
                 <MenuItem Header="_Clear Weather"
                           Command="{Binding ClearWeatherCommand}" />
-            </MenuItem>
-            <MenuItem Header="_View">
+                <Separator />
                 <MenuItem Header="_Approach Report"
                           x:Name="ApproachReportMenuItem" />
             </MenuItem>

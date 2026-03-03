@@ -63,6 +63,7 @@ public sealed class UserPreferences
     public bool AutoCrossRunway => _data.AutoCrossRunway;
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _data.FavoriteCommands;
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
+    public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
 
     public void SetServerUrl(string url)
     {
@@ -219,6 +220,17 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void AddRecentWeather(string filePath, string name)
+    {
+        _data.RecentWeatherFiles.RemoveAll(r => r.FilePath == filePath);
+        _data.RecentWeatherFiles.Insert(0, new RecentWeather { FilePath = filePath, Name = name });
+        if (_data.RecentWeatherFiles.Count > 10)
+        {
+            _data.RecentWeatherFiles.RemoveRange(10, _data.RecentWeatherFiles.Count - 10);
+        }
+        Save();
+    }
+
     public void ResetGridLayout()
     {
         _data.GridLayout = null;
@@ -326,6 +338,7 @@ public sealed class UserPreferences
             AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
+            RecentWeatherFiles = GetFieldOr<List<RecentWeather>>(obj, "recentWeatherFiles", []),
         };
     }
 
@@ -460,6 +473,7 @@ public sealed class UserPreferences
         public bool AutoCrossRunway { get; set; }
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
         public List<RecentScenario> RecentScenarios { get; set; } = [];
+        public List<RecentWeather> RecentWeatherFiles { get; set; } = [];
     }
 
     private sealed class SavedCommandScheme
@@ -493,6 +507,12 @@ public sealed class SavedGridLayout
 }
 
 public sealed class RecentScenario
+{
+    public string FilePath { get; set; } = "";
+    public string Name { get; set; } = "";
+}
+
+public sealed class RecentWeather
 {
     public string FilePath { get; set; } = "";
     public string Name { get; set; } = "";

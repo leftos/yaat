@@ -60,6 +60,14 @@ public partial class MainWindow : Window
             recentItem.SubmenuOpened += OnRecentScenariosSubmenuOpened;
         }
 
+        var recentWeatherItem = this.FindControl<MenuItem>("RecentWeatherMenuItem");
+        if (recentWeatherItem is not null)
+        {
+            recentWeatherItem.IsEnabled = vm.Preferences.RecentWeatherFiles.Count > 0;
+            PopulateRecentWeather(recentWeatherItem, vm);
+            recentWeatherItem.SubmenuOpened += OnRecentWeatherSubmenuOpened;
+        }
+
         var embeddedView = this.FindControl<DataGridView>("EmbeddedDataGridView");
         var dataGrid = embeddedView?.GetDataGrid();
         if (dataGrid is not null)
@@ -686,6 +694,53 @@ public partial class MainWindow : Window
 
         vm.ScenarioFilePath = path;
         await vm.LoadScenarioCommand.ExecuteAsync(null);
+    }
+
+    private void OnRecentWeatherSubmenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        PopulateRecentWeather(menu, vm);
+    }
+
+    private void PopulateRecentWeather(MenuItem menu, MainViewModel vm)
+    {
+        menu.Items.Clear();
+        var recent = vm.Preferences.RecentWeatherFiles;
+        if (recent.Count == 0)
+        {
+            menu.IsEnabled = false;
+            menu.Items.Add(new MenuItem { Header = "(No recent weather)", IsEnabled = false });
+            return;
+        }
+
+        menu.IsEnabled = true;
+        foreach (var entry in recent)
+        {
+            var item = new MenuItem { Header = entry.Name, Tag = entry.FilePath };
+            item.Click += OnRecentWeatherClick;
+            ToolTip.SetTip(item, entry.FilePath);
+            menu.Items.Add(item);
+        }
+    }
+
+    private async void OnRecentWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string path } || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            vm.StatusText = $"File not found: {path}";
+            return;
+        }
+
+        await vm.LoadWeatherCommand.ExecuteAsync(path);
     }
 
     private async void OnLoadWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

@@ -32,6 +32,8 @@ public partial class MainViewModel
             if (result.Success)
             {
                 StatusText = result.Message ?? "Weather loaded";
+                var name = Path.GetFileNameWithoutExtension(filePath);
+                _preferences.AddRecentWeather(filePath, name);
             }
             else
             {
