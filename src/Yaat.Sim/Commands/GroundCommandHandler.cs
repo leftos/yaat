@@ -13,7 +13,8 @@ internal static class GroundCommandHandler
         TaxiCommand taxi,
         AirportGroundLayout? groundLayout,
         IRunwayLookup? runways,
-        ILogger logger
+        ILogger logger,
+        bool autoCrossRunway = false
     )
     {
         if (groundLayout is null)
@@ -84,6 +85,17 @@ internal static class GroundCommandHandler
             route.HoldShortPoints.Count,
             route.ToSummary()
         );
+
+        if (autoCrossRunway)
+        {
+            foreach (var hs in route.HoldShortPoints)
+            {
+                if (hs.Reason == HoldShortReason.RunwayCrossing)
+                {
+                    hs.IsCleared = true;
+                }
+            }
+        }
 
         // Clear current phases
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);

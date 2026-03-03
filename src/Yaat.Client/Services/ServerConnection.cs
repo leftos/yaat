@@ -228,6 +228,18 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("SetValidateDctFixes", validate);
     }
 
+    public async Task SetAutoClearedToLandAsync(bool enabled)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetAutoClearedToLand", enabled);
+    }
+
+    public async Task SetAutoCrossRunwayAsync(bool enabled)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("SetAutoCrossRunway", enabled);
+    }
+
     // --- Data queries ---
 
     public async Task<GroundLayoutDto?> GetAirportGroundLayoutAsync(string airportId)

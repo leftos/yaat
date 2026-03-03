@@ -570,6 +570,15 @@ Override the scenario setting in **Settings > General > Auto-Delete Aircraft**. 
 
 To exempt a specific aircraft from auto-delete, append `NODEL` to `CTL`, `TAXI`, `EL`, `ER`, or `EXIT` commands (e.g., `CTL NODEL`, `TAXI S T U @B12 NODEL`, `EL NODEL`, `EXIT A3 NODEL`). This is useful when repositioning aircraft after landing or parking for reuse.
 
+#### Simulation Shortcuts
+
+Two optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simplify tower operations for trainees:
+
+- **Auto-clear aircraft to land** — Aircraft on final approach are automatically cleared to land without requiring a CTL command. Go-arounds due to missing landing clearance will not occur. Manual CTL commands still work when issued.
+- **Aircraft cross runways automatically** — Taxiing aircraft cross inactive runways without stopping for a CROSS command. Explicit hold-short commands and destination runway hold-shorts still apply.
+
+Both settings default to off (standard behavior). They are synced to the server on scenario load and when settings are saved.
+
 ### Conditional Blocks
 
 Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific conditions instead of waiting for the previous block:
@@ -856,7 +865,7 @@ Open **File > Settings** to configure:
 
 - **Connection** — Server URL for the yaat-server instance
 - **Identity** — VATSIM CID, user initials (required before connecting), and ARTCC ID
-- **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), and auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking)
+- **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking), and simulation shortcuts (auto-clear to land, auto-cross runways)
 - **Commands** — Alias editor for customizing command verbs
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros) below)
 - **Advanced** — Server admin mode

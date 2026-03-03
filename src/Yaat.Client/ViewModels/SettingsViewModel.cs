@@ -132,6 +132,12 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _validateDctFixes;
 
+    [ObservableProperty]
+    private bool _autoClearedToLand;
+
+    [ObservableProperty]
+    private bool _autoCrossRunway;
+
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
@@ -157,6 +163,8 @@ public partial class SettingsViewModel : ObservableObject
         _autoAcceptDelaySeconds = _preferences.AutoAcceptDelaySeconds;
         _selectedAutoDeleteIndex = AutoDeleteOverrideToIndex(_preferences.AutoDeleteOverride);
         _validateDctFixes = _preferences.ValidateDctFixes;
+        _autoClearedToLand = _preferences.AutoClearedToLand;
+        _autoCrossRunway = _preferences.AutoCrossRunway;
         LoadMacros();
     }
 
@@ -191,6 +199,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
         _preferences.SetValidateDctFixes(ValidateDctFixes);
+        _preferences.SetSimulationShortcuts(AutoClearedToLand, AutoCrossRunway);
         SaveMacros();
         Saved = true;
     }

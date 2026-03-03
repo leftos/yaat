@@ -144,6 +144,27 @@
                                    FontSize="11"
                                    Margin="28,0,0,0" />
                     </StackPanel>
+                    <TextBlock Text="Simulation Shortcuts"
+                               FontWeight="SemiBold"
+                               Margin="0,8,0,0" />
+                    <StackPanel Spacing="4">
+                        <CheckBox Content="Auto-clear aircraft to land"
+                                  IsChecked="{Binding AutoClearedToLand}" />
+                        <TextBlock Text="Aircraft on final approach are automatically cleared to land without requiring a CTL command. Manual CTL still works when issued."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Margin="28,0,0,0" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <CheckBox Content="Aircraft cross runways automatically"
+                                  IsChecked="{Binding AutoCrossRunway}" />
+                        <TextBlock Text="Taxiing aircraft cross inactive runways without stopping. No CROSS command needed. Hold-short commands and destination runway hold-shorts still apply."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="11"
+                                   Margin="28,0,0,0" />
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
 

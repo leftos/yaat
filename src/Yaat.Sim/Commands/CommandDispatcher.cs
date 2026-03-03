@@ -23,13 +23,14 @@ public static class CommandDispatcher
         ILogger logger,
         IApproachLookup? approachLookup = null,
         IProcedureLookup? procedureLookup = null,
-        bool validateDctFixes = true
+        bool validateDctFixes = true,
+        bool autoCrossRunway = false
     )
     {
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways, groundLayout, fixes, logger, procedureLookup);
+            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways, groundLayout, fixes, logger, procedureLookup, autoCrossRunway);
             if (result is not null)
             {
                 return result;
@@ -134,14 +135,25 @@ public static class CommandDispatcher
         ILogger logger,
         IApproachLookup? approachLookup = null,
         IProcedureLookup? procedureLookup = null,
-        bool validateDctFixes = true
+        bool validateDctFixes = true,
+        bool autoCrossRunway = false
     )
     {
         // Route ground commands through DispatchCompound for phase interaction
         if (CommandDescriber.IsGroundCommand(command))
         {
             var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
-            return DispatchCompound(compound, aircraft, runways, groundLayout, fixes, logger, approachLookup, procedureLookup);
+            return DispatchCompound(
+                compound,
+                aircraft,
+                runways,
+                groundLayout,
+                fixes,
+                logger,
+                approachLookup,
+                procedureLookup,
+                autoCrossRunway: autoCrossRunway
+            );
         }
 
         // Clear any existing queue when a new single command is issued
@@ -523,7 +535,8 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         ILogger logger,
-        IProcedureLookup? procedureLookup = null
+        IProcedureLookup? procedureLookup = null,
+        bool autoCrossRunway = false
     )
     {
         // Extract the first command to check acceptance
@@ -531,7 +544,17 @@ public static class CommandDispatcher
         var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
 
         // Try tower/ground-specific handling first (phase-interactive commands)
-        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, runways, groundLayout, fixes, logger, procedureLookup);
+        var towerResult = TryApplyTowerCommand(
+            firstCmd,
+            aircraft,
+            currentPhase,
+            runways,
+            groundLayout,
+            fixes,
+            logger,
+            procedureLookup,
+            autoCrossRunway
+        );
         if (towerResult is not null)
         {
             return towerResult;
@@ -567,7 +590,8 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         ILogger logger,
-        IProcedureLookup? procedureLookup = null
+        IProcedureLookup? procedureLookup = null,
+        bool autoCrossRunway = false
     )
     {
         switch (command)
@@ -883,7 +907,7 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryPushback(aircraft, push, groundLayout, logger);
 
             case TaxiCommand taxi:
-                return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, runways, logger);
+                return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, runways, logger, autoCrossRunway);
 
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft);

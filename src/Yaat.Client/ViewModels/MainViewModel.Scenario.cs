@@ -235,6 +235,8 @@ public partial class MainViewModel
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
         _ = SendValidateDctFixes();
+        _ = SendAutoClearedToLand();
+        _ = SendAutoCrossRunway();
 
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {

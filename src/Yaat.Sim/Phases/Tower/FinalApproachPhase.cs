@@ -178,6 +178,11 @@ public sealed class FinalApproachPhase : Phase
 
     private static bool HasLandingClearance(PhaseContext ctx)
     {
+        if (ctx.AutoClearedToLand)
+        {
+            return true;
+        }
+
         var phases = ctx.Aircraft.Phases;
         if (phases is null)
         {

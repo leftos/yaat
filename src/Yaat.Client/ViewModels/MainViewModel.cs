@@ -634,6 +634,8 @@ public partial class MainViewModel : ObservableObject
             _ = SendAutoAcceptDelay();
             _ = SendAutoDeleteMode();
             _ = SendValidateDctFixes();
+            _ = SendAutoClearedToLand();
+            _ = SendAutoCrossRunway();
         }
     }
 
@@ -780,6 +782,30 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to set DCT validation mode");
+        }
+    }
+
+    private async Task SendAutoClearedToLand()
+    {
+        try
+        {
+            await _connection.SetAutoClearedToLandAsync(_preferences.AutoClearedToLand);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set auto-cleared-to-land");
+        }
+    }
+
+    private async Task SendAutoCrossRunway()
+    {
+        try
+        {
+            await _connection.SetAutoCrossRunwayAsync(_preferences.AutoCrossRunway);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to set auto-cross-runway");
         }
     }
 

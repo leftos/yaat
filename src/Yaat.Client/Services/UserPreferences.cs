@@ -59,6 +59,8 @@ public sealed class UserPreferences
     public string? LastWeatherFolder => _data.LastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
     public bool ValidateDctFixes => _data.ValidateDctFixes;
+    public bool AutoClearedToLand => _data.AutoClearedToLand;
+    public bool AutoCrossRunway => _data.AutoCrossRunway;
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _data.FavoriteCommands;
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
 
@@ -183,6 +185,13 @@ public sealed class UserPreferences
     public void SetValidateDctFixes(bool validate)
     {
         _data.ValidateDctFixes = validate;
+        Save();
+    }
+
+    public void SetSimulationShortcuts(bool autoClearedToLand, bool autoCrossRunway)
+    {
+        _data.AutoClearedToLand = autoClearedToLand;
+        _data.AutoCrossRunway = autoCrossRunway;
         Save();
     }
 
@@ -313,6 +322,8 @@ public sealed class UserPreferences
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
+            AutoClearedToLand = GetFieldOr(obj, "autoClearedToLand", false),
+            AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
         };
@@ -445,6 +456,8 @@ public sealed class UserPreferences
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
         public bool ValidateDctFixes { get; set; }
+        public bool AutoClearedToLand { get; set; }
+        public bool AutoCrossRunway { get; set; }
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
         public List<RecentScenario> RecentScenarios { get; set; } = [];
     }
