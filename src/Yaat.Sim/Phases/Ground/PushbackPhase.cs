@@ -73,11 +73,21 @@ public sealed class PushbackPhase : Phase
             return false;
         }
 
-        // Continuously reassert desired speed so FlightPhysics.UpdateSpeed can ramp
-        // back up after a GroundConflictDetector limit clears.
-        ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
-
         double turnRate = CategoryPerformance.PushbackTurnRate(ctx.Category);
+
+        // Once at target, stop all movement — only rotate nose in place.
+        // Before reaching target, reassert speed so FlightPhysics can ramp
+        // back up after a GroundConflictDetector limit clears.
+        if (_reachedTarget)
+        {
+            ctx.Targets.TargetSpeed = 0;
+            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.PushbackHeading = null;
+        }
+        else
+        {
+            ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+        }
 
         bool result;
         if (TargetLatitude is not null && TargetLongitude is not null)

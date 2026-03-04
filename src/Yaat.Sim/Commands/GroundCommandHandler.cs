@@ -252,31 +252,41 @@ internal static class GroundCommandHandler
                 targetLon
             );
 
-            // Resolve facing direction from FacingTaxiway edge alignment
-            // (e.g., PUSH TE T → face the direction taxiway T runs at the exit point)
+            // Resolve facing direction: face along the PUSH taxiway edge at the target node,
+            // picking the direction closest to the FACING taxiway.
+            // e.g., PUSH TE T → push onto TE, face along TE toward T.
             if (push.FacingTaxiway is not null && resolvedHeading is null)
             {
+                // Find bearing from target node toward the facing taxiway
                 var facingNode = groundLayout.FindExitByTaxiway(targetNode.Latitude, targetNode.Longitude, push.FacingTaxiway);
                 if (facingNode is not null)
                 {
                     double bearingToFacing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, facingNode.Latitude, facingNode.Longitude);
 
-                    // Prefer edge heading at exit node (if it's at the intersection)
-                    double? edgeHeading = groundLayout.GetEdgeHeadingForTaxiway(targetNode, push.FacingTaxiway, bearingToFacing);
+                    // Pick the push-taxiway edge direction closest to the facing taxiway
+                    double? edgeHeading = groundLayout.GetEdgeHeadingForTaxiway(targetNode, push.Taxiway!, bearingToFacing);
 
-                    // Fallback: edge heading at the facing taxiway's nearest node
-                    edgeHeading ??= groundLayout.GetEdgeHeadingForTaxiway(facingNode, push.FacingTaxiway, bearingToFacing);
-
-                    // Final fallback: raw bearing
-                    edgeHeading ??= bearingToFacing;
-
-                    resolvedHeading = FlightPhysics.NormalizeHeadingInt(edgeHeading.Value);
-                    logger.LogDebug(
-                        "[Pushback] {Callsign}: facing taxiway {FTwy} → heading {Hdg:000} (edge-aligned)",
-                        aircraft.Callsign,
-                        push.FacingTaxiway,
-                        resolvedHeading
-                    );
+                    if (edgeHeading is not null)
+                    {
+                        resolvedHeading = FlightPhysics.NormalizeHeadingInt(edgeHeading.Value);
+                        logger.LogDebug(
+                            "[Pushback] {Callsign}: facing {FTwy} → heading {Hdg:000} (along {PTwy}, bearingToFacing={Brg:F0})",
+                            aircraft.Callsign,
+                            push.FacingTaxiway,
+                            resolvedHeading,
+                            push.Taxiway,
+                            bearingToFacing
+                        );
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "[Pushback] {Callsign}: no {PTwy} edges at target node to align toward {FTwy}",
+                            aircraft.Callsign,
+                            push.Taxiway,
+                            push.FacingTaxiway
+                        );
+                    }
                 }
                 else
                 {
