@@ -21,6 +21,7 @@ public static class GroundConflictDetector
     private const double StopDistanceFt = 100.0;
     private const double OppositeStopDistanceFt = 300.0;
     private const double PushbackBufferFt = 200.0;
+    private const double SlowTaxiSpeedKts = 5.0;
     private const double SearchRangeNm = 0.1;
     private const double FtPerNm = 6076.12;
     private const int ConvergenceLookaheadSegments = 5;
@@ -412,7 +413,15 @@ public static class GroundConflictDetector
         }
         else if (distFt <= TrailDistanceFt)
         {
-            ApplyMinLimit(mover, obstacle.GroundSpeed, logger, "proximity trail", obstacle, distFt);
+            // When trailing a stationary obstacle (parked aircraft), allow slow taxi
+            // instead of matching 0 kts — aircraft need to pass parked gates.
+            double limitSpeed = obstacle.GroundSpeed;
+            if (limitSpeed < SlowTaxiSpeedKts)
+            {
+                limitSpeed = SlowTaxiSpeedKts;
+            }
+
+            ApplyMinLimit(mover, limitSpeed, logger, "proximity trail", obstacle, distFt);
         }
     }
 

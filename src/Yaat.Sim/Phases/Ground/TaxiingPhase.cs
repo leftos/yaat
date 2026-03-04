@@ -110,7 +110,17 @@ public sealed class TaxiingPhase : Phase
         double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - ctx.Aircraft.Heading));
         double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
         double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.15, 1.0);
-        AdjustSpeed(ctx, maxSpeed * speedFraction);
+        double targetSpeed = maxSpeed * speedFraction;
+
+        // Cap speed so we can't overshoot the target node in one tick.
+        // Allow moving at most 80% of the remaining distance per tick.
+        if (ctx.DeltaSeconds > 0 && dist > 0)
+        {
+            double maxSpeedForDist = (dist * 0.8) / ctx.DeltaSeconds * 3600.0;
+            targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
+        }
+
+        AdjustSpeed(ctx, targetSpeed);
 
         // Update current taxiway name
         var seg = route.CurrentSegment;

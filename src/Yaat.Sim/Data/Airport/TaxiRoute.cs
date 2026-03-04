@@ -92,7 +92,7 @@ public sealed class TaxiRoute
     }
 
     /// <summary>
-    /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L").
+    /// Build a human-readable taxi route summary (e.g., "S T U W W1 HS 28L, RWY 30").
     /// </summary>
     public string ToSummary()
     {
@@ -113,6 +113,17 @@ public sealed class TaxiRoute
             {
                 parts.Add("HS");
                 parts.Add(hs.TargetName);
+            }
+        }
+
+        // Append destination runway assignment
+        foreach (var hs in HoldShortPoints)
+        {
+            if (hs.Reason == HoldShortReason.DestinationRunway && hs.TargetName is not null)
+            {
+                parts.Add("RWY");
+                parts.Add(hs.TargetName);
+                break;
             }
         }
 

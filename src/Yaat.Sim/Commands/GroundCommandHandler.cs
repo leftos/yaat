@@ -225,6 +225,7 @@ internal static class GroundCommandHandler
 
         double? targetLat = null;
         double? targetLon = null;
+        int? resolvedHeading = push.Heading;
 
         if (push.Taxiway is not null)
         {
@@ -250,6 +251,31 @@ internal static class GroundCommandHandler
                 targetLat,
                 targetLon
             );
+
+            // Resolve facing direction from FacingTaxiway (e.g., PUSH TE T → face toward T)
+            if (push.FacingTaxiway is not null && resolvedHeading is null)
+            {
+                var facingNode = groundLayout.FindExitByTaxiway(targetNode.Latitude, targetNode.Longitude, push.FacingTaxiway);
+                if (facingNode is not null)
+                {
+                    double facingBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, facingNode.Latitude, facingNode.Longitude);
+                    resolvedHeading = FlightPhysics.NormalizeHeadingInt(facingBearing);
+                    logger.LogDebug(
+                        "[Pushback] {Callsign}: facing taxiway {FTwy} → heading {Hdg:000}",
+                        aircraft.Callsign,
+                        push.FacingTaxiway,
+                        resolvedHeading
+                    );
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "[Pushback] {Callsign}: cannot find facing taxiway '{FTwy}' near exit node",
+                        aircraft.Callsign,
+                        push.FacingTaxiway
+                    );
+                }
+            }
         }
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
@@ -257,7 +283,7 @@ internal static class GroundCommandHandler
 
         var phase = new PushbackPhase
         {
-            TargetHeading = push.Heading,
+            TargetHeading = resolvedHeading,
             TargetLatitude = targetLat,
             TargetLongitude = targetLon,
         };
@@ -272,9 +298,13 @@ internal static class GroundCommandHandler
             msg += $" onto {push.Taxiway}";
         }
 
-        if (push.Heading is not null)
+        if (push.FacingTaxiway is not null)
         {
-            msg += $", face heading {push.Heading:000}";
+            msg += $" facing {push.FacingTaxiway}";
+        }
+        else if (resolvedHeading is not null)
+        {
+            msg += $", face heading {resolvedHeading:000}";
         }
 
         return CommandDispatcher.Ok(msg);

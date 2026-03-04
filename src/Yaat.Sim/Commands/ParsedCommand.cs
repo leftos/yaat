@@ -166,7 +166,7 @@ public record LandCommand(string SpotName, bool NoDelete = false, bool IsTaxiway
 public record ClearedTakeoffPresentCommand : ParsedCommand;
 
 // Ground commands
-public record PushbackCommand(int? Heading = null, string? Taxiway = null) : ParsedCommand;
+public record PushbackCommand(int? Heading = null, string? Taxiway = null, string? FacingTaxiway = null) : ParsedCommand;
 
 public record TaxiCommand(
     List<string> Path,

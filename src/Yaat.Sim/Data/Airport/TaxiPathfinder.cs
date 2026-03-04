@@ -291,16 +291,22 @@ public static class TaxiPathfinder
             return false;
         }
 
-        // First, check if any edge directly from current node is on this taxiway
-        GroundEdge? startEdge = null;
+        // Find all edges on this taxiway from the current node
+        var candidateEdges = new List<GroundEdge>();
         foreach (var edge in currentNode.Edges)
         {
             if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
             {
-                startEdge = edge;
-                break;
+                candidateEdges.Add(edge);
             }
         }
+
+        GroundEdge? startEdge = candidateEdges.Count switch
+        {
+            0 => null,
+            1 => candidateEdges[0],
+            _ => PickBestStartEdge(layout, startNodeId, candidateEdges, nextTaxiwayName),
+        };
 
         if (startEdge is null)
         {
@@ -355,9 +361,8 @@ public static class TaxiPathfinder
                 break;
             }
 
-            GroundEdge? nextEdge = null;
-            int nextNodeId = -1;
-
+            // Collect all unvisited edges on this taxiway
+            var candidates = new List<(GroundEdge Edge, int NodeId)>();
             foreach (var edge in node.Edges)
             {
                 if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
@@ -366,15 +371,27 @@ public static class TaxiPathfinder
                 }
 
                 int otherId = edge.FromNodeId == currentId ? edge.ToNodeId : edge.FromNodeId;
-
-                if (visited.Contains(otherId))
+                if (!visited.Contains(otherId))
                 {
-                    continue;
+                    candidates.Add((edge, otherId));
                 }
+            }
 
-                nextEdge = edge;
-                nextNodeId = otherId;
-                break;
+            GroundEdge? nextEdge;
+            int nextNodeId;
+            if (candidates.Count == 0)
+            {
+                nextEdge = null;
+                nextNodeId = -1;
+            }
+            else if (candidates.Count == 1)
+            {
+                (nextEdge, nextNodeId) = candidates[0];
+            }
+            else
+            {
+                // Multiple directions — prefer the one leading toward the next taxiway
+                (nextEdge, nextNodeId) = PickBestWalkEdge(layout, candidates, nextTaxiwayName);
             }
 
             if (nextEdge is null)
@@ -404,6 +421,125 @@ public static class TaxiPathfinder
 
         endNodeId = currentId;
         return segments.Count > 0;
+    }
+
+    /// <summary>
+    /// When the starting node has multiple edges on the same taxiway, pick the
+    /// direction that leads toward the next taxiway. Falls back to first edge.
+    /// </summary>
+    private static GroundEdge PickBestStartEdge(AirportGroundLayout layout, int startNodeId, List<GroundEdge> candidates, string? nextTaxiwayName)
+    {
+        if (nextTaxiwayName is null || candidates.Count == 0)
+        {
+            return candidates[0];
+        }
+
+        // Find the nearest node that has an edge on the next taxiway (our goal)
+        var goalNode = FindNearestNodeOnTaxiway(layout, layout.Nodes[startNodeId], nextTaxiwayName);
+
+        if (goalNode.NodeId == -1)
+        {
+            return candidates[0];
+        }
+
+        var goal = layout.Nodes[goalNode.NodeId];
+
+        // Score each candidate: prefer the one whose destination is closer to the goal
+        GroundEdge best = candidates[0];
+        double bestDist = double.MaxValue;
+
+        foreach (var edge in candidates)
+        {
+            int destId = edge.FromNodeId == startNodeId ? edge.ToNodeId : edge.FromNodeId;
+            if (layout.Nodes.TryGetValue(destId, out var destNode))
+            {
+                double dist = GeoMath.DistanceNm(destNode.Latitude, destNode.Longitude, goal.Latitude, goal.Longitude);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = edge;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// During the walk loop, when multiple unvisited edges branch on the same taxiway,
+    /// prefer the one leading toward the next taxiway.
+    /// </summary>
+    private static (GroundEdge Edge, int NodeId) PickBestWalkEdge(
+        AirportGroundLayout layout,
+        List<(GroundEdge Edge, int NodeId)> candidates,
+        string? nextTaxiwayName
+    )
+    {
+        if (nextTaxiwayName is null)
+        {
+            return candidates[0];
+        }
+
+        // Check if any candidate directly connects to the next taxiway
+        foreach (var (edge, nodeId) in candidates)
+        {
+            if (NodeHasEdgeTo(layout, nodeId, nextTaxiwayName))
+            {
+                return (edge, nodeId);
+            }
+        }
+
+        // Otherwise pick the candidate whose node has an edge on nextTaxiway nearest
+        // (simple heuristic: check if the next taxiway's nearest node is closer)
+        (GroundEdge Edge, int NodeId) best = candidates[0];
+        double bestDist = double.MaxValue;
+
+        foreach (var (edge, nodeId) in candidates)
+        {
+            if (layout.Nodes.TryGetValue(nodeId, out var node))
+            {
+                // Find how close this candidate's destination is to any node on the next taxiway
+                double minDist = MinDistToTaxiway(layout, node, nextTaxiwayName);
+                if (minDist < bestDist)
+                {
+                    bestDist = minDist;
+                    best = (edge, nodeId);
+                }
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Returns the minimum distance from a node to any node on the named taxiway.
+    /// </summary>
+    private static double MinDistToTaxiway(AirportGroundLayout layout, GroundNode fromNode, string taxiwayName)
+    {
+        double minDist = double.MaxValue;
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Id == fromNode.Id)
+            {
+                continue;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, node.Latitude, node.Longitude);
+                    if (dist < minDist)
+                    {
+                        minDist = dist;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        return minDist;
     }
 
     private static TaxiRoute? FindRouteInternal(
