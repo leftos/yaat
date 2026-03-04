@@ -53,17 +53,19 @@ internal static class HoldShortAnnotator
     }
 
     /// <summary>
-    /// Finds the hold-short node for <paramref name="runwayId"/> along the route
-    /// and adds an explicit hold-short point if not already present.
+    /// Finds the hold-short point for <paramref name="target"/> along the route.
+    /// Checks runway hold-short nodes first, then falls back to taxiway intersection
+    /// detection (first node with an adjacent edge on the target taxiway).
     /// </summary>
     internal static void AddExplicitHoldShort(
         AirportGroundLayout layout,
         List<TaxiRouteSegment> segments,
         List<HoldShortPoint> holdShorts,
-        string runwayId
+        string target
     )
     {
-        // Find nodes along the route that are hold-short for this runway
+        // First pass: check for runway hold-short nodes matching the target
+        bool foundRunway = false;
         foreach (var seg in segments)
         {
             if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
@@ -76,11 +78,12 @@ internal static class HoldShortAnnotator
                 continue;
             }
 
-            if (!nodeRwyId.Contains(runwayId))
+            if (!nodeRwyId.Contains(target))
             {
                 continue;
             }
 
+            foundRunway = true;
             if (!HoldShortExists(holdShorts, node.Id))
             {
                 holdShorts.Add(
@@ -88,9 +91,45 @@ internal static class HoldShortAnnotator
                     {
                         NodeId = node.Id,
                         Reason = HoldShortReason.ExplicitHoldShort,
-                        TargetName = runwayId,
+                        TargetName = target,
                     }
                 );
+            }
+        }
+
+        if (foundRunway)
+        {
+            return;
+        }
+
+        // Second pass: taxiway intersection — find the first node with an
+        // adjacent edge on the target taxiway
+        foreach (var seg in segments)
+        {
+            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
+            {
+                continue;
+            }
+
+            if (HoldShortExists(holdShorts, node.Id))
+            {
+                continue;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
+                {
+                    holdShorts.Add(
+                        new HoldShortPoint
+                        {
+                            NodeId = node.Id,
+                            Reason = HoldShortReason.ExplicitHoldShort,
+                            TargetName = target.ToUpperInvariant(),
+                        }
+                    );
+                    return;
+                }
             }
         }
     }

@@ -1160,26 +1160,15 @@ public class TaxiPathfinderTests
 
     // --- Integration tests using real airport GeoJSON ---
 
-    private const string VzoaGeoJsonDir = @"X:\dev\vzoa\training-files\atctrainer-airport-files";
+    private const string ArtccResourcesDir = @"X:\dev\yaat-server\ArtccResources\ZOA\airports";
 
     private static AirportGroundLayout? LoadAirportLayout(string airportId, string subdir)
     {
-        // Try per-feature files first (more accurate), fall back to monolithic
-        string dir = Path.Combine(VzoaGeoJsonDir, subdir);
-        if (Directory.Exists(dir))
+        // Use the combined GeoJSON from yaat-server ArtccResources (same file the server loads at runtime)
+        string combined = Path.Combine(ArtccResourcesDir, $"{subdir}.geojson");
+        if (File.Exists(combined))
         {
-            var files = Directory.GetFiles(dir, "*.geojson").Select(File.ReadAllText).ToList();
-
-            if (files.Count > 0)
-            {
-                return GeoJsonParser.ParseMultiple(airportId, files);
-            }
-        }
-
-        string monolithic = Path.Combine(VzoaGeoJsonDir, $"{subdir}.geojson");
-        if (File.Exists(monolithic))
-        {
-            return GeoJsonParser.Parse(airportId, File.ReadAllText(monolithic));
+            return GeoJsonParser.Parse(airportId, File.ReadAllText(combined));
         }
 
         return null;
@@ -1658,5 +1647,102 @@ public class TaxiPathfinderTests
 
         bool hasHoldShorts = layout.Nodes.Values.Any(n => n.Type == GroundNodeType.RunwayHoldShort);
         Assert.True(hasHoldShorts, "SFO layout should have hold-short nodes");
+    }
+
+    // --- Taxiway hold-short via HS keyword in TAXI command (real OAK layout) ---
+
+    [Fact]
+    public void OAK_TaxiDHoldShortD_FromParking_HoldsBeforeEnteringD()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // NEW7 is a parking spot north of taxiway D
+        var parkingNode = layout.Nodes.Values.FirstOrDefault(n => n.Type == GroundNodeType.Parking && n.Name == "NEW7");
+        Assert.NotNull(parkingNode);
+
+        // TAXI D HS D
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            fromNodeId: parkingNode.Id,
+            taxiwayNames: ["D"],
+            out string? failReason,
+            explicitHoldShorts: ["D"]
+        );
+
+        Assert.NotNull(route);
+        Assert.Null(failReason);
+
+        // Route should have segments (RAMP to reach D, then D segments)
+        Assert.True(route.Segments.Count >= 2, $"Expected RAMP + D segments, got {route.Segments.Count}");
+
+        // Should have D segments in the route
+        Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase));
+
+        // Should have an explicit hold-short for taxiway D
+        var hsD = route
+            .HoldShortPoints.Where(h =>
+                h.Reason == HoldShortReason.ExplicitHoldShort && string.Equals(h.TargetName, "D", StringComparison.OrdinalIgnoreCase)
+            )
+            .ToList();
+        Assert.True(hsD.Count > 0, "Should have an explicit hold-short for taxiway D");
+
+        // The hold-short should be BEFORE the first D segment (aircraft holds at RAMP→D junction)
+        int hsNodeId = hsD[0].NodeId;
+        int firstDSegFromNode = route.Segments.First(s => string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase)).FromNodeId;
+        Assert.Equal(firstDSegFromNode, hsNodeId);
+    }
+
+    [Fact]
+    public void OAK_TaxiDHoldShortD_RouteContinuesBeyondHoldShort()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parkingNode = layout.Nodes.Values.FirstOrDefault(n => n.Type == GroundNodeType.Parking && n.Name == "NEW7");
+        Assert.NotNull(parkingNode);
+
+        // TAXI D HS D — route should extend along D past the hold-short
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, fromNodeId: parkingNode.Id, taxiwayNames: ["D"], out _, explicitHoldShorts: ["D"]);
+
+        Assert.NotNull(route);
+
+        var hsD = route.HoldShortPoints.First(h =>
+            h.Reason == HoldShortReason.ExplicitHoldShort && string.Equals(h.TargetName, "D", StringComparison.OrdinalIgnoreCase)
+        );
+
+        // There should be D segments past the hold-short node (aircraft continues along D when cleared)
+        bool hasDSegmentsPastHs = route.Segments.Any(s =>
+            s.FromNodeId == hsD.NodeId && string.Equals(s.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.True(hasDSegmentsPastHs, "Route should have D segments past the hold-short (aircraft continues when cleared)");
+    }
+
+    [Fact]
+    public void OAK_TaxiDHoldShortD_HoldShortSummaryIncludesHSD()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parkingNode = layout.Nodes.Values.FirstOrDefault(n => n.Type == GroundNodeType.Parking && n.Name == "NEW7");
+        Assert.NotNull(parkingNode);
+
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, fromNodeId: parkingNode.Id, taxiwayNames: ["D"], out _, explicitHoldShorts: ["D"]);
+
+        Assert.NotNull(route);
+
+        // ToSummary should include "HS D"
+        string summary = route.ToSummary();
+        Assert.Contains("HS", summary);
+        Assert.Contains("D", summary);
     }
 }
