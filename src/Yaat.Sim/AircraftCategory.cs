@@ -408,6 +408,13 @@ public static class CategoryPerformance
         return 5;
     }
 
+    /// <summary>Pushback turn rate (deg/sec). Tug-steered, slower than self-powered taxi. Flat across categories.</summary>
+    public static double PushbackTurnRate(AircraftCategory cat)
+    {
+        _ = cat;
+        return 5;
+    }
+
     /// <summary>Ground turn rate while taxiing (deg/sec). Helicopter: 30 (pedal turn).</summary>
     public static double GroundTurnRate(AircraftCategory cat)
     {

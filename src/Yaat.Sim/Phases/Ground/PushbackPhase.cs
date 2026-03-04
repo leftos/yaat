@@ -9,13 +9,14 @@ namespace Yaat.Sim.Phases.Ground;
 /// backward while the nose heading stays forward (or rotates to target).
 /// Three modes:
 ///   1. No target: push straight back ~80 feet.
-///   2. Heading only: push back while rotating to target heading.
-///   3. Target position (taxiway): move toward target, then optionally rotate to heading.
+///   2. Heading only: push back along a curved arc while rotating nose to target heading.
+///   3. Target position (taxiway): arc toward target, then optionally rotate to heading.
 /// </summary>
 public sealed class PushbackPhase : Phase
 {
     private const double DefaultPushbackDistanceNm = 0.015;
     private const double TargetReachedThresholdNm = 0.005;
+    private const double HeadingReachedDeg = 0.5;
     private const double LogIntervalSeconds = 3.0;
 
     private double _startLat;
@@ -34,10 +35,9 @@ public sealed class PushbackPhase : Phase
         _startLat = ctx.Aircraft.Latitude;
         _startLon = ctx.Aircraft.Longitude;
 
-        // Set pushback heading so FlightPhysics moves aircraft backward
-        // while Heading (nose direction) stays forward or rotates to target.
         ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
         ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+        ctx.Targets.TargetHeading = null;
         ctx.Aircraft.IsOnGround = true;
 
         ctx.Logger.LogDebug(
@@ -65,10 +65,15 @@ public sealed class PushbackPhase : Phase
         if (ctx.Aircraft.IsHeld)
         {
             ctx.Aircraft.GroundSpeed = 0;
+            ctx.Targets.TargetSpeed = 0;
             return false;
         }
 
-        double turnRate = CategoryPerformance.GroundTurnRate(ctx.Category);
+        // Continuously reassert desired speed so FlightPhysics.UpdateSpeed can ramp
+        // back up after a GroundConflictDetector limit clears.
+        ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+
+        double turnRate = CategoryPerformance.PushbackTurnRate(ctx.Category);
 
         bool result;
         if (TargetLatitude is not null && TargetLongitude is not null)
@@ -117,19 +122,25 @@ public sealed class PushbackPhase : Phase
             }
             else
             {
-                // Steer the pushback heading toward the target position
+                // Gradually steer PushbackHeading toward the target in an arc
+                // (tug curving the tail toward the taxiway, not a straight-line slide).
                 double bearingToTarget = GeoMath.BearingTo(
                     ctx.Aircraft.Latitude,
                     ctx.Aircraft.Longitude,
                     TargetLatitude!.Value,
                     TargetLongitude!.Value
                 );
-                ctx.Aircraft.PushbackHeading = bearingToTarget;
+                double maxArcTurn = turnRate * ctx.DeltaSeconds;
+                ctx.Aircraft.PushbackHeading = GeoMath.TurnHeadingToward(
+                    ctx.Aircraft.PushbackHeading ?? (ctx.Aircraft.Heading + 180.0) % 360.0,
+                    bearingToTarget,
+                    maxArcTurn
+                );
             }
 
             if (TargetHeading is { } tgt && !_reachedTarget)
             {
-                RotateHeadingToward(ctx, tgt, turnRate);
+                TurnNoseToward(ctx, tgt, turnRate);
             }
         }
 
@@ -143,43 +154,32 @@ public sealed class PushbackPhase : Phase
             return true;
         }
 
-        return RotateHeadingToward(ctx, finalHdg, CategoryPerformance.GroundTurnRate(ctx.Category));
+        return TurnNoseToward(ctx, finalHdg, turnRate);
     }
 
     private bool TickSimplePushback(PhaseContext ctx, double turnRate)
     {
         if (TargetHeading is { } tgt)
         {
-            return RotateHeadingToward(ctx, tgt, turnRate);
+            bool headingReached = TurnNoseToward(ctx, tgt, turnRate);
+
+            // Couple pushback direction to nose after rotation: as the nose rotates, the arc curves.
+            ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
+
+            double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+            return headingReached && distPushed >= DefaultPushbackDistanceNm;
         }
 
-        double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
-        return distPushed >= DefaultPushbackDistanceNm;
+        double dist = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+        return dist >= DefaultPushbackDistanceNm;
     }
 
-    private static bool RotateHeadingToward(PhaseContext ctx, double target, double turnRate)
+    private static bool TurnNoseToward(PhaseContext ctx, double target, double turnRate)
     {
-        double current = ctx.Aircraft.Heading;
-        double diff = target - current;
-        while (diff > 180)
-        {
-            diff -= 360;
-        }
-
-        while (diff < -180)
-        {
-            diff += 360;
-        }
-
         double maxTurn = turnRate * ctx.DeltaSeconds;
-        if (Math.Abs(diff) <= maxTurn)
-        {
-            ctx.Aircraft.Heading = target;
-            return true;
-        }
-
-        ctx.Aircraft.Heading = (current + Math.Sign(diff) * maxTurn + 360) % 360;
-        return false;
+        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, target, maxTurn);
+        double diff = FlightPhysics.NormalizeAngle(target - ctx.Aircraft.Heading);
+        return Math.Abs(diff) < HeadingReachedDeg;
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)

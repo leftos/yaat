@@ -197,11 +197,14 @@ public class GroundPhaseTests
         phase.OnTick(ctx);
         Assert.Equal(0, aircraft.GroundSpeed);
 
-        // Resume — TargetSpeed should still be set, GS restored next physics tick
+        // Resume — phase OnTick reasserts TargetSpeed automatically
         aircraft.IsHeld = false;
-        ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
-        FlightPhysics.Update(aircraft, 1.0);
-        phase.OnTick(ctx);
+        for (int i = 0; i < 3; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
         Assert.True(aircraft.GroundSpeed > 0);
     }
 
@@ -511,5 +514,188 @@ public class GroundPhaseTests
 
         // No inserted phases
         Assert.Single(aircraft.Phases.Phases);
+    }
+
+    // --- Pushback speed recovery after conflict ---
+
+    [Fact]
+    public void PushbackPhase_SpeedRecoversAfterConflictClears()
+    {
+        var aircraft = MakeGroundAircraft(heading: 90);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Let physics ramp up to pushback speed
+        for (int i = 0; i < 5; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
+        Assert.True(aircraft.GroundSpeed > 0, "Should be moving before conflict");
+        double speedBefore = aircraft.GroundSpeed;
+
+        // Simulate conflict: GroundSpeedLimit clamps to 0
+        aircraft.GroundSpeedLimit = 0;
+        FlightPhysics.Update(aircraft, 1.0);
+        phase.OnTick(ctx);
+        Assert.Equal(0, aircraft.GroundSpeed);
+
+        // Conflict clears
+        aircraft.GroundSpeedLimit = null;
+        for (int i = 0; i < 5; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
+        Assert.True(aircraft.GroundSpeed > 0, "Speed should recover after conflict clears");
+    }
+
+    // --- Pushback OnStart clears TargetHeading ---
+
+    [Fact]
+    public void PushbackPhase_OnStart_ClearsTargetHeading()
+    {
+        var aircraft = MakeGroundAircraft();
+        aircraft.Targets.TargetHeading = 270;
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        Assert.Null(aircraft.Targets.TargetHeading);
+    }
+
+    // --- Mode 2: pushback path curves with nose rotation ---
+
+    [Fact]
+    public void PushbackPhase_HeadingMode_CurvesPushbackWithNose()
+    {
+        var aircraft = MakeGroundAircraft(heading: 0);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase { TargetHeading = 90 };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Initial pushback heading is opposite of nose (= 180)
+        Assert.Equal(180, aircraft.PushbackHeading!.Value, 1.0);
+
+        // After a few ticks, nose starts turning right, pushback heading should follow
+        for (int i = 0; i < 5; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
+        // Nose should have turned toward 90 (from 0)
+        Assert.True(aircraft.Heading > 0, "Nose should have started rotating");
+
+        // PushbackHeading should be ~180° offset from current nose, not stuck at 180
+        double expectedPush = (aircraft.Heading + 180.0) % 360.0;
+        Assert.Equal(expectedPush, aircraft.PushbackHeading!.Value, 1.0);
+    }
+
+    // --- Mode 2: requires minimum distance even if heading already close ---
+
+    [Fact]
+    public void PushbackPhase_HeadingMode_RequiresMinimumDistance()
+    {
+        // Start facing 90, push with target 91 (already nearly there)
+        var aircraft = MakeGroundAircraft(heading: 90);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase { TargetHeading = 91 };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // One tick: heading reached almost immediately, but distance hasn't been pushed
+        FlightPhysics.Update(aircraft, 1.0);
+        bool completed = phase.OnTick(ctx);
+        Assert.False(completed, "Should not complete before minimum pushback distance");
+    }
+
+    // --- Mode 3: pushback arcs gradually instead of snapping ---
+
+    [Fact]
+    public void PushbackPhase_TargetedMode_ArcsGraduallyTowardTarget()
+    {
+        // Aircraft facing east, target is to the south
+        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 90);
+        double targetLat = 37.619; // south
+        double targetLon = -122.380;
+
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase
+        {
+            TargetLatitude = targetLat,
+            TargetLongitude = targetLon,
+            TargetHeading = 270,
+        };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Initial PushbackHeading = 270 (opposite of 90)
+        double initialPushHdg = aircraft.PushbackHeading!.Value;
+        Assert.Equal(270, initialPushHdg, 1.0);
+
+        // Bearing to target is ~180 (due south)
+        double bearingToTarget = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, targetLat, targetLon);
+
+        // After one tick, PushbackHeading should NOT have snapped to bearingToTarget.
+        // It should have moved at most PushbackTurnRate degrees (5 deg/s × 1s = 5°).
+        FlightPhysics.Update(aircraft, 1.0);
+        phase.OnTick(ctx);
+
+        double newPushHdg = aircraft.PushbackHeading!.Value;
+        double changeDeg = Math.Abs(FlightPhysics.NormalizeAngle(newPushHdg - initialPushHdg));
+        double maxAllowed = CategoryPerformance.PushbackTurnRate(AircraftCategory.Jet) * 1.0 + 1.0;
+
+        Assert.True(changeDeg <= maxAllowed, $"PushbackHeading changed {changeDeg:F1}° in 1s, max expected ~{maxAllowed:F0}°");
+        Assert.NotEqual(bearingToTarget, newPushHdg, 5.0);
+    }
+
+    // --- PushbackTurnRate is slower than GroundTurnRate ---
+
+    [Fact]
+    public void PushbackTurnRate_IsSlowerThanGroundTurnRate()
+    {
+        foreach (var cat in new[] { AircraftCategory.Jet, AircraftCategory.Turboprop, AircraftCategory.Piston })
+        {
+            Assert.True(
+                CategoryPerformance.PushbackTurnRate(cat) < CategoryPerformance.GroundTurnRate(cat),
+                $"PushbackTurnRate should be slower than GroundTurnRate for {cat}"
+            );
+        }
+    }
+
+    // --- Pushback held state sets TargetSpeed to 0 ---
+
+    [Fact]
+    public void PushbackPhase_WhenHeld_SetsTargetSpeedZero()
+    {
+        var aircraft = MakeGroundAircraft();
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Tick once to get moving
+        FlightPhysics.Update(aircraft, 1.0);
+        phase.OnTick(ctx);
+
+        // Hold
+        aircraft.IsHeld = true;
+        phase.OnTick(ctx);
+
+        Assert.Equal(0, ctx.Targets.TargetSpeed);
+        Assert.Equal(0, aircraft.GroundSpeed);
     }
 }
