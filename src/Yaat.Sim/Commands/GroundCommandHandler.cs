@@ -259,12 +259,7 @@ internal static class GroundCommandHandler
                 var facingNode = groundLayout.FindExitByTaxiway(targetNode.Latitude, targetNode.Longitude, push.FacingTaxiway);
                 if (facingNode is not null)
                 {
-                    double bearingToFacing = GeoMath.BearingTo(
-                        targetNode.Latitude,
-                        targetNode.Longitude,
-                        facingNode.Latitude,
-                        facingNode.Longitude
-                    );
+                    double bearingToFacing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, facingNode.Latitude, facingNode.Longitude);
 
                     // Prefer edge heading at exit node (if it's at the intersection)
                     double? edgeHeading = groundLayout.GetEdgeHeadingForTaxiway(targetNode, push.FacingTaxiway, bearingToFacing);

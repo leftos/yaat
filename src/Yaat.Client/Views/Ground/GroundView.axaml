@@ -19,6 +19,27 @@
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNull}}" />
+
+        <!-- Custom taxi route input overlay -->
+        <Border x:Name="TaxiInputOverlay"
+                IsVisible="False"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,12"
+                Padding="8,6"
+                CornerRadius="4"
+                Background="#DD1E1E2E"
+                BorderBrush="#555"
+                BorderThickness="1">
+            <TextBox x:Name="TaxiInputBox"
+                     FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                     FontSize="14"
+                     MinWidth="300"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Foreground="White"
+                     CaretBrush="White" />
+        </Border>
     </Panel>
 
 </UserControl>

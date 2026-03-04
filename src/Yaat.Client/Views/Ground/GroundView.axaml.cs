@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim.Data.Airport;
 
@@ -12,6 +13,10 @@ public partial class GroundView : UserControl
 {
     private GroundCanvas? _canvas;
     private ContextMenu? _activeContextMenu;
+    private Border? _taxiInputOverlay;
+    private TextBox? _taxiInputBox;
+    private string? _pendingCallsign;
+    private string? _pendingInitials;
 
     public GroundView()
     {
@@ -33,6 +38,14 @@ public partial class GroundView : UserControl
         _canvas.AircraftLeftClicked += OnAircraftLeftClicked;
         _canvas.EmptySpaceClicked += OnEmptySpaceClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
+
+        _taxiInputOverlay = this.FindControl<Border>("TaxiInputOverlay");
+        _taxiInputBox = this.FindControl<TextBox>("TaxiInputBox");
+        if (_taxiInputBox is not null)
+        {
+            _taxiInputBox.KeyDown += OnTaxiInputKeyDown;
+            _taxiInputBox.LostFocus += OnTaxiInputLostFocus;
+        }
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
@@ -46,6 +59,12 @@ public partial class GroundView : UserControl
             _canvas.AircraftLeftClicked -= OnAircraftLeftClicked;
             _canvas.EmptySpaceClicked -= OnEmptySpaceClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
+        }
+
+        if (_taxiInputBox is not null)
+        {
+            _taxiInputBox.KeyDown -= OnTaxiInputKeyDown;
+            _taxiInputBox.LostFocus -= OnTaxiInputLostFocus;
         }
     }
 
@@ -94,10 +113,17 @@ public partial class GroundView : UserControl
                 menu.Items.Add(CreateMenuItem($"Hold short {node.RunwayId}", () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
             }
 
-            if (node.Type == "Parking" && node.Name is not null)
-            {
-                menu.Items.Add(CreateMenuItem($"Park at {node.Name}", () => vm.ParkAtAsync(callsign, initials, node.Name)));
-            }
+            var (prefill, caretPos) = BuildCustomTaxiPrefill(vm, node, nodeId);
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Custom taxi...",
+                    () =>
+                    {
+                        ShowTaxiInput(callsign, initials, prefill, caretPos);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
 
             menu.Items.Add(new Separator());
             menu.Items.Add(CreateMenuItem("Warp here", () => vm.WarpToNodeAsync(callsign, nodeId)));
@@ -407,6 +433,7 @@ public partial class GroundView : UserControl
         if (props.IsLeftButtonPressed)
         {
             CloseActiveContextMenu();
+            HideTaxiInput();
         }
     }
 
@@ -443,6 +470,92 @@ public partial class GroundView : UserControl
         menu.PlacementTarget = _canvas;
         menu.Placement = PlacementMode.Pointer;
         menu.Open(_canvas);
+    }
+
+    private static (string Text, int CaretIndex) BuildCustomTaxiPrefill(GroundViewModel vm, GroundNodeDto node, int nodeId)
+    {
+        const string taxiPrefix = "TAXI ";
+
+        switch (node.Type)
+        {
+            case "Parking" when node.Name is not null:
+                // "TAXI  @SPOT" — cursor between TAXI and @SPOT
+                var parkingSuffix = $"@{node.Name}";
+                return ($"{taxiPrefix} {parkingSuffix}", taxiPrefix.Length);
+
+            case "RunwayHoldShort" when node.RunwayId is not null:
+                // "RWY 30 TAXI " — cursor at end for user to add taxiway route
+                var rwyEnd1 = RunwayIdentifier.Parse(node.RunwayId).End1;
+                var rwyText = $"RWY {rwyEnd1} {taxiPrefix}";
+                return (rwyText, rwyText.Length);
+
+            default:
+                // Taxiway intersection or spot: "TAXI  E" — cursor between TAXI and taxiway name
+                var names = vm.GetNodeTaxiwayNames(nodeId);
+                if (names.Count > 0)
+                {
+                    var twySuffix = names[0];
+                    return ($"{taxiPrefix} {twySuffix}", taxiPrefix.Length);
+                }
+
+                return (taxiPrefix, taxiPrefix.Length);
+        }
+    }
+
+    private void ShowTaxiInput(string callsign, string initials, string prefill, int caretIndex)
+    {
+        if (_taxiInputOverlay is null || _taxiInputBox is null)
+        {
+            return;
+        }
+
+        _pendingCallsign = callsign;
+        _pendingInitials = initials;
+
+        _taxiInputBox.Text = prefill;
+        _taxiInputOverlay.IsVisible = true;
+        _taxiInputBox.Focus();
+        _taxiInputBox.CaretIndex = caretIndex;
+    }
+
+    private void HideTaxiInput()
+    {
+        if (_taxiInputOverlay is not null)
+        {
+            _taxiInputOverlay.IsVisible = false;
+        }
+
+        _pendingCallsign = null;
+        _pendingInitials = null;
+    }
+
+    private async void OnTaxiInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            HideTaxiInput();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            var text = _taxiInputBox?.Text?.Trim();
+            var callsign = _pendingCallsign;
+            var initials = _pendingInitials;
+            HideTaxiInput();
+
+            if (!string.IsNullOrEmpty(text) && callsign is not null && initials is not null && DataContext is GroundViewModel vm)
+            {
+                await vm.SendRawCommandAsync(callsign, initials, text);
+            }
+        }
+    }
+
+    private void OnTaxiInputLostFocus(object? sender, RoutedEventArgs e)
+    {
+        HideTaxiInput();
     }
 
     private string GetInitials()

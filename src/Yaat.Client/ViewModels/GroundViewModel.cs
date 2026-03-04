@@ -148,6 +148,29 @@ public partial class GroundViewModel : ObservableObject
         return Layout?.Nodes.Find(n => n.Id == nodeId);
     }
 
+    public List<string> GetNodeTaxiwayNames(int nodeId)
+    {
+        if (_domainLayout is null || !_domainLayout.Nodes.TryGetValue(nodeId, out var node))
+        {
+            return [];
+        }
+
+        var names = new List<string>();
+        foreach (var edge in node.Edges)
+        {
+            if (
+                !edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
+                && !names.Contains(edge.TaxiwayName)
+            )
+            {
+                names.Add(edge.TaxiwayName);
+            }
+        }
+
+        return names;
+    }
+
     // --- Command methods ---
 
     public async Task TaxiToNodeAsync(string callsign, string initials, int toNodeId)
@@ -263,11 +286,6 @@ public partial class GroundViewModel : ObservableObject
     public async Task PushbackHeadingAsync(string callsign, string initials, int heading)
     {
         await _sendCommand(callsign, $"PUSH {heading}", initials);
-    }
-
-    public async Task ParkAtAsync(string callsign, string initials, string spotName)
-    {
-        await _sendCommand(callsign, $"TAXI @{spotName}", initials);
     }
 
     public async Task SendRawCommandAsync(string callsign, string initials, string command)
