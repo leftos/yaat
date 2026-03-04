@@ -46,7 +46,7 @@ Authoritative interface definitions: `X:\dev\towercab-3d-vnas\docs\repos\messagi
 
 ### STARS Commands
 
-- [x] `ProcessStarsCommand(ProcessStarsCommandDto)` — IC, TC, Handoff, Implied (accept/ack pointout)
+- [x] `ProcessStarsCommand(ProcessStarsCommandDto)` — IC, TC, Handoff, Implied (accept handoff, accept pointout, amend filed altitude, temp altitude, scratchpad 1/2, pointout, reject pointout, pilot reported altitude), MultiFunc (basic/full consolidation, deconsolidation), Coordination (stub by design — YAAT client handles via RD/RDACK)
 
 ### ERAM Commands
 
@@ -146,8 +146,8 @@ Authoritative interface definitions: `X:\dev\towercab-3d-vnas\docs\repos\messagi
 - [ ] `ReceiveStarsShortTermConflicts(Topic, List<StarsShortTermConflictDto>)`
 - [ ] `DeleteStarsShortTermConflicts(Topic, List<string>)`
 - [ ] `ReceiveStarsReadoutArea(StarsReadoutAreaDto)`
-- [ ] `ReceiveStarsCoordinationLists(Topic, List<StarsCoordinationListDto>)`
-- [ ] `ReceiveStarsConsolidationItems(Topic, List<StarsConsolidationItemDto>)`
+- [x] `ReceiveStarsCoordinationLists(Topic, List<StarsCoordinationListDto>)` — coordination channel broadcasts with status/expiry
+- [x] `ReceiveStarsConsolidationItems(Topic, List<StarsConsolidationItemDto>)` — consolidation hierarchy broadcasts
 
 ### ERAM
 
@@ -250,7 +250,7 @@ Authoritative interface definitions: `X:\dev\towercab-3d-vnas\docs\repos\messagi
 | Session management | 4 | 4 |
 | Position management | 0 | 9 |
 | Subscriptions | 2 | 0 |
-| STARS commands | 1 | 0 |
+| STARS commands | 1 (rich) | 0 |
 | ERAM commands | 0 | 6 |
 | Flight plan ops | 0 | 9 |
 | Messaging | 0 | 6 |
@@ -259,4 +259,6 @@ Authoritative interface definitions: `X:\dev\towercab-3d-vnas\docs\repos\messagi
 | Info requests | 0 | 5 |
 | Navigation | 0 | 1 |
 | **Client→Server total** | **7** | **60** |
-| Server→Client broadcasts | 14 | 40+ |
+| Server→Client broadcasts | 16 | 38+ |
+
+**ProcessStarsCommand detail:** IC, TC, Handoff, Implied (9 sub-ops), MultiFunc (CON/DECON), Coordination (stub)
