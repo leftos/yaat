@@ -350,6 +350,16 @@ public static class TaxiPathfinder
             }
         }
 
+        // If the start node already connects to the next taxiway, this taxiway name
+        // is just a directional hint at a multi-way junction (e.g., "T" in "TE T U W"
+        // at the TE/T/U intersection). Skip the walk — the aircraft is already where
+        // it needs to be to transition to the next taxiway.
+        if (nextTaxiwayName is not null && NodeHasEdgeTo(layout, startNodeId, nextTaxiwayName))
+        {
+            endNodeId = startNodeId;
+            return segments.Count > 0;
+        }
+
         // Walk along the taxiway to the end
         int currentId = startNodeId;
         var visited = new HashSet<int> { currentId };
