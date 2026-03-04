@@ -162,10 +162,11 @@ public sealed class TargetRenderer : IDisposable
         }
         else
         {
-            // Full datablock: line1 = callsign, line2 = alt speed CWT, line3 = owner TCP (if present)
+            // Full datablock: line1 = callsign, line2 = alt speed CWT/TYPE, line3 = owner TCP (if present)
             string line1 = ac.Callsign;
             var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
-            string line2 = cwt.Length > 0 ? $"{altHundreds} {spdTens} {cwt}" : $"{altHundreds} {spdTens}";
+            var cwtType = FormatCwtType(cwt, ac.AircraftType);
+            string line2 = cwtType.Length > 0 ? $"{altHundreds} {spdTens} {cwtType}" : $"{altHundreds} {spdTens}";
 
             float w1 = _dataBlockPaint.MeasureText(line1);
             float w2 = _dataBlockPaint.MeasureText(line2);
@@ -203,6 +204,22 @@ public sealed class TargetRenderer : IDisposable
                 canvas.DrawText(line3, blockX, blockY + 2 * lineH, _dataBlockPaint);
             }
         }
+    }
+
+    private static string FormatCwtType(string cwt, string aircraftType)
+    {
+        var baseType = aircraftType.Trim();
+        if (cwt.Length > 0 && baseType.Length > 0)
+        {
+            return $"{cwt}/{baseType}";
+        }
+
+        if (cwt.Length > 0)
+        {
+            return cwt;
+        }
+
+        return baseType;
     }
 
     private static SKPoint ClampToBlockEdge(float pointX, float pointY, SKRect rect)
