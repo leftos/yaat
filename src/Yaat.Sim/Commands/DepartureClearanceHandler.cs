@@ -224,7 +224,9 @@ internal static class DepartureClearanceHandler
             IsVfr = aircraft.IsVfr,
             CruiseAltitude = aircraft.CruiseAltitude,
         };
-        aircraft.Phases!.InsertAfterCurrent(new Phase[] { lineup, luawPhase, takeoffPhase, climb });
+        // Replace (not insert) — remaining taxi phases (CrossingRunwayPhase, etc.)
+        // must not execute after the aircraft is airborne.
+        aircraft.Phases!.ReplaceUpcoming(new Phase[] { lineup, luawPhase, takeoffPhase, climb });
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
         {
