@@ -165,7 +165,11 @@ public class GroundPhaseTests
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
-        // Tick once to start moving
+        // PushbackHeading should be set (opposite of aircraft heading)
+        Assert.NotNull(aircraft.PushbackHeading);
+
+        // Tick once — phase sets TargetSpeed, FlightPhysics moves
+        FlightPhysics.Update(aircraft, 1.0);
         phase.OnTick(ctx);
         Assert.True(aircraft.GroundSpeed > 0);
 
@@ -185,13 +189,18 @@ public class GroundPhaseTests
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
+        // Let physics accelerate once
+        FlightPhysics.Update(aircraft, 1.0);
+
         // Hold
         aircraft.IsHeld = true;
         phase.OnTick(ctx);
         Assert.Equal(0, aircraft.GroundSpeed);
 
-        // Resume
+        // Resume — TargetSpeed should still be set, GS restored next physics tick
         aircraft.IsHeld = false;
+        ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+        FlightPhysics.Update(aircraft, 1.0);
         phase.OnTick(ctx);
         Assert.True(aircraft.GroundSpeed > 0);
     }

@@ -81,6 +81,13 @@ public class AircraftState
     /// </summary>
     public double? GroundSpeedLimit { get; set; }
 
+    /// <summary>
+    /// When set, FlightPhysics uses this heading for ground position updates
+    /// instead of <see cref="Heading"/>. Used by pushback (aircraft nose stays
+    /// forward while tug pushes it backward along this direction).
+    /// </summary>
+    public double? PushbackHeading { get; set; }
+
     // Track operations state
     public TrackOwner? Owner { get; set; }
     public TrackOwner? HandoffPeer { get; set; }

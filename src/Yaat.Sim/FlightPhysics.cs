@@ -347,7 +347,8 @@ public static class FlightPhysics
             }
 
             double speedNmPerSec = aircraft.GroundSpeed / 3600.0;
-            double headingRad = aircraft.Heading * DegToRad;
+            double moveHeading = aircraft.PushbackHeading ?? aircraft.Heading;
+            double headingRad = moveHeading * DegToRad;
 
             aircraft.Latitude += speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / NmPerDegLat;
             aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
