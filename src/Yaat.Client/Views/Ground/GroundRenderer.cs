@@ -8,6 +8,56 @@ using Yaat.Sim.Data.Airport;
 namespace Yaat.Client.Views.Ground;
 
 /// <summary>
+/// Computed datablock geometry. Shared by renderer (draw) and canvas (hit-test).
+/// </summary>
+internal readonly struct DataBlockLayout
+{
+    private const float Pad = 3f;
+
+    public readonly SKRect Rect;
+    public readonly float TextX;
+    public readonly float TextY;
+    public readonly float LineHeight;
+    public readonly string Line1;
+    public readonly string Line2;
+    public readonly string Line3;
+
+    private DataBlockLayout(SKRect rect, float textX, float textY, float lineHeight, string line1, string line2, string line3)
+    {
+        Rect = rect;
+        TextX = textX;
+        TextY = textY;
+        LineHeight = lineHeight;
+        Line1 = line1;
+        Line2 = line2;
+        Line3 = line3;
+    }
+
+    public static DataBlockLayout Compute(AircraftModel ac, float screenX, float screenY, SKPoint offset, SKPaint textPaint, bool isAirborne)
+    {
+        float blockX = screenX + offset.X;
+        float blockY = screenY + offset.Y;
+
+        string line1 = ac.Callsign;
+        string line2 = ac.AircraftType ?? "";
+        string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
+
+        float w1 = textPaint.MeasureText(line1);
+        float w2 = textPaint.MeasureText(line2);
+        float w3 = line3.Length > 0 ? textPaint.MeasureText(line3) : 0;
+        float textW = MathF.Max(w1, MathF.Max(w2, w3));
+        float lineH = textPaint.TextSize + 2;
+        int lineCount = line3.Length > 0 ? 3 : 2;
+
+        var rect = new SKRect(blockX - Pad, blockY - textPaint.TextSize - Pad, blockX + textW + Pad, blockY + (lineCount - 1) * lineH + Pad);
+
+        return new DataBlockLayout(rect, blockX, blockY, lineH, line1, line2, line3);
+    }
+
+    public static readonly SKPoint DefaultOffset = new(30, -25);
+}
+
+/// <summary>
 /// Stateless SkiaSharp renderer for the airport ground layout.
 /// All SKPaint objects are pre-allocated and reused.
 /// Labels are collected during geometry passes and drawn last with overlap culling.
@@ -516,14 +566,13 @@ public sealed class GroundRenderer : IDisposable
 
             var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
 
-            SKPoint offset = new(30, -25);
+            SKPoint offset = DataBlockLayout.DefaultOffset;
             if (dataBlockOffsets is not null && dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
             {
                 offset = customOffset;
             }
 
-            float blockX = sx + offset.X;
-            float blockY = sy + offset.Y;
+            var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _dataBlockTextPaint, isAirborne);
 
             bool isSelected = ac == selectedAircraft;
             var color =
@@ -532,32 +581,18 @@ public sealed class GroundRenderer : IDisposable
                 : isAirborne ? AircraftAirborne
                 : GetAircraftColor(ac);
 
-            string line1 = ac.Callsign;
-            string line2 = ac.AircraftType ?? "";
-            string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
-
             _dataBlockTextPaint.Color = color;
-            float w1 = _dataBlockTextPaint.MeasureText(line1);
-            float w2 = _dataBlockTextPaint.MeasureText(line2);
-            float w3 = line3.Length > 0 ? _dataBlockTextPaint.MeasureText(line3) : 0;
-            float textW = MathF.Max(w1, MathF.Max(w2, w3));
-            float lineH = _dataBlockTextPaint.TextSize + 2;
-            int lineCount = line3.Length > 0 ? 3 : 2;
+            canvas.DrawRect(layout.Rect, _dataBlockBgPaint);
 
-            const float pad = 3f;
-            var blockRect = new SKRect(blockX - pad, blockY - _dataBlockTextPaint.TextSize - pad, blockX + textW + pad, blockY + (lineCount - 1) * lineH + pad);
-
-            canvas.DrawRect(blockRect, _dataBlockBgPaint);
-
-            var leaderEnd = ClampToBlockEdge(sx, sy, blockRect);
+            var leaderEnd = ClampToBlockEdge(sx, sy, layout.Rect);
             _dataBlockLeaderPaint.Color = color;
             canvas.DrawLine(sx, sy, leaderEnd.X, leaderEnd.Y, _dataBlockLeaderPaint);
 
-            canvas.DrawText(line1, blockX, blockY, _dataBlockTextPaint);
-            canvas.DrawText(line2, blockX, blockY + lineH, _dataBlockTextPaint);
-            if (line3.Length > 0)
+            canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, _dataBlockTextPaint);
+            canvas.DrawText(layout.Line2, layout.TextX, layout.TextY + layout.LineHeight, _dataBlockTextPaint);
+            if (layout.Line3.Length > 0)
             {
-                canvas.DrawText(line3, blockX, blockY + lineH * 2, _dataBlockTextPaint);
+                canvas.DrawText(layout.Line3, layout.TextX, layout.TextY + layout.LineHeight * 2, _dataBlockTextPaint);
             }
         }
     }

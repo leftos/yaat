@@ -37,9 +37,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     public static readonly StyledProperty<double> AirportCenterLonProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(AirportCenterLon));
     public static readonly StyledProperty<double> AirportElevationProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(AirportElevation));
 
-    private static readonly SKPoint DefaultDataBlockOffset = new(30, -25);
-    private const float DataBlockPad = 3f;
-
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
     private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = SKTypeface.FromFamilyName("Consolas") };
@@ -233,7 +230,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             {
                 _isDraggingDataBlock = true;
                 _dragCallsign = dataBlockAc.Callsign;
-                _dragStartOffset = _dataBlockOffsets.TryGetValue(dataBlockAc.Callsign, out var off) ? off : DefaultDataBlockOffset;
+                _dragStartOffset = _dataBlockOffsets.TryGetValue(dataBlockAc.Callsign, out var off) ? off : DataBlockLayout.DefaultOffset;
                 _dragStartMousePos = pos;
                 _dragThresholdMet = false;
                 e.Handled = true;
@@ -349,31 +346,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
             var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
 
-            SKPoint offset = DefaultDataBlockOffset;
+            SKPoint offset = DataBlockLayout.DefaultOffset;
             if (_dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
             {
                 offset = customOffset;
             }
 
-            float blockX = sx + offset.X;
-            float blockY = sy + offset.Y;
-
-            string line1 = ac.Callsign;
-            string line2 = ac.AircraftType ?? "";
-
-            float w1 = _hitTestPaint.MeasureText(line1);
-            float w2 = _hitTestPaint.MeasureText(line2);
-            float textW = MathF.Max(w1, w2);
-            float lineH = _hitTestPaint.TextSize + 2;
-
-            var blockRect = new SKRect(
-                blockX - DataBlockPad,
-                blockY - _hitTestPaint.TextSize - DataBlockPad,
-                blockX + textW + DataBlockPad,
-                blockY + lineH + DataBlockPad
-            );
-
-            if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
+            var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _hitTestPaint, isAirborne: false);
+            if (layout.Rect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 return ac;
             }
