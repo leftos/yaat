@@ -74,6 +74,16 @@ public partial class RadarView
         menu.Items.Add(BuildAltitudeSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildSpeedSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildNavigationSubmenu(vm, callsign, initials, ac));
+        menu.Items.Add(
+            CreateMenuItem(
+                "Draw route",
+                () =>
+                {
+                    vm.EnterDrawRoute(callsign);
+                    return Task.CompletedTask;
+                }
+            )
+        );
         menu.Items.Add(BuildHoldSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildApproachSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildProceduresSubmenu(vm, callsign, initials));
@@ -86,16 +96,6 @@ public partial class RadarView
         menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
 
         menu.Items.Add(new Separator());
-        menu.Items.Add(
-            CreateMenuItem(
-                "Draw route",
-                () =>
-                {
-                    vm.EnterDrawRoute(callsign);
-                    return Task.CompletedTask;
-                }
-            )
-        );
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
         ShowContextMenu(menu, screenPos);
