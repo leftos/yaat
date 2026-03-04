@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Yaat.Client.Models;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim.Data;
 
@@ -38,6 +39,59 @@ public sealed class RadarRenderer : IDisposable
     {
         Color = SKColors.White,
         TextSize = 14,
+        IsAntialias = true,
+        Typeface = SKTypeface.FromFamilyName("Consolas"),
+    };
+
+    private static readonly SKColor ProgrammedFixColor = new(0, 220, 200);
+
+    private readonly SKPaint _programmedFixPaint = new()
+    {
+        Color = ProgrammedFixColor,
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _programmedFixLabelPaint = new()
+    {
+        Color = ProgrammedFixColor,
+        TextSize = 14,
+        IsAntialias = true,
+        Typeface = SKTypeface.FromFamilyName("Consolas"),
+    };
+
+    private static readonly SKColor RouteDrawColor = new(255, 200, 0);
+
+    private readonly SKPaint _routeLinePaint = new()
+    {
+        Color = RouteDrawColor,
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _rubberBandPaint = new()
+    {
+        Color = RouteDrawColor.WithAlpha(150),
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        PathEffect = SKPathEffect.CreateDash([6, 4], 0),
+    };
+
+    private readonly SKPaint _routeWaypointPaint = new()
+    {
+        Color = RouteDrawColor,
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _routeLabelPaint = new()
+    {
+        Color = RouteDrawColor,
+        TextSize = 13,
         IsAntialias = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
@@ -84,7 +138,11 @@ public sealed class RadarRenderer : IDisposable
         string? hoveredFixName = null,
         double ptlLengthMinutes = 0,
         bool ptlOwn = false,
-        bool ptlAll = false
+        bool ptlAll = false,
+        IReadOnlySet<string>? programmedFixNames = null,
+        IReadOnlyList<DrawnWaypoint>? drawnWaypoints = null,
+        (double Lat, double Lon)? rubberBandTarget = null,
+        string? rubberBandLabel = null
     )
     {
         canvas.Clear(BackgroundColor);
@@ -104,11 +162,17 @@ public sealed class RadarRenderer : IDisposable
         // Fix overlay
         if (showFixes && fixes is not null)
         {
-            DrawFixes(canvas, vp, fixes, hoveredFixName);
+            DrawFixes(canvas, vp, fixes, hoveredFixName, programmedFixNames);
         }
 
         // Aircraft targets
         _targetRenderer.Render(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, ptlLengthMinutes, ptlOwn, ptlAll);
+
+        // Drawn route overlay
+        if (drawnWaypoints is { Count: > 0 })
+        {
+            DrawRouteOverlay(canvas, vp, drawnWaypoints, rubberBandTarget, rubberBandLabel);
+        }
     }
 
     private void DrawRangeRing(SKCanvas canvas, MapViewport vp, double centerLat, double centerLon, double rangeRingSizeNm)
@@ -141,9 +205,16 @@ public sealed class RadarRenderer : IDisposable
         }
     }
 
-    private void DrawFixes(SKCanvas canvas, MapViewport vp, IReadOnlyList<(string Name, double Lat, double Lon)> fixes, string? hoveredFixName)
+    private void DrawFixes(
+        SKCanvas canvas,
+        MapViewport vp,
+        IReadOnlyList<(string Name, double Lat, double Lon)> fixes,
+        string? hoveredFixName,
+        IReadOnlySet<string>? programmedFixNames
+    )
     {
         const float crossSize = 4f;
+        const float programmedCrossSize = 6f;
         const float margin = 50f;
 
         foreach (var fix in fixes)
@@ -155,13 +226,67 @@ public sealed class RadarRenderer : IDisposable
                 continue;
             }
 
-            canvas.DrawLine(sx - crossSize, sy, sx + crossSize, sy, _fixPaint);
-            canvas.DrawLine(sx, sy - crossSize, sx, sy + crossSize, _fixPaint);
+            bool isProgrammed = programmedFixNames is not null && programmedFixNames.Contains(fix.Name);
+            var paint = isProgrammed ? _programmedFixPaint : _fixPaint;
+            float size = isProgrammed ? programmedCrossSize : crossSize;
 
-            if (fix.Name == hoveredFixName)
+            canvas.DrawLine(sx - size, sy, sx + size, sy, paint);
+            canvas.DrawLine(sx, sy - size, sx, sy + size, paint);
+
+            if (isProgrammed || fix.Name == hoveredFixName)
             {
-                canvas.DrawText(fix.Name, sx + 6, sy - 2, _fixLabelPaint);
+                var labelPaint = isProgrammed ? _programmedFixLabelPaint : _fixLabelPaint;
+                canvas.DrawText(fix.Name, sx + 6, sy - 2, labelPaint);
             }
+        }
+    }
+
+    private void DrawRouteOverlay(
+        SKCanvas canvas,
+        MapViewport vp,
+        IReadOnlyList<DrawnWaypoint> waypoints,
+        (double Lat, double Lon)? rubberBandTarget,
+        string? rubberBandLabel
+    )
+    {
+        const float waypointSize = 5f;
+
+        // Solid lines connecting consecutive waypoints
+        for (int i = 1; i < waypoints.Count; i++)
+        {
+            var (x1, y1) = vp.LatLonToScreen(waypoints[i - 1].Lat, waypoints[i - 1].Lon);
+            var (x2, y2) = vp.LatLonToScreen(waypoints[i].Lat, waypoints[i].Lon);
+            canvas.DrawLine(x1, y1, x2, y2, _routeLinePaint);
+        }
+
+        // Rubber-band dashed line from last waypoint to cursor
+        if (rubberBandTarget is { } target)
+        {
+            var last = waypoints[^1];
+            var (lx, ly) = vp.LatLonToScreen(last.Lat, last.Lon);
+            var (cx, cy) = vp.LatLonToScreen(target.Lat, target.Lon);
+            canvas.DrawLine(lx, ly, cx, cy, _rubberBandPaint);
+
+            if (rubberBandLabel is not null)
+            {
+                canvas.DrawText(rubberBandLabel, cx + 8, cy - 4, _routeLabelPaint);
+            }
+        }
+
+        // Diamond markers + labels at each waypoint
+        foreach (var wp in waypoints)
+        {
+            var (sx, sy) = vp.LatLonToScreen(wp.Lat, wp.Lon);
+
+            using var path = new SKPath();
+            path.MoveTo(sx, sy - waypointSize);
+            path.LineTo(sx + waypointSize, sy);
+            path.LineTo(sx, sy + waypointSize);
+            path.LineTo(sx - waypointSize, sy);
+            path.Close();
+            canvas.DrawPath(path, _routeWaypointPaint);
+
+            canvas.DrawText(wp.ResolvedName, sx + 8, sy - 2, _routeLabelPaint);
         }
     }
 
@@ -172,5 +297,11 @@ public sealed class RadarRenderer : IDisposable
         _rangeRingPaint.Dispose();
         _fixPaint.Dispose();
         _fixLabelPaint.Dispose();
+        _programmedFixPaint.Dispose();
+        _programmedFixLabelPaint.Dispose();
+        _routeLinePaint.Dispose();
+        _rubberBandPaint.Dispose();
+        _routeWaypointPaint.Dispose();
+        _routeLabelPaint.Dispose();
     }
 }

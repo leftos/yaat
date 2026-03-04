@@ -45,6 +45,7 @@ public class CommandScheme
                 [CanonicalCommandType.DirectTo] = new() { Aliases = ["DCT"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ForceDirectTo] = new() { Aliases = ["DCTF"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.AppendDirectTo] = new() { Aliases = ["ADCT"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.AppendForceDirectTo] = new() { Aliases = ["ADCTF"], Format = "{verb} {arg}" },
                 // Tower
                 [CanonicalCommandType.LineUpAndWait] = new() { Aliases = ["LUAW", "POS", "LU", "PH"], Format = "{verb}" },
                 [CanonicalCommandType.ClearedForTakeoff] = new() { Aliases = ["CTO"], Format = "{verb} {arg?}" },

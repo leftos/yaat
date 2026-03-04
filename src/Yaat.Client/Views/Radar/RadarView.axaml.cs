@@ -45,6 +45,12 @@ public partial class RadarView : UserControl
         _canvas.AircraftRightClicked += OnAircraftRightClicked;
         _canvas.MapRightClicked += OnMapRightClicked;
         _canvas.AircraftLeftClicked += OnAircraftLeftClicked;
+        _canvas.EmptySpaceClicked += OnEmptySpaceClicked;
+        _canvas.RoutePointPlaced += OnRoutePointPlaced;
+        _canvas.RoutePointUndo += OnRoutePointUndo;
+        _canvas.RouteConfirmed += OnRouteConfirmed;
+        _canvas.RouteCancelled += OnRouteCancelled;
+        _canvas.RoutePointConditionRequested += OnRoutePointConditionRequested;
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.RangeRingPlaced += OnRangeRingPlaced;
 
@@ -71,6 +77,12 @@ public partial class RadarView : UserControl
             _canvas.AircraftRightClicked -= OnAircraftRightClicked;
             _canvas.MapRightClicked -= OnMapRightClicked;
             _canvas.AircraftLeftClicked -= OnAircraftLeftClicked;
+            _canvas.EmptySpaceClicked -= OnEmptySpaceClicked;
+            _canvas.RoutePointPlaced -= OnRoutePointPlaced;
+            _canvas.RoutePointUndo -= OnRoutePointUndo;
+            _canvas.RouteConfirmed -= OnRouteConfirmed;
+            _canvas.RouteCancelled -= OnRouteCancelled;
+            _canvas.RoutePointConditionRequested -= OnRoutePointConditionRequested;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.RangeRingPlaced -= OnRangeRingPlaced;
         }
@@ -391,6 +403,58 @@ public partial class RadarView : UserControl
         {
             vm.PlaceRangeRing(lat, lon);
         }
+    }
+
+    // --- Draw route events ---
+
+    private void OnRoutePointPlaced(double lat, double lon)
+    {
+        if (DataContext is RadarViewModel vm)
+        {
+            vm.PlaceRouteWaypoint(lat, lon);
+        }
+    }
+
+    private void OnRoutePointUndo()
+    {
+        if (DataContext is RadarViewModel vm)
+        {
+            vm.UndoRouteWaypoint();
+        }
+    }
+
+    private void OnRouteConfirmed()
+    {
+        if (DataContext is RadarViewModel vm)
+        {
+            _ = vm.ConfirmDrawRouteAsync(GetInitials());
+        }
+    }
+
+    private void OnRouteCancelled()
+    {
+        if (DataContext is RadarViewModel vm)
+        {
+            vm.CancelDrawRoute();
+        }
+    }
+
+    private void OnRoutePointConditionRequested(int waypointIndex, Point screenPos)
+    {
+        if (DataContext is not RadarViewModel vm || vm.DrawnWaypoints is null || waypointIndex >= vm.DrawnWaypoints.Count)
+        {
+            return;
+        }
+
+        var wp = vm.DrawnWaypoints[waypointIndex];
+        ShowInputPopup(
+            $"Command at {wp.ResolvedName}",
+            input =>
+            {
+                vm.SetWaypointCondition(waypointIndex, input);
+                return Task.CompletedTask;
+            }
+        );
     }
 
     // --- Canvas interaction ---

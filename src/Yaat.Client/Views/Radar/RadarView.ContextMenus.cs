@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.Views.Radar;
 
@@ -32,6 +33,22 @@ public partial class RadarView
         }
     }
 
+    private void OnEmptySpaceClicked()
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        var mainVm = FindMainViewModel();
+        if (mainVm is not null)
+        {
+            mainVm.SelectedAircraft = null;
+        }
+
+        vm.SelectedAircraft = null;
+    }
+
     private void OnAircraftRightClicked(string callsign, Point screenPos)
     {
         if (DataContext is not RadarViewModel vm)
@@ -59,6 +76,15 @@ public partial class RadarView
                 FontWeight = Avalonia.Media.FontWeight.Bold,
             }
         );
+        if (ac is not null)
+        {
+            var routeItem = BuildRouteSummaryItem(ac);
+            if (routeItem is not null)
+            {
+                menu.Items.Add(routeItem);
+            }
+        }
+
         menu.Items.Add(new Separator());
 
         menu.Items.Add(BuildHeadingSubmenu(vm, callsign, initials, ac));
@@ -75,9 +101,70 @@ public partial class RadarView
         menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
 
         menu.Items.Add(new Separator());
+        menu.Items.Add(
+            CreateMenuItem(
+                "Draw route",
+                () =>
+                {
+                    vm.EnterDrawRoute(callsign);
+                    return Task.CompletedTask;
+                }
+            )
+        );
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
         ShowContextMenu(menu, screenPos);
+    }
+
+    private static MenuItem? BuildRouteSummaryItem(AircraftModel ac)
+    {
+        if (string.IsNullOrEmpty(ac.NavigationRoute))
+        {
+            return null;
+        }
+
+        var parts = ac.NavigationRoute.Split(" > ");
+        var fixes = new List<string>();
+        var started = string.IsNullOrEmpty(ac.NavigatingTo);
+        foreach (var part in parts)
+        {
+            var fix = part.Trim();
+            if (string.IsNullOrEmpty(fix))
+            {
+                continue;
+            }
+
+            if (!started && fix == ac.NavigatingTo)
+            {
+                started = true;
+            }
+
+            if (started)
+            {
+                fixes.Add(fix);
+            }
+        }
+
+        if (fixes.Count == 0)
+        {
+            return null;
+        }
+
+        const int maxDisplay = 5;
+        var displayFixes = fixes.Count > maxDisplay ? string.Join(" ", fixes.Take(maxDisplay)) + " ..." : string.Join(" ", fixes);
+        var fullRoute = string.Join(" ", fixes);
+
+        var item = new MenuItem
+        {
+            Header = displayFixes,
+            IsEnabled = false,
+            FontSize = 11,
+            Opacity = 0.8,
+        };
+        ToolTip.SetTip(item, fullRoute);
+        ToolTip.SetShowDelay(item, 0);
+
+        return item;
     }
 
     private MenuItem BuildHeadingSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
@@ -298,36 +385,69 @@ public partial class RadarView
             return;
         }
 
-        if (vm.SelectedAircraft is null)
-        {
-            return;
-        }
-
-        var callsign = vm.SelectedAircraft.Callsign;
-        var initials = GetInitials();
         var menu = new ContextMenu();
 
-        var heading = (int)(Math.Round(GeoMath.BearingTo(vm.SelectedAircraft.Latitude, vm.SelectedAircraft.Longitude, lat, lon) / 5.0) * 5);
-        if (heading <= 0)
-        {
-            heading = 360;
-        }
-
-        menu.Items.Add(CreateMenuItem($"Fly heading {heading:D3}", () => vm.FlyHeadingAsync(callsign, initials, heading)));
-
+        // FRD header — always show regardless of aircraft selection
+        string? frdString = null;
         if (vm.Fixes is not null)
         {
-            var nearest = FindNearestFix(vm.Fixes, lat, lon, 5.0);
-            if (nearest is not null)
+            frdString = FrdResolver.ToFrd(lat, lon, vm.Fixes);
+        }
+
+        if (frdString is not null)
+        {
+            menu.Items.Add(
+                new MenuItem
+                {
+                    Header = frdString,
+                    IsEnabled = false,
+                    FontWeight = Avalonia.Media.FontWeight.Bold,
+                }
+            );
+            menu.Items.Add(new Separator());
+        }
+
+        if (vm.SelectedAircraft is not null)
+        {
+            var callsign = vm.SelectedAircraft.Callsign;
+            var initials = GetInitials();
+
+            var heading = (int)(Math.Round(GeoMath.BearingTo(vm.SelectedAircraft.Latitude, vm.SelectedAircraft.Longitude, lat, lon) / 5.0) * 5);
+            if (heading <= 0)
             {
-                var fixName = nearest.Value.Name;
-                menu.Items.Add(CreateMenuItem($"Direct {fixName}", () => vm.DirectToAsync(callsign, initials, fixName)));
-                menu.Items.Add(CreateMenuItem($"Hold at {fixName} (left)", () => vm.HoldAtFixLeftAsync(callsign, initials, fixName)));
-                menu.Items.Add(CreateMenuItem($"Hold at {fixName} (right)", () => vm.HoldAtFixRightAsync(callsign, initials, fixName)));
+                heading = 360;
+            }
+
+            menu.Items.Add(CreateMenuItem($"Fly heading {heading:D3}", () => vm.FlyHeadingAsync(callsign, initials, heading)));
+
+            if (frdString is not null)
+            {
+                var frd = frdString;
+                menu.Items.Add(CreateMenuItem($"Direct to {frd}", () => vm.DirectToAsync(callsign, initials, frd)));
+                menu.Items.Add(CreateMenuItem($"Append direct to {frd}", () => vm.AppendDirectToAsync(callsign, initials, frd)));
+            }
+
+            if (vm.Fixes is not null)
+            {
+                var nearest = FindNearestFix(vm.Fixes, lat, lon, 5.0);
+                if (nearest is not null)
+                {
+                    var fixName = nearest.Value.Name;
+                    // Only add separate fix items if the FRD resolved to an FRD string (not a bare fix name)
+                    if (frdString is null || frdString != fixName)
+                    {
+                        menu.Items.Add(CreateMenuItem($"Direct {fixName}", () => vm.DirectToAsync(callsign, initials, fixName)));
+                    }
+                    menu.Items.Add(CreateMenuItem($"Hold at {fixName} (left)", () => vm.HoldAtFixLeftAsync(callsign, initials, fixName)));
+                    menu.Items.Add(CreateMenuItem($"Hold at {fixName} (right)", () => vm.HoldAtFixRightAsync(callsign, initials, fixName)));
+                }
             }
         }
 
-        ShowContextMenu(menu, screenPos);
+        if (menu.Items.Count > 0)
+        {
+            ShowContextMenu(menu, screenPos);
+        }
     }
 
     private static (string Name, double Lat, double Lon)? FindNearestFix(

@@ -257,16 +257,18 @@ src/Yaat.Server/
   Hubs/
     TrainingHub.cs             # /hubs/training (JSON); room lifecycle + delegates to RoomEngine
     CrcWebSocketHandler.cs     # Raw WebSocket /hubs/client for CRC; resolves room via JWT CID
-    CrcClientState.cs          # Per-CRC state machine; holds RoomEngine ref; topic subscriptions
-    CrcClientState.Session.cs  # Partial: session-related state (StartSession, ActivateSession)
+    CrcClientState.cs          # Per-CRC state machine; holds RoomEngine ref; topic subscriptions; BuildTopicPayload helper
+    CrcClientState.Session.cs  # Partial: session lifecycle (StartSession, EndSession, lifecycle push helpers)
     CrcClientState.Stars.cs    # Partial: STARS display-related state (consolidation, datablock format)
+    CrcClientState.Asdex.cs    # Partial: ASDEX handlers (temp data, presets, safety config) with event broadcasts
+    CrcClientState.Strips.cs   # Partial: flight strip CRUD with event broadcasts
     CrcClientManager.cs        # Client registry; BroadcastAsync fan-out
     NegotiateHandler.cs        # POST /hubs/client/negotiate; JWT extraction → CrcNegotiateTokenStore
     CrcNegotiateTokenStore.cs  # ConcurrentDictionary token→CID for CRC room resolution
     ApiStubHandler.cs          # GET/POST /api/* → [] (CRC startup probes)
 
   Simulation/
-    TrainingRoom.cs            # Room state: Members, World, ActiveScenario, Weather, Engine, GroupName, ConsolidationState
+    TrainingRoom.cs            # Room state: Members, World, ActiveScenario, Weather, Engine, GroupName, ConsolidationState, LineNumbers
     TrainingRoomManager.cs     # Room registry + client→room + CID→room mapping + admin tracking
     RoomEngine.cs              # Per-room facade: tick, commands, scenario, broadcast, consolidation
     ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
@@ -278,9 +280,10 @@ src/Yaat.Server/
     ScenarioLifecycleService.cs # Scenario load/unload/spawn/generator logic
     ScenarioState.cs           # Per-room active scenario state: queues, positions, generators, channels
     TrainingBroadcastService.cs # SignalR hub context wrapper for training clients
-    CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch
+    CrcBroadcastService.cs     # CRC wire-protocol broadcast; per-room scoped via BroadcastBatch; BroadcastToTopicSubscribersAsync
     CrcVisibilityTracker.cs    # STARS/ASDEX/TowerCab visibility rules
-    DtoConverter.cs            # AircraftState → CRC + training DTOs
+    StarsLineNumberAssigner.cs # Per-room sequential line number assignment (1-99 wrap)
+    DtoConverter.cs            # AircraftState → CRC + training DTOs + ASDEX/strip converters
 
   Commands/
     CommandParser.cs           # Server-side canonical parsing; IsTrackCommand(), IsCoordinationCommand()
@@ -299,7 +302,9 @@ src/Yaat.Server/
     CrcDtos.cs                 # Main CRC binary DTOs (MessagePack)
     CrcDtos.FlightPlan.cs      # Partial: flight plan-related CRC DTOs
     CrcDtos.Session.cs         # Partial: session/StartSession CRC DTOs
-    CrcDtos.Stars.cs           # Partial: STARS display-related CRC DTOs
+    CrcDtos.Stars.cs           # Partial: STARS display-related CRC DTOs (line numbers, short-term conflicts, readout area)
+    CrcDtos.Asdex.cs           # ASDEX event DTOs (temp data, presets, safety config, hold bars, alerts)
+    CrcDtos.Strips.cs          # Flight strip DTOs (StripItemDto, FlightStripsStateDto, StripBayContentsDto)
     CrcEnums.cs                # Enums for CRC protocol
     CrcFormatters.cs           # Formatting helpers for CRC DTOs
     TopicFormatter.cs          # Topic subscription/message formatting

@@ -26,6 +26,8 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
     private readonly Dictionary<string, List<(string Name, List<string> Fixes)>> _starTransitions = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Dictionary<string, List<string>> _airways = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Dictionary<string, List<RunwayInfo>> _runways = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly ILogger? _logger;
@@ -92,6 +94,53 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
         }
 
         return transitions.Select(t => (t.Name, (IReadOnlyList<string>)t.Fixes)).ToList();
+    }
+
+    public IReadOnlyList<string>? GetAirwayFixes(string airwayId)
+    {
+        return _airways.TryGetValue(airwayId, out var fixes) ? fixes : null;
+    }
+
+    public bool IsAirway(string id)
+    {
+        return _airways.ContainsKey(id);
+    }
+
+    public IReadOnlyList<string> ExpandAirwaySegment(string airwayId, string fromFix, string toFix)
+    {
+        if (!_airways.TryGetValue(airwayId, out var fixes))
+        {
+            return [];
+        }
+
+        int fromIdx = -1;
+        int toIdx = -1;
+        for (int i = 0; i < fixes.Count; i++)
+        {
+            if (fromIdx < 0 && string.Equals(fixes[i], fromFix, StringComparison.OrdinalIgnoreCase))
+            {
+                fromIdx = i;
+            }
+
+            if (toIdx < 0 && string.Equals(fixes[i], toFix, StringComparison.OrdinalIgnoreCase))
+            {
+                toIdx = i;
+            }
+        }
+
+        if (fromIdx < 0 || toIdx < 0)
+        {
+            return [];
+        }
+
+        var result = new List<string>();
+        int step = fromIdx <= toIdx ? 1 : -1;
+        for (int i = fromIdx; i != toIdx + step; i += step)
+        {
+            result.Add(fixes[i]);
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -372,12 +421,21 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
             }
         }
 
+        foreach (var airway in navData.Airways)
+        {
+            if (!string.IsNullOrEmpty(airway.Id) && airway.Fixes.Count > 0)
+            {
+                _airways.TryAdd(airway.Id, new List<string>(airway.Fixes));
+            }
+        }
+
         _logger?.LogInformation(
-            "Fix database built: {Count} entries " + "({Airports} airports + {Fixes} fixes + {Runways} runways)",
+            "Fix database built: {Count} entries " + "({Airports} airports + {Fixes} fixes + {Runways} runways + {Airways} airways)",
             _fixes.Count,
             navData.Airports.Count,
             navData.Fixes.Count,
-            runwayCount
+            runwayCount,
+            _airways.Count
         );
     }
 

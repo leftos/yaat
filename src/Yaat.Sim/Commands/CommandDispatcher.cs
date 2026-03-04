@@ -379,6 +379,52 @@ public static class CommandDispatcher
                 }
             }
 
+            case AppendForceDirectToCommand adctf:
+            {
+                var adctfResolved = adctf.Fixes.ToList();
+                int adctfOriginal = adctfResolved.Count;
+                if (fixes is not null)
+                {
+                    RouteChainer.AppendRouteRemainder(adctfResolved, aircraft.Route, fixes);
+                }
+                if (aircraft.Targets.NavigationRoute.Count == 0)
+                {
+                    foreach (var fix in adctfResolved)
+                    {
+                        aircraft.Targets.NavigationRoute.Add(
+                            new NavigationTarget
+                            {
+                                Name = fix.Name,
+                                Latitude = fix.Lat,
+                                Longitude = fix.Lon,
+                            }
+                        );
+                    }
+                    var adctfNames = string.Join(" ", adctf.Fixes.Select(f => f.Name));
+                    return adctfResolved.Count > adctfOriginal
+                        ? Ok($"Proceed direct {adctfNames}, then filed route")
+                        : Ok($"Proceed direct {adctfNames}");
+                }
+                else
+                {
+                    foreach (var fix in adctfResolved)
+                    {
+                        aircraft.Targets.NavigationRoute.Add(
+                            new NavigationTarget
+                            {
+                                Name = fix.Name,
+                                Latitude = fix.Lat,
+                                Longitude = fix.Lon,
+                            }
+                        );
+                    }
+                    var adctfAppended = string.Join(" ", adctf.Fixes.Select(f => f.Name));
+                    return adctfResolved.Count > adctfOriginal
+                        ? Ok($"Then direct {adctfAppended}, then filed route")
+                        : Ok($"Then direct {adctfAppended}");
+                }
+            }
+
             case SquawkCommand cmd:
                 aircraft.BeaconCode = cmd.Code;
                 return Ok($"Squawk {cmd.Code:D4}");

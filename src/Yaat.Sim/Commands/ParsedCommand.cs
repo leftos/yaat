@@ -48,6 +48,8 @@ public record ForceDirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
 
 public record AppendDirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
 
+public record AppendForceDirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
+
 public record ExpectApproachCommand(string ApproachId, string? AirportCode) : ParsedCommand;
 
 public record ResolvedFix(string Name, double Lat, double Lon);

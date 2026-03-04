@@ -84,6 +84,18 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     public static readonly StyledProperty<bool> PtlAllProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(PtlAll));
 
+    public static readonly StyledProperty<IReadOnlySet<string>?> ProgrammedFixNamesProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlySet<string>?
+    >(nameof(ProgrammedFixNames));
+
+    public static readonly StyledProperty<bool> IsDrawingRouteProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(IsDrawingRoute));
+
+    public static readonly StyledProperty<IReadOnlyList<DrawnWaypoint>?> DrawnWaypointsProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<DrawnWaypoint>?
+    >(nameof(DrawnWaypoints));
+
     private static readonly SKPoint DefaultDataBlockOffset = new(28, -28);
     private const float DataBlockPad = 3f;
     private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
@@ -232,6 +244,24 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(PtlAllProperty, value);
     }
 
+    public IReadOnlySet<string>? ProgrammedFixNames
+    {
+        get => GetValue(ProgrammedFixNamesProperty);
+        set => SetValue(ProgrammedFixNamesProperty, value);
+    }
+
+    public bool IsDrawingRoute
+    {
+        get => GetValue(IsDrawingRouteProperty);
+        set => SetValue(IsDrawingRouteProperty, value);
+    }
+
+    public IReadOnlyList<DrawnWaypoint>? DrawnWaypoints
+    {
+        get => GetValue(DrawnWaypointsProperty);
+        set => SetValue(DrawnWaypointsProperty, value);
+    }
+
     public float BrightnessA
     {
         get => _renderer.BrightnessA;
@@ -280,6 +310,24 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when an aircraft is left-clicked.</summary>
     public event Action<string>? AircraftLeftClicked;
 
+    /// <summary>Fired when empty map space is left-clicked (deselect).</summary>
+    public event Action? EmptySpaceClicked;
+
+    /// <summary>Fired when a route waypoint is placed during draw mode.</summary>
+    public event Action<double, double>? RoutePointPlaced;
+
+    /// <summary>Fired to undo the last route waypoint.</summary>
+    public event Action? RoutePointUndo;
+
+    /// <summary>Fired to confirm the drawn route.</summary>
+    public event Action? RouteConfirmed;
+
+    /// <summary>Fired to cancel route drawing.</summary>
+    public event Action? RouteCancelled;
+
+    /// <summary>Fired when middle-clicking a waypoint to set a condition.</summary>
+    public event Action<int, Point>? RoutePointConditionRequested;
+
     /// <summary>Fired when a range ring is placed via click.</summary>
     public event Action<double, double>? RangeRingPlaced;
 
@@ -302,6 +350,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == PtlLengthMinutesProperty
             || change.Property == PtlOwnProperty
             || change.Property == PtlAllProperty
+            || change.Property == ProgrammedFixNamesProperty
+            || change.Property == IsDrawingRouteProperty
+            || change.Property == DrawnWaypointsProperty
         )
         {
             MarkDirty();
@@ -361,7 +412,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         string? HoveredFixName,
         double PtlLengthMinutes,
         bool PtlOwn,
-        bool PtlAll
+        bool PtlAll,
+        IReadOnlySet<string>? ProgrammedFixNames,
+        IReadOnlyList<DrawnWaypoint>? DrawnWaypoints,
+        (double Lat, double Lon)? RubberBandTarget,
+        string? RubberBandLabel
     );
 
     protected override object? CreateRenderSnapshot()
@@ -370,6 +425,20 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         if (ShowFixes && Fixes is not null)
         {
             hoveredFix = FindHoveredFixName(Fixes, _lastPointerPos);
+        }
+
+        IReadOnlyList<DrawnWaypoint>? drawRouteWaypoints = null;
+        (double Lat, double Lon)? drawRouteCursorLatLon = null;
+        string? drawRouteCursorLabel = null;
+        if (IsDrawingRoute && DrawnWaypoints is { Count: > 0 })
+        {
+            drawRouteWaypoints = DrawnWaypoints;
+            var cursorLatLon = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
+            drawRouteCursorLatLon = cursorLatLon;
+            if (Fixes is not null)
+            {
+                drawRouteCursorLabel = FrdResolver.ToFrd(cursorLatLon.Lat, cursorLatLon.Lon, Fixes);
+            }
         }
 
         return new RenderSnapshot(
@@ -390,7 +459,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             hoveredFix,
             PtlLengthMinutes,
             PtlOwn,
-            PtlAll
+            PtlAll,
+            ProgrammedFixNames,
+            drawRouteWaypoints,
+            drawRouteCursorLatLon,
+            drawRouteCursorLabel
         );
     }
 
@@ -443,7 +516,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.HoveredFixName,
             s.PtlLengthMinutes,
             s.PtlOwn,
-            s.PtlAll
+            s.PtlAll,
+            s.ProgrammedFixNames,
+            s.DrawnWaypoints,
+            s.RubberBandTarget,
+            s.RubberBandLabel
         );
     }
 
@@ -451,6 +528,38 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         var pos = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
+
+        if (IsDrawingRoute)
+        {
+            if (props.IsLeftButtonPressed)
+            {
+                var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
+                RoutePointPlaced?.Invoke(lat, lon);
+                e.Handled = true;
+                return;
+            }
+
+            if (props.IsMiddleButtonPressed)
+            {
+                var wpIdx = FindNearestDrawnWaypointIndex(pos);
+                if (wpIdx >= 0)
+                {
+                    RoutePointConditionRequested?.Invoke(wpIdx, pos);
+                    e.Handled = true;
+                }
+
+                return;
+            }
+
+            if (props.IsRightButtonPressed)
+            {
+                RoutePointUndo?.Invoke();
+                e.Handled = true;
+                return;
+            }
+
+            return;
+        }
 
         var dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)
@@ -514,6 +623,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 e.Handled = true;
                 return;
             }
+
+            EmptySpaceClicked?.Invoke();
         }
 
         base.OnPointerPressed(e);
@@ -545,7 +656,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var currentPos = e.GetPosition(this);
         _lastPointerPos = currentPos;
 
-        if (ShowFixes)
+        if (ShowFixes || IsDrawingRoute)
         {
             MarkDirty();
         }
@@ -762,6 +873,30 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (IsDrawingRoute)
+        {
+            if (e.Key == Key.Enter)
+            {
+                RouteConfirmed?.Invoke();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Escape)
+            {
+                RouteCancelled?.Invoke();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Back)
+            {
+                RoutePointUndo?.Invoke();
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (IsAdjustingRangeRingSize && (e.Key == Key.Enter || e.Key == Key.Escape))
         {
             IsAdjustingRangeRingSize = false;
@@ -796,6 +931,34 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var maxPixels = Math.Max(Viewport.PixelWidth, Viewport.PixelHeight);
         var rangeNm = maxPixels * 60.0 / (defaultPixelsPerDeg * Viewport.Zoom);
         ViewRangeNm = rangeNm;
+    }
+
+    private int FindNearestDrawnWaypointIndex(Point screenPos)
+    {
+        if (DrawnWaypoints is null)
+        {
+            return -1;
+        }
+
+        const float hitRadius = 20f;
+        int bestIdx = -1;
+        float bestDist = hitRadius;
+
+        for (int i = 0; i < DrawnWaypoints.Count; i++)
+        {
+            var wp = DrawnWaypoints[i];
+            var (sx, sy) = Viewport.LatLonToScreen(wp.Lat, wp.Lon);
+            var dx = (float)screenPos.X - sx;
+            var dy = (float)screenPos.Y - sy;
+            var dist = MathF.Sqrt(dx * dx + dy * dy);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+
+        return bestIdx;
     }
 
     private static IReadOnlyList<AircraftModel> FilterAircraft(IReadOnlyList<AircraftModel>? aircraft, bool showTopDown)

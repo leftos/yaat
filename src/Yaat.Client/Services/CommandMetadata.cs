@@ -33,6 +33,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.DirectTo, "Direct To", "FIX", false, "Navigation"),
         new(CanonicalCommandType.ForceDirectTo, "Force Direct To Fix", "FIX", false, "Navigation"),
         new(CanonicalCommandType.AppendDirectTo, "Append Direct To", "FIX", false, "Navigation"),
+        new(CanonicalCommandType.AppendForceDirectTo, "Append Force Direct To", "FIX", false, "Navigation"),
         // Tower
         new(CanonicalCommandType.LineUpAndWait, "Line Up and Wait", null, false, "Tower"),
         new(CanonicalCommandType.ClearedForTakeoff, "Cleared for Takeoff", "RH", false, "Tower"),

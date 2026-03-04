@@ -129,50 +129,14 @@ public class AircraftState
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }
 
-    public HashSet<string> GetProgrammedFixes(IApproachLookup? approachLookup)
+    public HashSet<string> GetProgrammedFixes(IApproachLookup? approachLookup, FixDatabase? fixDb = null)
     {
-        var fixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // Route fixes: split on spaces, strip airway suffixes (e.g., ".V25")
-        if (!string.IsNullOrEmpty(Route))
-        {
-            foreach (var token in Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var dotIndex = token.IndexOf('.');
-                var fixName = dotIndex >= 0 ? token[..dotIndex] : token;
-                if (!string.IsNullOrEmpty(fixName))
-                {
-                    fixes.Add(fixName);
-                }
-            }
-        }
-
-        // Expected approach fix names
-        if (!string.IsNullOrEmpty(ExpectedApproach) && approachLookup is not null)
-        {
-            string airport = !string.IsNullOrEmpty(Destination) ? Destination : Departure;
-            if (!string.IsNullOrEmpty(airport))
-            {
-                var procedure = approachLookup.GetApproach(airport, ExpectedApproach);
-                if (procedure is not null)
-                {
-                    foreach (var name in ApproachCommandHandler.GetApproachFixNames(procedure))
-                    {
-                        fixes.Add(name);
-                    }
-                }
-            }
-        }
-
-        // Active approach fix names
+        IReadOnlyList<string>? activeApproachFixNames = null;
         if (Phases?.ActiveApproach?.Procedure is { } activeProc)
         {
-            foreach (var name in ApproachCommandHandler.GetApproachFixNames(activeProc))
-            {
-                fixes.Add(name);
-            }
+            activeApproachFixNames = ApproachCommandHandler.GetApproachFixNames(activeProc);
         }
 
-        return fixes;
+        return ProgrammedFixResolver.Resolve(Route, ExpectedApproach, Destination, Departure, approachLookup, activeApproachFixNames, fixDb);
     }
 }

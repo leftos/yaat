@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Sim;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.ViewModels;
@@ -51,6 +52,7 @@ public partial class RadarViewModel : ObservableObject
     private UserPreferences? _preferences;
     private Func<string, double?>? _getAirportElevation;
     private FixDatabase? _fixDb;
+    private ApproachDatabase? _approachDb;
 
     public string? PrimaryAirportId { get; private set; }
 
@@ -74,6 +76,9 @@ public partial class RadarViewModel : ObservableObject
 
     [ObservableProperty]
     private AircraftModel? _selectedAircraft;
+
+    [ObservableProperty]
+    private IReadOnlySet<string>? _programmedFixNames;
 
     private readonly Dictionary<BriteTarget, int> _brightnessValues = new()
     {
@@ -156,6 +161,17 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private bool _isOffCenter;
 
+    // Draw route mode state
+    [ObservableProperty]
+    private bool _isDrawingRoute;
+
+    [ObservableProperty]
+    private IReadOnlyList<DrawnWaypoint>? _drawnWaypoints;
+
+    private string? _drawRouteCallsign;
+    private readonly List<DrawnWaypoint> _drawnWaypointsMutable = [];
+    private readonly Dictionary<int, string> _waypointConditions = new();
+
     public ObservableCollection<VideoMapToggleItem> MapToggles { get; } = [];
 
     public ObservableCollection<MapShortcutItem> MapShortcuts { get; } = [];
@@ -187,6 +203,43 @@ public partial class RadarViewModel : ObservableObject
         _fixDb = fixDb;
         FixNames = fixDb.AllFixNames;
         SetFixes(BuildVisibleFixes());
+    }
+
+    public void SetApproachDb(ApproachDatabase approachDb)
+    {
+        _approachDb = approachDb;
+    }
+
+    partial void OnSelectedAircraftChanged(AircraftModel? value)
+    {
+        UpdateProgrammedFixes(value);
+        if (IsDrawingRoute && (value is null || value.Callsign != _drawRouteCallsign))
+        {
+            CancelDrawRoute();
+        }
+    }
+
+    partial void OnShowFixesChanged(bool value)
+    {
+        if (value)
+        {
+            UpdateProgrammedFixes(SelectedAircraft);
+        }
+        else
+        {
+            ProgrammedFixNames = null;
+        }
+    }
+
+    private void UpdateProgrammedFixes(AircraftModel? ac)
+    {
+        if (!ShowFixes || ac is null)
+        {
+            ProgrammedFixNames = null;
+            return;
+        }
+
+        ProgrammedFixNames = ProgrammedFixResolver.Resolve(ac.Route, ac.ExpectedApproach, ac.Destination, ac.Departure, _approachDb, null, _fixDb);
     }
 
     public string[]? FixNames { get; private set; }
@@ -789,6 +842,11 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, $"ADCT {fix}", initials);
     }
 
+    public async Task AppendForceDirectToAsync(string callsign, string initials, string fix)
+    {
+        await _sendCommand(callsign, $"ADCTF {fix}", initials);
+    }
+
     public async Task TrackAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "TRACK", initials);
@@ -945,7 +1003,101 @@ public partial class RadarViewModel : ObservableObject
     {
         await _sendCommand(callsign, "RDACK", initials);
     }
+
+    // --- Draw route ---
+
+    public void EnterDrawRoute(string callsign)
+    {
+        _drawRouteCallsign = callsign;
+        _drawnWaypointsMutable.Clear();
+        _waypointConditions.Clear();
+        DrawnWaypoints = null;
+        IsDrawingRoute = true;
+    }
+
+    public void PlaceRouteWaypoint(double lat, double lon)
+    {
+        if (!IsDrawingRoute)
+        {
+            return;
+        }
+
+        string? name = Fixes is not null ? FrdResolver.ToFrd(lat, lon, Fixes) : null;
+        name ??= $"{lat:F3},{lon:F3}";
+
+        _drawnWaypointsMutable.Add(new DrawnWaypoint(name, lat, lon));
+        DrawnWaypoints = _drawnWaypointsMutable.ToList();
+    }
+
+    public void UndoRouteWaypoint()
+    {
+        if (!IsDrawingRoute || _drawnWaypointsMutable.Count == 0)
+        {
+            return;
+        }
+
+        var lastIdx = _drawnWaypointsMutable.Count - 1;
+        _waypointConditions.Remove(lastIdx);
+        _drawnWaypointsMutable.RemoveAt(lastIdx);
+        DrawnWaypoints = _drawnWaypointsMutable.Count > 0 ? _drawnWaypointsMutable.ToList() : null;
+    }
+
+    public void CancelDrawRoute()
+    {
+        _drawRouteCallsign = null;
+        _drawnWaypointsMutable.Clear();
+        _waypointConditions.Clear();
+        DrawnWaypoints = null;
+        IsDrawingRoute = false;
+    }
+
+    public void SetWaypointCondition(int index, string? condition)
+    {
+        if (string.IsNullOrWhiteSpace(condition))
+        {
+            _waypointConditions.Remove(index);
+        }
+        else
+        {
+            _waypointConditions[index] = condition.Trim();
+        }
+    }
+
+    public async Task ConfirmDrawRouteAsync(string initials)
+    {
+        if (!IsDrawingRoute || _drawRouteCallsign is null || _drawnWaypointsMutable.Count == 0)
+        {
+            CancelDrawRoute();
+            return;
+        }
+
+        var command = BuildDrawRouteCommand();
+        var callsign = _drawRouteCallsign;
+        CancelDrawRoute();
+        await _sendCommand(callsign, command, initials);
+    }
+
+    private string BuildDrawRouteCommand()
+    {
+        var fixes = string.Join(" ", _drawnWaypointsMutable.Select(w => w.ResolvedName));
+        var parts = new List<string> { $"DCTF {fixes}" };
+
+        foreach (var (index, condition) in _waypointConditions.OrderBy(kv => kv.Key))
+        {
+            if (index < _drawnWaypointsMutable.Count)
+            {
+                parts.Add($"AT {_drawnWaypointsMutable[index].ResolvedName} {condition}");
+            }
+        }
+
+        return string.Join(";", parts);
+    }
 }
+
+/// <summary>
+/// A drawn waypoint in route drawing mode.
+/// </summary>
+public record DrawnWaypoint(string ResolvedName, double Lat, double Lon);
 
 /// <summary>
 /// A video map with an on/off toggle for the map selection list.

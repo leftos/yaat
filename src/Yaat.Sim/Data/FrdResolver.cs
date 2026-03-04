@@ -74,6 +74,64 @@ public static class FrdResolver
         return (s, null, null);
     }
 
+    public static string? ToFrd(double lat, double lon, IReadOnlyList<(string Name, double Lat, double Lon)> fixes, double maxNm = 50.0)
+    {
+        string? bestName = null;
+        double bestDist = maxNm;
+
+        foreach (var fix in fixes)
+        {
+            var dist = GeoMath.DistanceNm(lat, lon, fix.Lat, fix.Lon);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestName = fix.Name;
+            }
+        }
+
+        if (bestName is null)
+        {
+            return null;
+        }
+
+        // Find the fix position again for bearing calculation
+        double fixLat = 0,
+            fixLon = 0;
+        foreach (var fix in fixes)
+        {
+            if (fix.Name == bestName)
+            {
+                fixLat = fix.Lat;
+                fixLon = fix.Lon;
+                break;
+            }
+        }
+
+        if (bestDist < 0.1)
+        {
+            return bestName;
+        }
+
+        int radial = (int)Math.Round(GeoMath.BearingTo(fixLat, fixLon, lat, lon));
+        if (radial <= 0)
+        {
+            radial = 360;
+        }
+
+        int distance = (int)Math.Round(bestDist);
+        if (distance > 999)
+        {
+            return null;
+        }
+
+        if (distance == 0)
+        {
+            return bestName;
+        }
+
+        return $"{bestName}{radial:D3}{distance:D3}";
+    }
+
     private static ResolvedPosition ProjectPosition(double latDeg, double lonDeg, int radialDeg, int distanceNm)
     {
         double lat1 = latDeg * Math.PI / 180.0;

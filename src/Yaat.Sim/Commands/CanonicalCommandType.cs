@@ -121,6 +121,7 @@ public enum CanonicalCommandType
 
     // Navigation (continued)
     ForceDirectTo,
+    AppendForceDirectTo,
 
     // Approach commands
     ExpectApproach,

@@ -437,7 +437,10 @@
                                ShowTopDown="{Binding ShowTopDown}"
                                PtlLengthMinutes="{Binding PtlLengthMinutes}"
                                PtlOwn="{Binding PtlOwn}"
-                               PtlAll="{Binding PtlAll}" />
+                               PtlAll="{Binding PtlAll}"
+                               ProgrammedFixNames="{Binding ProgrammedFixNames}"
+                               IsDrawingRoute="{Binding IsDrawingRoute}"
+                               DrawnWaypoints="{Binding DrawnWaypoints}" />
 
             <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
             <Popup x:Name="MapPopup"
