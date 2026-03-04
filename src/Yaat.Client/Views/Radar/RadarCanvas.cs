@@ -325,6 +325,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired to cancel route drawing.</summary>
     public event Action? RouteCancelled;
 
+    /// <summary>Fired when right-clicking a drawn waypoint during route drawing.</summary>
+    public event Action<int, Point>? RouteWaypointRightClicked;
+
     /// <summary>Fired when middle-clicking a waypoint to set a condition.</summary>
     public event Action<int, Point>? RoutePointConditionRequested;
 
@@ -415,6 +418,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         bool PtlAll,
         IReadOnlySet<string>? ProgrammedFixNames,
         IReadOnlyList<DrawnWaypoint>? DrawnWaypoints,
+        (double Lat, double Lon)? DrawRouteOrigin,
         (double Lat, double Lon)? RubberBandTarget,
         string? RubberBandLabel
     );
@@ -430,9 +434,19 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<DrawnWaypoint>? drawRouteWaypoints = null;
         (double Lat, double Lon)? drawRouteCursorLatLon = null;
         string? drawRouteCursorLabel = null;
-        if (IsDrawingRoute && DrawnWaypoints is { Count: > 0 })
+        (double Lat, double Lon)? drawRouteOrigin = null;
+        if (IsDrawingRoute)
         {
-            drawRouteWaypoints = DrawnWaypoints;
+            if (SelectedAircraft is { } ac)
+            {
+                drawRouteOrigin = (ac.Latitude, ac.Longitude);
+            }
+
+            if (DrawnWaypoints is { Count: > 0 })
+            {
+                drawRouteWaypoints = DrawnWaypoints;
+            }
+
             var cursorLatLon = Viewport.ScreenToLatLon((float)_lastPointerPos.X, (float)_lastPointerPos.Y);
             drawRouteCursorLatLon = cursorLatLon;
             if (Fixes is not null)
@@ -462,6 +476,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             PtlAll,
             ProgrammedFixNames,
             drawRouteWaypoints,
+            drawRouteOrigin,
             drawRouteCursorLatLon,
             drawRouteCursorLabel
         );
@@ -519,6 +534,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.PtlAll,
             s.ProgrammedFixNames,
             s.DrawnWaypoints,
+            s.DrawRouteOrigin,
             s.RubberBandTarget,
             s.RubberBandLabel
         );
@@ -553,7 +569,16 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (props.IsRightButtonPressed)
             {
-                RoutePointUndo?.Invoke();
+                var wpIdx = FindNearestDrawnWaypointIndex(pos);
+                if (wpIdx >= 0)
+                {
+                    RouteWaypointRightClicked?.Invoke(wpIdx, pos);
+                }
+                else
+                {
+                    RoutePointUndo?.Invoke();
+                }
+
                 e.Handled = true;
                 return;
             }

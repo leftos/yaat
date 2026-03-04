@@ -141,6 +141,7 @@ public sealed class RadarRenderer : IDisposable
         bool ptlAll = false,
         IReadOnlySet<string>? programmedFixNames = null,
         IReadOnlyList<DrawnWaypoint>? drawnWaypoints = null,
+        (double Lat, double Lon)? drawRouteOrigin = null,
         (double Lat, double Lon)? rubberBandTarget = null,
         string? rubberBandLabel = null
     )
@@ -171,7 +172,11 @@ public sealed class RadarRenderer : IDisposable
         // Drawn route overlay
         if (drawnWaypoints is { Count: > 0 })
         {
-            DrawRouteOverlay(canvas, vp, drawnWaypoints, rubberBandTarget, rubberBandLabel);
+            DrawRouteOverlay(canvas, vp, drawnWaypoints, drawRouteOrigin, rubberBandTarget, rubberBandLabel);
+        }
+        else if (drawRouteOrigin is { } origin && rubberBandTarget is { } target)
+        {
+            DrawRubberBandFromOrigin(canvas, vp, origin, target, rubberBandLabel);
         }
     }
 
@@ -245,11 +250,20 @@ public sealed class RadarRenderer : IDisposable
         SKCanvas canvas,
         MapViewport vp,
         IReadOnlyList<DrawnWaypoint> waypoints,
+        (double Lat, double Lon)? originLatLon,
         (double Lat, double Lon)? rubberBandTarget,
         string? rubberBandLabel
     )
     {
         const float waypointSize = 5f;
+
+        // Dashed line from aircraft position to first waypoint
+        if (originLatLon is { } origin)
+        {
+            var (ox, oy) = vp.LatLonToScreen(origin.Lat, origin.Lon);
+            var (fx, fy) = vp.LatLonToScreen(waypoints[0].Lat, waypoints[0].Lon);
+            canvas.DrawLine(ox, oy, fx, fy, _rubberBandPaint);
+        }
 
         // Solid lines connecting consecutive waypoints
         for (int i = 1; i < waypoints.Count; i++)
@@ -287,6 +301,24 @@ public sealed class RadarRenderer : IDisposable
             canvas.DrawPath(path, _routeWaypointPaint);
 
             canvas.DrawText(wp.ResolvedName, sx + 8, sy - 2, _routeLabelPaint);
+        }
+    }
+
+    private void DrawRubberBandFromOrigin(
+        SKCanvas canvas,
+        MapViewport vp,
+        (double Lat, double Lon) origin,
+        (double Lat, double Lon) target,
+        string? label
+    )
+    {
+        var (ox, oy) = vp.LatLonToScreen(origin.Lat, origin.Lon);
+        var (cx, cy) = vp.LatLonToScreen(target.Lat, target.Lon);
+        canvas.DrawLine(ox, oy, cx, cy, _rubberBandPaint);
+
+        if (label is not null)
+        {
+            canvas.DrawText(label, cx + 8, cy - 4, _routeLabelPaint);
         }
     }
 

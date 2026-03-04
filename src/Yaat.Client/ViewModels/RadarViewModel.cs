@@ -1042,6 +1042,54 @@ public partial class RadarViewModel : ObservableObject
         DrawnWaypoints = _drawnWaypointsMutable.Count > 0 ? _drawnWaypointsMutable.ToList() : null;
     }
 
+    public void RemoveRouteWaypoint(int index)
+    {
+        if (!IsDrawingRoute || index < 0 || index >= _drawnWaypointsMutable.Count)
+        {
+            return;
+        }
+
+        // Remove conditions that referenced this index, shift higher indices down
+        var newConditions = new Dictionary<int, string>();
+        foreach (var (idx, cond) in _waypointConditions)
+        {
+            if (idx < index)
+            {
+                newConditions[idx] = cond;
+            }
+            else if (idx > index)
+            {
+                newConditions[idx - 1] = cond;
+            }
+        }
+
+        _waypointConditions.Clear();
+        foreach (var (idx, cond) in newConditions)
+        {
+            _waypointConditions[idx] = cond;
+        }
+
+        _drawnWaypointsMutable.RemoveAt(index);
+        DrawnWaypoints = _drawnWaypointsMutable.Count > 0 ? _drawnWaypointsMutable.ToList() : null;
+    }
+
+    public void RemoveRouteWaypointsAfter(int index)
+    {
+        if (!IsDrawingRoute || index < 0 || index >= _drawnWaypointsMutable.Count - 1)
+        {
+            return;
+        }
+
+        // Remove conditions for all waypoints after index
+        for (int i = _drawnWaypointsMutable.Count - 1; i > index; i--)
+        {
+            _waypointConditions.Remove(i);
+            _drawnWaypointsMutable.RemoveAt(i);
+        }
+
+        DrawnWaypoints = _drawnWaypointsMutable.Count > 0 ? _drawnWaypointsMutable.ToList() : null;
+    }
+
     public void CancelDrawRoute()
     {
         _drawRouteCallsign = null;

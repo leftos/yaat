@@ -51,6 +51,7 @@ public partial class RadarView : UserControl
         _canvas.RouteConfirmed += OnRouteConfirmed;
         _canvas.RouteCancelled += OnRouteCancelled;
         _canvas.RoutePointConditionRequested += OnRoutePointConditionRequested;
+        _canvas.RouteWaypointRightClicked += OnRouteWaypointRightClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.RangeRingPlaced += OnRangeRingPlaced;
 
@@ -83,6 +84,7 @@ public partial class RadarView : UserControl
             _canvas.RouteConfirmed -= OnRouteConfirmed;
             _canvas.RouteCancelled -= OnRouteCancelled;
             _canvas.RoutePointConditionRequested -= OnRoutePointConditionRequested;
+            _canvas.RouteWaypointRightClicked -= OnRouteWaypointRightClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.RangeRingPlaced -= OnRangeRingPlaced;
         }
@@ -455,6 +457,68 @@ public partial class RadarView : UserControl
                 return Task.CompletedTask;
             }
         );
+    }
+
+    private void OnRouteWaypointRightClicked(int waypointIndex, Point screenPos)
+    {
+        if (DataContext is not RadarViewModel vm || vm.DrawnWaypoints is null || waypointIndex >= vm.DrawnWaypoints.Count)
+        {
+            return;
+        }
+
+        var wp = vm.DrawnWaypoints[waypointIndex];
+        var initials = GetInitials();
+        var menu = new ContextMenu();
+
+        menu.Items.Add(
+            new MenuItem
+            {
+                Header = wp.ResolvedName,
+                IsEnabled = false,
+                FontWeight = Avalonia.Media.FontWeight.Bold,
+            }
+        );
+        menu.Items.Add(new Separator());
+
+        menu.Items.Add(CreateMenuItem("Confirm route", () => vm.ConfirmDrawRouteAsync(initials)));
+        menu.Items.Add(
+            CreateMenuItem(
+                "Delete waypoint",
+                () =>
+                {
+                    vm.RemoveRouteWaypoint(waypointIndex);
+                    return Task.CompletedTask;
+                }
+            )
+        );
+
+        if (waypointIndex < vm.DrawnWaypoints.Count - 1)
+        {
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Delete waypoints after",
+                    () =>
+                    {
+                        vm.RemoveRouteWaypointsAfter(waypointIndex);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(
+            CreateMenuItem(
+                "Cancel route",
+                () =>
+                {
+                    vm.CancelDrawRoute();
+                    return Task.CompletedTask;
+                }
+            )
+        );
+
+        ShowContextMenu(menu, screenPos);
     }
 
     // --- Canvas interaction ---
