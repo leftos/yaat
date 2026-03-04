@@ -92,6 +92,8 @@ public partial class RadarView
         menu.Items.Add(BuildSpeedSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildNavigationSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildHoldSubmenu(vm, callsign, initials));
+        menu.Items.Add(BuildApproachSubmenu(vm, callsign, initials, ac));
+        menu.Items.Add(BuildProceduresSubmenu(vm, callsign, initials));
 
         AddTrackItems(menu, vm, callsign, initials);
 
@@ -196,6 +198,10 @@ public partial class RadarView
         menu.Items.Add(CreateListMenuItem("Turn left", headings, currentHdg, val => vm.TurnLeftAsync(cs, init, (int)val)));
         menu.Items.Add(CreateListMenuItem("Turn right", headings, currentHdg, val => vm.TurnRightAsync(cs, init, (int)val)));
 
+        var relativeDegrees = BuildRelativeTurnList();
+        menu.Items.Add(CreateListMenuItem("Turn left (degrees)", relativeDegrees, 30, val => vm.RelativeLeftAsync(cs, init, (int)val)));
+        menu.Items.Add(CreateListMenuItem("Turn right (degrees)", relativeDegrees, 30, val => vm.RelativeRightAsync(cs, init, (int)val)));
+
         return menu;
     }
 
@@ -241,6 +247,10 @@ public partial class RadarView
         }
 
         var menu = new MenuItem { Header = spdLabel };
+
+        var speeds = BuildSpeedList();
+        var currentSpd = ac?.AssignedSpeed is not null && ac.AssignedSpeed.Value > 0 ? (int)(Math.Round(ac.AssignedSpeed.Value / 10.0) * 10) : 250;
+        menu.Items.Add(CreateListMenuItem("Assign speed", speeds, currentSpd, val => vm.SpeedAssignAsync(cs, init, (int)val)));
         menu.Items.Add(CreateInputMenuItem("Speed...", "Speed (knots)", input => vm.SpeedAsync(cs, init, int.Parse(input))));
         menu.Items.Add(CreateMenuItem("Resume normal speed", () => vm.SpeedNormalAsync(cs, init)));
         return menu;
@@ -335,7 +345,7 @@ public partial class RadarView
         menu.Items.Add(CreateInputMenuItem("Initiate handoff...", "Position ID", input => vm.InitiateHandoffAsync(cs, init, input)));
         menu.Items.Add(CreateMenuItem("Cancel handoff", () => vm.CancelHandoffAsync(cs, init)));
         menu.Items.Add(CreateInputMenuItem("Point out...", "Position ID", input => vm.PointOutAsync(cs, init, input)));
-        menu.Items.Add(CreateMenuItem("Acknowledge", () => vm.AcknowledgeAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Acknowledge pointout", () => vm.AcknowledgeAsync(cs, init)));
     }
 
     private MenuItem BuildDataBlockSubmenu(RadarViewModel vm, string cs, string init)
@@ -354,7 +364,6 @@ public partial class RadarView
         menu.Items.Add(CreateMenuItem("Frequency change", () => vm.FrequencyChangeAsync(cs, init)));
         menu.Items.Add(CreateInputMenuItem("Contact...", "TCP / Position ID", input => vm.ContactTcpAsync(cs, init, input)));
         menu.Items.Add(CreateMenuItem("Contact tower", () => vm.ContactTowerAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Ident", () => vm.IdentAsync(cs, init)));
         return menu;
     }
 
@@ -365,6 +374,8 @@ public partial class RadarView
         menu.Items.Add(CreateMenuItem("Squawk VFR", () => vm.SquawkVfrAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Squawk normal", () => vm.SquawkNormalAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Squawk standby", () => vm.SquawkStandbyAsync(cs, init)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Ident", () => vm.IdentAsync(cs, init)));
         return menu;
     }
 
@@ -374,7 +385,99 @@ public partial class RadarView
         menu.Items.Add(CreateMenuItem("Release", () => vm.CoordinationReleaseAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Hold", () => vm.CoordinationHoldAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Recall", () => vm.CoordinationRecallAsync(cs, init)));
-        menu.Items.Add(CreateMenuItem("Acknowledge", () => vm.CoordinationAcknowledgeAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Acknowledge release", () => vm.CoordinationAcknowledgeAsync(cs, init)));
+        return menu;
+    }
+
+    private MenuItem BuildApproachSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    {
+        var apchLabel = "Approach";
+        if (ac is not null)
+        {
+            if (!string.IsNullOrEmpty(ac.ActiveApproachId))
+            {
+                apchLabel = $"Approach ({ac.ActiveApproachId})";
+            }
+            else if (!string.IsNullOrEmpty(ac.ExpectedApproach))
+            {
+                apchLabel = $"Approach (exp: {ac.ExpectedApproach})";
+            }
+        }
+
+        var menu = new MenuItem { Header = apchLabel };
+
+        // Try to get approach list from CIFP data
+        IReadOnlyList<string>? approachIds = null;
+        if (vm.ApproachDb is not null && ac is not null && !string.IsNullOrEmpty(ac.Destination))
+        {
+            var approaches = vm.ApproachDb.GetApproaches(ac.Destination);
+            if (approaches.Count > 0)
+            {
+                approachIds = approaches.Select(a => a.ApproachId).ToList();
+            }
+        }
+
+        if (approachIds is not null)
+        {
+            var ids = approachIds.Cast<object>().ToList();
+            menu.Items.Add(CreateListMenuItem("Cleared approach", ids, ids[0], val => vm.ClearedApproachAsync(cs, init, (string)val)));
+            menu.Items.Add(CreateListMenuItem("Join approach", ids, ids[0], val => vm.JoinApproachAsync(cs, init, (string)val)));
+            menu.Items.Add(CreateListMenuItem("Cleared straight-in", ids, ids[0], val => vm.ClearedApproachStraightInAsync(cs, init, (string)val)));
+            menu.Items.Add(CreateListMenuItem("Join straight-in", ids, ids[0], val => vm.JoinApproachStraightInAsync(cs, init, (string)val)));
+            menu.Items.Add(CreateListMenuItem("Cleared approach (force)", ids, ids[0], val => vm.ClearedApproachForceAsync(cs, init, (string)val)));
+            menu.Items.Add(CreateListMenuItem("Join approach (force)", ids, ids[0], val => vm.JoinApproachForceAsync(cs, init, (string)val)));
+            menu.Items.Add(
+                CreateListMenuItem("Join final approach course", ids, ids[0], val => vm.JoinFinalApproachCourseAsync(cs, init, (string)val))
+            );
+            menu.Items.Add(CreateListMenuItem("Expect approach", ids, ids[0], val => vm.ExpectApproachAsync(cs, init, (string)val)));
+        }
+        else
+        {
+            menu.Items.Add(CreateInputMenuItem("Cleared approach...", "Approach ID", input => vm.ClearedApproachAsync(cs, init, input)));
+            menu.Items.Add(CreateInputMenuItem("Join approach...", "Approach ID", input => vm.JoinApproachAsync(cs, init, input)));
+            menu.Items.Add(CreateInputMenuItem("Cleared straight-in...", "Approach ID", input => vm.ClearedApproachStraightInAsync(cs, init, input)));
+            menu.Items.Add(CreateInputMenuItem("Join straight-in...", "Approach ID", input => vm.JoinApproachStraightInAsync(cs, init, input)));
+            menu.Items.Add(CreateInputMenuItem("Cleared approach (force)...", "Approach ID", input => vm.ClearedApproachForceAsync(cs, init, input)));
+            menu.Items.Add(CreateInputMenuItem("Join approach (force)...", "Approach ID", input => vm.JoinApproachForceAsync(cs, init, input)));
+            menu.Items.Add(
+                CreateInputMenuItem("Join final approach course...", "Approach ID", input => vm.JoinFinalApproachCourseAsync(cs, init, input))
+            );
+            menu.Items.Add(CreateInputMenuItem("Expect approach...", "Approach ID", input => vm.ExpectApproachAsync(cs, init, input)));
+        }
+
+        menu.Items.Add(
+            CreateInputMenuItem("Cleared visual approach...", "Runway (e.g. 28R)", input => vm.ClearedVisualApproachAsync(cs, init, input))
+        );
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateMenuItem("Report field in sight", () => vm.ReportFieldInSightAsync(cs, init)));
+        menu.Items.Add(
+            CreateInputMenuItem("Report traffic in sight...", "Target callsign (optional)", input => vm.ReportTrafficInSightAsync(cs, init, input))
+        );
+
+        return menu;
+    }
+
+    private MenuItem BuildProceduresSubmenu(RadarViewModel vm, string cs, string init)
+    {
+        var menu = new MenuItem { Header = "Procedures" };
+        menu.Items.Add(CreateInputMenuItem("Join STAR...", "STAR name", input => vm.JoinStarAsync(cs, init, input)));
+        menu.Items.Add(CreateMenuItem("Climb via SID", () => vm.ClimbViaSidAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Descend via STAR", () => vm.DescendViaStarAsync(cs, init)));
+
+        if (vm.FixNames is not null)
+        {
+            menu.Items.Add(CreateFilteredListMenuItem("Cross fix...", vm.FixNames, fix => vm.CrossFixAsync(cs, init, fix)));
+            menu.Items.Add(CreateFilteredListMenuItem("Depart fix...", vm.FixNames, fix => vm.DepartFixAsync(cs, init, fix)));
+        }
+        else
+        {
+            menu.Items.Add(CreateInputMenuItem("Cross fix...", "Fix name", input => vm.CrossFixAsync(cs, init, input)));
+            menu.Items.Add(CreateInputMenuItem("Depart fix...", "Fix name", input => vm.DepartFixAsync(cs, init, input)));
+        }
+
+        menu.Items.Add(CreateInputMenuItem("PTAC...", "PTAC arguments", input => vm.PtacAsync(cs, init, input)));
+
         return menu;
     }
 
@@ -422,25 +525,11 @@ public partial class RadarView
 
             if (frdString is not null)
             {
-                var frd = frdString;
-                menu.Items.Add(CreateMenuItem($"Direct to {frd}", () => vm.DirectToAsync(callsign, initials, frd)));
-                menu.Items.Add(CreateMenuItem($"Append direct to {frd}", () => vm.AppendDirectToAsync(callsign, initials, frd)));
-            }
-
-            if (vm.Fixes is not null)
-            {
-                var nearest = FindNearestFix(vm.Fixes, lat, lon, 5.0);
-                if (nearest is not null)
-                {
-                    var fixName = nearest.Value.Name;
-                    // Only add separate fix items if the FRD resolved to an FRD string (not a bare fix name)
-                    if (frdString is null || frdString != fixName)
-                    {
-                        menu.Items.Add(CreateMenuItem($"Direct {fixName}", () => vm.DirectToAsync(callsign, initials, fixName)));
-                    }
-                    menu.Items.Add(CreateMenuItem($"Hold at {fixName} (left)", () => vm.HoldAtFixLeftAsync(callsign, initials, fixName)));
-                    menu.Items.Add(CreateMenuItem($"Hold at {fixName} (right)", () => vm.HoldAtFixRightAsync(callsign, initials, fixName)));
-                }
+                var target = frdString;
+                menu.Items.Add(CreateMenuItem($"Direct to {target}", () => vm.DirectToAsync(callsign, initials, target)));
+                menu.Items.Add(CreateMenuItem($"Append direct to {target}", () => vm.AppendDirectToAsync(callsign, initials, target)));
+                menu.Items.Add(CreateMenuItem($"Hold at {target} (left)", () => vm.HoldAtFixLeftAsync(callsign, initials, target)));
+                menu.Items.Add(CreateMenuItem($"Hold at {target} (right)", () => vm.HoldAtFixRightAsync(callsign, initials, target)));
             }
         }
 
@@ -448,29 +537,6 @@ public partial class RadarView
         {
             ShowContextMenu(menu, screenPos);
         }
-    }
-
-    private static (string Name, double Lat, double Lon)? FindNearestFix(
-        IReadOnlyList<(string Name, double Lat, double Lon)> fixes,
-        double lat,
-        double lon,
-        double maxNm
-    )
-    {
-        (string Name, double Lat, double Lon)? best = null;
-        double bestDist = maxNm;
-
-        foreach (var fix in fixes)
-        {
-            var dist = GeoMath.DistanceNm(lat, lon, fix.Lat, fix.Lon);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                best = fix;
-            }
-        }
-
-        return best;
     }
 
     // --- Menu item factories ---

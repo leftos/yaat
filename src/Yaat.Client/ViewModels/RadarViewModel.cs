@@ -210,6 +210,8 @@ public partial class RadarViewModel : ObservableObject
         _approachDb = approachDb;
     }
 
+    public ApproachDatabase? ApproachDb => _approachDb;
+
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {
         UpdateProgrammedFixes(value);
@@ -958,6 +960,115 @@ public partial class RadarViewModel : ObservableObject
     public async Task HoldAtFixRightAsync(string callsign, string initials, string fix)
     {
         await _sendCommand(callsign, $"HFIXR {fix}", initials);
+    }
+
+    // --- Relative turns ---
+
+    public async Task RelativeLeftAsync(string callsign, string initials, int degrees)
+    {
+        await _sendCommand(callsign, $"LT {degrees}", initials);
+    }
+
+    public async Task RelativeRightAsync(string callsign, string initials, int degrees)
+    {
+        await _sendCommand(callsign, $"RT {degrees}", initials);
+    }
+
+    // --- Speed ---
+
+    public async Task SpeedAssignAsync(string callsign, string initials, int speed)
+    {
+        await _sendCommand(callsign, $"SPD {speed}", initials);
+    }
+
+    // --- Approach ---
+
+    public async Task ClearedApproachAsync(string callsign, string initials, string id)
+    {
+        await _sendCommand(callsign, $"CAPP {id}", initials);
+    }
+
+    public async Task JoinApproachAsync(string callsign, string initials, string id)
+    {
+        await _sendCommand(callsign, $"JAPP {id}", initials);
+    }
+
+    public async Task ClearedApproachStraightInAsync(string callsign, string initials, string id)
+    {
+        await _sendCommand(callsign, $"CAPPSI {id}", initials);
+    }
+
+    public async Task JoinApproachStraightInAsync(string callsign, string initials, string id)
+    {
+        await _sendCommand(callsign, $"JAPPSI {id}", initials);
+    }
+
+    public async Task ClearedApproachForceAsync(string callsign, string initials, string id)
+    {
+        await _sendCommand(callsign, $"CAPPF {id}", initials);
+    }
+
+    public async Task JoinApproachForceAsync(string callsign, string initials, string id)
+    {
+        await _sendCommand(callsign, $"JAPPF {id}", initials);
+    }
+
+    public async Task JoinFinalApproachCourseAsync(string callsign, string initials, string id)
+    {
+        await _sendCommand(callsign, $"JFAC {id}", initials);
+    }
+
+    public async Task ExpectApproachAsync(string callsign, string initials, string id)
+    {
+        await _sendCommand(callsign, $"EAPP {id}", initials);
+    }
+
+    public async Task ClearedVisualApproachAsync(string callsign, string initials, string runway)
+    {
+        await _sendCommand(callsign, $"CVA {runway}", initials);
+    }
+
+    public async Task ReportFieldInSightAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "RFIS", initials);
+    }
+
+    public async Task ReportTrafficInSightAsync(string callsign, string initials, string? targetCallsign)
+    {
+        var cmd = string.IsNullOrWhiteSpace(targetCallsign) ? "RTIS" : $"RTIS {targetCallsign}";
+        await _sendCommand(callsign, cmd, initials);
+    }
+
+    // --- Procedures ---
+
+    public async Task JoinStarAsync(string callsign, string initials, string star)
+    {
+        await _sendCommand(callsign, $"JARR {star}", initials);
+    }
+
+    public async Task ClimbViaSidAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "CVIA", initials);
+    }
+
+    public async Task DescendViaStarAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "DVIA", initials);
+    }
+
+    public async Task CrossFixAsync(string callsign, string initials, string fix)
+    {
+        await _sendCommand(callsign, $"CFIX {fix}", initials);
+    }
+
+    public async Task DepartFixAsync(string callsign, string initials, string fix)
+    {
+        await _sendCommand(callsign, $"DEPART {fix}", initials);
+    }
+
+    public async Task PtacAsync(string callsign, string initials, string args)
+    {
+        await _sendCommand(callsign, $"PTAC {args}", initials);
     }
 
     // --- Squawk ---

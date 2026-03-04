@@ -386,6 +386,22 @@ public partial class RadarView
         return items;
     }
 
+    private static IReadOnlyList<object> BuildRelativeTurnList()
+    {
+        return new List<object> { 5, 10, 15, 20, 30, 45, 60, 90 };
+    }
+
+    private static IReadOnlyList<object> BuildSpeedList()
+    {
+        var items = new List<object>(21);
+        for (var s = 150; s <= 350; s += 10)
+        {
+            items.Add(s);
+        }
+
+        return items;
+    }
+
     private static IReadOnlyList<object> BuildFullAltitudeList(double fieldElevation)
     {
         var items = new List<object>();
