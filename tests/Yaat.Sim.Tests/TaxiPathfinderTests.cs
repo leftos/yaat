@@ -1611,7 +1611,12 @@ public class TaxiPathfinderTests
         var allRwy15NodesOnRoute = new List<string>();
         foreach (var seg in route.Segments)
         {
-            if (layout.Nodes.TryGetValue(seg.ToNodeId, out var node) && node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rId && rId.Contains("15"))
+            if (
+                layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
+                && node.Type == GroundNodeType.RunwayHoldShort
+                && node.RunwayId is { } rId
+                && rId.Contains("15")
+            )
             {
                 allRwy15NodesOnRoute.Add($"node={node.Id} taxiway={seg.TaxiwayName}");
             }
@@ -1628,10 +1633,7 @@ public class TaxiPathfinderTests
         // Verify the CROSS 15 command would clear the hold-short(s)
         foreach (var hs in hs1533)
         {
-            Assert.True(
-                RunwayIdentifier.Parse(hs.TargetName!).Contains("15"),
-                $"Hold-short target '{hs.TargetName}' should match '15'"
-            );
+            Assert.True(RunwayIdentifier.Parse(hs.TargetName!).Contains("15"), $"Hold-short target '{hs.TargetName}' should match '15'");
         }
 
         // Route passes through two 15/33 HS nodes: entry on D, exit on F
