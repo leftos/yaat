@@ -232,8 +232,19 @@ internal static class AddCommandSuggester
         }
         else
         {
-            // Runway variant
-            if (completedArgs >= 4)
+            // Runway variant: after runway, next arg is either a distance (nm) or a type/airline override
+            if (completedArgs == 4)
+            {
+                AddAddOptions(
+                    prefix,
+                    partial,
+                    suggestions,
+                    maxSuggestions,
+                    ("{distance}", "Distance in nm — spawns on final (e.g. 5, 10)")
+                );
+                AddTypeAndAirlineOverrides(words, prefix, partial, suggestions, maxSuggestions);
+            }
+            else if (completedArgs >= 5)
             {
                 AddTypeAndAirlineOverrides(words, prefix, partial, suggestions, maxSuggestions);
             }
@@ -257,26 +268,33 @@ internal static class AddCommandSuggester
         var runways = fixDb.GetRunways(primaryAirportId);
         foreach (var rwy in runways)
         {
-            if (suggestions.Count >= maxSuggestions)
-            {
-                break;
-            }
+            // Show both ends of each physical runway
+            string[] designators = rwy.Id.End1.Equals(rwy.Id.End2, StringComparison.OrdinalIgnoreCase)
+                ? [rwy.Id.End1]
+                : [rwy.Id.End1, rwy.Id.End2];
 
-            if (partial.Length > 0 && !rwy.Designator.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            foreach (var designator in designators)
             {
-                continue;
-            }
-
-            var desc = $"Runway — lined up, or add distance for final";
-            suggestions.Add(
-                new SuggestionItem
+                if (suggestions.Count >= maxSuggestions)
                 {
-                    Kind = SuggestionKind.Command,
-                    Text = rwy.Designator,
-                    Description = desc,
-                    InsertText = prefix + rwy.Designator + " ",
+                    break;
                 }
-            );
+
+                if (partial.Length > 0 && !designator.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                suggestions.Add(
+                    new SuggestionItem
+                    {
+                        Kind = SuggestionKind.Command,
+                        Text = designator,
+                        Description = "Runway — lined up, or add distance for final",
+                        InsertText = prefix + designator + " ",
+                    }
+                );
+            }
         }
     }
 
