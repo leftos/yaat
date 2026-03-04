@@ -235,13 +235,7 @@ internal static class AddCommandSuggester
             // Runway variant: after runway, next arg is either a distance (nm) or a type/airline override
             if (completedArgs == 4)
             {
-                AddAddOptions(
-                    prefix,
-                    partial,
-                    suggestions,
-                    maxSuggestions,
-                    ("{distance}", "Distance in nm — spawns on final (e.g. 5, 10)")
-                );
+                AddAddOptions(prefix, partial, suggestions, maxSuggestions, ("{distance}", "Distance in nm — spawns on final (e.g. 5, 10)"));
                 AddTypeAndAirlineOverrides(words, prefix, partial, suggestions, maxSuggestions);
             }
             else if (completedArgs >= 5)
@@ -269,9 +263,7 @@ internal static class AddCommandSuggester
         foreach (var rwy in runways)
         {
             // Show both ends of each physical runway
-            string[] designators = rwy.Id.End1.Equals(rwy.Id.End2, StringComparison.OrdinalIgnoreCase)
-                ? [rwy.Id.End1]
-                : [rwy.Id.End1, rwy.Id.End2];
+            string[] designators = rwy.Id.End1.Equals(rwy.Id.End2, StringComparison.OrdinalIgnoreCase) ? [rwy.Id.End1] : [rwy.Id.End1, rwy.Id.End2];
 
             foreach (var designator in designators)
             {
