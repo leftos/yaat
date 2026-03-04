@@ -100,6 +100,31 @@ public class AircraftState
     public bool HasReportedTrafficInSight { get; set; }
     public string? FollowingCallsign { get; set; }
 
+    // Voice type (CRC display): 0=Unknown, 1=Full, 2=ReceiveOnly, 3=TextOnly
+    public int VoiceType { get; set; } = 1;
+
+    // TDLS dump flag (CRC flight plan)
+    public bool TdlsDumped { get; set; }
+
+    // Hold annotations (CRC display)
+    public string? HoldAnnotationFix { get; set; }
+    public int HoldAnnotationDirection { get; set; }
+    public int HoldAnnotationTurns { get; set; }
+    public int? HoldAnnotationLegLength { get; set; }
+    public bool HoldAnnotationLegLengthInNm { get; set; }
+    public int HoldAnnotationEfc { get; set; }
+
+    // Clearance (departure clearance from CRC)
+    public string? ClearanceExpect { get; set; }
+    public string? ClearanceSid { get; set; }
+    public string? ClearanceTransition { get; set; }
+    public string? ClearanceClimbout { get; set; }
+    public string? ClearanceClimbvia { get; set; }
+    public string? ClearanceInitialAlt { get; set; }
+    public string? ClearanceContactInfo { get; set; }
+    public string? ClearanceLocalInfo { get; set; }
+    public string? ClearanceDepFreq { get; set; }
+
     // Sequence state
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }
