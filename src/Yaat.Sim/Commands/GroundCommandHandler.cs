@@ -43,27 +43,28 @@ internal static class GroundCommandHandler
         }
 
         logger.LogDebug(
-            "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], destRwy={Rwy}",
+            "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], destRwy={Rwy}, destParking={Pkg}",
             aircraft.Callsign,
             startNode.Id,
             startNode.Latitude,
             startNode.Longitude,
             GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, startNode.Latitude, startNode.Longitude),
             string.Join(" ", taxi.Path),
-            taxi.DestinationRunway ?? "(none)"
+            taxi.DestinationRunway ?? "(none)",
+            taxi.DestinationParking ?? "(none)"
         );
 
-        // Resolve the taxi route using explicit path
-        var route = TaxiPathfinder.ResolveExplicitPath(
-            groundLayout,
-            startNode.Id,
-            taxi.Path,
-            out string? failReason,
-            taxi.HoldShorts,
-            taxi.DestinationRunway,
-            runways,
-            groundLayout.AirportId
-        );
+        TaxiRoute? route;
+        string? failReason;
+
+        if (taxi.DestinationParking is not null)
+        {
+            route = ResolveParkingRoute(groundLayout, startNode, taxi, runways, logger, out failReason);
+        }
+        else
+        {
+            route = ResolveStandardRoute(groundLayout, startNode, taxi, runways, out failReason);
+        }
 
         if (route is null)
         {
@@ -121,6 +122,100 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Taxi via {route.ToSummary()}");
     }
 
+    private static TaxiRoute? ResolveStandardRoute(
+        AirportGroundLayout groundLayout,
+        GroundNode startNode,
+        TaxiCommand taxi,
+        IRunwayLookup? runways,
+        out string? failReason
+    )
+    {
+        return TaxiPathfinder.ResolveExplicitPath(
+            groundLayout,
+            startNode.Id,
+            taxi.Path,
+            out failReason,
+            taxi.HoldShorts,
+            taxi.DestinationRunway,
+            runways,
+            groundLayout.AirportId
+        );
+    }
+
+    private static TaxiRoute? ResolveParkingRoute(
+        AirportGroundLayout groundLayout,
+        GroundNode startNode,
+        TaxiCommand taxi,
+        IRunwayLookup? runways,
+        ILogger logger,
+        out string? failReason
+    )
+    {
+        failReason = null;
+
+        var parkingNode = groundLayout.FindSpotByName(taxi.DestinationParking!);
+        if (parkingNode is null)
+        {
+            failReason = $"Cannot find parking spot '{taxi.DestinationParking}'";
+            return null;
+        }
+
+        if (taxi.Path.Count == 0)
+        {
+            // No explicit path — A* direct to parking
+            var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, parkingNode.Id);
+            if (route is null)
+            {
+                failReason = $"No route to parking spot '{taxi.DestinationParking}'";
+            }
+
+            return route;
+        }
+
+        // Explicit path given — resolve it, then extend to parking via A*
+        var explicitRoute = TaxiPathfinder.ResolveExplicitPath(
+            groundLayout,
+            startNode.Id,
+            taxi.Path,
+            out failReason,
+            taxi.HoldShorts,
+            taxi.DestinationRunway,
+            runways,
+            groundLayout.AirportId
+        );
+
+        if (explicitRoute is null)
+        {
+            return null;
+        }
+
+        // Find where the explicit path ends
+        int endNodeId = explicitRoute.Segments.Count > 0 ? explicitRoute.Segments[^1].ToNodeId : startNode.Id;
+
+        if (endNodeId == parkingNode.Id)
+        {
+            return explicitRoute;
+        }
+
+        // Extend from end of explicit path to parking node via A*
+        var extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, parkingNode.Id);
+        if (extension is null)
+        {
+            logger.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to parking {Parking}", endNodeId, taxi.DestinationParking);
+            failReason = $"Cannot reach parking spot '{taxi.DestinationParking}' from end of taxi route";
+            return null;
+        }
+
+        // Combine: explicit segments + extension segments
+        var combined = new List<TaxiRouteSegment>(explicitRoute.Segments);
+        combined.AddRange(extension.Segments);
+
+        var holdShorts = new List<HoldShortPoint>(explicitRoute.HoldShortPoints);
+        HoldShortAnnotator.AddImplicitRunwayHoldShorts(groundLayout, extension.Segments, holdShorts);
+
+        return new TaxiRoute { Segments = combined, HoldShortPoints = holdShorts };
+    }
+
     internal static CommandResult TryPushback(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout, ILogger logger)
     {
         if (aircraft.Phases?.CurrentPhase is not AtParkingPhase)
@@ -128,15 +223,55 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Pushback requires aircraft to be at parking");
         }
 
+        double? targetLat = null;
+        double? targetLon = null;
+
+        if (push.Taxiway is not null)
+        {
+            if (groundLayout is null)
+            {
+                return new CommandResult(false, "No airport ground layout available");
+            }
+
+            var targetNode = groundLayout.FindExitByTaxiway(aircraft.Latitude, aircraft.Longitude, push.Taxiway);
+            if (targetNode is null)
+            {
+                return new CommandResult(false, $"Cannot find taxiway '{push.Taxiway}' near aircraft");
+            }
+
+            targetLat = targetNode.Latitude;
+            targetLon = targetNode.Longitude;
+
+            logger.LogDebug(
+                "[Pushback] {Callsign}: target taxiway {Twy} at node {NodeId} ({Lat:F6}, {Lon:F6})",
+                aircraft.Callsign,
+                push.Taxiway,
+                targetNode.Id,
+                targetLat,
+                targetLon
+            );
+        }
+
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
         aircraft.Phases.Clear(ctx);
 
-        var phase = new PushbackPhase { TargetHeading = push.Heading };
+        var phase = new PushbackPhase
+        {
+            TargetHeading = push.Heading,
+            TargetLatitude = targetLat,
+            TargetLongitude = targetLon,
+        };
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new HoldingAfterPushbackPhase());
         aircraft.Phases.Start(ctx);
 
         var msg = "Pushing back";
+        if (push.Taxiway is not null)
+        {
+            msg += $" onto {push.Taxiway}";
+        }
+
         if (push.Heading is not null)
         {
             msg += $", face heading {push.Heading:000}";
@@ -316,15 +451,35 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        var spot = groundLayout.FindSpotByName(land.SpotName);
-        if (spot is null)
-        {
-            return new CommandResult(false, $"Cannot find spot '{land.SpotName}' in airport layout");
-        }
+        double destLat;
+        double destLon;
+        string resolvedName;
 
-        double destLat = spot.Latitude;
-        double destLon = spot.Longitude;
-        string resolvedName = land.SpotName.ToUpperInvariant();
+        if (land.IsTaxiway)
+        {
+            // Resolve nearest node on the named taxiway
+            var node = groundLayout.FindExitByTaxiway(aircraft.Latitude, aircraft.Longitude, land.SpotName);
+            if (node is null)
+            {
+                return new CommandResult(false, $"Cannot find taxiway '{land.SpotName}' near aircraft");
+            }
+
+            destLat = node.Latitude;
+            destLon = node.Longitude;
+            resolvedName = land.SpotName.ToUpperInvariant();
+        }
+        else
+        {
+            var spot = groundLayout.FindSpotByName(land.SpotName);
+            if (spot is null)
+            {
+                return new CommandResult(false, $"Cannot find spot '{land.SpotName}' in airport layout");
+            }
+
+            destLat = spot.Latitude;
+            destLon = spot.Longitude;
+            resolvedName = land.SpotName.ToUpperInvariant();
+        }
 
         if (land.NoDelete)
         {

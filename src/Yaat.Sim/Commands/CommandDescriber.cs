@@ -209,10 +209,10 @@ public static class CommandDescriber
             WaitCommand cmd => $"WAIT {cmd.Seconds}",
             WaitDistanceCommand cmd => $"WAITD {cmd.DistanceNm}",
             AirTaxiCommand atxi => atxi.Destination is not null ? $"ATXI {atxi.Destination}" : "ATXI",
-            LandCommand land => $"LAND {land.SpotName}",
+            LandCommand land => land.IsTaxiway ? $"LAND {land.SpotName}" : $"LAND @{land.SpotName}",
             ClearedTakeoffPresentCommand => "CTOPP",
-            PushbackCommand push => push.Heading is not null ? $"PUSH {push.Heading:000}" : "PUSH",
-            TaxiCommand taxi => $"TAXI {string.Join(" ", taxi.Path)}",
+            PushbackCommand push => FormatPushCanonical(push),
+            TaxiCommand taxi => FormatTaxiCanonical(taxi),
             HoldPositionCommand => "HOLD",
             ResumeCommand => "RES",
             CrossRunwayCommand cross => $"CROSS {cross.RunwayId}",
@@ -310,10 +310,10 @@ public static class CommandDescriber
             WaitCommand cmd => $"Wait {cmd.Seconds} seconds",
             WaitDistanceCommand cmd => $"Wait {cmd.DistanceNm} nm",
             AirTaxiCommand atxi => atxi.Destination is not null ? $"Air taxi to {atxi.Destination}" : "Air taxi",
-            LandCommand land => $"Land at {land.SpotName}",
+            LandCommand land => land.IsTaxiway ? $"Land on taxiway {land.SpotName}" : $"Land at {land.SpotName}",
             ClearedTakeoffPresentCommand => "Cleared for takeoff, present position",
-            PushbackCommand push => push.Heading is not null ? $"Pushback, face heading {push.Heading:000}" : "Pushback",
-            TaxiCommand taxi => $"Taxi via {string.Join(" ", taxi.Path)}",
+            PushbackCommand push => FormatPushNatural(push),
+            TaxiCommand taxi => FormatTaxiNatural(taxi),
             HoldPositionCommand => "Hold position",
             ResumeCommand => "Resume taxi",
             CrossRunwayCommand cross => $"Cross runway {cross.RunwayId}",
@@ -402,6 +402,42 @@ public static class CommandDescriber
                 or CrossRunwayCommand
                 or HoldShortCommand
                 or FollowCommand;
+    }
+
+    private static string FormatPushCanonical(PushbackCommand push)
+    {
+        if (push.Taxiway is not null && push.Heading is not null)
+        {
+            return $"PUSH {push.Taxiway} {push.Heading:000}";
+        }
+
+        if (push.Taxiway is not null)
+        {
+            return $"PUSH {push.Taxiway}";
+        }
+
+        if (push.Heading is not null)
+        {
+            return $"PUSH {push.Heading:000}";
+        }
+
+        return "PUSH";
+    }
+
+    private static string FormatPushNatural(PushbackCommand push)
+    {
+        var msg = "Pushback";
+        if (push.Taxiway is not null)
+        {
+            msg += $" onto {push.Taxiway}";
+        }
+
+        if (push.Heading is not null)
+        {
+            msg += $", face heading {push.Heading:000}";
+        }
+
+        return msg;
     }
 
     private static string FormatCtoCanonical(ClearedForTakeoffCommand cto)
@@ -629,6 +665,30 @@ public static class CommandDescriber
             msg += $", {cmd.Speed} knots";
         }
         return msg;
+    }
+
+    private static string FormatTaxiCanonical(TaxiCommand taxi)
+    {
+        var parts = new List<string> { "TAXI" };
+        parts.AddRange(taxi.Path);
+        if (taxi.DestinationParking is not null)
+        {
+            parts.Add($"@{taxi.DestinationParking}");
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private static string FormatTaxiNatural(TaxiCommand taxi)
+    {
+        if (taxi.DestinationParking is not null)
+        {
+            return taxi.Path.Count > 0
+                ? $"Taxi via {string.Join(" ", taxi.Path)} to spot {taxi.DestinationParking}"
+                : $"Taxi to spot {taxi.DestinationParking}";
+        }
+
+        return $"Taxi via {string.Join(" ", taxi.Path)}";
     }
 
     private static string FormatCvaCanonical(ClearedVisualApproachCommand cmd)

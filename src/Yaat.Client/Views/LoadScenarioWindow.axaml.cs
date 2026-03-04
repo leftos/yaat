@@ -108,11 +108,13 @@ public partial class LoadScenarioWindow : Window
             }
         }
 
-        items.Sort((a, b) =>
-        {
-            int cmp = RatingSortKey(a.Rating).CompareTo(RatingSortKey(b.Rating));
-            return cmp != 0 ? cmp : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-        });
+        items.Sort(
+            (a, b) =>
+            {
+                int cmp = RatingSortKey(a.Rating).CompareTo(RatingSortKey(b.Rating));
+                return cmp != 0 ? cmp : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+            }
+        );
         _allItems = items;
 
         RebuildFilters();

@@ -265,6 +265,11 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, $"PUSH {heading}", initials);
     }
 
+    public async Task ParkAtAsync(string callsign, string initials, string spotName)
+    {
+        await _sendCommand(callsign, $"TAXI @{spotName}", initials);
+    }
+
     public async Task SendRawCommandAsync(string callsign, string initials, string command)
     {
         await _sendCommand(callsign, command, initials);

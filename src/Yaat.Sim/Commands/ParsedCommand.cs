@@ -161,14 +161,20 @@ public record HoldAtFixHoverCommand(string FixName, double Lat, double Lon) : Pa
 // Helicopter commands
 public record AirTaxiCommand(string? Destination) : ParsedCommand;
 
-public record LandCommand(string SpotName, bool NoDelete = false) : ParsedCommand;
+public record LandCommand(string SpotName, bool NoDelete = false, bool IsTaxiway = false) : ParsedCommand;
 
 public record ClearedTakeoffPresentCommand : ParsedCommand;
 
 // Ground commands
 public record PushbackCommand(int? Heading = null, string? Taxiway = null) : ParsedCommand;
 
-public record TaxiCommand(List<string> Path, List<string> HoldShorts, string? DestinationRunway = null, bool NoDelete = false) : ParsedCommand;
+public record TaxiCommand(
+    List<string> Path,
+    List<string> HoldShorts,
+    string? DestinationRunway = null,
+    bool NoDelete = false,
+    string? DestinationParking = null
+) : ParsedCommand;
 
 public record HoldPositionCommand : ParsedCommand;
 

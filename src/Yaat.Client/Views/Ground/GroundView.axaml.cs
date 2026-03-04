@@ -94,9 +94,9 @@ public partial class GroundView : UserControl
                 menu.Items.Add(CreateMenuItem($"Hold short {node.RunwayId}", () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
             }
 
-            if (node.Type == "Parking")
+            if (node.Type == "Parking" && node.Name is not null)
             {
-                menu.Items.Add(CreateMenuItem($"Park at {node.Name ?? "spot"}", () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
+                menu.Items.Add(CreateMenuItem($"Park at {node.Name}", () => vm.ParkAtAsync(callsign, initials, node.Name)));
             }
 
             menu.Items.Add(new Separator());
@@ -182,7 +182,7 @@ public partial class GroundView : UserControl
             AddNearbyRunwayCrossings(menu, vm, ac, callsign, initials, rwyId);
         }
 
-        if (phase == "Holding After Exit")
+        if (phase is "Holding After Exit" or "Holding After Pushback")
         {
             menu.Items.Add(CreateMenuItem("Resume taxi", () => vm.ResumeAsync(callsign, initials)));
         }
