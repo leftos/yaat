@@ -144,4 +144,9 @@ public enum CanonicalCommandType
     ClearedVisualApproach,
     ReportFieldInSight,
     ReportTrafficInSight,
+
+    // Consolidation
+    Consolidate,
+    ConsolidateFull,
+    Deconsolidate,
 }

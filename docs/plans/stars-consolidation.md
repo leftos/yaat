@@ -163,7 +163,7 @@ When the RPO initiates a handoff to a consolidated-away TCP, redirect to the con
 - [x] Unit test: Auto-accept suppressed for TCP consolidated under an active CRC position
 - [x] Unit test: Auto-accept proceeds for TCP with no CRC controller (direct or via consolidation)
 - [x] Unit test: Secondary CRC position also suppresses auto-accept for its consolidated TCPs
-- [ ] Integration test: Subscribe to StarsConsolidation topic, verify initial data matches expected DTOs
+- [x] Integration test: Subscribe to StarsConsolidation topic, verify initial data matches expected DTOs
 
 ---
 
@@ -175,80 +175,89 @@ Enable controllers and RPO to manually consolidate/deconsolidate TCPs during a s
 
 Automatic consolidation computes state purely from config + attended positions. Manual consolidation introduces **mutable overrides** that persist for the room session.
 
-- [ ] Create `ConsolidationState` class in `Yaat.Server/Simulation/`:
+- [x] Create `ConsolidationState` class in `Yaat.Server/Simulation/`:
   - Thread-safe (room-scoped, mutated on command, read on broadcast)
-  - Stores manual overrides: `Dictionary<string, ManualConsolidation>` keyed by TCP ID
-  - `ManualConsolidation` record: `Tcp ReceivingTcp, bool IsBasic`
-  - `ApplyOverrides(List<ConsolidationItem> autoItems)` → `List<ConsolidationItem>`: Applies manual overrides on top of automatic consolidation results
+  - Stores manual overrides: `Dictionary<string, ManualOverride>` keyed by TCP ID
+  - `ManualOverride` record: `string ReceivingTcpId, bool IsBasic`
   - `Consolidate(Tcp receiving, Tcp sending, bool basic)` — Add/replace override
   - `Deconsolidate(Tcp tcp)` — Remove override, revert to automatic
   - `Clear()` — Remove all overrides
-- [ ] Add `ConsolidationState` property to `TrainingRoom`
-- [ ] Initialize on room creation; clear on scenario unload
+  - `RemoveOverridesInvolving(string tcpId)` — Remove overrides where TCP is sender or receiver
+  - `GetSnapshot()` — Thread-safe snapshot for testing/inspection
+- [x] Add `ConsolidationState` property to `TrainingRoom`
+- [x] Initialize on room creation; clear on scenario unload
+- [x] Integrate with `GetConsolidationItems()` and `GetConsolidationOwner()` (optional `ConsolidationState?` parameter)
+- [x] Pass `ConsolidationState` through `CrcBroadcastService`, `TickProcessor`, `TrackCommandHandler`, `CrcClientState.Stars`
 
 ### 2.2 Basic Consolidation
 
 Transfers future handoffs to the receiving TCP but existing tracks stay at the sending TCP until manually moved.
 
-- [ ] Implement basic consolidation in `ConsolidationState.Consolidate(receiving, sending, basic: true)`:
+- [x] Implement basic consolidation in `ConsolidationState.Consolidate(receiving, sending, basic: true)`:
   - Override: all handoffs to `sending` redirect to `receiving`
   - `sending` TCP's consolidation item shows `Owner = receiving, BasicConsolidation = true`
   - Existing tracks with `Owner.SectorId == sending` are NOT transferred
-- [ ] SSA indication: `BasicConsolidation = true` in the DTO tells CRC to show `*` prefix
+- [x] SSA indication: `BasicConsolidation = true` in the DTO tells CRC to show `*` prefix
 
 ### 2.3 Full Consolidation
 
 Transfers all tracks (current + future) to the receiving TCP instantly.
 
-- [ ] Implement full consolidation in `ConsolidationState.Consolidate(receiving, sending, basic: false)`:
+- [x] Implement full consolidation in `ConsolidationState.Consolidate(receiving, sending, basic: false)`:
   - Same handoff redirection as basic
   - Additionally: iterate all aircraft in `SimulationWorld`, transfer ownership of tracks where `Owner` matches `sending` TCP to `receiving` TCP
   - No acceptance required by receiving TCP
-- [ ] Track transfer in `RoomEngine`:
-  - `TransferTracks(Tcp from, Tcp to)`: Iterate world snapshot, mutate `Owner` on matching aircraft
-  - Must also update `HandoffPeer` on in-progress handoffs targeting the sending TCP
+- [x] Track transfer in `RoomEngine.TransferTracksForConsolidation()`:
+  - Iterate world snapshot, mutate `Owner` on matching aircraft
+  - Update `HandoffPeer` on in-progress handoffs targeting the sending TCP with `HandoffRedirectedBy`
 
 ### 2.4 RPO Commands
 
-- [ ] Add `CanonicalCommandType.Consolidate` and `CanonicalCommandType.Deconsolidate`
-- [ ] Add parsed command records:
+- [x] Add `CanonicalCommandType.Consolidate`, `ConsolidateFull`, `Deconsolidate`
+- [x] Add parsed command records:
   - `record ConsolidateCommand(string ReceivingTcpCode, string SendingTcpCode, bool Full) : ParsedCommand`
   - `record DeconsolidateCommand(string TcpCode) : ParsedCommand`
-- [ ] Add ATCTrainer patterns:
+- [x] Add ATCTrainer patterns:
   - `CON {receiving} {sending}` → Basic consolidation
   - `CON+ {receiving} {sending}` → Full consolidation
   - `DECON {tcp}` → Deconsolidate
-- [ ] Add to `CommandMetadata.AllCommands` and `CommandSchemeCompletenessTests`
-- [ ] Server-side dispatch: `RoomEngine` → `ConsolidationState.Consolidate/Deconsolidate` → `BroadcastStarsConsolidationAsync()`
+- [x] Add to `CommandMetadata.AllCommands` and `CommandScheme.Default()`
+- [x] Global command handling in `MainViewModel.HandleGlobalCommand()`
+- [x] Server-side parsing in `CommandParser` + dispatch in `RoomEngine.HandleConsolidationCmd()`
 
 ### 2.5 CRC Command Support
 
 CRC sends consolidation commands via `ProcessStarsCommand`.
 
-- [ ] Handle `StarsCommandType` for consolidation in `CrcClientState` or `RoomEngine`:
-  - Parse receiving/sending TCP codes from `ParameterString`
+- [x] Handle `StarsCommandType.MultiFunc` in `CrcClientState.Stars.CrcMultiFunc()`:
+  - Parse D+/D- patterns for consolidation/deconsolidate
+  - `SplitTcpCodes()` helper for parsing concatenated TCP codes
   - Resolve TCPs via `ArtccConfigService.FindTcpByCode()`
   - Call `ConsolidationState.Consolidate()` or `.Deconsolidate()`
   - Broadcast updated consolidation state
-- [ ] Handle display-active-consolidations command (`MULTIFUNC D+ENTER`):
+- [x] Handle display-active-consolidations command (`MULTIFUNC D+ENTER`):
   - CRC handles display client-side from the DTO data — server just needs correct DTOs (no server action needed)
 
 ### 2.6 Consolidation on Position Deactivation
 
 When a position closes, its manual consolidations must be resolved.
 
-- [ ] If a position that is a manual consolidation *receiver* closes:
-  - All TCPs consolidated to it fall back to the next attended ancestor in the automatic hierarchy
-  - Remove relevant manual overrides
-- [ ] If a position that is a manual consolidation *sender* closes:
-  - The override is moot (TCP was already consolidated away); remove override
-- [ ] Broadcast updated state after cleanup
+- [x] `CleanUpConsolidationOverrides()` in `CrcClientState.Session.cs`:
+  - Calls `ConsolidationState.RemoveOverridesInvolving()` for the deactivating position's TCP
+  - Removes all overrides where the TCP is sender or receiver
+- [x] Called from `HandleDeactivateSession()` and `BroadcastDisconnected()` (disconnect cleanup)
+- [x] Broadcast updated state after cleanup (existing attendance broadcast triggers consolidation re-broadcast)
 
 ### 2.7 Tests
 
-- [ ] Unit test: Basic consolidation — future handoffs redirect, existing tracks stay
-- [ ] Unit test: Full consolidation — all tracks transfer immediately
-- [ ] Unit test: Deconsolidate — reverts to automatic hierarchy
-- [ ] Unit test: Position close — manual overrides cleaned up correctly
-- [ ] Unit test: Consolidation state survives scenario reload within same room
-- [ ] Unit test: Manual override on top of automatic consolidation produces correct merged items
+- [x] Unit test: Basic consolidation — future handoffs redirect, existing tracks stay
+- [x] Unit test: Full consolidation — items show non-basic flag
+- [x] Unit test: Deconsolidate — reverts to automatic hierarchy
+- [x] Unit test: Position close — manual overrides cleaned up correctly
+- [x] Unit test: Scenario unload — consolidation state cleared
+- [x] Unit test: Manual override on top of automatic consolidation produces correct merged items
+- [x] Unit test: Manual override with auto-consolidation disabled still applies
+- [x] Unit test: Receiving TCP unattended — walks up to attended ancestor
+- [x] Unit test: Consolidate replaces previous override
+- [x] Unit test: Children list correctness — receiving TCP children updated, descendants follow override
+- [x] Unit test: ConsolidationState unit tests (consolidate, deconsolidate, clear, removeInvolving, snapshot)

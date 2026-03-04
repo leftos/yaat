@@ -266,9 +266,10 @@ src/Yaat.Server/
     ApiStubHandler.cs          # GET/POST /api/* → [] (CRC startup probes)
 
   Simulation/
-    TrainingRoom.cs            # Room state: Members, World, ActiveScenario, Weather, Engine, GroupName
+    TrainingRoom.cs            # Room state: Members, World, ActiveScenario, Weather, Engine, GroupName, ConsolidationState
     TrainingRoomManager.cs     # Room registry + client→room + CID→room mapping + admin tracking
-    RoomEngine.cs              # Per-room facade: tick, commands, scenario, broadcast
+    RoomEngine.cs              # Per-room facade: tick, commands, scenario, broadcast, consolidation
+    ConsolidationState.cs      # Thread-safe manual consolidation overrides per room
     RoomEngineFactory.cs       # Creates RoomEngine with shared singleton deps
     SimulationHostedService.cs # Thin orchestrator: 1s tick loop iterating rooms
     TickProcessor.cs           # Stateless tick logic (physics, spawns, triggers, auto-accept, coordination timers)
@@ -306,7 +307,7 @@ src/Yaat.Server/
     AirportGroundDataService.cs  # IAirportGroundData impl; lazy GeoJSON load from ArtccResources/
     ArtccConfig.cs             # VNAS ARTCC config deserialization models (VideoMapConfig, StarsAreaConfig, etc.)
     ArtccConfigService.cs      # Downloads + caches ARTCC config; position/TCP resolution
-    ArtccConfigService.Consolidation.cs  # Partial: STARS consolidation hierarchy
+    ArtccConfigService.Consolidation.cs  # Partial: STARS consolidation hierarchy + manual override integration
     ArtccConfigService.VideoMaps.cs      # Partial: video map extraction
     PositionRegistry.cs        # Thread-safe CRC + RPO position tracking
   Udp/UdpStubServer.cs        # UDP port 6809 stub (CRC keepalive/registration)

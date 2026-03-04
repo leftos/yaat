@@ -498,6 +498,34 @@ public partial class MainViewModel : ObservableObject
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
         }
+        if (parsed.Type is CanonicalCommandType.Consolidate or CanonicalCommandType.ConsolidateFull or CanonicalCommandType.Deconsolidate)
+        {
+            var verb = parsed.Type switch
+            {
+                CanonicalCommandType.Consolidate => "CON",
+                CanonicalCommandType.ConsolidateFull => "CON+",
+                CanonicalCommandType.Deconsolidate => "DECON",
+                _ => "",
+            };
+            var canonical = string.IsNullOrEmpty(parsed.Argument) ? verb : $"{verb} {parsed.Argument}";
+            try
+            {
+                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                AddHistory(canonical);
+                if (!string.IsNullOrEmpty(result.Message))
+                {
+                    StatusText = result.Message;
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "{Verb} failed", verb);
+                StatusText = $"{verb} error: {ex.Message}";
+            }
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+        }
     }
 
     private static bool IsGlobalCommand(CanonicalCommandType type)
@@ -509,7 +537,10 @@ public partial class MainViewModel : ObservableObject
                 or CanonicalCommandType.Add
                 or CanonicalCommandType.SquawkAll
                 or CanonicalCommandType.SquawkNormalAll
-                or CanonicalCommandType.SquawkStandbyAll;
+                or CanonicalCommandType.SquawkStandbyAll
+                or CanonicalCommandType.Consolidate
+                or CanonicalCommandType.ConsolidateFull
+                or CanonicalCommandType.Deconsolidate;
     }
 
     /// <summary>
