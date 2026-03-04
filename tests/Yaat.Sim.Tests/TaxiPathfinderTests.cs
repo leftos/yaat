@@ -1527,6 +1527,122 @@ public class TaxiPathfinderTests
     }
 
     [Fact]
+    public void OAK_TaxiDF_CrossesRunway15_33()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Find a starting node on taxiway D (before the 15/33 crossing)
+        var dEdges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.True(dEdges.Count > 0, "Should have D edges");
+
+        // Try resolving D → F from multiple starting nodes until one succeeds
+        TaxiRoute? route = null;
+        int usedStartNode = -1;
+        var triedNodes = new HashSet<int>();
+
+        foreach (var edge in dEdges)
+        {
+            foreach (int nodeId in new[] { edge.FromNodeId, edge.ToNodeId })
+            {
+                if (!triedNodes.Add(nodeId))
+                {
+                    continue;
+                }
+
+                var candidate = TaxiPathfinder.ResolveExplicitPath(layout, nodeId, ["D", "F"], out _);
+                if (candidate is not null)
+                {
+                    route = candidate;
+                    usedStartNode = nodeId;
+                    break;
+                }
+            }
+
+            if (route is not null)
+            {
+                break;
+            }
+        }
+
+        Assert.NotNull(route);
+
+        // Check hold-short points for 15/33
+        var hs1533 = route.HoldShortPoints.Where(hs => hs.TargetName is not null && hs.TargetName.Contains("15")).ToList();
+
+        // Identify which taxiway segment each hold-short falls on
+        var hsDetails = new List<string>();
+        foreach (var hs in route.HoldShortPoints)
+        {
+            string twName = "?";
+            foreach (var seg in route.Segments)
+            {
+                if (seg.ToNodeId == hs.NodeId)
+                {
+                    twName = seg.TaxiwayName;
+                    break;
+                }
+            }
+
+            hsDetails.Add($"node={hs.NodeId} target={hs.TargetName} reason={hs.Reason} taxiway={twName}");
+        }
+
+        var segSummary = string.Join(
+            " ",
+            route
+                .Segments.Select(s => s.TaxiwayName)
+                .Aggregate(
+                    new List<string>(),
+                    (acc, name) =>
+                    {
+                        if (acc.Count == 0 || !string.Equals(acc[^1], name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            acc.Add(name);
+                        }
+                        return acc;
+                    }
+                )
+        );
+
+        // Also check all 15/33 HS nodes the route passes through (including exit-paired ones)
+        var allRwy15NodesOnRoute = new List<string>();
+        foreach (var seg in route.Segments)
+        {
+            if (layout.Nodes.TryGetValue(seg.ToNodeId, out var node) && node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rId && rId.Contains("15"))
+            {
+                allRwy15NodesOnRoute.Add($"node={node.Id} taxiway={seg.TaxiwayName}");
+            }
+        }
+
+        Assert.True(
+            hs1533.Count > 0,
+            $"Route D → F should have hold-short(s) for runway 15/33. "
+                + $"Taxiways: {segSummary}, start={usedStartNode}, "
+                + $"hold-shorts: [{string.Join("; ", hsDetails)}], "
+                + $"all 15/33 HS nodes on route: [{string.Join("; ", allRwy15NodesOnRoute)}]"
+        );
+
+        // Verify the CROSS 15 command would clear the hold-short(s)
+        foreach (var hs in hs1533)
+        {
+            Assert.True(
+                RunwayIdentifier.Parse(hs.TargetName!).Contains("15"),
+                $"Hold-short target '{hs.TargetName}' should match '15'"
+            );
+        }
+
+        // Route passes through two 15/33 HS nodes: entry on D, exit on F
+        Assert.Equal(2, allRwy15NodesOnRoute.Count);
+
+        // Entry/exit pairing produces exactly one hold-short (entry side on D)
+        Assert.Single(hs1533);
+        Assert.Equal(HoldShortReason.RunwayCrossing, hs1533[0].Reason);
+    }
+
+    [Fact]
     public void SFO_LayoutLoads_WithHoldShorts()
     {
         var layout = LoadAirportLayout("SFO", "sfo");
