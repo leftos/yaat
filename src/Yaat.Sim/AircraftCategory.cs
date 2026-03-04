@@ -30,9 +30,7 @@ public static class AircraftCategorization
 
     public static AircraftCategory Categorize(string aircraftType)
     {
-        var baseType = aircraftType.Contains('/') ? aircraftType.Split('/')[0] : aircraftType;
-
-        baseType = baseType.Trim().ToUpperInvariant();
+        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
 
         return _lookup.TryGetValue(baseType, out var cat) ? cat : AircraftCategory.Jet;
     }

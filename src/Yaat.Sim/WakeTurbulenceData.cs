@@ -16,8 +16,7 @@ public static class WakeTurbulenceData
     /// <summary>Get WTG code (A-F) for an aircraft type designator. Returns null if unknown.</summary>
     public static string? GetWtg(string aircraftType)
     {
-        var baseType = aircraftType.Contains('/') ? aircraftType.Split('/')[0] : aircraftType;
-        baseType = baseType.Trim().ToUpperInvariant();
+        var baseType = AircraftState.StripTypePrefix(aircraftType).Trim().ToUpperInvariant();
         return _wtgLookup.TryGetValue(baseType, out var wtg) && !string.IsNullOrEmpty(wtg) ? wtg : null;
     }
 

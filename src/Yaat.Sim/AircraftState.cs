@@ -9,7 +9,23 @@ public class AircraftState
 {
     public required string Callsign { get; set; }
     public required string AircraftType { get; set; }
-    public string BaseAircraftType => AircraftType.Contains('/') ? AircraftType.Split('/')[0] : AircraftType;
+    public string BaseAircraftType => StripTypePrefix(AircraftType);
+
+    /// <summary>
+    /// Extract ICAO type designator from FAA flight plan format.
+    /// "B738" → "B738", "H/B763/L" → "B763", "B738/L" → "B738".
+    /// </summary>
+    internal static string StripTypePrefix(string aircraftType)
+    {
+        var parts = aircraftType.Split('/');
+        if (parts.Length >= 2 && parts[0] is "H" or "J" or "S")
+        {
+            return parts[1];
+        }
+
+        return parts[0];
+    }
+
     public string? ScenarioId { get; set; }
     public string Cid { get; set; } = "";
     public double Latitude { get; set; }
