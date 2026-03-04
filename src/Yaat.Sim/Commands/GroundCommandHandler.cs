@@ -252,16 +252,32 @@ internal static class GroundCommandHandler
                 targetLon
             );
 
-            // Resolve facing direction from FacingTaxiway (e.g., PUSH TE T → face toward T)
+            // Resolve facing direction from FacingTaxiway edge alignment
+            // (e.g., PUSH TE T → face the direction taxiway T runs at the exit point)
             if (push.FacingTaxiway is not null && resolvedHeading is null)
             {
                 var facingNode = groundLayout.FindExitByTaxiway(targetNode.Latitude, targetNode.Longitude, push.FacingTaxiway);
                 if (facingNode is not null)
                 {
-                    double facingBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, facingNode.Latitude, facingNode.Longitude);
-                    resolvedHeading = FlightPhysics.NormalizeHeadingInt(facingBearing);
+                    double bearingToFacing = GeoMath.BearingTo(
+                        targetNode.Latitude,
+                        targetNode.Longitude,
+                        facingNode.Latitude,
+                        facingNode.Longitude
+                    );
+
+                    // Prefer edge heading at exit node (if it's at the intersection)
+                    double? edgeHeading = groundLayout.GetEdgeHeadingForTaxiway(targetNode, push.FacingTaxiway, bearingToFacing);
+
+                    // Fallback: edge heading at the facing taxiway's nearest node
+                    edgeHeading ??= groundLayout.GetEdgeHeadingForTaxiway(facingNode, push.FacingTaxiway, bearingToFacing);
+
+                    // Final fallback: raw bearing
+                    edgeHeading ??= bearingToFacing;
+
+                    resolvedHeading = FlightPhysics.NormalizeHeadingInt(edgeHeading.Value);
                     logger.LogDebug(
-                        "[Pushback] {Callsign}: facing taxiway {FTwy} → heading {Hdg:000}",
+                        "[Pushback] {Callsign}: facing taxiway {FTwy} → heading {Hdg:000} (edge-aligned)",
                         aircraft.Callsign,
                         push.FacingTaxiway,
                         resolvedHeading

@@ -18,9 +18,11 @@ public sealed class PushbackPhase : Phase
     private const double TargetReachedThresholdNm = 0.005;
     private const double HeadingReachedDeg = 0.5;
     private const double LogIntervalSeconds = 3.0;
+    private const double NoseRotationProgressThreshold = 0.6;
 
     private double _startLat;
     private double _startLon;
+    private double _totalDistToTarget;
     private bool _reachedTarget;
     private double _timeSinceLastLog;
 
@@ -51,11 +53,13 @@ public sealed class PushbackPhase : Phase
         );
         if (TargetLatitude is not null && TargetLongitude is not null)
         {
+            _totalDistToTarget = GeoMath.DistanceNm(_startLat, _startLon, TargetLatitude.Value, TargetLongitude.Value);
             ctx.Logger.LogDebug(
-                "[Push] {Callsign}: target position ({TLat:F6},{TLon:F6})",
+                "[Push] {Callsign}: target position ({TLat:F6},{TLon:F6}), totalDist={Dist:F4}nm",
                 ctx.Aircraft.Callsign,
                 TargetLatitude.Value,
-                TargetLongitude.Value
+                TargetLongitude.Value,
+                _totalDistToTarget
             );
         }
     }
@@ -138,9 +142,15 @@ public sealed class PushbackPhase : Phase
                 );
             }
 
+            // Delay nose rotation until most of the push is complete
             if (TargetHeading is { } tgt && !_reachedTarget)
             {
-                TurnNoseToward(ctx, tgt, turnRate);
+                double distFromStart = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+                double progress = _totalDistToTarget > 0.001 ? distFromStart / _totalDistToTarget : 1.0;
+                if (progress >= NoseRotationProgressThreshold)
+                {
+                    TurnNoseToward(ctx, tgt, turnRate);
+                }
             }
         }
 

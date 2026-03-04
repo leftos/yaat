@@ -289,6 +289,47 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// Get the heading along the named taxiway at the given node, choosing the
+    /// direction closest to <paramref name="preferredBearing"/>.
+    /// Returns null if no matching taxiway edge exists at the node.
+    /// </summary>
+    public double? GetEdgeHeadingForTaxiway(GroundNode node, string taxiwayName, double preferredBearing)
+    {
+        double? bestHeading = null;
+        double bestDiff = double.MaxValue;
+
+        foreach (var edge in node.Edges)
+        {
+            if (IsRunwayEdge(edge))
+            {
+                continue;
+            }
+
+            if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            int otherNodeId = edge.FromNodeId == node.Id ? edge.ToNodeId : edge.FromNodeId;
+            if (!Nodes.TryGetValue(otherNodeId, out var otherNode))
+            {
+                continue;
+            }
+
+            double heading = GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double diff = Math.Abs(NormalizeAngle(heading - preferredBearing));
+
+            if (diff < bestDiff)
+            {
+                bestDiff = diff;
+                bestHeading = heading;
+            }
+        }
+
+        return bestHeading;
+    }
+
+    /// <summary>
     /// Get the taxiway name for the edge connected to a node that leads away from the runway.
     /// </summary>
     public string? GetExitTaxiwayName(GroundNode exitNode)
