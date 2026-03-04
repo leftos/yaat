@@ -125,6 +125,9 @@ public class AircraftState
     public string? ClearanceLocalInfo { get; set; }
     public string? ClearanceDepFreq { get; set; }
 
+    // Conflict alert
+    public bool IsCaInhibited { get; set; }
+
     // Sequence state
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }
