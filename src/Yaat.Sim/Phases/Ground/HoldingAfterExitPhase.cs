@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -18,6 +19,14 @@ public sealed class HoldingAfterExitPhase : Phase
         ctx.Targets.TargetAltitude = null;
         ctx.Aircraft.GroundSpeed = 0;
         ctx.Aircraft.IsOnGround = true;
+
+        ctx.Logger.LogDebug(
+            "[Exit] {Callsign}: holding after exit at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
+            ctx.Aircraft.Callsign,
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            ctx.Aircraft.Heading
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)

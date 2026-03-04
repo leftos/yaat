@@ -16,11 +16,13 @@ public sealed class LineUpPhase : Phase
     private const double CenterlineArrivalThresholdNm = 0.003;
     private const double OnRunwayNodeThresholdNm = 0.015;
     private const double HeadingToleranceDeg = 2.0;
+    private const double LogIntervalSeconds = 3.0;
 
     private readonly int? _holdShortNodeId;
 
     private double _runwayHeading;
     private bool _initialized;
+    private double _timeSinceLastLog;
 
     // Stage 1: navigate to on-runway node (if available)
     private double _stage1Lat;
@@ -82,6 +84,7 @@ public sealed class LineUpPhase : Phase
             if (dist > OnRunwayNodeThresholdNm)
             {
                 NavigateToTarget(ctx, _stage1Lat, _stage1Lon, dist);
+                LogPeriodic(ctx);
                 return false;
             }
 
@@ -97,6 +100,7 @@ public sealed class LineUpPhase : Phase
             if (dist > CenterlineArrivalThresholdNm)
             {
                 NavigateToTarget(ctx, _centerlineLat, _centerlineLon, dist);
+                LogPeriodic(ctx);
                 return false;
             }
 
@@ -111,6 +115,7 @@ public sealed class LineUpPhase : Phase
             double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
             ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, _runwayHeading, maxTurn);
             AdjustSpeed(ctx, CategoryPerformance.TaxiSpeed(ctx.Category) * 0.2);
+            LogPeriodic(ctx);
             return false;
         }
 
@@ -131,6 +136,24 @@ public sealed class LineUpPhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };
+    }
+
+    private void LogPeriodic(PhaseContext ctx)
+    {
+        _timeSinceLastLog += ctx.DeltaSeconds;
+        if (_timeSinceLastLog >= LogIntervalSeconds)
+        {
+            _timeSinceLastLog = 0;
+            double clDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _centerlineLat, _centerlineLon);
+            double hdgDiff = Math.Abs(FlightPhysics.NormalizeAngle(_runwayHeading - ctx.Aircraft.Heading));
+            ctx.Logger.LogDebug(
+                "[LineUp] {Callsign}: clDist={Dist:F4}nm, hdgDiff={Diff:F1}, gs={Gs:F1}kts",
+                ctx.Aircraft.Callsign,
+                clDist,
+                hdgDiff,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
     }
 
     private void ComputeCenterlineTarget(PhaseContext ctx)

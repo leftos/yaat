@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
@@ -11,11 +12,13 @@ namespace Yaat.Sim.Phases.Ground;
 public sealed class RunwayExitPhase : Phase
 {
     private const double ArrivalThresholdNm = 0.005;
+    private const double LogIntervalSeconds = 3.0;
 
     private GroundNode? _exitNode;
     private string? _exitTaxiway;
     private string? _runwayId;
     private ExitPreference? _lastResolvedPreference;
+    private double _timeSinceLastLog;
 
     public override string Name => "Runway Exit";
 
@@ -27,10 +30,19 @@ public sealed class RunwayExitPhase : Phase
 
         if (ctx.GroundLayout is null)
         {
+            ctx.Logger.LogDebug("[Exit] {Callsign}: no ground layout, will stop immediately", ctx.Aircraft.Callsign);
             return;
         }
 
         ResolveExit(ctx);
+
+        ctx.Logger.LogDebug(
+            "[Exit] {Callsign}: exiting rwy {Rwy}, target node={NodeId}, taxiway={Twy}",
+            ctx.Aircraft.Callsign,
+            _runwayId ?? "?",
+            _exitNode?.Id.ToString() ?? "none",
+            _exitTaxiway ?? "none"
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -79,11 +91,26 @@ public sealed class RunwayExitPhase : Phase
             return true;
         }
 
+        _timeSinceLastLog += ctx.DeltaSeconds;
+        if (_timeSinceLastLog >= LogIntervalSeconds)
+        {
+            _timeSinceLastLog = 0;
+            ctx.Logger.LogDebug(
+                "[Exit] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
+                ctx.Aircraft.Callsign,
+                dist,
+                ctx.Aircraft.GroundSpeed,
+                ctx.Aircraft.Heading
+            );
+        }
+
         return false;
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
+        ctx.Logger.LogDebug("[Exit] {Callsign}: OnEnd ({Status}), taxiway={Twy}", ctx.Aircraft.Callsign, endStatus, _exitTaxiway ?? "none");
+
         if (endStatus == PhaseStatus.Completed)
         {
             ctx.Aircraft.GroundSpeed = 0;

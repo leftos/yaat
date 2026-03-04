@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -37,6 +38,13 @@ public sealed class TakeoffPhase : Phase
         ctx.Aircraft.IsOnGround = true;
         ctx.Targets.TargetHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
+
+        ctx.Logger.LogDebug(
+            "[Takeoff] {Callsign}: started, rwy hdg={Hdg:F0}, fieldElev={Elev:F0}ft",
+            ctx.Aircraft.Callsign,
+            _runwayHeading,
+            _fieldElevation
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -71,6 +79,7 @@ public sealed class TakeoffPhase : Phase
             _airborne = true;
             ctx.Aircraft.IsOnGround = false;
             ctx.Aircraft.IndicatedAirspeed = ctx.Aircraft.GroundSpeed;
+            ctx.Logger.LogDebug("[Takeoff] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
             // Set climb targets
             double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);

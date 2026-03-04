@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -23,6 +24,13 @@ public sealed class LandingPhase : Phase
 
         // Continue approach descent toward field elevation
         ctx.Targets.TargetAltitude = _fieldElevation;
+
+        ctx.Logger.LogDebug(
+            "[Landing] {Callsign}: started, fieldElev={Elev:F0}ft, gs={Gs:F1}kts",
+            ctx.Aircraft.Callsign,
+            _fieldElevation,
+            ctx.Aircraft.GroundSpeed
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -66,6 +74,8 @@ public sealed class LandingPhase : Phase
             }
 
             ctx.Aircraft.IndicatedAirspeed = ctx.Aircraft.GroundSpeed;
+
+            ctx.Logger.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
         }
 
         return false;
@@ -86,7 +96,13 @@ public sealed class LandingPhase : Phase
         var cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
         _canGoAround = ctx.Aircraft.GroundSpeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
 
-        return ctx.Aircraft.GroundSpeed <= RolloutCompleteSpeed;
+        if (ctx.Aircraft.GroundSpeed <= RolloutCompleteSpeed)
+        {
+            ctx.Logger.LogDebug("[Landing] {Callsign}: rollout complete, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+            return true;
+        }
+
+        return false;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
@@ -27,6 +28,14 @@ public sealed class HoldingShortPhase : Phase
         ctx.Aircraft.GroundSpeed = 0;
         ctx.Targets.TargetSpeed = 0;
 
+        ctx.Logger.LogDebug(
+            "[HoldShort] {Callsign}: holding short of {Target}, nodeId={NodeId}, reason={Reason}",
+            ctx.Aircraft.Callsign,
+            _holdShort.TargetName ?? "unknown",
+            _holdShort.NodeId,
+            _holdShort.Reason
+        );
+
         // Generate notification
         string target = _holdShort.TargetName ?? "unknown";
         string taxiway = ctx.Aircraft.CurrentTaxiway ?? "taxiway";
@@ -44,6 +53,7 @@ public sealed class HoldingShortPhase : Phase
             if (req.IsSatisfied)
             {
                 _holdShort.IsCleared = true;
+                ctx.Logger.LogDebug("[HoldShort] {Callsign}: cleared at {Target}", ctx.Aircraft.Callsign, _holdShort.TargetName ?? "unknown");
                 return true;
             }
         }

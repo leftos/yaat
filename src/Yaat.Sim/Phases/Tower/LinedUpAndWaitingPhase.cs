@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -25,6 +26,14 @@ public sealed class LinedUpAndWaitingPhase : Phase
         {
             ctx.Targets.TargetHeading = ctx.Runway.TrueHeading;
         }
+
+        ctx.Logger.LogDebug(
+            "[LineUp] {Callsign}: lined up and waiting, rwy={Rwy}, pos=({Lat:F6},{Lon:F6})",
+            ctx.Aircraft.Callsign,
+            ctx.Runway?.Designator ?? "?",
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)

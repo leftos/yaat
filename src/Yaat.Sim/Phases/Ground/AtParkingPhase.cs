@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -18,6 +19,8 @@ public sealed class AtParkingPhase : Phase
         ctx.Targets.TargetAltitude = null;
         ctx.Aircraft.GroundSpeed = 0;
         ctx.Aircraft.IsOnGround = true;
+
+        ctx.Logger.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.ParkingSpot ?? "unknown");
     }
 
     public override bool OnTick(PhaseContext ctx)

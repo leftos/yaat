@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
@@ -15,8 +16,10 @@ public sealed class FollowingPhase : Phase
     private const double StopDistanceNm = 0.015; // ~90 ft
     private const double HoldShortDetectionNm = 0.02; // ~120 ft
     private const double HoldShortAngleThreshold = 90.0;
+    private const double LogIntervalSeconds = 3.0;
 
     private readonly string _targetCallsign;
+    private double _timeSinceLastLog;
 
     public FollowingPhase(string targetCallsign)
     {
@@ -30,6 +33,7 @@ public sealed class FollowingPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Aircraft.IsOnGround = true;
+        ctx.Logger.LogDebug("[Follow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, _targetCallsign);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -51,6 +55,12 @@ public sealed class FollowingPhase : Phase
         var target = ctx.AircraftLookup?.Invoke(_targetCallsign);
         if (target is null || !target.IsOnGround)
         {
+            ctx.Logger.LogDebug(
+                "[Follow] {Callsign}: target {Target} {Reason}, stopping",
+                ctx.Aircraft.Callsign,
+                _targetCallsign,
+                target is null ? "not found" : "no longer on ground"
+            );
             ctx.Aircraft.GroundSpeed = 0;
             ctx.Targets.TargetSpeed = 0;
             return true;
@@ -93,6 +103,21 @@ public sealed class FollowingPhase : Phase
         }
 
         ctx.Targets.TargetSpeed = ctx.Aircraft.GroundSpeed;
+
+        _timeSinceLastLog += ctx.DeltaSeconds;
+        if (_timeSinceLastLog >= LogIntervalSeconds)
+        {
+            _timeSinceLastLog = 0;
+            ctx.Logger.LogDebug(
+                "[Follow] {Callsign}: dist={Dist:F4}nm to {Target}, gs={Gs:F1}kts, targetGs={TGs:F1}kts",
+                ctx.Aircraft.Callsign,
+                dist,
+                _targetCallsign,
+                ctx.Aircraft.GroundSpeed,
+                target.GroundSpeed
+            );
+        }
+
         return false;
     }
 
@@ -144,6 +169,7 @@ public sealed class FollowingPhase : Phase
             }
 
             // Approaching a runway hold-short — stop and insert phases
+            ctx.Logger.LogDebug("[Follow] {Callsign}: hold short triggered at runway node {NodeId}", ctx.Aircraft.Callsign, node.Id);
             ctx.Aircraft.GroundSpeed = 0;
             ctx.Targets.TargetSpeed = 0;
 

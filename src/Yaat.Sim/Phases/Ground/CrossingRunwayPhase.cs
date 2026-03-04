@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -9,11 +10,13 @@ namespace Yaat.Sim.Phases.Ground;
 public sealed class CrossingRunwayPhase : Phase
 {
     private const double ArrivalThresholdNm = 0.005;
+    private const double LogIntervalSeconds = 3.0;
 
     private readonly int _targetNodeId;
     private double _targetLat;
     private double _targetLon;
     private bool _initialized;
+    private double _timeSinceLastLog;
 
     public CrossingRunwayPhase(int targetNodeId)
     {
@@ -34,6 +37,13 @@ public sealed class CrossingRunwayPhase : Phase
         double crossSpeed = CategoryPerformance.RunwayCrossingSpeed(ctx.Category);
         ctx.Targets.TargetSpeed = crossSpeed;
         ctx.Aircraft.IsOnGround = true;
+
+        ctx.Logger.LogDebug(
+            "[Crossing] {Callsign}: crossing runway, target nodeId={NodeId}, initialized={Init}",
+            ctx.Aircraft.Callsign,
+            _targetNodeId,
+            _initialized
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -67,11 +77,25 @@ public sealed class CrossingRunwayPhase : Phase
         // Check arrival
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
-        return dist <= ArrivalThresholdNm;
+        if (dist <= ArrivalThresholdNm)
+        {
+            return true;
+        }
+
+        _timeSinceLastLog += ctx.DeltaSeconds;
+        if (_timeSinceLastLog >= LogIntervalSeconds)
+        {
+            _timeSinceLastLog = 0;
+            ctx.Logger.LogDebug("[Crossing] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts", ctx.Aircraft.Callsign, dist, ctx.Aircraft.GroundSpeed);
+        }
+
+        return false;
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
+        ctx.Logger.LogDebug("[Crossing] {Callsign}: OnEnd ({Status})", ctx.Aircraft.Callsign, endStatus);
+
         if (endStatus == PhaseStatus.Completed)
         {
             ctx.Aircraft.GroundSpeed = 0;
