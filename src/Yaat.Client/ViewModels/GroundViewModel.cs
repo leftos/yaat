@@ -16,6 +16,7 @@ public partial class GroundViewModel : ObservableObject
     private readonly Func<string, string, string, Task> _sendCommand;
     private readonly Action<AircraftModel?>? _onSelectionChanged;
     private AirportGroundLayout? _domainLayout;
+    private Func<string, double?>? _getAirportElevation;
 
     [ObservableProperty]
     private GroundLayoutDto? _layout;
@@ -29,6 +30,15 @@ public partial class GroundViewModel : ObservableObject
     [ObservableProperty]
     private TaxiRoute? _previewRoute;
 
+    [ObservableProperty]
+    private double _airportCenterLat;
+
+    [ObservableProperty]
+    private double _airportCenterLon;
+
+    [ObservableProperty]
+    private double _airportElevation;
+
     public ObservableCollection<AircraftModel> GroundAircraft { get; } = [];
 
     public GroundViewModel(
@@ -40,6 +50,11 @@ public partial class GroundViewModel : ObservableObject
         _connection = connection;
         _sendCommand = sendCommand;
         _onSelectionChanged = onSelectionChanged;
+    }
+
+    public void SetElevationLookup(Func<string, double?> lookup)
+    {
+        _getAirportElevation = lookup;
     }
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
@@ -62,6 +77,23 @@ public partial class GroundViewModel : ObservableObject
 
             Layout = dto;
             _domainLayout = ReconstructLayout(dto);
+
+            // Compute airport center from node centroid
+            if (dto.Nodes.Count > 0)
+            {
+                double sumLat = 0, sumLon = 0;
+                foreach (var node in dto.Nodes)
+                {
+                    sumLat += node.Latitude;
+                    sumLon += node.Longitude;
+                }
+
+                AirportCenterLat = sumLat / dto.Nodes.Count;
+                AirportCenterLon = sumLon / dto.Nodes.Count;
+            }
+
+            AirportElevation = _getAirportElevation?.Invoke(airportId) ?? 0;
+
             _log.LogInformation("Ground layout loaded for {Id}: {Nodes} nodes, {Edges} edges", airportId, dto.Nodes.Count, dto.Edges.Count);
         }
         catch (Exception ex)
@@ -76,6 +108,9 @@ public partial class GroundViewModel : ObservableObject
         _domainLayout = null;
         ActiveRoute = null;
         PreviewRoute = null;
+        AirportCenterLat = 0;
+        AirportCenterLon = 0;
+        AirportElevation = 0;
         GroundAircraft.Clear();
     }
 

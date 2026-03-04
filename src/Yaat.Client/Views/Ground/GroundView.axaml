@@ -11,6 +11,9 @@
                              SelectedAircraft="{Binding SelectedAircraft}"
                              ActiveRoute="{Binding ActiveRoute}"
                              PreviewRoute="{Binding PreviewRoute}"
+                             AirportCenterLat="{Binding AirportCenterLat}"
+                             AirportCenterLon="{Binding AirportCenterLon}"
+                             AirportElevation="{Binding AirportElevation}"
                              Aircraft="{Binding $parent[Window].DataContext.Aircraft}" />
 
         <!-- No layout message -->

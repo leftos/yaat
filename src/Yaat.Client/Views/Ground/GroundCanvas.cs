@@ -33,6 +33,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(PreviewRoute)
     );
 
+    public static readonly StyledProperty<double> AirportCenterLatProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(AirportCenterLat));
+    public static readonly StyledProperty<double> AirportCenterLonProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(AirportCenterLon));
+    public static readonly StyledProperty<double> AirportElevationProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(AirportElevation));
+
     private static readonly SKPoint DefaultDataBlockOffset = new(30, -25);
     private const float DataBlockPad = 3f;
 
@@ -75,6 +79,24 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(PreviewRouteProperty);
         set => SetValue(PreviewRouteProperty, value);
+    }
+
+    public double AirportCenterLat
+    {
+        get => GetValue(AirportCenterLatProperty);
+        set => SetValue(AirportCenterLatProperty, value);
+    }
+
+    public double AirportCenterLon
+    {
+        get => GetValue(AirportCenterLonProperty);
+        set => SetValue(AirportCenterLonProperty, value);
+    }
+
+    public double AirportElevation
+    {
+        get => GetValue(AirportElevationProperty);
+        set => SetValue(AirportElevationProperty, value);
     }
 
     public int? HoveredNodeId => _hoveredNodeId;
@@ -120,7 +142,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         int? HoveredNodeId,
         TaxiRoute? ActiveRoute,
         TaxiRoute? PreviewRoute,
-        IReadOnlyDictionary<string, SKPoint> DataBlockOffsets
+        IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
+        double AirportCenterLat,
+        double AirportCenterLon,
+        double AirportElevation
     );
 
     protected override object? CreateRenderSnapshot()
@@ -132,7 +157,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             _hoveredNodeId,
             ActiveRoute,
             PreviewRoute,
-            new Dictionary<string, SKPoint>(_dataBlockOffsets)
+            new Dictionary<string, SKPoint>(_dataBlockOffsets),
+            AirportCenterLat,
+            AirportCenterLon,
+            AirportElevation
         );
     }
 
@@ -152,7 +180,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.HoveredNodeId,
             s.ActiveRoute,
             s.PreviewRoute,
-            s.DataBlockOffsets
+            s.DataBlockOffsets,
+            s.AirportCenterLat,
+            s.AirportCenterLon,
+            s.AirportElevation
         );
     }
 

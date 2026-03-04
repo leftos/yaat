@@ -32,7 +32,11 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor AircraftParked = new(100, 100, 100);
     private static readonly SKColor AircraftSelected = new(255, 255, 255);
     private static readonly SKColor AircraftDimmed = new(80, 80, 100);
+    private static readonly SKColor AircraftAirborne = new(0, 200, 255, 120);
     private static readonly SKColor HoverRingColor = new(255, 255, 255, 160);
+
+    private const double AirborneMaxAglFt = 4000;
+    private const double AirborneMaxRangeNm = 10;
 
     private enum LabelPriority
     {
@@ -162,7 +166,10 @@ public sealed class GroundRenderer : IDisposable
         int? hoveredNodeId,
         TaxiRoute? activeRoute,
         TaxiRoute? previewRoute,
-        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        double airportCenterLat = 0,
+        double airportCenterLon = 0,
+        double airportElevation = 0
     )
     {
         canvas.Clear(BackgroundColor);
@@ -179,8 +186,8 @@ public sealed class GroundRenderer : IDisposable
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
         DrawNodes(canvas, vp, layout, hoveredNodeId);
-        DrawAircraft(canvas, vp, aircraft, selectedAircraft);
-        DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets);
+        DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
+        DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
         DrawLabels(canvas);
     }
 
@@ -429,21 +436,31 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawAircraft(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, AircraftModel? selectedAircraft)
+    private void DrawAircraft(
+        SKCanvas canvas,
+        MapViewport vp,
+        IReadOnlyList<AircraftModel> aircraft,
+        AircraftModel? selectedAircraft,
+        double airportCenterLat,
+        double airportCenterLon,
+        double airportElevation
+    )
     {
         foreach (var ac in aircraft)
         {
-            if (!ac.IsOnGround)
+            if (!ac.IsOnGround && !IsAirborneVisible(ac, airportCenterLat, airportCenterLon, airportElevation))
             {
                 continue;
             }
 
             var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
             bool isSelected = ac == selectedAircraft;
+            bool isAirborne = !ac.IsOnGround;
 
             _aircraftPaint.Color =
                 isSelected ? AircraftSelected
                 : selectedAircraft is not null ? AircraftDimmed
+                : isAirborne ? AircraftAirborne
                 : GetAircraftColor(ac);
 
             DrawTriangle(canvas, sx, sy, (float)ac.Heading, isSelected ? 19f : 16f, _aircraftPaint);
@@ -483,12 +500,16 @@ public sealed class GroundRenderer : IDisposable
         MapViewport vp,
         IReadOnlyList<AircraftModel> aircraft,
         AircraftModel? selectedAircraft,
-        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        double airportCenterLat,
+        double airportCenterLon,
+        double airportElevation
     )
     {
         foreach (var ac in aircraft)
         {
-            if (!ac.IsOnGround)
+            bool isAirborne = !ac.IsOnGround;
+            if (isAirborne && !IsAirborneVisible(ac, airportCenterLat, airportCenterLon, airportElevation))
             {
                 continue;
             }
@@ -508,19 +529,23 @@ public sealed class GroundRenderer : IDisposable
             var color =
                 isSelected ? AircraftSelected
                 : selectedAircraft is not null ? AircraftDimmed
+                : isAirborne ? AircraftAirborne
                 : GetAircraftColor(ac);
 
             string line1 = ac.Callsign;
             string line2 = ac.AircraftType ?? "";
+            string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
 
             _dataBlockTextPaint.Color = color;
             float w1 = _dataBlockTextPaint.MeasureText(line1);
             float w2 = _dataBlockTextPaint.MeasureText(line2);
-            float textW = MathF.Max(w1, w2);
+            float w3 = line3.Length > 0 ? _dataBlockTextPaint.MeasureText(line3) : 0;
+            float textW = MathF.Max(w1, MathF.Max(w2, w3));
             float lineH = _dataBlockTextPaint.TextSize + 2;
+            int lineCount = line3.Length > 0 ? 3 : 2;
 
             const float pad = 3f;
-            var blockRect = new SKRect(blockX - pad, blockY - _dataBlockTextPaint.TextSize - pad, blockX + textW + pad, blockY + lineH + pad);
+            var blockRect = new SKRect(blockX - pad, blockY - _dataBlockTextPaint.TextSize - pad, blockX + textW + pad, blockY + (lineCount - 1) * lineH + pad);
 
             canvas.DrawRect(blockRect, _dataBlockBgPaint);
 
@@ -530,7 +555,23 @@ public sealed class GroundRenderer : IDisposable
 
             canvas.DrawText(line1, blockX, blockY, _dataBlockTextPaint);
             canvas.DrawText(line2, blockX, blockY + lineH, _dataBlockTextPaint);
+            if (line3.Length > 0)
+            {
+                canvas.DrawText(line3, blockX, blockY + lineH * 2, _dataBlockTextPaint);
+            }
         }
+    }
+
+    private static bool IsAirborneVisible(AircraftModel ac, double airportCenterLat, double airportCenterLon, double airportElevation)
+    {
+        double agl = ac.Altitude - airportElevation;
+        if (agl <= 0 || agl > AirborneMaxAglFt)
+        {
+            return false;
+        }
+
+        double dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, airportCenterLat, airportCenterLon);
+        return dist <= AirborneMaxRangeNm;
     }
 
     private static SKPoint ClampToBlockEdge(float pointX, float pointY, SKRect rect)
