@@ -28,6 +28,8 @@ public partial class MainViewModel : ObservableObject
     public UserPreferences Preferences => _preferences;
     public CommandInputController CommandInput => _commandInput;
 
+    private bool _isSyncingSelection;
+
     public GroundViewModel Ground { get; }
     public RadarViewModel Radar { get; }
 
@@ -218,8 +220,8 @@ public partial class MainViewModel : ObservableObject
         AircraftView = new DataGridCollectionView(Aircraft);
         AircraftView.GroupDescriptions.Add(new DataGridPathGroupDescription("GroupLabel"));
         _isDelayedGroupCollapsed = _preferences.IsDelayedGroupCollapsed;
-        Ground = new GroundViewModel(_connection, SendCommandForViewAsync);
-        Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync);
+        Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged);
+        Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);
 
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
@@ -307,8 +309,18 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {
+        _isSyncingSelection = true;
         Ground.SelectedAircraft = value;
         Radar.SelectedAircraft = value;
+        _isSyncingSelection = false;
+    }
+
+    private void OnChildSelectionChanged(AircraftModel? value)
+    {
+        if (!_isSyncingSelection)
+        {
+            SelectedAircraft = value;
+        }
     }
 
     partial void OnCommandTextChanged(string value)

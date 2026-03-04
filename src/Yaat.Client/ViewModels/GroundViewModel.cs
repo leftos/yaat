@@ -14,6 +14,7 @@ public partial class GroundViewModel : ObservableObject
 
     private readonly ServerConnection _connection;
     private readonly Func<string, string, string, Task> _sendCommand;
+    private readonly Action<AircraftModel?>? _onSelectionChanged;
     private AirportGroundLayout? _domainLayout;
 
     [ObservableProperty]
@@ -30,10 +31,20 @@ public partial class GroundViewModel : ObservableObject
 
     public ObservableCollection<AircraftModel> GroundAircraft { get; } = [];
 
-    public GroundViewModel(ServerConnection connection, Func<string, string, string, Task> sendCommand)
+    public GroundViewModel(
+        ServerConnection connection,
+        Func<string, string, string, Task> sendCommand,
+        Action<AircraftModel?>? onSelectionChanged = null
+    )
     {
         _connection = connection;
         _sendCommand = sendCommand;
+        _onSelectionChanged = onSelectionChanged;
+    }
+
+    partial void OnSelectedAircraftChanged(AircraftModel? value)
+    {
+        _onSelectionChanged?.Invoke(value);
     }
 
     public async Task LoadLayoutAsync(string airportId)

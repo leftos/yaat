@@ -56,16 +56,9 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var mainVm = FindMainViewModel();
-        if (mainVm is null)
-        {
-            return;
-        }
-
-        var ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
         if (ac is not null)
         {
-            mainVm.SelectedAircraft = ac;
             vm.SelectedAircraft = ac;
         }
     }
@@ -123,11 +116,9 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var mainVm = FindMainViewModel();
-        var ac = mainVm?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
-        if (ac is not null && mainVm is not null)
+        var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        if (ac is not null)
         {
-            mainVm.SelectedAircraft = ac;
             vm.SelectedAircraft = ac;
         }
 
@@ -237,18 +228,10 @@ public partial class GroundView : UserControl
 
     private void OnEmptySpaceClicked()
     {
-        if (DataContext is not GroundViewModel vm)
+        if (DataContext is GroundViewModel vm)
         {
-            return;
+            vm.SelectedAircraft = null;
         }
-
-        var mainVm = FindMainViewModel();
-        if (mainVm is not null)
-        {
-            mainVm.SelectedAircraft = null;
-        }
-
-        vm.SelectedAircraft = null;
     }
 
     private static void AddTaxiRouteItems(ContextMenu menu, GroundViewModel vm, string callsign, string initials, int fromNodeId, int toNodeId)

@@ -19,34 +19,19 @@ public partial class RadarView
             return;
         }
 
-        var mainVm = FindMainViewModel();
-        if (mainVm is null)
-        {
-            return;
-        }
-
-        var ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
         if (ac is not null)
         {
-            mainVm.SelectedAircraft = ac;
             vm.SelectedAircraft = ac;
         }
     }
 
     private void OnEmptySpaceClicked()
     {
-        if (DataContext is not RadarViewModel vm)
+        if (DataContext is RadarViewModel vm)
         {
-            return;
+            vm.SelectedAircraft = null;
         }
-
-        var mainVm = FindMainViewModel();
-        if (mainVm is not null)
-        {
-            mainVm.SelectedAircraft = null;
-        }
-
-        vm.SelectedAircraft = null;
     }
 
     private void OnAircraftRightClicked(string callsign, Point screenPos)
@@ -56,11 +41,9 @@ public partial class RadarView
             return;
         }
 
-        var mainVm = FindMainViewModel();
-        var ac = mainVm?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
-        if (ac is not null && mainVm is not null)
+        var ac = FindMainViewModel()?.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        if (ac is not null)
         {
-            mainVm.SelectedAircraft = ac;
             vm.SelectedAircraft = ac;
         }
 

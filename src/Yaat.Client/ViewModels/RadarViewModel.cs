@@ -47,6 +47,7 @@ public partial class RadarViewModel : ObservableObject
     private readonly ServerConnection _connection;
     private readonly VideoMapService _videoMapService;
     private readonly Func<string, string, string, Task> _sendCommand;
+    private readonly Action<AircraftModel?>? _onSelectionChanged;
 
     private string? _activeScenarioId;
     private UserPreferences? _preferences;
@@ -181,11 +182,17 @@ public partial class RadarViewModel : ObservableObject
     /// </summary>
     public Dictionary<string, string> BrightnessLookup { get; } = [];
 
-    public RadarViewModel(ServerConnection connection, VideoMapService videoMapService, Func<string, string, string, Task> sendCommand)
+    public RadarViewModel(
+        ServerConnection connection,
+        VideoMapService videoMapService,
+        Func<string, string, string, Task> sendCommand,
+        Action<AircraftModel?>? onSelectionChanged = null
+    )
     {
         _connection = connection;
         _videoMapService = videoMapService;
         _sendCommand = sendCommand;
+        _onSelectionChanged = onSelectionChanged;
     }
 
     public void SetPreferences(UserPreferences prefs)
@@ -214,6 +221,7 @@ public partial class RadarViewModel : ObservableObject
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {
+        _onSelectionChanged?.Invoke(value);
         UpdateProgrammedFixes(value);
         if (IsDrawingRoute && (value is null || value.Callsign != _drawRouteCallsign))
         {
