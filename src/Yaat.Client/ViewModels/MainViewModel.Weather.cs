@@ -70,15 +70,6 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             ActiveWeatherName = dto.Name;
-            if (dto.Name is not null)
-            {
-                var layerCount = dto.WindLayers?.Count ?? 0;
-                AddSystemEntry($"Weather loaded: {dto.Name} ({layerCount} layers)");
-            }
-            else
-            {
-                AddSystemEntry("Weather cleared");
-            }
         });
     }
 }
