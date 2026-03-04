@@ -95,7 +95,7 @@ public partial class LoadScenarioWindow : Window
                     var match = NamePrefixRegex.Match(name);
                     if (match.Success)
                     {
-                        rating = match.Groups[1].Value;
+                        rating = $"{match.Groups[1].Value}-{match.Groups[2].Value}";
                         facility = match.Groups[2].Value;
                     }
                 }
@@ -108,7 +108,11 @@ public partial class LoadScenarioWindow : Window
             }
         }
 
-        items.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        items.Sort((a, b) =>
+        {
+            int cmp = RatingSortKey(a.Rating).CompareTo(RatingSortKey(b.Rating));
+            return cmp != 0 ? cmp : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
         _allItems = items;
 
         RebuildFilters();
@@ -120,7 +124,7 @@ public partial class LoadScenarioWindow : Window
     private void RebuildFilters()
     {
         var facilities = _allItems.Select(i => i.Facility).Distinct().OrderBy(a => a, StringComparer.OrdinalIgnoreCase).ToList();
-        var ratings = _allItems.Select(i => i.Rating).Distinct().OrderBy(r => r, StringComparer.OrdinalIgnoreCase).ToList();
+        var ratings = _allItems.Select(i => i.Rating).Distinct().OrderBy(RatingSortKey).ThenBy(r => r, StringComparer.OrdinalIgnoreCase).ToList();
 
         _facilityFilter.ItemsSource = facilities.Prepend("All").ToList();
         _facilityFilter.SelectedIndex = 0;
@@ -172,6 +176,19 @@ public partial class LoadScenarioWindow : Window
         {
             Close(item.FilePath);
         }
+    }
+
+    private static string RatingSortKey(string rating)
+    {
+        // S ratings before C ratings, everything else after
+        char prefix = rating.Length > 0 ? rating[0] : 'Z';
+        int order = prefix switch
+        {
+            'S' => 0,
+            'C' => 1,
+            _ => 2,
+        };
+        return $"{order}{rating}";
     }
 }
 
