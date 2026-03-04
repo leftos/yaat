@@ -96,6 +96,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<DrawnWaypoint>?
     >(nameof(DrawnWaypoints));
 
+    public static readonly StyledProperty<IReadOnlyDictionary<int, WaypointCondition>?> WaypointConditionsProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyDictionary<int, WaypointCondition>?
+    >(nameof(WaypointConditions));
+
     private static readonly SKPoint DefaultDataBlockOffset = new(28, -28);
     private const float DataBlockPad = 3f;
     private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
@@ -116,6 +121,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private Point _dragStartMousePos;
     private bool _dragThresholdMet;
     private Point _lastPointerPos;
+    private readonly HashSet<string> _minifiedCallsigns = new();
 
     public RadarCanvas()
     {
@@ -262,6 +268,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(DrawnWaypointsProperty, value);
     }
 
+    public IReadOnlyDictionary<int, WaypointCondition>? WaypointConditions
+    {
+        get => GetValue(WaypointConditionsProperty);
+        set => SetValue(WaypointConditionsProperty, value);
+    }
+
     public float BrightnessA
     {
         get => _renderer.BrightnessA;
@@ -356,6 +368,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == ProgrammedFixNamesProperty
             || change.Property == IsDrawingRouteProperty
             || change.Property == DrawnWaypointsProperty
+            || change.Property == WaypointConditionsProperty
         )
         {
             MarkDirty();
@@ -420,7 +433,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<DrawnWaypoint>? DrawnWaypoints,
         (double Lat, double Lon)? DrawRouteOrigin,
         (double Lat, double Lon)? RubberBandTarget,
-        string? RubberBandLabel
+        string? RubberBandLabel,
+        IReadOnlyDictionary<int, WaypointCondition>? WaypointConditions,
+        IReadOnlySet<string> MinifiedCallsigns
     );
 
     protected override object? CreateRenderSnapshot()
@@ -478,7 +493,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             drawRouteWaypoints,
             drawRouteOrigin,
             drawRouteCursorLatLon,
-            drawRouteCursorLabel
+            drawRouteCursorLabel,
+            IsDrawingRoute ? WaypointConditions : null,
+            new HashSet<string>(_minifiedCallsigns)
         );
     }
 
@@ -536,7 +553,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.DrawnWaypoints,
             s.DrawRouteOrigin,
             s.RubberBandTarget,
-            s.RubberBandLabel
+            s.RubberBandLabel,
+            s.WaypointConditions,
+            s.MinifiedCallsigns
         );
     }
 
@@ -549,6 +568,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         {
             if (props.IsLeftButtonPressed)
             {
+                // Snap check: if clicking near an existing waypoint, ignore (no-op)
+                var nearIdx = FindNearestDrawnWaypointIndex(pos);
+                if (nearIdx >= 0)
+                {
+                    e.Handled = true;
+                    return;
+                }
+
                 var (lat, lon) = Viewport.ScreenToLatLon((float)pos.X, (float)pos.Y);
                 RoutePointPlaced?.Invoke(lat, lon);
                 e.Handled = true;
@@ -707,7 +734,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (!_dragThresholdMet && _dragCallsign is not null)
             {
-                AircraftLeftClicked?.Invoke(_dragCallsign);
+                if (!_minifiedCallsigns.Remove(_dragCallsign))
+                {
+                    _minifiedCallsigns.Add(_dragCallsign);
+                }
+
+                InvalidateVisual();
             }
 
             _dragCallsign = null;
@@ -740,34 +772,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
         foreach (var ac in FilterAircraft(Aircraft, ShowTopDown))
         {
-            var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
-
-            SKPoint offset = DefaultDataBlockOffset;
-            if (_dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
-            {
-                offset = customOffset;
-            }
-
-            float blockX = sx + offset.X;
-            float blockY = sy + offset.Y;
-
-            string line1 = ac.Callsign;
-            var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
-            var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
-            string line2 = $"{altHundreds} {spdTens}";
-
-            float w1 = _hitTestPaint.MeasureText(line1);
-            float w2 = _hitTestPaint.MeasureText(line2);
-            float textW = MathF.Max(w1, w2);
-            float lineH = _hitTestPaint.TextSize + 2;
-
-            var blockRect = new SKRect(
-                blockX - DataBlockPad,
-                blockY - _hitTestPaint.TextSize - DataBlockPad,
-                blockX + textW + DataBlockPad,
-                blockY + lineH + DataBlockPad
-            );
-
+            var blockRect = ComputeDataBlockRect(ac);
             if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
                 return ac;
@@ -775,6 +780,61 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         return null;
+    }
+
+    private SKRect ComputeDataBlockRect(AircraftModel ac)
+    {
+        var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
+
+        SKPoint offset = DefaultDataBlockOffset;
+        if (_dataBlockOffsets.TryGetValue(ac.Callsign, out var customOffset))
+        {
+            offset = customOffset;
+        }
+
+        float blockX = sx + offset.X;
+        float blockY = sy + offset.Y;
+        float lineH = _hitTestPaint.TextSize + 2;
+        bool isMinified = _minifiedCallsigns.Contains(ac.Callsign);
+
+        if (isMinified)
+        {
+            var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
+            var cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
+            string miniLine = cwt.Length > 0 ? $"{altHundreds} {cwt}" : altHundreds;
+            float miniW = _hitTestPaint.MeasureText(miniLine);
+            return new SKRect(
+                blockX - DataBlockPad,
+                blockY - _hitTestPaint.TextSize - DataBlockPad,
+                blockX + miniW + DataBlockPad,
+                blockY + DataBlockPad
+            );
+        }
+
+        string line1 = ac.Callsign;
+        var altH = ((int)ac.Altitude / 100).ToString("D3");
+        var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
+        var cwtCode = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
+        string line2 = cwtCode.Length > 0 ? $"{altH} {spdTens} {cwtCode}" : $"{altH} {spdTens}";
+
+        float w1 = _hitTestPaint.MeasureText(line1);
+        float w2 = _hitTestPaint.MeasureText(line2);
+        float textW = MathF.Max(w1, w2);
+        int lineCount = 2;
+
+        if (!string.IsNullOrEmpty(ac.OwnerDisplay))
+        {
+            float w3 = _hitTestPaint.MeasureText(ac.OwnerDisplay);
+            textW = MathF.Max(textW, w3);
+            lineCount = 3;
+        }
+
+        return new SKRect(
+            blockX - DataBlockPad,
+            blockY - _hitTestPaint.TextSize - DataBlockPad,
+            blockX + textW + DataBlockPad,
+            blockY + (lineCount - 1) * lineH + DataBlockPad
+        );
     }
 
     public AircraftModel? FindAircraftAtPoint(Point screenPos)

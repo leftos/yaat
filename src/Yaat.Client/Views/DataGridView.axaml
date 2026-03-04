@@ -58,24 +58,27 @@
                                        Foreground="LightGreen"
                                        FontSize="12" />
                         </StackPanel>
-                        <!-- Navigation Route -->
+                        <!-- Flight Plan -->
                         <StackPanel Orientation="Horizontal"
-                                    IsVisible="{Binding HasNavigationRoute}">
-                            <TextBlock Text="Route"
+                                    IsVisible="{Binding HasFlightPlan}">
+                            <TextBlock Text="FP"
+                                       Width="80"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="12" />
+                            <TextBlock Text="{Binding FlightPlanDisplay}"
+                                       FontFamily="Consolas"
+                                       FontSize="12" />
+                        </StackPanel>
+                        <!-- Navigation Route (only when divergent from filed route) -->
+                        <StackPanel Orientation="Horizontal"
+                                    IsVisible="{Binding ShowNavRoute}">
+                            <TextBlock Text="Nav"
                                        Width="80"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding NavigationRoute}"
-                                       FontSize="12" />
-                        </StackPanel>
-                        <!-- Cruise -->
-                        <StackPanel Orientation="Horizontal"
-                                    IsVisible="{Binding HasCruise}">
-                            <TextBlock Text="Cruise"
-                                       Width="80"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="12" />
-                            <TextBlock Text="{Binding CruiseDisplay}"
+                                       FontFamily="Consolas"
+                                       Foreground="SkyBlue"
                                        FontSize="12" />
                         </StackPanel>
                         <!-- Pending Commands -->

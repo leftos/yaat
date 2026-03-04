@@ -373,6 +373,90 @@ public partial class RadarView
         return results;
     }
 
+    // --- Waypoint condition popup ---
+
+    private Action<string?, string?>? _pendingWaypointConditionAction;
+
+    private void ShowWaypointConditionPopup(string fixName, string? existingAltitude, string? existingCommands, Action<string?, string?> onSubmit)
+    {
+        _pendingWaypointConditionAction = onSubmit;
+        var popup = this.FindControl<Popup>("WaypointConditionPopup");
+        var header = this.FindControl<TextBlock>("WaypointConditionHeader");
+        var altBox = this.FindControl<TextBox>("WaypointConditionAltitude");
+        var cmdBox = this.FindControl<TextBox>("WaypointConditionCommands");
+        if (popup is null || header is null || altBox is null || cmdBox is null)
+        {
+            return;
+        }
+
+        header.Text = $"Conditions at {fixName}";
+        altBox.Text = existingAltitude ?? "";
+        cmdBox.Text = existingCommands ?? "";
+        popup.IsOpen = true;
+        altBox.Focus();
+    }
+
+    private void OnWaypointConditionSubmit(object? sender, RoutedEventArgs e)
+    {
+        SubmitWaypointConditionPopup();
+    }
+
+    private void OnWaypointConditionCancel(object? sender, RoutedEventArgs e)
+    {
+        CloseWaypointConditionPopup();
+    }
+
+    private void OnWaypointConditionClear(object? sender, RoutedEventArgs e)
+    {
+        _pendingWaypointConditionAction?.Invoke(null, null);
+        CloseWaypointConditionPopup();
+    }
+
+    private void OnWaypointConditionKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SubmitWaypointConditionPopup();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseWaypointConditionPopup();
+            e.Handled = true;
+        }
+    }
+
+    private void SubmitWaypointConditionPopup()
+    {
+        var altBox = this.FindControl<TextBox>("WaypointConditionAltitude");
+        var cmdBox = this.FindControl<TextBox>("WaypointConditionCommands");
+        var altitude = altBox?.Text?.Trim();
+        var commands = cmdBox?.Text?.Trim();
+
+        if (string.IsNullOrEmpty(altitude))
+        {
+            altitude = null;
+        }
+
+        if (string.IsNullOrEmpty(commands))
+        {
+            commands = null;
+        }
+
+        _pendingWaypointConditionAction?.Invoke(altitude, commands);
+        CloseWaypointConditionPopup();
+    }
+
+    private void CloseWaypointConditionPopup()
+    {
+        _pendingWaypointConditionAction = null;
+        var popup = this.FindControl<Popup>("WaypointConditionPopup");
+        if (popup is not null)
+        {
+            popup.IsOpen = false;
+        }
+    }
+
     // --- Heading/altitude/route list builders ---
 
     private static IReadOnlyList<object> BuildHeadingList()

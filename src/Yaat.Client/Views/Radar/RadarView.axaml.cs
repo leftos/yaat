@@ -449,13 +449,12 @@ public partial class RadarView : UserControl
         }
 
         var wp = vm.DrawnWaypoints[waypointIndex];
-        ShowInputPopup(
-            $"Command at {wp.ResolvedName}",
-            input =>
-            {
-                vm.SetWaypointCondition(waypointIndex, input);
-                return Task.CompletedTask;
-            }
+        var existing = vm.GetWaypointCondition(waypointIndex);
+        ShowWaypointConditionPopup(
+            wp.ResolvedName,
+            existing?.Altitude,
+            existing?.Commands,
+            (altitude, commands) => vm.SetWaypointCondition(waypointIndex, altitude, commands)
         );
     }
 
@@ -530,6 +529,7 @@ public partial class RadarView : UserControl
         {
             CloseActiveContextMenu();
             CloseInputPopup();
+            CloseWaypointConditionPopup();
             CloseListPopup();
             CloseFilteredListPopup();
         }

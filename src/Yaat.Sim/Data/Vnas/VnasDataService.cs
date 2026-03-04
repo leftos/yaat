@@ -289,6 +289,7 @@ public sealed class VnasDataService : IDisposable
         _logger?.LogInformation("Aircraft categorization initialized: " + "{Count} type mappings", lookup.Count);
 
         InitializeWakeTurbulenceData();
+        InitializeCwtData();
     }
 
     private void InitializeWakeTurbulenceData()
@@ -310,6 +311,27 @@ public sealed class VnasDataService : IDisposable
         WakeTurbulenceData.Initialize(wtgLookup);
 
         _logger?.LogInformation("Wake turbulence data initialized: " + "{Count} WTG mappings", wtgLookup.Count);
+    }
+
+    private void InitializeCwtData()
+    {
+        if (AircraftCwt.Count == 0)
+        {
+            return;
+        }
+
+        var cwtLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in AircraftCwt)
+        {
+            if (!string.IsNullOrEmpty(entry.TypeCode) && !string.IsNullOrEmpty(entry.CwtCode))
+            {
+                cwtLookup.TryAdd(entry.TypeCode, entry.CwtCode);
+            }
+        }
+
+        CwtLookup.Initialize(cwtLookup);
+
+        _logger?.LogInformation("CWT data initialized: " + "{Count} CWT mappings", cwtLookup.Count);
     }
 
     private void LogSummary()

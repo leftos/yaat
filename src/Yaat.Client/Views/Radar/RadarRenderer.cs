@@ -13,7 +13,7 @@ namespace Yaat.Client.Views.Radar;
 public sealed class RadarRenderer : IDisposable
 {
     private static readonly SKColor BackgroundColor = SKColors.Black;
-    private static readonly SKColor FixColor = new(0, 140, 0);
+    private static readonly SKColor FixColor = new(100, 100, 100);
     private readonly VideoMapRenderer _videoMapRenderer = new();
     private readonly TargetRenderer _targetRenderer = new();
 
@@ -21,7 +21,7 @@ public sealed class RadarRenderer : IDisposable
 
     private readonly SKPaint _rangeRingPaint = new()
     {
-        Color = new SKColor(0, 100, 0, 153),
+        Color = new SKColor(100, 100, 100, 153),
         StrokeWidth = 1,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -96,6 +96,14 @@ public sealed class RadarRenderer : IDisposable
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
+    private readonly SKPaint _routeConditionLabelPaint = new()
+    {
+        Color = new SKColor(255, 200, 0, 180),
+        TextSize = 11,
+        IsAntialias = true,
+        Typeface = SKTypeface.FromFamilyName("Consolas"),
+    };
+
     public float BrightnessA
     {
         get => _videoMapRenderer.BrightnessA;
@@ -114,7 +122,7 @@ public sealed class RadarRenderer : IDisposable
         set
         {
             _rangeRingBrightness = value;
-            _rangeRingPaint.Color = new SKColor(0, 100, 0, (byte)(value * 255));
+            _rangeRingPaint.Color = new SKColor(100, 100, 100, (byte)(value * 255));
         }
     }
 
@@ -143,7 +151,9 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlyList<DrawnWaypoint>? drawnWaypoints = null,
         (double Lat, double Lon)? drawRouteOrigin = null,
         (double Lat, double Lon)? rubberBandTarget = null,
-        string? rubberBandLabel = null
+        string? rubberBandLabel = null,
+        IReadOnlyDictionary<int, WaypointCondition>? waypointConditions = null,
+        IReadOnlySet<string>? minifiedCallsigns = null
     )
     {
         canvas.Clear(BackgroundColor);
@@ -167,12 +177,12 @@ public sealed class RadarRenderer : IDisposable
         }
 
         // Aircraft targets
-        _targetRenderer.Render(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, ptlLengthMinutes, ptlOwn, ptlAll);
+        _targetRenderer.Render(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, ptlLengthMinutes, ptlOwn, ptlAll, minifiedCallsigns);
 
         // Drawn route overlay
         if (drawnWaypoints is { Count: > 0 })
         {
-            DrawRouteOverlay(canvas, vp, drawnWaypoints, drawRouteOrigin, rubberBandTarget, rubberBandLabel);
+            DrawRouteOverlay(canvas, vp, drawnWaypoints, drawRouteOrigin, rubberBandTarget, rubberBandLabel, waypointConditions);
         }
         else if (drawRouteOrigin is { } origin && rubberBandTarget is { } target)
         {
@@ -252,7 +262,8 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlyList<DrawnWaypoint> waypoints,
         (double Lat, double Lon)? originLatLon,
         (double Lat, double Lon)? rubberBandTarget,
-        string? rubberBandLabel
+        string? rubberBandLabel,
+        IReadOnlyDictionary<int, WaypointCondition>? waypointConditions = null
     )
     {
         const float waypointSize = 5f;
@@ -288,8 +299,9 @@ public sealed class RadarRenderer : IDisposable
         }
 
         // Diamond markers + labels at each waypoint
-        foreach (var wp in waypoints)
+        for (int i = 0; i < waypoints.Count; i++)
         {
+            var wp = waypoints[i];
             var (sx, sy) = vp.LatLonToScreen(wp.Lat, wp.Lon);
 
             using var path = new SKPath();
@@ -301,6 +313,16 @@ public sealed class RadarRenderer : IDisposable
             canvas.DrawPath(path, _routeWaypointPaint);
 
             canvas.DrawText(wp.ResolvedName, sx + 8, sy - 2, _routeLabelPaint);
+
+            // Show condition summary below the fix name
+            if (waypointConditions is not null && waypointConditions.TryGetValue(i, out var cond))
+            {
+                var summary = cond.ToSummary();
+                if (summary.Length > 0)
+                {
+                    canvas.DrawText(summary, sx + 8, sy + 11, _routeConditionLabelPaint);
+                }
+            }
         }
     }
 
@@ -335,5 +357,6 @@ public sealed class RadarRenderer : IDisposable
         _rubberBandPaint.Dispose();
         _routeWaypointPaint.Dispose();
         _routeLabelPaint.Dispose();
+        _routeConditionLabelPaint.Dispose();
     }
 }

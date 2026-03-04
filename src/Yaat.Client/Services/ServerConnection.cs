@@ -411,7 +411,10 @@ public record AircraftDto(
     int? TemporaryAltitude = null,
     bool IsAnnotated = false,
     string? ActiveApproachId = null,
-    string? ExpectedApproach = null
+    string? ExpectedApproach = null,
+    string CwtCode = "",
+    string ActiveSidId = "",
+    string ActiveStarId = ""
 );
 
 public record LoadScenarioResultDto(

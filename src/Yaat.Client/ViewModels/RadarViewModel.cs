@@ -169,9 +169,12 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<DrawnWaypoint>? _drawnWaypoints;
 
+    [ObservableProperty]
+    private IReadOnlyDictionary<int, WaypointCondition>? _waypointConditionsSnapshot;
+
     private string? _drawRouteCallsign;
     private readonly List<DrawnWaypoint> _drawnWaypointsMutable = [];
-    private readonly Dictionary<int, string> _waypointConditions = new();
+    private readonly Dictionary<int, WaypointCondition> _waypointConditions = new();
 
     public ObservableCollection<VideoMapToggleItem> MapToggles { get; } = [];
 
@@ -1169,7 +1172,7 @@ public partial class RadarViewModel : ObservableObject
         }
 
         // Remove conditions that referenced this index, shift higher indices down
-        var newConditions = new Dictionary<int, string>();
+        var newConditions = new Dictionary<int, WaypointCondition>();
         foreach (var (idx, cond) in _waypointConditions)
         {
             if (idx < index)
@@ -1218,16 +1221,23 @@ public partial class RadarViewModel : ObservableObject
         IsDrawingRoute = false;
     }
 
-    public void SetWaypointCondition(int index, string? condition)
+    public void SetWaypointCondition(int index, string? altitude, string? commands)
     {
-        if (string.IsNullOrWhiteSpace(condition))
+        if (string.IsNullOrWhiteSpace(altitude) && string.IsNullOrWhiteSpace(commands))
         {
             _waypointConditions.Remove(index);
         }
         else
         {
-            _waypointConditions[index] = condition.Trim();
+            _waypointConditions[index] = new WaypointCondition(altitude?.Trim(), commands?.Trim());
         }
+
+        WaypointConditionsSnapshot = _waypointConditions.Count > 0 ? new Dictionary<int, WaypointCondition>(_waypointConditions) : null;
+    }
+
+    public WaypointCondition? GetWaypointCondition(int index)
+    {
+        return _waypointConditions.GetValueOrDefault(index);
     }
 
     public async Task ConfirmDrawRouteAsync(string initials)
@@ -1251,9 +1261,27 @@ public partial class RadarViewModel : ObservableObject
 
         foreach (var (index, condition) in _waypointConditions.OrderBy(kv => kv.Key))
         {
-            if (index < _drawnWaypointsMutable.Count)
+            if (index >= _drawnWaypointsMutable.Count)
             {
-                parts.Add($"AT {_drawnWaypointsMutable[index].ResolvedName} {condition}");
+                continue;
+            }
+
+            var fixName = _drawnWaypointsMutable[index].ResolvedName;
+            var atParts = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(condition.Altitude))
+            {
+                atParts.Add($"CFIX {condition.Altitude}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(condition.Commands))
+            {
+                atParts.Add(condition.Commands);
+            }
+
+            if (atParts.Count > 0)
+            {
+                parts.Add($"AT {fixName} {string.Join(",", atParts)}");
             }
         }
 
@@ -1265,6 +1293,31 @@ public partial class RadarViewModel : ObservableObject
 /// A drawn waypoint in route drawing mode.
 /// </summary>
 public record DrawnWaypoint(string ResolvedName, double Lat, double Lon);
+
+/// <summary>
+/// Condition applied to a drawn route waypoint (crossing altitude and/or AT commands).
+/// </summary>
+public record WaypointCondition(string? Altitude, string? Commands)
+{
+    /// <summary>
+    /// Returns a compact summary for rendering on the map (e.g. "A100 SPD250").
+    /// </summary>
+    public string ToSummary()
+    {
+        var parts = new List<string>(2);
+        if (!string.IsNullOrWhiteSpace(Altitude))
+        {
+            parts.Add(Altitude);
+        }
+
+        if (!string.IsNullOrWhiteSpace(Commands))
+        {
+            parts.Add(Commands.Replace(" ", ""));
+        }
+
+        return string.Join(" ", parts);
+    }
+}
 
 /// <summary>
 /// A video map with an on/off toggle for the map selection list.

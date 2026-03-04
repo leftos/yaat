@@ -10,9 +10,11 @@ namespace Yaat.Client.Views.Radar;
 /// </summary>
 public sealed class VideoMapRenderer : IDisposable
 {
+    private static readonly SKColor BaseMapColor = new(160, 160, 160);
+
     private readonly SKPaint _mapPaintA = new()
     {
-        Color = new SKColor(0, 184, 0),
+        Color = BaseMapColor,
         StrokeWidth = 1,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -20,7 +22,7 @@ public sealed class VideoMapRenderer : IDisposable
 
     private readonly SKPaint _mapPaintB = new()
     {
-        Color = new SKColor(0, 184, 0, 128),
+        Color = BaseMapColor.WithAlpha(128),
         StrokeWidth = 1,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -37,7 +39,7 @@ public sealed class VideoMapRenderer : IDisposable
             var paint = category == "B" ? _mapPaintB : _mapPaintA;
 
             var brightness = category == "B" ? BrightnessB : BrightnessA;
-            paint.Color = new SKColor(0, 184, 0, (byte)(brightness * 255));
+            paint.Color = BaseMapColor.WithAlpha((byte)(brightness * 255));
 
             foreach (var line in map.Lines)
             {

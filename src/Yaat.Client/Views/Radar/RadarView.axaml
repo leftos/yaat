@@ -440,7 +440,8 @@
                                PtlAll="{Binding PtlAll}"
                                ProgrammedFixNames="{Binding ProgrammedFixNames}"
                                IsDrawingRoute="{Binding IsDrawingRoute}"
-                               DrawnWaypoints="{Binding DrawnWaypoints}" />
+                               DrawnWaypoints="{Binding DrawnWaypoints}"
+                               WaypointConditions="{Binding WaypointConditionsSnapshot}" />
 
             <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
             <Popup x:Name="MapPopup"
@@ -488,6 +489,28 @@
                             <Button Content="Cancel"
                                     Click="OnInputPopupCancel"
                                     Padding="8,2" FontSize="11" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Popup>
+
+            <!-- Waypoint condition popup (altitude + commands for draw route waypoints) -->
+            <Popup x:Name="WaypointConditionPopup"
+                   IsLightDismissEnabled="True"
+                   PlacementTarget="{Binding #Canvas}"
+                   Placement="Pointer">
+                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="8" CornerRadius="2">
+                    <StackPanel Spacing="6" Width="280">
+                        <TextBlock x:Name="WaypointConditionHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
+                        <TextBlock Text="Crossing altitude" FontSize="11" Foreground="#999" />
+                        <TextBox x:Name="WaypointConditionAltitude" Watermark="e.g. 100, A100, B100" FontSize="12" FontFamily="Consolas" KeyDown="OnWaypointConditionKeyDown" />
+                        <TextBlock Text="A=at or above, B=at or below, plain=exact. Hundreds of feet." FontSize="10" Foreground="#777" TextWrapping="Wrap" />
+                        <TextBlock Text="Commands (executed as AT condition)" FontSize="11" Foreground="#999" Margin="0,4,0,0" />
+                        <TextBox x:Name="WaypointConditionCommands" Watermark="e.g. SPD 250, FH 270" FontSize="12" FontFamily="Consolas" KeyDown="OnWaypointConditionKeyDown" />
+                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
+                            <Button Content="OK" Click="OnWaypointConditionSubmit" Padding="8,2" FontSize="11" />
+                            <Button Content="Clear" Click="OnWaypointConditionClear" Padding="8,2" FontSize="11" />
+                            <Button Content="Cancel" Click="OnWaypointConditionCancel" Padding="8,2" FontSize="11" />
                         </StackPanel>
                     </StackPanel>
                 </Border>

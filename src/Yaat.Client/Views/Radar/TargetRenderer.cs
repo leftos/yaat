@@ -11,9 +11,8 @@ namespace Yaat.Client.Views.Radar;
 /// </summary>
 public sealed class TargetRenderer : IDisposable
 {
-    private static readonly SKColor OwnedColor = SKColors.White;
-    private static readonly SKColor UnownedColor = new(0, 184, 0);
-    private static readonly SKColor HandoffColor = new(0, 200, 255);
+    private static readonly SKColor SymbolColor = new(0, 176, 255);
+    private static readonly SKColor DataBlockColor = SKColors.White;
     private static readonly SKColor SelectedColor = new(255, 255, 255);
     private static readonly SKColor HistoryColor = new(0, 100, 0);
 
@@ -65,7 +64,8 @@ public sealed class TargetRenderer : IDisposable
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
         double ptlLengthMinutes = 0,
         bool ptlOwn = false,
-        bool ptlAll = false
+        bool ptlAll = false,
+        IReadOnlySet<string>? minifiedCallsigns = null
     )
     {
         foreach (var ac in aircraft)
@@ -73,15 +73,17 @@ public sealed class TargetRenderer : IDisposable
             var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
 
             bool isSelected = ac == selectedAircraft;
-            var color = GetTargetColor(ac, isSelected);
+            var symbolColor = isSelected ? SelectedColor : SymbolColor;
+            var dbColor = isSelected ? SelectedColor : DataBlockColor;
+            bool isMinified = minifiedCallsigns is not null && minifiedCallsigns.Contains(ac.Callsign);
 
             if (ptlLengthMinutes > 0 && ShouldShowPtl(ac, ptlOwn, ptlAll))
             {
-                DrawPtlLine(canvas, vp, sx, sy, ac, color, ptlLengthMinutes);
+                DrawPtlLine(canvas, vp, sx, sy, ac, dbColor, ptlLengthMinutes);
             }
 
-            DrawPositionSymbol(canvas, sx, sy, color);
-            DrawLeaderAndDataBlock(canvas, sx, sy, ac, color, dataBlockOffsets);
+            DrawPositionSymbol(canvas, sx, sy, symbolColor);
+            DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, isMinified);
         }
     }
 
@@ -110,32 +112,9 @@ public sealed class TargetRenderer : IDisposable
         return ptlOwn && !string.IsNullOrEmpty(ac.Owner);
     }
 
-    private static SKColor GetTargetColor(AircraftModel ac, bool isSelected)
-    {
-        if (isSelected)
-        {
-            return SelectedColor;
-        }
-
-        // Simple ownership heuristic: if has owner, it's "owned"
-        if (!string.IsNullOrEmpty(ac.HandoffDisplay))
-        {
-            return HandoffColor;
-        }
-
-        if (!string.IsNullOrEmpty(ac.OwnerDisplay))
-        {
-            return OwnedColor;
-        }
-
-        return UnownedColor;
-    }
-
     private void DrawPositionSymbol(SKCanvas canvas, float cx, float cy, SKColor color)
     {
         _symbolPaint.Color = color;
-
-        // Draw a small circle (primary radar return symbol)
         canvas.DrawCircle(cx, cy, SymbolSize, _symbolPaint);
     }
 
@@ -145,7 +124,8 @@ public sealed class TargetRenderer : IDisposable
         float cy,
         AircraftModel ac,
         SKColor color,
-        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets
+        IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
+        bool isMinified
     )
     {
         SKPoint offset = new(28, -28);
@@ -158,27 +138,71 @@ public sealed class TargetRenderer : IDisposable
         float blockY = cy + offset.Y;
 
         _dataBlockPaint.Color = color;
-        string line1 = ac.Callsign;
-        var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
-        var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
-        string line2 = $"{altHundreds} {spdTens}";
-
-        float w1 = _dataBlockPaint.MeasureText(line1);
-        float w2 = _dataBlockPaint.MeasureText(line2);
-        float textW = MathF.Max(w1, w2);
         float lineH = _dataBlockPaint.TextSize + 2;
 
-        const float pad = 3f;
-        var blockRect = new SKRect(blockX - pad, blockY - _dataBlockPaint.TextSize - pad, blockX + textW + pad, blockY + lineH + pad);
+        var altHundreds = ((int)ac.Altitude / 100).ToString("D3");
+        var cwt = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
 
-        canvas.DrawRect(blockRect, _dataBlockBgPaint);
+        if (isMinified)
+        {
+            // Minified: single line with altitude + CWT
+            string miniLine = cwt.Length > 0 ? $"{altHundreds} {cwt}" : altHundreds;
+            float miniW = _dataBlockPaint.MeasureText(miniLine);
 
-        var leaderEnd = ClampToBlockEdge(cx, cy, blockRect);
-        _leaderPaint.Color = color;
-        canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
+            const float pad = 3f;
+            var blockRect = new SKRect(blockX - pad, blockY - _dataBlockPaint.TextSize - pad, blockX + miniW + pad, blockY + pad);
 
-        canvas.DrawText(line1, blockX, blockY, _dataBlockPaint);
-        canvas.DrawText(line2, blockX, blockY + lineH, _dataBlockPaint);
+            canvas.DrawRect(blockRect, _dataBlockBgPaint);
+
+            var leaderEnd = ClampToBlockEdge(cx, cy, blockRect);
+            _leaderPaint.Color = color;
+            canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
+
+            canvas.DrawText(miniLine, blockX, blockY, _dataBlockPaint);
+        }
+        else
+        {
+            // Full datablock: line1 = callsign, line2 = alt speed CWT, line3 = owner TCP (if present)
+            string line1 = ac.Callsign;
+            var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
+            string line2 = cwt.Length > 0 ? $"{altHundreds} {spdTens} {cwt}" : $"{altHundreds} {spdTens}";
+
+            float w1 = _dataBlockPaint.MeasureText(line1);
+            float w2 = _dataBlockPaint.MeasureText(line2);
+            float textW = MathF.Max(w1, w2);
+            int lineCount = 2;
+
+            string? line3 = null;
+            if (!string.IsNullOrEmpty(ac.OwnerDisplay))
+            {
+                line3 = ac.OwnerDisplay;
+                float w3 = _dataBlockPaint.MeasureText(line3);
+                textW = MathF.Max(textW, w3);
+                lineCount = 3;
+            }
+
+            const float pad = 3f;
+            var blockRect = new SKRect(
+                blockX - pad,
+                blockY - _dataBlockPaint.TextSize - pad,
+                blockX + textW + pad,
+                blockY + (lineCount - 1) * lineH + pad
+            );
+
+            canvas.DrawRect(blockRect, _dataBlockBgPaint);
+
+            var leaderEnd = ClampToBlockEdge(cx, cy, blockRect);
+            _leaderPaint.Color = color;
+            canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
+
+            canvas.DrawText(line1, blockX, blockY, _dataBlockPaint);
+            canvas.DrawText(line2, blockX, blockY + lineH, _dataBlockPaint);
+
+            if (line3 is not null)
+            {
+                canvas.DrawText(line3, blockX, blockY + 2 * lineH, _dataBlockPaint);
+            }
+        }
     }
 
     private static SKPoint ClampToBlockEdge(float pointX, float pointY, SKRect rect)

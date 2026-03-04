@@ -11,6 +11,7 @@ public partial class AircraftModel : ObservableObject
     private string _callsign = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
     private string _aircraftType = "";
 
     [ObservableProperty]
@@ -57,15 +58,23 @@ public partial class AircraftModel : ObservableObject
     private double? _assignedSpeed;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(HasFlightPlan))]
     private string _departure = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(HasFlightPlan))]
     private string _destination = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(HasFlightPlan))]
+    [NotifyPropertyChangedFor(nameof(ShowNavRoute))]
     private string _route = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
     private string _flightRules = "IFR";
 
     [ObservableProperty]
@@ -132,18 +141,33 @@ public partial class AircraftModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNavigationRoute))]
+    [NotifyPropertyChangedFor(nameof(ShowNavRoute))]
     private string _navigationRoute = "";
 
     [ObservableProperty]
     private string _equipmentSuffix = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(HasFlightPlan))]
+    [NotifyPropertyChangedFor(nameof(ShowNavRoute))]
+    private string _activeSidId = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(HasFlightPlan))]
+    [NotifyPropertyChangedFor(nameof(ShowNavRoute))]
+    private string _activeStarId = "";
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
     [NotifyPropertyChangedFor(nameof(HasCruise))]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
     private int _cruiseAltitude;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
+    [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
     private int _cruiseSpeed;
 
     public bool HasPhases => !string.IsNullOrEmpty(PhaseSequence);
@@ -205,6 +229,74 @@ public partial class AircraftModel : ObservableObject
     public string PatternDisplay => string.IsNullOrEmpty(PatternDirection) ? "" : $"{PatternDirection} traffic";
 
     public bool HasNavigationRoute => !string.IsNullOrEmpty(NavigationRoute);
+
+    public bool HasFlightPlan => !string.IsNullOrEmpty(Route) || !string.IsNullOrEmpty(Departure) || !string.IsNullOrEmpty(Destination);
+
+    public string FlightPlanDisplay
+    {
+        get
+        {
+            var parts = new System.Collections.Generic.List<string>(4);
+
+            if (!string.IsNullOrEmpty(FlightRules) || !string.IsNullOrEmpty(AircraftType))
+            {
+                parts.Add($"{FlightRules} {AircraftType}".Trim());
+            }
+
+            if (!string.IsNullOrEmpty(Departure) || !string.IsNullOrEmpty(Destination))
+            {
+                parts.Add($"{Departure}-{Destination}");
+            }
+
+            if (CruiseAltitude > 0)
+            {
+                var altStr = CruiseAltitude >= 18000 ? $"FL{CruiseAltitude / 100}" : $"{CruiseAltitude}";
+                parts.Add(CruiseSpeed > 0 ? $"{altStr}/{CruiseSpeed}kt" : altStr);
+            }
+
+            if (!string.IsNullOrEmpty(ActiveSidId))
+            {
+                parts.Add($"SID:{ActiveSidId}");
+            }
+            if (!string.IsNullOrEmpty(ActiveStarId))
+            {
+                parts.Add($"STAR:{ActiveStarId}");
+            }
+
+            var header = string.Join("  ", parts);
+            return string.IsNullOrEmpty(Route) ? header : $"{header}\n{Route}";
+        }
+    }
+
+    public bool ShowNavRoute => HasNavigationRoute && !IsNavRouteOnFiledRoute();
+
+    private bool IsNavRouteOnFiledRoute()
+    {
+        if (string.IsNullOrEmpty(NavigationRoute) || string.IsNullOrEmpty(Route))
+        {
+            return false;
+        }
+
+        var routeFixes = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var token in Route.Split(['.', ' '], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (token.Length >= 2 && "VJTQ".Contains(token[0]) && char.IsDigit(token[1]))
+            {
+                continue;
+            }
+            routeFixes.Add(token);
+        }
+
+        var navFixes = NavigationRoute.Split(" > ", StringSplitOptions.RemoveEmptyEntries);
+        foreach (var fix in navFixes)
+        {
+            if (!routeFixes.Contains(fix))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
     public bool HasCruise => CruiseAltitude > 0;
 
@@ -274,6 +366,9 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private string? _expectedApproach;
 
+    [ObservableProperty]
+    private string _cwtCode = "";
+
     public string OwnerDisplay => OwnerSectorCode ?? Owner ?? "";
 
     public string HandoffDisplay => HandoffPeerSectorCode ?? HandoffPeer ?? "";
@@ -337,6 +432,9 @@ public partial class AircraftModel : ObservableObject
             IsAnnotated = dto.IsAnnotated,
             ActiveApproachId = dto.ActiveApproachId,
             ExpectedApproach = dto.ExpectedApproach,
+            CwtCode = dto.CwtCode,
+            ActiveSidId = dto.ActiveSidId,
+            ActiveStarId = dto.ActiveStarId,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         return model;
@@ -388,6 +486,9 @@ public partial class AircraftModel : ObservableObject
         IsAnnotated = dto.IsAnnotated;
         ActiveApproachId = dto.ActiveApproachId;
         ExpectedApproach = dto.ExpectedApproach;
+        CwtCode = dto.CwtCode;
+        ActiveSidId = dto.ActiveSidId;
+        ActiveStarId = dto.ActiveStarId;
         DistanceFromFix = computeDistance?.Invoke(this);
     }
 
