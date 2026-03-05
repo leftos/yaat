@@ -12,7 +12,7 @@ public record CompoundParseResult(string CanonicalString);
 
 public static class CommandSchemeParser
 {
-    private static readonly HashSet<string> PassthroughVerbs = new(StringComparer.OrdinalIgnoreCase) { "LV", "AT" };
+    private static readonly HashSet<string> PassthroughVerbs = new(StringComparer.OrdinalIgnoreCase) { "LV", "AT", "ATFN" };
 
     /// <summary>
     /// Returns true if the argument is a valid altitude: numeric (e.g., "050", "5000")
@@ -41,7 +41,7 @@ public static class CommandSchemeParser
     /// </summary>
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme)
     {
-        var trimmed = input.Trim();
+        var trimmed = ExpandSpeedUntil(input.Trim());
         if (string.IsNullOrEmpty(trimmed))
         {
             return null;
@@ -51,7 +51,12 @@ public static class CommandSchemeParser
         var upper = trimmed.ToUpperInvariant();
         if (!isCompound)
         {
-            isCompound = upper.StartsWith("LV ") || upper.StartsWith("AT ") || upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ");
+            isCompound =
+                upper.StartsWith("LV ")
+                || upper.StartsWith("AT ")
+                || upper.StartsWith("ATFN ")
+                || upper.StartsWith("GIVEWAY ")
+                || upper.StartsWith("BEHIND ");
         }
 
         if (!isCompound)
@@ -127,6 +132,22 @@ public static class CommandSchemeParser
             }
 
             parts.Add($"AT {tokens[1].ToUpperInvariant()}");
+            remaining = tokens[2];
+        }
+        else if (upper.StartsWith("ATFN "))
+        {
+            var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 3)
+            {
+                return null;
+            }
+
+            if (!double.TryParse(tokens[1], out _))
+            {
+                return null;
+            }
+
+            parts.Add($"ATFN {tokens[1]}");
             remaining = tokens[2];
         }
         else if (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND "))
@@ -483,6 +504,61 @@ public static class CommandSchemeParser
         // Remaining tokens are the path [HS ...]
         var remaining = string.Join(" ", tokens[startIdx..]);
         return $"{remaining} RWY {runway}";
+    }
+
+    /// <summary>
+    /// Expands "SPD X UNTIL Y" shorthand to "SPD X; ATFN Y RNS" within each semicolon-separated block.
+    /// Handles chained UNTIL: "SPD 210 UNTIL 10; SPD 180 UNTIL 5" → "SPD 210; ATFN 10 SPD 180; ATFN 5 RNS".
+    /// </summary>
+    internal static string ExpandSpeedUntil(string input)
+    {
+        // Split by semicolons to process blocks independently
+        var blocks = input.Split(';');
+        var result = new List<string>();
+
+        for (int i = 0; i < blocks.Length; i++)
+        {
+            var block = blocks[i].Trim();
+            var upper = block.ToUpperInvariant();
+
+            // Match "SPD X UNTIL Y" pattern (with optional +/- modifier on X)
+            var match = System.Text.RegularExpressions.Regex.Match(upper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+(\d+(?:\.\d+)?)$");
+            if (!match.Success)
+            {
+                result.Add(block);
+                continue;
+            }
+
+            var spdPart = block[..match.Groups[1].Length].Trim();
+            var distPart = match.Groups[2].Value;
+
+            // Look at the next block to determine what happens at the ATFN distance
+            string atfnCommand;
+            if (i + 1 < blocks.Length)
+            {
+                var nextBlock = blocks[i + 1].Trim();
+                var nextUpper = nextBlock.ToUpperInvariant();
+                var nextMatch = System.Text.RegularExpressions.Regex.Match(nextUpper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+(\d+(?:\.\d+)?)$");
+                if (nextMatch.Success)
+                {
+                    // Chain: "SPD 210 UNTIL 10; SPD 180 UNTIL 5" → "SPD 210; ATFN 10 SPD 180; ATFN 5 RNS"
+                    var nextSpdPart = blocks[i + 1].Trim()[..nextMatch.Groups[1].Length].Trim();
+                    var nextDistPart = nextMatch.Groups[2].Value;
+                    result.Add(spdPart);
+                    result.Add($"ATFN {distPart} {nextSpdPart}");
+                    result.Add($"ATFN {nextDistPart} RNS");
+                    i++; // skip the next block, we consumed it
+                    continue;
+                }
+            }
+
+            // Single UNTIL: "SPD 210 UNTIL 10" → "SPD 210; ATFN 10 RNS"
+            atfnCommand = "RNS";
+            result.Add(spdPart);
+            result.Add($"ATFN {distPart} {atfnCommand}");
+        }
+
+        return string.Join("; ", result);
     }
 
     private static string? NormalizeDelayArg(string? arg)

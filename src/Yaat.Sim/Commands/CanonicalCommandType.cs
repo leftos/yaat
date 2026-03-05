@@ -145,6 +145,8 @@ public enum CanonicalCommandType
     ClearedVisualApproach,
     ReportFieldInSight,
     ReportTrafficInSight,
+    ResumeNormalSpeed,
+    DeleteSpeedRestrictions,
 
     // Consolidation
     Consolidate,

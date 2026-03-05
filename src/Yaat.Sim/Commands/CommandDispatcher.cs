@@ -87,6 +87,11 @@ public static class CommandDispatcher
                 blockDesc = $"giveway {gw.TargetCallsign}: {blockDesc}";
                 blockMsg = $"After {gw.TargetCallsign} passes: {blockMsg}";
             }
+            else if (parsedBlock.Condition is DistanceFinalCondition df)
+            {
+                blockDesc = $"at {df.DistanceNm}nm final: {blockDesc}";
+                blockMsg = $"At {df.DistanceNm}nm final: {blockMsg}";
+            }
 
             var waitTime = parsedBlock.Commands.OfType<WaitCommand>().FirstOrDefault();
             var waitDist = parsedBlock.Commands.OfType<WaitDistanceCommand>().FirstOrDefault();
@@ -237,10 +242,36 @@ public static class CommandDispatcher
 
             case SpeedCommand cmd:
             {
-                aircraft.Targets.TargetSpeed = cmd.Speed == 0 ? null : cmd.Speed;
-                if (cmd.Speed == 0)
+                // Reject speed commands inside 5nm final per §5-7-1.a.2.d
+                if (!aircraft.IsOnGround && aircraft.Phases?.AssignedRunway is { } spdRwy)
                 {
-                    return Ok("Resume normal speed");
+                    double spdDist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, spdRwy.ThresholdLatitude, spdRwy.ThresholdLongitude);
+                    if (spdDist <= 5.0)
+                    {
+                        return new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.a.2.d]");
+                    }
+                }
+
+                // Any SPD command clears DSR flag
+                aircraft.SpeedRestrictionsDeleted = false;
+
+                switch (cmd.Modifier)
+                {
+                    case SpeedModifier.Floor:
+                        aircraft.Targets.SpeedFloor = cmd.Speed;
+                        aircraft.Targets.SpeedCeiling = null;
+                        aircraft.Targets.TargetSpeed = null;
+                        break;
+                    case SpeedModifier.Ceiling:
+                        aircraft.Targets.SpeedCeiling = cmd.Speed;
+                        aircraft.Targets.SpeedFloor = null;
+                        aircraft.Targets.TargetSpeed = null;
+                        break;
+                    default:
+                        aircraft.Targets.TargetSpeed = cmd.Speed;
+                        aircraft.Targets.SpeedFloor = null;
+                        aircraft.Targets.SpeedCeiling = null;
+                        break;
                 }
 
                 // Helicopter min radar speed warning per §5-7-3.e.5
@@ -250,7 +281,29 @@ public static class CommandDispatcher
                     aircraft.PendingWarnings.Add($"Speed {cmd.Speed} below helicopter minimum 60 KIAS [7110.65 §5-7-3.e.5]");
                 }
 
-                return Ok($"Speed {cmd.Speed}");
+                return cmd.Modifier switch
+                {
+                    SpeedModifier.Floor => Ok($"Maintain {cmd.Speed} knots or greater"),
+                    SpeedModifier.Ceiling => Ok($"Do not exceed {cmd.Speed} knots"),
+                    _ => Ok($"Speed {cmd.Speed}"),
+                };
+            }
+
+            case ResumeNormalSpeedCommand:
+            {
+                aircraft.Targets.TargetSpeed = null;
+                aircraft.Targets.SpeedFloor = null;
+                aircraft.Targets.SpeedCeiling = null;
+                return Ok("Resume normal speed");
+            }
+
+            case DeleteSpeedRestrictionsCommand:
+            {
+                aircraft.Targets.TargetSpeed = null;
+                aircraft.Targets.SpeedFloor = null;
+                aircraft.Targets.SpeedCeiling = null;
+                aircraft.SpeedRestrictionsDeleted = true;
+                return Ok("Speed restrictions deleted");
             }
 
             case DirectToCommand cmd:
@@ -1549,6 +1602,8 @@ public static class CommandDispatcher
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.a.4
         aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.SpeedFloor = null;
+        aircraft.Targets.SpeedCeiling = null;
 
         // Clear existing phases
         if (aircraft.Phases is not null && logger is not null)
@@ -1694,6 +1749,7 @@ public static class CommandDispatcher
 
         aircraft.SidViaMode = true;
         aircraft.SidViaCeiling = cmd.Altitude;
+        aircraft.SpeedRestrictionsDeleted = false;
 
         if (cmd.Altitude is not null)
         {
@@ -1712,6 +1768,7 @@ public static class CommandDispatcher
 
         aircraft.StarViaMode = true;
         aircraft.StarViaFloor = cmd.Altitude;
+        aircraft.SpeedRestrictionsDeleted = false;
 
         if (cmd.Altitude is not null)
         {
@@ -1847,6 +1904,7 @@ public static class CommandDispatcher
                 FixLon = at.Lon,
             },
             GiveWayCondition gw => new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = gw.TargetCallsign },
+            DistanceFinalCondition df => new BlockTrigger { Type = BlockTriggerType.DistanceFinal, DistanceFinalNm = df.DistanceNm },
             _ => null,
         };
     }

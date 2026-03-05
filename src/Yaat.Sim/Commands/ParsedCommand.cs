@@ -20,7 +20,18 @@ public record ClimbMaintainCommand(int Altitude) : ParsedCommand;
 
 public record DescendMaintainCommand(int Altitude) : ParsedCommand;
 
-public record SpeedCommand(int Speed) : ParsedCommand;
+public enum SpeedModifier
+{
+    None,
+    Floor,
+    Ceiling,
+}
+
+public record SpeedCommand(int Speed, SpeedModifier Modifier = SpeedModifier.None) : ParsedCommand;
+
+public record ResumeNormalSpeedCommand : ParsedCommand;
+
+public record DeleteSpeedRestrictionsCommand : ParsedCommand;
 
 public record SquawkCommand(uint Code) : ParsedCommand;
 
@@ -212,6 +223,8 @@ public record LevelCondition(int Altitude) : BlockCondition;
 public record AtFixCondition(string FixName, double Lat, double Lon, int? Radial = null, int? Distance = null) : BlockCondition;
 
 public record GiveWayCondition(string TargetCallsign) : BlockCondition;
+
+public record DistanceFinalCondition(double DistanceNm) : BlockCondition;
 
 // Track operations commands
 public record SetActivePositionCommand(string TcpCode) : ParsedCommand;

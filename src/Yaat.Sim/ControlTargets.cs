@@ -39,6 +39,12 @@ public class ControlTargets
     /// </summary>
     public double? TargetSpeed { get; set; }
 
+    /// <summary>Minimum IAS in knots (speed floor, "maintain X or greater"). Enforced continuously.</summary>
+    public double? SpeedFloor { get; set; }
+
+    /// <summary>Maximum IAS in knots (speed ceiling, "do not exceed X"). Enforced continuously.</summary>
+    public double? SpeedCeiling { get; set; }
+
     /// <summary>
     /// Waypoint queue for DCT (direct-to) navigation.
     /// The aircraft steers toward the first waypoint; when reached,

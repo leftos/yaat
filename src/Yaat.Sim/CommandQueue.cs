@@ -7,6 +7,7 @@ public enum BlockTriggerType
     InterceptRadial,
     ReachFrdPoint,
     GiveWay,
+    DistanceFinal,
 }
 
 public class BlockTrigger
@@ -25,6 +26,9 @@ public class BlockTrigger
     /// Target aircraft callsign for GiveWay triggers.
     /// </summary>
     public string? TargetCallsign { get; init; }
+
+    /// <summary>Distance from runway threshold in nm for DistanceFinal triggers.</summary>
+    public double? DistanceFinalNm { get; init; }
 }
 
 public enum TrackedCommandType

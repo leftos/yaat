@@ -39,6 +39,7 @@ public static class FlightPhysics
         UpdateHeading(aircraft, cat, deltaSeconds);
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
+        AutoCancelSpeedAtFinal(aircraft);
         UpdatePosition(aircraft, deltaSeconds, weather);
         UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
     }
@@ -117,7 +118,7 @@ public static class FlightPhysics
             }
         }
 
-        if (target.SpeedRestriction is { } spd)
+        if (target.SpeedRestriction is { } spd && !aircraft.SpeedRestrictionsDeleted)
         {
             double targetSpeed = spd.SpeedKts;
 
@@ -125,6 +126,17 @@ public static class FlightPhysics
             if (!aircraft.IsOnGround && aircraft.Altitude < 10_000)
             {
                 targetSpeed = Math.Min(targetSpeed, 250);
+            }
+
+            // Clamp via-mode speed to active floor/ceiling
+            if (aircraft.Targets.SpeedFloor is { } floor)
+            {
+                targetSpeed = Math.Max(targetSpeed, floor);
+            }
+
+            if (aircraft.Targets.SpeedCeiling is { } ceiling)
+            {
+                targetSpeed = Math.Min(targetSpeed, ceiling);
             }
 
             aircraft.Targets.TargetSpeed = targetSpeed;
@@ -283,6 +295,31 @@ public static class FlightPhysics
 
     private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
+        bool below10k = !aircraft.IsOnGround && aircraft.Altitude < 10_000;
+
+        // Floor/ceiling enforcement: if IAS violates a floor or ceiling, create a target to correct it.
+        if (aircraft.Targets.TargetSpeed is null)
+        {
+            double effectiveFloor = aircraft.Targets.SpeedFloor ?? 0;
+            double effectiveCeiling = aircraft.Targets.SpeedCeiling ?? double.MaxValue;
+
+            // 14 CFR 91.117: cap effective floor at 250 below 10,000 ft.
+            if (below10k)
+            {
+                effectiveFloor = Math.Min(effectiveFloor, 250);
+                effectiveCeiling = Math.Min(effectiveCeiling, 250);
+            }
+
+            if (aircraft.Targets.SpeedFloor is not null && aircraft.IndicatedAirspeed < effectiveFloor)
+            {
+                aircraft.Targets.TargetSpeed = effectiveFloor;
+            }
+            else if (aircraft.Targets.SpeedCeiling is not null && aircraft.IndicatedAirspeed > effectiveCeiling)
+            {
+                aircraft.Targets.TargetSpeed = effectiveCeiling;
+            }
+        }
+
         var target = aircraft.Targets.TargetSpeed;
         if (target is null)
         {
@@ -300,7 +337,7 @@ public static class FlightPhysics
         }
 
         // 14 CFR 91.117: max 250 KIAS below 10,000 ft MSL when airborne.
-        if (!aircraft.IsOnGround && aircraft.Altitude < 10_000)
+        if (below10k)
         {
             goal = Math.Min(goal, 250);
         }
@@ -513,6 +550,7 @@ public static class FlightPhysics
                 && trigger.TargetLon.HasValue
                 && GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.TargetLat.Value, trigger.TargetLon.Value) < FrdArrivalNm,
             BlockTriggerType.GiveWay => IsGiveWayMet(aircraft, trigger, aircraftLookup),
+            BlockTriggerType.DistanceFinal => IsDistanceFinalMet(aircraft, trigger),
             _ => true,
         };
     }
@@ -567,6 +605,55 @@ public static class FlightPhysics
 
         // Neither same nor opposite — no conflict
         return true;
+    }
+
+    private static bool IsDistanceFinalMet(AircraftState aircraft, BlockTrigger trigger)
+    {
+        if (trigger.DistanceFinalNm is not { } distNm)
+        {
+            return false;
+        }
+
+        var runway = aircraft.Phases?.AssignedRunway;
+        if (runway is null)
+        {
+            return false;
+        }
+
+        double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.ThresholdLatitude, runway.ThresholdLongitude);
+        return dist <= distNm;
+    }
+
+    /// <summary>
+    /// Auto-cancel ATC speed restrictions at 5nm final per 7110.65 §5-7-1.a.2.d.
+    /// Called from Update() after UpdateSpeed().
+    /// </summary>
+    private static void AutoCancelSpeedAtFinal(AircraftState aircraft)
+    {
+        if (aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        var runway = aircraft.Phases?.AssignedRunway;
+        if (runway is null)
+        {
+            return;
+        }
+
+        // Only clear if there's something to clear
+        if (aircraft.Targets.TargetSpeed is null && aircraft.Targets.SpeedFloor is null && aircraft.Targets.SpeedCeiling is null)
+        {
+            return;
+        }
+
+        double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.ThresholdLatitude, runway.ThresholdLongitude);
+        if (dist <= 5.0)
+        {
+            aircraft.Targets.TargetSpeed = null;
+            aircraft.Targets.SpeedFloor = null;
+            aircraft.Targets.SpeedCeiling = null;
+        }
     }
 
     private static bool IsRadialIntercepted(AircraftState aircraft, BlockTrigger trigger)

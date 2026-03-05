@@ -142,6 +142,10 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 | Climb and maintain | `CM 240` | `C` | `CM240`, `C240` |
 | Descend and maintain | `DM 050` | `D` | `DM050`, `D050` |
 | Speed | `SPD 250` | `S`, `SLOW`, `SL`, `SPEED` | `SPD250`, `S250` |
+| Speed floor | `SPD 210+` | — | — |
+| Speed ceiling | `SPD 210-` | — | — |
+| Resume normal speed | `RNS` | `NS` | — |
+| Delete speed restrictions | `DSR` | — | — |
 | Squawk | `SQ 4521` | `SQUAWK` | `SQ4521` |
 | Squawk (reset) | `SQ` | — | — |
 | Squawk VFR | `SQVFR` | `SQV` | — |
@@ -355,6 +359,29 @@ TG, SG, and LA set pattern mode — the aircraft will continue doing touch-and-g
 | `HFIX {fix}` | Fly to fix, then hover |
 
 Any heading, altitude, or speed command clears the hold.
+
+### Speed Management
+
+| Command | Effect |
+|---------|--------|
+| `SPD 210` | Exact speed: maintain 210 knots |
+| `SPD 210+` | Speed floor: maintain 210 knots or greater |
+| `SPD 210-` | Speed ceiling: do not exceed 210 knots |
+| `RNS` / `NS` | Resume normal speed: clears speed/floor/ceiling, preserves SID/STAR via mode |
+| `DSR` | Delete speed restrictions: clears all speed + suppresses via-mode speed at future waypoints |
+| `SPD 210; ATFN 10 SPD 180` | Maintain 210, then at 10nm final slow to 180 |
+| `SPD 210 UNTIL 10` | Shorthand: maintain 210 until 10nm final, then cancel |
+| `SPD 210 UNTIL 10; SPD 180 UNTIL 5` | Chained: maintain 210, at 10nm final slow to 180, at 5nm final cancel |
+
+**Floor and ceiling** — `SPD 210+` sets a minimum speed; the aircraft accelerates only if below 210 but maintains its current speed if already faster. `SPD 210-` sets a maximum; the aircraft decelerates only if above 210. Both are enforced continuously and respect the 250-knot limit below 10,000 ft. An exact speed command (`SPD 210`) clears any active floor or ceiling.
+
+**ATFN (at final)** — `ATFN {distance}` is a compound-block condition that fires when the aircraft is within the specified distance (in NM) of the assigned runway threshold. Use it to set up staged speed reductions on approach: `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.
+
+**SPD UNTIL shorthand** — `SPD 210 UNTIL 10` expands to `SPD 210; ATFN 10 RNS`. When chained, intermediate blocks are generated automatically: `SPD 210 UNTIL 10; SPD 180 UNTIL 5` becomes `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.
+
+**Auto-cancel at 5nm final** — Per 7110.65 §5-7-1, ATC speed assignments (target, floor, ceiling) are automatically cancelled when the aircraft is within 5nm of the runway threshold. New speed commands are rejected inside this boundary.
+
+**DSR interaction** — `DSR` suppresses SID/STAR via-mode speed constraints at waypoints. The aircraft still follows altitude restrictions but ignores published speed restrictions. A new `SPD` command, `CVIA`, or `DVIA` clears the DSR flag and re-engages speed constraint compliance.
 
 ### Approach Control Commands
 

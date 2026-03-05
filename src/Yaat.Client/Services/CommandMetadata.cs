@@ -19,6 +19,8 @@ public static class CommandMetadata
         new(CanonicalCommandType.ClimbMaintain, "Climb/Maintain", "240", false, "Altitude / Speed"),
         new(CanonicalCommandType.DescendMaintain, "Descend/Maintain", "50", false, "Altitude / Speed"),
         new(CanonicalCommandType.Speed, "Speed", "250", false, "Altitude / Speed"),
+        new(CanonicalCommandType.ResumeNormalSpeed, "Resume Normal Speed", null, false, "Altitude / Speed"),
+        new(CanonicalCommandType.DeleteSpeedRestrictions, "Delete Speed Restrictions", null, false, "Altitude / Speed"),
         // Transponder
         new(CanonicalCommandType.Squawk, "Squawk", "1234", false, "Transponder"),
         new(CanonicalCommandType.SquawkVfr, "Squawk VFR", null, false, "Transponder"),

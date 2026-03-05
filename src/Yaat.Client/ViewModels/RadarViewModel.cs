@@ -842,7 +842,7 @@ public partial class RadarViewModel : ObservableObject
 
     public async Task SpeedNormalAsync(string callsign, string initials)
     {
-        await _sendCommand(callsign, "SPD 0", initials);
+        await _sendCommand(callsign, "RNS", initials);
     }
 
     public async Task DirectToAsync(string callsign, string initials, string fix)

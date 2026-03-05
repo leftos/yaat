@@ -31,6 +31,8 @@ public class CommandScheme
                 [CanonicalCommandType.ClimbMaintain] = new() { Aliases = ["CM", "C"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.DescendMaintain] = new() { Aliases = ["DM", "D"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.Speed] = new() { Aliases = ["SPD", "S", "SLOW", "SL", "SPEED"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ResumeNormalSpeed] = new() { Aliases = ["RNS", "NS"], Format = "{verb}" },
+                [CanonicalCommandType.DeleteSpeedRestrictions] = new() { Aliases = ["DSR"], Format = "{verb}" },
                 // Transponder
                 [CanonicalCommandType.Squawk] = new() { Aliases = ["SQ", "SQUAWK"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.SquawkVfr] = new() { Aliases = ["SQVFR", "SQV"], Format = "{verb}" },

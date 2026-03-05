@@ -18,6 +18,8 @@ public static class CommandDescriber
             ClimbMaintainCommand => CanonicalCommandType.ClimbMaintain,
             DescendMaintainCommand => CanonicalCommandType.DescendMaintain,
             SpeedCommand => CanonicalCommandType.Speed,
+            ResumeNormalSpeedCommand => CanonicalCommandType.ResumeNormalSpeed,
+            DeleteSpeedRestrictionsCommand => CanonicalCommandType.DeleteSpeedRestrictions,
             DirectToCommand => CanonicalCommandType.DirectTo,
             ForceDirectToCommand => CanonicalCommandType.ForceDirectTo,
             AppendDirectToCommand => CanonicalCommandType.AppendDirectTo,
@@ -117,6 +119,8 @@ public static class CommandDescriber
             ClimbMaintainCommand => TrackedCommandType.Altitude,
             DescendMaintainCommand => TrackedCommandType.Altitude,
             SpeedCommand => TrackedCommandType.Speed,
+            ResumeNormalSpeedCommand => TrackedCommandType.Immediate,
+            DeleteSpeedRestrictionsCommand => TrackedCommandType.Immediate,
             DirectToCommand => TrackedCommandType.Navigation,
             ForceDirectToCommand => TrackedCommandType.Navigation,
             AppendDirectToCommand => TrackedCommandType.Navigation,
@@ -158,7 +162,9 @@ public static class CommandDescriber
             FlyPresentHeadingCommand => "FPH",
             ClimbMaintainCommand cmd => $"CM {cmd.Altitude}",
             DescendMaintainCommand cmd => $"DM {cmd.Altitude}",
-            SpeedCommand cmd => cmd.Speed == 0 ? "Resume speed" : $"SPD {cmd.Speed}",
+            SpeedCommand cmd => FormatSpeedCanonical(cmd),
+            ResumeNormalSpeedCommand => "RNS",
+            DeleteSpeedRestrictionsCommand => "DSR",
             DirectToCommand cmd => $"DCT {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             ForceDirectToCommand cmd => $"DCTF {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             AppendDirectToCommand cmd => $"ADCT {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
@@ -256,7 +262,9 @@ public static class CommandDescriber
             FlyPresentHeadingCommand => "Fly present heading",
             ClimbMaintainCommand cmd => $"Climb and maintain {cmd.Altitude:N0}",
             DescendMaintainCommand cmd => $"Descend and maintain {cmd.Altitude:N0}",
-            SpeedCommand cmd => cmd.Speed == 0 ? "Resume normal speed" : $"Speed {cmd.Speed} knots",
+            SpeedCommand cmd => FormatSpeedNatural(cmd),
+            ResumeNormalSpeedCommand => "Resume normal speed",
+            DeleteSpeedRestrictionsCommand => "Delete speed restrictions",
             DirectToCommand cmd => $"Proceed direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             ForceDirectToCommand cmd => $"Force direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             AppendDirectToCommand cmd => $"Then direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
@@ -402,6 +410,26 @@ public static class CommandDescriber
                 or CrossRunwayCommand
                 or HoldShortCommand
                 or FollowCommand;
+    }
+
+    private static string FormatSpeedCanonical(SpeedCommand cmd)
+    {
+        return cmd.Modifier switch
+        {
+            SpeedModifier.Floor => $"SPD {cmd.Speed}+",
+            SpeedModifier.Ceiling => $"SPD {cmd.Speed}-",
+            _ => $"SPD {cmd.Speed}",
+        };
+    }
+
+    private static string FormatSpeedNatural(SpeedCommand cmd)
+    {
+        return cmd.Modifier switch
+        {
+            SpeedModifier.Floor => $"Maintain {cmd.Speed} knots or greater",
+            SpeedModifier.Ceiling => $"Do not exceed {cmd.Speed} knots",
+            _ => $"Speed {cmd.Speed} knots",
+        };
     }
 
     private static string FormatPushCanonical(PushbackCommand push)

@@ -118,6 +118,9 @@ public class AircraftState
     /// <summary>Current bank angle in degrees. Positive = right bank, negative = left bank. Zero when wings level.</summary>
     public double BankAngle { get; set; }
 
+    /// <summary>DSR flag: when true, suppresses via-mode speed constraints at waypoints. Cleared by new SPD, CVIA, or DVIA.</summary>
+    public bool SpeedRestrictionsDeleted { get; set; }
+
     // Visual approach state
     public bool HasReportedFieldInSight { get; set; }
     public bool HasReportedTrafficInSight { get; set; }
