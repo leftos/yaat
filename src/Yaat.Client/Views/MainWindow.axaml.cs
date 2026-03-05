@@ -1,7 +1,12 @@
+using System.Collections;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -93,7 +98,7 @@ public partial class MainWindow : Window
             OpenRadarViewWindow(vm);
         }
 
-        ApplyAircraftSelectKey(vm.Preferences);
+        ApplyKeybinds(vm.Preferences);
 
         if (App.AutoConnect)
         {
@@ -105,14 +110,13 @@ public partial class MainWindow : Window
     {
         foreach (var col in dataGrid.Columns)
         {
-            if (col.Header is string header && header == "Status")
-            {
-                col.CustomSortComparer = StatusSortComparer.Instance;
-                break;
-            }
+            var inner = GetColumnSortComparer(col);
+            col.CustomSortComparer = new GroupStableSortComparer(inner);
         }
 
         RestoreGridLayout(dataGrid, vm.Preferences);
+
+        WireColumnHeaderRightClick(dataGrid, vm);
 
         dataGrid.ColumnReordered += (_, _) => SaveGridLayout(dataGrid, vm.Preferences);
         dataGrid.Sorting += (_, e) =>
@@ -170,6 +174,32 @@ public partial class MainWindow : Window
         return column.DisplayIndex.ToString();
     }
 
+    private static IComparer GetColumnSortComparer(DataGridColumn column)
+    {
+        if (column.Header is string header && header == "Status")
+        {
+            return StatusSortComparer.Instance;
+        }
+
+        // Extract the binding property name for property-based sorting
+        string? propertyName = null;
+        if (!string.IsNullOrEmpty(column.SortMemberPath))
+        {
+            propertyName = column.SortMemberPath;
+        }
+        else if (column is DataGridBoundColumn bound && bound.Binding is Binding binding && !string.IsNullOrEmpty(binding.Path))
+        {
+            propertyName = binding.Path;
+        }
+
+        if (!string.IsNullOrEmpty(propertyName))
+        {
+            return new PropertySortComparer(propertyName);
+        }
+
+        return Comparer<object>.Default;
+    }
+
     private void RestoreGridLayout(DataGrid dataGrid, UserPreferences prefs)
     {
         var layout = prefs.GridLayout;
@@ -224,6 +254,18 @@ public partial class MainWindow : Window
                     }
                 }
             }
+
+            if (layout.HiddenColumns is { Count: > 0 })
+            {
+                var hidden = new HashSet<string>(layout.HiddenColumns);
+                foreach (var col in dataGrid.Columns)
+                {
+                    if (hidden.Contains(GetColumnKey(col)))
+                    {
+                        col.IsVisible = false;
+                    }
+                }
+            }
         }
         finally
         {
@@ -241,12 +283,18 @@ public partial class MainWindow : Window
         var columnOrder = dataGrid.Columns.OrderBy(c => c.DisplayIndex).Select(GetColumnKey).ToList();
 
         Dictionary<string, double>? columnWidths = null;
+        List<string>? hiddenColumns = null;
         foreach (var col in dataGrid.Columns)
         {
             if (!col.Width.IsAuto)
             {
                 columnWidths ??= [];
                 columnWidths[GetColumnKey(col)] = col.ActualWidth;
+            }
+            if (!col.IsVisible)
+            {
+                hiddenColumns ??= [];
+                hiddenColumns.Add(GetColumnKey(col));
             }
         }
 
@@ -257,6 +305,7 @@ public partial class MainWindow : Window
                 SortColumn = _sortColumnKey,
                 SortDirection = _sortDirection,
                 ColumnWidths = columnWidths,
+                HiddenColumns = hiddenColumns,
             }
         );
     }
@@ -274,6 +323,7 @@ public partial class MainWindow : Window
                 var col = dataGrid.Columns[i];
                 col.DisplayIndex = i;
                 col.Width = DataGridLength.Auto;
+                col.IsVisible = true;
                 col.ClearSort();
             }
         }
@@ -281,6 +331,78 @@ public partial class MainWindow : Window
         {
             _restoringGrid = false;
         }
+    }
+
+    private void WireColumnHeaderRightClick(DataGrid dataGrid, MainViewModel vm)
+    {
+        dataGrid.Loaded += (_, _) =>
+        {
+            // Find the column headers presenter and attach right-click
+            var headersPresenter = dataGrid.GetVisualDescendants().OfType<DataGridColumnHeadersPresenter>().FirstOrDefault();
+            if (headersPresenter is null)
+            {
+                return;
+            }
+
+            headersPresenter.PointerPressed += async (_, e) =>
+            {
+                if (!e.GetCurrentPoint(headersPresenter).Properties.IsRightButtonPressed)
+                {
+                    return;
+                }
+
+                e.Handled = true;
+
+                var entries = new System.Collections.Generic.List<ColumnEntry>();
+                foreach (var col in dataGrid.Columns.OrderBy(c => c.DisplayIndex))
+                {
+                    entries.Add(
+                        new ColumnEntry
+                        {
+                            Key = GetColumnKey(col),
+                            Name = GetColumnKey(col),
+                            IsVisible = col.IsVisible,
+                        }
+                    );
+                }
+
+                var chooser = new ColumnChooserWindow(entries, vm.ShowOnlyActiveAircraft);
+                await chooser.ShowDialog(this);
+
+                if (!chooser.Confirmed)
+                {
+                    return;
+                }
+
+                _restoringGrid = true;
+                try
+                {
+                    int displayIndex = 0;
+                    var keyToColumn = new System.Collections.Generic.Dictionary<string, DataGridColumn>();
+                    foreach (var col in dataGrid.Columns)
+                    {
+                        keyToColumn[GetColumnKey(col)] = col;
+                    }
+
+                    foreach (var entry in chooser.Entries)
+                    {
+                        if (keyToColumn.TryGetValue(entry.Key, out var col))
+                        {
+                            col.IsVisible = entry.IsVisible;
+                            col.DisplayIndex = displayIndex;
+                            displayIndex++;
+                        }
+                    }
+                }
+                finally
+                {
+                    _restoringGrid = false;
+                }
+
+                vm.ShowOnlyActiveAircraft = chooser.ShowOnlyActive;
+                SaveGridLayout(dataGrid, vm.Preferences);
+            };
+        };
     }
 
     private static void WireDistanceFlyout(MainViewModel vm, DataGrid dataGrid)
@@ -332,7 +454,16 @@ public partial class MainWindow : Window
 
             var flyout = new Flyout { Content = panel, Placement = PlacementMode.BottomEdgeAlignedLeft };
 
-            header.ContextFlyout = flyout;
+            // Open on middle-click on the Distance column header
+            var columnHeader = header.GetVisualAncestors().OfType<DataGridColumnHeader>().FirstOrDefault() ?? (Control)header;
+            columnHeader.PointerPressed += (_, e) =>
+            {
+                if (e.GetCurrentPoint(columnHeader).Properties.IsMiddleButtonPressed)
+                {
+                    e.Handled = true;
+                    flyout.ShowAt(columnHeader);
+                }
+            };
 
             flyout.Opened += (_, _) =>
             {
@@ -795,6 +926,7 @@ public partial class MainWindow : Window
             }
 
             var window = new ApproachReportWindow();
+            new WindowGeometryHelper(window, vm.Preferences, "ApproachReport", 700, 500).Restore();
             window.LoadReport(report);
             await window.ShowDialog(this);
         }
@@ -815,15 +947,35 @@ public partial class MainWindow : Window
         await dialog.ShowDialog(this);
 
         vm.RefreshCommandScheme();
-        ApplyAircraftSelectKey(vm.Preferences);
+        ApplyKeybinds(vm.Preferences);
     }
 
-    private void ApplyAircraftSelectKey(UserPreferences prefs)
+    private Key _focusInputKey = Key.OemTilde;
+
+    private void ApplyKeybinds(UserPreferences prefs)
     {
         var cmdView = this.FindControl<CommandInputView>("CommandInputView");
         if (cmdView is not null && Enum.TryParse<Key>(prefs.AircraftSelectKey, out var key))
         {
             cmdView.SetAircraftSelectKey(key);
         }
+
+        if (Enum.TryParse<Key>(prefs.FocusInputKey, out var focusKey))
+        {
+            _focusInputKey = focusKey;
+        }
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == _focusInputKey)
+        {
+            var cmdView = this.FindControl<CommandInputView>("CommandInputView");
+            cmdView?.FocusCommandInput();
+            e.Handled = true;
+            return;
+        }
+
+        base.OnKeyDown(e);
     }
 }

@@ -111,7 +111,8 @@ public static class CommandMetadata
         new(CanonicalCommandType.Acknowledge, "Acknowledge", null, false, "Track Operations"),
         // Data operations
         new(CanonicalCommandType.Annotate, "Annotate", null, false, "Data Operations"),
-        new(CanonicalCommandType.Scratchpad, "Scratchpad", "VFR", false, "Data Operations"),
+        new(CanonicalCommandType.Scratchpad1, "Scratchpad 1", "VFR", false, "Data Operations"),
+        new(CanonicalCommandType.Scratchpad2, "Scratchpad 2", "OTP", false, "Data Operations"),
         new(CanonicalCommandType.TemporaryAltitude, "Temporary Altitude", "40", false, "Data Operations"),
         new(CanonicalCommandType.Cruise, "Cruise Altitude", "240", false, "Data Operations"),
         new(CanonicalCommandType.FrequencyChange, "Frequency Change", null, false, "Data Operations"),

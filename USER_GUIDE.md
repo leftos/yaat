@@ -2,6 +2,72 @@
 
 YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traffic control training. It works alongside CRC (the VATSIM radar client) — you control simulated aircraft in YAAT while viewing them on CRC's radar display.
 
+## Table of Contents
+
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Launch](#launch)
+  - [Configuration](#configuration)
+  - [Connecting](#connecting)
+  - [Loading a Scenario](#loading-a-scenario)
+  - [Unloading a Scenario](#unloading-a-scenario)
+  - [Loading a Weather Profile](#loading-a-weather-profile)
+  - [Loading Live Weather](#loading-live-weather)
+- [Aircraft List](#aircraft-list)
+  - [Aircraft Detail Panel](#aircraft-detail-panel)
+  - [Distance Column](#distance-column)
+- [Commands](#commands)
+  - [Selecting an Aircraft](#selecting-an-aircraft)
+  - [Command Reference](#command-reference)
+  - [Altitude Arguments](#altitude-arguments)
+  - [Command Chaining](#command-chaining)
+  - [Direct To (DCT)](#direct-to-dct)
+  - [Tower Commands](#tower-commands)
+  - [Pattern Commands](#pattern-commands)
+  - [Approach Options](#approach-options)
+  - [Hold Commands](#hold-commands)
+  - [Speed Management](#speed-management)
+  - [Approach Control Commands](#approach-control-commands)
+  - [Navigation Commands](#navigation-commands)
+  - [Holding Patterns](#holding-patterns)
+  - [Ground Commands](#ground-commands)
+  - [Helicopter Commands](#helicopter-commands)
+  - [Track Operations](#track-operations)
+  - [Conditional Blocks](#conditional-blocks)
+  - [Wait Commands](#wait-commands)
+  - [Delayed Aircraft Commands](#delayed-aircraft-commands)
+  - [Add Aircraft (ADD)](#add-aircraft-add)
+  - [Global Commands](#global-commands)
+- [Simulation Controls](#simulation-controls)
+- [Views](#views)
+  - [Tabs and Pop-Out](#tabs-and-pop-out)
+  - [Aircraft List](#aircraft-list-1)
+  - [Flight Plan Editor](#flight-plan-editor)
+  - [Ground View](#ground-view)
+  - [Radar View](#radar-view)
+- [Terminal Panel](#terminal-panel)
+  - [Entry Format](#entry-format)
+  - [Multi-User Visibility](#multi-user-visibility)
+  - [Chat Messages](#chat-messages)
+  - [Resizing](#resizing)
+  - [Pop Out / Dock](#pop-out--dock)
+  - [Warnings](#warnings)
+- [Students Panel](#students-panel)
+  - [In Room](#in-room)
+  - [Lobby](#lobby)
+  - [Notes](#notes)
+- [Settings](#settings)
+- [Autocomplete](#autocomplete)
+  - [Fix Suggestion Priority](#fix-suggestion-priority)
+- [Macros](#macros)
+  - [Defining Macros](#defining-macros)
+  - [Parameters](#parameters)
+  - [Usage](#usage)
+  - [Import / Export](#import--export)
+- [Command History](#command-history)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Window State](#window-state)
+
 ## Getting Started
 
 ### Prerequisites
@@ -75,6 +141,9 @@ The main grid shows all aircraft in your scenario, grouped into **Active** and *
 | Type | Aircraft type code (e.g., B738/L) |
 | Rules | Flight rules (IFR / VFR) |
 | Dep / Dest | Departure and destination airports |
+| Route | Filed route |
+| P.Alt | Planned cruise altitude (e.g., 035, VFR, VFR/035, OTP/035) |
+| Remarks | Flight plan remarks |
 | Squawk | Assigned transponder code |
 | Hdg | Current heading |
 | Alt | Current altitude (ft) |
@@ -82,7 +151,8 @@ The main grid shows all aircraft in your scenario, grouped into **Active** and *
 | VS | Vertical speed (fpm) |
 | Owner | Track owner (sector code, e.g., "2B", or callsign) |
 | HO | Pending handoff target (sector code or callsign) |
-| SP | Scratchpad text |
+| SP1 | Scratchpad 1 text |
+| SP2 | Scratchpad 2 text |
 | TA | Temporary altitude assignment |
 | Phase | Current phase name (e.g., Downwind, FinalApproach, TakeoffRoll) |
 | Rwy | Assigned runway |
@@ -90,9 +160,9 @@ The main grid shows all aircraft in your scenario, grouped into **Active** and *
 | Dist | Distance in NM from the reference fix (see below) |
 | Pending Cmds | Queued command blocks not yet executed (from compound commands) |
 
-Click an aircraft row to select it. Press **Esc** to deselect. Click a column header to sort by that column; click again to reverse the sort direction.
+Click an aircraft row to select it, or type a callsign in the command input and press the aircraft select key (**Numpad +** by default, configurable in Settings > Advanced). Press **Esc** to deselect. Click a column header to sort by that column; click again to reverse the sort direction. Sorting always keeps the Active group on top and Delayed on the bottom, sorting within each group independently.
 
-Drag column headers to rearrange the column order. Column order and sort state are remembered across sessions.
+Drag column headers to rearrange the column order. **Right-click any column header** to open the Column Chooser, where you can show/hide columns and reorder them using the Top/Up/Down/Last buttons. Column order, widths, visibility, and sort state are remembered across sessions.
 
 ### Aircraft Detail Panel
 
@@ -113,7 +183,7 @@ Sections with no data are hidden. Selecting a different row collapses the previo
 
 The **Dist** column shows each aircraft's distance in nautical miles from a reference fix. When a scenario is loaded, the reference fix defaults to the scenario's primary airport.
 
-To change the reference fix, **right-click** the "Dist" column header. A flyout appears where you can type a fix name or FRD (fix-radial-distance) string. Autocomplete suggestions appear as you type. Press **Enter** or click a suggestion to apply, **Escape** to cancel.
+To change the reference fix, **middle-click** the "Dist" column header. A flyout appears where you can type a fix name or FRD (fix-radial-distance) string. Autocomplete suggestions appear as you type. Press **Enter** or click a suggestion to apply, **Escape** to cancel.
 
 Delayed aircraft (not yet spawned) show a blank distance.
 
@@ -129,7 +199,9 @@ Type the callsign (or any partial match that uniquely identifies one aircraft) b
 UAL123 FH 270
 ```
 
-If an aircraft is already selected (clicked in the grid), you can omit the callsign:
+You can also select an aircraft without sending a command: type the callsign and press the aircraft select key (**Numpad +** by default). This selects the aircraft and clears the input.
+
+If an aircraft is already selected (clicked in the grid or via the select key), you can omit the callsign:
 
 ```
 FH 270
@@ -199,13 +271,11 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 | Pointout | `PO 3Y` | — | — |
 | Acknowledge | `OK` | — | — |
 | Annotate | `ANNOTATE` | `AN`, `BOX` | — |
-| Scratchpad | `SCRATCHPAD TEST` | `SP` | — |
+| Scratchpad 1 | `SP1 OAK` | — | — |
+| Scratchpad 2 | `SP2 I8R` | — | — |
 | Temp altitude | `TEMPALT 120` | `TA`, `TEMP`, `QQ` | — |
 | Cruise | `CRUISE 240` | `QZ` | — |
 | On-handoff | `ONHO` | `ONH` | — |
-| Freq change | `FC` | — | — |
-| Contact TCP | `CT 3Y` | — | — |
-| Contact tower | `TO` | — | — |
 | Active position | `AS 2B` | — | — |
 | Delete aircraft | `DEL` | `X` | — |
 
@@ -557,16 +627,11 @@ Resolution order: per-command `AS` prefix > persistent active position > student
 | `PO 3Y` | Point out to TCP 3Y |
 | `OK` | Acknowledge a pending pointout |
 | `ANNOTATE` / `AN` / `BOX` | Toggle annotation flag |
-| `SP TEST` / `SCRATCHPAD TEST` | Set scratchpad text |
+| `SP1 OAK` | Set scratchpad 1 |
+| `SP2 I8R` | Set scratchpad 2 |
 | `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |
 | `CRUISE 240` / `QZ 240` | Set cruise altitude |
 | `ONHO` / `ONH` | Toggle on-handoff status |
-
-| Command | Effect |
-|---------|--------|
-| `FC` | Approve frequency change |
-| `CT 3Y` | Tell pilot to contact TCP 3Y |
-| `TO` | Tell pilot to contact tower |
 
 #### Coordination (Rundown List)
 
@@ -786,6 +851,14 @@ All three views can be popped out simultaneously. Pop-out state and window posit
 
 The default tab. Shows the aircraft data grid described above.
 
+### Flight Plan Editor
+
+Double-click an aircraft row in the Aircraft List to open its Flight Plan Editor (FPE). You can also **Ctrl+Left-Click** an aircraft symbol or datablock in the Ground View or Radar View.
+
+The FPE shows editable flight plan fields: beacon code, aircraft type, equipment suffix, departure, destination, cruise speed, altitude, route, and remarks. The callsign is displayed but not editable. The ALT field accepts 3-digit altitude codes (e.g., `035` for 3,500ft) or prefixed formats: `VFR`, `VFR/035`, `OTP/035`.
+
+Edit any field, then click **Amend** to send the changes to the server. The Amend button is only enabled when at least one field differs from the current flight plan. The FPE window stays on top of the main window but does not block interaction with it.
+
 ### Ground View
 
 An interactive airport surface map showing taxiways, runways, and aircraft positions. Useful for tower operations (taxi, hold short, cross runway).
@@ -828,6 +901,8 @@ A simplified STARS-style radar display showing aircraft targets, video maps, and
 **Right-click context menus:**
 - **On an aircraft**: Heading (fly/present/turn left/turn right), Altitude (common values), Speed, Approach (ILS/RNAV/VIS per runway), Track operations, Delete
 - **On the map** (with aircraft selected): "Fly heading" (computed bearing to click point), "Direct to" (nearest fix within 5nm)
+
+**Datablocks** show callsign, altitude, ground speed, and owner. When SP1 or SP2 is set, an additional line displays the scratchpad values.
 
 Video maps load automatically from the vNAS data API based on your ARTCC ID. Map lines render in green with brightness categories A/B.
 

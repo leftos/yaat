@@ -1,0 +1,88 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.FlightPlanEditorWindow"
+        Title="Flight Plan"
+        Background="#1A1A1A"
+        SizeToContent="Height"
+        Width="640"
+        MinWidth="500"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.Styles>
+        <Style Selector="TextBlock.label">
+            <Setter Property="Foreground" Value="#808080" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.field">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Background" Value="#0D0D0D" />
+            <Setter Property="Foreground" Value="#00CCCC" />
+            <Setter Property="BorderBrush" Value="#333333" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="MinHeight" Value="26" />
+        </Style>
+        <Style Selector="TextBlock.value">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="#00CCCC" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Styles>
+
+    <StackPanel Margin="12" Spacing="8">
+        <!-- Row 1: AID BCN TYP EQ DEP DEST SPD ALT [Amend] -->
+        <Grid ColumnDefinitions="70,70,70,50,70,70,60,80,*">
+            <StackPanel Grid.Column="0" Spacing="2">
+                <TextBlock Text="AID" Classes="label" />
+                <TextBlock x:Name="AidText" Classes="value" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="2" Margin="4,0,0,0">
+                <TextBlock Text="BCN" Classes="label" />
+                <TextBox x:Name="BcnBox" Classes="field" MaxLength="4" Width="60" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="2" Margin="4,0,0,0">
+                <TextBlock Text="TYP" Classes="label" />
+                <TextBox x:Name="TypBox" Classes="field" MaxLength="10" Width="60" />
+            </StackPanel>
+            <StackPanel Grid.Column="3" Spacing="2" Margin="4,0,0,0">
+                <TextBlock Text="EQ" Classes="label" />
+                <TextBox x:Name="EqBox" Classes="field" MaxLength="4" Width="40" />
+            </StackPanel>
+            <StackPanel Grid.Column="4" Spacing="2" Margin="4,0,0,0">
+                <TextBlock Text="DEP" Classes="label" />
+                <TextBox x:Name="DepBox" Classes="field" MaxLength="4" Width="60" />
+            </StackPanel>
+            <StackPanel Grid.Column="5" Spacing="2" Margin="4,0,0,0">
+                <TextBlock Text="DEST" Classes="label" />
+                <TextBox x:Name="DestBox" Classes="field" MaxLength="4" Width="60" />
+            </StackPanel>
+            <StackPanel Grid.Column="6" Spacing="2" Margin="4,0,0,0">
+                <TextBlock Text="SPD" Classes="label" />
+                <TextBox x:Name="SpdBox" Classes="field" MaxLength="4" Width="50" />
+            </StackPanel>
+            <StackPanel Grid.Column="7" Spacing="2" Margin="4,0,0,0">
+                <TextBlock Text="ALT" Classes="label" />
+                <TextBox x:Name="AltBox" Classes="field" MaxLength="7" Width="70" />
+            </StackPanel>
+            <StackPanel Grid.Column="8" VerticalAlignment="Bottom" Margin="8,0,0,0">
+                <Button x:Name="AmendButton" Content="Amend" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Row 2: RTE -->
+        <StackPanel Spacing="2">
+            <TextBlock Text="RTE" Classes="label" />
+            <TextBox x:Name="RteBox" Classes="field" AcceptsReturn="False" TextWrapping="Wrap" Height="44" />
+        </StackPanel>
+
+        <!-- Row 3: RMK -->
+        <StackPanel Spacing="2">
+            <TextBlock Text="RMK" Classes="label" />
+            <TextBox x:Name="RmkBox" Classes="field" AcceptsReturn="False" TextWrapping="Wrap" Height="44" />
+        </StackPanel>
+    </StackPanel>
+</Window>

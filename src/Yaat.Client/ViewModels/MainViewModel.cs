@@ -196,18 +196,18 @@ public partial class MainViewModel : ObservableObject
     public DataGridCollectionView AircraftView { get; }
 
     [ObservableProperty]
-    private bool _isDelayedGroupCollapsed;
+    private bool _showOnlyActiveAircraft;
 
-    partial void OnIsDelayedGroupCollapsedChanged(bool value)
+    partial void OnShowOnlyActiveAircraftChanged(bool value)
     {
-        _preferences.SetDelayedGroupCollapsed(value);
+        _preferences.SetShowOnlyActiveAircraft(value);
+        AircraftView.Refresh();
     }
 
     [RelayCommand]
     private void ResetGridLayout()
     {
         _preferences.ResetGridLayout();
-        IsDelayedGroupCollapsed = false;
         GridLayoutReset?.Invoke();
     }
 
@@ -228,8 +228,8 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         AircraftView = new DataGridCollectionView(Aircraft);
-        AircraftView.GroupDescriptions.Add(new DataGridPathGroupDescription("GroupLabel"));
-        _isDelayedGroupCollapsed = _preferences.IsDelayedGroupCollapsed;
+        AircraftView.Filter = obj => obj is not AircraftModel ac || !_showOnlyActiveAircraft || !ac.IsDelayed;
+        _showOnlyActiveAircraft = _preferences.ShowOnlyActiveAircraft;
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);

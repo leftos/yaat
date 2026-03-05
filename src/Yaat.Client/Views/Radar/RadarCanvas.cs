@@ -322,6 +322,9 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when an aircraft is left-clicked.</summary>
     public event Action<string>? AircraftLeftClicked;
 
+    /// <summary>Fired when an aircraft is Ctrl+left-clicked.</summary>
+    public event Action<string>? AircraftCtrlClicked;
+
     /// <summary>Fired when empty map space is left-clicked (deselect).</summary>
     public event Action? EmptySpaceClicked;
 
@@ -671,7 +674,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             var ac = FindAircraftAtPoint(pos);
             if (ac is not null)
             {
-                AircraftLeftClicked?.Invoke(ac.Callsign);
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+                {
+                    AircraftCtrlClicked?.Invoke(ac.Callsign);
+                }
+                else
+                {
+                    AircraftLeftClicked?.Invoke(ac.Callsign);
+                }
                 e.Handled = true;
                 return;
             }
@@ -734,12 +744,19 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (!_dragThresholdMet && _dragCallsign is not null)
             {
-                if (!_minifiedCallsigns.Remove(_dragCallsign))
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
                 {
-                    _minifiedCallsigns.Add(_dragCallsign);
+                    AircraftCtrlClicked?.Invoke(_dragCallsign);
                 }
+                else
+                {
+                    if (!_minifiedCallsigns.Remove(_dragCallsign))
+                    {
+                        _minifiedCallsigns.Add(_dragCallsign);
+                    }
 
-                InvalidateVisual();
+                    InvalidateVisual();
+                }
             }
 
             _dragCallsign = null;
@@ -827,6 +844,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             float w3 = _hitTestPaint.MeasureText(ac.OwnerDisplay);
             textW = MathF.Max(textW, w3);
             lineCount = 3;
+        }
+
+        if (!string.IsNullOrEmpty(ac.Scratchpad1) || !string.IsNullOrEmpty(ac.Scratchpad2))
+        {
+            var spLine = $"{ac.Scratchpad1 ?? ""} {ac.Scratchpad2 ?? ""}".Trim();
+            float wSp = _hitTestPaint.MeasureText(spLine);
+            textW = MathF.Max(textW, wSp);
+            lineCount++;
         }
 
         return new SKRect(

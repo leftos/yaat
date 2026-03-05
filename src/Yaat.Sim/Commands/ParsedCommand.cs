@@ -249,7 +249,9 @@ public record AcknowledgeCommand : ParsedCommand;
 
 public record AnnotateCommand : ParsedCommand;
 
-public record ScratchpadCommand(string Text) : ParsedCommand;
+public record Scratchpad1Command(string Text) : ParsedCommand;
+
+public record Scratchpad2Command(string Text) : ParsedCommand;
 
 public record TemporaryAltitudeCommand(int AltitudeHundreds) : ParsedCommand;
 

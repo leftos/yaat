@@ -32,13 +32,7 @@ public sealed class WindowGeometryHelper
 
     public void Restore()
     {
-        var geo = _windowName switch
-        {
-            "Main" => _preferences.MainWindowGeometry,
-            "Settings" => _preferences.SettingsWindowGeometry,
-            "Terminal" => _preferences.TerminalWindowGeometry,
-            _ => null,
-        };
+        var geo = _preferences.GetWindowGeometry(_windowName);
 
         if (geo is not null && IsVisibleOnAnyScreen(geo.X, geo.Y, geo.Width, geo.Height))
         {

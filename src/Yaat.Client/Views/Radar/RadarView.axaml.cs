@@ -45,6 +45,7 @@ public partial class RadarView : UserControl
         _canvas.AircraftRightClicked += OnAircraftRightClicked;
         _canvas.MapRightClicked += OnMapRightClicked;
         _canvas.AircraftLeftClicked += OnAircraftLeftClicked;
+        _canvas.AircraftCtrlClicked += OnAircraftCtrlClicked;
         _canvas.EmptySpaceClicked += OnEmptySpaceClicked;
         _canvas.RoutePointPlaced += OnRoutePointPlaced;
         _canvas.RoutePointUndo += OnRoutePointUndo;
@@ -78,6 +79,7 @@ public partial class RadarView : UserControl
             _canvas.AircraftRightClicked -= OnAircraftRightClicked;
             _canvas.MapRightClicked -= OnMapRightClicked;
             _canvas.AircraftLeftClicked -= OnAircraftLeftClicked;
+            _canvas.AircraftCtrlClicked -= OnAircraftCtrlClicked;
             _canvas.EmptySpaceClicked -= OnEmptySpaceClicked;
             _canvas.RoutePointPlaced -= OnRoutePointPlaced;
             _canvas.RoutePointUndo -= OnRoutePointUndo;

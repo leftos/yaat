@@ -47,6 +47,21 @@ public sealed class UserPreferences
     public SavedWindowGeometry? GroundViewWindowGeometry => _data.GroundViewWindowGeometry;
     public SavedWindowGeometry? RadarViewWindowGeometry => _data.RadarViewWindowGeometry;
     public SavedWindowGeometry? DataGridWindowGeometry => _data.DataGridWindowGeometry;
+
+    public SavedWindowGeometry? GetWindowGeometry(string windowName)
+    {
+        return windowName switch
+        {
+            "Main" => _data.MainWindowGeometry,
+            "Settings" => _data.SettingsWindowGeometry,
+            "Terminal" => _data.TerminalWindowGeometry,
+            "GroundView" => _data.GroundViewWindowGeometry,
+            "RadarView" => _data.RadarViewWindowGeometry,
+            "DataGrid" => _data.DataGridWindowGeometry,
+            _ => _data.WindowGeometries.GetValueOrDefault(windowName),
+        };
+    }
+
     public SavedGridLayout? GridLayout => _data.GridLayout;
     public bool AutoAcceptEnabled => _data.AutoAcceptEnabled;
     public int AutoAcceptDelaySeconds => _data.AutoAcceptDelaySeconds;
@@ -54,7 +69,7 @@ public sealed class UserPreferences
     public bool IsDataGridPoppedOut => _data.IsDataGridPoppedOut;
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
-    public bool IsDelayedGroupCollapsed => _data.IsDelayedGroupCollapsed;
+    public bool ShowOnlyActiveAircraft => _data.ShowOnlyActiveAircraft;
     public string? LastScenarioFolder => _data.LastScenarioFolder;
     public string? LastWeatherFolder => _data.LastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
@@ -65,6 +80,7 @@ public sealed class UserPreferences
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
     public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
     public string AircraftSelectKey => _data.AircraftSelectKey;
+    public string FocusInputKey => _data.FocusInputKey;
 
     public void SetServerUrl(string url)
     {
@@ -139,6 +155,9 @@ public sealed class UserPreferences
             case "DataGrid":
                 _data.DataGridWindowGeometry = geometry;
                 break;
+            default:
+                _data.WindowGeometries[windowName] = geometry;
+                break;
         }
         Save();
     }
@@ -166,9 +185,9 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetDelayedGroupCollapsed(bool collapsed)
+    public void SetShowOnlyActiveAircraft(bool value)
     {
-        _data.IsDelayedGroupCollapsed = collapsed;
+        _data.ShowOnlyActiveAircraft = value;
         Save();
     }
 
@@ -210,6 +229,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetFocusInputKey(string key)
+    {
+        _data.FocusInputKey = key;
+        Save();
+    }
+
     public void SetFavoriteCommands(List<FavoriteCommand> favorites)
     {
         _data.FavoriteCommands = favorites;
@@ -241,7 +266,6 @@ public sealed class UserPreferences
     public void ResetGridLayout()
     {
         _data.GridLayout = null;
-        _data.IsDelayedGroupCollapsed = false;
         Save();
     }
 
@@ -336,7 +360,8 @@ public sealed class UserPreferences
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
-            IsDelayedGroupCollapsed = GetFieldOr(obj, "isDelayedGroupCollapsed", false),
+            WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
+            ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
@@ -347,6 +372,7 @@ public sealed class UserPreferences
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
             RecentWeatherFiles = GetFieldOr<List<RecentWeather>>(obj, "recentWeatherFiles", []),
             AircraftSelectKey = GetFieldOr(obj, "aircraftSelectKey", "Add"),
+            FocusInputKey = GetFieldOr(obj, "focusInputKey", "OemTilde"),
         };
     }
 
@@ -472,7 +498,8 @@ public sealed class UserPreferences
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
-        public bool IsDelayedGroupCollapsed { get; set; }
+        public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
+        public bool ShowOnlyActiveAircraft { get; set; }
         public string? LastScenarioFolder { get; set; }
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
@@ -483,6 +510,7 @@ public sealed class UserPreferences
         public List<RecentScenario> RecentScenarios { get; set; } = [];
         public List<RecentWeather> RecentWeatherFiles { get; set; } = [];
         public string AircraftSelectKey { get; set; } = "Add";
+        public string FocusInputKey { get; set; } = "OemTilde";
     }
 
     private sealed class SavedCommandScheme
@@ -513,6 +541,7 @@ public sealed class SavedGridLayout
     public string? SortColumn { get; set; }
     public ListSortDirection? SortDirection { get; set; }
     public Dictionary<string, double>? ColumnWidths { get; set; }
+    public List<string>? HiddenColumns { get; set; }
 }
 
 public sealed class RecentScenario

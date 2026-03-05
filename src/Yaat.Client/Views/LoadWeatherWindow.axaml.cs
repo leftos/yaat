@@ -26,6 +26,7 @@ public partial class LoadWeatherWindow : Window
     {
         _preferences = preferences;
         InitializeComponent();
+        new WindowGeometryHelper(this, preferences, "LoadWeather", 550, 450).Restore();
 
         _folderPathBox = this.FindControl<TextBox>("FolderPathBox")!;
         _statusText = this.FindControl<TextBlock>("StatusText")!;

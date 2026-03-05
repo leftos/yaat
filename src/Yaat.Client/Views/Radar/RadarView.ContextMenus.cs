@@ -26,6 +26,21 @@ public partial class RadarView
         }
     }
 
+    private void OnAircraftCtrlClicked(string callsign)
+    {
+        var mainVm = FindMainViewModel();
+        if (mainVm is null)
+        {
+            return;
+        }
+
+        var ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        if (ac is not null)
+        {
+            DataGridView.OpenFlightPlanEditor(ac, mainVm, TopLevel.GetTopLevel(this) as Window);
+        }
+    }
+
     private void OnEmptySpaceClicked()
     {
         if (DataContext is RadarViewModel vm)

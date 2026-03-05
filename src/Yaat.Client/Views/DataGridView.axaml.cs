@@ -1,8 +1,8 @@
-using System.Collections.Specialized;
-using Avalonia.Collections;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
+using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
@@ -29,45 +29,53 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        ApplyDelayedGroupState(grid, vm);
-
-        // Re-apply after group rebuild (triggered by Refresh() on group transitions)
-        ((INotifyCollectionChanged)vm.AircraftView).CollectionChanged += (_, _) =>
-        {
-            Dispatcher.UIThread.Post(() => ApplyDelayedGroupState(grid, vm), DispatcherPriority.Render);
-        };
-
-        // Apply when user toggles via menu
-        vm.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(MainViewModel.IsDelayedGroupCollapsed))
-            {
-                ApplyDelayedGroupState(grid, vm);
-            }
-        };
+        grid.DoubleTapped += OnGridDoubleTapped;
     }
 
-    private static void ApplyDelayedGroupState(DataGrid grid, MainViewModel vm)
+    private void OnGridDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if (grid.ItemsSource is not DataGridCollectionView view || view.Groups is null)
+        if (sender is not DataGrid grid || grid.SelectedItem is not AircraftModel ac || DataContext is not MainViewModel vm)
         {
             return;
         }
 
-        foreach (var group in view.Groups)
-        {
-            if (group is DataGridCollectionViewGroup g && g.Key?.ToString() == "Delayed")
+        OpenFlightPlanEditor(ac, vm, TopLevel.GetTopLevel(this) as Window);
+    }
+
+    public static void OpenFlightPlanEditor(AircraftModel ac, MainViewModel vm, Window? owner)
+    {
+        var window = new FlightPlanEditorWindow(
+            ac,
+            async (callsign, amendment) =>
             {
-                if (vm.IsDelayedGroupCollapsed)
-                {
-                    grid.CollapseRowGroup(g, false);
-                }
-                else
-                {
-                    grid.ExpandRowGroup(g, false);
-                }
-                break;
+                var dto = new FlightPlanAmendmentDto(
+                    AircraftType: amendment.AircraftType,
+                    EquipmentSuffix: amendment.EquipmentSuffix,
+                    Departure: amendment.Departure,
+                    Destination: amendment.Destination,
+                    CruiseSpeed: amendment.CruiseSpeed,
+                    CruiseAltitude: amendment.CruiseAltitude,
+                    FlightRules: amendment.FlightRules,
+                    Route: amendment.Route,
+                    Remarks: amendment.Remarks,
+                    Scratchpad1: amendment.Scratchpad1,
+                    Scratchpad2: amendment.Scratchpad2,
+                    BeaconCode: amendment.BeaconCode
+                );
+
+                await vm.Connection.AmendFlightPlanAsync(callsign, dto);
             }
+        );
+
+        new WindowGeometryHelper(window, vm.Preferences, "FlightPlanEditor", 640, 250).Restore();
+
+        if (owner is not null)
+        {
+            window.Show(owner);
+        }
+        else
+        {
+            window.Show();
         }
     }
 }

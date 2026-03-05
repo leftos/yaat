@@ -440,6 +440,7 @@ When invoking aviation-sim-expert, always include:
 - **Unreleased software**: YAAT has no public release and no external users. Do not add backwards-compatibility shims, migration paths, deprecated aliases, or dual config formats. There is nothing to stay compatible with. Delete and replace freely.
 - **User Guide**: Update `USER_GUIDE.md` before committing user-facing changes.
 - **No newlines in text strings**: Never split literal text across lines in `.axaml` or `.cs` files. The indentation whitespace becomes visible at runtime (huge gaps in UI text). Keep `Text="..."`, `Content="..."`, and interpolated strings on one line, even if long.
+- **Window geometry**: Every window must persist its position/size via `WindowGeometryHelper(window, preferences, "Name", defaultW, defaultH).Restore()`. New window names automatically use the `WindowGeometries` dictionary in `UserPreferences` — no need to add named properties.
 - **Error Handling**: Never swallow exceptions. Log with `AppLog` (client) or `ILogger` (Sim).
 - **Line width**: 150 characters, not 80 or 120. CSharpier is configured accordingly.
 - **Pre-commit formatting**: Run `dotnet format style`, `dotnet format analyzers`, then `dotnet csharpier format .` before each commit, followed by a final `dotnet build` to verify nothing broke. Do NOT run bare `dotnet format` (its whitespace rules fight with CSharpier).

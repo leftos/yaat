@@ -178,6 +178,12 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("WarpAircraft", callsign, latitude, longitude, heading);
     }
 
+    public async Task<CommandResultDto> AmendFlightPlanAsync(string callsign, FlightPlanAmendmentDto dto)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<CommandResultDto>("AmendFlightPlan", callsign, dto);
+    }
+
     public async Task<UnloadScenarioResultDto> UnloadScenarioAircraftAsync()
     {
         EnsureConnected();
@@ -384,6 +390,7 @@ public record AircraftDto(
     string Route,
     string FlightRules,
     string Status,
+    string Remarks = "",
     string PendingCommands = "",
     string NavigatingTo = "",
     string CurrentPhase = "",
@@ -507,6 +514,21 @@ public record FacilityVideoMapsDto(
 public record WeatherChangedDto(string? Name, List<WindLayerDto>? WindLayers, string? Precipitation, List<string>? Metars);
 
 public record WindLayerDto(int Altitude, int Direction, int Speed, int? Gusts);
+
+public record FlightPlanAmendmentDto(
+    string? AircraftType = null,
+    string? EquipmentSuffix = null,
+    string? Departure = null,
+    string? Destination = null,
+    int? CruiseSpeed = null,
+    int? CruiseAltitude = null,
+    string? FlightRules = null,
+    string? Route = null,
+    string? Remarks = null,
+    string? Scratchpad1 = null,
+    string? Scratchpad2 = null,
+    uint? BeaconCode = null
+);
 
 // --- Approach Report DTOs ---
 

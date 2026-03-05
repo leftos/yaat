@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Yaat.Client.Views.ColumnChooserWindow"
+        Title="Choose Columns"
+        Background="#1E1E1E"
+        SizeToContent="Height"
+        Width="300"
+        MinWidth="250"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Margin="12" Spacing="8">
+        <ListBox x:Name="ColumnList"
+                 Height="350"
+                 Background="#0D0D0D"
+                 BorderBrush="#333333">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <CheckBox Content="{Binding Name}"
+                              IsChecked="{Binding IsVisible}"
+                              Foreground="White"
+                              Margin="2,1" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+            <Button x:Name="MoveTopButton" Content="Top" Padding="8,4" />
+            <Button x:Name="MoveUpButton" Content="Up" Padding="8,4" />
+            <Button x:Name="MoveDownButton" Content="Down" Padding="8,4" />
+            <Button x:Name="MoveLastButton" Content="Last" Padding="8,4" />
+        </StackPanel>
+
+        <CheckBox x:Name="ShowOnlyActiveCheckBox" Content="Show only active aircraft" Foreground="White" Margin="0,4,0,0" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+            <Button x:Name="OkButton" Content="OK" Padding="16,6" IsDefault="True" />
+            <Button x:Name="CancelButton" Content="Cancel" Padding="16,6" IsCancel="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

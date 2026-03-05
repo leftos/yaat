@@ -143,9 +143,14 @@ public partial class SettingsViewModel : ObservableObject
     private string _aircraftSelectKeyDisplay = "Numpad +";
 
     [ObservableProperty]
+    private string _focusInputKeyDisplay = "~";
+
+    [ObservableProperty]
     private bool _isCapturingKey;
 
     private string _aircraftSelectKeyName = "Add";
+    private string _focusInputKeyName = "OemTilde";
+    private string? _captureTarget;
 
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
 
@@ -176,6 +181,8 @@ public partial class SettingsViewModel : ObservableObject
         _autoCrossRunway = _preferences.AutoCrossRunway;
         _aircraftSelectKeyName = _preferences.AircraftSelectKey;
         _aircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
+        _focusInputKeyName = _preferences.FocusInputKey;
+        _focusInputKeyDisplay = KeyNameToDisplay(_focusInputKeyName);
         LoadMacros();
     }
 
@@ -212,6 +219,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetValidateDctFixes(ValidateDctFixes);
         _preferences.SetSimulationShortcuts(AutoClearedToLand, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
+        _preferences.SetFocusInputKey(_focusInputKeyName);
         SaveMacros();
         Saved = true;
     }
@@ -485,8 +493,27 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void StartKeyCapture()
     {
+        StartKeyCaptureFor("AircraftSelect");
+    }
+
+    [RelayCommand]
+    private void StartFocusInputKeyCapture()
+    {
+        StartKeyCaptureFor("FocusInput");
+    }
+
+    private void StartKeyCaptureFor(string target)
+    {
+        _captureTarget = target;
         IsCapturingKey = true;
-        AircraftSelectKeyDisplay = "Press a key...";
+        if (target == "AircraftSelect")
+        {
+            AircraftSelectKeyDisplay = "Press a key...";
+        }
+        else
+        {
+            FocusInputKeyDisplay = "Press a key...";
+        }
     }
 
     public void CaptureKey(Key key)
@@ -502,17 +529,37 @@ public partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        _aircraftSelectKeyName = key.ToString();
-        AircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
+        var keyName = key.ToString();
+        if (_captureTarget == "AircraftSelect")
+        {
+            _aircraftSelectKeyName = keyName;
+            AircraftSelectKeyDisplay = KeyNameToDisplay(keyName);
+        }
+        else
+        {
+            _focusInputKeyName = keyName;
+            FocusInputKeyDisplay = KeyNameToDisplay(keyName);
+        }
+
         IsCapturingKey = false;
+        _captureTarget = null;
     }
 
     public void CancelKeyCapture()
     {
         if (IsCapturingKey)
         {
-            AircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
+            if (_captureTarget == "AircraftSelect")
+            {
+                AircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
+            }
+            else
+            {
+                FocusInputKeyDisplay = KeyNameToDisplay(_focusInputKeyName);
+            }
+
             IsCapturingKey = false;
+            _captureTarget = null;
         }
     }
 

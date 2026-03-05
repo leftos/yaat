@@ -32,6 +32,7 @@ public partial class LoadScenarioWindow : Window
     {
         _preferences = preferences;
         InitializeComponent();
+        new WindowGeometryHelper(this, preferences, "LoadScenario", 600, 500).Restore();
 
         _folderPathBox = this.FindControl<TextBox>("FolderPathBox")!;
         _facilityFilter = this.FindControl<ComboBox>("FacilityFilter")!;

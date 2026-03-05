@@ -36,6 +36,7 @@ public partial class GroundView : UserControl
         _canvas.NodeRightClicked += OnNodeRightClicked;
         _canvas.AircraftRightClicked += OnAircraftRightClicked;
         _canvas.AircraftLeftClicked += OnAircraftLeftClicked;
+        _canvas.AircraftCtrlClicked += OnAircraftCtrlClicked;
         _canvas.EmptySpaceClicked += OnEmptySpaceClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
 
@@ -57,6 +58,7 @@ public partial class GroundView : UserControl
             _canvas.NodeRightClicked -= OnNodeRightClicked;
             _canvas.AircraftRightClicked -= OnAircraftRightClicked;
             _canvas.AircraftLeftClicked -= OnAircraftLeftClicked;
+            _canvas.AircraftCtrlClicked -= OnAircraftCtrlClicked;
             _canvas.EmptySpaceClicked -= OnEmptySpaceClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
         }
@@ -79,6 +81,21 @@ public partial class GroundView : UserControl
         if (ac is not null)
         {
             vm.SelectedAircraft = ac;
+        }
+    }
+
+    private void OnAircraftCtrlClicked(string callsign)
+    {
+        var mainVm = FindMainViewModel();
+        if (mainVm is null)
+        {
+            return;
+        }
+
+        var ac = mainVm.Aircraft.FirstOrDefault(a => a.Callsign == callsign);
+        if (ac is not null)
+        {
+            DataGridView.OpenFlightPlanEditor(ac, mainVm, TopLevel.GetTopLevel(this) as Window);
         }
     }
 

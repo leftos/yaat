@@ -182,6 +182,14 @@ public sealed class TargetRenderer : IDisposable
                 lineCount = 3;
             }
 
+            string? scratchpadLine = BuildScratchpadLine(ac.Scratchpad1, ac.Scratchpad2);
+            if (scratchpadLine is not null)
+            {
+                float wSp = _dataBlockPaint.MeasureText(scratchpadLine);
+                textW = MathF.Max(textW, wSp);
+                lineCount++;
+            }
+
             const float pad = 3f;
             var blockRect = new SKRect(
                 blockX - pad,
@@ -196,14 +204,35 @@ public sealed class TargetRenderer : IDisposable
             _leaderPaint.Color = color;
             canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
 
+            int nextLine = 0;
             canvas.DrawText(line1, blockX, blockY, _dataBlockPaint);
-            canvas.DrawText(line2, blockX, blockY + lineH, _dataBlockPaint);
+            nextLine++;
+            canvas.DrawText(line2, blockX, blockY + nextLine * lineH, _dataBlockPaint);
+            nextLine++;
 
             if (line3 is not null)
             {
-                canvas.DrawText(line3, blockX, blockY + 2 * lineH, _dataBlockPaint);
+                canvas.DrawText(line3, blockX, blockY + nextLine * lineH, _dataBlockPaint);
+                nextLine++;
+            }
+
+            if (scratchpadLine is not null)
+            {
+                canvas.DrawText(scratchpadLine, blockX, blockY + nextLine * lineH, _dataBlockPaint);
             }
         }
+    }
+
+    private static string? BuildScratchpadLine(string? sp1, string? sp2)
+    {
+        bool hasSp1 = !string.IsNullOrEmpty(sp1);
+        bool hasSp2 = !string.IsNullOrEmpty(sp2);
+        if (!hasSp1 && !hasSp2)
+        {
+            return null;
+        }
+
+        return $"{sp1 ?? ""} {sp2 ?? ""}".Trim();
     }
 
     private static string FormatCwtType(string cwt, string aircraftType)

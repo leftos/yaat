@@ -113,6 +113,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when an aircraft is left-clicked. Args: callsign.</summary>
     public event Action<string>? AircraftLeftClicked;
 
+    /// <summary>Fired when an aircraft is Ctrl+left-clicked. Args: callsign.</summary>
+    public event Action<string>? AircraftCtrlClicked;
+
     /// <summary>Fired when empty space is left-clicked (deselect).</summary>
     public event Action? EmptySpaceClicked;
 
@@ -155,7 +158,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         return new RenderSnapshot(
             Layout,
-            Aircraft ?? Array.Empty<AircraftModel>(),
+            FilterActiveAircraft(Aircraft),
             SelectedAircraft,
             _hoveredNodeId,
             ActiveRoute,
@@ -188,6 +191,24 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.AirportCenterLon,
             s.AirportElevation
         );
+    }
+
+    private static IReadOnlyList<AircraftModel> FilterActiveAircraft(IReadOnlyList<AircraftModel>? aircraft)
+    {
+        if (aircraft is null || aircraft.Count == 0)
+        {
+            return Array.Empty<AircraftModel>();
+        }
+
+        var result = new List<AircraftModel>(aircraft.Count);
+        foreach (var ac in aircraft)
+        {
+            if (!ac.IsDelayed)
+            {
+                result.Add(ac);
+            }
+        }
+        return result;
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
@@ -258,7 +279,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             var ac = FindAircraftAtPoint(pos);
             if (ac is not null)
             {
-                AircraftLeftClicked?.Invoke(ac.Callsign);
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+                {
+                    AircraftCtrlClicked?.Invoke(ac.Callsign);
+                }
+                else
+                {
+                    AircraftLeftClicked?.Invoke(ac.Callsign);
+                }
                 e.Handled = true;
                 return;
             }

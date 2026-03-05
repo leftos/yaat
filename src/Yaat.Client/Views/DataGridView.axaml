@@ -14,11 +14,6 @@
               CanUserReorderColumns="True"
               SelectionMode="Single"
               RowDetailsVisibilityMode="VisibleWhenSelected">
-        <DataGrid.Styles>
-            <Style Selector="DataGridRowGroupHeader">
-                <Setter Property="IsItemCountVisible" Value="False" />
-            </Style>
-        </DataGrid.Styles>
         <DataGrid.RowDetailsTemplate>
             <DataTemplate>
                 <Border Padding="12,6"
@@ -69,6 +64,17 @@
                                        FontFamily="Consolas"
                                        FontSize="12" />
                         </StackPanel>
+                        <!-- Remarks -->
+                        <StackPanel Orientation="Horizontal"
+                                    IsVisible="{Binding HasRemarks}">
+                            <TextBlock Text="Remarks"
+                                       Width="80"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="12" />
+                            <TextBlock Text="{Binding Remarks}"
+                                       FontFamily="Consolas"
+                                       FontSize="12" />
+                        </StackPanel>
                         <!-- Navigation Route (only when divergent from filed route) -->
                         <StackPanel Orientation="Horizontal"
                                     IsVisible="{Binding ShowNavRoute}">
@@ -101,7 +107,8 @@
             <DataGridTextColumn Header="Status" Binding="{Binding StatusDisplay}" Width="Auto" />
             <DataGridTextColumn Header="Owner" Binding="{Binding OwnerDisplay}" Width="Auto" />
             <DataGridTextColumn Header="HO" Binding="{Binding HandoffDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="SP" Binding="{Binding Scratchpad1}" Width="Auto" />
+            <DataGridTextColumn Header="SP1" Binding="{Binding Scratchpad1}" Width="Auto" />
+            <DataGridTextColumn Header="SP2" Binding="{Binding Scratchpad2}" Width="Auto" />
             <DataGridTextColumn Header="TA" Binding="{Binding TempAltDisplay}" Width="Auto" />
             <DataGridTextColumn Header="Phase" Binding="{Binding CurrentPhase}" Width="Auto" />
             <DataGridTextColumn Header="Rwy" Binding="{Binding AssignedRunway}" Width="Auto" />
@@ -110,6 +117,9 @@
             <DataGridTextColumn Header="Rules" Binding="{Binding FlightRules}" Width="Auto" />
             <DataGridTextColumn Header="Dep" Binding="{Binding Departure}" Width="Auto" />
             <DataGridTextColumn Header="Dest" Binding="{Binding Destination}" Width="Auto" />
+            <DataGridTextColumn Header="Route" Binding="{Binding Route}" Width="Auto" />
+            <DataGridTextColumn Header="P.Alt" Binding="{Binding CruiseAltitudeDisplay}" Width="Auto" />
+            <DataGridTextColumn Header="Remarks" Binding="{Binding Remarks}" Width="Auto" />
             <DataGridTextColumn Header="Squawk" Binding="{Binding BeaconCode, StringFormat=\{0:D4\}}" Width="Auto" />
             <DataGridTextColumn Header="Hdg" Binding="{Binding Heading, StringFormat=\{0:F0\}}" Width="Auto" />
             <DataGridTextColumn Header="Alt" Binding="{Binding Altitude, StringFormat=\{0:F0\}}" Width="Auto" />

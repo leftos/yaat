@@ -318,6 +318,25 @@
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />
                         </StackPanel>
+                        <StackPanel Spacing="4" Margin="0,8,0,0">
+                            <TextBlock Text="Focus Command Input Key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="FocusInputKeyButton"
+                                        Content="{Binding FocusInputKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartFocusInputKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Pressing this key from anywhere in the app puts focus on the command input. Default: ~ (tilde)"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
                         <Separator Margin="0,4" />
                         <CheckBox Content="Server Admin Mode"
                                   IsChecked="{Binding IsAdminMode}" />

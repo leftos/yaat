@@ -75,19 +75,17 @@ public partial class AircraftModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
+    [NotifyPropertyChangedFor(nameof(CruiseAltitudeDisplay))]
     private string _flightRules = "IFR";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusDisplay))]
     [NotifyPropertyChangedFor(nameof(IsDelayed))]
-    [NotifyPropertyChangedFor(nameof(GroupLabel))]
     private string _status = "";
 
     public string StatusDisplay => FormatStatus(Status);
 
     public bool IsDelayed => Status.StartsWith("Delayed", StringComparison.Ordinal);
-
-    public string GroupLabel => IsDelayed ? "Delayed" : "Active";
 
     private static string FormatStatus(string status)
     {
@@ -161,6 +159,7 @@ public partial class AircraftModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
+    [NotifyPropertyChangedFor(nameof(CruiseAltitudeDisplay))]
     [NotifyPropertyChangedFor(nameof(HasCruise))]
     [NotifyPropertyChangedFor(nameof(FlightPlanDisplay))]
     private int _cruiseAltitude;
@@ -319,6 +318,56 @@ public partial class AircraftModel : ObservableObject
         }
     }
 
+    public string CruiseAltitudeDisplay => FormatAltitudeField(FlightRules, CruiseAltitude);
+
+    internal static string FormatAltitudeField(string flightRules, int cruiseAltitude)
+    {
+        var isVfr = flightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
+        var isOtp = flightRules.Equals("OTP", StringComparison.OrdinalIgnoreCase);
+        var altStr = cruiseAltitude > 0 ? (cruiseAltitude / 100).ToString("D3") : "";
+
+        if (isOtp)
+        {
+            return string.IsNullOrEmpty(altStr) ? "OTP" : $"OTP/{altStr}";
+        }
+        if (isVfr)
+        {
+            return string.IsNullOrEmpty(altStr) ? "VFR" : $"VFR/{altStr}";
+        }
+        return altStr;
+    }
+
+    internal static (string FlightRules, int CruiseAltitude)? ParseAltitudeField(string text)
+    {
+        text = text.Trim().ToUpperInvariant();
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        if (text == "VFR")
+        {
+            return ("VFR", 0);
+        }
+        if (text == "OTP")
+        {
+            return ("OTP", 0);
+        }
+        if (text.StartsWith("VFR/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out var vfrAlt))
+        {
+            return ("VFR", vfrAlt * 100);
+        }
+        if (text.StartsWith("OTP/", StringComparison.Ordinal) && int.TryParse(text.AsSpan(4), out var otpAlt))
+        {
+            return ("OTP", otpAlt * 100);
+        }
+        if (int.TryParse(text, out var alt))
+        {
+            return ("IFR", alt * 100);
+        }
+        return null;
+    }
+
     [ObservableProperty]
     private string _taxiRoute = "";
 
@@ -367,6 +416,12 @@ public partial class AircraftModel : ObservableObject
     private string? _expectedApproach;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRemarks))]
+    private string _remarks = "";
+
+    public bool HasRemarks => !string.IsNullOrEmpty(Remarks);
+
+    [ObservableProperty]
     private string _cwtCode = "";
 
     public string OwnerDisplay => OwnerSectorCode ?? Owner ?? "";
@@ -403,6 +458,7 @@ public partial class AircraftModel : ObservableObject
             Departure = dto.Departure,
             Destination = dto.Destination,
             Route = dto.Route,
+            Remarks = dto.Remarks,
             FlightRules = dto.FlightRules,
             Status = dto.Status,
             PendingCommands = dto.PendingCommands,
@@ -457,6 +513,7 @@ public partial class AircraftModel : ObservableObject
         Departure = dto.Departure;
         Destination = dto.Destination;
         Route = dto.Route;
+        Remarks = dto.Remarks;
         FlightRules = dto.FlightRules;
         Status = dto.Status;
         PendingCommands = dto.PendingCommands;
@@ -527,5 +584,89 @@ public sealed class StatusSortComparer : IComparer
         }
 
         return ka.Seconds.CompareTo(kb.Seconds);
+    }
+}
+
+/// <summary>
+/// Compares AircraftModel instances by a named property using reflection (cached delegate).
+/// </summary>
+public sealed class PropertySortComparer : IComparer
+{
+    private static readonly Dictionary<string, Func<AircraftModel, IComparable?>> _accessorCache = new();
+    private readonly Func<AircraftModel, IComparable?> _accessor;
+
+    public PropertySortComparer(string propertyName)
+    {
+        if (!_accessorCache.TryGetValue(propertyName, out var accessor))
+        {
+            var prop = typeof(AircraftModel).GetProperty(propertyName);
+            if (prop is not null)
+            {
+                accessor = ac => prop.GetValue(ac) as IComparable;
+            }
+            else
+            {
+                accessor = _ => null;
+            }
+            _accessorCache[propertyName] = accessor;
+        }
+        _accessor = accessor;
+    }
+
+    public int Compare(object? x, object? y)
+    {
+        if (x is not AircraftModel a || y is not AircraftModel b)
+        {
+            return 0;
+        }
+
+        var va = _accessor(a);
+        var vb = _accessor(b);
+
+        if (va is null && vb is null)
+        {
+            return 0;
+        }
+        if (va is null)
+        {
+            return -1;
+        }
+        if (vb is null)
+        {
+            return 1;
+        }
+
+        return va.CompareTo(vb);
+    }
+}
+
+/// <summary>
+/// Wraps any IComparer to always sort Active aircraft before Delayed,
+/// then delegates to the inner comparer within each group.
+/// </summary>
+public sealed class GroupStableSortComparer : IComparer
+{
+    private readonly IComparer _inner;
+
+    public GroupStableSortComparer(IComparer inner)
+    {
+        _inner = inner;
+    }
+
+    public int Compare(object? x, object? y)
+    {
+        if (x is not AircraftModel a || y is not AircraftModel b)
+        {
+            return 0;
+        }
+
+        // Active (false=0) before Delayed (true=1)
+        var groupCmp = a.IsDelayed.CompareTo(b.IsDelayed);
+        if (groupCmp != 0)
+        {
+            return groupCmp;
+        }
+
+        return _inner.Compare(x, y);
     }
 }
