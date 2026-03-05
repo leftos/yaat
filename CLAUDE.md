@@ -51,6 +51,9 @@ Services/
   SuggestionItem.cs             # Suggestion display model (text, kind, description)
   ScenarioDifficultyHelper.cs   # Scenario difficulty classification
   VideoMapService.cs            # Video map download/cache/parse
+  LiveWeatherService.cs         # Fetches live METARs + FD winds from aviationweather.gov → WeatherProfile
+  ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached)
+  FdRegionMapping.cs            # Static ARTCC → FD region code mapping
   UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. SavedMacro list)
 
 ViewModels/
@@ -129,6 +132,8 @@ WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindCompon
                                # lookup table), ComputeWindCorrectionAngle; gusts stored but not applied to physics
 MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record
 MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm
+WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
+MagneticDeclination.cs         # Static: approximate CONUS magnetic declination from lon; TrueToMagnetic conversion
 VisualDetection.cs             # Static: CanSeeAirport, CanSeeAirportForRunway, CanSeeTraffic, IsOccludedByBank
                                # Forward hemisphere, visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
                                # FL180 gate on airport (visual approach eligibility) but NOT traffic (pilots can see in Class A)

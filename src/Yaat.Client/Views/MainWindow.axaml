@@ -69,6 +69,13 @@
                           x:Name="RecentWeatherMenuItem">
                     <MenuItem Header="(No recent weather)" IsEnabled="False" />
                 </MenuItem>
+                <MenuItem Header="Load _Live Weather">
+                    <MenuItem Header="Only Current Weather"
+                            Command="{Binding LoadLiveWeatherCommand}" />
+                    <MenuItem Header="Current Weather + TAFs"
+                            Command="{Binding LoadLiveWeatherWithTafsCommand}" />
+                </MenuItem>
+                <Separator />
                 <MenuItem Header="_Clear Weather"
                           Command="{Binding ClearWeatherCommand}" />
                 <Separator />

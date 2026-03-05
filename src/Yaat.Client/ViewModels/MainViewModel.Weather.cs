@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
@@ -9,6 +10,9 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
+    private readonly LiveWeatherService _liveWeather = new();
+    private readonly ArtccAirportResolver _airportResolver = new();
+
     [RelayCommand(CanExecute = nameof(IsConnected))]
     private async Task LoadWeatherAsync(string? filePath)
     {
@@ -45,6 +49,63 @@ public partial class MainViewModel
         {
             _log.LogError(ex, "Weather load error");
             StatusText = $"Weather error: {ex.Message}";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanLoadLiveWeather))]
+    private async Task LoadLiveWeatherAsync()
+    {
+        await LoadLiveWeatherCoreAsync(includeTafs: false);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanLoadLiveWeather))]
+    private async Task LoadLiveWeatherWithTafsAsync()
+    {
+        await LoadLiveWeatherCoreAsync(includeTafs: true);
+    }
+
+    private bool CanLoadLiveWeather() =>
+        IsConnected && ActiveRoomId is not null && !string.IsNullOrWhiteSpace(_preferences.ArtccId) && _commandInput.FixDb is not null;
+
+    private async Task LoadLiveWeatherCoreAsync(bool includeTafs)
+    {
+        try
+        {
+            StatusText = "Fetching live weather...";
+            var artccId = _preferences.ArtccId;
+            var fixDb = _commandInput.FixDb!;
+
+            var airportIds = await _airportResolver.GetAirportIdsAsync(artccId);
+            if (airportIds.Count == 0)
+            {
+                StatusText = "No airports found for ARTCC";
+                return;
+            }
+
+            var profile = await _liveWeather.BuildLiveWeatherAsync(artccId, airportIds, fixDb, includeTafs);
+            if (profile is null)
+            {
+                StatusText = "Failed to fetch live weather data";
+                return;
+            }
+
+            var json = JsonSerializer.Serialize(profile);
+            var result = await _connection.LoadWeatherAsync(json);
+
+            if (result.Success)
+            {
+                StatusText = result.Message ?? $"Loaded: {profile.Name}";
+            }
+            else
+            {
+                StatusText = result.Message ?? "Live weather load failed";
+                _log.LogWarning("Live weather load failed: {Message}", result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Live weather error");
+            StatusText = $"Live weather error: {ex.Message}";
         }
     }
 
