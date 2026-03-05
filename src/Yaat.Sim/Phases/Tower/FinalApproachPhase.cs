@@ -15,6 +15,7 @@ namespace Yaat.Sim.Phases.Tower;
 public sealed class FinalApproachPhase : Phase
 {
     private const double AutoGoAroundDistNm = 0.5;
+    private const double NoClearanceWarningDistNm = 1.0;
     private const double InterceptCrossTrackThresholdNm = 0.1;
     private const double InterceptHeadingThresholdDeg = 15.0;
 
@@ -23,6 +24,7 @@ public sealed class FinalApproachPhase : Phase
     private double _thresholdElevation;
     private double _runwayHeading;
     private bool _goAroundTriggered;
+    private bool _noClearanceWarningIssued;
     private bool _interceptChecked;
     private bool _isPatternTraffic;
 
@@ -85,6 +87,13 @@ public sealed class FinalApproachPhase : Phase
 
         // Check landing clearance from PhaseList (set earlier by CTL command)
         bool hasLandingClearance = HasLandingClearance(ctx);
+
+        // Warn at 1nm if no landing clearance (only when auto-CTL is off)
+        if (distNm <= NoClearanceWarningDistNm && !hasLandingClearance && !ctx.AutoClearedToLand && !_noClearanceWarningIssued)
+        {
+            _noClearanceWarningIssued = true;
+            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance");
+        }
 
         // Auto go-around if no landing clearance by 0.5nm
         if (distNm <= AutoGoAroundDistNm && !hasLandingClearance)
