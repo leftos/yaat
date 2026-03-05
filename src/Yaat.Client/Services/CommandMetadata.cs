@@ -38,7 +38,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.AppendForceDirectTo, "Append Force Direct To", "FIX", false, "Navigation"),
         // Tower
         new(CanonicalCommandType.LineUpAndWait, "Line Up and Wait", null, false, "Tower"),
-        new(CanonicalCommandType.ClearedForTakeoff, "Cleared for Takeoff", "RH", false, "Tower"),
+        new(CanonicalCommandType.ClearedForTakeoff, "Cleared for Takeoff", "RH/OC/MRC/360", false, "Tower"),
         new(CanonicalCommandType.CancelTakeoffClearance, "Cancel Takeoff Clearance", null, false, "Tower"),
         new(CanonicalCommandType.GoAround, "Go Around", "270", false, "Tower"),
         new(CanonicalCommandType.ClearedToLand, "Cleared to Land", null, false, "Tower"),

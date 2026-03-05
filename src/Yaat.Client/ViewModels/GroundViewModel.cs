@@ -269,6 +269,11 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, $"CTO {runwayId}", initials);
     }
 
+    public async Task ClearedForTakeoffModifierAsync(string callsign, string initials, string modifier)
+    {
+        await _sendCommand(callsign, $"CTO {modifier}", initials);
+    }
+
     public async Task GoAroundAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "GA", initials);

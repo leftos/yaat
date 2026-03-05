@@ -116,7 +116,7 @@ public partial class CommandInputController : ObservableObject
                 fragmentForSuggestion,
                 text,
                 scheme,
-                selectedAircraft,
+                targetAircraft,
                 Suggestions,
                 FixDb,
                 PrimaryAirportId,
@@ -126,7 +126,22 @@ public partial class CommandInputController : ObservableObject
         {
             // ADD command positional argument suggestions
         }
-        else if (FixSuggester.TryAddFixSuggestions(fragmentForSuggestion, text, selectedAircraft, scheme, Suggestions, FixDb, MaxSuggestions))
+        else if (
+            ArgumentSuggester.TryAddArgumentSuggestions(
+                fragmentForSuggestion,
+                text,
+                scheme,
+                targetAircraft,
+                Suggestions,
+                FixDb,
+                PrimaryAirportId,
+                MaxSuggestions
+            )
+        )
+        {
+            // Command-specific argument suggestions (CTO modifiers, runways, fixes)
+        }
+        else if (FixSuggester.TryAddFixSuggestions(fragmentForSuggestion, text, targetAircraft, scheme, Suggestions, FixDb, MaxSuggestions))
         {
             // Fix suggestions were added (DCT or callsign+DCT context)
         }

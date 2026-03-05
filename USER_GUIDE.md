@@ -272,7 +272,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 |---------|--------|
 | `LUAW` | Line up and wait — aircraft holds on runway |
 | `CTO` | Cleared for takeoff (default departure) |
-| `CTO 050` | Cleared for takeoff, climb and maintain 5,000 ft |
+| `CTO 060` | Cleared for takeoff, fly heading 060 |
+| `CTO 060 250` | Cleared for takeoff, fly heading 060, climb and maintain 25,000 ft |
 | `CTO MRC` | Cleared for takeoff, right crosswind departure (90° right turn) |
 | `CTO MRD` | Cleared for takeoff, right downwind departure (180° right turn) |
 | `CTO MR45` | Cleared for takeoff, turn right 45° from runway heading |
@@ -301,11 +302,12 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 
 #### CTO Departure Modifiers
 
-All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see Altitude Arguments above). Examples: `CTO MRC 014` (right crosswind, climb to 1,400 ft), `CTO RH 050` (runway heading, climb to 5,000 ft), `CTO DCT SUNOL 050` (direct SUNOL, climb to 5,000 ft).
+All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see Altitude Arguments above). Examples: `CTO MRC 014` (right crosswind, climb to 1,400 ft), `CTO RH 050` (runway heading, climb to 5,000 ft), `CTO DCT SUNOL 050` (direct SUNOL, climb to 5,000 ft). A bare number (1-360) without a modifier prefix is interpreted as a heading: `CTO 270` = fly heading 270, `CTO 270 050` = fly heading 270, climb to 5,000 ft.
 
 | Modifier | Departure type |
 |----------|----------------|
 | *(none)* | Default departure — VFR: runway heading; IFR: navigates filed route (SID expansion) |
+| `{N}` | Bare heading (1-360) — fly heading N (shortest turn) |
 | `MRC` / `MLC` | Right/left crosswind (90° turn from runway heading) |
 | `MRD` / `MLD` | Right/left downwind (180° turn) |
 | `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading |
@@ -911,20 +913,23 @@ As you type in the command bar, a popup appears with matching suggestions:
 
 - **Command verbs** — matching verbs from your active command scheme with syntax hints (e.g., `FH  Fly Heading {270}`)
 - **Callsigns** — aircraft whose callsign matches what you've typed, showing type and route
-- **Fix names** (for DCT and AT arguments) — all VNAS navdata fixes (~40k airports, navaids, waypoints) plus custom scenario fixes
+- **Command arguments** — after typing a verb + space, context-specific options appear:
+  - **CTO modifiers** — departure instructions: `RH`, `OC`, `MRC`, `MRD`, `MLC`, `MLD`, `MLT`, `MRT`, `DCT`, heading prefixes (`H`, `RH`, `LH`). VFR aircraft show pattern options (`MLT`/`MRT`) first.
+  - **Runway designators** — for `ELD`, `ERD`, `EF`, `ELB`, `ERB`, `CROSS`, `CTL`, `CVA`: shows runways from the primary airport
+  - **Fix names** — for `DCT`, `DCTF`, `ADCTF`, `HFIXL`, `HFIXR`, `HFIX`, `CFIX`, `DEPART`, `JFAC`, and `AT` conditions: route fixes + navdata fixes
 - **Macros** (yellow) — when typing `#`, matching macro names with parameter hints (e.g., `#HC $1 $2` or `#FC $hdg $alt`)
 - After accepting a callsign, the popup immediately shows all available command verbs
 
-Suggestions are context-aware: after a `;` or `,` separator in compound commands, suggestions reset for the new command. Conditions (`LV`, `AT`) are also suggested.
+Suggestions are context-aware: after a `;` or `,` separator in compound commands, suggestions reset for the new command. Conditions (`LV`, `AT`) are also suggested. When the input starts with a callsign, suggestions use that aircraft's data (route fixes, flight rules) rather than the grid-selected aircraft.
 
 ### Fix Suggestion Priority
 
-When typing a fix argument (after `DCT` or `AT`), suggestions use two tiers:
+When typing a fix argument (after `DCT`, `HFIX`, `CFIX`, `DEPART`, etc. or `AT`), suggestions use two tiers:
 
-1. **Route fixes** (teal) — fixes from the selected aircraft's flight plan: departure, destination, filed route fixes, and all fixes from expanded SIDs/STARs. These are fixes "in the FMS" that the pilot has programmed.
+1. **Route fixes** (teal) — fixes from the target aircraft's flight plan: departure, destination, filed route fixes, and all fixes from expanded SIDs/STARs. These are fixes "in the FMS" that the pilot has programmed.
 2. **Navdata fixes** (white) — all other navdata fixes matching your prefix.
 
-If no aircraft is selected, only navdata fixes are shown. Route fixes always appear first.
+If no aircraft is targeted, only navdata fixes are shown. Route fixes always appear first.
 
 ## Macros
 
