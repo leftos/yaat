@@ -81,7 +81,8 @@ public partial class GroundViewModel : ObservableObject
             // Compute airport center from node centroid
             if (dto.Nodes.Count > 0)
             {
-                double sumLat = 0, sumLon = 0;
+                double sumLat = 0,
+                    sumLon = 0;
                 foreach (var node in dto.Nodes)
                 {
                     sumLat += node.Latitude;

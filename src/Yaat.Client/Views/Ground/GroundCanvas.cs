@@ -33,9 +33,15 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(PreviewRoute)
     );
 
-    public static readonly StyledProperty<double> AirportCenterLatProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(AirportCenterLat));
-    public static readonly StyledProperty<double> AirportCenterLonProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(AirportCenterLon));
-    public static readonly StyledProperty<double> AirportElevationProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(AirportElevation));
+    public static readonly StyledProperty<double> AirportCenterLatProperty = AvaloniaProperty.Register<GroundCanvas, double>(
+        nameof(AirportCenterLat)
+    );
+    public static readonly StyledProperty<double> AirportCenterLonProperty = AvaloniaProperty.Register<GroundCanvas, double>(
+        nameof(AirportCenterLon)
+    );
+    public static readonly StyledProperty<double> AirportElevationProperty = AvaloniaProperty.Register<GroundCanvas, double>(
+        nameof(AirportElevation)
+    );
 
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();

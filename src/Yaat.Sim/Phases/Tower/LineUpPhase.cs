@@ -89,6 +89,12 @@ public sealed class LineUpPhase : Phase
             }
 
             _stage1Complete = true;
+
+            // Recompute centerline target from current position — the on-runway node
+            // may be at a different along-track position than the initial hold-short.
+            // Without this, Stage 2 would navigate back toward the threshold.
+            ComputeCenterlineTarget(ctx);
+
             ctx.Logger.LogDebug("[LineUp] {Callsign}: reached on-runway node, correcting to centerline", ctx.Aircraft.Callsign);
         }
 
@@ -186,12 +192,19 @@ public sealed class LineUpPhase : Phase
             return;
         }
 
-        // Find the neighbor node that is closer to the runway centerline
+        double holdShortAlong = GeoMath.AlongTrackDistanceNm(
+            holdShortNode.Latitude,
+            holdShortNode.Longitude,
+            ctx.Runway!.ThresholdLatitude,
+            ctx.Runway.ThresholdLongitude,
+            _runwayHeading
+        );
+
         double holdShortCrossTrack = Math.Abs(
             GeoMath.SignedCrossTrackDistanceNm(
                 holdShortNode.Latitude,
                 holdShortNode.Longitude,
-                ctx.Runway!.ThresholdLatitude,
+                ctx.Runway.ThresholdLatitude,
                 ctx.Runway.ThresholdLongitude,
                 _runwayHeading
             )
@@ -205,6 +218,21 @@ public sealed class LineUpPhase : Phase
             int neighborId = edge.FromNodeId == nodeId ? edge.ToNodeId : edge.FromNodeId;
 
             if (!layout.Nodes.TryGetValue(neighborId, out var neighbor))
+            {
+                continue;
+            }
+
+            // Skip neighbors that are behind the hold-short along the runway.
+            // Navigating backward toward the threshold is never correct for line-up.
+            double neighborAlong = GeoMath.AlongTrackDistanceNm(
+                neighbor.Latitude,
+                neighbor.Longitude,
+                ctx.Runway.ThresholdLatitude,
+                ctx.Runway.ThresholdLongitude,
+                _runwayHeading
+            );
+
+            if (neighborAlong < holdShortAlong - 0.005)
             {
                 continue;
             }

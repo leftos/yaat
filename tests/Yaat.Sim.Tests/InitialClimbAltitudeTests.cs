@@ -120,9 +120,16 @@ public class InitialClimbAltitudeTests
     }
 
     [Fact]
-    public void Ifr_NoAlt_SelfClear1500Agl()
+    public void Ifr_NoAlt_WithCruise_ClimbsToCruise()
     {
         double alt = RunResolve(new DefaultDeparture(), null, isVfr: false, cruiseAltitude: 35000);
+        Assert.Equal(35000, alt);
+    }
+
+    [Fact]
+    public void Ifr_NoAlt_NoCruise_SelfClear1500Agl()
+    {
+        double alt = RunResolve(new DefaultDeparture(), null, isVfr: false, cruiseAltitude: 0);
         Assert.Equal(FieldElevation + 1500, alt);
     }
 

@@ -102,7 +102,13 @@ public sealed class InitialClimbPhase : Phase
             return _fieldElevation + CategoryPerformance.PatternAltitudeAgl(ctx.Category);
         }
 
-        // 5. IFR → self-clear at 1500 AGL
+        // 5. IFR with filed cruise altitude → climb to cruise
+        if (CruiseAltitude > 0)
+        {
+            return CruiseAltitude;
+        }
+
+        // 6. IFR without cruise altitude → self-clear at 1500 AGL
         return _fieldElevation + DefaultSelfClearAgl;
     }
 }
