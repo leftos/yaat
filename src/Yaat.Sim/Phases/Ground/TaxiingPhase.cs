@@ -355,6 +355,12 @@ public sealed class TaxiingPhase : Phase
 
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
     {
+        // Respect ground conflict speed limit set by GroundConflictDetector.
+        if (ctx.Aircraft.GroundSpeedLimit is { } limit)
+        {
+            targetSpeed = Math.Min(targetSpeed, limit);
+        }
+
         double current = ctx.Aircraft.GroundSpeed;
         if (current < targetSpeed)
         {

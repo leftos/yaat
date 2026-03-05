@@ -188,12 +188,12 @@ public static class GroundConflictDetector
             return (MovementState.Following, null);
         }
 
-        // Stationary: gs=0 or specific holding/parked phases
+        // Stationary: specific holding/parked phases
         bool isStationaryPhase =
             phaseName is "At Parking" or "Holding After Pushback" or "LinedUpAndWaiting"
             || (phaseName is not null && phaseName.StartsWith("Holding Short", StringComparison.Ordinal));
 
-        if (ac.GroundSpeed <= 0 || isStationaryPhase)
+        if (isStationaryPhase)
         {
             return (MovementState.Stationary, null);
         }
@@ -204,12 +204,18 @@ public static class GroundConflictDetector
             return (MovementState.Pushing, pushHdg);
         }
 
-        // Taxiing: has route with current segment
+        // Taxiing: has route with current segment (even if GS=0 due to prior speed limit)
         if (ac.AssignedTaxiRoute?.CurrentSegment is { } seg)
         {
             var route = ac.AssignedTaxiRoute;
             double dir = GetSegmentDirection(ac, seg, route);
             return (MovementState.Taxiing, dir);
+        }
+
+        // Stationary: gs=0 without active route or phase
+        if (ac.GroundSpeed <= 0)
+        {
+            return (MovementState.Stationary, null);
         }
 
         // Untracked: moving but no route or pushback
