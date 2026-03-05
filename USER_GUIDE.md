@@ -302,22 +302,24 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 
 #### CTO Departure Modifiers
 
-All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see Altitude Arguments above). Examples: `CTO MRC 014` (right crosswind, climb to 1,400 ft), `CTO RH 050` (runway heading, climb to 5,000 ft), `CTO DCT SUNOL 050` (direct SUNOL, climb to 5,000 ft). A bare number (1-360) without a modifier prefix is interpreted as a heading: `CTO 270` = fly heading 270, `CTO 270 050` = fly heading 270, climb to 5,000 ft.
+All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see Altitude Arguments above). A bare number (1-360) without a modifier prefix is interpreted as a heading: `CTO 270` = fly heading 270, `CTO 270 050` = fly heading 270, climb to 5,000 ft.
 
-| Modifier | Departure type |
-|----------|----------------|
-| *(none)* | Default departure — VFR: runway heading; IFR: navigates filed route (SID expansion) |
-| `{N}` | Bare heading (1-360) — fly heading N (shortest turn) |
-| `MRC` / `MLC` | Right/left crosswind (90° turn from runway heading) |
-| `MRD` / `MLD` | Right/left downwind (180° turn) |
-| `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading |
-| `MRH` / `MSO` / `RH` | Fly runway heading (straight out) |
-| `H{N}` | Fly heading N (shortest turn) |
-| `RH{N}` / `RT{N}` | Turn right heading N |
-| `LH{N}` / `LT{N}` | Turn left heading N |
-| `OC` | On course — navigate direct to destination airport |
-| `DCT {fix}` | Direct to named fix |
-| `MRT` / `MLT` | Make right/left closed traffic (enter pattern) |
+**IFR aircraft** can only use bare `CTO` (default SID/route departure) or `CTO` with a heading (`CTO 270`, `CTO RH`, `CTO H270`, etc.). Pattern exit modifiers (`MRC`, `MRD`, `OC`, `MLT`, `DCT`, etc.) are VFR-only.
+
+| Modifier | Departure type | VFR/IFR |
+|----------|----------------|---------|
+| *(none)* | Default departure — VFR: runway heading; IFR: navigates filed route (SID expansion) | Both |
+| `{N}` | Bare heading (1-360) — fly heading N (shortest turn) | Both |
+| `MRH` / `MSO` / `RH` | Fly runway heading (straight out) | Both |
+| `H{N}` | Fly heading N (shortest turn) | Both |
+| `RH{N}` / `RT{N}` | Turn right heading N | Both |
+| `LH{N}` / `LT{N}` | Turn left heading N | Both |
+| `MRC` / `MLC` | Right/left crosswind (90° turn from runway heading) | VFR only |
+| `MRD` / `MLD` | Right/left downwind (180° turn) | VFR only |
+| `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading | VFR only |
+| `OC` | On course — navigate direct to destination airport | VFR only |
+| `DCT {fix}` | Direct to named fix | VFR only |
+| `MRT` / `MLT` | Make right/left closed traffic (enter pattern) | VFR only |
 
 **Altitude resolution** — when no altitude is specified, the target depends on flight rules and departure type:
 
@@ -914,7 +916,7 @@ As you type in the command bar, a popup appears with matching suggestions:
 - **Command verbs** — matching verbs from your active command scheme with syntax hints (e.g., `FH  Fly Heading {270}`)
 - **Callsigns** — aircraft whose callsign matches what you've typed, showing type and route
 - **Command arguments** — after typing a verb + space, context-specific options appear:
-  - **CTO modifiers** — departure instructions: `RH`, `OC`, `MRC`, `MRD`, `MLC`, `MLD`, `MLT`, `MRT`, `DCT`, heading prefixes (`H`, `RH`, `LH`). VFR aircraft show pattern options (`MLT`/`MRT`) first.
+  - **CTO modifiers** — departure instructions vary by flight rules. IFR: `RH` and heading prefixes (`H`, `RH`, `LH`). VFR: all modifiers including `OC`, `MRC`, `MRD`, `MLC`, `MLD`, `MLT`, `MRT`, `DCT`.
   - **Runway designators** — for `ELD`, `ERD`, `EF`, `ELB`, `ERB`, `CROSS`, `CTL`, `CVA`: shows runways from the primary airport
   - **Fix names** — for `DCT`, `DCTF`, `ADCTF`, `HFIXL`, `HFIXR`, `HFIX`, `CFIX`, `DEPART`, `JFAC`, and `AT` conditions: route fixes + navdata fixes
 - **Macros** (yellow) — when typing `#`, matching macro names with parameter hints (e.g., `#HC $1 $2` or `#FC $hdg $alt`)

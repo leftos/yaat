@@ -135,30 +135,29 @@ internal static class ArgumentSuggester
     {
         bool isVfr = targetAircraft is not null && string.Equals(targetAircraft.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase);
 
-        // VFR aircraft get pattern options first
-        if (isVfr)
+        // IFR aircraft: only bare CTO or CTO with heading
+        if (!isVfr)
         {
-            AddOption("MLT", "Make left traffic (closed pattern)", partial, prefix, suggestions, maxSuggestions);
-            AddOption("MRT", "Make right traffic (closed pattern)", partial, prefix, suggestions, maxSuggestions);
+            AddOption("RH", "Fly runway heading", partial, prefix, suggestions, maxSuggestions);
+            AddCtoHeadingHints(partial, prefix, suggestions, maxSuggestions);
+            return;
         }
 
+        // VFR: pattern options first, then all modifiers
+        AddOption("MLT", "Make left traffic (closed pattern)", partial, prefix, suggestions, maxSuggestions);
+        AddOption("MRT", "Make right traffic (closed pattern)", partial, prefix, suggestions, maxSuggestions);
         AddOption("RH", "Fly runway heading", partial, prefix, suggestions, maxSuggestions);
         AddOption("OC", "On course (direct to destination)", partial, prefix, suggestions, maxSuggestions);
         AddOption("MRC", "Right crosswind departure (90° right)", partial, prefix, suggestions, maxSuggestions);
         AddOption("MRD", "Right downwind departure (180° right)", partial, prefix, suggestions, maxSuggestions);
         AddOption("MLC", "Left crosswind departure (90° left)", partial, prefix, suggestions, maxSuggestions);
         AddOption("MLD", "Left downwind departure (180° left)", partial, prefix, suggestions, maxSuggestions);
-
-        // IFR aircraft get pattern options last
-        if (!isVfr)
-        {
-            AddOption("MLT", "Make left traffic (closed pattern)", partial, prefix, suggestions, maxSuggestions);
-            AddOption("MRT", "Make right traffic (closed pattern)", partial, prefix, suggestions, maxSuggestions);
-        }
-
         AddOption("DCT", "Direct to fix — CTO DCT {fix}", partial, prefix, suggestions, maxSuggestions);
+        AddCtoHeadingHints(partial, prefix, suggestions, maxSuggestions);
+    }
 
-        // Heading hints (not exhaustive, just showing syntax)
+    private static void AddCtoHeadingHints(string partial, string prefix, ObservableCollection<SuggestionItem> suggestions, int maxSuggestions)
+    {
         if (partial.Length == 0 || "H".StartsWith(partial, StringComparison.OrdinalIgnoreCase))
         {
             AddOption("H", "Fly heading — CTO H{hdg} (e.g. H270)", partial, prefix, suggestions, maxSuggestions);
@@ -180,16 +179,6 @@ internal static class ArgumentSuggester
         )
         {
             AddOption("LH", "Left heading — CTO LH{hdg} (e.g. LH270)", partial, prefix, suggestions, maxSuggestions);
-        }
-
-        if (partial.Length == 0 || "MR".StartsWith(partial, StringComparison.OrdinalIgnoreCase))
-        {
-            AddOption("MR", "Relative right turn — CTO MR{deg} (e.g. MR45)", partial, prefix, suggestions, maxSuggestions);
-        }
-
-        if (partial.Length == 0 || "ML".StartsWith(partial, StringComparison.OrdinalIgnoreCase))
-        {
-            AddOption("ML", "Relative left turn — CTO ML{deg} (e.g. ML45)", partial, prefix, suggestions, maxSuggestions);
         }
     }
 

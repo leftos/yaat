@@ -426,27 +426,26 @@ public partial class GroundView : UserControl
 
         var parent = new MenuItem { Header = $"Cleared for takeoff {rwyId}" };
         parent.Items.Add(CreateMenuItem("Default (SID/on course)", () => vm.ClearedForTakeoffAsync(callsign, initials, rwyId)));
-        parent.Items.Add(new Separator());
 
         if (isVfr)
         {
+            // VFR: full modifier menu
+            parent.Items.Add(new Separator());
             parent.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MLT")));
             parent.Items.Add(CreateMenuItem("Make right traffic", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MRT")));
             parent.Items.Add(new Separator());
+            parent.Items.Add(CreateMenuItem("Runway heading", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "RH")));
+            parent.Items.Add(CreateMenuItem("On course", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "OC")));
+            parent.Items.Add(CreateMenuItem("Right crosswind (90° right)", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MRC")));
+            parent.Items.Add(CreateMenuItem("Right downwind (180° right)", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MRD")));
+            parent.Items.Add(CreateMenuItem("Left crosswind (90° left)", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MLC")));
+            parent.Items.Add(CreateMenuItem("Left downwind (180° left)", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MLD")));
         }
-
-        parent.Items.Add(CreateMenuItem("Runway heading", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "RH")));
-        parent.Items.Add(CreateMenuItem("On course", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "OC")));
-        parent.Items.Add(CreateMenuItem("Right crosswind (90° right)", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MRC")));
-        parent.Items.Add(CreateMenuItem("Right downwind (180° right)", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MRD")));
-        parent.Items.Add(CreateMenuItem("Left crosswind (90° left)", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MLC")));
-        parent.Items.Add(CreateMenuItem("Left downwind (180° left)", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MLD")));
-
-        if (!isVfr)
+        else
         {
+            // IFR: only runway heading (headings via text input)
             parent.Items.Add(new Separator());
-            parent.Items.Add(CreateMenuItem("Make left traffic", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MLT")));
-            parent.Items.Add(CreateMenuItem("Make right traffic", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "MRT")));
+            parent.Items.Add(CreateMenuItem("Runway heading", () => vm.ClearedForTakeoffModifierAsync(callsign, initials, "RH")));
         }
 
         menu.Items.Add(parent);
