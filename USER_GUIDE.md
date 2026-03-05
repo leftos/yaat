@@ -907,7 +907,7 @@ Open **File > Settings** to configure:
 - **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking), and simulation shortcuts (auto-clear to land, auto-cross runways)
 - **Commands** — Alias editor for customizing command verbs
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros) below)
-- **Advanced** — Server admin mode
+- **Advanced** — Aircraft select keybind (default: Numpad +) and server admin mode
 
 ## Autocomplete
 
@@ -987,6 +987,7 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 | Up | Navigate suggestions or recall older history |
 | Down | Navigate suggestions or recall newer history |
 | Escape | Dismiss suggestions / deselect aircraft / close dialog |
+| Numpad + | Select aircraft matching typed callsign (configurable in Settings > Advanced) |
 
 ## Window State
 

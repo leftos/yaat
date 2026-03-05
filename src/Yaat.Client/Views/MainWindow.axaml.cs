@@ -93,6 +93,8 @@ public partial class MainWindow : Window
             OpenRadarViewWindow(vm);
         }
 
+        ApplyAircraftSelectKey(vm.Preferences);
+
         if (App.AutoConnect)
         {
             _ = vm.ConnectCommand.ExecuteAsync(null);
@@ -813,5 +815,15 @@ public partial class MainWindow : Window
         await dialog.ShowDialog(this);
 
         vm.RefreshCommandScheme();
+        ApplyAircraftSelectKey(vm.Preferences);
+    }
+
+    private void ApplyAircraftSelectKey(UserPreferences prefs)
+    {
+        var cmdView = this.FindControl<CommandInputView>("CommandInputView");
+        if (cmdView is not null && Enum.TryParse<Key>(prefs.AircraftSelectKey, out var key))
+        {
+            cmdView.SetAircraftSelectKey(key);
+        }
     }
 }

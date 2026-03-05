@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -56,6 +57,13 @@ public partial class SettingsWindow : Window
         if (exportAllBtn is not null)
         {
             exportAllBtn.Click += OnExportAllClick;
+        }
+
+        var keyBtn = this.FindControl<Button>("AircraftSelectKeyButton");
+        if (keyBtn is not null)
+        {
+            keyBtn.KeyDown += OnKeyCaptureKeyDown;
+            keyBtn.LostFocus += OnKeyCaptureLostFocus;
         }
     }
 
@@ -154,6 +162,23 @@ public partial class SettingsWindow : Window
         }
 
         await ExportMacrosAsync(all);
+    }
+
+    private void OnKeyCaptureKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm && vm.IsCapturingKey)
+        {
+            vm.CaptureKey(e.Key);
+            e.Handled = true;
+        }
+    }
+
+    private void OnKeyCaptureLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm)
+        {
+            vm.CancelKeyCapture();
+        }
     }
 
     private async Task ExportMacrosAsync(List<SavedMacro> macros)

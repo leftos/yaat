@@ -64,6 +64,7 @@ public sealed class UserPreferences
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _data.FavoriteCommands;
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
     public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
+    public string AircraftSelectKey => _data.AircraftSelectKey;
 
     public void SetServerUrl(string url)
     {
@@ -203,6 +204,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetAircraftSelectKey(string key)
+    {
+        _data.AircraftSelectKey = key;
+        Save();
+    }
+
     public void SetFavoriteCommands(List<FavoriteCommand> favorites)
     {
         _data.FavoriteCommands = favorites;
@@ -339,6 +346,7 @@ public sealed class UserPreferences
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
             RecentWeatherFiles = GetFieldOr<List<RecentWeather>>(obj, "recentWeatherFiles", []),
+            AircraftSelectKey = GetFieldOr(obj, "aircraftSelectKey", "Add"),
         };
     }
 
@@ -474,6 +482,7 @@ public sealed class UserPreferences
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
         public List<RecentScenario> RecentScenarios { get; set; } = [];
         public List<RecentWeather> RecentWeatherFiles { get; set; } = [];
+        public string AircraftSelectKey { get; set; } = "Add";
     }
 
     private sealed class SavedCommandScheme

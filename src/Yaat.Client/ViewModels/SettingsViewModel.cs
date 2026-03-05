@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Collections;
+using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Services;
@@ -138,6 +139,14 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _autoCrossRunway;
 
+    [ObservableProperty]
+    private string _aircraftSelectKeyDisplay = "Numpad +";
+
+    [ObservableProperty]
+    private bool _isCapturingKey;
+
+    private string _aircraftSelectKeyName = "Add";
+
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
@@ -165,6 +174,8 @@ public partial class SettingsViewModel : ObservableObject
         _validateDctFixes = _preferences.ValidateDctFixes;
         _autoClearedToLand = _preferences.AutoClearedToLand;
         _autoCrossRunway = _preferences.AutoCrossRunway;
+        _aircraftSelectKeyName = _preferences.AircraftSelectKey;
+        _aircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
         LoadMacros();
     }
 
@@ -200,6 +211,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
         _preferences.SetValidateDctFixes(ValidateDctFixes);
         _preferences.SetSimulationShortcuts(AutoClearedToLand, AutoCrossRunway);
+        _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         SaveMacros();
         Saved = true;
     }
@@ -469,4 +481,77 @@ public partial class SettingsViewModel : ObservableObject
             3 => "Parked",
             _ => "",
         };
+
+    [RelayCommand]
+    private void StartKeyCapture()
+    {
+        IsCapturingKey = true;
+        AircraftSelectKeyDisplay = "Press a key...";
+    }
+
+    public void CaptureKey(Key key)
+    {
+        if (!IsCapturingKey)
+        {
+            return;
+        }
+
+        // Ignore modifier-only keys
+        if (key is Key.LeftShift or Key.RightShift or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
+        {
+            return;
+        }
+
+        _aircraftSelectKeyName = key.ToString();
+        AircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
+        IsCapturingKey = false;
+    }
+
+    public void CancelKeyCapture()
+    {
+        if (IsCapturingKey)
+        {
+            AircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
+            IsCapturingKey = false;
+        }
+    }
+
+    internal static string KeyNameToDisplay(string keyName)
+    {
+        if (!Enum.TryParse<Key>(keyName, out var key))
+        {
+            return keyName;
+        }
+
+        return key switch
+        {
+            Key.Add => "Numpad +",
+            Key.Subtract => "Numpad -",
+            Key.Multiply => "Numpad *",
+            Key.Divide => "Numpad /",
+            Key.Decimal => "Numpad .",
+            Key.NumPad0 => "Numpad 0",
+            Key.NumPad1 => "Numpad 1",
+            Key.NumPad2 => "Numpad 2",
+            Key.NumPad3 => "Numpad 3",
+            Key.NumPad4 => "Numpad 4",
+            Key.NumPad5 => "Numpad 5",
+            Key.NumPad6 => "Numpad 6",
+            Key.NumPad7 => "Numpad 7",
+            Key.NumPad8 => "Numpad 8",
+            Key.NumPad9 => "Numpad 9",
+            Key.OemTilde => "~",
+            Key.OemMinus => "-",
+            Key.OemPlus => "+",
+            Key.OemOpenBrackets => "[",
+            Key.OemCloseBrackets => "]",
+            Key.OemPipe => "\\",
+            Key.OemSemicolon => ";",
+            Key.OemQuotes => "'",
+            Key.OemComma => ",",
+            Key.OemPeriod => ".",
+            Key.OemQuestion => "/",
+            _ => key.ToString(),
+        };
+    }
 }

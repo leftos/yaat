@@ -6,9 +6,16 @@ namespace Yaat.Client.Views;
 
 public partial class CommandInputView : UserControl
 {
+    private Key _aircraftSelectKey = Key.Add;
+
     public CommandInputView()
     {
         InitializeComponent();
+    }
+
+    public void SetAircraftSelectKey(Key key)
+    {
+        _aircraftSelectKey = key;
     }
 
     protected override void OnLoaded(Avalonia.Interactivity.RoutedEventArgs e)
@@ -43,6 +50,14 @@ public partial class CommandInputView : UserControl
 
         var cmdInput = sender as TextBox;
         var input = vm.CommandInput;
+
+        if (e.Key == _aircraftSelectKey)
+        {
+            input.DismissSuggestions();
+            vm.SelectAircraftFromInput();
+            e.Handled = true;
+            return;
+        }
 
         switch (e.Key)
         {

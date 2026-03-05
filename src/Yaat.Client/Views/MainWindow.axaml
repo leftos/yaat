@@ -105,7 +105,8 @@
             IsVisible="{Binding IsTerminalDocked}" />
 
         <!-- Bottom: Command input (visible when docked) -->
-        <views:CommandInputView DockPanel.Dock="Bottom"
+        <views:CommandInputView x:Name="CommandInputView"
+            DockPanel.Dock="Bottom"
             IsVisible="{Binding IsTerminalDocked}" />
 
         <!-- Center: TabControl + Terminal with splitter -->

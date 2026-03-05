@@ -612,6 +612,32 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Selects the aircraft matching the current command input text as a callsign,
+    /// then clears the input. Called by the configurable "aircraft select" keybind.
+    /// </summary>
+    public void SelectAircraftFromInput()
+    {
+        var text = CommandText.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        // Use the first token as a callsign candidate
+        var token = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
+        var match = ResolveAircraft(token);
+        if (match is not null)
+        {
+            SelectedAircraft = match;
+            CommandText = "";
+        }
+        else
+        {
+            StatusText = $"No aircraft matched \"{token}\"";
+        }
+    }
+
+    /// <summary>
     /// Resolves a full or partial callsign to a single spawned aircraft.
     /// Returns null and sets StatusText if no match or ambiguous.
     /// </summary>

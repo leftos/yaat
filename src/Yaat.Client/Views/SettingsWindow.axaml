@@ -297,6 +297,28 @@
             <TabItem Header="Advanced">
                 <ScrollViewer>
                     <StackPanel Margin="12" Spacing="12">
+                        <TextBlock Text="Keybinds"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Aircraft Select Key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="AircraftSelectKeyButton"
+                                        Content="{Binding AircraftSelectKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Pressing this key in the command input selects the aircraft matching the typed callsign without sending a command. Default: Numpad +"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <Separator Margin="0,4" />
                         <CheckBox Content="Server Admin Mode"
                                   IsChecked="{Binding IsAdminMode}" />
                         <StackPanel Spacing="4"

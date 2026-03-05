@@ -7,7 +7,7 @@
 
     <DockPanel Margin="8">
         <views:FavoritesBarView DockPanel.Dock="Bottom" />
-        <views:CommandInputView DockPanel.Dock="Bottom" />
+        <views:CommandInputView x:Name="CommandInputView" DockPanel.Dock="Bottom" />
         <views:TerminalPanelView />
     </DockPanel>
 
