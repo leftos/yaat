@@ -55,7 +55,8 @@
             </MenuItem>
             <MenuItem Header="_Scenario">
                 <MenuItem Header="_Load Scenario..."
-                          x:Name="LoadScenarioMenuItem" />
+                          x:Name="LoadScenarioMenuItem"
+                          IsEnabled="{Binding IsInRoom}" />
                 <MenuItem Header="Load _Recent Scenario"
                           x:Name="RecentScenariosMenuItem">
                     <MenuItem Header="(No recent scenarios)" IsEnabled="False" />
@@ -64,12 +65,14 @@
                           Command="{Binding UnloadScenarioCommand}" />
                 <Separator />
                 <MenuItem Header="Load _Weather..."
-                          x:Name="LoadWeatherMenuItem" />
+                          x:Name="LoadWeatherMenuItem"
+                          IsEnabled="{Binding IsInRoom}" />
                 <MenuItem Header="Load Recent W_eather"
                           x:Name="RecentWeatherMenuItem">
                     <MenuItem Header="(No recent weather)" IsEnabled="False" />
                 </MenuItem>
-                <MenuItem Header="Load _Live Weather">
+                <MenuItem Header="Load _Live Weather"
+                          IsEnabled="{Binding IsInRoom}">
                     <MenuItem Header="Only Current Weather"
                             Command="{Binding LoadLiveWeatherCommand}" />
                     <MenuItem Header="Current Weather + TAFs"
@@ -80,7 +83,8 @@
                           Command="{Binding ClearWeatherCommand}" />
                 <Separator />
                 <MenuItem Header="_Approach Report"
-                          x:Name="ApproachReportMenuItem" />
+                          x:Name="ApproachReportMenuItem"
+                          IsEnabled="{Binding IsInRoom}" />
             </MenuItem>
             <MenuItem Header="_Settings"
                         x:Name="SettingsMenuItem" />

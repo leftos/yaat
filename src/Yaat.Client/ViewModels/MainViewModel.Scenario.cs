@@ -10,15 +10,9 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
-    [RelayCommand(CanExecute = nameof(IsConnected))]
+    [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task LoadScenarioAsync()
     {
-        if (ActiveRoomId is null)
-        {
-            StatusText = "Join a room before loading a scenario";
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(ScenarioFilePath))
         {
             StatusText = "No scenario file selected";
@@ -186,7 +180,7 @@ public partial class MainViewModel
         }
     }
 
-    private bool CanUnloadScenario() => IsConnected && HasScenario;
+    private bool CanUnloadScenario() => CanExecuteInRoom && HasScenario;
 
     [RelayCommand]
     private async Task ConfirmUnloadScenarioAsync()

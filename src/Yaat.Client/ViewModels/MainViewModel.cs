@@ -87,6 +87,12 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(LeaveRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SendCommandCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TogglePauseCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadScenarioCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UnloadScenarioCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
     private string? _activeRoomId;
 
     [ObservableProperty]
@@ -177,6 +183,8 @@ public partial class MainViewModel : ObservableObject
     public string ConnectMenuText => IsConnected ? "_Disconnect" : "_Connect";
 
     public bool IsInRoom => ActiveRoomId is not null;
+
+    public bool CanExecuteInRoom => IsConnected && IsInRoom;
 
     public bool HasScenario => ActiveScenarioId is not null;
 
@@ -335,7 +343,7 @@ public partial class MainViewModel : ObservableObject
 
     // --- Commands ---
 
-    [RelayCommand(CanExecute = nameof(IsConnected))]
+    [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task SendCommandAsync()
     {
         var text = CommandText.Trim();
@@ -634,7 +642,7 @@ public partial class MainViewModel : ObservableObject
         return null;
     }
 
-    [RelayCommand(CanExecute = nameof(IsConnected))]
+    [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task TogglePauseAsync()
     {
         try

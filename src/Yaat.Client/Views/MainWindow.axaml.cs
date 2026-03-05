@@ -55,7 +55,7 @@ public partial class MainWindow : Window
         var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
         {
-            recentItem.IsEnabled = vm.Preferences.RecentScenarios.Count > 0;
+            recentItem.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
             PopulateRecentScenarios(recentItem, vm);
             recentItem.SubmenuOpened += OnRecentScenariosSubmenuOpened;
         }
@@ -63,7 +63,7 @@ public partial class MainWindow : Window
         var recentWeatherItem = this.FindControl<MenuItem>("RecentWeatherMenuItem");
         if (recentWeatherItem is not null)
         {
-            recentWeatherItem.IsEnabled = vm.Preferences.RecentWeatherFiles.Count > 0;
+            recentWeatherItem.IsEnabled = vm.IsInRoom && vm.Preferences.RecentWeatherFiles.Count > 0;
             PopulateRecentWeather(recentWeatherItem, vm);
             recentWeatherItem.SubmenuOpened += OnRecentWeatherSubmenuOpened;
         }
@@ -466,6 +466,9 @@ public partial class MainWindow : Window
             case nameof(MainViewModel.ActiveScenarioId):
                 RefreshRecentScenariosEnabled(vm);
                 break;
+            case nameof(MainViewModel.ActiveRoomId):
+                RefreshRecentMenusEnabled(vm);
+                break;
         }
     }
 
@@ -628,7 +631,22 @@ public partial class MainWindow : Window
         var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
         {
-            recentItem.IsEnabled = vm.Preferences.RecentScenarios.Count > 0;
+            recentItem.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
+        }
+    }
+
+    private void RefreshRecentMenusEnabled(MainViewModel vm)
+    {
+        var recentScenarios = this.FindControl<MenuItem>("RecentScenariosMenuItem");
+        if (recentScenarios is not null)
+        {
+            recentScenarios.IsEnabled = vm.IsInRoom && vm.Preferences.RecentScenarios.Count > 0;
+        }
+
+        var recentWeather = this.FindControl<MenuItem>("RecentWeatherMenuItem");
+        if (recentWeather is not null)
+        {
+            recentWeather.IsEnabled = vm.IsInRoom && vm.Preferences.RecentWeatherFiles.Count > 0;
         }
     }
 
@@ -662,10 +680,10 @@ public partial class MainWindow : Window
     {
         menu.Items.Clear();
         var recent = vm.Preferences.RecentScenarios;
-        if (recent.Count == 0)
+        if (recent.Count == 0 || !vm.IsInRoom)
         {
             menu.IsEnabled = false;
-            menu.Items.Add(new MenuItem { Header = "(No recent scenarios)", IsEnabled = false });
+            menu.Items.Add(new MenuItem { Header = recent.Count == 0 ? "(No recent scenarios)" : "(Join a room first)", IsEnabled = false });
             return;
         }
 
@@ -710,10 +728,10 @@ public partial class MainWindow : Window
     {
         menu.Items.Clear();
         var recent = vm.Preferences.RecentWeatherFiles;
-        if (recent.Count == 0)
+        if (recent.Count == 0 || !vm.IsInRoom)
         {
             menu.IsEnabled = false;
-            menu.Items.Add(new MenuItem { Header = "(No recent weather)", IsEnabled = false });
+            menu.Items.Add(new MenuItem { Header = recent.Count == 0 ? "(No recent weather)" : "(Join a room first)", IsEnabled = false });
             return;
         }
 

@@ -13,17 +13,11 @@ public partial class MainViewModel
     private readonly LiveWeatherService _liveWeather = new();
     private readonly ArtccAirportResolver _airportResolver = new();
 
-    [RelayCommand(CanExecute = nameof(IsConnected))]
+    [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task LoadWeatherAsync(string? filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath))
         {
-            return;
-        }
-
-        if (ActiveRoomId is null)
-        {
-            StatusText = "Join a room before loading weather";
             return;
         }
 
@@ -124,7 +118,7 @@ public partial class MainViewModel
         }
     }
 
-    private bool CanClearWeather() => IsConnected && ActiveWeatherName is not null;
+    private bool CanClearWeather() => CanExecuteInRoom && ActiveWeatherName is not null;
 
     private void OnWeatherChanged(WeatherChangedDto dto)
     {
