@@ -72,12 +72,7 @@
                     <MenuItem Header="(No recent weather)" IsEnabled="False" />
                 </MenuItem>
                 <MenuItem Header="Load _Live Weather"
-                          IsEnabled="{Binding IsInRoom}">
-                    <MenuItem Header="Only Current Weather"
-                            Command="{Binding LoadLiveWeatherCommand}" />
-                    <MenuItem Header="Current Weather + TAFs"
-                            Command="{Binding LoadLiveWeatherWithTafsCommand}" />
-                </MenuItem>
+                          Command="{Binding LoadLiveWeatherCommand}" />
                 <Separator />
                 <MenuItem Header="_Clear Weather"
                           Command="{Binding ClearWeatherCommand}" />

@@ -44,7 +44,6 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(LoadWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadLiveWeatherCommand))]
-    [NotifyCanExecuteChangedFor(nameof(LoadLiveWeatherWithTafsCommand))]
     private bool _isConnected;
 
     public string ServerUrl
@@ -329,7 +328,6 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsInRoom));
         OnPropertyChanged(nameof(WindowTitle));
         LoadLiveWeatherCommand.NotifyCanExecuteChanged();
-        LoadLiveWeatherWithTafsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnActiveRoomNameChanged(string? value)

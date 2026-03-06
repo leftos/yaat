@@ -98,20 +98,6 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(CanLoadLiveWeather))]
     private async Task LoadLiveWeatherAsync()
     {
-        await LoadLiveWeatherCoreAsync(includeTafs: false);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanLoadLiveWeather))]
-    private async Task LoadLiveWeatherWithTafsAsync()
-    {
-        await LoadLiveWeatherCoreAsync(includeTafs: true);
-    }
-
-    private bool CanLoadLiveWeather() =>
-        IsConnected && ActiveRoomId is not null && !string.IsNullOrWhiteSpace(_preferences.ArtccId) && _commandInput.FixDb is not null;
-
-    private async Task LoadLiveWeatherCoreAsync(bool includeTafs)
-    {
         try
         {
             StatusText = "Fetching live weather...";
@@ -125,7 +111,7 @@ public partial class MainViewModel
                 return;
             }
 
-            var profile = await _liveWeather.BuildLiveWeatherAsync(artccId, airportIds, fixDb, includeTafs);
+            var profile = await _liveWeather.BuildLiveWeatherAsync(artccId, airportIds, fixDb);
             if (profile is null)
             {
                 StatusText = "Failed to fetch live weather data";
@@ -152,6 +138,9 @@ public partial class MainViewModel
             StatusText = $"Live weather error: {ex.Message}";
         }
     }
+
+    private bool CanLoadLiveWeather() =>
+        IsConnected && ActiveRoomId is not null && !string.IsNullOrWhiteSpace(_preferences.ArtccId) && _commandInput.FixDb is not null;
 
     [RelayCommand(CanExecute = nameof(CanClearWeather))]
     private async Task ClearWeatherAsync()

@@ -21,7 +21,7 @@ public sealed class LiveWeatherService
     /// Builds a WeatherProfile from live aviationweather.gov data.
     /// Returns null if both METAR and FD fetches fail.
     /// </summary>
-    public async Task<WeatherProfile?> BuildLiveWeatherAsync(string artccId, IReadOnlyList<string> airportIds, IFixLookup fixes, bool includeTafs)
+    public async Task<WeatherProfile?> BuildLiveWeatherAsync(string artccId, IReadOnlyList<string> airportIds, IFixLookup fixes)
     {
         if (airportIds.Count == 0)
         {
@@ -33,13 +33,11 @@ public sealed class LiveWeatherService
         var icaoIds = airportIds.Select(id => id.Length == 3 ? "K" + id : id).ToList();
         var metarTask = FetchMetarsAsync(icaoIds);
         var fdTask = FetchWindsAloftAsync(artccId);
-        var tafTask = includeTafs ? FetchTafsAsync(icaoIds) : Task.FromResult<List<string>?>(null);
 
-        await Task.WhenAll(metarTask, fdTask, tafTask);
+        await Task.WhenAll(metarTask, fdTask);
 
         var metars = metarTask.Result;
         var fdStations = fdTask.Result;
-        var tafs = tafTask.Result;
 
         if ((metars is null || metars.Count == 0) && (fdStations is null || fdStations.Count == 0))
         {
@@ -70,34 +68,6 @@ public sealed class LiveWeatherService
         if (metars is not null)
         {
             allMetarStrings.AddRange(metars.Select(m => m.RawOb).Where(s => !string.IsNullOrWhiteSpace(s)));
-        }
-
-        // TAFs: extract only the initial forecast group (before any FM/BECMG/TEMPO)
-        // to avoid pulling ceiling/visibility from future forecast periods
-        if (tafs is not null)
-        {
-            var metarStations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var raw in allMetarStrings)
-            {
-                var parsed = MetarParser.Parse(raw);
-                if (parsed is not null)
-                {
-                    metarStations.Add(parsed.StationId);
-                }
-            }
-
-            foreach (var taf in tafs)
-            {
-                var initial = ExtractTafInitialGroup(taf);
-                if (initial is not null)
-                {
-                    var parsed = MetarParser.Parse(initial);
-                    if (parsed is not null && !metarStations.Contains(parsed.StationId))
-                    {
-                        allMetarStrings.Add(initial);
-                    }
-                }
-            }
         }
 
         var timestamp = DateTime.UtcNow.ToString("HH:mm");
@@ -145,23 +115,6 @@ public sealed class LiveWeatherService
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to fetch winds aloft for region {Region}", region);
-            return null;
-        }
-    }
-
-    private async Task<List<string>?> FetchTafsAsync(IReadOnlyList<string> icaoIds)
-    {
-        try
-        {
-            var ids = string.Join(",", icaoIds);
-            var url = $"{AwcBase}/taf?ids={ids}&format=json";
-            var json = await _http.GetStringAsync(url);
-            var tafs = JsonSerializer.Deserialize<List<TafJson>>(json, JsonOpts);
-            return tafs?.Select(t => t.RawTaf).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "Failed to fetch TAFs");
             return null;
         }
     }
@@ -340,59 +293,6 @@ public sealed class LiveWeatherService
         return (39.0, -98.0);
     }
 
-    /// <summary>
-    /// Extracts the initial forecast group from a raw TAF string.
-    /// Truncates at the first FM/BECMG/TEMPO keyword to avoid pulling
-    /// ceiling/visibility from future forecast periods.
-    /// Returns a pseudo-METAR string parseable by MetarParser.
-    /// </summary>
-    public static string? ExtractTafInitialGroup(string rawTaf)
-    {
-        if (string.IsNullOrWhiteSpace(rawTaf))
-        {
-            return null;
-        }
-
-        // Find the end of the initial group: first occurrence of FM, BECMG, or TEMPO
-        // that appears as a word boundary (space before it)
-        var span = rawTaf.AsSpan();
-        string[] groupMarkers = [" FM", " BECMG", " TEMPO"];
-        int cutoff = rawTaf.Length;
-        foreach (var marker in groupMarkers)
-        {
-            int idx = rawTaf.IndexOf(marker, StringComparison.Ordinal);
-            if (idx >= 0 && idx < cutoff)
-            {
-                cutoff = idx;
-            }
-        }
-
-        var initial = rawTaf[..cutoff].Trim();
-        if (initial.Length == 0)
-        {
-            return null;
-        }
-
-        // Strip the TAF prefix and validity period to produce a parseable string
-        // TAF format: "TAF [AMD] KSFO 061720Z 0618/0724 28012KT P6SM FEW250"
-        // We want: "KSFO 061720Z 28012KT P6SM FEW250"
-        var result = initial;
-        if (result.StartsWith("TAF ", StringComparison.OrdinalIgnoreCase))
-        {
-            result = result[4..].TrimStart();
-        }
-        if (result.StartsWith("AMD ", StringComparison.OrdinalIgnoreCase))
-        {
-            result = result[4..].TrimStart();
-        }
-
-        // Remove the validity period (e.g., "0618/0724") — a token matching DDDD/DDDD
-        var tokens = result.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
-        tokens.RemoveAll(t => t.Length >= 9 && t[4] == '/' && t.All(c => c is (>= '0' and <= '9') or '/'));
-
-        return tokens.Count >= 2 ? string.Join(' ', tokens) : null;
-    }
-
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
     // Minimal DTOs for aviationweather.gov JSON responses
@@ -401,10 +301,5 @@ public sealed class LiveWeatherService
         public string RawOb { get; set; } = "";
         public int? Wdir { get; set; }
         public int? Wspd { get; set; }
-    }
-
-    private sealed class TafJson
-    {
-        public string RawTaf { get; set; } = "";
     }
 }

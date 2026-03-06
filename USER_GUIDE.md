@@ -129,9 +129,7 @@ The active weather name is shown in the terminal when weather is loaded or clear
 
 ### Loading Live Weather
 
-**Scenario > Load Live Weather > Only Current Weather** fetches real-world METARs and winds aloft from aviationweather.gov for your ARTCC and loads them as a weather profile. Requires a room, an ARTCC ID configured in Settings, and navdata to be initialized.
-
-**Scenario > Load Live Weather > Current Weather + TAFs** does the same but also includes TAF data in the METAR list, providing ceiling/visibility forecasts for airports that may not have a current METAR.
+**Scenario > Load Live Weather** fetches real-world METARs and winds aloft from aviationweather.gov for your ARTCC and loads them as a weather profile. Requires a room, an ARTCC ID configured in Settings, and navdata to be initialized.
 
 Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data at standard levels (3000–39000 ft) and a surface layer averaged from METARs. FD wind directions are converted from true to magnetic heading automatically.
 
