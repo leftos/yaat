@@ -51,7 +51,12 @@ public sealed class CrosswindPhase : Phase
             ctx.Targets.DesiredVerticalRate = CategoryPerformance.InitialClimbRate(ctx.Category);
         }
 
-        ctx.Logger.LogDebug("[Crosswind] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft", ctx.Aircraft.Callsign, Waypoints.CrosswindHeading, ctx.Aircraft.Altitude);
+        ctx.Logger.LogDebug(
+            "[Crosswind] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
+            ctx.Aircraft.Callsign,
+            Waypoints.CrosswindHeading,
+            ctx.Aircraft.Altitude
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -66,8 +71,7 @@ public sealed class CrosswindPhase : Phase
         // Check if the aircraft has already passed the downwind start point.
         // Detect by checking if the bearing to the target is behind us
         // (more than 90° off our crosswind heading).
-        double bearingToTarget = GeoMath.BearingTo(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
         double bearingDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearingToTarget - _crosswindHeading));
         bool targetIsBehind = bearingDiff > 90.0;
 
@@ -78,7 +82,8 @@ public sealed class CrosswindPhase : Phase
                 "[Crosswind] {Callsign}: downwind start {Reason}, alt={Alt:F0}ft",
                 ctx.Aircraft.Callsign,
                 targetIsBehind ? "passed (behind aircraft)" : "reached",
-                ctx.Aircraft.Altitude);
+                ctx.Aircraft.Altitude
+            );
         }
 
         return complete;

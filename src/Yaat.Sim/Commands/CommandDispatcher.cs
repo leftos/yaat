@@ -618,33 +618,55 @@ public static class CommandDispatcher
             // (no active phases). These create a new PhaseList.
             case EnterLeftDownwindCommand eld:
                 return PatternCommandHandler.TryEnterPattern(
-                    aircraft, PatternDirection.Left, PatternEntryLeg.Downwind,
+                    aircraft,
+                    PatternDirection.Left,
+                    PatternEntryLeg.Downwind,
                     logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
-                    runwayId: eld.RunwayId, runways: runways);
+                    runwayId: eld.RunwayId,
+                    runways: runways
+                );
 
             case EnterRightDownwindCommand erd:
                 return PatternCommandHandler.TryEnterPattern(
-                    aircraft, PatternDirection.Right, PatternEntryLeg.Downwind,
+                    aircraft,
+                    PatternDirection.Right,
+                    PatternEntryLeg.Downwind,
                     logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
-                    runwayId: erd.RunwayId, runways: runways);
+                    runwayId: erd.RunwayId,
+                    runways: runways
+                );
 
             case EnterLeftBaseCommand elb:
                 return PatternCommandHandler.TryEnterPattern(
-                    aircraft, PatternDirection.Left, PatternEntryLeg.Base,
+                    aircraft,
+                    PatternDirection.Left,
+                    PatternEntryLeg.Base,
                     logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
-                    runwayId: elb.RunwayId, finalDistanceNm: elb.FinalDistanceNm, runways: runways);
+                    runwayId: elb.RunwayId,
+                    finalDistanceNm: elb.FinalDistanceNm,
+                    runways: runways
+                );
 
             case EnterRightBaseCommand erb:
                 return PatternCommandHandler.TryEnterPattern(
-                    aircraft, PatternDirection.Right, PatternEntryLeg.Base,
+                    aircraft,
+                    PatternDirection.Right,
+                    PatternEntryLeg.Base,
                     logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
-                    runwayId: erb.RunwayId, finalDistanceNm: erb.FinalDistanceNm, runways: runways);
+                    runwayId: erb.RunwayId,
+                    finalDistanceNm: erb.FinalDistanceNm,
+                    runways: runways
+                );
 
             case EnterFinalCommand ef:
                 return PatternCommandHandler.TryEnterPattern(
-                    aircraft, PatternDirection.Left, PatternEntryLeg.Final,
+                    aircraft,
+                    PatternDirection.Left,
+                    PatternEntryLeg.Final,
                     logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
-                    runwayId: ef.RunwayId, runways: runways);
+                    runwayId: ef.RunwayId,
+                    runways: runways
+                );
 
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");

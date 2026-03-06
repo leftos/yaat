@@ -110,7 +110,11 @@ public sealed class FinalApproachPhase : Phase
         if (distNm <= AutoGoAroundDistNm && !hasLandingClearance)
         {
             _goAroundTriggered = true;
-            ctx.Logger.LogDebug("[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Dist:F2}nm)", ctx.Aircraft.Callsign, distNm);
+            ctx.Logger.LogDebug(
+                "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Dist:F2}nm)",
+                ctx.Aircraft.Callsign,
+                distNm
+            );
             TriggerGoAround(ctx);
             return false;
         }

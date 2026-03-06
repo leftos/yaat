@@ -39,7 +39,12 @@ public sealed class StopAndGoPhase : Phase
         // Decelerate to zero
         ctx.Targets.TargetSpeed = 0;
 
-        ctx.Logger.LogDebug("[StopAndGo] {Callsign}: started, pause={Pause:F1}s, rwyHdg={Hdg:F0}", ctx.Aircraft.Callsign, _pauseDuration, _runwayHeading);
+        ctx.Logger.LogDebug(
+            "[StopAndGo] {Callsign}: started, pause={Pause:F1}s, rwyHdg={Hdg:F0}",
+            ctx.Aircraft.Callsign,
+            _pauseDuration,
+            _runwayHeading
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)

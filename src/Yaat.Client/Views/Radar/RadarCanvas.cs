@@ -1088,10 +1088,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return bestIdx;
     }
 
-    private static IReadOnlyList<AircraftModel> SortByZOrder(
-        IReadOnlyList<AircraftModel> aircraft,
-        Dictionary<string, int> zOrder
-    )
+    private static IReadOnlyList<AircraftModel> SortByZOrder(IReadOnlyList<AircraftModel> aircraft, Dictionary<string, int> zOrder)
     {
         if (zOrder.Count == 0)
         {
@@ -1099,12 +1096,14 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         var sorted = new List<AircraftModel>(aircraft);
-        sorted.Sort((a, b) =>
-        {
-            zOrder.TryGetValue(a.Callsign, out var za);
-            zOrder.TryGetValue(b.Callsign, out var zb);
-            return za.CompareTo(zb);
-        });
+        sorted.Sort(
+            (a, b) =>
+            {
+                zOrder.TryGetValue(a.Callsign, out var za);
+                zOrder.TryGetValue(b.Callsign, out var zb);
+                return za.CompareTo(zb);
+            }
+        );
         return sorted;
     }
 

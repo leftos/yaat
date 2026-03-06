@@ -71,8 +71,7 @@ public sealed class UpwindPhase : Phase
         // After takeoff + initial climb, the aircraft may be past it.
         // Detect this by checking if the bearing to the target is behind us
         // (more than 90° off our upwind heading).
-        double bearingToTarget = GeoMath.BearingTo(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
         double bearingDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearingToTarget - _upwindHeading));
         bool targetIsBehind = bearingDiff > 90.0;
 
@@ -83,7 +82,8 @@ public sealed class UpwindPhase : Phase
                 "[Upwind] {Callsign}: crosswind turn point {Reason}, alt={Alt:F0}ft",
                 ctx.Aircraft.Callsign,
                 targetIsBehind ? "passed (behind aircraft)" : "reached",
-                ctx.Aircraft.Altitude);
+                ctx.Aircraft.Altitude
+            );
         }
 
         return complete;

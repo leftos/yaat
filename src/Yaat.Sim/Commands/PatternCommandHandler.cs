@@ -102,12 +102,14 @@ internal static class PatternCommandHandler
 
             if (distToEntry > 1.0)
             {
-                phases.Add(new PatternEntryPhase
-                {
-                    EntryLat = entryLat,
-                    EntryLon = entryLon,
-                    PatternAltitude = waypoints.PatternAltitude,
-                });
+                phases.Add(
+                    new PatternEntryPhase
+                    {
+                        EntryLat = entryLat,
+                        EntryLon = entryLon,
+                        PatternAltitude = waypoints.PatternAltitude,
+                    }
+                );
             }
         }
 
@@ -400,8 +402,7 @@ internal static class PatternCommandHandler
     /// For base with a custom final distance, computes the point on the
     /// extended centerline offset laterally by pattern size.
     /// </summary>
-    private static (double Lat, double Lon) GetEntryPoint(
-        PatternWaypoints wp, PatternEntryLeg leg, double? finalDistanceNm)
+    private static (double Lat, double Lon) GetEntryPoint(PatternWaypoints wp, PatternEntryLeg leg, double? finalDistanceNm)
     {
         if (leg == PatternEntryLeg.Base && finalDistanceNm is not null)
         {

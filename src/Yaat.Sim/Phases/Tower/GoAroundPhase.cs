@@ -66,7 +66,12 @@ public sealed class GoAroundPhase : Phase
         {
             _headingAssigned = true;
             ctx.Targets.TargetHeading = AssignedHeading.Value;
-            ctx.Logger.LogDebug("[GoAround] {Callsign}: turning to assigned heading {Hdg} at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, AssignedHeading.Value, agl);
+            ctx.Logger.LogDebug(
+                "[GoAround] {Callsign}: turning to assigned heading {Hdg} at {Agl:F0}ft AGL",
+                ctx.Aircraft.Callsign,
+                AssignedHeading.Value,
+                agl
+            );
         }
 
         double targetAgl = TargetAltitude.HasValue ? TargetAltitude.Value - _fieldElevation : SelfClearAgl;
@@ -74,7 +79,12 @@ public sealed class GoAroundPhase : Phase
         bool complete = agl >= targetAgl;
         if (complete)
         {
-            ctx.Logger.LogDebug("[GoAround] {Callsign}: complete at {Agl:F0}ft AGL, IAS={Ias:F0}kts", ctx.Aircraft.Callsign, agl, ctx.Aircraft.IndicatedAirspeed);
+            ctx.Logger.LogDebug(
+                "[GoAround] {Callsign}: complete at {Agl:F0}ft AGL, IAS={Ias:F0}kts",
+                ctx.Aircraft.Callsign,
+                agl,
+                ctx.Aircraft.IndicatedAirspeed
+            );
         }
 
         return complete;

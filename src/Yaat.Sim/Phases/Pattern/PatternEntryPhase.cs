@@ -20,12 +20,14 @@ public sealed class PatternEntryPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.NavigationRoute.Clear();
-        ctx.Targets.NavigationRoute.Add(new NavigationTarget
-        {
-            Latitude = EntryLat,
-            Longitude = EntryLon,
-            Name = "PTN-ENTRY",
-        });
+        ctx.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Latitude = EntryLat,
+                Longitude = EntryLon,
+                Name = "PTN-ENTRY",
+            }
+        );
         ctx.Targets.TargetHeading = null;
         ctx.Targets.TurnRateOverride = null;
         ctx.Targets.PreferredTurnDirection = null;
@@ -47,7 +49,11 @@ public sealed class PatternEntryPhase : Phase
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, EntryLat, EntryLon);
         ctx.Logger.LogDebug(
             "[PatternEntry] {Callsign}: navigating to entry, dist={Dist:F1}nm, alt={Alt:F0}ft, tgtAlt={TgtAlt:F0}ft",
-            ctx.Aircraft.Callsign, dist, ctx.Aircraft.Altitude, PatternAltitude);
+            ctx.Aircraft.Callsign,
+            dist,
+            ctx.Aircraft.Altitude,
+            PatternAltitude
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
