@@ -70,6 +70,7 @@ public sealed class UserPreferences
     public bool IsGroundViewPoppedOut => _data.IsGroundViewPoppedOut;
     public bool IsRadarViewPoppedOut => _data.IsRadarViewPoppedOut;
     public bool ShowOnlyActiveAircraft => _data.ShowOnlyActiveAircraft;
+    public bool ShowTimelineBar => _data.ShowTimelineBar;
     public string? LastScenarioFolder => _data.LastScenarioFolder;
     public string? LastWeatherFolder => _data.LastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
@@ -188,6 +189,12 @@ public sealed class UserPreferences
     public void SetShowOnlyActiveAircraft(bool value)
     {
         _data.ShowOnlyActiveAircraft = value;
+        Save();
+    }
+
+    public void SetShowTimelineBar(bool value)
+    {
+        _data.ShowTimelineBar = value;
         Save();
     }
 
@@ -380,6 +387,7 @@ public sealed class UserPreferences
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
+            ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
@@ -518,6 +526,7 @@ public sealed class UserPreferences
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
         public bool ShowOnlyActiveAircraft { get; set; }
+        public bool ShowTimelineBar { get; set; }
         public string? LastScenarioFolder { get; set; }
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];

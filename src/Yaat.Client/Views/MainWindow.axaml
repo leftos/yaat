@@ -52,6 +52,10 @@
                 <MenuItem Header="Pop Out _Radar View"
                           ToggleType="CheckBox"
                           IsChecked="{Binding IsRadarViewPoppedOut, Mode=TwoWay}" />
+                <Separator />
+                <MenuItem Header="Show _Timeline Bar"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding ShowTimelineBar, Mode=TwoWay}" />
             </MenuItem>
             <MenuItem Header="_Scenario">
                 <MenuItem Header="_Load Scenario..."

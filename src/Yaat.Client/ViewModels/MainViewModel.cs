@@ -91,7 +91,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private double _playbackTapeEnd;
 
-    public bool IsTimelineAvailable => ActiveScenarioName is not null;
+    public bool IsTimelineAvailable => ActiveScenarioName is not null && ShowTimelineBar;
 
     public string ElapsedTimeDisplay
     {
@@ -232,6 +232,15 @@ public partial class MainViewModel : ObservableObject
         AircraftView.Refresh();
     }
 
+    [ObservableProperty]
+    private bool _showTimelineBar;
+
+    partial void OnShowTimelineBarChanged(bool value)
+    {
+        _preferences.SetShowTimelineBar(value);
+        OnPropertyChanged(nameof(IsTimelineAvailable));
+    }
+
     [RelayCommand]
     private void ResetGridLayout()
     {
@@ -258,6 +267,7 @@ public partial class MainViewModel : ObservableObject
         AircraftView = new DataGridCollectionView(Aircraft);
         AircraftView.Filter = obj => obj is not AircraftModel ac || !_showOnlyActiveAircraft || !ac.IsDelayed;
         _showOnlyActiveAircraft = _preferences.ShowOnlyActiveAircraft;
+        _showTimelineBar = _preferences.ShowTimelineBar;
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);
