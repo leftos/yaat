@@ -240,9 +240,9 @@ public sealed class GroundRenderer : IDisposable
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
         DrawNodes(canvas, vp, layout, hoveredNodeId);
+        DrawLabels(canvas);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
         DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
-        DrawLabels(canvas);
     }
 
     private void DrawRunways(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
