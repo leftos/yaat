@@ -1772,7 +1772,8 @@ public class TaxiPathfinderTests
         var edgeNames = string.Join(", ", exitNode.Edges.Select(e => e.TaxiwayName));
 
         // Diagnostic output
-        var output = $"Exit node {exitNode.Id}: type={exitNode.Type}, taxiway={exitTaxiway}, "
+        var output =
+            $"Exit node {exitNode.Id}: type={exitNode.Type}, taxiway={exitTaxiway}, "
             + $"pos=({exitNode.Latitude:F6},{exitNode.Longitude:F6}), "
             + $"dist={distToExit:F4}nm ({distToExit * 6076:F0}ft), "
             + $"hasRwyEdge={hasRunwayEdge}, edges=[{edgeNames}]";
@@ -1780,10 +1781,8 @@ public class TaxiPathfinderTests
         // Verify: the exit node should NOT still be on the runway rectangle
         Assert.False(
             hasRunwayEdge,
-            $"Exit node is still on the runway rectangle (has runway edges). "
-                + $"RunwayExitPhase would stop the aircraft ON the runway. {output}"
+            $"Exit node is still on the runway rectangle (has runway edges). " + $"RunwayExitPhase would stop the aircraft ON the runway. {output}"
         );
-
     }
 
     [Fact]
@@ -1812,14 +1811,93 @@ public class TaxiPathfinderTests
         double distFromExit = GeoMath.DistanceNm(exitNode.Latitude, exitNode.Longitude, clearNode.Latitude, clearNode.Longitude);
         var clearEdges = string.Join(", ", clearNode.Edges.Select(e => e.TaxiwayName));
 
-        var output = $"Exit node {exitNode.Id} → Clear node {clearNode.Id}: "
+        var output =
+            $"Exit node {exitNode.Id} → Clear node {clearNode.Id}: "
             + $"pos=({clearNode.Latitude:F6},{clearNode.Longitude:F6}), "
             + $"dist from exit={distFromExit:F4}nm ({distFromExit * 6076:F0}ft), "
             + $"edges=[{clearEdges}]";
 
-        Assert.False(
-            clearHasRunwayEdge,
-            $"Clear node still has runway edges — aircraft would still appear on runway. {output}"
+        Assert.False(clearHasRunwayEdge, $"Clear node still has runway edges — aircraft would still appear on runway. {output}");
+    }
+
+    [Fact]
+    public void OAK_ExitW5_TaxiWVTTE_UsesGraphNotRamp()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Find a node on W5 but NOT on W — simulates aircraft that landed
+        // runway 30 and exited onto W5, hasn't reached W yet.
+        int? w5OnlyNodeId = null;
+        foreach (var node in layout.Nodes.Values)
+        {
+            bool hasW5 = false;
+            bool hasW = false;
+            bool hasRwy = false;
+            foreach (var edge in node.Edges)
+            {
+                if (string.Equals(edge.TaxiwayName, "W5", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasW5 = true;
+                }
+                if (string.Equals(edge.TaxiwayName, "W", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasW = true;
+                }
+                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasRwy = true;
+                }
+            }
+
+            if (hasW5 && !hasW && !hasRwy)
+            {
+                w5OnlyNodeId = node.Id;
+                break;
+            }
+        }
+
+        Assert.True(w5OnlyNodeId.HasValue, "Should find a W5-only node (not on W or runway)");
+
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            w5OnlyNodeId!.Value,
+            ["W", "V", "T", "TE"],
+            out string? failReason,
+            destinationRunway: "26"
         );
+
+        Assert.NotNull(route);
+        Assert.Null(failReason);
+
+        var segSummary = string.Join(
+            " -> ",
+            route
+                .Segments.Select(s => s.TaxiwayName)
+                .Aggregate(
+                    new List<string>(),
+                    (acc, name) =>
+                    {
+                        if (acc.Count == 0 || !string.Equals(acc[^1], name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            acc.Add(name);
+                        }
+                        return acc;
+                    }
+                )
+        );
+
+        // Must NOT contain RAMP segments (that means grass-cutting)
+        var rampSegments = route.Segments.Where(s => string.Equals(s.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.True(rampSegments.Count == 0, $"Route should use graph edges (W5->W), not RAMP segments. Route: {segSummary}");
+
+        // Should include W5 connecting segments (BFS from exit to W)
+        Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "W5", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "W", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "V", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "TE", StringComparison.OrdinalIgnoreCase));
     }
 }
