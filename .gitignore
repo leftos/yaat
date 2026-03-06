@@ -15,3 +15,6 @@ obj/
 ## OS
 Thumbs.db
 .DS_Store
+
+## Generated
+tools/oak_layout_dump.json
