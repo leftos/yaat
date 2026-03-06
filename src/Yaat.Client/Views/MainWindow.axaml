@@ -81,6 +81,14 @@
                 <Separator />
                 <MenuItem Header="_Clear Weather"
                           Command="{Binding ClearWeatherCommand}" />
+                <MenuItem Header="Save Weather _As..."
+                          Command="{Binding SaveWeatherCommand}" />
+                <Separator />
+                <MenuItem Header="_New Weather..."
+                          x:Name="NewWeatherMenuItem"
+                          IsEnabled="{Binding IsInRoom}" />
+                <MenuItem Header="Ed_it Weather..."
+                          x:Name="EditWeatherMenuItem" />
                 <Separator />
                 <MenuItem Header="_Approach Report"
                           x:Name="ApproachReportMenuItem"

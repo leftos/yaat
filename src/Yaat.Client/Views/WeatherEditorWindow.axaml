@@ -1,0 +1,118 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Yaat.Client.ViewModels"
+        x:Class="Yaat.Client.Views.WeatherEditorWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Weather Editor"
+        MinWidth="500"
+        MinHeight="400"
+        CanResize="True">
+
+    <Design.DataContext>
+        <vm:WeatherEditorViewModel />
+    </Design.DataContext>
+
+    <DockPanel Margin="12">
+
+        <!-- Bottom: action buttons -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <Button Content="Apply to Sim"
+                    x:Name="ApplyButton" />
+            <Button Content="Save As..."
+                    x:Name="SaveAsButton" />
+            <Button Content="Close"
+                    x:Name="CloseButton" />
+        </StackPanel>
+
+        <ScrollViewer>
+        <StackPanel Spacing="12">
+
+            <!-- Name / ARTCC / Precipitation -->
+            <Grid ColumnDefinitions="Auto,*,16,Auto,Auto,16,Auto,Auto" RowDefinitions="Auto">
+                <TextBlock Grid.Column="0" Text="Name:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox Grid.Column="1" Text="{Binding Name}" />
+                <TextBlock Grid.Column="3" Text="ARTCC:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBox Grid.Column="4" Text="{Binding ArtccId}" Width="60" />
+                <TextBlock Grid.Column="6" Text="Precip:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox Grid.Column="7"
+                          ItemsSource="{Binding PrecipitationOptions}"
+                          SelectedItem="{Binding Precipitation}"
+                          Width="100">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding TargetNullValue='(none)'}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </Grid>
+
+            <!-- Wind Layers -->
+            <TextBlock Text="Wind Layers" FontWeight="Bold" Margin="0,4,0,0" />
+            <DataGrid ItemsSource="{Binding WindLayers}"
+                      AutoGenerateColumns="False"
+                      CanUserReorderColumns="False"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="False"
+                      HeadersVisibility="Column"
+                      GridLinesVisibility="Horizontal"
+                      MinHeight="80"
+                      MaxHeight="260">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Alt (ft)" Binding="{Binding Altitude}" Width="80" />
+                    <DataGridTextColumn Header="Dir (°)" Binding="{Binding Direction}" Width="70" />
+                    <DataGridTextColumn Header="Speed (kt)" Binding="{Binding Speed}" Width="80" />
+                    <DataGridTextColumn Header="Gusts (kt)" Binding="{Binding Gusts}" Width="80" />
+                    <DataGridTemplateColumn Header="" Width="40">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="vm:WindLayerRow">
+                                <Button Content="X"
+                                        Command="{Binding $parent[Window].DataContext.RemoveLayerCommand}"
+                                        CommandParameter="{Binding}"
+                                        Padding="4,1"
+                                        FontSize="11"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+            <Button Content="Add Layer"
+                    Command="{Binding AddLayerCommand}"
+                    HorizontalAlignment="Left" />
+
+            <!-- METARs -->
+            <TextBlock Text="METARs" FontWeight="Bold" Margin="0,4,0,0" />
+            <ItemsControl ItemsSource="{Binding Metars}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MetarRow">
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding Text}"
+                                     FontFamily="Consolas,Courier New,monospace"
+                                     FontSize="11" />
+                            <Button Grid.Column="1"
+                                    Content="X"
+                                    Command="{Binding $parent[Window].DataContext.RemoveMetarCommand}"
+                                    CommandParameter="{Binding}"
+                                    Padding="4,1"
+                                    FontSize="11"
+                                    Margin="4,0,0,0"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Content="Add METAR"
+                    Command="{Binding AddMetarCommand}"
+                    HorizontalAlignment="Left" />
+
+        </StackPanel>
+        </ScrollViewer>
+
+    </DockPanel>
+</Window>

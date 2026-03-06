@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private DataGridWindow? _dataGridWindow;
     private GroundViewWindow? _groundViewWindow;
     private RadarViewWindow? _radarViewWindow;
+    private WeatherEditorWindow? _weatherEditorWindow;
     private bool _restoringGrid;
     private string? _sortColumnKey;
     private ListSortDirection? _sortDirection;
@@ -55,6 +56,26 @@ public partial class MainWindow : Window
         if (approachReportItem is not null)
         {
             approachReportItem.Click += OnApproachReportClick;
+        }
+
+        var newWeatherItem = this.FindControl<MenuItem>("NewWeatherMenuItem");
+        if (newWeatherItem is not null)
+        {
+            newWeatherItem.Click += OnNewWeatherClick;
+        }
+
+        var editWeatherItem = this.FindControl<MenuItem>("EditWeatherMenuItem");
+        if (editWeatherItem is not null)
+        {
+            editWeatherItem.Click += OnEditWeatherClick;
+            editWeatherItem.IsEnabled = vm.HasActiveWeather;
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MainViewModel.HasActiveWeather))
+                {
+                    editWeatherItem.IsEnabled = vm.HasActiveWeather;
+                }
+            };
         }
 
         var recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
@@ -1009,6 +1030,46 @@ public partial class MainWindow : Window
 
         vm.RefreshCommandScheme();
         ApplyKeybinds(vm.Preferences);
+    }
+
+    private void OnNewWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        OpenWeatherEditor(ViewModels.WeatherEditorViewModel.CreateEmpty(vm.Preferences.ArtccId), vm);
+    }
+
+    private void OnEditWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || vm.ActiveWeatherJson is null)
+        {
+            return;
+        }
+
+        OpenWeatherEditor(ViewModels.WeatherEditorViewModel.FromJson(vm.ActiveWeatherJson), vm);
+    }
+
+    private void OpenWeatherEditor(ViewModels.WeatherEditorViewModel editorVm, MainViewModel vm)
+    {
+        if (_weatherEditorWindow is not null)
+        {
+            _weatherEditorWindow.Activate();
+            return;
+        }
+
+        _weatherEditorWindow = new WeatherEditorWindow(
+            editorVm,
+            vm.Preferences,
+            async (json, name) =>
+            {
+                await vm.LoadWeatherFromJsonAsync(json, name);
+            }
+        );
+        _weatherEditorWindow.Closing += (_, _) => _weatherEditorWindow = null;
+        _weatherEditorWindow.Show();
     }
 
     private Key _focusInputKey = Key.OemTilde;

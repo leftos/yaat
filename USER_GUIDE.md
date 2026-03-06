@@ -13,6 +13,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
   - [Unloading a Scenario](#unloading-a-scenario)
   - [Loading a Weather Profile](#loading-a-weather-profile)
   - [Loading Live Weather](#loading-live-weather)
+  - [Weather Editor](#weather-editor)
 - [Aircraft List](#aircraft-list)
   - [Aircraft Detail Panel](#aircraft-detail-panel)
   - [Distance Column](#distance-column)
@@ -135,6 +136,22 @@ The active weather name is shown in the terminal when weather is loaded or clear
 Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data at standard levels (3000–39000 ft) and a surface layer averaged from METARs. FD wind directions are converted from true to magnetic heading automatically.
 
 **Clear weather:** **Scenario > Clear Weather** removes the active weather profile. All aircraft return to IAS = GS behavior.
+
+**Save weather:** **Scenario > Save Weather As...** exports the active weather profile to a JSON file. Only available when weather is loaded.
+
+### Weather Editor
+
+**Scenario > New Weather...** opens a weather editor window to create a new profile from scratch.
+
+**Scenario > Edit Weather...** opens the editor pre-populated with the active weather profile. Only available when weather is loaded.
+
+The editor lets you set the profile name, ARTCC, and precipitation type. Wind layers can be added, edited, and removed via an editable grid (altitude, direction, speed, gusts). METARs can be added and edited as raw text.
+
+- **Apply to Sim** sends the profile to the server immediately. The editor stays open for further edits.
+- **Save As...** exports the profile to a JSON file without sending it to the server.
+- **Close** closes the editor.
+
+Only one editor window can be open at a time.
 
 Weather profiles use the same JSON format as ATCTrainer standalone weather files.
 

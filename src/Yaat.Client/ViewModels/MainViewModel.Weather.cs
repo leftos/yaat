@@ -1,7 +1,9 @@
 using System.Text.Json;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Services;
+using Yaat.Sim;
 
 namespace Yaat.Client.ViewModels;
 
@@ -12,6 +14,20 @@ public partial class MainViewModel
 {
     private readonly LiveWeatherService _liveWeather = new();
     private readonly ArtccAirportResolver _airportResolver = new();
+
+    private string? _activeWeatherJson;
+
+    public string? ActiveWeatherJson => _activeWeatherJson;
+
+    public bool HasActiveWeather => _activeWeatherJson is not null;
+
+    private void SetActiveWeatherJson(string? json)
+    {
+        _activeWeatherJson = json;
+        OnPropertyChanged(nameof(ActiveWeatherJson));
+        OnPropertyChanged(nameof(HasActiveWeather));
+        SaveWeatherCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task LoadWeatherAsync(string? filePath)
@@ -32,6 +48,7 @@ public partial class MainViewModel
                 StatusText = result.Message ?? "Weather loaded";
                 var name = Path.GetFileNameWithoutExtension(filePath);
                 _preferences.AddRecentWeather(filePath, name);
+                SetActiveWeatherJson(json);
             }
             else
             {
@@ -47,7 +64,7 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Loads weather from pre-fetched JSON (e.g. from the vNAS data API).
+    /// Loads weather from pre-fetched JSON (e.g. from the vNAS data API or editor).
     /// </summary>
     public async Task LoadWeatherFromJsonAsync(string json, string displayName, string? apiId = null)
     {
@@ -63,6 +80,7 @@ public partial class MainViewModel
                 {
                     _preferences.AddRecentWeather("", displayName, apiId);
                 }
+                SetActiveWeatherJson(json);
             }
             else
             {
@@ -120,6 +138,7 @@ public partial class MainViewModel
             if (result.Success)
             {
                 StatusText = result.Message ?? $"Loaded: {profile.Name}";
+                SetActiveWeatherJson(json);
             }
             else
             {
@@ -151,11 +170,102 @@ public partial class MainViewModel
 
     private bool CanClearWeather() => CanExecuteInRoom && ActiveWeatherName is not null;
 
+    [RelayCommand(CanExecute = nameof(HasActiveWeather))]
+    private async Task SaveWeatherAsync()
+    {
+        if (_activeWeatherJson is null)
+        {
+            return;
+        }
+
+        var mainWindow = Avalonia.Application.Current?.ApplicationLifetime
+            is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+            ? desktop.MainWindow
+            : null;
+
+        if (mainWindow?.StorageProvider is not { } storageProvider)
+        {
+            return;
+        }
+
+        var sanitized = SanitizeFileName(ActiveWeatherName ?? "weather");
+        var file = await storageProvider.SaveFilePickerAsync(
+            new FilePickerSaveOptions
+            {
+                Title = "Save Weather As…",
+                SuggestedFileName = sanitized,
+                FileTypeChoices = [new FilePickerFileType("JSON") { Patterns = ["*.json"] }],
+                DefaultExtension = "json",
+            }
+        );
+
+        if (file is null)
+        {
+            return;
+        }
+
+        var path = file.TryGetLocalPath();
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllTextAsync(path, _activeWeatherJson);
+            var name = Path.GetFileNameWithoutExtension(path);
+            _preferences.AddRecentWeather(path, name);
+            StatusText = $"Weather saved: {name}";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Save weather error");
+            StatusText = $"Save error: {ex.Message}";
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = new System.Text.StringBuilder(name.Length);
+        foreach (var c in name)
+        {
+            sanitized.Append(invalid.Contains(c) ? '_' : c);
+        }
+        return sanitized.ToString();
+    }
+
     private void OnWeatherChanged(WeatherChangedDto dto)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             ActiveWeatherName = dto.Name;
+
+            if (dto.Name is null)
+            {
+                SetActiveWeatherJson(null);
+            }
+            else
+            {
+                var profile = new WeatherProfile
+                {
+                    Name = dto.Name,
+                    ArtccId = _preferences.ArtccId,
+                    Precipitation = dto.Precipitation,
+                    Metars = dto.Metars ?? [],
+                    WindLayers =
+                        dto.WindLayers?.Select(w => new WindLayer
+                            {
+                                Altitude = w.Altitude,
+                                Direction = w.Direction,
+                                Speed = w.Speed,
+                                Gusts = w.Gusts,
+                            })
+                            .ToList()
+                        ?? [],
+                };
+                SetActiveWeatherJson(JsonSerializer.Serialize(profile));
+            }
         });
     }
 }
