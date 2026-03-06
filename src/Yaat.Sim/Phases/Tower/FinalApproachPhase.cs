@@ -19,6 +19,7 @@ public sealed class FinalApproachPhase : Phase
     private const double NoClearanceWarningDistNm = 1.0;
     private const double InterceptCrossTrackThresholdNm = 0.1;
     private const double InterceptHeadingThresholdDeg = 15.0;
+    private const double AimPointMinNm = 0.1;
 
     private double _thresholdLat;
     private double _thresholdLon;
@@ -50,7 +51,6 @@ public sealed class FinalApproachPhase : Phase
         _runwayHeading = ctx.Runway.TrueHeading;
         _isPatternTraffic = ctx.Aircraft.Phases?.TrafficDirection is not null;
 
-        // Set heading toward threshold
         ctx.Targets.TargetHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
@@ -60,13 +60,21 @@ public sealed class FinalApproachPhase : Phase
         ctx.Targets.TargetSpeed = approachSpeed;
 
         double startDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+        double startXte = GeoMath.SignedCrossTrackDistanceNm(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            _thresholdLat,
+            _thresholdLon,
+            _runwayHeading
+        );
         ctx.Logger.LogDebug(
-            "[FinalApproach] {Callsign}: started, rwy hdg={Hdg:F0}, dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts",
+            "[FinalApproach] {Callsign}: started, rwy hdg={Hdg:F0}, dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, xte={Xte:F3}nm",
             ctx.Aircraft.Callsign,
             _runwayHeading,
             startDist,
             ctx.Aircraft.Altitude,
-            approachSpeed
+            approachSpeed,
+            startXte
         );
     }
 
@@ -80,6 +88,38 @@ public sealed class FinalApproachPhase : Phase
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
 
         CheckInterceptDistance(ctx, distNm);
+
+        // Lateral guidance: steer toward an aim point on the extended centerline.
+        // Lead distance based on turn radius — the kinematically natural look-ahead.
+        // Far from centerline: lead ≈ turnRadius (smooth arc the aircraft can fly).
+        // Near centerline: lead → absXte (heading converges to runway heading).
+        double signedXte = GeoMath.SignedCrossTrackDistanceNm(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            _thresholdLat,
+            _thresholdLon,
+            _runwayHeading
+        );
+        double absXte = Math.Abs(signedXte);
+
+        // Turn radius in nm: R = V_kts / (ω_deg/s × 20π)
+        double turnRate = _isPatternTraffic
+            ? CategoryPerformance.PatternTurnRate(ctx.Category)
+            : (ctx.Aircraft.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(ctx.Category));
+        double turnRadiusNm = ctx.Aircraft.GroundSpeed / (turnRate * 62.832);
+
+        // Blend: at large XTE, lead = turnRadius (kinematic intercept arc).
+        // At small XTE, lead → absXte (heading converges to runway heading).
+        double xteRatio = turnRadiusNm > 0.01 ? Math.Clamp(absXte / turnRadiusNm, 0.0, 1.0) : 1.0;
+        double leadNm = Math.Max(turnRadiusNm * xteRatio + absXte * (1.0 - xteRatio), AimPointMinNm);
+
+        double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading);
+        double aimAlongTrack = Math.Min(alongTrack + leadNm, 0.0);
+
+        double reciprocal = FlightPhysics.NormalizeHeading(_runwayHeading + 180.0);
+        var aimPoint = GeoMath.ProjectPoint(_thresholdLat, _thresholdLon, reciprocal, Math.Abs(aimAlongTrack));
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, aimPoint.Lat, aimPoint.Lon);
+        ctx.Targets.TargetHeading = bearing;
 
         // Target: threshold elevation (descend all the way to the runway)
         ctx.Targets.TargetAltitude = _thresholdElevation;
