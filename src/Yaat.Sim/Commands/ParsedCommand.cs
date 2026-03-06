@@ -120,9 +120,9 @@ public record EnterRightBaseCommand(string? RunwayId = null, double? FinalDistan
 
 public record EnterFinalCommand(string? RunwayId = null) : ParsedCommand;
 
-public record MakeLeftTrafficCommand : ParsedCommand;
+public record MakeLeftTrafficCommand(string? RunwayId = null) : ParsedCommand;
 
-public record MakeRightTrafficCommand : ParsedCommand;
+public record MakeRightTrafficCommand(string? RunwayId = null) : ParsedCommand;
 
 public record TurnCrosswindCommand : ParsedCommand;
 

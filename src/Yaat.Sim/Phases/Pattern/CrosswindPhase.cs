@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -13,6 +14,7 @@ public sealed class CrosswindPhase : Phase
 
     private double _targetLat;
     private double _targetLon;
+    private double _crosswindHeading;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -33,6 +35,7 @@ public sealed class CrosswindPhase : Phase
 
         _targetLat = Waypoints.DownwindStartLat;
         _targetLon = Waypoints.DownwindStartLon;
+        _crosswindHeading = Waypoints.CrosswindHeading;
 
         var turnDir = Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
 
@@ -47,6 +50,8 @@ public sealed class CrosswindPhase : Phase
             ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
             ctx.Targets.DesiredVerticalRate = CategoryPerformance.InitialClimbRate(ctx.Category);
         }
+
+        ctx.Logger.LogDebug("[Crosswind] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft", ctx.Aircraft.Callsign, Waypoints.CrosswindHeading, ctx.Aircraft.Altitude);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -58,7 +63,25 @@ public sealed class CrosswindPhase : Phase
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
-        return dist < ArrivalNm;
+        // Check if the aircraft has already passed the downwind start point.
+        // Detect by checking if the bearing to the target is behind us
+        // (more than 90° off our crosswind heading).
+        double bearingToTarget = GeoMath.BearingTo(
+            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double bearingDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearingToTarget - _crosswindHeading));
+        bool targetIsBehind = bearingDiff > 90.0;
+
+        bool complete = dist < ArrivalNm || targetIsBehind;
+        if (complete)
+        {
+            ctx.Logger.LogDebug(
+                "[Crosswind] {Callsign}: downwind start {Reason}, alt={Alt:F0}ft",
+                ctx.Aircraft.Callsign,
+                targetIsBehind ? "passed (behind aircraft)" : "reached",
+                ctx.Aircraft.Altitude);
+        }
+
+        return complete;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

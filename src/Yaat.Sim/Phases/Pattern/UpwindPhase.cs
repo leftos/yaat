@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -13,6 +14,7 @@ public sealed class UpwindPhase : Phase
 
     private double _targetLat;
     private double _targetLon;
+    private double _upwindHeading;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -33,6 +35,7 @@ public sealed class UpwindPhase : Phase
 
         _targetLat = Waypoints.CrosswindTurnLat;
         _targetLon = Waypoints.CrosswindTurnLon;
+        _upwindHeading = Waypoints.UpwindHeading;
 
         ctx.Targets.TargetHeading = Waypoints.UpwindHeading;
         ctx.Targets.PreferredTurnDirection = null;
@@ -45,6 +48,14 @@ public sealed class UpwindPhase : Phase
 
         // Accelerate toward downwind speed
         ctx.Targets.TargetSpeed = CategoryPerformance.DownwindSpeed(ctx.Category);
+
+        ctx.Logger.LogDebug(
+            "[Upwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
+            ctx.Aircraft.Callsign,
+            Waypoints.UpwindHeading,
+            Waypoints.PatternAltitude,
+            IsExtended
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -56,7 +67,26 @@ public sealed class UpwindPhase : Phase
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
-        return dist < ArrivalNm;
+        // Check if the aircraft has already passed the crosswind turn point.
+        // After takeoff + initial climb, the aircraft may be past it.
+        // Detect this by checking if the bearing to the target is behind us
+        // (more than 90° off our upwind heading).
+        double bearingToTarget = GeoMath.BearingTo(
+            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        double bearingDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearingToTarget - _upwindHeading));
+        bool targetIsBehind = bearingDiff > 90.0;
+
+        bool complete = dist < ArrivalNm || targetIsBehind;
+        if (complete)
+        {
+            ctx.Logger.LogDebug(
+                "[Upwind] {Callsign}: crosswind turn point {Reason}, alt={Alt:F0}ft",
+                ctx.Aircraft.Callsign,
+                targetIsBehind ? "passed (behind aircraft)" : "reached",
+                ctx.Aircraft.Altitude);
+        }
+
+        return complete;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

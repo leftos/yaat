@@ -35,8 +35,9 @@ internal static class DepartureClearanceHandler
         {
             var routeResult = ResolveDepartureRoute(cto.Departure, aircraft, fixes, procedures);
 
-            foreach (var p in aircraft.Phases.Phases)
+            for (int i = 0; i < aircraft.Phases.Phases.Count; i++)
             {
+                var p = aircraft.Phases.Phases[i];
                 if (p is TakeoffPhase tkoff)
                 {
                     tkoff.SetAssignedDeparture(cto.Departure);
@@ -51,10 +52,13 @@ internal static class DepartureClearanceHandler
                 }
             }
 
-            // ClosedTrafficDeparture: establish pattern mode and append circuit
+            // ClosedTrafficDeparture: establish pattern mode and append circuit.
+            // Remove InitialClimbPhase — UpwindPhase handles climb to pattern altitude.
             if (cto.Departure is ClosedTrafficDeparture ct)
             {
                 aircraft.Phases.TrafficDirection = ct.Direction;
+                aircraft.Phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
+
                 var runway = aircraft.Phases.AssignedRunway;
                 if (runway is not null)
                 {
@@ -215,18 +219,32 @@ internal static class DepartureClearanceHandler
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool isHeli = cat == AircraftCategory.Helicopter;
         Phase takeoffPhase = isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase();
-        var climb = new InitialClimbPhase
+        // For closed traffic, skip InitialClimbPhase — UpwindPhase handles the
+        // climb to pattern altitude. The crosswind turn is position-based (departure end),
+        // not altitude-based.
+        bool isClosedTraffic = departure is ClosedTrafficDeparture;
+        Phase[] towerPhases;
+        if (isClosedTraffic)
         {
-            Departure = departure,
-            AssignedAltitude = assignedAltitude,
-            DepartureRoute = routeResult?.Targets,
-            DepartureSidId = routeResult?.SidId,
-            IsVfr = aircraft.IsVfr,
-            CruiseAltitude = aircraft.CruiseAltitude,
-        };
+            towerPhases = [lineup, luawPhase, takeoffPhase];
+        }
+        else
+        {
+            var climb = new InitialClimbPhase
+            {
+                Departure = departure,
+                AssignedAltitude = assignedAltitude,
+                DepartureRoute = routeResult?.Targets,
+                DepartureSidId = routeResult?.SidId,
+                IsVfr = aircraft.IsVfr,
+                CruiseAltitude = aircraft.CruiseAltitude,
+            };
+            towerPhases = [lineup, luawPhase, takeoffPhase, climb];
+        }
+
         // Replace (not insert) — remaining taxi phases (CrossingRunwayPhase, etc.)
         // must not execute after the aircraft is airborne.
-        aircraft.Phases!.ReplaceUpcoming(new Phase[] { lineup, luawPhase, takeoffPhase, climb });
+        aircraft.Phases!.ReplaceUpcoming(towerPhases);
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
         {
@@ -324,6 +342,8 @@ internal static class DepartureClearanceHandler
         if (departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
         {
             phases.TrafficDirection = ct.Direction;
+            // Remove InitialClimbPhase — UpwindPhase handles climb to pattern altitude
+            phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
             var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
             var circuit = PatternBuilder.BuildCircuit(rwy, cat, ct.Direction, PatternEntryLeg.Upwind, true);
             phases.Phases.AddRange(circuit);

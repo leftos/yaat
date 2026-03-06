@@ -47,8 +47,9 @@ public static class PhaseRunner
 
             phases.AdvanceToNext(ctx);
 
-            // After a full-stop landing (not pattern mode), auto-exit the runway
-            if (wasLanding && phases.IsComplete && phases.TrafficDirection is null && ctx.GroundLayout is not null)
+            // After a full-stop landing (not pattern mode), auto-exit the runway.
+            // RunwayExitPhase handles the case where GroundLayout is null (stops immediately).
+            if (wasLanding && phases.IsComplete && phases.TrafficDirection is null)
             {
                 phases.Phases.Add(new RunwayExitPhase());
                 phases.Phases.Add(new HoldingAfterExitPhase());

@@ -83,12 +83,33 @@ internal static class PatternCommandHandler
         PatternEntryLeg effectiveEntryLeg = isOnWrongSide ? PatternEntryLeg.Downwind : entryLeg;
         double? effectiveFinalDistanceNm = isOnWrongSide ? null : finalDistanceNm;
 
+        // Compute waypoints for the entry point check
+        waypoints ??= PatternGeometry.Compute(runway, category, direction);
+
         var circuitPhases = PatternBuilder.BuildCircuit(runway, category, direction, effectiveEntryLeg, touchAndGo, effectiveFinalDistanceNm);
 
         var phases = new PhaseList { AssignedRunway = runway };
         phases.LandingClearance = aircraft.Phases.LandingClearance;
         phases.ClearedRunwayId = aircraft.Phases.ClearedRunwayId;
         phases.TrafficDirection = aircraft.Phases.TrafficDirection;
+
+        // If the aircraft is airborne and far from the pattern, insert a PatternEntryPhase
+        // to navigate to the entry point with descent/climb to pattern altitude.
+        if (!aircraft.IsOnGround && !isOnWrongSide)
+        {
+            var (entryLat, entryLon) = GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm);
+            double distToEntry = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, entryLat, entryLon);
+
+            if (distToEntry > 1.0)
+            {
+                phases.Add(new PatternEntryPhase
+                {
+                    EntryLat = entryLat,
+                    EntryLon = entryLon,
+                    PatternAltitude = waypoints.PatternAltitude,
+                });
+            }
+        }
 
         if (isOnWrongSide)
         {
@@ -109,8 +130,32 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"Enter {dirStr} {legStr}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
     }
 
-    internal static CommandResult TryChangePatternDirection(AircraftState aircraft, PatternDirection newDirection)
+    internal static CommandResult TryChangePatternDirection(
+        AircraftState aircraft,
+        PatternDirection newDirection,
+        string? runwayId = null,
+        IRunwayLookup? runways = null
+    )
     {
+        // Resolve runway from argument if provided
+        if (runwayId is not null && runways is not null)
+        {
+            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination ?? aircraft.Departure;
+            if (airportId is null)
+            {
+                return new CommandResult(false, "No airport context to resolve runway");
+            }
+
+            var resolved = runways.GetRunway(airportId, runwayId);
+            if (resolved is null)
+            {
+                return new CommandResult(false, $"Runway {runwayId} not found at {airportId}");
+            }
+
+            aircraft.Phases ??= new PhaseList();
+            aircraft.Phases.AssignedRunway = resolved;
+        }
+
         if (aircraft.Phases?.AssignedRunway is null)
         {
             return new CommandResult(false, "No assigned runway");
@@ -348,6 +393,38 @@ internal static class PatternCommandHandler
             _ => "hover",
         };
         return CommandDispatcher.Ok($"Hold at {fixName}, {dirStr}");
+    }
+
+    /// <summary>
+    /// Get the entry point coordinates for a given pattern entry leg.
+    /// For base with a custom final distance, computes the point on the
+    /// extended centerline offset laterally by pattern size.
+    /// </summary>
+    private static (double Lat, double Lon) GetEntryPoint(
+        PatternWaypoints wp, PatternEntryLeg leg, double? finalDistanceNm)
+    {
+        if (leg == PatternEntryLeg.Base && finalDistanceNm is not null)
+        {
+            // Compute a base entry point at the custom final distance
+            double reciprocal = ((wp.FinalHeading + 180.0) % 360.0 + 360.0) % 360.0;
+            var finalPoint = GeoMath.ProjectPoint(wp.ThresholdLat, wp.ThresholdLon, reciprocal, finalDistanceNm.Value);
+            // Offset laterally by the pattern width (same direction as BaseTurn from threshold)
+            double baseOffset = GeoMath.DistanceNm(wp.ThresholdLat, wp.ThresholdLon, wp.BaseTurnLat, wp.BaseTurnLon);
+            double lateralBearing = GeoMath.BearingTo(wp.ThresholdLat, wp.ThresholdLon, wp.BaseTurnLat, wp.BaseTurnLon);
+            var entryPoint = GeoMath.ProjectPoint(finalPoint.Lat, finalPoint.Lon, lateralBearing, baseOffset);
+            return (entryPoint.Lat, entryPoint.Lon);
+        }
+
+        return leg switch
+        {
+            // AIM 4-3-3: enter downwind at midfield (abeam the threshold), not at the departure end.
+            // The standard 45° entry joins the downwind leg abeam the runway midpoint.
+            PatternEntryLeg.Downwind => (wp.DownwindAbeamLat, wp.DownwindAbeamLon),
+            PatternEntryLeg.Base => (wp.BaseTurnLat, wp.BaseTurnLon),
+            PatternEntryLeg.Final => (wp.ThresholdLat, wp.ThresholdLon),
+            PatternEntryLeg.Upwind => (wp.DepartureEndLat, wp.DepartureEndLon),
+            _ => (wp.DownwindAbeamLat, wp.DownwindAbeamLon),
+        };
     }
 
     /// <summary>

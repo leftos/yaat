@@ -39,11 +39,12 @@ public static class CommandDispatcher
         }
 
         // Reject tower commands that require phase context
+        // (pattern entry commands with an explicit runway can self-resolve)
         foreach (var block in compound.Blocks)
         {
             foreach (var cmd in block.Commands)
             {
-                if (CommandDescriber.IsTowerCommand(cmd))
+                if (CommandDescriber.IsTowerCommand(cmd) && !IsPatternEntryWithRunway(cmd))
                 {
                     return new CommandResult(false, $"{CommandDescriber.DescribeNatural(cmd)} requires an active runway assignment");
                 }
@@ -613,12 +614,57 @@ public static class CommandDispatcher
             case ReportTrafficInSightCommand rtis:
                 return DispatchReportTrafficInSight(aircraft, rtis.TargetCallsign);
 
+            // Pattern entry commands — handle here so they work from the queue path
+            // (no active phases). These create a new PhaseList.
+            case EnterLeftDownwindCommand eld:
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft, PatternDirection.Left, PatternEntryLeg.Downwind,
+                    logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+                    runwayId: eld.RunwayId, runways: runways);
+
+            case EnterRightDownwindCommand erd:
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft, PatternDirection.Right, PatternEntryLeg.Downwind,
+                    logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+                    runwayId: erd.RunwayId, runways: runways);
+
+            case EnterLeftBaseCommand elb:
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft, PatternDirection.Left, PatternEntryLeg.Base,
+                    logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+                    runwayId: elb.RunwayId, finalDistanceNm: elb.FinalDistanceNm, runways: runways);
+
+            case EnterRightBaseCommand erb:
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft, PatternDirection.Right, PatternEntryLeg.Base,
+                    logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+                    runwayId: erb.RunwayId, finalDistanceNm: erb.FinalDistanceNm, runways: runways);
+
+            case EnterFinalCommand ef:
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft, PatternDirection.Left, PatternEntryLeg.Final,
+                    logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+                    runwayId: ef.RunwayId, runways: runways);
+
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
             default:
                 return new CommandResult(false, "Unknown command");
         }
+    }
+
+    private static bool IsPatternEntryWithRunway(ParsedCommand cmd)
+    {
+        return cmd switch
+        {
+            EnterLeftDownwindCommand { RunwayId: not null } => true,
+            EnterRightDownwindCommand { RunwayId: not null } => true,
+            EnterLeftBaseCommand { RunwayId: not null } => true,
+            EnterRightBaseCommand { RunwayId: not null } => true,
+            EnterFinalCommand { RunwayId: not null } => true,
+            _ => false,
+        };
     }
 
     /// <summary>
@@ -872,11 +918,11 @@ public static class CommandDispatcher
                 );
 
             // Pattern modification commands
-            case MakeLeftTrafficCommand:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left);
+            case MakeLeftTrafficCommand mlt:
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, runways);
 
-            case MakeRightTrafficCommand:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right);
+            case MakeRightTrafficCommand mrt:
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId, runways);
 
             case TurnCrosswindCommand:
                 return PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(aircraft, "crosswind", logger);
