@@ -6,13 +6,17 @@ public static partial class MetarParser
 {
     public record ParsedMetar(string StationId, int? CeilingFeetAgl, double? VisibilityStatuteMiles);
 
-    // Visibility patterns: "P6SM", "10SM", "3SM", "1/2SM", "1 1/2SM"
-    [GeneratedRegex(@"(?<!\S)(P?\d+(?:\s+\d+/\d+)?(?:/\d+)?)\s*SM(?!\S)", RegexOptions.Compiled)]
+    // Visibility patterns: "M1/4SM", "P6SM", "10SM", "3SM", "1/2SM", "1 1/2SM"
+    [GeneratedRegex(@"(?<!\S)([PM]?\d+(?:\s+\d+/\d+)?(?:/\d+)?)\s*SM(?!\S)", RegexOptions.Compiled)]
     private static partial Regex VisibilityRegex();
 
     // Cloud layer: FEW/SCT/BKN/OVC followed by 3-digit hundreds of feet
     [GeneratedRegex(@"\b(FEW|SCT|BKN|OVC)(\d{3})\b", RegexOptions.Compiled)]
     private static partial Regex CloudLayerRegex();
+
+    // Vertical visibility (indefinite ceiling): VV followed by 3-digit hundreds of feet
+    [GeneratedRegex(@"\bVV(\d{3})\b", RegexOptions.Compiled)]
+    private static partial Regex VerticalVisibilityRegex();
 
     // Clear sky: CLR or SKC
     [GeneratedRegex(@"\b(CLR|SKC)\b", RegexOptions.Compiled)]
@@ -31,12 +35,17 @@ public static partial class MetarParser
             return null;
         }
 
-        // Station ID: first token that looks like an ICAO identifier (4 uppercase letters)
+        // Station ID: first 4-char token starting with a letter (ICAO: KSFO, KE16, etc.)
+        // Skip known prefixes: METAR, SPECI
         string? stationId = null;
         foreach (var token in tokens)
         {
-            if (token.Length == 4 && token.All(c => c is >= 'A' and <= 'Z'))
+            if (token.Length == 4 && token[0] is >= 'A' and <= 'Z' && token.All(c => c is (>= 'A' and <= 'Z') or (>= '0' and <= '9')))
             {
+                if (token is "AUTO")
+                {
+                    continue;
+                }
                 stationId = token;
                 break;
             }
@@ -106,6 +115,17 @@ public static partial class MetarParser
             return null;
         }
 
+        // M1/4SM → less than 1/4 mile; parse the fraction after M
+        if (raw.StartsWith('M'))
+        {
+            var mRaw = raw[1..];
+            if (mRaw.Contains('/'))
+            {
+                return TryParseFraction(mRaw, out double mVal) ? mVal : null;
+            }
+            return double.TryParse(mRaw, out double mWholeVal) ? mWholeVal : null;
+        }
+
         // Mixed fraction: "1 1/2" → 1.5
         if (raw.Contains(' ') && raw.Contains('/'))
         {
@@ -168,6 +188,17 @@ public static partial class MetarParser
                 {
                     lowestCeiling = altFeet;
                 }
+            }
+        }
+
+        // VV (vertical visibility / indefinite ceiling) — total obscuration
+        var vvMatch = VerticalVisibilityRegex().Match(metar);
+        if (vvMatch.Success && int.TryParse(vvMatch.Groups[1].Value, out int vvHundreds))
+        {
+            int vvFeet = vvHundreds * 100;
+            if (lowestCeiling is null || vvFeet < lowestCeiling)
+            {
+                lowestCeiling = vvFeet;
             }
         }
 

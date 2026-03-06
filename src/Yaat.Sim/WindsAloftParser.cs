@@ -49,7 +49,7 @@ public static class WindsAloftParser
         }
 
         var headerLine = lines[headerLineIndex];
-        var columns = ParseHeaderColumns(headerLine);
+        var columns = ParseHeaderColumnCenters(headerLine);
         if (columns.Count == 0)
         {
             return results;
@@ -64,20 +64,14 @@ public static class WindsAloftParser
                 continue;
             }
 
-            // Station ID is the first non-space token (3-letter identifier)
-            var trimmed = line.TrimStart();
-            if (trimmed.Length < 3)
+            // Find tokens with their column positions
+            var tokens = FindTokens(line);
+            if (tokens.Count < 2)
             {
                 continue;
             }
 
-            int spaceIdx = trimmed.IndexOf(' ');
-            if (spaceIdx < 2)
-            {
-                continue;
-            }
-
-            string stationId = trimmed[..spaceIdx].Trim();
+            string stationId = tokens[0].Text;
 
             // Skip lines that look like headers or metadata
             if (stationId is "FT" or "VALID" or "DATA" or "TEMPS" or "BASED")
@@ -85,25 +79,33 @@ public static class WindsAloftParser
                 continue;
             }
 
+            // Map each data token (skip station ID) to the nearest altitude column
             var winds = new List<WindAtLevel>();
-            foreach (var (altitude, startCol, endCol) in columns)
+            for (int t = 1; t < tokens.Count; t++)
             {
-                if (startCol >= line.Length)
+                var token = tokens[t];
+                int tokenCenter = token.Start + token.Text.Length / 2;
+
+                // Find the closest column by center position
+                int bestAlt = -1;
+                int bestDist = int.MaxValue;
+                foreach (var (altitude, colCenter) in columns)
                 {
-                    continue;
+                    int dist = Math.Abs(tokenCenter - colCenter);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestAlt = altitude;
+                    }
                 }
 
-                int actualEnd = Math.Min(endCol, line.Length);
-                var cell = line[startCol..actualEnd].Trim();
-                if (string.IsNullOrEmpty(cell))
+                if (bestAlt >= 0)
                 {
-                    continue;
-                }
-
-                var wind = DecodeWind(altitude, cell);
-                if (wind is not null)
-                {
-                    winds.Add(wind.Value);
+                    var wind = DecodeWind(bestAlt, token.Text);
+                    if (wind is not null)
+                    {
+                        winds.Add(wind.Value);
+                    }
                 }
             }
 
@@ -116,39 +118,42 @@ public static class WindsAloftParser
         return results;
     }
 
-    private static List<(int Altitude, int StartCol, int EndCol)> ParseHeaderColumns(string headerLine)
+    private static List<(int Altitude, int Center)> ParseHeaderColumnCenters(string headerLine)
     {
-        var columns = new List<(int Altitude, int StartCol, int EndCol)>();
-
+        var columns = new List<(int Altitude, int Center)>();
         foreach (int level in StandardLevels)
         {
             string levelStr = level.ToString();
             int idx = headerLine.IndexOf(levelStr, StringComparison.Ordinal);
-            if (idx < 0)
+            if (idx >= 0)
             {
+                columns.Add((level, idx + levelStr.Length / 2));
+            }
+        }
+        return columns;
+    }
+
+    private readonly record struct Token(string Text, int Start);
+
+    private static List<Token> FindTokens(string line)
+    {
+        var tokens = new List<Token>();
+        int i = 0;
+        while (i < line.Length)
+        {
+            if (line[i] == ' ')
+            {
+                i++;
                 continue;
             }
-
-            // Column center is at the altitude label position; data is 4 chars (DDSS) + optional temp
-            // Estimate column start as center of the altitude label minus ~2 chars for the 4-char wind code
-            int colCenter = idx + levelStr.Length / 2;
-            int startCol = Math.Max(0, colCenter - 3);
-            int endCol = colCenter + 5;
-
-            columns.Add((level, startCol, endCol));
+            int start = i;
+            while (i < line.Length && line[i] != ' ')
+            {
+                i++;
+            }
+            tokens.Add(new Token(line[start..i], start));
         }
-
-        // Refine columns: each column ends where the next starts
-        for (int i = 0; i < columns.Count - 1; i++)
-        {
-            var current = columns[i];
-            var next = columns[i + 1];
-            int midpoint = (current.EndCol + next.StartCol) / 2;
-            columns[i] = (current.Altitude, current.StartCol, midpoint);
-            columns[i + 1] = (next.Altitude, midpoint, next.EndCol);
-        }
-
-        return columns;
+        return tokens;
     }
 
     /// <summary>

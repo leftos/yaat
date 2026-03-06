@@ -144,6 +144,51 @@ public class MetarParserTests
     }
 
     // -------------------------------------------------------------------------
+    // Parse — vertical visibility (VV / indefinite ceiling)
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("KSFO 121853Z 04006KT 1/8SM FG VV006 02/02 A3037", 600)]
+    [InlineData("KOAK 121853Z 04006KT 1/4SM FG VV002 02/02 A3037", 200)]
+    [InlineData("KJFK 121853Z 04006KT 1/2SM FG VV010 02/02 A3037", 1000)]
+    public void Parse_VerticalVisibility_IsCeiling(string metar, int expectedCeiling)
+    {
+        var result = MetarParser.Parse(metar);
+        Assert.NotNull(result);
+        Assert.Equal(expectedCeiling, result.CeilingFeetAgl);
+    }
+
+    [Fact]
+    public void Parse_VV_LowerThanBkn_VVWins()
+    {
+        var result = MetarParser.Parse("KSFO 121853Z 04006KT 1/4SM FG VV003 BKN010 02/02 A3037");
+        Assert.NotNull(result);
+        Assert.Equal(300, result.CeilingFeetAgl);
+    }
+
+    [Fact]
+    public void Parse_VV_HigherThanBkn_BknWins()
+    {
+        var result = MetarParser.Parse("KSFO 121853Z 04006KT 1SM BR VV015 BKN008 02/02 A3037");
+        Assert.NotNull(result);
+        Assert.Equal(800, result.CeilingFeetAgl);
+    }
+
+    // -------------------------------------------------------------------------
+    // Parse — M prefix visibility (less than)
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("KSFO 121853Z 04006KT M1/4SM FG VV002 02/02 A3037", 0.25)]
+    [InlineData("KSFO 121853Z 04006KT M1/2SM FG VV003 02/02 A3037", 0.5)]
+    public void Parse_MVisibility_Correct(string metar, double expected)
+    {
+        var result = MetarParser.Parse(metar);
+        Assert.NotNull(result);
+        Assert.Equal(expected, result.VisibilityStatuteMiles);
+    }
+
+    // -------------------------------------------------------------------------
     // Real-world METARs from aviationweather.gov
     // -------------------------------------------------------------------------
 
