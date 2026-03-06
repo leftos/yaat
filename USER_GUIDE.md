@@ -99,10 +99,14 @@ Initials and ARTCC ID are required — you cannot connect without them.
 
 ### Loading a Scenario
 
-1. **Scenario > Load Scenario...** — opens a file picker for ATCTrainer-format JSON scenarios
-2. Aircraft spawn at their configured starting positions
-3. The window title shows the room name and scenario name
-4. To switch scenarios, load a new one — a confirmation dialog appears if one is already active
+**Scenario > Load Scenario...** opens a dialog with two tabs:
+
+- **ARTCC Scenarios** (default) — lists training scenarios from the vNAS data API for your configured ARTCC. Use the Airport filter to narrow by primary airport. Requires an ARTCC ID set in Settings.
+- **Local Files** — browse a local folder for ATCTrainer-format JSON scenario files. Supports Facility and Rating filters parsed from scenario names.
+
+Select a scenario and click **Load** (or double-click). Aircraft spawn at their configured starting positions. The window title shows the room name and scenario name. To switch scenarios, load a new one — a confirmation dialog appears if one is already active.
+
+Both API and local scenarios appear in the **Scenario > Recent Scenarios** menu for quick reloading.
 
 ### Unloading a Scenario
 
@@ -110,9 +114,12 @@ Initials and ARTCC ID are required — you cannot connect without them.
 
 ### Loading a Weather Profile
 
-1. **Weather > Load Weather...** — opens a file picker for ATCTrainer-format weather JSON files
-2. Select a profile from the list; each entry shows the name and wind layer count
-3. Weather is room-level and persists across scenario loads/unloads
+**Weather > Load Weather...** opens a dialog with two tabs:
+
+- **ARTCC Weather** (default) — lists weather profiles from the vNAS data API for your configured ARTCC. Each entry shows the name and wind layer count. Requires an ARTCC ID set in Settings.
+- **Local Files** — browse a local folder for ATCTrainer-format weather JSON files.
+
+Select a profile and click **Load** (or double-click). Weather is room-level and persists across scenario loads/unloads. Both API and local weather profiles appear in the **Weather > Recent Weather** menu for quick reloading.
 
 The active weather name is shown in the terminal when weather is loaded or cleared.
 

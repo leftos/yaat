@@ -46,6 +46,7 @@ Services/
   CommandInputController.cs     # Autocomplete (callsign/command/fix/macro), history nav, FixDb binary search
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional $1 or named $hdg)
   MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
+  TrainingDataService.cs         # Fetches scenarios/weather from vNAS data API (data-api.vnas.vatsim.net)
   FixSuggester.cs               # Fix name suggestions from FixDb
   AddCommandSuggester.cs        # ADD command callsign/model suggestions
   SuggestionItem.cs             # Suggestion display model (text, kind, description)

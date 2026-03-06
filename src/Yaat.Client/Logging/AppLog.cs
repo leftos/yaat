@@ -46,4 +46,13 @@ public static class AppLog
 
         return _factory.CreateLogger(category);
     }
+
+    /// <summary>
+    /// Disposes the logger factory, flushing all buffered output.
+    /// Call on fatal crash before exiting.
+    /// </summary>
+    public static void Flush()
+    {
+        _factory?.Dispose();
+    }
 }

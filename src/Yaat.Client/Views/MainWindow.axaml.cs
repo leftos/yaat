@@ -791,11 +791,20 @@ public partial class MainWindow : Window
         }
 
         var window = new LoadScenarioWindow(vm.Preferences);
-        var filePath = await window.ShowDialog<string?>(this);
-        if (filePath is not null)
+        var result = await window.ShowDialog<ScenarioLoadResult?>(this);
+        if (result is null)
         {
-            vm.ScenarioFilePath = filePath;
+            return;
+        }
+
+        if (result.FilePath is not null)
+        {
+            vm.ScenarioFilePath = result.FilePath;
             await vm.LoadScenarioCommand.ExecuteAsync(null);
+        }
+        else if (result.ApiScenarioId is not null)
+        {
+            await LoadScenarioFromApiAsync(vm, result.ApiScenarioId, result.ApiScenarioName);
         }
     }
 
@@ -823,28 +832,65 @@ public partial class MainWindow : Window
         menu.IsEnabled = true;
         foreach (var entry in recent)
         {
-            var item = new MenuItem { Header = entry.Name, Tag = entry.FilePath };
+            var item = new MenuItem { Header = entry.Name, Tag = entry };
             item.Click += OnRecentScenarioClick;
-            ToolTip.SetTip(item, entry.FilePath);
+            ToolTip.SetTip(item, entry.IsApi ? $"API: {entry.ApiId}" : entry.FilePath);
             menu.Items.Add(item);
         }
     }
 
     private async void OnRecentScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (sender is not MenuItem { Tag: string path } || DataContext is not MainViewModel vm)
+        if (sender is not MenuItem { Tag: Services.RecentScenario entry } || DataContext is not MainViewModel vm)
         {
             return;
         }
 
-        if (!File.Exists(path))
+        if (entry.IsApi)
         {
-            vm.StatusText = $"File not found: {path}";
-            return;
+            await LoadScenarioFromApiAsync(vm, entry.ApiId!, entry.Name);
         }
+        else
+        {
+            if (!File.Exists(entry.FilePath))
+            {
+                vm.StatusText = $"File not found: {entry.FilePath}";
+                return;
+            }
 
-        vm.ScenarioFilePath = path;
-        await vm.LoadScenarioCommand.ExecuteAsync(null);
+            vm.ScenarioFilePath = entry.FilePath;
+            await vm.LoadScenarioCommand.ExecuteAsync(null);
+        }
+    }
+
+    private static async Task LoadScenarioFromApiAsync(MainViewModel vm, string apiScenarioId, string? displayName = null)
+    {
+        vm.StatusText = "Fetching scenario…";
+        var trainingData = new Services.TrainingDataService();
+        var json = await trainingData.GetScenarioJsonAsync(apiScenarioId);
+        if (json is not null)
+        {
+            await vm.LoadScenarioFromJsonAsync(json, displayName ?? apiScenarioId, apiScenarioId);
+        }
+        else
+        {
+            vm.StatusText = "Failed to fetch scenario from API";
+        }
+    }
+
+    private static async Task LoadWeatherFromApiAsync(MainViewModel vm, string apiWeatherId, string? displayName = null)
+    {
+        vm.StatusText = "Fetching weather…";
+        var trainingData = new Services.TrainingDataService();
+        var json = await trainingData.GetWeatherJsonAsync(apiWeatherId);
+        if (json is not null)
+        {
+            await vm.LoadWeatherFromJsonAsync(json, displayName ?? apiWeatherId, apiWeatherId);
+        }
+        else
+        {
+            vm.StatusText = "Failed to fetch weather from API";
+        }
     }
 
     private void OnRecentWeatherSubmenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -871,27 +917,33 @@ public partial class MainWindow : Window
         menu.IsEnabled = true;
         foreach (var entry in recent)
         {
-            var item = new MenuItem { Header = entry.Name, Tag = entry.FilePath };
+            var item = new MenuItem { Header = entry.Name, Tag = entry };
             item.Click += OnRecentWeatherClick;
-            ToolTip.SetTip(item, entry.FilePath);
+            ToolTip.SetTip(item, entry.IsApi ? $"API: {entry.ApiId}" : entry.FilePath);
             menu.Items.Add(item);
         }
     }
 
     private async void OnRecentWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (sender is not MenuItem { Tag: string path } || DataContext is not MainViewModel vm)
+        if (sender is not MenuItem { Tag: Services.RecentWeather entry } || DataContext is not MainViewModel vm)
         {
             return;
         }
 
-        if (!File.Exists(path))
+        if (entry.IsApi)
         {
-            vm.StatusText = $"File not found: {path}";
+            await LoadWeatherFromApiAsync(vm, entry.ApiId!, entry.Name);
             return;
         }
 
-        await vm.LoadWeatherCommand.ExecuteAsync(path);
+        if (!File.Exists(entry.FilePath))
+        {
+            vm.StatusText = $"File not found: {entry.FilePath}";
+            return;
+        }
+
+        await vm.LoadWeatherCommand.ExecuteAsync(entry.FilePath);
     }
 
     private async void OnLoadWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -902,10 +954,19 @@ public partial class MainWindow : Window
         }
 
         var window = new LoadWeatherWindow(vm.Preferences);
-        var filePath = await window.ShowDialog<string?>(this);
-        if (filePath is not null)
+        var result = await window.ShowDialog<WeatherLoadResult?>(this);
+        if (result is null)
         {
-            await vm.LoadWeatherCommand.ExecuteAsync(filePath);
+            return;
+        }
+
+        if (result.FilePath is not null)
+        {
+            await vm.LoadWeatherCommand.ExecuteAsync(result.FilePath);
+        }
+        else if (result.ApiWeatherId is not null)
+        {
+            await LoadWeatherFromApiAsync(vm, result.ApiWeatherId, result.ApiWeatherName);
         }
     }
 

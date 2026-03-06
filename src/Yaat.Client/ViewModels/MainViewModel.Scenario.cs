@@ -10,14 +10,38 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
+    private readonly TrainingDataService _trainingData = new();
+
+    // Pending scenario source: either a file path or pre-fetched JSON from the API.
+    private string? _pendingScenarioSource;
+    private string? _pendingApiScenarioId;
+
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
     private async Task LoadScenarioAsync()
     {
-        if (string.IsNullOrWhiteSpace(ScenarioFilePath))
+        if (string.IsNullOrWhiteSpace(ScenarioFilePath) && string.IsNullOrWhiteSpace(_pendingScenarioSource))
         {
-            StatusText = "No scenario file selected";
+            StatusText = "No scenario selected";
             return;
         }
+
+        if (ActiveScenarioId is not null)
+        {
+            ShowScenarioSwitchConfirmation = true;
+            return;
+        }
+
+        await ExecuteLoadScenario();
+    }
+
+    /// <summary>
+    /// Loads a scenario from pre-fetched JSON (e.g. from the vNAS data API).
+    /// </summary>
+    public async Task LoadScenarioFromJsonAsync(string json, string displayName, string? apiId = null)
+    {
+        _pendingScenarioSource = json;
+        _pendingApiScenarioId = apiId;
+        ScenarioFilePath = displayName;
 
         if (ActiveScenarioId is not null)
         {
@@ -39,15 +63,29 @@ public partial class MainViewModel
     private void CancelScenarioSwitch()
     {
         ShowScenarioSwitchConfirmation = false;
+        _pendingScenarioSource = null;
+        _pendingApiScenarioId = null;
     }
 
     private async Task ExecuteLoadScenario()
     {
         try
         {
-            _log.LogInformation("Loading scenario from {Path}", ScenarioFilePath);
-
-            var json = await File.ReadAllTextAsync(ScenarioFilePath);
+            string json;
+            string? apiId = null;
+            if (_pendingScenarioSource is not null)
+            {
+                json = _pendingScenarioSource;
+                apiId = _pendingApiScenarioId;
+                _pendingScenarioSource = null;
+                _pendingApiScenarioId = null;
+                _log.LogInformation("Loading scenario from API: {Name}", ScenarioFilePath);
+            }
+            else
+            {
+                _log.LogInformation("Loading scenario from {Path}", ScenarioFilePath);
+                json = await File.ReadAllTextAsync(ScenarioFilePath);
+            }
 
             var difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(json);
 
@@ -67,7 +105,7 @@ public partial class MainViewModel
                 return;
             }
 
-            await SendScenarioToServer(json);
+            await SendScenarioToServer(json, apiId);
         }
         catch (Exception ex)
         {
@@ -115,14 +153,22 @@ public partial class MainViewModel
         DifficultyOptions.Clear();
     }
 
-    private async Task SendScenarioToServer(string json)
+    private async Task SendScenarioToServer(string json, string? apiId = null)
     {
         var result = await _connection.LoadScenarioAsync(json);
 
         if (result.Success)
         {
             ApplyScenarioResult(result);
-            _preferences.AddRecentScenario(ScenarioFilePath, result.Name ?? Path.GetFileNameWithoutExtension(ScenarioFilePath));
+            var scenarioName = result.Name ?? ScenarioFilePath;
+            if (apiId is not null)
+            {
+                _preferences.AddRecentScenario("", scenarioName, apiId);
+            }
+            else if (File.Exists(ScenarioFilePath))
+            {
+                _preferences.AddRecentScenario(ScenarioFilePath, scenarioName);
+            }
 
             _log.LogInformation(
                 "Scenario loaded: '{Name}' ({Id}), " + "{Count} aircraft, " + "{Delayed} delayed, " + "{All} total, " + "{Warnings} warnings",

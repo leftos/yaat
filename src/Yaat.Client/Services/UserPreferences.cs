@@ -241,10 +241,19 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void AddRecentScenario(string filePath, string name)
+    public void AddRecentScenario(string filePath, string name, string? apiId = null)
     {
-        _data.RecentScenarios.RemoveAll(r => r.FilePath == filePath);
-        _data.RecentScenarios.Insert(0, new RecentScenario { FilePath = filePath, Name = name });
+        var key = apiId ?? filePath;
+        _data.RecentScenarios.RemoveAll(r => r.Key == key);
+        _data.RecentScenarios.Insert(
+            0,
+            new RecentScenario
+            {
+                FilePath = filePath,
+                Name = name,
+                ApiId = apiId,
+            }
+        );
         if (_data.RecentScenarios.Count > 10)
         {
             _data.RecentScenarios.RemoveRange(10, _data.RecentScenarios.Count - 10);
@@ -252,10 +261,19 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void AddRecentWeather(string filePath, string name)
+    public void AddRecentWeather(string filePath, string name, string? apiId = null)
     {
-        _data.RecentWeatherFiles.RemoveAll(r => r.FilePath == filePath);
-        _data.RecentWeatherFiles.Insert(0, new RecentWeather { FilePath = filePath, Name = name });
+        var key = apiId ?? filePath;
+        _data.RecentWeatherFiles.RemoveAll(r => r.Key == key);
+        _data.RecentWeatherFiles.Insert(
+            0,
+            new RecentWeather
+            {
+                FilePath = filePath,
+                Name = name,
+                ApiId = apiId,
+            }
+        );
         if (_data.RecentWeatherFiles.Count > 10)
         {
             _data.RecentWeatherFiles.RemoveRange(10, _data.RecentWeatherFiles.Count - 10);
@@ -548,12 +566,20 @@ public sealed class RecentScenario
 {
     public string FilePath { get; set; } = "";
     public string Name { get; set; } = "";
+    public string? ApiId { get; set; }
+
+    public bool IsApi => ApiId is not null;
+    public string Key => ApiId ?? FilePath;
 }
 
 public sealed class RecentWeather
 {
     public string FilePath { get; set; } = "";
     public string Name { get; set; } = "";
+    public string? ApiId { get; set; }
+
+    public bool IsApi => ApiId is not null;
+    public string Key => ApiId ?? FilePath;
 }
 
 public sealed class SavedMacro

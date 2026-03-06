@@ -12,44 +12,6 @@
 
     <DockPanel Margin="12">
 
-        <!-- Top: folder row + filter row -->
-        <Grid DockPanel.Dock="Top"
-              RowDefinitions="Auto,Auto"
-              Margin="0,0,0,8">
-
-            <!-- Row 0: folder picker -->
-            <Grid Grid.Row="0"
-                  ColumnDefinitions="*,Auto">
-                <TextBox Grid.Column="0"
-                         x:Name="FolderPathBox"
-                         IsReadOnly="True"
-                         Watermark="Select a folder…" />
-                <Button Grid.Column="1"
-                        Content="Browse…"
-                        x:Name="BrowseButton"
-                        Margin="8,0,0,0" />
-            </Grid>
-
-            <!-- Row 1: filters + status -->
-            <StackPanel Grid.Row="1"
-                        Orientation="Horizontal"
-                        Spacing="12"
-                        Margin="0,8,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                    <TextBlock Text="Facility:" VerticalAlignment="Center" />
-                    <ComboBox x:Name="FacilityFilter" MinWidth="100" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                    <TextBlock Text="Rating:" VerticalAlignment="Center" />
-                    <ComboBox x:Name="RatingFilter" MinWidth="80" />
-                </StackPanel>
-                <TextBlock x:Name="StatusText"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource SubtleTextBrush}" />
-            </StackPanel>
-
-        </Grid>
-
         <!-- Bottom: action buttons -->
         <StackPanel DockPanel.Dock="Bottom"
                     Orientation="Horizontal"
@@ -65,15 +27,92 @@
                     Width="80" />
         </StackPanel>
 
-        <!-- Scenario list fills remaining space -->
-        <ListBox x:Name="ScenarioList"
-                 SelectionMode="Single">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding Name}" />
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+        <TabControl x:Name="SourceTabs">
+
+            <!-- ARTCC Scenarios tab -->
+            <TabItem Header="ARTCC Scenarios" x:Name="ArtccTab">
+                <DockPanel Margin="0,8,0,0">
+
+                    <!-- Filters + status -->
+                    <StackPanel DockPanel.Dock="Top"
+                                Orientation="Horizontal"
+                                Spacing="12"
+                                Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Facility:" VerticalAlignment="Center" />
+                            <ComboBox x:Name="ArtccFacilityFilter" MinWidth="100" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Rating:" VerticalAlignment="Center" />
+                            <ComboBox x:Name="ArtccRatingFilter" MinWidth="80" />
+                        </StackPanel>
+                        <TextBlock x:Name="ArtccStatusText"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource SubtleTextBrush}" />
+                    </StackPanel>
+
+                    <ListBox x:Name="ArtccScenarioList"
+                             SelectionMode="Single">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </TabItem>
+
+            <!-- Local Files tab -->
+            <TabItem Header="Local Files" x:Name="LocalTab">
+                <DockPanel Margin="0,8,0,0">
+
+                    <!-- folder picker + filters -->
+                    <Grid DockPanel.Dock="Top"
+                          RowDefinitions="Auto,Auto"
+                          Margin="0,0,0,8">
+
+                        <Grid Grid.Row="0"
+                              ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0"
+                                     x:Name="FolderPathBox"
+                                     IsReadOnly="True"
+                                     Watermark="Select a folder…" />
+                            <Button Grid.Column="1"
+                                    Content="Browse…"
+                                    x:Name="BrowseButton"
+                                    Margin="8,0,0,0" />
+                        </Grid>
+
+                        <StackPanel Grid.Row="1"
+                                    Orientation="Horizontal"
+                                    Spacing="12"
+                                    Margin="0,8,0,0">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Facility:" VerticalAlignment="Center" />
+                                <ComboBox x:Name="FacilityFilter" MinWidth="100" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Rating:" VerticalAlignment="Center" />
+                                <ComboBox x:Name="RatingFilter" MinWidth="80" />
+                            </StackPanel>
+                            <TextBlock x:Name="LocalStatusText"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <ListBox x:Name="LocalScenarioList"
+                             SelectionMode="Single">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </TabItem>
+
+        </TabControl>
 
     </DockPanel>
 </Window>

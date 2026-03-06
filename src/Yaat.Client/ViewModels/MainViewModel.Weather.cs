@@ -46,6 +46,37 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Loads weather from pre-fetched JSON (e.g. from the vNAS data API).
+    /// </summary>
+    public async Task LoadWeatherFromJsonAsync(string json, string displayName, string? apiId = null)
+    {
+        try
+        {
+            _log.LogInformation("Loading weather from API: {Name}", displayName);
+            var result = await _connection.LoadWeatherAsync(json);
+
+            if (result.Success)
+            {
+                StatusText = result.Message ?? $"Weather loaded: {displayName}";
+                if (apiId is not null)
+                {
+                    _preferences.AddRecentWeather("", displayName, apiId);
+                }
+            }
+            else
+            {
+                StatusText = result.Message ?? "Weather load failed";
+                _log.LogWarning("Weather load failed: {Message}", result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Weather load error");
+            StatusText = $"Weather error: {ex.Message}";
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanLoadLiveWeather))]
     private async Task LoadLiveWeatherAsync()
     {
