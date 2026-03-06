@@ -77,34 +77,37 @@
 
 ## Priority 3: Command Handler Tests
 
-### P3.1 GroundCommandHandler Tests
-- [ ] TryTaxi: no layout -> fail
-- [ ] TryTaxi: not on ground -> fail
-- [ ] TryTaxi: unknown taxiway -> fail
-- [ ] TryPushback: not at parking -> fail
-- [ ] TryPushback: taxiway + facing resolution
-- [ ] TryCrossRunway: from HoldingShort -> satisfy
-- [ ] TryCrossRunway: pre-clear in route
-- [ ] TryHoldShort: runtime insertion
-- [ ] TryFollow: target not found
-- [ ] Auto-cross-runway clears hold-shorts
+### P3.1 GroundCommandHandler Tests -- DONE (21 tests)
+- [x] TryTaxi: no layout -> fail
+- [x] TryTaxi: unknown taxiway -> fail
+- [x] TryTaxi: valid path succeeds with route
+- [x] TryPushback: not at parking -> fail
+- [x] TryPushback: at parking succeeds, with taxiway, with heading
+- [x] TryCrossRunway: from HoldingShort -> satisfy
+- [x] TryCrossRunway: pre-clear in route, no matching HS -> fail, no route -> fail
+- [x] TryHoldShort: not on ground -> fail, no route -> fail, no layout -> fail
+- [x] TryFollow: no active phase -> fail, not on ground -> fail
+- [x] Auto-cross-runway clears hold-shorts
+- [x] TryHoldPosition/TryResumeTaxi: on ground, not on ground, not held
 
-### P3.2 DepartureClearanceHandler Tests
-- [ ] TryDepartureClearance from HoldingShort
-- [ ] TryDepartureClearance from Taxiing (pre-store)
-- [ ] TryDepartureClearance from LineUp (pre-satisfy)
-- [ ] CTO during taxi with no runway -> fail
-- [ ] SID resolution fallback (no CIFP -> NavData)
-- [ ] Closed-traffic departure (no InitialClimb, pattern mode)
-- [ ] ResolveLegsToTargets: PI skip, RF/AF arc expansion
+### P3.2 DepartureClearanceHandler Tests -- DONE (18 tests)
+- [x] TryDepartureClearance from HoldingShort (LUAW + CTO)
+- [x] TryDepartureClearance from Taxiing (pre-store), no route -> fail
+- [x] TryDepartureClearance from LineUp (pre-satisfy CTO), LUAW rejected
+- [x] Closed-traffic departure (no InitialClimb, pattern mode set)
+- [x] ResolveLegsToTargets: PI skip, unknown fix skip, altitude constraints, dedup
+- [x] BuildDepartureMessage: CTO with altitude, LUAW
+- [x] FormatDepartureInstructionSuffix: default, runway heading, on course, direct fix, closed traffic
 
-### P3.3 PatternCommandHandler Tests
-- [ ] Wrong-side detection: Downwind triggers midfield, Base does not
-- [ ] Aircraft >1nm -> PatternEntryPhase inserted
-- [ ] Aircraft <=1nm -> PatternEntryPhase skipped
-- [ ] Landing clearance with no pattern -> append circuit
-- [ ] Extend downwind on wrong leg -> rejection
-- [ ] Pattern direction inference
+### P3.3 PatternCommandHandler Tests -- DONE (12 tests)
+- [x] Wrong-side detection: Downwind/Base trigger midfield crossing
+- [x] Correct side: no midfield crossing
+- [x] Aircraft >1nm -> PatternEntryPhase inserted
+- [x] Aircraft <=1nm -> PatternEntryPhase skipped
+- [x] No runway -> fail
+- [x] Extend downwind on wrong leg -> rejection
+- [x] TryPatternTurnBase: from downwind, from wrong leg
+- [x] Pattern direction change, no runway -> fail
 
 ## Priority 4: E2E Tests with Real Airports
 
