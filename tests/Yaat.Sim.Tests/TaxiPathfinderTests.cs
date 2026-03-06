@@ -1596,7 +1596,8 @@ public class TaxiPathfinderTests
                 )
         );
 
-        // Also check all 15/33 HS nodes the route passes through (including exit-paired ones)
+        // Collect distinct 15/33 HS nodes the route passes through
+        var seenHsNodeIds = new HashSet<int>();
         var allRwy15NodesOnRoute = new List<string>();
         foreach (var seg in route.Segments)
         {
@@ -1605,6 +1606,7 @@ public class TaxiPathfinderTests
                 && node.Type == GroundNodeType.RunwayHoldShort
                 && node.RunwayId is { } rId
                 && rId.Contains("15")
+                && seenHsNodeIds.Add(node.Id)
             )
             {
                 allRwy15NodesOnRoute.Add($"node={node.Id} taxiway={seg.TaxiwayName}");
@@ -1625,11 +1627,28 @@ public class TaxiPathfinderTests
             Assert.True(RunwayIdentifier.Parse(hs.TargetName!).Contains("15"), $"Hold-short target '{hs.TargetName}' should match '15'");
         }
 
-        // Route passes through two 15/33 HS nodes: entry on D, exit on F
-        Assert.Equal(2, allRwy15NodesOnRoute.Count);
+        // Route crosses runway 15/33 — expect HS nodes for the entry/exit
+        var segDetail = string.Join(
+            " → ",
+            route.Segments.Select(s =>
+            {
+                var n = layout.Nodes.TryGetValue(s.ToNodeId, out var nd) ? nd : null;
+                string typ = n?.Type == GroundNodeType.RunwayHoldShort ? $"HS({n.RunwayId})" : "";
+                return $"{s.ToNodeId}:{s.TaxiwayName}{typ}";
+            })
+        );
+        Assert.True(
+            allRwy15NodesOnRoute.Count >= 2,
+            $"Expected ≥2 HS nodes on route, got {allRwy15NodesOnRoute.Count}: [{string.Join("; ", allRwy15NodesOnRoute)}]. Segments: {segDetail}"
+        );
 
         // Entry/exit pairing produces exactly one hold-short (entry side on D)
-        Assert.Single(hs1533);
+        Assert.True(
+            hs1533.Count == 1,
+            $"Expected 1 hold-short for 15/33 (entry only), got {hs1533.Count}: "
+                + $"[{string.Join("; ", hs1533.Select(h => $"node={h.NodeId} reason={h.Reason}"))}]. "
+                + $"Segments: {segDetail}"
+        );
         Assert.Equal(HoldShortReason.RunwayCrossing, hs1533[0].Reason);
     }
 
@@ -1778,10 +1797,19 @@ public class TaxiPathfinderTests
             + $"dist={distToExit:F4}nm ({distToExit * 6076:F0}ft), "
             + $"hasRwyEdge={hasRunwayEdge}, edges=[{edgeNames}]";
 
-        // Verify: the exit node should NOT still be on the runway rectangle
+        // Verify: exit node must have taxiway edges so the aircraft can leave
+        bool hasTaxiwayEdge = exitNode.Edges.Any(e => !e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase));
+        Assert.True(hasTaxiwayEdge, $"Exit node has no taxiway edges — aircraft is stuck on runway. {output}");
+
+        // Verify: exit node must be geometrically OFF the runway rectangle
+        var rwy28R = layout.Runways.First(r => r.Name.Contains("28R") || r.Name.Contains("10L"));
+        var rwyFeat = new GeoJsonParser.RunwayFeature(rwy28R.Name, rwy28R.Coordinates.ToList());
+        var rwyId = RunwayIdentifier.Parse(rwy28R.Name);
+        var rect = RunwayCrossingDetector.BuildRunwayRectangle(rwyFeat, rwy28R.WidthFt, rwyId);
+        bool isOnRunway = RunwayCrossingDetector.IsOnRunway(exitNode.Latitude, exitNode.Longitude, rect);
         Assert.False(
-            hasRunwayEdge,
-            $"Exit node is still on the runway rectangle (has runway edges). " + $"RunwayExitPhase would stop the aircraft ON the runway. {output}"
+            isOnRunway,
+            $"Exit node is geometrically ON the runway rectangle. RunwayExitPhase would stop the aircraft ON the runway. {output}"
         );
     }
 
@@ -1806,18 +1834,12 @@ public class TaxiPathfinderTests
         var clearNode = layout.FindClearNode(exitNode, exitTaxiway, rwyHeading);
         Assert.NotNull(clearNode);
 
-        // The clear node should have NO runway edges — it's fully off the runway
+        // The clear node is at hold-short distance — it should NOT have
+        // runway centerline edges (those only connect on-runway nodes).
         bool clearHasRunwayEdge = clearNode.Edges.Any(e => e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase));
-        double distFromExit = GeoMath.DistanceNm(exitNode.Latitude, exitNode.Longitude, clearNode.Latitude, clearNode.Longitude);
         var clearEdges = string.Join(", ", clearNode.Edges.Select(e => e.TaxiwayName));
 
-        var output =
-            $"Exit node {exitNode.Id} → Clear node {clearNode.Id}: "
-            + $"pos=({clearNode.Latitude:F6},{clearNode.Longitude:F6}), "
-            + $"dist from exit={distFromExit:F4}nm ({distFromExit * 6076:F0}ft), "
-            + $"edges=[{clearEdges}]";
-
-        Assert.False(clearHasRunwayEdge, $"Clear node still has runway edges — aircraft would still appear on runway. {output}");
+        Assert.False(clearHasRunwayEdge, $"Clear node {clearNode.Id} should not have runway edges but has: [{clearEdges}]");
     }
 
     [Fact]
@@ -1894,10 +1916,59 @@ public class TaxiPathfinderTests
         var rampSegments = route.Segments.Where(s => string.Equals(s.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)).ToList();
         Assert.True(rampSegments.Count == 0, $"Route should use graph edges (W5->W), not RAMP segments. Route: {segSummary}");
 
-        // Should include W5 connecting segments (BFS from exit to W)
+        // Should include W5 connecting segments (walked current taxiway to reach W)
         Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "W5", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "W", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "V", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(route.Segments, s => string.Equals(s.TaxiwayName, "TE", StringComparison.OrdinalIgnoreCase));
+
+        // Should produce a warning about taxiing via W5 to reach W
+        Assert.Single(route.Warnings);
+        Assert.Contains("W5", route.Warnings[0]);
+        Assert.Contains("W", route.Warnings[0]);
+    }
+
+    [Fact]
+    public void OAK_TaxiDB_MissingC_FailsBecauseNoRunwayBridge()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Find a node on D that is NOT on B (so reaching B requires taxiway C)
+        int? dOnlyNodeId = null;
+        foreach (var node in layout.Nodes.Values)
+        {
+            bool hasD = false;
+            bool hasB = false;
+            foreach (var edge in node.Edges)
+            {
+                if (string.Equals(edge.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasD = true;
+                }
+                if (string.Equals(edge.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasB = true;
+                }
+            }
+
+            if (hasD && !hasB)
+            {
+                dOnlyNodeId = node.Id;
+                break;
+            }
+        }
+
+        Assert.True(dOnlyNodeId.HasValue, "Should find a D-only node (not on B)");
+
+        // D→B with C omitted should fail: only runway centerline edges are
+        // allowed for implicit bridging, and there's no runway between D and B.
+        // The user must specify TAXI D C B.
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, dOnlyNodeId!.Value, ["D", "B"], out string? failReason);
+
+        Assert.Null(route);
     }
 }

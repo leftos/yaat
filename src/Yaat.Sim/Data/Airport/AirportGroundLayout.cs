@@ -145,6 +145,13 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
+            // Skip nodes that have RWY centerline edges — they're on the
+            // runway surface and not valid exit points
+            if (HasRunwayCenterlineEdge(node))
+            {
+                continue;
+            }
+
             double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
             if (dist > maxSearchNm)
             {
@@ -192,6 +199,11 @@ public sealed class AirportGroundLayout
         foreach (var node in Nodes.Values)
         {
             if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
+            {
+                continue;
+            }
+
+            if (HasRunwayCenterlineEdge(node))
             {
                 continue;
             }
@@ -407,6 +419,19 @@ public sealed class AirportGroundLayout
     private static bool IsRunwayEdge(GroundEdge edge)
     {
         return edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasRunwayCenterlineEdge(GroundNode node)
+    {
+        foreach (var edge in node.Edges)
+        {
+            if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static double NormalizeAngle(double angle)

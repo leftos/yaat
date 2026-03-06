@@ -90,6 +90,11 @@ internal static class RunwayCrossingDetector
             ProcessBoundaryEdge(layout, edge, onNode, offNode, rect, coordIndex, ref nextNodeId, logger);
         }
 
+        // Connect on-runway nodes with centerline edges so that taxiways
+        // crossing the same runway are linked (e.g., D and F at OAK both cross
+        // 15/33 but have no GeoJSON edges between them).
+        ConnectOnRunwayNodes(layout, rect, logger);
+
         return widthFt;
     }
 
@@ -192,6 +197,125 @@ internal static class RunwayCrossingDetector
     }
 
     /// <summary>
+    /// After HS node insertion, connect the on-runway side of each HS node pair
+    /// with RWY centerline edges. For each HS node, identifies the neighbor that's
+    /// closer to the runway centerline (the on-runway dead-end), sorts them by
+    /// along-track position, and links consecutive ones.
+    /// </summary>
+    private static void ConnectOnRunwayNodes(AirportGroundLayout layout, in RunwayRectangle rect, ILogger? logger)
+    {
+        string rwyEdgeName = $"RWY{rect.CombinedId}";
+
+        // Find all HS nodes for this runway and their on-runway neighbors
+        var onRunwayNodes = new List<(int Id, double AlongTrack)>();
+        var seen = new HashSet<int>();
+
+        foreach (var (nodeId, node) in layout.Nodes)
+        {
+            if (node.Type != GroundNodeType.RunwayHoldShort)
+            {
+                continue;
+            }
+
+            if (node.RunwayId is not { } rId || !rId.Equals(rect.CombinedId))
+            {
+                continue;
+            }
+
+            // For each HS node, find the neighbor closest to the runway centerline
+            int bestNeighborId = -1;
+            double bestCrossTrack = double.MaxValue;
+
+            foreach (var edge in node.Edges)
+            {
+                int neighborId = edge.FromNodeId == nodeId ? edge.ToNodeId : edge.FromNodeId;
+                if (!layout.Nodes.TryGetValue(neighborId, out var neighbor))
+                {
+                    continue;
+                }
+
+                double crossTrack = Math.Abs(
+                    GeoMath.SignedCrossTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.Heading)
+                );
+
+                if (crossTrack < bestCrossTrack)
+                {
+                    bestCrossTrack = crossTrack;
+                    bestNeighborId = neighborId;
+                }
+            }
+
+            // Only add the on-runway neighbor — HS nodes are at hold-short
+            // distance (off the runway) and should not get RWY centerline edges.
+            // The HS node already connects to its on-runway neighbor via the
+            // original taxiway edge that was split during HS insertion.
+            if (bestNeighborId != -1 && seen.Add(bestNeighborId))
+            {
+                var neighbor = layout.Nodes[bestNeighborId];
+                double at = GeoMath.AlongTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.Heading);
+                onRunwayNodes.Add((bestNeighborId, at));
+            }
+        }
+
+        if (onRunwayNodes.Count < 2)
+        {
+            return;
+        }
+
+        onRunwayNodes.Sort((a, b) => a.AlongTrack.CompareTo(b.AlongTrack));
+
+        for (int i = 0; i < onRunwayNodes.Count - 1; i++)
+        {
+            int fromId = onRunwayNodes[i].Id;
+            int toId = onRunwayNodes[i + 1].Id;
+
+            // Skip if already connected by any edge
+            bool alreadyConnected = false;
+            if (layout.Nodes.TryGetValue(fromId, out var fromNode))
+            {
+                foreach (var edge in fromNode.Edges)
+                {
+                    int otherId = edge.FromNodeId == fromId ? edge.ToNodeId : edge.FromNodeId;
+                    if (otherId == toId)
+                    {
+                        alreadyConnected = true;
+                        break;
+                    }
+                }
+            }
+
+            if (alreadyConnected)
+            {
+                continue;
+            }
+
+            var from = layout.Nodes[fromId];
+            var to = layout.Nodes[toId];
+            double dist = GeoMath.DistanceNm(from.Latitude, from.Longitude, to.Latitude, to.Longitude);
+
+            var rwyEdge = new GroundEdge
+            {
+                FromNodeId = fromId,
+                ToNodeId = toId,
+                TaxiwayName = rwyEdgeName,
+                DistanceNm = dist,
+            };
+
+            layout.Edges.Add(rwyEdge);
+            from.Edges.Add(rwyEdge);
+            to.Edges.Add(rwyEdge);
+
+            logger?.LogDebug(
+                "Runway centerline edge: {From}->{To} on {Runway} ({DistFt:F0}ft)",
+                fromId,
+                toId,
+                rect.CombinedId,
+                dist * GeoMath.FeetPerNm
+            );
+        }
+    }
+
+    /// <summary>
     /// Determines the hold-short distance from runway centerline (ft) based on
     /// runway width as a proxy for Airplane Design Group (ADG).
     /// Per AC 150/5300-13B Table 3-2.
@@ -218,25 +342,34 @@ internal static class RunwayCrossingDetector
         var fromNode = layout.Nodes[edge.FromNodeId];
         var toNode = layout.Nodes[edge.ToNodeId];
 
-        layout.Edges.Add(
-            new GroundEdge
-            {
-                FromNodeId = edge.FromNodeId,
-                ToNodeId = midNode.Id,
-                TaxiwayName = edge.TaxiwayName,
-                DistanceNm = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, midNode.Latitude, midNode.Longitude),
-            }
-        );
+        // Remove old edge from node adjacency
+        fromNode.Edges.Remove(edge);
+        toNode.Edges.Remove(edge);
 
-        layout.Edges.Add(
-            new GroundEdge
-            {
-                FromNodeId = midNode.Id,
-                ToNodeId = edge.ToNodeId,
-                TaxiwayName = edge.TaxiwayName,
-                DistanceNm = GeoMath.DistanceNm(midNode.Latitude, midNode.Longitude, toNode.Latitude, toNode.Longitude),
-            }
-        );
+        var edgeA = new GroundEdge
+        {
+            FromNodeId = edge.FromNodeId,
+            ToNodeId = midNode.Id,
+            TaxiwayName = edge.TaxiwayName,
+            DistanceNm = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, midNode.Latitude, midNode.Longitude),
+        };
+
+        var edgeB = new GroundEdge
+        {
+            FromNodeId = midNode.Id,
+            ToNodeId = edge.ToNodeId,
+            TaxiwayName = edge.TaxiwayName,
+            DistanceNm = GeoMath.DistanceNm(midNode.Latitude, midNode.Longitude, toNode.Latitude, toNode.Longitude),
+        };
+
+        layout.Edges.Add(edgeA);
+        layout.Edges.Add(edgeB);
+
+        // Update node adjacency lists
+        fromNode.Edges.Add(edgeA);
+        midNode.Edges.Add(edgeA);
+        midNode.Edges.Add(edgeB);
+        toNode.Edges.Add(edgeB);
     }
 }
 

@@ -14,9 +14,11 @@ internal static class HoldShortAnnotator
     internal static void AddImplicitRunwayHoldShorts(AirportGroundLayout layout, List<TaxiRouteSegment> segments, List<HoldShortPoint> holdShorts)
     {
         // Entry/exit pairing by encounter order: the first HS node for a
-        // runway is the entry side (add hold-short); the second is the exit
-        // side (skip and reset tracking). A third HS would be a new crossing.
-        var enteredRunways = new Dictionary<RunwayIdentifier, GroundNode>();
+        // runway is the entry side (add hold-short); the second distinct HS
+        // node for that runway is the exit side (skip and reset tracking).
+        // Revisiting the same node (backtrack) doesn't count as a new encounter.
+        var enteredRunways = new Dictionary<RunwayIdentifier, int>();
+        var seenHsNodes = new HashSet<(RunwayIdentifier, int)>();
 
         foreach (var seg in segments)
         {
@@ -29,6 +31,12 @@ internal static class HoldShortAnnotator
                 continue;
             }
 
+            // Skip if we've already processed this exact HS node for this runway
+            if (!seenHsNodes.Add((rwyId, node.Id)))
+            {
+                continue;
+            }
+
             if (enteredRunways.Remove(rwyId))
             {
                 // Exit-side HS: paired with the previous entry, skip
@@ -36,7 +44,7 @@ internal static class HoldShortAnnotator
             }
 
             // Entry-side: track for pairing and add hold-short
-            enteredRunways[rwyId] = node;
+            enteredRunways[rwyId] = node.Id;
 
             if (!HoldShortExists(holdShorts, node.Id))
             {

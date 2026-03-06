@@ -293,6 +293,8 @@ public static class GeoJsonParser
         };
 
         layout.Edges.Add(edge);
+        node.Edges.Add(edge);
+        nearest.Edges.Add(edge);
     }
 
     private static ParkingFeature ParseParking(JsonElement props, JsonElement geom)

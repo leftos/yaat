@@ -119,7 +119,13 @@ internal static class GroundCommandHandler
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
         aircraft.Phases.Start(ctx);
 
-        return CommandDispatcher.Ok($"Taxi via {route.ToSummary()}");
+        string msg = $"Taxi via {route.ToSummary()}";
+        if (route.Warnings.Count > 0)
+        {
+            msg += " [" + string.Join("; ", route.Warnings) + "]";
+        }
+
+        return CommandDispatcher.Ok(msg);
     }
 
     private static TaxiRoute? ResolveStandardRoute(

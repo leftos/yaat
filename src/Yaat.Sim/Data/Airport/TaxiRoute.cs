@@ -7,6 +7,7 @@ public sealed class TaxiRoute
 {
     public required List<TaxiRouteSegment> Segments { get; init; }
     public required List<HoldShortPoint> HoldShortPoints { get; init; }
+    public List<string> Warnings { get; init; } = [];
 
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
