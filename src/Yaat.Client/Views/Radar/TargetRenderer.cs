@@ -15,6 +15,7 @@ public sealed class TargetRenderer : IDisposable
     private static readonly SKColor DataBlockColor = SKColors.White;
     private static readonly SKColor SelectedColor = new(255, 255, 255);
     private static readonly SKColor HistoryColor = new(0, 100, 0);
+    private static readonly SKColor GroundColor = new(0, 200, 0);
 
     private readonly SKPaint _symbolPaint = new()
     {
@@ -34,7 +35,8 @@ public sealed class TargetRenderer : IDisposable
     {
         TextSize = 12,
         IsAntialias = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        SubpixelText = true,
+        Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
     };
 
     private readonly SKPaint _historyPaint = new()
@@ -44,7 +46,13 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(0, 0, 0, 180), Style = SKPaintStyle.Fill };
+    private readonly SKPaint _selectedBorderPaint = new()
+    {
+        Color = SelectedColor,
+        StrokeWidth = 1,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+    };
 
     private readonly SKPaint _ptlPaint = new()
     {
@@ -65,7 +73,8 @@ public sealed class TargetRenderer : IDisposable
         double ptlLengthMinutes = 0,
         bool ptlOwn = false,
         bool ptlAll = false,
-        IReadOnlySet<string>? minifiedCallsigns = null
+        IReadOnlySet<string>? minifiedCallsigns = null,
+        bool showTopDown = false
     )
     {
         foreach (var ac in aircraft)
@@ -73,8 +82,11 @@ public sealed class TargetRenderer : IDisposable
             var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
 
             bool isSelected = ac == selectedAircraft;
-            var symbolColor = isSelected ? SelectedColor : SymbolColor;
-            var dbColor = isSelected ? SelectedColor : DataBlockColor;
+            bool isOnGround = showTopDown && ac.IsOnGround;
+            var baseSymbolColor = isOnGround ? GroundColor : SymbolColor;
+            var baseDbColor = isOnGround ? GroundColor : DataBlockColor;
+            var symbolColor = isSelected ? SelectedColor : baseSymbolColor;
+            var dbColor = isSelected ? SelectedColor : baseDbColor;
             bool isMinified = minifiedCallsigns is not null && minifiedCallsigns.Contains(ac.Callsign);
 
             if (ptlLengthMinutes > 0 && ShouldShowPtl(ac, ptlOwn, ptlAll))
@@ -83,7 +95,7 @@ public sealed class TargetRenderer : IDisposable
             }
 
             DrawPositionSymbol(canvas, sx, sy, symbolColor);
-            DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, isMinified);
+            DrawLeaderAndDataBlock(canvas, sx, sy, ac, dbColor, dataBlockOffsets, isMinified, isSelected);
         }
     }
 
@@ -125,7 +137,8 @@ public sealed class TargetRenderer : IDisposable
         AircraftModel ac,
         SKColor color,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
-        bool isMinified
+        bool isMinified,
+        bool isSelected
     )
     {
         SKPoint offset = new(28, -28);
@@ -152,7 +165,10 @@ public sealed class TargetRenderer : IDisposable
             const float pad = 3f;
             var blockRect = new SKRect(blockX - pad, blockY - _dataBlockPaint.TextSize - pad, blockX + miniW + pad, blockY + pad);
 
-            canvas.DrawRect(blockRect, _dataBlockBgPaint);
+            if (isSelected)
+            {
+                canvas.DrawRect(blockRect, _selectedBorderPaint);
+            }
 
             var leaderEnd = ClampToBlockEdge(cx, cy, blockRect);
             _leaderPaint.Color = color;
@@ -162,8 +178,9 @@ public sealed class TargetRenderer : IDisposable
         }
         else
         {
-            // Full datablock: line1 = callsign, line2 = alt speed CWT/TYPE, line3 = owner TCP (if present)
-            string line1 = ac.Callsign;
+            // Full datablock: line1 = callsign (+ * for VFR), line2 = alt speed CWT/TYPE, line3 = owner + scratchpads
+            bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
+            string line1 = isVfr ? $"{ac.Callsign}*" : ac.Callsign;
             var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
             var cwtType = FormatCwtType(cwt, ac.AircraftType);
             string line2 = cwtType.Length > 0 ? $"{altHundreds} {spdTens} {cwtType}" : $"{altHundreds} {spdTens}";
@@ -173,21 +190,13 @@ public sealed class TargetRenderer : IDisposable
             float textW = MathF.Max(w1, w2);
             int lineCount = 2;
 
-            string? line3 = null;
-            if (!string.IsNullOrEmpty(ac.OwnerDisplay))
+            // Line 3: owner TCP + scratchpads on same line
+            string? line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.Scratchpad1, ac.Scratchpad2);
+            if (line3 is not null)
             {
-                line3 = ac.OwnerDisplay;
                 float w3 = _dataBlockPaint.MeasureText(line3);
                 textW = MathF.Max(textW, w3);
                 lineCount = 3;
-            }
-
-            string? scratchpadLine = BuildScratchpadLine(ac.Scratchpad1, ac.Scratchpad2);
-            if (scratchpadLine is not null)
-            {
-                float wSp = _dataBlockPaint.MeasureText(scratchpadLine);
-                textW = MathF.Max(textW, wSp);
-                lineCount++;
             }
 
             const float pad = 3f;
@@ -198,41 +207,53 @@ public sealed class TargetRenderer : IDisposable
                 blockY + (lineCount - 1) * lineH + pad
             );
 
-            canvas.DrawRect(blockRect, _dataBlockBgPaint);
+            if (isSelected)
+            {
+                canvas.DrawRect(blockRect, _selectedBorderPaint);
+            }
 
             var leaderEnd = ClampToBlockEdge(cx, cy, blockRect);
             _leaderPaint.Color = color;
             canvas.DrawLine(cx, cy, leaderEnd.X, leaderEnd.Y, _leaderPaint);
 
-            int nextLine = 0;
             canvas.DrawText(line1, blockX, blockY, _dataBlockPaint);
-            nextLine++;
-            canvas.DrawText(line2, blockX, blockY + nextLine * lineH, _dataBlockPaint);
-            nextLine++;
+            canvas.DrawText(line2, blockX, blockY + lineH, _dataBlockPaint);
 
             if (line3 is not null)
             {
-                canvas.DrawText(line3, blockX, blockY + nextLine * lineH, _dataBlockPaint);
-                nextLine++;
-            }
-
-            if (scratchpadLine is not null)
-            {
-                canvas.DrawText(scratchpadLine, blockX, blockY + nextLine * lineH, _dataBlockPaint);
+                canvas.DrawText(line3, blockX, blockY + 2 * lineH, _dataBlockPaint);
             }
         }
     }
 
-    private static string? BuildScratchpadLine(string? sp1, string? sp2)
+    private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? sp1, string? sp2)
     {
+        bool hasOwner = !string.IsNullOrEmpty(ownerDisplay);
         bool hasSp1 = !string.IsNullOrEmpty(sp1);
         bool hasSp2 = !string.IsNullOrEmpty(sp2);
-        if (!hasSp1 && !hasSp2)
+
+        if (!hasOwner && !hasSp1 && !hasSp2)
         {
             return null;
         }
 
-        return $"{sp1 ?? ""} {sp2 ?? ""}".Trim();
+        var parts = new List<string>(3);
+        if (hasOwner)
+        {
+            parts.Add(ownerDisplay!);
+        }
+
+        if (hasSp1)
+        {
+            parts.Add($".{sp1}");
+        }
+
+        if (hasSp2)
+        {
+            parts.Add($"+{sp2}");
+        }
+
+        return string.Join(" ", parts);
     }
 
     private static string FormatCwtType(string cwt, string aircraftType)
@@ -267,7 +288,7 @@ public sealed class TargetRenderer : IDisposable
         _leaderPaint.Dispose();
         _dataBlockPaint.Dispose();
         _historyPaint.Dispose();
-        _dataBlockBgPaint.Dispose();
+        _selectedBorderPaint.Dispose();
         _ptlPaint.Dispose();
     }
 }

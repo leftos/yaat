@@ -40,6 +40,7 @@ public sealed class RadarRenderer : IDisposable
         Color = SKColors.White,
         TextSize = 14,
         IsAntialias = true,
+        SubpixelText = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
@@ -58,6 +59,7 @@ public sealed class RadarRenderer : IDisposable
         Color = ProgrammedFixColor,
         TextSize = 14,
         IsAntialias = true,
+        SubpixelText = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
@@ -93,6 +95,7 @@ public sealed class RadarRenderer : IDisposable
         Color = RouteDrawColor,
         TextSize = 13,
         IsAntialias = true,
+        SubpixelText = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
@@ -101,6 +104,7 @@ public sealed class RadarRenderer : IDisposable
         Color = new SKColor(255, 200, 0, 180),
         TextSize = 11,
         IsAntialias = true,
+        SubpixelText = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
@@ -153,7 +157,8 @@ public sealed class RadarRenderer : IDisposable
         (double Lat, double Lon)? rubberBandTarget = null,
         string? rubberBandLabel = null,
         IReadOnlyDictionary<int, WaypointCondition>? waypointConditions = null,
-        IReadOnlySet<string>? minifiedCallsigns = null
+        IReadOnlySet<string>? minifiedCallsigns = null,
+        bool showTopDown = false
     )
     {
         canvas.Clear(BackgroundColor);
@@ -177,7 +182,18 @@ public sealed class RadarRenderer : IDisposable
         }
 
         // Aircraft targets
-        _targetRenderer.Render(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, ptlLengthMinutes, ptlOwn, ptlAll, minifiedCallsigns);
+        _targetRenderer.Render(
+            canvas,
+            vp,
+            aircraft,
+            selectedAircraft,
+            dataBlockOffsets,
+            ptlLengthMinutes,
+            ptlOwn,
+            ptlAll,
+            minifiedCallsigns,
+            showTopDown
+        );
 
         // Drawn route overlay
         if (drawnWaypoints is { Count: > 0 })

@@ -103,6 +103,8 @@ public partial class RadarView
         menu.Items.Add(BuildApproachSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildProceduresSubmenu(vm, callsign, initials));
 
+        menu.Items.Add(BuildTowerSubmenu(vm, callsign, initials));
+
         AddTrackItems(menu, vm, callsign, initials);
 
         menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
@@ -478,6 +480,34 @@ public partial class RadarView
 
         return menu;
     }
+
+    private MenuItem BuildTowerSubmenu(RadarViewModel vm, string cs, string init)
+    {
+        var menu = new MenuItem { Header = "Tower" };
+        menu.Items.Add(CreateMenuItem("Cleared to land", () => vm.ClearedToLandAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Cleared for the option", () => vm.ClearedForOptionAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Touch and go", () => vm.TouchAndGoAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Stop and go", () => vm.StopAndGoAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Low approach", () => vm.LowApproachAsync(cs, init)));
+        menu.Items.Add(CreateMenuItem("Go around", () => vm.GoAroundAsync(cs, init)));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(
+            CreateInputMenuItem("Enter left downwind...", "Runway (optional)", input => vm.EnterLeftDownwindAsync(cs, init, NullIfEmpty(input)))
+        );
+        menu.Items.Add(
+            CreateInputMenuItem("Enter right downwind...", "Runway (optional)", input => vm.EnterRightDownwindAsync(cs, init, NullIfEmpty(input)))
+        );
+        menu.Items.Add(CreateInputMenuItem("Enter left base...", "Runway (optional)", input => vm.EnterLeftBaseAsync(cs, init, NullIfEmpty(input))));
+        menu.Items.Add(
+            CreateInputMenuItem("Enter right base...", "Runway (optional)", input => vm.EnterRightBaseAsync(cs, init, NullIfEmpty(input)))
+        );
+        menu.Items.Add(
+            CreateInputMenuItem("Enter straight-in final...", "Runway (optional)", input => vm.EnterFinalAsync(cs, init, NullIfEmpty(input)))
+        );
+        return menu;
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
     private void OnMapRightClicked(double lat, double lon, Point screenPos)
     {

@@ -107,7 +107,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
     private readonly RadarRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
-    private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = SKTypeface.FromFamilyName("Consolas") };
+    private readonly SKPaint _hitTestPaint = new()
+    {
+        TextSize = 12,
+        Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
+    };
     private bool _initialFitDone;
     private bool _suppressRangeFit;
     private bool _suppressCenterSync;
@@ -122,6 +126,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private bool _dragThresholdMet;
     private Point _lastPointerPos;
     private readonly HashSet<string> _minifiedCallsigns = new();
+    private readonly Dictionary<string, int> _dataBlockZOrder = new();
+    private int _nextZOrder;
 
     public RadarCanvas()
     {
@@ -313,6 +319,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         MarkDirty();
     }
 
+    /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
+    public void SurfaceDataBlock(string callsign)
+    {
+        _dataBlockZOrder[callsign] = _nextZOrder++;
+        MarkDirty();
+    }
+
     /// <summary>Fired when an aircraft is right-clicked.</summary>
     public event Action<string, Point>? AircraftRightClicked;
 
@@ -438,7 +451,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         (double Lat, double Lon)? RubberBandTarget,
         string? RubberBandLabel,
         IReadOnlyDictionary<int, WaypointCondition>? WaypointConditions,
-        IReadOnlySet<string> MinifiedCallsigns
+        IReadOnlySet<string> MinifiedCallsigns,
+        bool ShowTopDown
     );
 
     protected override object? CreateRenderSnapshot()
@@ -476,7 +490,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return new RenderSnapshot(
             VideoMaps ?? Array.Empty<VideoMapData>(),
             _brightnessLookup,
-            FilterAircraft(Aircraft, ShowTopDown),
+            SortByZOrder(FilterAircraft(Aircraft, ShowTopDown), _dataBlockZOrder),
             SelectedAircraft,
             ShowRangeRings,
             RangeNm,
@@ -498,7 +512,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             drawRouteCursorLatLon,
             drawRouteCursorLabel,
             IsDrawingRoute ? WaypointConditions : null,
-            new HashSet<string>(_minifiedCallsigns)
+            new HashSet<string>(_minifiedCallsigns),
+            ShowTopDown
         );
     }
 
@@ -558,7 +573,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.RubberBandTarget,
             s.RubberBandLabel,
             s.WaypointConditions,
-            s.MinifiedCallsigns
+            s.MinifiedCallsigns,
+            s.ShowTopDown
         );
     }
 
@@ -619,6 +635,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         var dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)
         {
+            SurfaceDataBlock(dataBlockAc.Callsign);
+
             if (props.IsRightButtonPressed)
             {
                 AircraftRightClicked?.Invoke(dataBlockAc.Callsign, pos);
@@ -787,16 +805,20 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        foreach (var ac in FilterAircraft(Aircraft, ShowTopDown))
+        // Use z-order-sorted list so the topmost (last-drawn) datablock wins
+        var sorted = SortByZOrder(FilterAircraft(Aircraft, ShowTopDown), _dataBlockZOrder);
+        AircraftModel? best = null;
+
+        foreach (var ac in sorted)
         {
             var blockRect = ComputeDataBlockRect(ac);
             if (blockRect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
-                return ac;
+                best = ac;
             }
         }
 
-        return null;
+        return best;
     }
 
     private SKRect ComputeDataBlockRect(AircraftModel ac)
@@ -828,7 +850,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             );
         }
 
-        string line1 = ac.Callsign;
+        bool isVfr = ac.FlightRules.Equals("VFR", StringComparison.OrdinalIgnoreCase);
+        string line1 = isVfr ? $"{ac.Callsign}*" : ac.Callsign;
         var altH = ((int)ac.Altitude / 100).ToString("D3");
         var spdTens = ((int)ac.GroundSpeed / 10).ToString("D2");
         var cwtCode = !string.IsNullOrEmpty(ac.CwtCode) ? ac.CwtCode : "";
@@ -839,19 +862,13 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         float textW = MathF.Max(w1, w2);
         int lineCount = 2;
 
-        if (!string.IsNullOrEmpty(ac.OwnerDisplay))
+        // Owner + scratchpads on same line
+        var line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.Scratchpad1, ac.Scratchpad2);
+        if (line3 is not null)
         {
-            float w3 = _hitTestPaint.MeasureText(ac.OwnerDisplay);
+            float w3 = _hitTestPaint.MeasureText(line3);
             textW = MathF.Max(textW, w3);
             lineCount = 3;
-        }
-
-        if (!string.IsNullOrEmpty(ac.Scratchpad1) || !string.IsNullOrEmpty(ac.Scratchpad2))
-        {
-            var spLine = $"{ac.Scratchpad1 ?? ""} {ac.Scratchpad2 ?? ""}".Trim();
-            float wSp = _hitTestPaint.MeasureText(spLine);
-            textW = MathF.Max(textW, wSp);
-            lineCount++;
         }
 
         return new SKRect(
@@ -1069,6 +1086,56 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
 
         return bestIdx;
+    }
+
+    private static IReadOnlyList<AircraftModel> SortByZOrder(
+        IReadOnlyList<AircraftModel> aircraft,
+        Dictionary<string, int> zOrder
+    )
+    {
+        if (zOrder.Count == 0)
+        {
+            return aircraft;
+        }
+
+        var sorted = new List<AircraftModel>(aircraft);
+        sorted.Sort((a, b) =>
+        {
+            zOrder.TryGetValue(a.Callsign, out var za);
+            zOrder.TryGetValue(b.Callsign, out var zb);
+            return za.CompareTo(zb);
+        });
+        return sorted;
+    }
+
+    private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? sp1, string? sp2)
+    {
+        bool hasOwner = !string.IsNullOrEmpty(ownerDisplay);
+        bool hasSp1 = !string.IsNullOrEmpty(sp1);
+        bool hasSp2 = !string.IsNullOrEmpty(sp2);
+
+        if (!hasOwner && !hasSp1 && !hasSp2)
+        {
+            return null;
+        }
+
+        var parts = new List<string>(3);
+        if (hasOwner)
+        {
+            parts.Add(ownerDisplay!);
+        }
+
+        if (hasSp1)
+        {
+            parts.Add($".{sp1}");
+        }
+
+        if (hasSp2)
+        {
+            parts.Add($"+{sp2}");
+        }
+
+        return string.Join(" ", parts);
     }
 
     private static IReadOnlyList<AircraftModel> FilterAircraft(IReadOnlyList<AircraftModel>? aircraft, bool showTopDown)

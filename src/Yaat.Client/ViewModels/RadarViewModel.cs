@@ -1082,6 +1082,65 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, $"PTAC {args}", initials);
     }
 
+    // --- Tower / Landing ---
+
+    public async Task ClearedToLandAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "CTL", initials);
+    }
+
+    public async Task ClearedForOptionAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "CFO", initials);
+    }
+
+    public async Task TouchAndGoAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "TG", initials);
+    }
+
+    public async Task StopAndGoAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "SG", initials);
+    }
+
+    public async Task LowApproachAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "LA", initials);
+    }
+
+    public async Task GoAroundAsync(string callsign, string initials)
+    {
+        await _sendCommand(callsign, "GA", initials);
+    }
+
+    // --- Pattern entry ---
+
+    public async Task EnterLeftDownwindAsync(string callsign, string initials, string? runway)
+    {
+        await _sendCommand(callsign, runway is not null ? $"ELD {runway}" : "ELD", initials);
+    }
+
+    public async Task EnterRightDownwindAsync(string callsign, string initials, string? runway)
+    {
+        await _sendCommand(callsign, runway is not null ? $"ERD {runway}" : "ERD", initials);
+    }
+
+    public async Task EnterLeftBaseAsync(string callsign, string initials, string? runway)
+    {
+        await _sendCommand(callsign, runway is not null ? $"ELB {runway}" : "ELB", initials);
+    }
+
+    public async Task EnterRightBaseAsync(string callsign, string initials, string? runway)
+    {
+        await _sendCommand(callsign, runway is not null ? $"ERB {runway}" : "ERB", initials);
+    }
+
+    public async Task EnterFinalAsync(string callsign, string initials, string? runway)
+    {
+        await _sendCommand(callsign, runway is not null ? $"EF {runway}" : "EF", initials);
+    }
+
     // --- Squawk ---
 
     public async Task SquawkAsync(string callsign, string initials, int code)

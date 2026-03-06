@@ -118,6 +118,7 @@ public sealed class GroundRenderer : IDisposable
         Color = new SKColor(180, 180, 180),
         TextSize = 15,
         IsAntialias = true,
+        SubpixelText = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
         TextAlign = SKTextAlign.Center,
     };
@@ -145,6 +146,7 @@ public sealed class GroundRenderer : IDisposable
         Color = TaxiLabelColor,
         TextSize = 13,
         IsAntialias = true,
+        SubpixelText = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
@@ -174,6 +176,7 @@ public sealed class GroundRenderer : IDisposable
         Color = new SKColor(200, 200, 200),
         TextSize = 12,
         IsAntialias = true,
+        SubpixelText = true,
         Typeface = SKTypeface.FromFamilyName("Consolas"),
     };
 
@@ -190,10 +193,11 @@ public sealed class GroundRenderer : IDisposable
     {
         TextSize = 12,
         IsAntialias = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        SubpixelText = true,
+        Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
     };
 
-    private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(14, 14, 26, 180), Style = SKPaintStyle.Fill };
+    private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(0, 0, 0, 160), Style = SKPaintStyle.Fill };
 
     private readonly SKPaint _hoverPaint = new()
     {
@@ -509,7 +513,6 @@ public sealed class GroundRenderer : IDisposable
 
             _aircraftPaint.Color =
                 isSelected ? AircraftSelected
-                : selectedAircraft is not null ? AircraftDimmed
                 : isAirborne ? AircraftAirborne
                 : GetAircraftColor(ac);
 
@@ -577,12 +580,17 @@ public sealed class GroundRenderer : IDisposable
             bool isSelected = ac == selectedAircraft;
             var color =
                 isSelected ? AircraftSelected
-                : selectedAircraft is not null ? AircraftDimmed
                 : isAirborne ? AircraftAirborne
                 : GetAircraftColor(ac);
 
             _dataBlockTextPaint.Color = color;
             canvas.DrawRect(layout.Rect, _dataBlockBgPaint);
+
+            if (isSelected)
+            {
+                _dataBlockLeaderPaint.Color = AircraftSelected;
+                canvas.DrawRect(layout.Rect, _dataBlockLeaderPaint);
+            }
 
             var leaderEnd = ClampToBlockEdge(sx, sy, layout.Rect);
             _dataBlockLeaderPaint.Color = color;

@@ -45,7 +45,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
-    private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = SKTypeface.FromFamilyName("Consolas") };
+    private readonly SKPaint _hitTestPaint = new()
+    {
+        TextSize = 12,
+        Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
+    };
     private int? _hoveredNodeId;
     private bool _hasFitBounds;
     private bool _isDraggingDataBlock;
@@ -53,6 +57,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private SKPoint _dragStartOffset;
     private Point _dragStartMousePos;
     private bool _dragThresholdMet;
+    private readonly Dictionary<string, int> _dataBlockZOrder = new();
+    private int _nextZOrder;
 
     public GroundLayoutDto? Layout
     {
@@ -103,6 +109,13 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     }
 
     public int? HoveredNodeId => _hoveredNodeId;
+
+    /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
+    public void SurfaceDataBlock(string callsign)
+    {
+        _dataBlockZOrder[callsign] = _nextZOrder++;
+        MarkDirty();
+    }
 
     /// <summary>Fired when a node is right-clicked. Args: nodeId, screen position.</summary>
     public event Action<int, Point>? NodeRightClicked;
@@ -158,7 +171,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         return new RenderSnapshot(
             Layout,
-            FilterActiveAircraft(Aircraft),
+            SortByZOrder(FilterActiveAircraft(Aircraft), _dataBlockZOrder),
             SelectedAircraft,
             _hoveredNodeId,
             ActiveRoute,
@@ -191,6 +204,26 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.AirportCenterLon,
             s.AirportElevation
         );
+    }
+
+    private static IReadOnlyList<AircraftModel> SortByZOrder(
+        IReadOnlyList<AircraftModel> aircraft,
+        Dictionary<string, int> zOrder
+    )
+    {
+        if (zOrder.Count == 0)
+        {
+            return aircraft;
+        }
+
+        var sorted = new List<AircraftModel>(aircraft);
+        sorted.Sort((a, b) =>
+        {
+            zOrder.TryGetValue(a.Callsign, out var za);
+            zOrder.TryGetValue(b.Callsign, out var zb);
+            return za.CompareTo(zb);
+        });
+        return sorted;
     }
 
     private static IReadOnlyList<AircraftModel> FilterActiveAircraft(IReadOnlyList<AircraftModel>? aircraft)
@@ -246,6 +279,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         var dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)
         {
+            SurfaceDataBlock(dataBlockAc.Callsign);
+
             if (props.IsRightButtonPressed)
             {
                 AircraftRightClicked?.Invoke(dataBlockAc.Callsign, pos);
@@ -371,7 +406,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        foreach (var ac in Aircraft)
+        // Use z-order-sorted list so the topmost (last-drawn) datablock wins
+        var sorted = SortByZOrder(FilterActiveAircraft(Aircraft), _dataBlockZOrder);
+        AircraftModel? best = null;
+
+        foreach (var ac in sorted)
         {
             if (!ac.IsOnGround)
             {
@@ -389,11 +428,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _hitTestPaint, isAirborne: false);
             if (layout.Rect.Contains((float)screenPos.X, (float)screenPos.Y))
             {
-                return ac;
+                best = ac;
             }
         }
 
-        return null;
+        return best;
     }
 
     public AircraftModel? FindAircraftAtPoint(Point screenPos)
