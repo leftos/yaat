@@ -23,7 +23,10 @@ public static class VideoMapParser
         {
             foreach (var feature in features.EnumerateArray())
             {
-                if (!feature.TryGetProperty("geometry", out var geometry))
+                if (
+                    !feature.TryGetProperty("geometry", out var geometry)
+                    || geometry.ValueKind == JsonValueKind.Null
+                )
                 {
                     continue;
                 }
@@ -120,6 +123,12 @@ public static class VideoMapParser
         {
             var arr = coord.EnumerateArray().ToArray();
             if (arr.Length < 2)
+            {
+                continue;
+            }
+
+            // Skip coordinates with null values
+            if (arr[0].ValueKind == JsonValueKind.Null || arr[1].ValueKind == JsonValueKind.Null)
             {
                 continue;
             }
