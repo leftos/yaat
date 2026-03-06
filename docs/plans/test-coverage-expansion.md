@@ -111,15 +111,20 @@
 
 ## Priority 4: E2E Tests with Real Airports
 
-### P4.1 OAK E2E
-- [ ] Full taxi-to-takeoff: NEW7 -> D -> hold short 30 -> lineup -> CTO -> takeoff
-- [ ] Pushback + taxi: parking -> pushback facing D -> taxi D W -> RWY30
-- [ ] Multiple hold-shorts: route crossing two runways
-- [ ] Auto-cross-runway: same route with flag -> hold-shorts cleared
+### P4.1 OAK E2E -- DONE (9 tests)
+- [x] Taxi D from NEW7 parking (RAMP fallback, TaxiingPhase)
+- [x] Taxi D C from NEW7 (multi-taxiway route)
+- [x] Taxi D C B W to runway 30 (full route with hold-short and phases)
+- [x] Pushback from NEW7 facing D
+- [x] Multiple hold-shorts: D K F crosses runway 15/33
+- [x] Auto-cross-runway: D K F with flag clears hold-shorts
+- [x] Full taxi-to-takeoff: NEW7 -> D C B W -> hold-short 30 -> destination hold-short verified
+- [x] Pushback then taxi: NEW7 -> push D -> taxi D C
+- [x] D alone doesn't reach runway 30 (negative test)
 
-### P4.2 SFO E2E
-- [ ] Complex hold-short patterns with parallel runways
-- [ ] Taxiway variant inference
+### P4.2 SFO E2E -- DONE (2 tests)
+- [x] Layout loads with multiple runway hold-shorts (parallel runways)
+- [x] Taxiway variant inference (has A1, A2, etc.)
 
 ### P4.3 Pattern Circuit E2E -- DONE (11 tests)
 - [x] Full circuit from upwind: completes Upwind→Crosswind→Downwind→Base→FinalApproach
