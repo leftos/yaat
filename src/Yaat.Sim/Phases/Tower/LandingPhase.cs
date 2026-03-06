@@ -11,8 +11,13 @@ namespace Yaat.Sim.Phases.Tower;
 public sealed class LandingPhase : Phase
 {
     private const double RolloutCompleteSpeed = 20.0;
+    private const double CenterlineGainDegPerNm = 150.0;
+    private const double MaxCenterlineCorrectionDeg = 10.0;
 
     private double _fieldElevation;
+    private double _runwayHeading;
+    private double _thresholdLat;
+    private double _thresholdLon;
     private bool _touchedDown;
     private bool _canGoAround;
 
@@ -21,6 +26,9 @@ public sealed class LandingPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
+        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Latitude;
+        _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Longitude;
 
         // Continue approach descent toward field elevation
         ctx.Targets.TargetAltitude = _fieldElevation;
@@ -83,6 +91,17 @@ public sealed class LandingPhase : Phase
 
     private bool TickRollout(PhaseContext ctx)
     {
+        // Steer toward runway centerline
+        double signedXte = GeoMath.SignedCrossTrackDistanceNm(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            _thresholdLat,
+            _thresholdLon,
+            _runwayHeading
+        );
+        double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
+        ctx.Targets.TargetHeading = FlightPhysics.NormalizeHeading(_runwayHeading - correction);
+
         // Decelerate on the ground
         double decelRate = CategoryPerformance.RolloutDecelRate(ctx.Category);
         double newSpeed = ctx.Aircraft.GroundSpeed - decelRate * ctx.DeltaSeconds;

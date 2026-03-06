@@ -12,9 +12,13 @@ namespace Yaat.Sim.Phases.Tower;
 public sealed class StopAndGoPhase : Phase
 {
     private const double LiftoffAgl = 400.0;
+    private const double CenterlineGainDegPerNm = 150.0;
+    private const double MaxCenterlineCorrectionDeg = 10.0;
 
     private double _fieldElevation;
     private double _runwayHeading;
+    private double _thresholdLat;
+    private double _thresholdLon;
     private double _pauseDuration;
     private double _pauseElapsed;
     private bool _stopped;
@@ -27,6 +31,8 @@ public sealed class StopAndGoPhase : Phase
     {
         _fieldElevation = ctx.FieldElevation;
         _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Latitude;
+        _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Longitude;
         _pauseDuration = CategoryPerformance.StopAndGoPauseSeconds(ctx.Category);
 
         ctx.Aircraft.IsOnGround = true;
@@ -49,6 +55,20 @@ public sealed class StopAndGoPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Steer toward runway centerline while on the ground
+        if (!_airborne)
+        {
+            double signedXte = GeoMath.SignedCrossTrackDistanceNm(
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                _thresholdLat,
+                _thresholdLon,
+                _runwayHeading
+            );
+            double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
+            ctx.Targets.TargetHeading = FlightPhysics.NormalizeHeading(_runwayHeading - correction);
+        }
+
         if (!_stopped)
         {
             if (ctx.Aircraft.GroundSpeed < 3)

@@ -36,6 +36,8 @@ public class TakeoffDepartureTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
             Heading = runwayHeading,
             Altitude = FieldElevation,
             GroundSpeed = 0,

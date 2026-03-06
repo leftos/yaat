@@ -10,10 +10,14 @@ namespace Yaat.Sim.Phases.Tower;
 public sealed class TakeoffPhase : Phase
 {
     private const double CompletionAgl = 400.0;
+    private const double CenterlineGainDegPerNm = 150.0;
+    private const double MaxCenterlineCorrectionDeg = 10.0;
 
     private bool _airborne;
     private double _fieldElevation;
     private double _runwayHeading;
+    private double _thresholdLat;
+    private double _thresholdLon;
     private DepartureInstruction? _departure;
 
     public override string Name => "Takeoff";
@@ -33,6 +37,8 @@ public sealed class TakeoffPhase : Phase
     {
         _fieldElevation = ctx.FieldElevation;
         _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Latitude;
+        _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Longitude;
         _departure = Departure;
 
         ctx.Aircraft.IsOnGround = true;
@@ -61,6 +67,17 @@ public sealed class TakeoffPhase : Phase
 
     private bool TickGroundRoll(PhaseContext ctx)
     {
+        // Steer toward runway centerline
+        double signedXte = GeoMath.SignedCrossTrackDistanceNm(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            _thresholdLat,
+            _thresholdLon,
+            _runwayHeading
+        );
+        double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
+        ctx.Targets.TargetHeading = FlightPhysics.NormalizeHeading(_runwayHeading - correction);
+
         double vr = CategoryPerformance.RotationSpeed(ctx.Category);
         double accelRate = CategoryPerformance.GroundAccelRate(ctx.Category);
 
