@@ -57,15 +57,15 @@
 
 ## Priority 2: Phase Transition Tests
 
-### P2.1 Tower Phase Tests
-- [ ] LinedUpAndWaitingPhase: holds at threshold, accepts CTO, rejects others
-- [ ] GoAroundPhase: TOGA, runway heading, climb 2000ft AGL
-- [ ] TouchAndGoPhase: touchdown -> accelerate -> rotate -> climb
-- [ ] StopAndGoPhase: full stop -> hold -> accelerate
-- [ ] LowApproachPhase: fly through, no touchdown
-- [ ] LandingPhase: flare -> touchdown -> rollout to 20kts
-- [ ] HoldAtFixPhase: orbit at fix, exits on command
-- [ ] HoldPresentPositionPhase: orbit/hover at current position
+### P2.1 Tower Phase Tests -- DONE (30 tests)
+- [x] LinedUpAndWaitingPhase: holds at threshold, accepts CTO, rejects others
+- [x] GoAroundPhase: TOGA, runway heading, climb 2000ft AGL, assigned heading after 400 AGL, custom target alt
+- [x] TouchAndGoPhase: touchdown -> decelerate -> reaccelerate -> airborne, command acceptance
+- [x] StopAndGoPhase: full stop -> pause -> reaccelerate -> airborne, command acceptance
+- [x] LowApproachPhase: approach speed, climb out at go-around alt, completes at 1500 AGL
+- [x] LandingPhase: flare -> touchdown -> rollout to 20kts, command acceptance before/after touchdown
+- [x] HoldAtFixPhase: navigate to fix, orbit on arrival, helicopter hover, never self-completes
+- [x] HoldPresentPositionPhase: orbit/hover at current position, name reflects direction
 
 ### P2.2 Pattern Phase Tests
 - [ ] UpwindPhase: climb, runway heading, transition to crosswind
