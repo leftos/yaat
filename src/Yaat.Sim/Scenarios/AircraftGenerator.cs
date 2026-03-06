@@ -26,18 +26,20 @@ public static class AircraftGenerator
         IFixLookup fixes,
         IRunwayLookup runways,
         IReadOnlyCollection<AircraftState> existingAircraft,
-        AirportGroundLayout? groundLayout = null
+        AirportGroundLayout? groundLayout,
+        Random rng
     )
     {
-        var aircraftType = ResolveType(request);
+        var r = rng;
+        var aircraftType = ResolveType(request, r);
         if (aircraftType is null)
         {
             return (null, $"No aircraft types defined for {request.Weight}+{request.Engine}");
         }
 
-        var callsign = GenerateCallsign(request, existingAircraft);
+        var callsign = GenerateCallsign(request, existingAircraft, r);
         var category = AircraftCategorization.Categorize(aircraftType);
-        var beaconCode = SimulationWorld.GenerateBeaconCode();
+        var beaconCode = SimulationWorld.GenerateBeaconCode(r);
         var transponderMode = request.Rules == FlightRulesKind.Vfr ? "A" : "C";
         var flightRules = request.Rules == FlightRulesKind.Ifr ? "IFR" : "VFR";
 
@@ -332,7 +334,7 @@ public static class AircraftGenerator
         return (state, null);
     }
 
-    private static string? ResolveType(SpawnRequest request)
+    private static string? ResolveType(SpawnRequest request, Random rng)
     {
         if (request.ExplicitType is not null)
         {
@@ -344,28 +346,28 @@ public static class AircraftGenerator
             return null;
         }
 
-        return types[Random.Shared.Next(types.Length)];
+        return types[rng.Next(types.Length)];
     }
 
-    private static string GenerateCallsign(SpawnRequest request, IReadOnlyCollection<AircraftState> existingAircraft)
+    private static string GenerateCallsign(SpawnRequest request, IReadOnlyCollection<AircraftState> existingAircraft, Random rng)
     {
         var existing = new HashSet<string>(existingAircraft.Select(a => a.Callsign), StringComparer.OrdinalIgnoreCase);
 
         if (request.Rules == FlightRulesKind.Vfr)
         {
-            return GenerateNNumber(existing);
+            return GenerateNNumber(existing, rng);
         }
 
-        var airline = request.ExplicitAirline ?? Airlines[Random.Shared.Next(Airlines.Length)];
-        return GenerateAirlineCallsign(airline, existing);
+        var airline = request.ExplicitAirline ?? Airlines[rng.Next(Airlines.Length)];
+        return GenerateAirlineCallsign(airline, existing, rng);
     }
 
-    private static string GenerateAirlineCallsign(string airline, HashSet<string> existing)
+    private static string GenerateAirlineCallsign(string airline, HashSet<string> existing, Random rng)
     {
         for (int attempt = 0; attempt < 100; attempt++)
         {
-            int digits = Random.Shared.Next(3, 5); // 3 or 4 digits
-            var number = Random.Shared.Next((int)Math.Pow(10, digits - 1), (int)Math.Pow(10, digits));
+            int digits = rng.Next(3, 5); // 3 or 4 digits
+            var number = rng.Next((int)Math.Pow(10, digits - 1), (int)Math.Pow(10, digits));
             var callsign = $"{airline}{number}";
             if (!existing.Contains(callsign))
             {
@@ -373,20 +375,20 @@ public static class AircraftGenerator
             }
         }
 
-        return $"{airline}{Random.Shared.Next(10000, 99999)}";
+        return $"{airline}{rng.Next(10000, 99999)}";
     }
 
-    private static string GenerateNNumber(HashSet<string> existing)
+    private static string GenerateNNumber(HashSet<string> existing, Random rng)
     {
         const string chars = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ";
         for (int attempt = 0; attempt < 100; attempt++)
         {
             var suffix = new char[4];
             // First char after N must be a digit (1-9)
-            suffix[0] = (char)('1' + Random.Shared.Next(9));
+            suffix[0] = (char)('1' + rng.Next(9));
             for (int i = 1; i < 4; i++)
             {
-                suffix[i] = chars[Random.Shared.Next(chars.Length)];
+                suffix[i] = chars[rng.Next(chars.Length)];
             }
             var callsign = $"N{new string(suffix)}";
             if (!existing.Contains(callsign))
@@ -395,7 +397,7 @@ public static class AircraftGenerator
             }
         }
 
-        return $"N{Random.Shared.Next(10000, 99999)}";
+        return $"N{rng.Next(10000, 99999)}";
     }
 
     private static (double Lat, double Lon) ComputePosition(double originLat, double originLon, double bearingDeg, double distanceNm)

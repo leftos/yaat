@@ -36,7 +36,7 @@ public class SpeedCommandTests
         ac.Targets.TargetSpeed = 200;
         ac.Targets.SpeedCeiling = 230;
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(210, SpeedModifier.Floor), ac, null, null, null, Logger);
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(210, SpeedModifier.Floor), ac, null, null, null, Logger, Random.Shared);
 
         Assert.True(result.Success);
         Assert.Equal(210, ac.Targets.SpeedFloor);
@@ -50,7 +50,7 @@ public class SpeedCommandTests
         var ac = CreateAircraft();
         ac.Targets.SpeedFloor = 200;
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(210, SpeedModifier.Ceiling), ac, null, null, null, Logger);
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(210, SpeedModifier.Ceiling), ac, null, null, null, Logger, Random.Shared);
 
         Assert.True(result.Success);
         Assert.Equal(210, ac.Targets.SpeedCeiling);
@@ -65,7 +65,7 @@ public class SpeedCommandTests
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 260;
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(220), ac, null, null, null, Logger);
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(220), ac, null, null, null, Logger, Random.Shared);
 
         Assert.True(result.Success);
         Assert.Equal(220, ac.Targets.TargetSpeed);
@@ -81,7 +81,7 @@ public class SpeedCommandTests
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 250;
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(0), ac, null, null, null, Logger);
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(0), ac, null, null, null, Logger, Random.Shared);
 
         Assert.True(result.Success);
         Assert.Equal(0, ac.Targets.TargetSpeed);
@@ -99,7 +99,7 @@ public class SpeedCommandTests
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 250;
 
-        var result = CommandDispatcher.Dispatch(new ResumeNormalSpeedCommand(), ac, null, null, null, Logger);
+        var result = CommandDispatcher.Dispatch(new ResumeNormalSpeedCommand(), ac, null, null, null, Logger, Random.Shared);
 
         Assert.True(result.Success);
         Assert.Null(ac.Targets.TargetSpeed);
@@ -115,7 +115,7 @@ public class SpeedCommandTests
         var ac = CreateAircraft();
         ac.Targets.TargetSpeed = 210;
 
-        var result = CommandDispatcher.Dispatch(new DeleteSpeedRestrictionsCommand(), ac, null, null, null, Logger);
+        var result = CommandDispatcher.Dispatch(new DeleteSpeedRestrictionsCommand(), ac, null, null, null, Logger, Random.Shared);
 
         Assert.True(result.Success);
         Assert.Null(ac.Targets.TargetSpeed);
@@ -128,7 +128,7 @@ public class SpeedCommandTests
         var ac = CreateAircraft();
         ac.SpeedRestrictionsDeleted = true;
 
-        CommandDispatcher.Dispatch(new SpeedCommand(210), ac, null, null, null, Logger);
+        CommandDispatcher.Dispatch(new SpeedCommand(210), ac, null, null, null, Logger, Random.Shared);
 
         Assert.False(ac.SpeedRestrictionsDeleted);
     }
@@ -140,7 +140,7 @@ public class SpeedCommandTests
         ac.ActiveSidId = "PORTE3";
         ac.SpeedRestrictionsDeleted = true;
 
-        CommandDispatcher.Dispatch(new ClimbViaCommand(null), ac, null, null, null, Logger);
+        CommandDispatcher.Dispatch(new ClimbViaCommand(null), ac, null, null, null, Logger, Random.Shared);
 
         Assert.False(ac.SpeedRestrictionsDeleted);
     }
@@ -152,7 +152,7 @@ public class SpeedCommandTests
         ac.ActiveStarId = "SUNOL1";
         ac.SpeedRestrictionsDeleted = true;
 
-        CommandDispatcher.Dispatch(new DescendViaCommand(null), ac, null, null, null, Logger);
+        CommandDispatcher.Dispatch(new DescendViaCommand(null), ac, null, null, null, Logger, Random.Shared);
 
         Assert.False(ac.SpeedRestrictionsDeleted);
     }
@@ -182,7 +182,7 @@ public class SpeedCommandTests
         };
         // Aircraft is at the threshold (0nm)
 
-        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, null, null, null, Logger);
+        var result = CommandDispatcher.Dispatch(new SpeedCommand(180), ac, null, null, null, Logger, Random.Shared);
 
         Assert.False(result.Success);
         Assert.Contains("5nm final", result.Message);
@@ -228,11 +228,11 @@ public class SpeedCommandTests
     {
         var ac = CreateAircraft();
 
-        CommandDispatcher.Dispatch(new SpeedCommand(200, SpeedModifier.Floor), ac, null, null, null, Logger);
+        CommandDispatcher.Dispatch(new SpeedCommand(200, SpeedModifier.Floor), ac, null, null, null, Logger, Random.Shared);
         Assert.Equal(200, ac.Targets.SpeedFloor);
         Assert.Null(ac.Targets.SpeedCeiling);
 
-        CommandDispatcher.Dispatch(new SpeedCommand(250, SpeedModifier.Ceiling), ac, null, null, null, Logger);
+        CommandDispatcher.Dispatch(new SpeedCommand(250, SpeedModifier.Ceiling), ac, null, null, null, Logger, Random.Shared);
         Assert.Null(ac.Targets.SpeedFloor);
         Assert.Equal(250, ac.Targets.SpeedCeiling);
     }
@@ -242,10 +242,10 @@ public class SpeedCommandTests
     {
         var ac = CreateAircraft();
 
-        CommandDispatcher.Dispatch(new SpeedCommand(250, SpeedModifier.Ceiling), ac, null, null, null, Logger);
+        CommandDispatcher.Dispatch(new SpeedCommand(250, SpeedModifier.Ceiling), ac, null, null, null, Logger, Random.Shared);
         Assert.Equal(250, ac.Targets.SpeedCeiling);
 
-        CommandDispatcher.Dispatch(new SpeedCommand(200, SpeedModifier.Floor), ac, null, null, null, Logger);
+        CommandDispatcher.Dispatch(new SpeedCommand(200, SpeedModifier.Floor), ac, null, null, null, Logger, Random.Shared);
         Assert.Equal(200, ac.Targets.SpeedFloor);
         Assert.Null(ac.Targets.SpeedCeiling);
     }

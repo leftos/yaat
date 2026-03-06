@@ -869,6 +869,30 @@ At the bottom-right of the window:
 
 Pause and sim rate are scoped to your room — they don't affect other rooms.
 
+### Timeline / Rewind
+
+When a scenario is loaded, a timeline bar appears below the menu. It shows elapsed time and provides rewind controls:
+
+- **|◀** — rewind to the start of the scenario
+- **-30s / -15s** — rewind 30 or 15 seconds back from current time
+- **Elapsed time** — displayed in mm:ss format
+
+After rewinding, the simulation enters **Playback Mode**. The timeline bar shows "PLAYBACK" and a "Take Control" button. In playback mode:
+
+- The simulation replays all previously recorded commands at their original timestamps
+- Terminal entries broadcast normally — you can watch commands execute as they happened
+- The simulation auto-pauses when it reaches the end of the recorded tape
+- Press **Take Control** or issue any command to exit playback and resume live operation (the future recording is discarded)
+
+### Save / Load Recordings
+
+Under the **Scenario** menu:
+
+- **Save Recording...** — exports the current session (scenario + all recorded actions) to a `.yaat-recording` file
+- **Load Recording...** — loads a previously saved recording; enters playback mode at t=0
+
+Recordings are self-contained JSON files that include the scenario definition, RNG seed, weather state, and all user actions with timestamps. They can be shared between users for review or training.
+
 ## Views
 
 The main window uses a tabbed layout with three views: **Aircraft List**, **Ground View**, and **Radar View**. The terminal panel sits below the tab area.

@@ -15,7 +15,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<AircraftDto>? AircraftUpdated;
     public event Action<string>? AircraftDeleted;
     public event Action<AircraftDto>? AircraftSpawned;
-    public event Action<bool, int>? SimulationStateChanged;
+    public event Action<bool, int, double, bool, double>? SimulationStateChanged;
     public event Action<string?>? Reconnected;
     public event Action<Exception?>? Reconnecting;
     public event Action<Exception?>? Closed;
@@ -45,7 +45,10 @@ public sealed class ServerConnection : IAsyncDisposable
 
         _connection.On<AircraftDto>("AircraftSpawned", dto => AircraftSpawned?.Invoke(dto));
 
-        _connection.On<bool, int>("SimulationStateChanged", (paused, rate) => SimulationStateChanged?.Invoke(paused, rate));
+        _connection.On<bool, int, double, bool, double>(
+            "SimulationStateChanged",
+            (paused, rate, elapsed, isPlayback, tapeEnd) => SimulationStateChanged?.Invoke(paused, rate, elapsed, isPlayback, tapeEnd)
+        );
 
         _connection.On<TerminalBroadcastDto>("TerminalBroadcast", dto => TerminalEntryReceived?.Invoke(dto));
 
@@ -244,6 +247,38 @@ public sealed class ServerConnection : IAsyncDisposable
     {
         EnsureConnected();
         await _connection!.InvokeAsync("SetAutoCrossRunway", enabled);
+    }
+
+    // --- Timeline / Rewind ---
+
+    public async Task<RewindResultDto?> RewindToAsync(double elapsedSeconds)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<RewindResultDto?>("RewindTo", elapsedSeconds);
+    }
+
+    public async Task TakeControlAsync()
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("TakeControl");
+    }
+
+    public async Task<TimelineInfoDto?> GetTimelineInfoAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<TimelineInfoDto?>("GetTimelineInfo");
+    }
+
+    public async Task<string?> ExportRecordingAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<string?>("ExportRecording");
+    }
+
+    public async Task<RewindResultDto?> LoadRecordingAsync(string recordingJson)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<RewindResultDto?>("LoadRecording", recordingJson);
     }
 
     // --- Data queries ---
@@ -566,3 +601,7 @@ public record ApproachReportDto(
     double ScenarioElapsedSeconds,
     string OverallGrade
 );
+
+public record TimelineInfoDto(double ElapsedSeconds, double TapeEnd, bool IsPlayback, bool IsAvailable);
+
+public record RewindResultDto(bool Success, string? Error, List<AircraftDto>? Aircraft = null);

@@ -171,7 +171,7 @@ public class SimulationWorldTests
     {
         for (int i = 0; i < 100; i++)
         {
-            uint code = SimulationWorld.GenerateBeaconCode();
+            uint code = SimulationWorld.GenerateBeaconCode(Random.Shared);
             string digits = code.ToString();
             foreach (char digit in digits)
             {

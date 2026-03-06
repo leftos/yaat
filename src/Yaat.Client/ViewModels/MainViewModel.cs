@@ -84,6 +84,35 @@ public partial class MainViewModel : ObservableObject
     public static int[] SimRateOptions { get; } = [1, 2, 4, 8, 16];
 
     [ObservableProperty]
+    private double _scenarioElapsedSeconds;
+
+    [ObservableProperty]
+    private bool _isPlaybackMode;
+
+    [ObservableProperty]
+    private double _playbackTapeEnd;
+
+    public bool IsTimelineAvailable => ActiveScenarioName is not null;
+
+    public string ElapsedTimeDisplay
+    {
+        get
+        {
+            var ts = TimeSpan.FromSeconds(ScenarioElapsedSeconds);
+            return $"{(int)ts.TotalMinutes:D2}:{ts.Seconds:D2}";
+        }
+    }
+
+    public string TapeEndDisplay
+    {
+        get
+        {
+            var ts = TimeSpan.FromSeconds(PlaybackTapeEnd);
+            return $"{(int)ts.TotalMinutes:D2}:{ts.Seconds:D2}";
+        }
+    }
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(LeaveRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(CreateRoomCommand))]
     [NotifyCanExecuteChangedFor(nameof(ShowRoomsCommand))]
@@ -912,11 +941,17 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private void ApplySimState(bool paused, int rate)
+    private void ApplySimState(bool paused, int rate, double elapsed = 0, bool isPlayback = false, double tapeEnd = 0)
     {
         IsPaused = paused;
         SimRate = rate;
         SelectedSimRateIndex = Array.IndexOf(SimRateOptions, rate);
+        ScenarioElapsedSeconds = elapsed;
+        IsPlaybackMode = isPlayback;
+        PlaybackTapeEnd = tapeEnd;
+        OnPropertyChanged(nameof(ElapsedTimeDisplay));
+        OnPropertyChanged(nameof(TapeEndDisplay));
+        OnPropertyChanged(nameof(IsTimelineAvailable));
     }
 
     private void AddHistory(string entry)

@@ -9,6 +9,7 @@ public sealed class SimulationWorld
     private readonly object _lock = new();
     private readonly List<AircraftState> _aircraft = [];
 
+    public Random Rng { get; set; } = Random.Shared;
     public WeatherProfile? Weather { get; set; }
     public AirportGroundLayout? GroundLayout { get; set; }
     public ILogger? Logger { get; set; }
@@ -148,9 +149,10 @@ public sealed class SimulationWorld
         }
     }
 
-    public static uint GenerateBeaconCode()
+    public uint GenerateBeaconCode() => GenerateBeaconCode(Rng);
+
+    public static uint GenerateBeaconCode(Random rng)
     {
-        var rng = Random.Shared;
         uint code = 0;
         for (int i = 0; i < 4; i++)
         {
@@ -174,7 +176,7 @@ public sealed class SimulationWorld
             }
         }
 
-        var rng = Random.Shared;
+        var rng = Rng;
         for (int attempt = 0; attempt < 1000; attempt++)
         {
             var cid = rng.Next(100, 1000).ToString();

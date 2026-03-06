@@ -21,6 +21,7 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         ILogger logger,
+        Random rng,
         IApproachLookup? approachLookup = null,
         IProcedureLookup? procedureLookup = null,
         bool validateDctFixes = true,
@@ -30,7 +31,18 @@ public static class CommandDispatcher
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways, groundLayout, fixes, logger, procedureLookup, autoCrossRunway);
+            var result = DispatchWithPhase(
+                compound,
+                aircraft,
+                currentPhase,
+                runways,
+                groundLayout,
+                fixes,
+                logger,
+                rng,
+                procedureLookup,
+                autoCrossRunway
+            );
             if (result is not null)
             {
                 return result;
@@ -100,7 +112,16 @@ public static class CommandDispatcher
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, fixes, approachLookup, runways, procedureLookup, validateDctFixes),
+                ApplyAction = BuildApplyAction(
+                    parsedBlock.Commands,
+                    aircraft,
+                    rng,
+                    fixes,
+                    approachLookup,
+                    runways,
+                    procedureLookup,
+                    validateDctFixes
+                ),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
                 IsWaitBlock = isWait,
@@ -139,6 +160,7 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         ILogger logger,
+        Random rng,
         IApproachLookup? approachLookup = null,
         IProcedureLookup? procedureLookup = null,
         bool validateDctFixes = true,
@@ -156,6 +178,7 @@ public static class CommandDispatcher
                 groundLayout,
                 fixes,
                 logger,
+                rng,
                 approachLookup,
                 procedureLookup,
                 autoCrossRunway: autoCrossRunway
@@ -167,7 +190,7 @@ public static class CommandDispatcher
         aircraft.Queue.CurrentBlockIndex = 0;
 
         bool hadProcedure = aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null;
-        var result = ApplyCommand(command, aircraft, fixes, approachLookup, logger, runways, procedureLookup, validateDctFixes);
+        var result = ApplyCommand(command, aircraft, rng, fixes, approachLookup, logger, runways, procedureLookup, validateDctFixes);
         CheckVectoringWarning(aircraft, [command], hadProcedure);
         return result;
     }
@@ -175,6 +198,7 @@ public static class CommandDispatcher
     private static CommandResult ApplyCommand(
         ParsedCommand command,
         AircraftState aircraft,
+        Random rng,
         IFixLookup? fixes = null,
         IApproachLookup? approachLookup = null,
         ILogger? logger = null,
@@ -504,7 +528,7 @@ public static class CommandDispatcher
                 return Ok("Ident");
 
             case RandomSquawkCommand:
-                aircraft.BeaconCode = SimulationWorld.GenerateBeaconCode();
+                aircraft.BeaconCode = SimulationWorld.GenerateBeaconCode(rng);
                 return Ok($"Squawk {aircraft.BeaconCode:D4}");
 
             case WaitCommand cmd:
@@ -702,6 +726,7 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         ILogger logger,
+        Random rng,
         IProcedureLookup? procedureLookup = null,
         bool autoCrossRunway = false
     )
@@ -1887,6 +1912,7 @@ public static class CommandDispatcher
     private static Action<AircraftState> BuildApplyAction(
         List<ParsedCommand> commands,
         AircraftState aircraft,
+        Random rng,
         IFixLookup? fixes = null,
         IApproachLookup? approachLookup = null,
         IRunwayLookup? runways = null,
@@ -1902,7 +1928,16 @@ public static class CommandDispatcher
 
             foreach (var cmd in captured)
             {
-                ApplyCommand(cmd, ac, fixes, approachLookup, runways: runways, procedureLookup: procedureLookup, validateDctFixes: validateDctFixes);
+                ApplyCommand(
+                    cmd,
+                    ac,
+                    rng,
+                    fixes,
+                    approachLookup,
+                    runways: runways,
+                    procedureLookup: procedureLookup,
+                    validateDctFixes: validateDctFixes
+                );
             }
 
             CheckVectoringWarning(ac, captured, hadProcedure);

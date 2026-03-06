@@ -117,11 +117,11 @@ public partial class MainViewModel
         });
     }
 
-    private void OnSimulationStateChanged(bool paused, int rate)
+    private void OnSimulationStateChanged(bool paused, int rate, double elapsed, bool isPlayback, double tapeEnd)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            ApplySimState(paused, rate);
+            ApplySimState(paused, rate, elapsed, isPlayback, tapeEnd);
         });
     }
 
