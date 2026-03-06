@@ -121,10 +121,12 @@
 - [ ] Complex hold-short patterns with parallel runways
 - [ ] Taxiway variant inference
 
-### P4.3 Pattern Circuit E2E
-- [ ] Full circuit: entry -> upwind -> crosswind -> downwind -> base -> final -> touchdown
-- [ ] Touch-and-go -> second circuit
-- [ ] Go-around from final -> pattern re-entry
+### P4.3 Pattern Circuit E2E -- DONE (11 tests)
+- [x] Full circuit from upwind: completes Upwind→Crosswind→Downwind→Base→FinalApproach
+- [x] Full circuit from downwind: skips Upwind/Crosswind
+- [x] Touch-and-go: auto-cycles into second circuit (UpwindPhase)
+- [x] Go-around from final: DispatchCompound replaces with GoAroundPhase
+- [x] PatternBuilder: BuildCircuit all entry legs (4), TouchAndGo vs Landing, BuildNextCircuit, UpdateWaypoints
 
 ## Priority 5: Strengthen Existing Tests
 
