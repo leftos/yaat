@@ -137,9 +137,9 @@
 
 ## Priority 6: Client Service Tests
 
-### P6.1 Testable Client Logic
-- [ ] CommandInputController: autocomplete ranking, history nav, callsign prefix
-- [ ] FixSuggester: prefix search, empty input, no matches, exact match
-- [ ] UserPreferences: JSON round-trip, missing fields -> defaults
-- [ ] FdRegionMapping: known mappings, unknown ARTCC
-- [ ] ScenarioDifficultyHelper: classification boundaries
+### P6.1 Testable Client Logic -- DONE (35 tests)
+- [ ] CommandInputController: autocomplete ranking, history nav, callsign prefix (deferred — heavy UI deps)
+- [x] FixSuggester: GetTextBeforeLastWord, CollectRouteFixNames, TryAddFixSuggestions edge cases (11 tests)
+- [ ] UserPreferences: JSON round-trip, missing fields -> defaults (deferred — file I/O, static paths)
+- [x] FdRegionMapping: known mappings (9 theory cases), unknown ARTCC, case-insensitive, empty (4 tests)
+- [x] ScenarioDifficultyHelper: GetAvailableDifficulties, GetCountsPerCeiling, FilterByDifficulty (10 tests)
