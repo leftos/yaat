@@ -120,7 +120,7 @@ public sealed class LineUpPhase : Phase
         {
             double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
             ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, _runwayHeading, maxTurn);
-            AdjustSpeed(ctx, CategoryPerformance.TaxiSpeed(ctx.Category) * 0.2);
+            AdjustSpeed(ctx, CategoryPerformance.TaxiSpeed(ctx.Category) * 0.5);
             LogPeriodic(ctx);
             return false;
         }
@@ -277,10 +277,10 @@ public sealed class LineUpPhase : Phase
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
 
-        // Slow taxi speed, reduced during sharp turns
+        // Near-normal taxi speed, reduced during sharp turns
         double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - ctx.Aircraft.Heading));
-        double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category) * 0.5;
-        double speedFraction = Math.Clamp(1.0 - (angleDiff / 90.0), 0.2, 1.0);
+        double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category) * 0.8;
+        double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.4, 1.0);
         AdjustSpeed(ctx, maxSpeed * speedFraction);
     }
 
