@@ -64,6 +64,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
   - [Parameters](#parameters)
   - [Usage](#usage)
   - [Import / Export](#import--export)
+- [Favorite Commands](#favorite-commands)
 - [Command History](#command-history)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Window State](#window-state)
@@ -169,7 +170,7 @@ The main grid shows all aircraft in your scenario, grouped into **Active** and *
 
 Click an aircraft row to select it, or type a callsign in the command input and press the aircraft select key (**Numpad +** by default, configurable in Settings > Advanced). Press **Esc** to deselect. Click a column header to sort by that column; click again to reverse the sort direction. Sorting always keeps the Active group on top and Delayed on the bottom, sorting within each group independently.
 
-Drag column headers to rearrange the column order. **Right-click any column header** to open the Column Chooser, where you can show/hide columns and reorder them using the Top/Up/Down/Last buttons. Column order, widths, visibility, and sort state are remembered across sessions.
+Drag column headers to rearrange the column order. **Right-click any column header** to open the Column Chooser, where you can show/hide columns and reorder them using the Top/Up/Down/Last buttons. The Column Chooser also has a **"Show only active aircraft"** checkbox that hides delayed (not yet spawned) aircraft from the grid. Column order, widths, visibility, sort state, and the active-only filter are remembered across sessions.
 
 ### Aircraft Detail Panel
 
@@ -340,6 +341,8 @@ DCT JFK090020
 This means "the point on the 090 radial from JFK at 20 NM." The fix name must be 2+ characters, followed by exactly 3 digits for the radial (degrees) and 3 digits for the distance (NM). FRD works anywhere a fix name is accepted: DCT arguments and AT conditions. AT conditions also support fix-radial (FR) format without distance — see Conditional Blocks below.
 
 If the last fix in the list appears in the aircraft's filed route, the aircraft continues on its filed route from that point.
+
+**Route validation** — When **Validate DCT fixes against route** is enabled in Settings > Scenarios, DCT commands to fixes not in the aircraft's filed route or expected approach are rejected. Use `DCTF` (force direct to) to override. Issue `EAPP` (Expect Approach) first to program approach fixes into the aircraft's route for validation purposes.
 
 ### Tower Commands
 
@@ -901,8 +904,14 @@ A simplified STARS-style radar display showing aircraft targets, video maps, and
 
 **DCB bar** (top of the radar view):
 - **RNG +/-**: increase/decrease display range
-- **RR**: toggle range rings
-- **FIX**: toggle fix overlay
+- **MAP**: open map selection popup to toggle individual video maps
+- **Map shortcuts**: up to 6 quick-toggle buttons for frequently used map groups
+- **RR**: toggle range rings; **RR SIZE** / **RR POS** adjust ring radius and center position
+- **FIX**: toggle fix name overlay
+- **LOCK**: lock/unlock pan and zoom (prevents accidental map movement)
+- **TOP-DN**: toggle top-down display mode
+- **PTL**: predicted track lines — adjust length (in minutes) with the spinner; **PTL OWN** shows lines for your tracked aircraft, **PTL ALL** shows lines for all aircraft
+- **BRITE**: open brightness controls to adjust intensity per video map category
 - Range display shows current range in NM
 
 **Right-click context menus:**
@@ -912,6 +921,8 @@ A simplified STARS-style radar display showing aircraft targets, video maps, and
 **Datablocks** show callsign, altitude, ground speed, and owner. When SP1 or SP2 is set, an additional line displays the scratchpad values.
 
 Video maps load automatically from the vNAS data API based on your ARTCC ID. Map lines render in green with brightness categories A/B.
+
+**Per-scenario persistence** — Radar view settings (enabled maps, center position, zoom range, range rings, PTL, brightness, lock state) are saved independently for each scenario. When you load a scenario you've used before, the radar view restores your previous settings for that scenario.
 
 ## Terminal Panel
 
@@ -984,12 +995,12 @@ Lists CRC clients not currently in any room. Each entry shows display name, ARTC
 
 Open **Settings** to configure:
 
-- **Connection** — Server URL for the yaat-server instance
+- **Connection** — Server URL for the yaat-server instance (default: `http://localhost:5000`)
 - **Identity** — VATSIM CID, user initials (required before connecting), and ARTCC ID
-- **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking), and simulation shortcuts (auto-clear to land, auto-cross runways)
-- **Commands** — Alias editor for customizing command verbs
+- **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking), simulation shortcuts (auto-clear to land, auto-cross runways), and validate DCT fixes against route (rejects DCT to off-route fixes; use DCTF to override)
+- **Commands** — Alias editor for customizing command verbs. Each command shows its primary name, editable aliases, and an example. Use **Reset to Defaults** to restore the built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros) below)
-- **Advanced** — Aircraft select keybind (default: Numpad +) and server admin mode
+- **Advanced** — Aircraft select keybind (default: Numpad +), focus command input keybind (default: `~`), and server admin mode
 
 ## Autocomplete
 
@@ -1052,6 +1063,19 @@ Macros work anywhere in a compound command (after `;` or `,` separators). The co
 - **Export All** / **Export Selected** — save macros to a `.yaat-macros.json` file
 - **Import** — load macros from a file, with a selection dialog showing which macros will overwrite existing ones
 
+## Favorite Commands
+
+The favorites bar sits below the command input and provides quick-access buttons for frequently used commands.
+
+- **Click** a favorite button to execute the command immediately. If text is already in the command input (e.g., a callsign), the favorite command is appended to it.
+- **Ctrl+Click** a favorite button to append its command text to the current input without sending (joined with `,`).
+- **Right-click** a favorite button to edit its label, command text, or delete it.
+- Click the **+** button at the end of the bar to add a new favorite.
+
+Each favorite has a **label** (displayed on the button) and **command text** (the command to execute). Favorites can optionally be **scenario-specific** — check "Scenario-specific" when adding/editing to make the favorite visible only when that scenario is loaded. Global favorites (not scenario-specific) are always visible.
+
+Favorites are saved in your preferences and persist across sessions.
+
 ## Command History
 
 The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
@@ -1070,6 +1094,7 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 | Down | Navigate suggestions or recall newer history |
 | Escape | Dismiss suggestions / deselect aircraft / close dialog |
 | Numpad + | Select aircraft matching typed callsign (configurable in Settings > Advanced) |
+| ~ (tilde) | Focus the command input from anywhere in the app (configurable in Settings > Advanced) |
 
 ## Window State
 

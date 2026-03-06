@@ -63,6 +63,7 @@ ViewModels/
   MainViewModel.Aircraft.cs     # Partial: aircraft management (spawn/delete/update)
   MainViewModel.Scenario.cs     # Partial: scenario load/unload
   MainViewModel.Weather.cs      # Partial: weather load/clear commands + WeatherChanged handler
+  MainViewModel.Favorites.cs    # Partial: favorite commands (quick-access bar, scenario-scoped)
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
   SettingsViewModel.cs          # Alias editing; preset detection
@@ -71,6 +72,7 @@ ViewModels/
 Views/
   MainWindow.axaml.cs           # Tab layout (DataGrid/Ground/Radar); room bar; pop-out management
   CommandInputView.axaml.cs     # Keyboard: Esc/Up/Down/Tab/Enter for suggestions/history
+  FavoritesBarView.axaml.cs     # Favorite command buttons bar (click/ctrl+click/right-click)
   DataGridView.axaml.cs         # Aircraft data grid (extracted from MainWindow)
   DataGridWindow.axaml.cs       # Pop-out data grid window
   TerminalPanelView.axaml.cs    # Auto-scroll with user-scroll detection
