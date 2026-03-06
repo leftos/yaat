@@ -67,12 +67,13 @@
 - [x] HoldAtFixPhase: navigate to fix, orbit on arrival, helicopter hover, never self-completes
 - [x] HoldPresentPositionPhase: orbit/hover at current position, name reflects direction
 
-### P2.2 Pattern Phase Tests
-- [ ] UpwindPhase: climb, runway heading, transition to crosswind
-- [ ] CrosswindPhase: 90 turn, level at pattern altitude
-- [ ] DownwindPhase: parallel to runway, accept extend/base
-- [ ] BasePhase: turn to base, descend
-- [ ] MidfieldCrossingPhase: cross midfield for wrong-side entry
+### P2.2 Pattern Phase Tests -- DONE (25 tests)
+- [x] UpwindPhase: climb, runway heading, completes at crosswind turn, extended never completes
+- [x] CrosswindPhase: 90° turn (L/R), continues climb below pattern alt, completes at downwind start
+- [x] DownwindPhase: parallel heading, pattern alt, completes at base turn, extended holds
+- [x] BasePhase: base heading, descent, completes near final approach course, extended holds
+- [x] MidfieldCrossingPhase: heads toward midfield at pattern+500ft, completes on arrival
+- [x] PatternGeometry: crosswind heading L/R, downwind reciprocal, pattern altitude
 
 ## Priority 3: Command Handler Tests
 
