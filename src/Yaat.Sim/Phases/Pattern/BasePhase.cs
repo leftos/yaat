@@ -10,7 +10,8 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class BasePhase : Phase
 {
-    private const double CrossTrackToleranceNm = 0.3;
+    private const double MinCrossTrackNm = 0.15;
+    private const double MaxCrossTrackNm = 3.0;
 
     private double _thresholdLat;
     private double _thresholdLon;
@@ -93,10 +94,18 @@ public sealed class BasePhase : Phase
             GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _finalHeading)
         );
 
-        bool complete = crossTrack < CrossTrackToleranceNm;
+        // Turn initiation distance: groundspeed / 100, clamped to sane bounds
+        double turnInitNm = Math.Clamp(ctx.Aircraft.GroundSpeed / 100.0, MinCrossTrackNm, MaxCrossTrackNm);
+        bool complete = crossTrack < turnInitNm;
         if (complete)
         {
-            ctx.Logger.LogDebug("[Base] {Callsign}: final turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+            ctx.Logger.LogDebug(
+                "[Base] {Callsign}: final turn point reached, alt={Alt:F0}ft, xtrack={XT:F2}nm, initDist={Init:F2}nm",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.Altitude,
+                crossTrack,
+                turnInitNm
+            );
         }
 
         return complete;
