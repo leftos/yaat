@@ -422,6 +422,20 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        // If the input is a single token that matches a callsign, just select it
+        if (!text.Contains(' ') && !text.Contains(',') && !text.Contains(';'))
+        {
+            var callsignMatch = ResolveAircraft(text);
+            if (callsignMatch is not null)
+            {
+                SelectedAircraft = callsignMatch;
+                _commandInput.DismissSuggestions();
+                _commandInput.ResetHistoryNavigation();
+                CommandText = "";
+                return;
+            }
+        }
+
         // Try to resolve callsign prefix from the input
         var commandText = text;
         AircraftModel? target = SelectedAircraft;
