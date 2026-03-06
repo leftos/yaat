@@ -481,7 +481,9 @@ public static class CommandDescriber
             FlyHeadingDeparture fh => $" H{fh.Heading:000}",
             OnCourseDeparture => " OC",
             DirectFixDeparture dfd => $" DCT {dfd.FixName}",
+            ClosedTrafficDeparture { Direction: PatternDirection.Right, RunwayId: { } rwyR } => $" MRT {rwyR}",
             ClosedTrafficDeparture { Direction: PatternDirection.Right } => " MRT",
+            ClosedTrafficDeparture { RunwayId: { } rwyL } => $" MLT {rwyL}",
             ClosedTrafficDeparture => " MLT",
             _ => "",
         };
@@ -508,6 +510,8 @@ public static class CommandDescriber
             FlyHeadingDeparture fh => $", fly heading {fh.Heading:000}",
             OnCourseDeparture => ", on course",
             DirectFixDeparture dfd => $", direct {dfd.FixName}",
+            ClosedTrafficDeparture ct when ct.RunwayId is not null =>
+                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic runway {ct.RunwayId}",
             ClosedTrafficDeparture ct => $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
             _ => "",
         };

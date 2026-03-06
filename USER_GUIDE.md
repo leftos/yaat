@@ -382,7 +382,9 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO OC` | Cleared for takeoff, on course (direct to destination) |
 | `CTO DCT SUNOL` | Cleared for takeoff, direct to fix SUNOL |
 | `CTO MRT` / `CTOMRT` | Cleared for takeoff, make right traffic (closed pattern) |
+| `CTO MRT 28R` | Cleared for takeoff, make right traffic runway 28R (cross-runway pattern) |
 | `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) |
+| `CTO MLT 28L` | Cleared for takeoff, make left traffic runway 28L (cross-runway pattern) |
 | `CTOC` | Cancel takeoff clearance |
 | `CTL` / `FS` | Cleared to land (full stop) |
 | `CTL NODEL` | Cleared to land (exempt from auto-delete after landing) |
@@ -417,6 +419,9 @@ All CTO modifiers accept an optional altitude suffix using the same format as CM
 | `OC` | On course — navigate direct to destination airport | VFR only |
 | `DCT {fix}` | Direct to named fix | VFR only |
 | `MRT` / `MLT` | Make right/left closed traffic (enter pattern) | VFR only |
+| `MRT {rwy}` / `MLT {rwy}` | Cross-runway closed traffic (pattern for a different runway) | VFR only |
+
+**Cross-runway pattern** — `CTO MRT 28R` from runway 33 clears the aircraft for takeoff on runway 33 and enters right traffic for runway 28R. The pattern circuit (upwind, crosswind, downwind, base, final) is built for the pattern runway, not the takeoff runway. Auto-cycle after touch-and-go also uses the pattern runway.
 
 **Altitude resolution** — when no altitude is specified, the target depends on flight rules and departure type:
 

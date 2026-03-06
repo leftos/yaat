@@ -65,8 +65,9 @@ public static class PhaseRunner
 
             // Auto-cycle: if the phase list is complete and the aircraft is
             // in pattern mode, append the next circuit and clear clearances.
-            if (phases.IsComplete && phases.TrafficDirection is { } dir && phases.AssignedRunway is { } runway)
+            if (phases.IsComplete && phases.TrafficDirection is { } dir && phases.AssignedRunway is not null)
             {
+                var runway = phases.PatternRunway ?? phases.AssignedRunway;
                 var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir);
                 phases.Phases.AddRange(nextCircuit);
 

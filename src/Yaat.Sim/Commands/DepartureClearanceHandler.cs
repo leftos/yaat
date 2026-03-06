@@ -18,7 +18,8 @@ internal static class DepartureClearanceHandler
         AircraftState aircraft,
         LinedUpAndWaitingPhase luaw,
         IFixLookup? fixes,
-        IProcedureLookup? procedures = null
+        IProcedureLookup? procedures = null,
+        IRunwayLookup? runways = null
     )
     {
         if (aircraft.Phases?.AssignedRunway is null)
@@ -59,12 +60,13 @@ internal static class DepartureClearanceHandler
                 aircraft.Phases.TrafficDirection = ct.Direction;
                 aircraft.Phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
 
-                var runway = aircraft.Phases.AssignedRunway;
-                if (runway is not null)
+                var patternRunway = ResolvePatternRunway(ct, aircraft, runways) ?? aircraft.Phases.AssignedRunway;
+                if (patternRunway is not null)
                 {
                     var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-                    var circuit = PatternBuilder.BuildCircuit(runway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
+                    var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
                     aircraft.Phases.Phases.AddRange(circuit);
+                    aircraft.Phases.PatternRunway = patternRunway;
                 }
             }
         }
@@ -101,7 +103,7 @@ internal static class DepartureClearanceHandler
         // Aircraft is lining up — CTO can pre-satisfy the upcoming LUAW phase
         if (currentPhase is LineUpPhase && clearanceType == ClearanceType.ClearedForTakeoff)
         {
-            return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, fixes, logger);
+            return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, fixes, logger, runways);
         }
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
@@ -140,7 +142,7 @@ internal static class DepartureClearanceHandler
 
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
-        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, holding.HoldShort.NodeId, logger);
+        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, holding.HoldShort.NodeId, logger, runways);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
     }
@@ -187,6 +189,13 @@ internal static class DepartureClearanceHandler
         // Pre-resolve navigation targets for route-based departures
         var routeResult = ResolveDepartureRoute(departure, aircraft, fixes);
 
+        // Pre-resolve pattern runway for cross-runway closed traffic
+        RunwayInfo? patternRunway = null;
+        if (departure is ClosedTrafficDeparture ctDep)
+        {
+            patternRunway = ResolvePatternRunway(ctDep, aircraft, runways);
+        }
+
         // Set runway and store departure clearance for TaxiingPhase to consume
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.Phases.DepartureClearance = new DepartureClearanceInfo
@@ -196,6 +205,7 @@ internal static class DepartureClearanceHandler
             AssignedAltitude = assignedAltitude,
             DepartureRoute = routeResult?.Targets,
             DepartureSidId = routeResult?.SidId,
+            PatternRunway = patternRunway,
         };
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
@@ -209,7 +219,8 @@ internal static class DepartureClearanceHandler
         RunwayInfo runway,
         IFixLookup? fixes,
         int? holdShortNodeId,
-        ILogger logger
+        ILogger logger,
+        IRunwayLookup? runways = null
     )
     {
         var routeResult = ResolveDepartureRoute(departure, aircraft, fixes);
@@ -263,8 +274,10 @@ internal static class DepartureClearanceHandler
             if (departure is ClosedTrafficDeparture ct)
             {
                 aircraft.Phases.TrafficDirection = ct.Direction;
-                var circuit = PatternBuilder.BuildCircuit(runway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
+                var patternRunway = ResolvePatternRunway(ct, aircraft, runways) ?? runway;
+                var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
                 aircraft.Phases.Phases.AddRange(circuit);
+                aircraft.Phases.PatternRunway = patternRunway;
             }
         }
 
@@ -281,7 +294,8 @@ internal static class DepartureClearanceHandler
         DepartureInstruction departure,
         int? assignedAltitude,
         IFixLookup? fixes,
-        ILogger logger
+        ILogger logger,
+        IRunwayLookup? runways = null
     )
     {
         var phases = aircraft.Phases;
@@ -345,8 +359,10 @@ internal static class DepartureClearanceHandler
             // Remove InitialClimbPhase — UpwindPhase handles climb to pattern altitude
             phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
             var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-            var circuit = PatternBuilder.BuildCircuit(rwy, cat, ct.Direction, PatternEntryLeg.Upwind, true);
+            var patternRunway = ResolvePatternRunway(ct, aircraft, runways) ?? rwy;
+            var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
             phases.Phases.AddRange(circuit);
+            phases.PatternRunway = patternRunway;
         }
 
         logger.LogDebug("[Departure] {Callsign}: CTO satisfied on upcoming LUAW phase", aircraft.Callsign);
@@ -391,9 +407,25 @@ internal static class DepartureClearanceHandler
             FlyHeadingDeparture fh => $", fly heading {fh.Heading:000}",
             OnCourseDeparture => ", on course",
             DirectFixDeparture dfd => $", direct {dfd.FixName}",
+            ClosedTrafficDeparture ct when ct.RunwayId is not null =>
+                $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic runway {ct.RunwayId}",
             ClosedTrafficDeparture ct => $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic",
             _ => "",
         };
+    }
+
+    /// <summary>
+    /// Resolves the pattern runway for cross-runway closed traffic departures.
+    /// Returns null if no cross-runway is specified or it can't be resolved.
+    /// </summary>
+    internal static RunwayInfo? ResolvePatternRunway(ClosedTrafficDeparture ct, AircraftState aircraft, IRunwayLookup? runways)
+    {
+        if (ct.RunwayId is null || runways is null)
+        {
+            return null;
+        }
+
+        return CommandDispatcher.ResolveRunway(aircraft, ct.RunwayId, runways);
     }
 
     /// <summary>

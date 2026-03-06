@@ -24,6 +24,12 @@ public sealed class DepartureClearanceInfo
     /// Used to activate SID via mode during initial climb.
     /// </summary>
     public string? DepartureSidId { get; init; }
+
+    /// <summary>
+    /// Pre-resolved pattern runway for cross-runway closed traffic departures.
+    /// Set by the dispatcher so TaxiingPhase doesn't need IRunwayLookup.
+    /// </summary>
+    public RunwayInfo? PatternRunway { get; init; }
 }
 
 public sealed class PhaseList
@@ -60,6 +66,13 @@ public sealed class PhaseList
     /// Null means the aircraft will full-stop on landing.
     /// </summary>
     public PatternDirection? TrafficDirection { get; set; }
+
+    /// <summary>
+    /// When set, the pattern circuit uses a different runway than the takeoff runway.
+    /// Used for cross-runway closed traffic (e.g., takeoff 33, pattern for 28R).
+    /// PhaseRunner uses this for auto-cycle; AssignedRunway switches when the pattern starts.
+    /// </summary>
+    public RunwayInfo? PatternRunway { get; set; }
 
     /// <summary>
     /// Controller-requested exit preference. Set by EL/ER/EXIT commands,

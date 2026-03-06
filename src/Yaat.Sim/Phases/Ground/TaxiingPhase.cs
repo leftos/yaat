@@ -401,16 +401,24 @@ public sealed class TaxiingPhase : Phase
         var luaw = new LinedUpAndWaitingPhase();
         bool isHeli = ctx.Category == AircraftCategory.Helicopter;
         Phase takeoffPhase = isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase();
-        var climb = new InitialClimbPhase
+        bool isClosedTraffic = dep.Departure is ClosedTrafficDeparture;
+        if (isClosedTraffic)
         {
-            Departure = dep.Departure,
-            AssignedAltitude = dep.AssignedAltitude,
-            DepartureRoute = dep.DepartureRoute,
-            DepartureSidId = dep.DepartureSidId,
-            IsVfr = ctx.Aircraft.IsVfr,
-            CruiseAltitude = ctx.Aircraft.CruiseAltitude,
-        };
-        phases.InsertAfterCurrent(new Phase[] { lineup, luaw, takeoffPhase, climb });
+            phases.InsertAfterCurrent(new Phase[] { lineup, luaw, takeoffPhase });
+        }
+        else
+        {
+            var climb = new InitialClimbPhase
+            {
+                Departure = dep.Departure,
+                AssignedAltitude = dep.AssignedAltitude,
+                DepartureRoute = dep.DepartureRoute,
+                DepartureSidId = dep.DepartureSidId,
+                IsVfr = ctx.Aircraft.IsVfr,
+                CruiseAltitude = ctx.Aircraft.CruiseAltitude,
+            };
+            phases.InsertAfterCurrent(new Phase[] { lineup, luaw, takeoffPhase, climb });
+        }
 
         if (dep.Type == ClearanceType.ClearedForTakeoff)
         {
@@ -429,9 +437,11 @@ public sealed class TaxiingPhase : Phase
             if (dep.Departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
             {
                 phases.TrafficDirection = ct.Direction;
+                var patternRunway = dep.PatternRunway ?? rwy;
                 var cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
-                var circuit = PatternBuilder.BuildCircuit(rwy, cat, ct.Direction, PatternEntryLeg.Upwind, true);
+                var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
                 phases.Phases.AddRange(circuit);
+                phases.PatternRunway = patternRunway;
             }
         }
 

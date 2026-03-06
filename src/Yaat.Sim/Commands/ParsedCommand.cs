@@ -91,7 +91,9 @@ public record OnCourseDeparture : DepartureInstruction;
 public record DirectFixDeparture(string FixName, double Lat, double Lon) : DepartureInstruction;
 
 /// <summary>Closed traffic: re-enter the pattern after takeoff.</summary>
-public record ClosedTrafficDeparture(PatternDirection Direction) : DepartureInstruction;
+/// <param name="Direction">Left or right traffic pattern.</param>
+/// <param name="RunwayId">Optional runway for the pattern (cross-runway ops). When null, uses the takeoff runway.</param>
+public record ClosedTrafficDeparture(PatternDirection Direction, string? RunwayId = null) : DepartureInstruction;
 
 // Tower commands
 public record LineUpAndWaitCommand : ParsedCommand;

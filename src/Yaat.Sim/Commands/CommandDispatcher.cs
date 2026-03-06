@@ -766,7 +766,7 @@ public static class CommandDispatcher
             case ClearedForTakeoffCommand cto:
                 if (currentPhase is LinedUpAndWaitingPhase luaw)
                 {
-                    return DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, fixes, procedureLookup);
+                    return DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, fixes, procedureLookup, runways);
                 }
                 return DepartureClearanceHandler.TryDepartureClearance(
                     aircraft,
