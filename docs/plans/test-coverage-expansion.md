@@ -48,12 +48,12 @@
 - [x] Destination: at last node, empty segments
 - [x] HoldShortExists: true/false
 
-### P1.6 RunwayCrossingDetector Tests
-- [ ] Diagonal runway (45 heading) cross-track
-- [ ] Width-based hold-short distance lookup
-- [ ] Interpolation fraction clamping
-- [ ] Edge splitting: 2 new edges, original removed
-- [ ] Node reuse within 50ft
+### P1.6 RunwayCrossingDetector Tests -- DONE (20 tests)
+- [x] Diagonal runway (45 heading) cross-track
+- [x] Width-based hold-short distance lookup
+- [x] Interpolation fraction clamping
+- [x] Edge splitting: 2 new edges, original removed
+- [x] Node reuse within 50ft
 
 ## Priority 2: Phase Transition Tests
 
