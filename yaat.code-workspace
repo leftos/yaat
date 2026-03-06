@@ -7,5 +7,7 @@
 			"path": "../yaat-server"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"powershell.cwd": "yaat"
+	}
 }
