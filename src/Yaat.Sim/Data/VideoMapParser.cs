@@ -23,10 +23,7 @@ public static class VideoMapParser
         {
             foreach (var feature in features.EnumerateArray())
             {
-                if (
-                    !feature.TryGetProperty("geometry", out var geometry)
-                    || geometry.ValueKind == JsonValueKind.Null
-                )
+                if (!feature.TryGetProperty("geometry", out var geometry) || geometry.ValueKind == JsonValueKind.Null)
                 {
                     continue;
                 }

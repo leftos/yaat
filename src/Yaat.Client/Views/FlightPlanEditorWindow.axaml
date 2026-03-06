@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Yaat.Client.Views.FlightPlanEditorWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Flight Plan"
         Background="#1A1A1A"
         SizeToContent="Height"

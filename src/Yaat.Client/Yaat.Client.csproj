@@ -8,6 +8,7 @@
     <!-- MC3101: Avalonia DataGrid columns use reflection bindings;
          the XAML compiler cannot resolve their item type -->
     <NoWarn>MC3101</NoWarn>
+    <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

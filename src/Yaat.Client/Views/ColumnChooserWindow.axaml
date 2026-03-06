@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Yaat.Client.Views.ColumnChooserWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Choose Columns"
         Background="#1E1E1E"
         SizeToContent="Height"

@@ -2,6 +2,7 @@ using Xunit;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("WakeTurbulenceData")]
 public class BankAngleTests
 {
     [Fact]

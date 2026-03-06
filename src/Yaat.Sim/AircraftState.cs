@@ -49,6 +49,12 @@ public class AircraftState
     public uint BeaconCode { get; set; }
     public string Departure { get; set; } = "";
     public string Destination { get; set; } = "";
+
+    /// <summary>
+    /// Cached ground layout for the airport this aircraft is currently at (or about to land at).
+    /// Set at lifecycle events: spawn, CTL, flight plan amend. Used by phases and commands.
+    /// </summary>
+    public AirportGroundLayout? GroundLayout { get; set; }
     public string Route { get; set; } = "";
     public string Remarks { get; set; } = "";
     public string EquipmentSuffix { get; set; } = "A";
