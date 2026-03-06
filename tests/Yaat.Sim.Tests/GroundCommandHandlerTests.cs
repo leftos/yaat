@@ -266,12 +266,14 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         ac.Phases = new PhaseList();
-        var holdPhase = new HoldingShortPhase(new HoldShortPoint
-        {
-            NodeId = 3,
-            Reason = HoldShortReason.RunwayCrossing,
-            TargetName = "28R/10L",
-        });
+        var holdPhase = new HoldingShortPhase(
+            new HoldShortPoint
+            {
+                NodeId = 3,
+                Reason = HoldShortReason.RunwayCrossing,
+                TargetName = "28R/10L",
+            }
+        );
         ac.Phases.Add(holdPhase);
         var ctx = new PhaseContext
         {
@@ -396,14 +398,16 @@ public class GroundCommandHandlerTests
         // Use a TaxiingPhase which accepts Follow, so the ground check is reached
         ac.Phases = new PhaseList();
         ac.Phases.Add(new TaxiingPhase());
-        ac.Phases.Start(new PhaseContext
-        {
-            Aircraft = ac,
-            Targets = ac.Targets,
-            Category = AircraftCategory.Jet,
-            DeltaSeconds = 0,
-            Logger = NullLogger.Instance,
-        });
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = NullLogger.Instance,
+            }
+        );
         var cmd = new FollowCommand("UAL123");
 
         var result = GroundCommandHandler.TryFollow(ac, cmd, null, Logger);

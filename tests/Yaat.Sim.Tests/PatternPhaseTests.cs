@@ -276,11 +276,7 @@ public class PatternPhaseTests
     {
         var wp = DefaultWaypoints();
         // Place aircraft on the extended centerline (near threshold, cross-track ~0)
-        var ac = MakeAircraft(
-            lat: wp.ThresholdLat,
-            lon: wp.ThresholdLon,
-            altitude: wp.PatternAltitude
-        );
+        var ac = MakeAircraft(lat: wp.ThresholdLat, lon: wp.ThresholdLon, altitude: wp.PatternAltitude);
         var phase = new BasePhase { Waypoints = wp };
         var ctx = Ctx(ac);
 
