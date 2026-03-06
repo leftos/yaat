@@ -10,6 +10,11 @@ public record ParsedInput(CanonicalCommandType Type, string? Argument);
 /// </summary>
 public record CompoundParseResult(string CanonicalString);
 
+/// <summary>
+/// Describes why a parse attempt failed. Null means no matching verb was found at all.
+/// </summary>
+public record ParseFailure(string Verb, string Reason);
+
 public static class CommandSchemeParser
 {
     private static readonly HashSet<string> PassthroughVerbs = new(StringComparer.OrdinalIgnoreCase) { "LV", "AT", "ATFN" };
@@ -41,6 +46,12 @@ public static class CommandSchemeParser
     /// </summary>
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme)
     {
+        return ParseCompound(input, scheme, out _);
+    }
+
+    public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme, out ParseFailure? failure)
+    {
+        failure = null;
         var trimmed = ExpandSpeedUntil(input.Trim());
         if (string.IsNullOrEmpty(trimmed))
         {
@@ -62,7 +73,7 @@ public static class CommandSchemeParser
         if (!isCompound)
         {
             // Single command
-            var parsed = Parse(trimmed, scheme);
+            var parsed = Parse(trimmed, scheme, out failure);
             if (parsed is null)
             {
                 return null;
@@ -198,6 +209,12 @@ public static class CommandSchemeParser
 
     public static ParsedInput? Parse(string input, CommandScheme scheme)
     {
+        return Parse(input, scheme, out _);
+    }
+
+    public static ParsedInput? Parse(string input, CommandScheme scheme, out ParseFailure? failure)
+    {
+        failure = null;
         var trimmed = input.Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(trimmed))
         {
@@ -212,7 +229,7 @@ public static class CommandSchemeParser
             return textArgMatch;
         }
 
-        return ParseSpaceSeparated(trimmed, scheme);
+        return ParseSpaceSeparated(trimmed, scheme, out failure);
     }
 
     public static string ToCanonical(CanonicalCommandType type, string? argument)
@@ -361,6 +378,12 @@ public static class CommandSchemeParser
 
     private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme)
     {
+        return ParseSpaceSeparated(input, scheme, out _);
+    }
+
+    private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme, out ParseFailure? failure)
+    {
+        failure = null;
         var parts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var verb = parts[0];
         var arg = parts.Length > 1 ? parts[1].Trim() : null;
@@ -396,6 +419,7 @@ public static class CommandSchemeParser
             }
         }
 
+        string? verbMatchReason = null;
         foreach (var (type, pattern) in scheme.Patterns)
         {
             if (!MatchesAnyAlias(verb, pattern))
@@ -408,11 +432,13 @@ public static class CommandSchemeParser
 
             if (hasRequiredArg && arg is null)
             {
+                verbMatchReason = "requires an argument";
                 continue;
             }
 
             if (!hasRequiredArg && !hasOptionalArg && arg is not null)
             {
+                verbMatchReason = "does not accept arguments";
                 continue;
             }
 
@@ -469,6 +495,11 @@ public static class CommandSchemeParser
             }
 
             return new ParsedInput(type, remainder);
+        }
+
+        if (verbMatchReason is not null)
+        {
+            failure = new ParseFailure(verb, verbMatchReason);
         }
 
         return null;

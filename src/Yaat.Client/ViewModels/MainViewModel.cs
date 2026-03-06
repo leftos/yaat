@@ -410,20 +410,30 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Parse as compound command (handles single and multi-block)
-        var compound = CommandSchemeParser.ParseCompound(commandText, scheme);
+        var compound = CommandSchemeParser.ParseCompound(commandText, scheme, out var parseFailure);
         if (compound is null)
         {
-            // If the first token is a known callsign, report the command as the problem
-            var tokens = commandText.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length >= 2 && ResolveAircraft(tokens[0]) is not null)
+            if (parseFailure is not null)
             {
-                var cmdVerb = tokens[1].Split([' ', ',', ';'], 2)[0];
-                StatusText = $"Unrecognized command \"{cmdVerb}\" — type a command like FH 270, CM 240, CTL";
+                _log.LogWarning("Command '{Verb}' {Reason} in input '{Input}'", parseFailure.Verb, parseFailure.Reason, commandText);
+                StatusText = $"\"{parseFailure.Verb}\" {parseFailure.Reason}";
             }
             else
             {
-                var verb = commandText.Split([' ', ',', ';'], 2)[0];
-                StatusText = $"Unrecognized command \"{verb}\" — type a command like FH 270, CM 240, CTL";
+                // If the first token is a known callsign, report the command as the problem
+                var tokens = commandText.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                if (tokens.Length >= 2 && ResolveAircraft(tokens[0]) is not null)
+                {
+                    var cmdVerb = tokens[1].Split([' ', ',', ';'], 2)[0];
+                    _log.LogWarning("Unrecognized command '{Verb}' in input '{Input}'", cmdVerb, commandText);
+                    StatusText = $"Unrecognized command \"{cmdVerb}\" — type a command like FH 270, CM 240, CTL";
+                }
+                else
+                {
+                    var verb = commandText.Split([' ', ',', ';'], 2)[0];
+                    _log.LogWarning("Unrecognized command '{Verb}' in input '{Input}'", verb, commandText);
+                    StatusText = $"Unrecognized command \"{verb}\" — type a command like FH 270, CM 240, CTL";
+                }
             }
 
             return;
@@ -439,6 +449,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
+            _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, compound.CanonicalString, originalCommand);
             var result = await _connection.SendCommandAsync(target.Callsign, compound.CanonicalString, _preferences.UserInitials);
 
             AddHistory(originalCommand);

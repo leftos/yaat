@@ -32,16 +32,25 @@ internal static class ArgumentSuggester
             return false;
         }
 
-        var verb = words[0];
+        // The verb may be at position 0 (no callsign) or position 1 (callsign prefix).
+        // Detect which position the verb is at by checking both against known commands.
+        int verbIndex = FindVerbIndex(words, scheme);
+        if (verbIndex < 0)
+        {
+            return false;
+        }
+
+        var verb = words[verbIndex];
         var hasTrailingSpace = fragment.EndsWith(' ');
-        var partial = hasTrailingSpace ? "" : (words.Length > 1 ? words[^1] : "");
-        var isAfterVerb = hasTrailingSpace || words.Length > 1;
+        var wordsAfterVerb = words.Length - verbIndex - 1;
+        var isAfterVerb = hasTrailingSpace || wordsAfterVerb > 0;
 
         if (!isAfterVerb)
         {
             return false;
         }
 
+        var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
         var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
 
         // CTO departure modifiers
@@ -65,7 +74,8 @@ internal static class ArgumentSuggester
         // Pattern base entry: runway [distance]
         if (MatchesVerb(verb, CanonicalCommandType.EnterLeftBase, scheme) || MatchesVerb(verb, CanonicalCommandType.EnterRightBase, scheme))
         {
-            if (words.Length <= 2 || (!hasTrailingSpace && words.Length == 2))
+            var argsAfterVerb = words.Length - verbIndex - 1;
+            if (argsAfterVerb <= 1 || (!hasTrailingSpace && argsAfterVerb == 1))
             {
                 AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
             }
@@ -114,7 +124,8 @@ internal static class ArgumentSuggester
         )
         {
             // Only suggest fixes for the first argument position
-            if (words.Length <= 2 || (!hasTrailingSpace && words.Length == 2))
+            var argsAfterVerb = words.Length - verbIndex - 1;
+            if (argsAfterVerb <= 1 || (!hasTrailingSpace && argsAfterVerb == 1))
             {
                 FixSuggester.AddFixSuggestions(partial, prefix, targetAircraft, suggestions, fixDb, maxSuggestions);
             }
@@ -271,6 +282,54 @@ internal static class ArgumentSuggester
                 InsertText = prefix + value + " ",
             }
         );
+    }
+
+    private static readonly CanonicalCommandType[] VerbTypes =
+    [
+        CanonicalCommandType.ClearedForTakeoff,
+        CanonicalCommandType.EnterLeftDownwind,
+        CanonicalCommandType.EnterRightDownwind,
+        CanonicalCommandType.EnterFinal,
+        CanonicalCommandType.EnterLeftBase,
+        CanonicalCommandType.EnterRightBase,
+        CanonicalCommandType.CrossRunway,
+        CanonicalCommandType.ClearedToLand,
+        CanonicalCommandType.ClearedVisualApproach,
+        CanonicalCommandType.GoAround,
+        CanonicalCommandType.HoldAtFixLeft,
+        CanonicalCommandType.HoldAtFixRight,
+        CanonicalCommandType.HoldAtFixHover,
+        CanonicalCommandType.CrossFix,
+        CanonicalCommandType.DepartFix,
+        CanonicalCommandType.ForceDirectTo,
+        CanonicalCommandType.AppendForceDirectTo,
+        CanonicalCommandType.JoinFinalApproachCourse,
+    ];
+
+    private static int FindVerbIndex(string[] words, CommandScheme scheme)
+    {
+        // Check position 0 first (no callsign prefix)
+        foreach (var type in VerbTypes)
+        {
+            if (MatchesVerb(words[0], type, scheme))
+            {
+                return 0;
+            }
+        }
+
+        // Check position 1 (callsign prefix)
+        if (words.Length >= 2)
+        {
+            foreach (var type in VerbTypes)
+            {
+                if (MatchesVerb(words[1], type, scheme))
+                {
+                    return 1;
+                }
+            }
+        }
+
+        return -1;
     }
 
     private static bool MatchesVerb(string token, CanonicalCommandType type, CommandScheme scheme)
