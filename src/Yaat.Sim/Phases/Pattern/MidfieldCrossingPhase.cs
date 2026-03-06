@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -42,6 +43,12 @@ public sealed class MidfieldCrossingPhase : Phase
 
         // Downwind speed for the category
         ctx.Targets.TargetSpeed = CategoryPerformance.DownwindSpeed(ctx.Category);
+
+        ctx.Logger.LogDebug(
+            "[MidfieldCrossing] {Callsign}: started, crossingAlt={Alt:F0}ft",
+            ctx.Aircraft.Callsign,
+            Waypoints.PatternAltitude + CrossingAltitudeOffsetFt
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -52,7 +59,13 @@ public sealed class MidfieldCrossingPhase : Phase
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
-        return dist < ArrivalNm;
+        bool complete = dist < ArrivalNm;
+        if (complete)
+        {
+            ctx.Logger.LogDebug("[MidfieldCrossing] {Callsign}: midfield reached, transitioning to downwind", ctx.Aircraft.Callsign);
+        }
+
+        return complete;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

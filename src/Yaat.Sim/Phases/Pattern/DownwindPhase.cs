@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -70,6 +71,14 @@ public sealed class DownwindPhase : Phase
 
         // Downwind speed
         ctx.Targets.TargetSpeed = CategoryPerformance.DownwindSpeed(ctx.Category);
+
+        ctx.Logger.LogDebug(
+            "[Downwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
+            ctx.Aircraft.Callsign,
+            Waypoints.DownwindHeading,
+            Waypoints.PatternAltitude,
+            IsExtended
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -88,6 +97,7 @@ public sealed class DownwindPhase : Phase
             if (aircraftAlongTrack >= _abeamAlongTrack - AlongTrackToleranceNm)
             {
                 _pastAbeam = true;
+                ctx.Logger.LogDebug("[Downwind] {Callsign}: abeam threshold, beginning descent", ctx.Aircraft.Callsign);
                 double descentRate = CategoryPerformance.PatternDescentRate(ctx.Category);
                 ctx.Targets.DesiredVerticalRate = -descentRate;
 
@@ -124,7 +134,13 @@ public sealed class DownwindPhase : Phase
             return false;
         }
 
-        return aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
+        bool complete = aircraftAlongTrack >= _baseTurnAlongTrack - AlongTrackToleranceNm;
+        if (complete)
+        {
+            ctx.Logger.LogDebug("[Downwind] {Callsign}: base turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+        }
+
+        return complete;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

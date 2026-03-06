@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -71,6 +72,14 @@ public sealed class BasePhase : Phase
 
         // Slow to base speed
         ctx.Targets.TargetSpeed = CategoryPerformance.BaseSpeed(ctx.Category);
+
+        ctx.Logger.LogDebug(
+            "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft, extended={Ext}",
+            ctx.Aircraft.Callsign,
+            Waypoints.BaseHeading,
+            ctx.Aircraft.Altitude,
+            IsExtended
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -84,7 +93,13 @@ public sealed class BasePhase : Phase
             GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _finalHeading)
         );
 
-        return crossTrack < CrossTrackToleranceNm;
+        bool complete = crossTrack < CrossTrackToleranceNm;
+        if (complete)
+        {
+            ctx.Logger.LogDebug("[Base] {Callsign}: final turn point reached, alt={Alt:F0}ft", ctx.Aircraft.Callsign, ctx.Aircraft.Altitude);
+        }
+
+        return complete;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

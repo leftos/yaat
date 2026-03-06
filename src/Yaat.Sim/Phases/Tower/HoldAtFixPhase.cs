@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -45,6 +46,13 @@ public sealed class HoldAtFixPhase : Phase
                 Longitude = FixLon,
             }
         );
+
+        ctx.Logger.LogDebug(
+            "[HoldAtFix] {Callsign}: started, fix={Fix}, orbit={Dir}",
+            ctx.Aircraft.Callsign,
+            FixName,
+            OrbitDirection?.ToString() ?? "hover"
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -57,6 +65,7 @@ public sealed class HoldAtFixPhase : Phase
             {
                 _atFix = true;
                 ctx.Targets.NavigationRoute.Clear();
+                ctx.Logger.LogDebug("[HoldAtFix] {Callsign}: arrived at {Fix}, holding", ctx.Aircraft.Callsign, FixName);
 
                 // Decelerate to holding speed
                 double maxHold = CategoryPerformance.MaxHoldingSpeed(ctx.Aircraft.Altitude);

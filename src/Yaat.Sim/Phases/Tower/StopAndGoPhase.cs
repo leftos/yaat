@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -37,6 +38,8 @@ public sealed class StopAndGoPhase : Phase
 
         // Decelerate to zero
         ctx.Targets.TargetSpeed = 0;
+
+        ctx.Logger.LogDebug("[StopAndGo] {Callsign}: started, pause={Pause:F1}s, rwyHdg={Hdg:F0}", ctx.Aircraft.Callsign, _pauseDuration, _runwayHeading);
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -48,6 +51,7 @@ public sealed class StopAndGoPhase : Phase
                 _stopped = true;
                 ctx.Aircraft.GroundSpeed = 0;
                 ctx.Targets.TargetSpeed = 0;
+                ctx.Logger.LogDebug("[StopAndGo] {Callsign}: full stop, pausing {Pause:F1}s", ctx.Aircraft.Callsign, _pauseDuration);
             }
             return false;
         }
@@ -58,6 +62,7 @@ public sealed class StopAndGoPhase : Phase
             if (_pauseElapsed >= _pauseDuration)
             {
                 _reaccelerating = true;
+                ctx.Logger.LogDebug("[StopAndGo] {Callsign}: pause complete, reaccelerating", ctx.Aircraft.Callsign);
             }
             return false;
         }
@@ -79,6 +84,7 @@ public sealed class StopAndGoPhase : Phase
             {
                 _airborne = true;
                 ctx.Aircraft.IsOnGround = false;
+                ctx.Logger.LogDebug("[StopAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
                 double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
                 double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);

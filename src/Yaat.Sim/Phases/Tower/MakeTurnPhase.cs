@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -34,6 +35,14 @@ public sealed class MakeTurnPhase : Phase
         ctx.Targets.TargetHeading = targetHdg;
         ctx.Targets.PreferredTurnDirection = Direction;
         ctx.Targets.NavigationRoute.Clear();
+
+        ctx.Logger.LogDebug(
+            "[MakeTurn] {Callsign}: started {Dir}{Deg}° from hdg {Hdg:F0}",
+            ctx.Aircraft.Callsign,
+            Direction == TurnDirection.Left ? "L" : "R",
+            TargetDegrees,
+            _startHeading
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -59,7 +68,13 @@ public sealed class MakeTurnPhase : Phase
             ctx.Targets.PreferredTurnDirection = Direction;
         }
 
-        return _cumulativeTurn >= TargetDegrees - CompletionToleranceDeg;
+        bool complete = _cumulativeTurn >= TargetDegrees - CompletionToleranceDeg;
+        if (complete)
+        {
+            ctx.Logger.LogDebug("[MakeTurn] {Callsign}: complete, turned {Turn:F0}°", ctx.Aircraft.Callsign, _cumulativeTurn);
+        }
+
+        return complete;
     }
 
     private double ComputeExitHeading()

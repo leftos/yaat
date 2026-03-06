@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -43,6 +44,13 @@ public sealed class HoldPresentPositionPhase : Phase
             // Winged: start turning, maintain speed and altitude
             SetOrbitTarget(ctx);
         }
+
+        ctx.Logger.LogDebug(
+            "[HPP] {Callsign}: started, orbit={Dir}, alt={Alt:F0}ft",
+            ctx.Aircraft.Callsign,
+            OrbitDirection?.ToString() ?? "hover",
+            ctx.Aircraft.Altitude
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)

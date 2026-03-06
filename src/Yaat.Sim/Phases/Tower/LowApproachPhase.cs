@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -40,6 +41,13 @@ public sealed class LowApproachPhase : Phase
 
         double approachSpeed = CategoryPerformance.ApproachSpeed(ctx.Category);
         ctx.Targets.TargetSpeed = approachSpeed;
+
+        ctx.Logger.LogDebug(
+            "[LowApproach] {Callsign}: started, goAroundAgl={Agl:F0}ft, rwyHdg={Hdg:F0}",
+            ctx.Aircraft.Callsign,
+            _goAroundAgl,
+            _runwayHeading
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -67,6 +75,7 @@ public sealed class LowApproachPhase : Phase
             if (agl <= _goAroundAgl)
             {
                 _climbingOut = true;
+                ctx.Logger.LogDebug("[LowApproach] {Callsign}: climbing out at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
 
                 double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
                 double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);
@@ -81,7 +90,13 @@ public sealed class LowApproachPhase : Phase
             return false;
         }
 
-        return agl >= SelfClearAgl;
+        bool complete = agl >= SelfClearAgl;
+        if (complete)
+        {
+            ctx.Logger.LogDebug("[LowApproach] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
+        }
+
+        return complete;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

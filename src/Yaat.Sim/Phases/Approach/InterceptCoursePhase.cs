@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Approach;
@@ -27,6 +28,12 @@ public sealed class InterceptCoursePhase : Phase
     {
         // Aircraft continues on its current heading — no target change.
         // Approach speed set by the phase that follows (FinalApproachPhase).
+        ctx.Logger.LogDebug(
+            "[InterceptCourse] {Callsign}: started, hdg={Hdg:F0}, course={Crs:F0}",
+            ctx.Aircraft.Callsign,
+            ctx.Aircraft.Heading,
+            FinalApproachCourse
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -43,6 +50,12 @@ public sealed class InterceptCoursePhase : Phase
             ctx.Targets.TargetHeading = FinalApproachCourse;
             ctx.Targets.PreferredTurnDirection = null;
             ctx.Targets.NavigationRoute.Clear();
+            ctx.Logger.LogDebug(
+                "[InterceptCourse] {Callsign}: established, crossTrack={XT:F3}nm, hdgDiff={HD:F1}°",
+                ctx.Aircraft.Callsign,
+                crossTrack,
+                headingDiff
+            );
             return true;
         }
 

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
 
@@ -24,6 +25,13 @@ public sealed class ApproachNavigationPhase : Phase
     {
         _currentFixIndex = 0;
         NavigateToCurrentFix(ctx);
+
+        ctx.Logger.LogDebug(
+            "[ApproachNav] {Callsign}: started, {Count} fixes [{Names}]",
+            ctx.Aircraft.Callsign,
+            Fixes.Count,
+            string.Join(" → ", Fixes.Select(f => f.Name))
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -38,6 +46,16 @@ public sealed class ApproachNavigationPhase : Phase
 
         if (dist < FixArrivalThresholdNm)
         {
+            ctx.Logger.LogDebug(
+                "[ApproachNav] {Callsign}: reached fix {Fix} ({Idx}/{Total}), alt={Alt:F0}ft, IAS={Ias:F0}kts",
+                ctx.Aircraft.Callsign,
+                fix.Name,
+                _currentFixIndex + 1,
+                Fixes.Count,
+                ctx.Aircraft.Altitude,
+                ctx.Aircraft.IndicatedAirspeed
+            );
+
             _currentFixIndex++;
 
             if (_currentFixIndex >= Fixes.Count)

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -63,11 +64,31 @@ public sealed class InitialClimbPhase : Phase
             ctx.Aircraft.ActiveSidId = DepartureSidId;
             ctx.Aircraft.SidViaMode = true;
         }
+
+        ctx.Logger.LogDebug(
+            "[InitialClimb] {Callsign}: started, targetAlt={Alt:F0}ft, speed={Spd:F0}kts, sid={Sid}, route={RouteCount} fixes",
+            ctx.Aircraft.Callsign,
+            _targetAltitude,
+            normalSpeed,
+            DepartureSidId ?? "none",
+            DepartureRoute?.Count ?? 0
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
     {
-        return ctx.Aircraft.Altitude >= _targetAltitude;
+        bool complete = ctx.Aircraft.Altitude >= _targetAltitude;
+        if (complete)
+        {
+            ctx.Logger.LogDebug(
+                "[InitialClimb] {Callsign}: reached target alt {Alt:F0}ft, IAS={Ias:F0}kts",
+                ctx.Aircraft.Callsign,
+                _targetAltitude,
+                ctx.Aircraft.IndicatedAirspeed
+            );
+        }
+
+        return complete;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

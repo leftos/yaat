@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -44,12 +45,20 @@ public sealed class HelicopterTakeoffPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
 
         ApplyDepartureHeading(ctx);
+
+        ctx.Logger.LogDebug("[Takeoff-H] {Callsign}: vertical liftoff, targetAlt={Alt:F0}ft", ctx.Aircraft.Callsign, _fieldElevation + CompletionAgl);
     }
 
     public override bool OnTick(PhaseContext ctx)
     {
         double agl = ctx.Aircraft.Altitude - _fieldElevation;
-        return agl >= CompletionAgl;
+        bool complete = agl >= CompletionAgl;
+        if (complete)
+        {
+            ctx.Logger.LogDebug("[Takeoff-H] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
+        }
+
+        return complete;
     }
 
     private void ApplyDepartureHeading(PhaseContext ctx)

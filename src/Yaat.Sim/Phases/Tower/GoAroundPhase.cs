@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -47,6 +48,14 @@ public sealed class GoAroundPhase : Phase
         {
             ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         }
+
+        ctx.Logger.LogDebug(
+            "[GoAround] {Callsign}: started, rwyHdg={Hdg:F0}, targetAlt={Alt:F0}ft, assignedHdg={AssHdg}",
+            ctx.Aircraft.Callsign,
+            _runwayHeading,
+            targetAlt,
+            AssignedHeading?.ToString() ?? "none"
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -57,11 +66,18 @@ public sealed class GoAroundPhase : Phase
         {
             _headingAssigned = true;
             ctx.Targets.TargetHeading = AssignedHeading.Value;
+            ctx.Logger.LogDebug("[GoAround] {Callsign}: turning to assigned heading {Hdg} at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, AssignedHeading.Value, agl);
         }
 
         double targetAgl = TargetAltitude.HasValue ? TargetAltitude.Value - _fieldElevation : SelfClearAgl;
 
-        return agl >= targetAgl;
+        bool complete = agl >= targetAgl;
+        if (complete)
+        {
+            ctx.Logger.LogDebug("[GoAround] {Callsign}: complete at {Agl:F0}ft AGL, IAS={Ias:F0}kts", ctx.Aircraft.Callsign, agl, ctx.Aircraft.IndicatedAirspeed);
+        }
+
+        return complete;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

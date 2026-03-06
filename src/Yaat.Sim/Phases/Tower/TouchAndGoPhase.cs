@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -39,6 +40,13 @@ public sealed class TouchAndGoPhase : Phase
         // Decelerate briefly
         double minSpeed = CategoryPerformance.TouchdownSpeed(ctx.Category) - CategoryPerformance.RolloutDecelRate(ctx.Category) * _rolloutDuration;
         ctx.Targets.TargetSpeed = Math.Max(minSpeed, 40);
+
+        ctx.Logger.LogDebug(
+            "[TouchAndGo] {Callsign}: started, rollout={Roll:F1}s, rwyHdg={Hdg:F0}",
+            ctx.Aircraft.Callsign,
+            _rolloutDuration,
+            _runwayHeading
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -48,6 +56,7 @@ public sealed class TouchAndGoPhase : Phase
         if (!_reaccelerating && _rolloutElapsed >= _rolloutDuration)
         {
             _reaccelerating = true;
+            ctx.Logger.LogDebug("[TouchAndGo] {Callsign}: rollout complete, reaccelerating", ctx.Aircraft.Callsign);
         }
 
         if (_reaccelerating && !_airborne)
@@ -68,6 +77,7 @@ public sealed class TouchAndGoPhase : Phase
                 _airborne = true;
                 ctx.Aircraft.IsOnGround = false;
                 ctx.Aircraft.IndicatedAirspeed = ctx.Aircraft.GroundSpeed;
+                ctx.Logger.LogDebug("[TouchAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
                 double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
                 double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);

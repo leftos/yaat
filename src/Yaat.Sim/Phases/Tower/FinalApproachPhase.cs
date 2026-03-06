@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 
@@ -57,6 +58,16 @@ public sealed class FinalApproachPhase : Phase
         // Set approach speed
         double approachSpeed = CategoryPerformance.ApproachSpeed(ctx.Category);
         ctx.Targets.TargetSpeed = approachSpeed;
+
+        double startDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+        ctx.Logger.LogDebug(
+            "[FinalApproach] {Callsign}: started, rwy hdg={Hdg:F0}, dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts",
+            ctx.Aircraft.Callsign,
+            _runwayHeading,
+            startDist,
+            ctx.Aircraft.Altitude,
+            approachSpeed
+        );
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -99,13 +110,26 @@ public sealed class FinalApproachPhase : Phase
         if (distNm <= AutoGoAroundDistNm && !hasLandingClearance)
         {
             _goAroundTriggered = true;
+            ctx.Logger.LogDebug("[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Dist:F2}nm)", ctx.Aircraft.Callsign, distNm);
             TriggerGoAround(ctx);
             return false;
         }
 
         // Phase complete at threshold
         double agl = ctx.Aircraft.Altitude - _thresholdElevation;
-        return distNm < 0.05 || agl < 5;
+        bool complete = distNm < 0.05 || agl < 5;
+        if (complete)
+        {
+            ctx.Logger.LogDebug(
+                "[FinalApproach] {Callsign}: crossing threshold, dist={Dist:F3}nm, agl={Agl:F0}ft, gs={Gs:F0}kts",
+                ctx.Aircraft.Callsign,
+                distNm,
+                agl,
+                ctx.Aircraft.GroundSpeed
+            );
+        }
+
+        return complete;
     }
 
     private void CheckInterceptDistance(PhaseContext ctx, double distNm)
