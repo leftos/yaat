@@ -72,7 +72,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
 
 ### Prerequisites
 
-- .NET 8 SDK
+- .NET 10 SDK
 - A running [yaat-server](https://github.com/leftos/yaat-server) instance (default: `http://localhost:5000`)
 - CRC (optional, for radar display)
 
@@ -84,7 +84,7 @@ dotnet run --project src/Yaat.Client
 
 ### Configuration
 
-Before connecting, open **File > Settings** and configure:
+Before connecting, open **Settings** and configure:
 
 - **Connection** tab: Server URL (default `http://localhost:5000`)
 - **Identity** tab: VATSIM CID, 2-letter initials (required), and ARTCC ID
@@ -93,7 +93,7 @@ Initials and ARTCC ID are required — you cannot connect without them.
 
 ### Connecting
 
-1. Configure your identity in **File > Settings** (required)
+1. Configure your identity in **Settings** (required)
 2. **File > Connect** (or **Disconnect** to close the connection)
 3. After connecting, the room list appears — create or join a room
 
@@ -106,7 +106,7 @@ Initials and ARTCC ID are required — you cannot connect without them.
 
 Select a scenario and click **Load** (or double-click). Aircraft spawn at their configured starting positions. The window title shows the room name and scenario name. To switch scenarios, load a new one — a confirmation dialog appears if one is already active.
 
-Both API and local scenarios appear in the **Scenario > Recent Scenarios** menu for quick reloading.
+Both API and local scenarios appear in the **Scenario > Load Recent Scenario** menu for quick reloading.
 
 ### Unloading a Scenario
 
@@ -114,12 +114,12 @@ Both API and local scenarios appear in the **Scenario > Recent Scenarios** menu 
 
 ### Loading a Weather Profile
 
-**Weather > Load Weather...** opens a dialog with two tabs:
+**Scenario > Load Weather...** opens a dialog with two tabs:
 
 - **ARTCC Weather** (default) — lists weather profiles from the vNAS data API for your configured ARTCC. Each entry shows the name and wind layer count. Requires an ARTCC ID set in Settings.
 - **Local Files** — browse a local folder for ATCTrainer-format weather JSON files.
 
-Select a profile and click **Load** (or double-click). Weather is room-level and persists across scenario loads/unloads. Both API and local weather profiles appear in the **Weather > Recent Weather** menu for quick reloading.
+Select a profile and click **Load** (or double-click). Weather is room-level and persists across scenario loads/unloads. Both API and local weather profiles appear in the **Scenario > Load Recent Weather** menu for quick reloading.
 
 The active weather name is shown in the terminal when weather is loaded or cleared.
 
@@ -127,9 +127,9 @@ The active weather name is shown in the terminal when weather is loaded or clear
 
 ### Loading Live Weather
 
-**Scenario > Load Live Weather** fetches real-world METARs and winds aloft from aviationweather.gov for your ARTCC and loads them as a weather profile. Requires a room, an ARTCC ID configured in Settings, and navdata to be initialized.
+**Scenario > Load Live Weather > Only Current Weather** fetches real-world METARs and winds aloft from aviationweather.gov for your ARTCC and loads them as a weather profile. Requires a room, an ARTCC ID configured in Settings, and navdata to be initialized.
 
-**Scenario > Load Live Weather (with TAFs)** does the same but also includes TAF data in the METAR list, providing ceiling/visibility forecasts for airports that may not have a current METAR.
+**Scenario > Load Live Weather > Current Weather + TAFs** does the same but also includes TAF data in the METAR list, providing ceiling/visibility forecasts for airports that may not have a current METAR.
 
 Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data at standard levels (3000–39000 ft) and a surface layer averaged from METARs. FD wind directions are converted from true to magnetic heading automatically.
 
@@ -527,7 +527,7 @@ The aircraft execution path depends on its position relative to the runway:
 
 **Aircraft size affects detection range:** Larger aircraft are visible from farther away. A Super (A388) can be spotted at up to 15nm, while a Small (C172) is only visible at about 3nm. Detection range scales with the target aircraft's FAA wake turbulence group (WTG).
 
-**Approach scoring:** When an aircraft completes an approach (lands or goes around), the terminal shows an approach report evaluating the quality of the approach setup. Scored criteria include intercept angle, glideslope interception altitude, final approach speed, and stabilization. This provides feedback to the controller-in-training.
+**Approach scoring:** When an aircraft completes an approach (lands or goes around), the terminal shows an approach report evaluating the quality of the approach setup. Scored criteria include intercept angle, glideslope interception altitude, final approach speed, and stabilization. This provides feedback to the controller-in-training. **Scenario > Approach Report** opens a summary window showing all approach reports from the current session.
 
 ### Navigation Commands
 
@@ -842,7 +842,7 @@ At the bottom-right of the window:
 - **Pause/Resume** button — toggle simulation pause
 - **Sim rate dropdown** — speed up the simulation (1x, 2x, 4x, 8x, 16x)
 
-Pause and sim rate are scoped to your scenario — they don't affect other clients' scenarios.
+Pause and sim rate are scoped to your room — they don't affect other rooms.
 
 ## Views
 
@@ -982,7 +982,7 @@ Lists CRC clients not currently in any room. Each entry shows display name, ARTC
 
 ## Settings
 
-Open **File > Settings** to configure:
+Open **Settings** to configure:
 
 - **Connection** — Server URL for the yaat-server instance
 - **Identity** — VATSIM CID, user initials (required before connecting), and ARTCC ID

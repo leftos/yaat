@@ -11,7 +11,7 @@ dotnet build                            # Build entire solution
 dotnet run --project src/Yaat.Client    # Run client (needs yaat-server at localhost:5000)
 ```
 
-.NET 8 SDK required. Solution uses `.slnx` format (`yaat.slnx`).
+.NET 10 SDK required. Solution uses `.slnx` format (`yaat.slnx`).
 
 ## Logs
 

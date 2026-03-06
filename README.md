@@ -78,3 +78,15 @@ tests/              Unit tests for both projects
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/) — MVVM source generators
 - [ASP.NET SignalR Client](https://learn.microsoft.com/en-us/aspnet/core/signalr/) — real-time server communication
 - [Google.Protobuf](https://protobuf.dev/) — VNAS nav data deserialization
+
+## Documentation
+
+See [USER_GUIDE.md](USER_GUIDE.md) for detailed usage instructions, command reference, and feature documentation.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and formatting instructions.
+
+## License
+
+[MIT](LICENSE)
