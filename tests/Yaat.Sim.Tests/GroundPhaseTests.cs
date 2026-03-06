@@ -675,6 +675,127 @@ public class GroundPhaseTests
         }
     }
 
+    // --- Pushback other directions ---
+
+    [Fact]
+    public void PushbackPhase_FacingSouth_PushesNorth()
+    {
+        var aircraft = MakeGroundAircraft(heading: 180);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Pushback heading should be opposite of nose: 180 + 180 = 360 → 0
+        double expected = (180.0 + 180.0) % 360.0;
+        Assert.Equal(expected, aircraft.PushbackHeading!.Value, 1.0);
+    }
+
+    [Fact]
+    public void PushbackPhase_FacingWest_PushesEast()
+    {
+        var aircraft = MakeGroundAircraft(heading: 270);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        Assert.Equal(90, aircraft.PushbackHeading!.Value, 1.0);
+    }
+
+    [Fact]
+    public void PushbackPhase_FacingNorth_PushesSouth()
+    {
+        var aircraft = MakeGroundAircraft(heading: 360);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase();
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        Assert.Equal(180, aircraft.PushbackHeading!.Value, 1.0);
+    }
+
+    // --- TaxiingPhase with pre-cleared hold-short ---
+
+    [Fact]
+    public void TaxiingPhase_PreClearedHoldShort_SkipsHoldingShortPhase()
+    {
+        var layout = BuildCrossingLayout();
+        var aircraft = MakeGroundAircraft(37.620, -122.380, heading: 0);
+
+        var route = new TaxiRoute
+        {
+            Segments =
+            [
+                new TaxiRouteSegment
+                {
+                    FromNodeId = 0,
+                    ToNodeId = 1,
+                    TaxiwayName = "A",
+                    Edge = layout.Edges[0],
+                },
+                new TaxiRouteSegment
+                {
+                    FromNodeId = 1,
+                    ToNodeId = 2,
+                    TaxiwayName = "RWY28L",
+                    Edge = layout.Edges[1],
+                },
+                new TaxiRouteSegment
+                {
+                    FromNodeId = 2,
+                    ToNodeId = 3,
+                    TaxiwayName = "A",
+                    Edge = layout.Edges[2],
+                },
+            ],
+            HoldShortPoints =
+            [
+                new HoldShortPoint
+                {
+                    NodeId = 1,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28L/10R",
+                    IsCleared = true, // pre-cleared
+                },
+                new HoldShortPoint
+                {
+                    NodeId = 2,
+                    Reason = HoldShortReason.RunwayCrossing,
+                    TargetName = "28L/10R",
+                    IsCleared = true, // pre-cleared
+                },
+            ],
+        };
+        aircraft.AssignedTaxiRoute = route;
+
+        aircraft.Phases = new PhaseList();
+        var taxiPhase = new TaxiingPhase();
+        aircraft.Phases.Add(taxiPhase);
+        var ctx = MakeContext(aircraft, layout);
+        aircraft.Phases.Start(ctx);
+
+        // Place at hold-short node
+        aircraft.Latitude = layout.Nodes[1].Latitude;
+        aircraft.Longitude = layout.Nodes[1].Longitude;
+
+        // Tick: should NOT insert HoldingShortPhase since it's pre-cleared
+        for (int i = 0; i < 300; i++)
+        {
+            if (taxiPhase.OnTick(ctx))
+            {
+                break;
+            }
+        }
+
+        // Pre-cleared: phase should insert crossing but no hold
+        // Verify no HoldingShortPhase in the upcoming phases
+        Assert.DoesNotContain(aircraft.Phases.Phases.Skip(1), p => p is HoldingShortPhase);
+    }
+
     // --- Pushback held state sets TargetSpeed to 0 ---
 
     [Fact]

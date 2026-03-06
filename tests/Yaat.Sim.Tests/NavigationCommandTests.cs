@@ -457,6 +457,79 @@ public class NavigationCommandTests
         Assert.Equal(runway, aircraft.Phases.AssignedRunway);
     }
 
+    // --- DCT with no fixes ---
+
+    [Fact]
+    public void DirectTo_EmptyFixList_SetsEmptyRoute()
+    {
+        var aircraft = MakeAircraft(heading: 090);
+        var cmd = new DirectToCommand([]);
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Logger);
+
+        Assert.True(result.Success);
+        Assert.Empty(aircraft.Targets.NavigationRoute);
+    }
+
+    // --- CFIX with AtOrBelow ---
+
+    [Fact]
+    public void Cfix_AtOrBelow_AlreadyBelow_NoAltitudeChange()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 3000);
+        aircraft.Targets.TargetAltitude = 5000;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrBelow, null);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Logger);
+
+        // Aircraft at 3000, crossing at-or-below 4000: already below, no change
+        Assert.Equal(5000, aircraft.Targets.TargetAltitude);
+    }
+
+    [Fact]
+    public void Cfix_AtOrBelow_AboveCrossing_ChangesAltitude()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 6000);
+        aircraft.Targets.TargetAltitude = 8000;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrBelow, null);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Logger);
+
+        Assert.Equal(4000, aircraft.Targets.TargetAltitude);
+    }
+
+    // --- CVIA without active SID ---
+
+    [Fact]
+    public void Cvia_WithoutActiveSid_Rejected()
+    {
+        var aircraft = MakeAircraft(altitude: 5000);
+
+        var cmd = new ClimbViaCommand(null);
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Logger);
+
+        Assert.False(result.Success);
+        Assert.Contains("No active SID", result.Message);
+    }
+
+    // --- JARR with empty body ---
+
+    [Fact]
+    public void Jarr_EmptyStarBody_ReturnsError()
+    {
+        var fixes = new TestFixLookup(starBodies: new() { ["EMPTY1"] = [] }, fixPositions: new());
+
+        var aircraft = MakeAircraft(heading: 180);
+        var cmd = new JoinStarCommand("EMPTY1", null);
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Logger);
+
+        Assert.False(result.Success);
+    }
+
     // --- Test helpers ---
 
     private class TestFixLookup : IFixLookup

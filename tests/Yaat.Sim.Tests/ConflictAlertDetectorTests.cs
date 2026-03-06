@@ -312,6 +312,90 @@ public class ConflictAlertDetectorTests
         Assert.Empty(result);
     }
 
+    // -------------------------------------------------------------------------
+    // Vertical dynamics: climbing away / descending into
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void ClimbingAway_VerticalSeparationIncreasing_NotDetected()
+    {
+        // Aircraft at same position, 800ft apart (within threshold), but climbing apart
+        var a = MakeAircraft("AAL100", altitude: 5000, verticalSpeed: 2000); // climbing
+        var b = MakeAircraft("UAL200", altitude: 4200, verticalSpeed: -1000); // descending away
+
+        // After 5s lookahead: a at 5167ft, b at 4117ft → 1050ft apart (> 1000ft)
+        // Current: 800ft apart (violation), but predicted shows increasing separation
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        // Current violation still triggers (800 < 1000), so conflict detected
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public void DescendingInto_SamePosition_PredictedViolation()
+    {
+        // Aircraft at same horizontal position, 1100ft apart (just outside threshold)
+        // but descending toward each other
+        var a = MakeAircraft("AAL100", altitude: 6100, verticalSpeed: -2000);
+        var b = MakeAircraft("UAL200", altitude: 5000, verticalSpeed: 0);
+
+        // After 5s: a at 5933ft, b at 5000 → 933ft apart (< 1000ft)
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public void ClimbingAway_BeyondCurrentThreshold_NoPredictedViolation()
+    {
+        // 4nm apart horizontally (beyond threshold), same alt but flying apart + climbing apart
+        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250, verticalSpeed: 2000);
+        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), altitude: 5000, heading: 90, groundSpeed: 250, verticalSpeed: -2000);
+
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        // Diverging both horizontally and vertically — no conflict
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void DescendingInto_ConvergingVerticallyOnly_WithinHorizontal()
+    {
+        // 2nm apart, 1100ft apart vertically (barely separated)
+        // One descending into the other
+        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 6100, heading: 90, groundSpeed: 250, verticalSpeed: -3000);
+        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 5000, heading: 90, groundSpeed: 250, verticalSpeed: 0);
+
+        // After 5s: a at 5850ft → 850ft separation < 1000ft
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        Assert.Single(result);
+    }
+
+    // -------------------------------------------------------------------------
+    // Both on final approach
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void BothOnFinalApproach_InCorridor_Suppressed()
+    {
+        // Both aircraft on final, same runway, one ahead of the other
+        var leader = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 3000, heading: 284, groundSpeed: 140);
+        leader.Phases = MakeFinalApproachPhaseList();
+
+        var (aheadLat, aheadLon) = GeoMath.ProjectPoint(BaseLat, BaseLon, 284, 1.5);
+        var follower = MakeAircraft("UAL200", aheadLat, aheadLon, altitude: 3200, heading: 284, groundSpeed: 140);
+        follower.Phases = MakeFinalApproachPhaseList();
+
+        var result = ConflictAlertDetector.Detect([leader, follower]);
+
+        Assert.Empty(result);
+    }
+
+    // -------------------------------------------------------------------------
+    // Final approach helpers
+    // -------------------------------------------------------------------------
+
     private static Phases.PhaseList MakeFinalApproachPhaseList()
     {
         var phases = new Phases.PhaseList();

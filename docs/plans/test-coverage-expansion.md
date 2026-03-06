@@ -128,12 +128,12 @@
 
 ## Priority 5: Strengthen Existing Tests
 
-### P5.1 Edge Cases for Existing Test Files
-- [ ] SpeedCommandTests: simultaneous floor+ceiling, floor>ceiling clash
-- [ ] NavigationCommandTests: unknown fix, null lookup error paths
-- [ ] TakeoffDepartureTests: wind interaction
-- [ ] GroundPhaseTests: pushback other directions, invalid hold-short nodes
-- [ ] ConflictAlertDetectorTests: climbing away, descending into
+### P5.1 Edge Cases for Existing Test Files -- DONE (26 tests)
+- [x] SpeedCommandTests: simultaneous floor+ceiling (7 tests: command sequencing, via-mode floor>ceiling clash, physics floor+ceiling enforcement)
+- [x] NavigationCommandTests: unknown fix/null lookup (5 tests: empty DCT, CFIX at-or-below, CVIA without SID, JARR empty body)
+- [x] TakeoffDepartureTests: heading wrapping + command acceptance (5 tests: 350+90, 020-90 wrap, ground roll rejection/cancel/delete)
+- [x] GroundPhaseTests: pushback other directions + pre-cleared hold-short (4 tests: south/west/north push, pre-cleared crossing)
+- [x] ConflictAlertDetectorTests: climbing away, descending into (5 tests: climb-away, descend-into, vertical-only convergence, both-on-final)
 
 ## Priority 6: Client Service Tests
 

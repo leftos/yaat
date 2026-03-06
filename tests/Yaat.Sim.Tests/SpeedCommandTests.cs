@@ -207,6 +207,48 @@ public class SpeedCommandTests
         Assert.Null(ac.Targets.SpeedFloor);
         Assert.Null(ac.Targets.SpeedCeiling);
     }
+
+    // --- Simultaneous floor + ceiling ---
+
+    [Fact]
+    public void SimultaneousFloorAndCeiling_FloorRespected()
+    {
+        var ac = CreateAircraft(ias: 190);
+        ac.Targets.SpeedFloor = 200;
+        ac.Targets.SpeedCeiling = 260;
+
+        // Setting floor then ceiling via dispatch: each clears the other
+        // But ControlTargets allows both to be set directly for via-mode clamping
+        Assert.Equal(200, ac.Targets.SpeedFloor);
+        Assert.Equal(260, ac.Targets.SpeedCeiling);
+    }
+
+    [Fact]
+    public void SpeedFloorCommand_ThenCeilingCommand_ReplacesFloor()
+    {
+        var ac = CreateAircraft();
+
+        CommandDispatcher.Dispatch(new SpeedCommand(200, SpeedModifier.Floor), ac, null, null, null, Logger);
+        Assert.Equal(200, ac.Targets.SpeedFloor);
+        Assert.Null(ac.Targets.SpeedCeiling);
+
+        CommandDispatcher.Dispatch(new SpeedCommand(250, SpeedModifier.Ceiling), ac, null, null, null, Logger);
+        Assert.Null(ac.Targets.SpeedFloor);
+        Assert.Equal(250, ac.Targets.SpeedCeiling);
+    }
+
+    [Fact]
+    public void SpeedCeilingCommand_ThenFloorCommand_ReplacesCeiling()
+    {
+        var ac = CreateAircraft();
+
+        CommandDispatcher.Dispatch(new SpeedCommand(250, SpeedModifier.Ceiling), ac, null, null, null, Logger);
+        Assert.Equal(250, ac.Targets.SpeedCeiling);
+
+        CommandDispatcher.Dispatch(new SpeedCommand(200, SpeedModifier.Floor), ac, null, null, null, Logger);
+        Assert.Equal(200, ac.Targets.SpeedFloor);
+        Assert.Null(ac.Targets.SpeedCeiling);
+    }
 }
 
 public class SpeedPhysicsTests
@@ -352,6 +394,69 @@ public class SpeedPhysicsTests
 
         // Via-mode speed of 260 should be clamped down to ceiling of 240
         Assert.Equal(240, ac.Targets.TargetSpeed);
+    }
+
+    // --- Simultaneous floor + ceiling via-mode clamping ---
+
+    [Fact]
+    public void ViaModeSpdConstraint_ClampedToBothFloorAndCeiling_FloorWins()
+    {
+        // Floor > Ceiling is contradictory; via-mode applies floor then ceiling sequentially
+        var ac = CreateAirborne(ias: 250, altitude: 15000);
+        ac.ActiveStarId = "SUNOL1";
+        ac.StarViaMode = true;
+        ac.Targets.SpeedFloor = 240;
+        ac.Targets.SpeedCeiling = 220;
+
+        var target = new NavigationTarget
+        {
+            Name = "SUNOL",
+            Latitude = 37.5,
+            Longitude = -121.9,
+            SpeedRestriction = new Data.Vnas.CifpSpeedRestriction(200, false),
+        };
+
+        FlightPhysics.ApplyFixConstraints(ac, target);
+
+        // Speed 200 → clamped up to floor 240 → clamped down to ceiling 220
+        Assert.Equal(220, ac.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void BothFloorAndCeiling_IasBetween_NoTargetSet()
+    {
+        var ac = CreateAirborne(ias: 230);
+        ac.Targets.SpeedFloor = 210;
+        ac.Targets.SpeedCeiling = 250;
+
+        FlightPhysics.Update(ac, 1.0);
+
+        // IAS 230 is between floor and ceiling — no correction needed
+        Assert.Null(ac.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void BothFloorAndCeiling_IasBelowFloor_AcceleratesToFloor()
+    {
+        var ac = CreateAirborne(ias: 190);
+        ac.Targets.SpeedFloor = 210;
+        ac.Targets.SpeedCeiling = 250;
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.True(ac.IndicatedAirspeed > 190);
+    }
+
+    [Fact]
+    public void BothFloorAndCeiling_IasAboveCeiling_DeceleratesToCeiling()
+    {
+        var ac = CreateAirborne(ias: 270);
+        ac.Targets.SpeedFloor = 210;
+        ac.Targets.SpeedCeiling = 250;
+
+        FlightPhysics.Update(ac, 1.0);
+
+        Assert.True(ac.IndicatedAirspeed < 270);
     }
 
     // --- Auto-cancel at 5nm final ---

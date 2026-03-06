@@ -199,4 +199,48 @@ public class TakeoffDepartureTests
         Assert.Equal(280, hdg);
         Assert.Equal(TurnDirection.Left, dir);
     }
+
+    // --- Heading wrapping edge cases ---
+
+    [Fact]
+    public void RelativeTurnRight_Runway350_Wraps()
+    {
+        // Runway 350 + 90 right = 440 → 80
+        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Right), 350);
+        Assert.Equal(80, hdg);
+        Assert.Equal(TurnDirection.Right, dir);
+    }
+
+    [Fact]
+    public void RelativeTurnLeft_Runway020_Wraps()
+    {
+        // Runway 020 - 90 left = -70 → 290
+        var (hdg, dir) = RunTakeoff(new RelativeTurnDeparture(90, TurnDirection.Left), 20);
+        Assert.Equal(290, hdg);
+        Assert.Equal(TurnDirection.Left, dir);
+    }
+
+    // --- Command acceptance during takeoff phases ---
+
+    [Fact]
+    public void TakeoffPhase_DuringGroundRoll_RejectsFlyHeading()
+    {
+        var phase = new TakeoffPhase();
+        // Before airborne, most commands are rejected
+        Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
+    }
+
+    [Fact]
+    public void TakeoffPhase_DuringGroundRoll_AllowsCancelTakeoff()
+    {
+        var phase = new TakeoffPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.CancelTakeoffClearance));
+    }
+
+    [Fact]
+    public void TakeoffPhase_DuringGroundRoll_DeleteClearsPhase()
+    {
+        var phase = new TakeoffPhase();
+        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Delete));
+    }
 }
