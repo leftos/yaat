@@ -15,6 +15,8 @@ public sealed class RunwayExitPhase : Phase
     private const double LogIntervalSeconds = 3.0;
 
     private GroundNode? _exitNode;
+    private GroundNode? _clearNode;
+    private bool _reachedExitNode;
     private string? _exitTaxiway;
     private string? _runwayId;
     private ExitPreference? _lastResolvedPreference;
@@ -37,10 +39,11 @@ public sealed class RunwayExitPhase : Phase
         ResolveExit(ctx);
 
         ctx.Logger.LogDebug(
-            "[Exit] {Callsign}: exiting rwy {Rwy}, target node={NodeId}, taxiway={Twy}",
+            "[Exit] {Callsign}: exiting rwy {Rwy}, exit node={NodeId}, clear node={ClearId}, taxiway={Twy}",
             ctx.Aircraft.Callsign,
             _runwayId ?? "?",
             _exitNode?.Id.ToString() ?? "none",
+            _clearNode?.Id.ToString() ?? "none",
             _exitTaxiway ?? "none"
         );
     }
@@ -77,16 +80,29 @@ public sealed class RunwayExitPhase : Phase
 
         ctx.Targets.TargetSpeed = exitSpeed;
 
-        // Turn toward exit node
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _exitNode.Latitude, _exitNode.Longitude);
+        // Determine current target: exit node first, then clear node
+        var target = _reachedExitNode && _clearNode is not null ? _clearNode : _exitNode;
+
+        // Turn toward target node
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
 
         // Check arrival
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _exitNode.Latitude, _exitNode.Longitude);
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
 
         if (dist <= ArrivalThresholdNm)
         {
+            if (!_reachedExitNode)
+            {
+                _reachedExitNode = true;
+                if (_clearNode is not null)
+                {
+                    // Continue to the clear node
+                    return false;
+                }
+            }
+
             ctx.Aircraft.CurrentTaxiway = _exitTaxiway;
             return true;
         }
@@ -116,6 +132,17 @@ public sealed class RunwayExitPhase : Phase
             ctx.Aircraft.GroundSpeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
+            // Align heading along the taxiway so the aircraft faces a sensible direction
+            var stopNode = _reachedExitNode && _clearNode is not null ? _clearNode : _exitNode;
+            if (stopNode is not null && _exitTaxiway is not null && ctx.GroundLayout is not null)
+            {
+                var taxiwayHdg = ctx.GroundLayout.GetEdgeHeadingForTaxiway(stopNode, _exitTaxiway, ctx.Aircraft.Heading);
+                if (taxiwayHdg is not null)
+                {
+                    ctx.Aircraft.Heading = taxiwayHdg.Value;
+                }
+            }
+
             // Generate "clear of runway" notification
             string rwy = _runwayId ?? "unknown";
             string taxiway = _exitTaxiway ?? "taxiway";
@@ -127,6 +154,7 @@ public sealed class RunwayExitPhase : Phase
     {
         var requested = ctx.Aircraft.Phases?.RequestedExit;
         _lastResolvedPreference = requested;
+        _reachedExitNode = false;
         double heading = ctx.Aircraft.Heading;
 
         if (requested?.Taxiway is { } taxiway)
@@ -143,6 +171,14 @@ public sealed class RunwayExitPhase : Phase
         }
 
         _exitTaxiway = _exitNode is not null ? ctx.GroundLayout!.GetExitTaxiwayName(_exitNode) : null;
+
+        // Find the next node along the taxiway past the exit intersection so the
+        // aircraft rolls clear of the runway surface, not just to the boundary node.
+        _clearNode = null;
+        if (_exitNode is not null && _exitTaxiway is not null)
+        {
+            _clearNode = ctx.GroundLayout!.FindClearNode(_exitNode, _exitTaxiway, heading);
+        }
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

@@ -1745,4 +1745,81 @@ public class TaxiPathfinderTests
         Assert.Contains("HS", summary);
         Assert.Contains("D", summary);
     }
+
+    // --- Runway exit E2E tests ---
+
+    [Fact]
+    public void OAK_FindNearestExit_28R_Midpoint_ExitIsOffRunway()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // N569SX rollout position: approximately 60% down runway 28R
+        // Runway heading ~292 degrees
+        double acLat = 37.726374;
+        double acLon = -122.209536;
+        double rwyHeading = 292.0;
+
+        var exitNode = layout.FindNearestExit(acLat, acLon, rwyHeading);
+        Assert.NotNull(exitNode);
+
+        double distToExit = GeoMath.DistanceNm(acLat, acLon, exitNode.Latitude, exitNode.Longitude);
+        bool hasRunwayEdge = exitNode.Edges.Any(e => e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase));
+        string exitTaxiway = layout.GetExitTaxiwayName(exitNode) ?? "?";
+        var edgeNames = string.Join(", ", exitNode.Edges.Select(e => e.TaxiwayName));
+
+        // Diagnostic output
+        var output = $"Exit node {exitNode.Id}: type={exitNode.Type}, taxiway={exitTaxiway}, "
+            + $"pos=({exitNode.Latitude:F6},{exitNode.Longitude:F6}), "
+            + $"dist={distToExit:F4}nm ({distToExit * 6076:F0}ft), "
+            + $"hasRwyEdge={hasRunwayEdge}, edges=[{edgeNames}]";
+
+        // Verify: the exit node should NOT still be on the runway rectangle
+        Assert.False(
+            hasRunwayEdge,
+            $"Exit node is still on the runway rectangle (has runway edges). "
+                + $"RunwayExitPhase would stop the aircraft ON the runway. {output}"
+        );
+
+    }
+
+    [Fact]
+    public void OAK_FindClearNode_28R_ExitClearsRunway()
+    {
+        var layout = LoadAirportLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Same position as N569SX rollout
+        double acLat = 37.726374;
+        double acLon = -122.209536;
+        double rwyHeading = 292.0;
+
+        var exitNode = layout.FindNearestExit(acLat, acLon, rwyHeading);
+        Assert.NotNull(exitNode);
+
+        string exitTaxiway = layout.GetExitTaxiwayName(exitNode) ?? "?";
+        var clearNode = layout.FindClearNode(exitNode, exitTaxiway, rwyHeading);
+        Assert.NotNull(clearNode);
+
+        // The clear node should have NO runway edges — it's fully off the runway
+        bool clearHasRunwayEdge = clearNode.Edges.Any(e => e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase));
+        double distFromExit = GeoMath.DistanceNm(exitNode.Latitude, exitNode.Longitude, clearNode.Latitude, clearNode.Longitude);
+        var clearEdges = string.Join(", ", clearNode.Edges.Select(e => e.TaxiwayName));
+
+        var output = $"Exit node {exitNode.Id} → Clear node {clearNode.Id}: "
+            + $"pos=({clearNode.Latitude:F6},{clearNode.Longitude:F6}), "
+            + $"dist from exit={distFromExit:F4}nm ({distFromExit * 6076:F0}ft), "
+            + $"edges=[{clearEdges}]";
+
+        Assert.False(
+            clearHasRunwayEdge,
+            $"Clear node still has runway edges — aircraft would still appear on runway. {output}"
+        );
+    }
 }

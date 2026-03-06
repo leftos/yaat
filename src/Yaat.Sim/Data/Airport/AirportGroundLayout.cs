@@ -362,6 +362,48 @@ public sealed class AirportGroundLayout
         return result;
     }
 
+    /// <summary>
+    /// Find the next node along the taxiway past the exit intersection, so the
+    /// aircraft can roll clear of the runway surface. Follows the non-runway edge
+    /// whose heading is closest to the aircraft's exit bearing.
+    /// </summary>
+    public GroundNode? FindClearNode(GroundNode exitNode, string taxiwayName, double runwayHeading)
+    {
+        GroundNode? best = null;
+        double bestDiff = double.MaxValue;
+
+        foreach (var edge in exitNode.Edges)
+        {
+            if (IsRunwayEdge(edge))
+            {
+                continue;
+            }
+
+            if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            int otherNodeId = edge.FromNodeId == exitNode.Id ? edge.ToNodeId : edge.FromNodeId;
+            if (!Nodes.TryGetValue(otherNodeId, out var otherNode))
+            {
+                continue;
+            }
+
+            // Prefer the direction that doesn't require turning back toward the runway
+            double heading = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double diff = Math.Abs(NormalizeAngle(heading - runwayHeading));
+
+            if (diff < bestDiff)
+            {
+                bestDiff = diff;
+                best = otherNode;
+            }
+        }
+
+        return best;
+    }
+
     private static bool IsRunwayEdge(GroundEdge edge)
     {
         return edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
