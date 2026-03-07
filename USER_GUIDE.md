@@ -917,7 +917,7 @@ After rewinding, the simulation enters **Playback Mode**. The timeline bar shows
 
 Under the **Scenario** menu:
 
-- **Save Recording...** — exports the current session (scenario + all recorded actions) to a `.yaat-recording` file
+- **Save Recording...** — exports the current session (scenario + all recorded actions) to a `.yaat-recording.json` file
 - **Load Recording...** — loads a previously saved recording; enters playback mode at t=0
 
 Recordings are self-contained JSON files that include the scenario definition, RNG seed, weather state, and all user actions with timestamps. They can be shared between users for review or training.

@@ -103,9 +103,9 @@ public partial class MainViewModel
                 new FilePickerSaveOptions
                 {
                     Title = "Save Recording",
-                    DefaultExtension = "yaat-recording",
-                    FileTypeChoices = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording"] }],
-                    SuggestedFileName = $"{ActiveScenarioName ?? "recording"}.yaat-recording",
+                    DefaultExtension = "yaat-recording.json",
+                    FileTypeChoices = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.json"] }],
+                    SuggestedFileName = $"{ActiveScenarioName ?? "recording"}.yaat-recording.json",
                 }
             );
 
@@ -147,7 +147,7 @@ public partial class MainViewModel
                 {
                     Title = "Load Recording",
                     AllowMultiple = false,
-                    FileTypeFilter = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording"] }],
+                    FileTypeFilter = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.json"] }],
                 }
             );
 

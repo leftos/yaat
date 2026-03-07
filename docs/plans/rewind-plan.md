@@ -604,11 +604,11 @@ Add a timeline bar between the scenario bar and the aircraft data grid in `MainW
 
 ### 5.5 Save / Load UI
 
-**Save**: Menu item under Scenario menu: "Save Recording...". Opens a file save dialog (`.yaat-recording` extension, JSON content). Calls `ExportRecordingAsync()`, writes result to disk.
+**Save**: Menu item under Scenario menu: "Save Recording...". Opens a file save dialog (`.yaat-recording.json` extension, JSON content). Calls `ExportRecordingAsync()`, writes result to disk.
 
 **Load**: Menu item: "Load Recording...". Opens a file picker, reads JSON, calls `LoadRecordingAsync(json)`. Server loads the scenario and enters playback mode. Client updates UI from the `TimelineRewound` event.
 
-The `.yaat-recording` files are plain JSON (the `SessionRecording` type), human-readable and shareable.
+The `.yaat-recording.json` files are plain JSON (the `SessionRecording` type), human-readable and shareable.
 
 ### 5.6 TimelineRewound handler
 
