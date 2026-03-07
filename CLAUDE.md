@@ -448,5 +448,6 @@ When invoking aviation-sim-expert, always include:
 - **Line width**: 150 characters, not 80 or 120. CSharpier is configured accordingly.
 - **Pre-commit formatting**: Run `dotnet format style`, `dotnet format analyzers`, then `dotnet csharpier format .` before each commit, followed by a final `dotnet build` to verify nothing broke. Do NOT run bare `dotnet format` (its whitespace rules fight with CSharpier).
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
+- **Branching**: Never commit directly to `master`. Create a feature branch (`feat/short-description`, `fix/short-description`, etc.), do your work there, then open a PR to merge into `master`. Each parallel agent MUST work in its own worktree via `wt switch <branch>` — never share working directories between agents.
 - **Memory Updates**: Distill Explore agent findings into auto-memory at `C:\Users\Leftos\.claude\projects\X--dev-yaat\memory\`.
 - **Milestone Roadmap**: See `docs/plans/main-plan.md`. M0/M1 complete; M2 (tower ops) next.
