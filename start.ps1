@@ -1,9 +1,24 @@
 # Start yaat-server and yaat-client side by side.
 # Kill both on Ctrl-C.
 # Build sequentially first — both projects share Yaat.Sim.
+# Usage: .\start.ps1 [-Pull]
+
+param(
+    [switch]$Pull
+)
 
 $ServerDir = "X:\dev\yaat-server"
 $ClientDir = "X:\dev\yaat"
+
+if ($Pull) {
+    Write-Host "Pulling yaat-client..."
+    git -C $ClientDir pull --ff-only
+    if ($LASTEXITCODE -ne 0) { Write-Error "Client pull failed"; exit 1 }
+
+    Write-Host "Pulling yaat-server..."
+    git -C $ServerDir pull --ff-only
+    if ($LASTEXITCODE -ne 0) { Write-Error "Server pull failed"; exit 1 }
+}
 
 Write-Host "Building yaat-server..."
 dotnet build "$ServerDir\src\Yaat.Server" -v q
