@@ -132,6 +132,8 @@ public sealed class ServerConnection : IAsyncDisposable
     public async Task<LoadScenarioResultDto> LoadScenarioAsync(string scenarioJson)
     {
         EnsureConnected();
+        var byteSize = System.Text.Encoding.UTF8.GetByteCount(scenarioJson);
+        _log.LogInformation("Sending scenario JSON to server ({ByteSize} bytes)", byteSize);
         return await _connection!.InvokeAsync<LoadScenarioResultDto>("LoadScenario", scenarioJson);
     }
 
