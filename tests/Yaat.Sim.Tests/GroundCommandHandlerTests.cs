@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -463,5 +464,174 @@ public class GroundCommandHandlerTests
         var result = GroundCommandHandler.TryResumeTaxi(ac);
 
         Assert.False(result.Success);
+    }
+
+    // -------------------------------------------------------------------------
+    // TryAssignRunway
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryAssignRunway_ValidRunway_SetsAssignedRunway()
+    {
+        var ac = MakeGroundAircraft();
+        var runways = new StubRunwayLookup("OAK", "28R");
+
+        var result = GroundCommandHandler.TryAssignRunway(ac, "28R", runways);
+
+        Assert.True(result.Success);
+        Assert.Contains("Runway 28R", result.Message!);
+        Assert.NotNull(ac.Phases);
+        Assert.NotNull(ac.Phases!.AssignedRunway);
+        Assert.Equal("28R", ac.Phases.AssignedRunway!.Designator);
+    }
+
+    [Fact]
+    public void TryAssignRunway_InvalidRunway_Fails()
+    {
+        var ac = MakeGroundAircraft();
+        var runways = new StubRunwayLookup("OAK", "28R");
+
+        var result = GroundCommandHandler.TryAssignRunway(ac, "99X", runways);
+
+        Assert.False(result.Success);
+        Assert.Contains("Unknown runway", result.Message!);
+    }
+
+    [Fact]
+    public void TryAssignRunway_NoRunwayLookup_Fails()
+    {
+        var ac = MakeGroundAircraft();
+
+        var result = GroundCommandHandler.TryAssignRunway(ac, "28R", null);
+
+        Assert.False(result.Success);
+    }
+
+    [Fact]
+    public void TryAssignRunway_NullPhases_CreatesPhaseList()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Phases = null;
+        var runways = new StubRunwayLookup("OAK", "28R");
+
+        var result = GroundCommandHandler.TryAssignRunway(ac, "28R", runways);
+
+        Assert.True(result.Success);
+        Assert.NotNull(ac.Phases);
+    }
+
+    // -------------------------------------------------------------------------
+    // TryTaxi auto-detect runway
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryTaxi_EndsAtHoldShort_AutoDetectsRunway()
+    {
+        var ac = MakeGroundAircraft();
+        var layout = MakeSimpleLayout();
+        var runways = new StubRunwayLookup("OAK", "28R", node3Lat: 37.730, node3Lon: -122.218);
+        var cmd = new TaxiCommand(["A"], []);
+
+        var result = GroundCommandHandler.TryTaxi(ac, cmd, layout, runways, Logger);
+
+        Assert.True(result.Success);
+        Assert.NotNull(ac.Phases?.AssignedRunway);
+        // Node 3 is closer to End1 threshold (37.730), so should resolve to End1 designator
+        Assert.Equal("28R", ac.Phases!.AssignedRunway!.Designator);
+    }
+
+    [Fact]
+    public void TryTaxi_EndsAtNonHoldShort_NoAutoDetect()
+    {
+        var ac = MakeGroundAircraft();
+        // Use layout where last node (2) is just a taxiway intersection, not a hold-short
+        var layout = MakeSimpleLayout();
+        var cmd = new TaxiCommand(["A"], []);
+        // Place aircraft right at node 1, but path only goes A (to node 2 which is intersection)
+        // Actually node 2 also has edges to node 3 (A). The path "A" goes from node 1 through all A-edges.
+        // Let me create a minimal layout with only 2 non-HS nodes.
+        var minLayout = new AirportGroundLayout { AirportId = "TEST" };
+        var n1 = new GroundNode
+        {
+            Id = 1,
+            Latitude = 37.728,
+            Longitude = -122.218,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var n2 = new GroundNode
+        {
+            Id = 2,
+            Latitude = 37.729,
+            Longitude = -122.218,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        minLayout.Nodes[1] = n1;
+        minLayout.Nodes[2] = n2;
+        var edge = new GroundEdge
+        {
+            FromNodeId = 1,
+            ToNodeId = 2,
+            TaxiwayName = "B",
+            DistanceNm = GeoMath.DistanceNm(n1.Latitude, n1.Longitude, n2.Latitude, n2.Longitude),
+        };
+        minLayout.Edges.Add(edge);
+        n1.Edges.Add(edge);
+        n2.Edges.Add(edge);
+
+        var cmd2 = new TaxiCommand(["B"], []);
+        var result = GroundCommandHandler.TryTaxi(ac, cmd2, minLayout, null, Logger);
+
+        Assert.True(result.Success);
+        Assert.Null(ac.Phases?.AssignedRunway);
+    }
+
+    [Fact]
+    public void TryTaxi_ExplicitDestRunway_SetsAssignedRunway()
+    {
+        var ac = MakeGroundAircraft();
+        var layout = MakeSimpleLayout();
+        var runways = new StubRunwayLookup("OAK", "28R", node3Lat: 37.730, node3Lon: -122.218);
+        var cmd = new TaxiCommand(["A"], [], DestinationRunway: "28R");
+
+        var result = GroundCommandHandler.TryTaxi(ac, cmd, layout, runways, Logger);
+
+        Assert.True(result.Success);
+        Assert.NotNull(ac.Phases?.AssignedRunway);
+    }
+
+    // -------------------------------------------------------------------------
+    // Stub for IRunwayLookup
+    // -------------------------------------------------------------------------
+
+    private sealed class StubRunwayLookup(string airportId, string designator, double node3Lat = 37.730, double node3Lon = -122.218) : IRunwayLookup
+    {
+        private readonly RunwayInfo _runway = new()
+        {
+            AirportId = airportId,
+            Id = new RunwayIdentifier(designator),
+            Designator = designator,
+            Lat1 = node3Lat,
+            Lon1 = node3Lon,
+            Elevation1Ft = 6,
+            Heading1 = 280,
+            Lat2 = node3Lat + 0.02,
+            Lon2 = node3Lon,
+            Elevation2Ft = 6,
+            Heading2 = 100,
+            LengthFt = 10000,
+            WidthFt = 150,
+        };
+
+        public RunwayInfo? GetRunway(string airportCode, string runwayId)
+        {
+            if (airportCode == airportId && _runway.Id.Contains(runwayId))
+            {
+                return _runway.ForApproach(runwayId);
+            }
+
+            return null;
+        }
+
+        public IReadOnlyList<RunwayInfo> GetRunways(string airportCode) => airportCode == airportId ? [_runway] : [];
     }
 }

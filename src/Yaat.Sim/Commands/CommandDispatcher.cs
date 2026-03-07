@@ -1196,6 +1196,9 @@ public static class CommandDispatcher
             case HoldShortCommand hs:
                 return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout, logger);
 
+            case AssignRunwayCommand assignRwy:
+                return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId, runways);
+
             case FollowCommand follow:
                 return GroundCommandHandler.TryFollow(aircraft, follow, groundLayout, logger);
 
