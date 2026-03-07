@@ -51,6 +51,7 @@ public partial class RadarViewModel : ObservableObject
 
     private string? _activeScenarioId;
     private UserPreferences? _preferences;
+    private bool _isRestoring;
     private Func<string, double?>? _getAirportElevation;
     private FixDatabase? _fixDb;
     private ApproachDatabase? _approachDb;
@@ -690,7 +691,7 @@ public partial class RadarViewModel : ObservableObject
 
     private void SaveSettings()
     {
-        if (_preferences is null || _activeScenarioId is null)
+        if (_preferences is null || _activeScenarioId is null || _isRestoring)
         {
             return;
         }
@@ -745,6 +746,8 @@ public partial class RadarViewModel : ObservableObject
             return;
         }
 
+        _isRestoring = true;
+
         // Restore map toggles
         var enabledSet = new HashSet<int>(saved.EnabledStarsIds);
         foreach (var t in MapToggles)
@@ -786,6 +789,8 @@ public partial class RadarViewModel : ObservableObject
             OnPropertyChanged(nameof(MapBrightnessB));
             OnPropertyChanged(nameof(RangeRingBrightness));
         }
+
+        _isRestoring = false;
     }
 
     private void UpdateActiveMaps()
