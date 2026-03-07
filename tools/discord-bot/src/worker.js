@@ -189,6 +189,18 @@ async function handleIssueEvent(payload, env) {
   if (statusMessage) {
     await postToDiscordThread(env.DISCORD_BOT_TOKEN, threadId, statusMessage);
   }
+
+  // Determine if this is a terminal (resolved) state or a reopen
+  const isTerminal =
+    (action === "labeled" && label && STATUS_LABELS[label.name.toLowerCase()]) ||
+    (action === "closed");
+  const isReopened = action === "reopened";
+
+  if (isTerminal) {
+    await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
+  } else if (isReopened) {
+    await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
+  }
 }
 
 async function findThreadForIssue(env, issueNumber) {
@@ -224,10 +236,64 @@ async function postToDiscordThread(botToken, threadId, content) {
   }
 }
 
+async function markThreadResolved(botToken, threadId) {
+  // Add checkmark to thread title (if not already present)
+  const thread = await discordApi(`/channels/${threadId}`, botToken);
+  if (!thread.name.startsWith("\u2705")) {
+    await fetch(`https://discord.com/api/v10/channels/${threadId}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: `\u2705 ${thread.name}` }),
+    });
+  }
+
+  // Add checkmark reaction to the thread starter message (ID matches threadId in forum threads)
+  await fetch(
+    `https://discord.com/api/v10/channels/${threadId}/messages/${threadId}/reactions/%E2%9C%85/@me`,
+    { method: "PUT", headers: { Authorization: `Bot ${botToken}` } },
+  );
+}
+
+async function unmarkThreadResolved(botToken, threadId) {
+  // Remove checkmark from thread title
+  const thread = await discordApi(`/channels/${threadId}`, botToken);
+  if (thread.name.startsWith("\u2705 ")) {
+    await fetch(`https://discord.com/api/v10/channels/${threadId}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bot ${botToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: thread.name.slice(2) }),
+    });
+  }
+
+  // Remove checkmark reaction
+  await fetch(
+    `https://discord.com/api/v10/channels/${threadId}/messages/${threadId}/reactions/%E2%9C%85/@me`,
+    { method: "DELETE", headers: { Authorization: `Bot ${botToken}` } },
+  );
+}
+
 // --- Command processing ---
 
 async function processCommand({ threadId, guildId, commandName, token, appId, env }) {
   try {
+    if (commandName === "resolve") {
+      await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
+      await editOriginalResponse(appId, token, { content: "Thread marked as resolved." });
+      return;
+    }
+
+    if (commandName === "unresolve") {
+      await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
+      await editOriginalResponse(appId, token, { content: "Thread unmarked as resolved." });
+      return;
+    }
+
     const existing = await env.THREAD_ISSUES.get(threadId, { type: "json" });
 
     if (existing) {

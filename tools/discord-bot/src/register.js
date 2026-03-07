@@ -12,6 +12,16 @@ const commands = [
     description: "Create a GitHub feature request from this forum thread",
     type: 1,
   },
+  {
+    name: "resolve",
+    description: "Mark this thread as resolved (adds checkmark to title and reaction)",
+    type: 1,
+  },
+  {
+    name: "unresolve",
+    description: "Unmark this thread as resolved (removes checkmark from title and reaction)",
+    type: 1,
+  },
 ];
 
 const appId = process.env.DISCORD_APP_ID;
