@@ -53,6 +53,18 @@ internal static class ArgumentSuggester
         var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
         var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
 
+        // RWY {runway} [TAXI] {path} — first argument is a runway designator
+        if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase))
+        {
+            var argsAfterVerb = words.Length - verbIndex - 1;
+            if (argsAfterVerb <= 1 || (!hasTrailingSpace && argsAfterVerb == 1))
+            {
+                AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
+            }
+
+            return true;
+        }
+
         // CTO departure modifiers
         if (MatchesVerb(verb, CanonicalCommandType.ClearedForTakeoff, scheme))
         {
@@ -309,27 +321,37 @@ internal static class ArgumentSuggester
     private static int FindVerbIndex(string[] words, CommandScheme scheme)
     {
         // Check position 0 first (no callsign prefix)
-        foreach (var type in VerbTypes)
+        if (IsRecognizedVerb(words[0], scheme))
         {
-            if (MatchesVerb(words[0], type, scheme))
-            {
-                return 0;
-            }
+            return 0;
         }
 
         // Check position 1 (callsign prefix)
-        if (words.Length >= 2)
+        if (words.Length >= 2 && IsRecognizedVerb(words[1], scheme))
         {
-            foreach (var type in VerbTypes)
-            {
-                if (MatchesVerb(words[1], type, scheme))
-                {
-                    return 1;
-                }
-            }
+            return 1;
         }
 
         return -1;
+    }
+
+    private static bool IsRecognizedVerb(string token, CommandScheme scheme)
+    {
+        // RWY is a special rewrite verb, not a CanonicalCommandType
+        if (string.Equals(token, "RWY", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        foreach (var type in VerbTypes)
+        {
+            if (MatchesVerb(token, type, scheme))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool MatchesVerb(string token, CanonicalCommandType type, CommandScheme scheme)

@@ -320,6 +320,12 @@ public partial class CommandInputController : ObservableObject
 
     private static bool IsKnownVerb(string token, CommandScheme scheme)
     {
+        // RWY is a special rewrite verb, not in CommandScheme
+        if (string.Equals(token, "RWY", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         foreach (var pattern in scheme.Patterns.Values)
         {
             foreach (var alias in pattern.Aliases)
