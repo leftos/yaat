@@ -358,11 +358,14 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 | `CROSS B` | Cross taxiway B (clears hold-short) |
 | `HS B` | Hold short at the next intersection with taxiway B |
 | `HS 28L` | Hold short at the next runway 28L crossing |
+| `RWY 30` | Assign runway 30 (override runway assignment without taxi) |
 | `FOLLOW SWA123` | Follow another aircraft on the ground |
 
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts.
 
 `HS` can be issued to a taxiing aircraft to add a hold-short point at the first upcoming intersection with the given taxiway or runway along the remaining route.
+
+When you taxi to a hold-short point (via context menu or command), the runway is automatically assigned based on the closest threshold. Override with `RWY {id}` if needed.
 
 Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop.
 

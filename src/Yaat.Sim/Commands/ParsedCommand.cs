@@ -207,6 +207,8 @@ public record CrossRunwayCommand(string RunwayId) : ParsedCommand;
 
 public record HoldShortCommand(string Target) : ParsedCommand;
 
+public record AssignRunwayCommand(string RunwayId) : ParsedCommand;
+
 public record FollowCommand(string TargetCallsign) : ParsedCommand;
 
 // Exit commands

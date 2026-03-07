@@ -98,6 +98,17 @@ internal static class GroundCommandHandler
             }
         }
 
+        // Auto-detect runway from final node when no explicit destination runway
+        RunwayInfo? detectedRunway = null;
+        if (taxi.DestinationRunway is null && route.Segments.Count > 0)
+        {
+            detectedRunway = DetectRunwayFromRoute(route, groundLayout, aircraft, runways, logger);
+        }
+        else if (taxi.DestinationRunway is not null)
+        {
+            detectedRunway = CommandDispatcher.ResolveRunway(aircraft, taxi.DestinationRunway, runways);
+        }
+
         // Clear current phases
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
         if (aircraft.Phases is not null)
@@ -115,6 +126,11 @@ internal static class GroundCommandHandler
         }
 
         aircraft.Phases = new PhaseList();
+        if (detectedRunway is not null)
+        {
+            aircraft.Phases.AssignedRunway = detectedRunway;
+        }
+
         aircraft.Phases.Add(new TaxiingPhase());
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
         aircraft.Phases.Start(ctx);
@@ -335,6 +351,19 @@ internal static class GroundCommandHandler
         }
 
         return CommandDispatcher.Ok(msg);
+    }
+
+    internal static CommandResult TryAssignRunway(AircraftState aircraft, string runwayId, IRunwayLookup? runways)
+    {
+        var runway = CommandDispatcher.ResolveRunway(aircraft, runwayId, runways);
+        if (runway is null)
+        {
+            return new CommandResult(false, $"Unknown runway {runwayId}");
+        }
+
+        aircraft.Phases ??= new PhaseList();
+        aircraft.Phases.AssignedRunway = runway;
+        return CommandDispatcher.Ok($"Runway {runway.Designator}");
     }
 
     internal static CommandResult TryHoldPosition(AircraftState aircraft)
@@ -561,6 +590,91 @@ internal static class GroundCommandHandler
         aircraft.ParkingSpot = resolvedName;
 
         return CommandDispatcher.Ok($"Land at {resolvedName}");
+    }
+
+    private static RunwayInfo? DetectRunwayFromRoute(
+        TaxiRoute route,
+        AirportGroundLayout layout,
+        AircraftState aircraft,
+        IRunwayLookup? runways,
+        ILogger logger
+    )
+    {
+        int finalNodeId = route.Segments[^1].ToNodeId;
+        if (!layout.Nodes.TryGetValue(finalNodeId, out var node))
+        {
+            return null;
+        }
+
+        RunwayIdentifier? rwyId = null;
+
+        // Case 1: RunwayHoldShort node
+        if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is not null)
+        {
+            rwyId = node.RunwayId;
+        }
+        else
+        {
+            // Case 2: Runway surface node (edge named "RWY...")
+            foreach (var edge in node.Edges)
+            {
+                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    var rawDesignator = edge.TaxiwayName[3..];
+                    rwyId = RunwayIdentifier.Parse(rawDesignator);
+                    break;
+                }
+            }
+        }
+
+        if (rwyId is null)
+        {
+            return null;
+        }
+
+        var runway = ResolveClosestRunwayEnd(rwyId.Value, node.Latitude, node.Longitude, aircraft, runways);
+        if (runway is not null)
+        {
+            logger.LogDebug(
+                "[TryTaxi] {Callsign}: auto-detected runway {Rwy} from final node {NodeId}",
+                aircraft.Callsign,
+                runway.Designator,
+                finalNodeId
+            );
+        }
+
+        return runway;
+    }
+
+    private static RunwayInfo? ResolveClosestRunwayEnd(
+        RunwayIdentifier rwyId,
+        double nodeLat,
+        double nodeLon,
+        AircraftState aircraft,
+        IRunwayLookup? runways
+    )
+    {
+        if (runways is null)
+        {
+            return null;
+        }
+
+        var airportId = aircraft.Departure ?? aircraft.Destination;
+        if (airportId is null)
+        {
+            return null;
+        }
+
+        var info = runways.GetRunway(airportId, rwyId.End1) ?? runways.GetRunway(airportId, rwyId.End2);
+        if (info is null)
+        {
+            return null;
+        }
+
+        double dist1 = GeoMath.DistanceNm(nodeLat, nodeLon, info.Lat1, info.Lon1);
+        double dist2 = GeoMath.DistanceNm(nodeLat, nodeLon, info.Lat2, info.Lon2);
+        string closerDesignator = dist1 <= dist2 ? info.Id.End1 : info.Id.End2;
+        return info.ForApproach(closerDesignator);
     }
 
     internal static CommandResult TryExitCommand(AircraftState aircraft, ExitPreference preference, bool noDelete)

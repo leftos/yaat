@@ -90,6 +90,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.Resume, "Resume Taxi", null, false, "Ground"),
         new(CanonicalCommandType.CrossRunway, "Cross Runway", "28L", false, "Ground"),
         new(CanonicalCommandType.HoldShort, "Hold Short", "B", false, "Ground"),
+        new(CanonicalCommandType.AssignRunway, "Assign Runway", "30", false, "Ground"),
         new(CanonicalCommandType.Follow, "Follow", "SWA123", false, "Ground"),
         new(CanonicalCommandType.ExitLeft, "Exit Left", null, false, "Ground"),
         new(CanonicalCommandType.ExitRight, "Exit Right", null, false, "Ground"),
