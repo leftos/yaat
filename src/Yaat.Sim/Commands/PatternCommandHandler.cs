@@ -83,6 +83,27 @@ internal static class PatternCommandHandler
         PatternEntryLeg effectiveEntryLeg = isOnWrongSide ? PatternEntryLeg.Downwind : entryLeg;
         double? effectiveFinalDistanceNm = isOnWrongSide ? null : finalDistanceNm;
 
+        // If the aircraft is airborne, heading roughly aligned with the runway,
+        // near the runway (within 3nm of departure end), and NOT already close to
+        // the downwind entry, override to upwind entry. This handles the go-around
+        // case where the pilot should fly upwind→crosswind→downwind instead of
+        // navigating directly to the downwind abeam point at the wrong heading.
+        if (!aircraft.IsOnGround && !isOnWrongSide && effectiveEntryLeg == PatternEntryLeg.Downwind && waypoints is not null)
+        {
+            double hdgDiff = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - runway.TrueHeading));
+            double distToDepEnd = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.EndLatitude, runway.EndLongitude);
+            double distToDownwindEntry = GeoMath.DistanceNm(
+                aircraft.Latitude,
+                aircraft.Longitude,
+                waypoints.DownwindAbeamLat,
+                waypoints.DownwindAbeamLon
+            );
+            if (hdgDiff < 30 && distToDepEnd < 3.0 && distToDownwindEntry > 1.0)
+            {
+                effectiveEntryLeg = PatternEntryLeg.Upwind;
+            }
+        }
+
         // Compute waypoints for the entry point check
         waypoints ??= PatternGeometry.Compute(runway, category, direction);
 
@@ -95,6 +116,8 @@ internal static class PatternCommandHandler
 
         // If the aircraft is airborne and far from the pattern, insert a PatternEntryPhase
         // to navigate to the entry point with descent/climb to pattern altitude.
+        // For downwind entry, add a lead-in waypoint so the aircraft aligns with the
+        // downwind heading before reaching the abeam point.
         if (!aircraft.IsOnGround && !isOnWrongSide)
         {
             var (entryLat, entryLon) = GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm);
@@ -102,12 +125,27 @@ internal static class PatternCommandHandler
 
             if (distToEntry > 1.0)
             {
+                double? leadInLat = null;
+                double? leadInLon = null;
+
+                // For downwind entry: add a lead-in waypoint ~1.5nm before the abeam point
+                // along the reverse downwind track, so the aircraft arrives aligned.
+                if (effectiveEntryLeg == PatternEntryLeg.Downwind)
+                {
+                    double reverseDownwind = FlightPhysics.NormalizeHeading(waypoints.DownwindHeading + 180.0);
+                    var leadIn = GeoMath.ProjectPoint(entryLat, entryLon, reverseDownwind, 1.5);
+                    leadInLat = leadIn.Lat;
+                    leadInLon = leadIn.Lon;
+                }
+
                 phases.Add(
                     new PatternEntryPhase
                     {
                         EntryLat = entryLat,
                         EntryLon = entryLon,
                         PatternAltitude = waypoints.PatternAltitude,
+                        LeadInLat = leadInLat,
+                        LeadInLon = leadInLon,
                     }
                 );
             }

@@ -15,11 +15,31 @@ public sealed class PatternEntryPhase : Phase
     public required double EntryLon { get; init; }
     public required double PatternAltitude { get; init; }
 
+    /// <summary>
+    /// Optional lead-in waypoint placed before the entry point so the aircraft
+    /// aligns with the leg heading before reaching the entry point.
+    /// </summary>
+    public double? LeadInLat { get; init; }
+    public double? LeadInLon { get; init; }
+
     public override string Name => "Pattern Entry";
 
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.NavigationRoute.Clear();
+
+        if (LeadInLat is not null && LeadInLon is not null)
+        {
+            ctx.Targets.NavigationRoute.Add(
+                new NavigationTarget
+                {
+                    Latitude = LeadInLat.Value,
+                    Longitude = LeadInLon.Value,
+                    Name = "PTN-LEADIN",
+                }
+            );
+        }
+
         ctx.Targets.NavigationRoute.Add(
             new NavigationTarget
             {
