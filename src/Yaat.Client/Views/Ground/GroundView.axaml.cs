@@ -133,7 +133,8 @@ public partial class GroundView : UserControl
 
             if (fromNodeId is not null)
             {
-                AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, nodeId);
+                string? spotName = node.Type is "Spot" or "Parking" or "Helipad" ? node.Name : null;
+                AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, nodeId, spotName);
             }
 
             if (node.Type == "RunwayHoldShort" && node.RunwayId is not null)
@@ -290,7 +291,15 @@ public partial class GroundView : UserControl
         }
     }
 
-    private static void AddTaxiRouteItems(ContextMenu menu, GroundViewModel vm, string callsign, string initials, int fromNodeId, int toNodeId)
+    private static void AddTaxiRouteItems(
+        ContextMenu menu,
+        GroundViewModel vm,
+        string callsign,
+        string initials,
+        int fromNodeId,
+        int toNodeId,
+        string? spotName = null
+    )
     {
         var routes = vm.FindRoutesToNode(fromNodeId, toNodeId);
 
@@ -303,24 +312,31 @@ public partial class GroundView : UserControl
 
         if (routes.Count == 1)
         {
-            AddSingleRouteItems(menu, vm, callsign, initials, routes[0]);
+            AddSingleRouteItems(menu, vm, callsign, initials, routes[0], spotName);
         }
         else
         {
             var parent = new MenuItem { Header = "Taxi here" };
             foreach (var route in routes)
             {
-                AddSingleRouteItems(parent, vm, callsign, initials, route);
+                AddSingleRouteItems(parent, vm, callsign, initials, route, spotName);
             }
 
             menu.Items.Add(parent);
         }
     }
 
-    private static void AddSingleRouteItems(ItemsControl parent, GroundViewModel vm, string callsign, string initials, TaxiRoute route)
+    private static void AddSingleRouteItems(
+        ItemsControl parent,
+        GroundViewModel vm,
+        string callsign,
+        string initials,
+        TaxiRoute route,
+        string? spotName = null
+    )
     {
-        var displayName = vm.GetTaxiwayDisplayName(route);
-        var variants = vm.BuildTaxiCrossingVariants(route);
+        var displayName = spotName is not null ? $"to {spotName} {vm.GetTaxiwayDisplayName(route)}" : vm.GetTaxiwayDisplayName(route);
+        var variants = vm.BuildTaxiCrossingVariants(route, spotName);
 
         if (variants.Count <= 1)
         {

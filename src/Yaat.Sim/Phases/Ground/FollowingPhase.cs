@@ -63,6 +63,9 @@ public sealed class FollowingPhase : Phase
             );
             ctx.Aircraft.GroundSpeed = 0;
             ctx.Targets.TargetSpeed = 0;
+
+            // Insert idle ground phase so the aircraft remains in a state that accepts commands
+            ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingInPositionPhase());
             return true;
         }
 

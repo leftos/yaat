@@ -112,7 +112,7 @@ public sealed class AirTaxiPhase : Phase
             // Complete when speed is near zero and hovering
             if (ctx.Aircraft.GroundSpeed <= 2.0)
             {
-                // Snap position to destination
+                // Snap position to destination — helicopter remains airborne (hovering at AGL)
                 ctx.Aircraft.Latitude = _targetLat;
                 ctx.Aircraft.Longitude = _targetLon;
                 return true;

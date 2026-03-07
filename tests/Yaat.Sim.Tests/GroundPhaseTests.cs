@@ -422,11 +422,12 @@ public class GroundPhaseTests
 
         Assert.True(completed);
 
-        // Only HoldingShortPhase — no CrossingRunwayPhase, no TaxiingPhase
+        // HoldingShortPhase + HoldingInPositionPhase (no departure clearance)
         var phases = aircraft.Phases.Phases;
-        Assert.Equal(2, phases.Count);
+        Assert.Equal(3, phases.Count);
         Assert.IsType<TaxiingPhase>(phases[0]);
         Assert.IsType<HoldingShortPhase>(phases[1]);
+        Assert.IsType<HoldingInPositionPhase>(phases[2]);
     }
 
     // --- FIX 4: FollowingPhase hold-short awareness ---
