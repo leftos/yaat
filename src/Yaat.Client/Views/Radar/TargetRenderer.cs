@@ -36,7 +36,7 @@ public sealed class TargetRenderer : IDisposable
         TextSize = 12,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
+        Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
     };
 
     private readonly SKPaint _historyPaint = new()

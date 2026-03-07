@@ -93,7 +93,7 @@
                         <Grid ColumnDefinitions="*,Auto" Margin="0,2">
                             <TextBox Grid.Column="0"
                                      Text="{Binding Text}"
-                                     FontFamily="Consolas,Courier New,monospace"
+                                     FontFamily="{StaticResource MonoFont}"
                                      FontSize="11" />
                             <Button Grid.Column="1"
                                     Content="X"

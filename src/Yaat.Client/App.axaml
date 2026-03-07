@@ -4,6 +4,7 @@
              RequestedThemeVariant="Dark">
     <Application.Resources>
         <SolidColorBrush x:Key="SubtleTextBrush" Color="#B0B0B0" />
+        <FontFamily x:Key="MonoFont">Consolas,Menlo,DejaVu Sans Mono,monospace</FontFamily>
     </Application.Resources>
 
     <Application.Styles>

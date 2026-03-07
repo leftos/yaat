@@ -47,11 +47,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
-    private readonly SKPaint _hitTestPaint = new()
-    {
-        TextSize = 12,
-        Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
-    };
+    private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = Services.PlatformHelper.MonospaceTypefaceBold };
     private int? _hoveredNodeId;
     private bool _hasFitBounds;
     private bool _isDraggingDataBlock;
@@ -325,7 +321,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             var ac = FindAircraftAtPoint(pos);
             if (ac is not null)
             {
-                if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+                if (Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
                 {
                     AircraftCtrlClicked?.Invoke(ac.Callsign);
                 }

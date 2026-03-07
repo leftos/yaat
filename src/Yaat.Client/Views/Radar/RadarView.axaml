@@ -8,7 +8,7 @@
     <UserControl.Styles>
         <!-- STARS DCB button: strip Fluent chrome, dark-green theme -->
         <Style Selector="Button.dcb">
-            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="#00B800" />
             <Setter Property="Background" Value="Transparent" />
@@ -53,7 +53,7 @@
 
         <!-- Half-height DCB button for split cells -->
         <Style Selector="Button.dcb-half">
-            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="#00B800" />
             <Setter Property="Background" Value="Transparent" />
@@ -97,7 +97,7 @@
 
         <!-- Map shortcut button (double-height, no MinWidth) -->
         <Style Selector="Button.dcb-map">
-            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="#00B800" />
             <Setter Property="Background" Value="Transparent" />
@@ -150,8 +150,8 @@
                 <!-- Col 0: RANGE spinner (spans 2 rows) -->
                 <Button x:Name="RangeButton" Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Click="OnRangeClick">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="RANGE" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
-                        <TextBlock Text="{Binding RangeNm, StringFormat='{}{0:F0}'}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="RANGE" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                        <TextBlock Text="{Binding RangeNm, StringFormat='{}{0:F0}'}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                     </StackPanel>
                 </Button>
 
@@ -162,8 +162,8 @@
                 <!-- Col 2: RR spinner (spans 2 rows) — click toggles size adjust, scroll changes size -->
                 <Button x:Name="RrButton" Classes="dcb" Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Click="OnRrSizeClick">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="RR" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
-                        <TextBlock Text="{Binding RangeRingSizeNm, StringFormat='{}{0:F0}'}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="RR" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                        <TextBlock Text="{Binding RangeRingSizeNm, StringFormat='{}{0:F0}'}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                     </StackPanel>
                 </Button>
 
@@ -185,8 +185,8 @@
                         <DataTemplate x:DataType="vm:MapShortcutItem">
                             <Button Classes="dcb-map" Classes.active="{Binding IsEnabled}" Tag="{Binding}" Click="OnMapShortcutClick" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding StarsId}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
-                                    <TextBlock Text="{Binding ShortName}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="72" />
+                                    <TextBlock Text="{Binding StarsId}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                                    <TextBlock Text="{Binding ShortName}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="72" />
                                 </StackPanel>
                             </Button>
                         </DataTemplate>
@@ -216,27 +216,27 @@
                 <!-- Col 16: LDR DIR/N / LDR/2 (disabled split) -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="16" IsEnabled="False">
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="LDR DIR" FontFamily="Consolas" FontSize="11" />
-                        <TextBlock Text="N" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="LDR DIR" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                        <TextBlock Text="N" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                     </StackPanel>
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="16" IsEnabled="False">
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="LDR" FontFamily="Consolas" FontSize="11" />
-                        <TextBlock Text="2" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="LDR" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                        <TextBlock Text="2" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                     </StackPanel>
                 </Button>
 
                 <!-- Col 17: CHAR SIZE (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="17" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="CHAR&#x0a;SIZE" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock Text="CHAR&#x0a;SIZE" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 18: MODE / FSL (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="18" Grid.RowSpan="2" IsEnabled="False">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="MODE" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
-                        <TextBlock Text="FSL" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="MODE" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                        <TextBlock Text="FSL" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                     </StackPanel>
                 </Button>
 
@@ -246,8 +246,8 @@
                 <!-- Col 20: SITE / FUSED (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="20" Grid.RowSpan="2" IsEnabled="False">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="SITE" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
-                        <TextBlock Text="FUSED" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="SITE" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                        <TextBlock Text="FUSED" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                     </StackPanel>
                 </Button>
 
@@ -273,7 +273,7 @@
 
                 <!-- Col 3: CURSOR HOME (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="CURSOR&#x0a;HOME" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock Text="CURSOR&#x0a;HOME" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 4: CSR SPD (disabled, spans 2 rows) -->
@@ -281,7 +281,7 @@
 
                 <!-- Col 5: MAP UNCOR (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="5" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="MAP&#x0a;UNCOR" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock Text="MAP&#x0a;UNCOR" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 6: UNCOR (disabled, spans 2 rows) -->
@@ -289,7 +289,7 @@
 
                 <!-- Col 7: BEACON MODE-2 (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="7" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="BEACON&#x0a;MODE-2" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock Text="BEACON&#x0a;MODE-2" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 8: RTQC (disabled, spans 2 rows) -->
@@ -309,8 +309,8 @@
                 <!-- Col 12: PTL LNTH spinner (spans 2 rows) -->
                 <Button x:Name="PtlLnthButton" Classes="dcb" Grid.Row="0" Grid.Column="12" Grid.RowSpan="2" Click="OnPtlLnthClick">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="PTL" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
-                        <TextBlock Text="{Binding PtlLengthMinutes, StringFormat='{}{0:F1}'}" HorizontalAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                        <TextBlock Text="PTL" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                        <TextBlock Text="{Binding PtlLengthMinutes, StringFormat='{}{0:F1}'}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                     </StackPanel>
                 </Button>
 
@@ -320,12 +320,12 @@
 
                 <!-- Col 14: DWELL ON (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="14" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="DWELL&#x0a;ON" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock Text="DWELL&#x0a;ON" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 15: TPA/ATPA (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="15" Grid.RowSpan="2" IsEnabled="False">
-                    <TextBlock Text="TPA/&#x0a;ATPA" TextAlignment="Center" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock Text="TPA/&#x0a;ATPA" TextAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 16: TSAS / TIME LINE (disabled split) -->
@@ -341,71 +341,71 @@
 
                 <!-- Col 0: DCB / BKC (not wired) -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="0" IsEnabled="False">
-                    <TextBlock x:Name="BriteDcbText" Text="DCB 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteDcbText" Text="DCB 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="0" IsEnabled="False">
-                    <TextBlock x:Name="BriteBkcText" Text="BKC 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteBkcText" Text="BKC 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 1: MPA / MPB -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="1" Tag="{x:Static vm:BriteTarget.MapA}" Click="OnBriteButtonClick">
-                    <TextBlock x:Name="BriteMpaText" Text="MPA 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteMpaText" Text="MPA 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="1" Tag="{x:Static vm:BriteTarget.MapB}" Click="OnBriteButtonClick">
-                    <TextBlock x:Name="BriteMpbText" Text="MPB 60" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteMpbText" Text="MPB 60" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 2: FDB / LST (not wired) -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="2" IsEnabled="False">
-                    <TextBlock x:Name="BriteFdbText" Text="FDB 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteFdbText" Text="FDB 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="2" IsEnabled="False">
-                    <TextBlock x:Name="BriteLstText" Text="LST 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteLstText" Text="LST 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 3: POS / LDB (not wired) -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="3" IsEnabled="False">
-                    <TextBlock x:Name="BritePosText" Text="POS 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BritePosText" Text="POS 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="3" IsEnabled="False">
-                    <TextBlock x:Name="BriteLdbText" Text="LDB 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteLdbText" Text="LDB 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 4: OTH / TLS (not wired) -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="4" IsEnabled="False">
-                    <TextBlock x:Name="BriteOthText" Text="OTH 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteOthText" Text="OTH 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="4" IsEnabled="False">
-                    <TextBlock x:Name="BriteTlsText" Text="TLS 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteTlsText" Text="TLS 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 5: RR / CMP -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="5" Tag="{x:Static vm:BriteTarget.RangeRing}" Click="OnBriteButtonClick">
-                    <TextBlock x:Name="BriteRrText" Text="RR 60" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteRrText" Text="RR 60" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="5" IsEnabled="False">
-                    <TextBlock x:Name="BriteCmpText" Text="CMP 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteCmpText" Text="CMP 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 6: BCN / PRI (not wired) -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="6" IsEnabled="False">
-                    <TextBlock x:Name="BriteBcnText" Text="BCN 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteBcnText" Text="BCN 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="6" IsEnabled="False">
-                    <TextBlock x:Name="BritePriText" Text="PRI 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BritePriText" Text="PRI 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 7: HST / WX (not wired) -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="7" IsEnabled="False">
-                    <TextBlock x:Name="BriteHstText" Text="HST 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteHstText" Text="HST 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="7" IsEnabled="False">
-                    <TextBlock x:Name="BriteWxText" Text="WX 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteWxText" Text="WX 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 8: WXC / (empty) (not wired) -->
                 <Button Classes="dcb-half" Grid.Row="0" Grid.Column="8" IsEnabled="False">
-                    <TextBlock x:Name="BriteWxcText" Text="WXC 100" FontFamily="Consolas" FontSize="11" />
+                    <TextBlock x:Name="BriteWxcText" Text="WXC 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
                 <!-- Col 9: DONE (spans 2 rows) — returns to Main -->
@@ -450,7 +450,7 @@
                    Placement="Bottom">
                 <Border Background="#0D1A0D" BorderBrush="#1A3A1A" BorderThickness="1" Padding="6">
                     <StackPanel Spacing="4" Width="240">
-                        <TextBox x:Name="MapSearchInput" Watermark="Search by name or #..." Text="{Binding MapSearchText}" FontSize="11" FontFamily="Consolas" Foreground="#00B800" Background="#0D1A0D" KeyDown="OnMapSearchKeyDown" />
+                        <TextBox x:Name="MapSearchInput" Watermark="Search by name or #..." Text="{Binding MapSearchText}" FontSize="11" FontFamily="{StaticResource MonoFont}" Foreground="#00B800" Background="#0D1A0D" KeyDown="OnMapSearchKeyDown" />
                         <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding MapToggles}">
                                 <ItemsControl.ItemTemplate>
@@ -460,7 +460,7 @@
                                                   Click="OnMapToggleClick"
                                                   Margin="0,1"
                                                   FontSize="11"
-                                                  FontFamily="Consolas"
+                                                  FontFamily="{StaticResource MonoFont}"
                                                   Foreground="#00B800">
                                             <TextBlock Text="{Binding DisplayLabel}" TextTrimming="CharacterEllipsis" />
                                         </CheckBox>
@@ -503,10 +503,10 @@
                     <StackPanel Spacing="6" Width="280">
                         <TextBlock x:Name="WaypointConditionHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
                         <TextBlock Text="Crossing altitude" FontSize="11" Foreground="#999" />
-                        <TextBox x:Name="WaypointConditionAltitude" Watermark="e.g. 100, A100, B100" FontSize="12" FontFamily="Consolas" KeyDown="OnWaypointConditionKeyDown" />
+                        <TextBox x:Name="WaypointConditionAltitude" Watermark="e.g. 100, A100, B100" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWaypointConditionKeyDown" />
                         <TextBlock Text="A=at or above, B=at or below, plain=exact. Hundreds of feet." FontSize="10" Foreground="#777" TextWrapping="Wrap" />
                         <TextBlock Text="Commands (executed as AT condition)" FontSize="11" Foreground="#999" Margin="0,4,0,0" />
-                        <TextBox x:Name="WaypointConditionCommands" Watermark="e.g. SPD 250, FH 270" FontSize="12" FontFamily="Consolas" KeyDown="OnWaypointConditionKeyDown" />
+                        <TextBox x:Name="WaypointConditionCommands" Watermark="e.g. SPD 250, FH 270" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWaypointConditionKeyDown" />
                         <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
                             <Button Content="OK" Click="OnWaypointConditionSubmit" Padding="8,2" FontSize="11" />
                             <Button Content="Clear" Click="OnWaypointConditionClear" Padding="8,2" FontSize="11" />
@@ -524,7 +524,7 @@
                 <Border Background="#222" BorderBrush="#555" BorderThickness="1" CornerRadius="2">
                     <ListBox x:Name="ListPopupItems"
                              MaxHeight="300" Width="120"
-                             FontSize="12" FontFamily="Consolas"
+                             FontSize="12" FontFamily="{StaticResource MonoFont}"
                              Background="#222" Foreground="#CCC"
                              SelectionChanged="OnListPopupSelectionChanged" />
                 </Border>
@@ -538,12 +538,12 @@
                 <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="4" CornerRadius="2">
                     <StackPanel Width="200" Spacing="4">
                         <TextBox x:Name="FilteredListText"
-                                 FontSize="12" FontFamily="Consolas"
+                                 FontSize="12" FontFamily="{StaticResource MonoFont}"
                                  Watermark="Fix name..."
                                  KeyDown="OnFilteredListKeyDown" />
                         <ListBox x:Name="FilteredListItems"
                                  MaxHeight="250"
-                                 FontSize="12" FontFamily="Consolas"
+                                 FontSize="12" FontFamily="{StaticResource MonoFont}"
                                  Background="#222" Foreground="#CCC"
                                  SelectionChanged="OnFilteredListSelectionChanged" />
                     </StackPanel>

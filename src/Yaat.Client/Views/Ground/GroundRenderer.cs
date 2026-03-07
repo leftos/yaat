@@ -119,7 +119,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 15,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        Typeface = Services.PlatformHelper.MonospaceTypeface,
         TextAlign = SKTextAlign.Center,
     };
 
@@ -147,7 +147,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 13,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
     private readonly SKPaint _activeRoutePaint = new()
@@ -177,7 +177,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 12,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
     private readonly SKPaint _aircraftPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
@@ -194,7 +194,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 12,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
+        Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
     };
 
     private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(0, 0, 0, 160), Style = SKPaintStyle.Fill };
@@ -215,7 +215,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 10,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
     private readonly SKPaint _debugEdgeLabelPaint = new()
@@ -224,7 +224,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 9,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
     private readonly List<LabelCandidate> _labelCandidates = new(256);

@@ -41,7 +41,7 @@ public sealed class RadarRenderer : IDisposable
         TextSize = 14,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
     private static readonly SKColor ProgrammedFixColor = new(0, 220, 200);
@@ -60,7 +60,7 @@ public sealed class RadarRenderer : IDisposable
         TextSize = 14,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
     private static readonly SKColor RouteDrawColor = new(255, 200, 0);
@@ -96,7 +96,7 @@ public sealed class RadarRenderer : IDisposable
         TextSize = 13,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
     private readonly SKPaint _routeConditionLabelPaint = new()
@@ -105,7 +105,7 @@ public sealed class RadarRenderer : IDisposable
         TextSize = 11,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = SKTypeface.FromFamilyName("Consolas"),
+        Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
     public float BrightnessA

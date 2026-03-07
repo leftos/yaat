@@ -475,11 +475,12 @@ public partial class MainWindow : Window
 
             var flyout = new Flyout { Content = panel, Placement = PlacementMode.BottomEdgeAlignedLeft };
 
-            // Open on middle-click on the Distance column header
+            // Open on middle-click or Ctrl/Cmd+click on the Distance column header
             var columnHeader = header.GetVisualAncestors().OfType<DataGridColumnHeader>().FirstOrDefault() ?? (Control)header;
             columnHeader.PointerPressed += (_, e) =>
             {
-                if (e.GetCurrentPoint(columnHeader).Properties.IsMiddleButtonPressed)
+                var props = e.GetCurrentPoint(columnHeader).Properties;
+                if (props.IsMiddleButtonPressed || (props.IsLeftButtonPressed && Services.PlatformHelper.HasActionModifier(e.KeyModifiers)))
                 {
                     e.Handled = true;
                     flyout.ShowAt(columnHeader);

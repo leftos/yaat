@@ -78,7 +78,10 @@ public partial class FavoritesBarView : UserControl
             FontSize = 12,
         };
 
-        ToolTip.SetTip(btn, $"{fav.CommandText}\nLeft-click: execute\nCtrl+click: append to input\nRight-click: edit");
+        ToolTip.SetTip(
+            btn,
+            $"{fav.CommandText}\nLeft-click: execute\n{Services.PlatformHelper.ActionModifierName}+click: append to input\nRight-click: edit"
+        );
 
         btn.AddHandler(PointerPressedEvent, OnFavoritePointerPressed, RoutingStrategies.Tunnel);
         btn.Click += OnFavoriteClick;
@@ -121,7 +124,7 @@ public partial class FavoritesBarView : UserControl
         }
 
         // Ctrl+Left-click → append to input
-        if (props.IsLeftButtonPressed && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        if (props.IsLeftButtonPressed && Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
         {
             e.Handled = true;
             if (DataContext is MainViewModel vm)

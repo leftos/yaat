@@ -35,7 +35,7 @@
                 BorderBrush="#555"
                 BorderThickness="1">
             <TextBox x:Name="TaxiInputBox"
-                     FontFamily="Cascadia Mono,Consolas,Menlo,monospace"
+                     FontFamily="{StaticResource MonoFont}"
                      FontSize="14"
                      MinWidth="300"
                      Background="Transparent"

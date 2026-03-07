@@ -185,7 +185,7 @@
                                  Watermark="Type a command to test (e.g., FH 270, H270, T30L)" />
                         <TextBlock Text="{Binding TestCommandResult}"
                                    IsVisible="{Binding TestCommandResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                   FontFamily="Consolas,Menlo,monospace"
+                                   FontFamily="{StaticResource MonoFont}"
                                    Classes.error="{Binding TestCommandIsError}">
                             <TextBlock.Styles>
                                 <Style Selector="TextBlock">

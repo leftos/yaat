@@ -74,7 +74,7 @@ public partial class GroundView : UserControl
     {
         base.OnKeyDown(e);
 
-        if (e.Key == Key.D && e.KeyModifiers == KeyModifiers.Control && _canvas is not null)
+        if (e.Key == Key.D && Services.PlatformHelper.HasActionModifier(e.KeyModifiers) && _canvas is not null)
         {
             _canvas.ShowDebugInfo = !_canvas.ShowDebugInfo;
             e.Handled = true;

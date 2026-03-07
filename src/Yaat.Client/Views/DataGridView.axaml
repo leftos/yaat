@@ -29,7 +29,7 @@
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding PhaseSequenceDisplay}"
-                                       FontFamily="Consolas"
+                                       FontFamily="{StaticResource MonoFont}"
                                        FontSize="12" />
                         </StackPanel>
                         <!-- Pattern -->
@@ -61,7 +61,7 @@
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding FlightPlanDisplay}"
-                                       FontFamily="Consolas"
+                                       FontFamily="{StaticResource MonoFont}"
                                        FontSize="12" />
                         </StackPanel>
                         <!-- Remarks -->
@@ -72,7 +72,7 @@
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding Remarks}"
-                                       FontFamily="Consolas"
+                                       FontFamily="{StaticResource MonoFont}"
                                        FontSize="12" />
                         </StackPanel>
                         <!-- Navigation Route (only when divergent from filed route) -->
@@ -83,7 +83,7 @@
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
                             <TextBlock Text="{Binding NavigationRoute}"
-                                       FontFamily="Consolas"
+                                       FontFamily="{StaticResource MonoFont}"
                                        Foreground="SkyBlue"
                                        FontSize="12" />
                         </StackPanel>
