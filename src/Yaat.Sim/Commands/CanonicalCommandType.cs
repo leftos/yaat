@@ -95,6 +95,7 @@ public enum CanonicalCommandType
     TrackAircraft,
     DropTrack,
     InitiateHandoff,
+    ForceHandoff,
     AcceptHandoff,
     CancelHandoff,
     AcceptAllHandoffs,

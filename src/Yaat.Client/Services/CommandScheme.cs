@@ -122,6 +122,7 @@ public class CommandScheme
                 [CanonicalCommandType.TrackAircraft] = new() { Aliases = ["TRACK"], Format = "{verb}" },
                 [CanonicalCommandType.DropTrack] = new() { Aliases = ["DROP"], Format = "{verb}" },
                 [CanonicalCommandType.InitiateHandoff] = new() { Aliases = ["HO"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ForceHandoff] = new() { Aliases = ["HOF"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.AcceptHandoff] = new() { Aliases = ["ACCEPT", "A"], Format = "{verb}" },
                 [CanonicalCommandType.CancelHandoff] = new() { Aliases = ["CANCEL"], Format = "{verb}" },
                 [CanonicalCommandType.AcceptAllHandoffs] = new() { Aliases = ["ACCEPTALL"], Format = "{verb}" },

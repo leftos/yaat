@@ -289,6 +289,7 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 | Track | `TRACK` | — | — |
 | Drop | `DROP` | — | — |
 | Handoff | `HO 3Y` | — | `HO3Y` |
+| Force Handoff | `HOF 3Y` | — | `HOF3Y` |
 | Accept | `ACCEPT` | `A` | — |
 | Cancel | `CANCEL` | — | — |
 | Accept all | `ACCEPTALL` | — | — |
@@ -655,7 +656,8 @@ Resolution order: per-command `AS` prefix > persistent active position > student
 |---------|--------|
 | `TRACK` | Initiate control — take ownership of the aircraft |
 | `DROP` | Terminate control — release ownership |
-| `HO 3Y` | Handoff to TCP 3Y |
+| `HO 3Y` | Handoff to TCP 3Y (must own the aircraft) |
+| `HOF 3Y` | Force handoff to TCP 3Y (transfers ownership regardless of current owner) |
 | `ACCEPT` / `A` | Accept a pending inbound handoff |
 | `CANCEL` | Retract a pending outbound handoff |
 | `ACCEPTALL` | Accept all pending inbound handoffs (global — no callsign needed) |

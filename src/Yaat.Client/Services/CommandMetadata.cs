@@ -110,6 +110,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.TrackAircraft, "Track", null, false, "Track Operations"),
         new(CanonicalCommandType.DropTrack, "Drop Track", null, false, "Track Operations"),
         new(CanonicalCommandType.InitiateHandoff, "Handoff", "2B", false, "Track Operations"),
+        new(CanonicalCommandType.ForceHandoff, "Force Handoff", "2B", false, "Track Operations"),
         new(CanonicalCommandType.AcceptHandoff, "Accept Handoff", null, false, "Track Operations"),
         new(CanonicalCommandType.CancelHandoff, "Cancel Handoff", null, false, "Track Operations"),
         new(CanonicalCommandType.AcceptAllHandoffs, "Accept All Handoffs", null, true, "Track Operations"),

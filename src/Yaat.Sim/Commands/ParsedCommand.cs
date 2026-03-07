@@ -249,6 +249,8 @@ public record DropTrackCommand : ParsedCommand;
 
 public record InitiateHandoffCommand(string TcpCode) : ParsedCommand;
 
+public record ForceHandoffCommand(string TcpCode) : ParsedCommand;
+
 public record AcceptHandoffCommand : ParsedCommand;
 
 public record CancelHandoffCommand : ParsedCommand;
