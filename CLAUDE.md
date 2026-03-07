@@ -261,7 +261,7 @@ Separate repo. References Yaat.Sim via sibling project ref. Provides: SignalR co
 ```
 src/Yaat.Server/
   Program.cs                   # DI setup, VNAS/CIFP init, route mapping, AdminPassword validation
-  YaatOptions.cs               # IOptions: AdminPassword, ArtccResourcesPath
+  YaatOptions.cs               # IOptions: AdminPassword
 
   Hubs/
     TrainingHub.cs             # /hubs/training (JSON); room lifecycle + delegates to RoomEngine
@@ -318,7 +318,7 @@ src/Yaat.Server/
     CrcFormatters.cs           # Formatting helpers for CRC DTOs
     TopicFormatter.cs          # Topic subscription/message formatting
   Data/
-    AirportGroundDataService.cs  # IAirportGroundData impl; lazy GeoJSON load from ArtccResources/
+    AirportGroundDataService.cs  # IAirportGroundData impl; fetches GeoJSON from vNAS training API
     ArtccConfig.cs             # VNAS ARTCC config deserialization models (VideoMapConfig, StarsAreaConfig, etc.)
     ArtccConfigService.cs      # Downloads + caches ARTCC config; position/TCP resolution
     ArtccConfigService.Consolidation.cs  # Partial: STARS consolidation hierarchy + manual override integration
