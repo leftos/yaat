@@ -22,23 +22,25 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
   - [Command Reference](#command-reference)
   - [Altitude Arguments](#altitude-arguments)
   - [Command Chaining](#command-chaining)
-  - [Direct To (DCT)](#direct-to-dct)
+  - [Ground Commands](#ground-commands)
+  - [Helicopter Commands](#helicopter-commands)
   - [Tower Commands](#tower-commands)
   - [Pattern Commands](#pattern-commands)
   - [Approach Options](#approach-options)
-  - [Hold Commands](#hold-commands)
-  - [Speed Management](#speed-management)
   - [Approach Control Commands](#approach-control-commands)
+  - [Direct To (DCT)](#direct-to-dct)
   - [Navigation Commands](#navigation-commands)
+  - [Speed Management](#speed-management)
   - [Holding Patterns](#holding-patterns)
-  - [Ground Commands](#ground-commands)
-  - [Helicopter Commands](#helicopter-commands)
+  - [Hold Commands](#hold-commands)
   - [Track Operations](#track-operations)
   - [Conditional Blocks](#conditional-blocks)
   - [Wait Commands](#wait-commands)
   - [Delayed Aircraft Commands](#delayed-aircraft-commands)
   - [Add Aircraft (ADD)](#add-aircraft-add)
   - [Global Commands](#global-commands)
+  - [Force Override Commands](#force-override-commands)
+  - [Warp Commands](#warp-commands)
 - [Simulation Controls](#simulation-controls)
 - [Views](#views)
   - [Tabs and Pop-Out](#tabs-and-pop-out)
@@ -338,26 +340,46 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
   ```
   Climb to 1,400 ft and turn to 090. Then turn to 180. Then proceed direct MYCOB.
 
-### Direct To (DCT)
+### Ground Commands
 
-Navigate to one or more fixes:
+| Command | Effect |
+|---------|--------|
+| `PUSH` | Push back from parking (reverse at ~5 kts) |
+| `PUSH 270` | Push back facing heading 270 |
+| `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1 |
+| `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
+| `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
+| `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |
+| `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
+| `TAXI S T U @B12 NODEL` | Taxi via S, T, U to parking B12 (exempt from auto-delete) |
+| `HOLD` / `HP` | Hold position (stop wherever on the ground) |
+| `RES` / `RESUME` | Resume taxi after hold |
+| `CROSS 28L` | Cross runway 28L (clears hold-short) |
+| `CROSS B` | Cross taxiway B (clears hold-short) |
+| `HS B` | Hold short at the next intersection with taxiway B |
+| `HS 28L` | Hold short at the next runway 28L crossing |
+| `FOLLOW SWA123` | Follow another aircraft on the ground |
 
-```
-DCT SUNOL
-DCT SUNOL CEDES MYCOB
-```
+Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts.
 
-Fixes can also be specified as FRD (Fix-Radial-Distance) strings in the format `{fix}{radial:3}{distance:3}`:
+`HS` can be issued to a taxiing aircraft to add a hold-short point at the first upcoming intersection with the given taxiway or runway along the remaining route.
 
-```
-DCT JFK090020
-```
+Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop.
 
-This means "the point on the 090 radial from JFK at 20 NM." The fix name must be 2+ characters, followed by exactly 3 digits for the radial (degrees) and 3 digits for the distance (NM). FRD works anywhere a fix name is accepted: DCT arguments and AT conditions. AT conditions also support fix-radial (FR) format without distance — see Conditional Blocks below.
+### Helicopter Commands
 
-If the last fix in the list appears in the aircraft's filed route, the aircraft continues on its filed route from that point.
+Helicopters are detected automatically from the ICAO type designator. They use tighter traffic patterns (500ft AGL), steeper glideslopes (6°), and can take off/land vertically from non-runway positions.
 
-**Route validation** — When **Validate DCT fixes against route** is enabled in Settings > Scenarios, DCT commands to fixes not in the aircraft's filed route or expected approach are rejected. Use `DCTF` (force direct to) to override. Issue `EAPP` (Expect Approach) first to program approach fixes into the aircraft's route for validation purposes.
+| Command | Effect |
+|---------|--------|
+| `CTOPP` | Cleared for takeoff, present position — vertical liftoff from ramp, helipad, or parking |
+| `ATXI H1` | Air taxi to spot H1 — airborne below 100ft AGL, ~40 KIAS |
+| `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position) |
+| `LAND H1 NODEL` | Land at H1, exempt from auto-delete |
+
+Helicopters can also use all standard tower commands (`CTO`, `CTL`, `LUAW`, `TG`, `SG`, `GA`) with runway assignments — they hover-taxi onto the runway, hold position, and take off/land like fixed-wing aircraft. This is typical for IFR operations. `CTO` requires a runway; `CTOPP` does not.
+
+**Spawning helicopters:** Use the ADD command with a helicopter type (e.g., `H60`, `EC35`, `R44`). Use `%` prefix for helipad/parking spawn: `ADD V S P %H1 H60`.
 
 ### Tower Commands
 
@@ -461,40 +483,6 @@ All pattern entry commands (ELB, ERB, ELD, ERD, EF) accept an optional runway ar
 
 TG, SG, and LA set pattern mode — the aircraft will continue doing touch-and-goes after the next approach. Use `MLT`/`MRT` to specify traffic direction, or combine: `TG, MLT`.
 
-### Hold Commands
-
-| Command | Effect |
-|---------|--------|
-| `HPPL` / `HPPR` | Hold present position, left/right 360° orbits |
-| `HPP` | Hold present position (hover, for helicopters) |
-| `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right orbits |
-| `HFIX {fix}` | Fly to fix, then hover |
-
-Any heading, altitude, or speed command clears the hold.
-
-### Speed Management
-
-| Command | Effect |
-|---------|--------|
-| `SPD 210` | Exact speed: maintain 210 knots |
-| `SPD 210+` | Speed floor: maintain 210 knots or greater |
-| `SPD 210-` | Speed ceiling: do not exceed 210 knots |
-| `RNS` / `NS` | Resume normal speed: clears speed/floor/ceiling, preserves SID/STAR via mode |
-| `DSR` | Delete speed restrictions: clears all speed + suppresses via-mode speed at future waypoints |
-| `SPD 210; ATFN 10 SPD 180` | Maintain 210, then at 10nm final slow to 180 |
-| `SPD 210 UNTIL 10` | Shorthand: maintain 210 until 10nm final, then cancel |
-| `SPD 210 UNTIL 10; SPD 180 UNTIL 5` | Chained: maintain 210, at 10nm final slow to 180, at 5nm final cancel |
-
-**Floor and ceiling** — `SPD 210+` sets a minimum speed; the aircraft accelerates only if below 210 but maintains its current speed if already faster. `SPD 210-` sets a maximum; the aircraft decelerates only if above 210. Both are enforced continuously and respect the 250-knot limit below 10,000 ft. An exact speed command (`SPD 210`) clears any active floor or ceiling.
-
-**ATFN (at final)** — `ATFN {distance}` is a compound-block condition that fires when the aircraft is within the specified distance (in NM) of the assigned runway threshold. Use it to set up staged speed reductions on approach: `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.
-
-**SPD UNTIL shorthand** — `SPD 210 UNTIL 10` expands to `SPD 210; ATFN 10 RNS`. When chained, intermediate blocks are generated automatically: `SPD 210 UNTIL 10; SPD 180 UNTIL 5` becomes `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.
-
-**Auto-cancel at 5nm final** — Per 7110.65 §5-7-1, ATC speed assignments (target, floor, ceiling) are automatically cancelled when the aircraft is within 5nm of the runway threshold. New speed commands are rejected inside this boundary.
-
-**DSR interaction** — `DSR` suppresses SID/STAR via-mode speed constraints at waypoints. The aircraft still follows altitude restrictions but ignores published speed restrictions. A new `SPD` command, `CVIA`, or `DVIA` clears the DSR flag and re-engages speed constraint compliance.
-
 ### Approach Control Commands
 
 Approach clearances use FAA CIFP procedure data. Approach IDs can be full CIFP identifiers (e.g., `I28R`) or common shorthand (e.g., `ILS28R`, `RNAV17L`, `LOC30`).
@@ -552,6 +540,27 @@ The aircraft execution path depends on its position relative to the runway:
 
 **Approach scoring:** When an aircraft completes an approach (lands or goes around), the terminal shows an approach report evaluating the quality of the approach setup. Scored criteria include intercept angle, glideslope interception altitude, final approach speed, and stabilization. This provides feedback to the controller-in-training. **Scenario > Approach Report** opens a summary window showing all approach reports from the current session.
 
+### Direct To (DCT)
+
+Navigate to one or more fixes:
+
+```
+DCT SUNOL
+DCT SUNOL CEDES MYCOB
+```
+
+Fixes can also be specified as FRD (Fix-Radial-Distance) strings in the format `{fix}{radial:3}{distance:3}`:
+
+```
+DCT JFK090020
+```
+
+This means "the point on the 090 radial from JFK at 20 NM." The fix name must be 2+ characters, followed by exactly 3 digits for the radial (degrees) and 3 digits for the distance (NM). FRD works anywhere a fix name is accepted: DCT arguments and AT conditions. AT conditions also support fix-radial (FR) format without distance — see Conditional Blocks below.
+
+If the last fix in the list appears in the aircraft's filed route, the aircraft continues on its filed route from that point.
+
+**Route validation** — When **Validate DCT fixes against route** is enabled in Settings > Scenarios, DCT commands to fixes not in the aircraft's filed route or expected approach are rejected. Use `DCTF` (force direct to) to override. Issue `EAPP` (Expect Approach) first to program approach fixes into the aircraft's route for validation purposes.
+
 ### Navigation Commands
 
 | Command | Effect |
@@ -577,6 +586,29 @@ The aircraft execution path depends on its position relative to the runway:
 
 `CVIA 190` and `DVIA 240` enable via mode with an altitude cap/floor — "climb/descend via, except maintain." `FH`, `DCT`, and heading commands clear the entire procedure (lateral path + via mode). When CIFP data is unavailable, JARR and CTO fall back to NavData fix lists (lateral path only, no constraints).
 
+### Speed Management
+
+| Command | Effect |
+|---------|--------|
+| `SPD 210` | Exact speed: maintain 210 knots |
+| `SPD 210+` | Speed floor: maintain 210 knots or greater |
+| `SPD 210-` | Speed ceiling: do not exceed 210 knots |
+| `RNS` / `NS` | Resume normal speed: clears speed/floor/ceiling, preserves SID/STAR via mode |
+| `DSR` | Delete speed restrictions: clears all speed + suppresses via-mode speed at future waypoints |
+| `SPD 210; ATFN 10 SPD 180` | Maintain 210, then at 10nm final slow to 180 |
+| `SPD 210 UNTIL 10` | Shorthand: maintain 210 until 10nm final, then cancel |
+| `SPD 210 UNTIL 10; SPD 180 UNTIL 5` | Chained: maintain 210, at 10nm final slow to 180, at 5nm final cancel |
+
+**Floor and ceiling** — `SPD 210+` sets a minimum speed; the aircraft accelerates only if below 210 but maintains its current speed if already faster. `SPD 210-` sets a maximum; the aircraft decelerates only if above 210. Both are enforced continuously and respect the 250-knot limit below 10,000 ft. An exact speed command (`SPD 210`) clears any active floor or ceiling.
+
+**ATFN (at final)** — `ATFN {distance}` is a compound-block condition that fires when the aircraft is within the specified distance (in NM) of the assigned runway threshold. Use it to set up staged speed reductions on approach: `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.
+
+**SPD UNTIL shorthand** — `SPD 210 UNTIL 10` expands to `SPD 210; ATFN 10 RNS`. When chained, intermediate blocks are generated automatically: `SPD 210 UNTIL 10; SPD 180 UNTIL 5` becomes `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.
+
+**Auto-cancel at 5nm final** — Per 7110.65 §5-7-1, ATC speed assignments (target, floor, ceiling) are automatically cancelled when the aircraft is within 5nm of the runway threshold. New speed commands are rejected inside this boundary.
+
+**DSR interaction** — `DSR` suppresses SID/STAR via-mode speed constraints at waypoints. The aircraft still follows altitude restrictions but ignores published speed restrictions. A new `SPD` command, `CVIA`, or `DVIA` clears the DSR flag and re-engages speed constraint compliance.
+
 ### Holding Patterns
 
 | Command | Effect |
@@ -587,46 +619,16 @@ The aircraft execution path depends on its position relative to the runway:
 
 Hold format: `HOLD {fix} {L/R} {inbound_course} {leg_length}`. Leg length ending in `M` is minutes; plain number is nautical miles. Any RPO command (heading, altitude, approach, etc.) exits the hold.
 
-### Ground Commands
+### Hold Commands
 
 | Command | Effect |
 |---------|--------|
-| `PUSH` | Push back from parking (reverse at ~5 kts) |
-| `PUSH 270` | Push back facing heading 270 |
-| `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1 |
-| `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
-| `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
-| `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |
-| `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
-| `TAXI S T U @B12 NODEL` | Taxi via S, T, U to parking B12 (exempt from auto-delete) |
-| `HOLD` / `HP` | Hold position (stop wherever on the ground) |
-| `RES` / `RESUME` | Resume taxi after hold |
-| `CROSS 28L` | Cross runway 28L (clears hold-short) |
-| `CROSS B` | Cross taxiway B (clears hold-short) |
-| `HS B` | Hold short at the next intersection with taxiway B |
-| `HS 28L` | Hold short at the next runway 28L crossing |
-| `FOLLOW SWA123` | Follow another aircraft on the ground |
+| `HPPL` / `HPPR` | Hold present position, left/right 360° orbits |
+| `HPP` | Hold present position (hover, for helicopters) |
+| `HFIXL {fix}` / `HFIXR {fix}` | Fly to fix, then left/right orbits |
+| `HFIX {fix}` | Fly to fix, then hover |
 
-Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts.
-
-`HS` can be issued to a taxiing aircraft to add a hold-short point at the first upcoming intersection with the given taxiway or runway along the remaining route.
-
-Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop.
-
-### Helicopter Commands
-
-Helicopters are detected automatically from the ICAO type designator. They use tighter traffic patterns (500ft AGL), steeper glideslopes (6°), and can take off/land vertically from non-runway positions.
-
-| Command | Effect |
-|---------|--------|
-| `CTOPP` | Cleared for takeoff, present position — vertical liftoff from ramp, helipad, or parking |
-| `ATXI H1` | Air taxi to spot H1 — airborne below 100ft AGL, ~40 KIAS |
-| `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position) |
-| `LAND H1 NODEL` | Land at H1, exempt from auto-delete |
-
-Helicopters can also use all standard tower commands (`CTO`, `CTL`, `LUAW`, `TG`, `SG`, `GA`) with runway assignments — they hover-taxi onto the runway, hold position, and take off/land like fixed-wing aircraft. This is typical for IFR operations. `CTO` requires a runway; `CTOPP` does not.
-
-**Spawning helicopters:** Use the ADD command with a helicopter type (e.g., `H60`, `EC35`, `R44`). Use `%` prefix for helipad/parking spawn: `ADD V S P %H1 H60`.
+Any heading, altitude, or speed command clears the hold.
 
 ### Track Operations
 
