@@ -56,7 +56,7 @@ jobs:
               system: "You are writing a daily development digest for the YAAT (Yet Another ATC Trainer) Discord server. YAAT is a desktop ATC training app with three components: a client (Avalonia UI), a shared simulation library (Yaat.Sim — flight physics, phases, commands, navigation), and a server (ASP.NET Core — SignalR comms, CRC protocol, training rooms). The app simulates realistic ATC scenarios for controller training.",
               messages: [{
                 role: "user",
-                content: ("Summarize today'\''s development activity into a Discord message. Write an informed, contextual summary — not just a list of commits. Explain what changed and why it matters. Group related work together. Mention specific features, bug fixes, or infrastructure changes by name. Keep it under 400 words. Use bold for emphasis and bullet points for structure. Do not use headings, code blocks, or other markdown. Do not add preamble or sign-off.\n\n" + $commits)
+                content: ("Summarize today'\''s development activity into a Discord message. Write an informed, contextual summary — not just a list of commits. Explain what changed and why it matters. Group related work together. Mention specific features, bug fixes, or infrastructure changes by name. Keep it under 400 words. Use bold for emphasis and bullet points (- not •) for structure. Do not use headings, code blocks, or other markdown. Do not add preamble or sign-off.\n\n" + $commits)
               }]
             }' > /tmp/claude_payload.json
 
@@ -79,7 +79,7 @@ jobs:
           python3 -c "
           import json, sys
 
-          text = open('/tmp/summary.txt').read().strip()
+          text = open('/tmp/summary.txt', encoding='utf-8').read().strip()
           limit = 4000
           chunks = []
           current = ''
@@ -105,7 +105,7 @@ jobs:
                   embed['timestamp'] = ts
               embeds.append(embed)
 
-          json.dump({'embeds': embeds}, open('/tmp/discord_payload.json', 'w'))
+          json.dump({'embeds': embeds}, open('/tmp/discord_payload.json', 'w', encoding='utf-8'), ensure_ascii=False)
           " "Daily Dev Digest — ${TODAY}" "$TIMESTAMP"
 
           curl -sS -f -H "Content-Type: application/json" -d @/tmp/discord_payload.json "$DISCORD_WEBHOOK_URL"
