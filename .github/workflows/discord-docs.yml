@@ -69,6 +69,9 @@ jobs:
           def rewrite_link(m):
               label, path = m.group(1), m.group(2)
               if path.startswith('http') or path.startswith('#'):
+                  # Discord doesn't render [url](url) — just emit the bare URL
+                  if label.startswith('http'):
+                      return path
                   return m.group(0)
               # Strip leading ../ since all docs are at repo root
               clean = path.lstrip('./')
