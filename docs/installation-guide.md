@@ -126,6 +126,47 @@ Once the client window opens:
 
 You're now ready to create a room and load a scenario. See the [User Guide](../USER_GUIDE.md) for detailed usage instructions.
 
+## Step 6: Connect CRC (Optional)
+
+If you want students to connect with [CRC](https://crc.virtualnas.net) (the VATSIM radar client), you need to tell CRC where your YAAT server is.
+
+### Option A: Use the Setup Script (Recommended)
+
+The server repo includes a script that configures CRC automatically:
+
+```powershell
+cd C:\dev\yaat-server
+.\Setup-CrcEnvironment.ps1
+```
+
+This finds your CRC installation via the registry and creates or updates its `DevEnvironments.json` file with a "YAAT Local" entry pointing to `http://localhost:5000`.
+
+### Option B: Configure Manually
+
+1. Find your CRC installation folder (check `HKCU:\Software\CRC\Install_Dir` in the registry, or look in `%LOCALAPPDATA%\Programs\crc`)
+2. Create or edit `DevEnvironments.json` in that folder with:
+
+```json
+[
+  {
+    "name": "YAAT Local",
+    "clientHubUrl": "http://localhost:5000/hubs/client",
+    "apiBaseUrl": "http://localhost:5000",
+    "isDisabled": false,
+    "isSweatbox": false
+  }
+]
+```
+
+### Connecting from CRC
+
+1. Make sure the YAAT server is running
+2. Restart CRC (it reads `DevEnvironments.json` on startup)
+3. In CRC's environment selector, choose **YAAT Local**
+4. Connect with your VATSIM credentials — the instructor can then pull you into a room from the YAAT client
+
+See the [User Guide](../USER_GUIDE.md#students-panel) for managing CRC clients from the instructor side.
+
 ## Updating to the Latest Version
 
 When there's a new version available:
