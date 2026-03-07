@@ -88,11 +88,19 @@ public sealed class RunwayExitPhase : Phase
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
 
-        // Check arrival
+        // Check arrival — use a capture radius that accounts for the distance
+        // the aircraft can travel in one tick to prevent overshooting at low speeds.
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
+        double perTickNm = ctx.Aircraft.GroundSpeed / 3600.0 * ctx.DeltaSeconds;
+        double captureRadius = Math.Max(ArrivalThresholdNm, perTickNm * 1.5);
 
-        if (dist <= ArrivalThresholdNm)
+        if (dist <= captureRadius)
         {
+            // Snap position to the target node to prevent drift/overshoot
+            ctx.Aircraft.Latitude = target.Latitude;
+            ctx.Aircraft.Longitude = target.Longitude;
+            ctx.Aircraft.Heading = bearing;
+
             if (!_reachedExitNode)
             {
                 _reachedExitNode = true;

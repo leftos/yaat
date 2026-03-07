@@ -269,6 +269,12 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
+            // Skip nodes that sit on the runway surface — they're not valid exit points
+            if (HasRunwayCenterlineEdge(node))
+            {
+                continue;
+            }
+
             double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
             if (dist > maxSearchNm)
             {
