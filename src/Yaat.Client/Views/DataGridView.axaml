@@ -6,7 +6,6 @@
 
     <DataGrid x:Name="AircraftGrid"
               ItemsSource="{Binding AircraftView}"
-              SelectedItem="{Binding SelectedAircraft}"
               AutoGenerateColumns="False"
               IsReadOnly="True"
               GridLinesVisibility="Horizontal"

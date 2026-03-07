@@ -659,6 +659,15 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
 
             if (props.IsLeftButtonPressed)
             {
+                if (Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
+                {
+                    AircraftCtrlClicked?.Invoke(dataBlockAc.Callsign);
+                }
+                else
+                {
+                    AircraftLeftClicked?.Invoke(dataBlockAc.Callsign);
+                }
+
                 _isDraggingDataBlock = true;
                 _dragCallsign = dataBlockAc.Callsign;
                 _dragStartOffset = _dataBlockOffsets.TryGetValue(dataBlockAc.Callsign, out var off) ? off : DefaultDataBlockOffset;
@@ -772,19 +781,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         if (_isDraggingDataBlock)
         {
             _isDraggingDataBlock = false;
-
-            if (!_dragThresholdMet && _dragCallsign is not null)
-            {
-                if (Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
-                {
-                    AircraftCtrlClicked?.Invoke(_dragCallsign);
-                }
-                else
-                {
-                    AircraftLeftClicked?.Invoke(_dragCallsign);
-                }
-            }
-
             _dragCallsign = null;
             e.Handled = true;
             return;

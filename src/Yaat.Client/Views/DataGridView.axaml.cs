@@ -11,6 +11,8 @@ namespace Yaat.Client.Views;
 
 public partial class DataGridView : UserControl
 {
+    private bool _suppressSelectionFeedback;
+
     public DataGridView()
     {
         InitializeComponent();
@@ -31,8 +33,10 @@ public partial class DataGridView : UserControl
             return;
         }
 
+        grid.SelectionChanged += OnGridSelectionChanged;
         grid.DoubleTapped += OnGridDoubleTapped;
         grid.ContextRequested += OnGridContextRequested;
+        vm.PropertyChanged += OnViewModelPropertyChanged;
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
@@ -42,8 +46,49 @@ public partial class DataGridView : UserControl
         var grid = GetDataGrid();
         if (grid is not null)
         {
+            grid.SelectionChanged -= OnGridSelectionChanged;
             grid.ContextRequested -= OnGridContextRequested;
         }
+
+        if (DataContext is MainViewModel vm)
+        {
+            vm.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.SelectedAircraft))
+        {
+            _suppressSelectionFeedback = true;
+            try
+            {
+                var grid = GetDataGrid();
+                if (grid is not null && sender is MainViewModel vm)
+                {
+                    grid.SelectedItem = vm.SelectedAircraft;
+                }
+            }
+            finally
+            {
+                _suppressSelectionFeedback = false;
+            }
+        }
+    }
+
+    private void OnGridSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressSelectionFeedback)
+        {
+            return;
+        }
+
+        if (sender is not DataGrid grid || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        vm.SelectedAircraft = grid.SelectedItem as AircraftModel;
     }
 
     private static bool IsInDataRow(object? source)
