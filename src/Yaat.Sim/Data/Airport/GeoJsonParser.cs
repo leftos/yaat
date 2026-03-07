@@ -302,7 +302,9 @@ public static class GeoJsonParser
         double lon = coords[0].GetDouble();
         double lat = coords[1].GetDouble();
         string name = props.GetProperty("name").GetString() ?? "";
-        int heading = props.TryGetProperty("heading", out var h) ? h.GetInt32() : 0;
+        int heading = props.TryGetProperty("heading", out var h)
+            ? (h.ValueKind == JsonValueKind.String ? int.Parse(h.GetString()!) : h.GetInt32())
+            : 0;
         return new ParkingFeature(name, lat, lon, heading);
     }
 
