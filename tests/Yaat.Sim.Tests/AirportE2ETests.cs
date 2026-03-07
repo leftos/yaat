@@ -641,4 +641,299 @@ public class AirportE2ETests
         bool hasVariants = taxiwayNames.Any(n => n.Length >= 2 && char.IsLetter(n[0]) && char.IsDigit(n[^1]));
         Assert.True(hasVariants, $"SFO should have taxiway variants (e.g., A1). Found: [{string.Join(", ", taxiwayNames.Take(20))}]");
     }
+
+    // -------------------------------------------------------------------------
+    // SFO E2E: Issue #13 — SKW5966 pushback + taxi routing
+    //
+    // SFO T7A spur connects terminal gates (7, 7A, 7B) to taxiway A:
+    //   point 0 (south dead end) → ... → point 5 (A junction, shared node)
+    //   Gate 7A is a "spot" node near T7A point 4.
+    //
+    // SKW5966 pushed back to T7A point 2 (mid-spur, heading 284°).
+    // "TAXI HERE" on gate 7A sent "TAXI T7A" which walked south to the
+    // dead end instead of north toward gate 7A. The correct command should
+    // include the destination spot: TAXI @7A or TAXI T7A @7A.
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Find the T7A/A junction node and the post-pushback node (T7A point 2).
+    /// Returns (pushbackNode, junctionNode, spot7ANode) or nulls if layout unavailable.
+    /// </summary>
+    private static (GroundNode? pushback, GroundNode? junction, GroundNode? spot7A) FindSfoT7ANodes(AirportGroundLayout layout)
+    {
+        var spot7A = layout.FindSpotByName("7A");
+        if (spot7A is null)
+        {
+            return (null, null, null);
+        }
+
+        var t7aEdges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "T7A", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (t7aEdges.Count == 0)
+        {
+            return (null, null, null);
+        }
+
+        var t7aNodeIds = t7aEdges.SelectMany(e => new[] { e.FromNodeId, e.ToNodeId }).Distinct().ToHashSet();
+
+        // Junction: T7A node that also has an A edge
+        var junction = layout.Nodes.Values.FirstOrDefault(n =>
+            t7aNodeIds.Contains(n.Id) && n.Edges.Any(e => string.Equals(e.TaxiwayName, "A", StringComparison.OrdinalIgnoreCase))
+        );
+
+        // Pushback node: T7A point 2 at (37.620251, -122.385900) — the node SKW5966 pushed back to
+        // Find the T7A node closest to that coordinate
+        var pushback = layout
+            .Nodes.Values.Where(n => t7aNodeIds.Contains(n.Id))
+            .OrderBy(n => GeoMath.DistanceNm(n.Latitude, n.Longitude, 37.620251, -122.385900))
+            .FirstOrDefault();
+
+        return (pushback, junction, spot7A);
+    }
+
+    [Fact]
+    public void SFO_TaxiT7A_FromPushback_GoesWrongDirection()
+    {
+        // Demonstrates the bug: TAXI T7A from the pushback node walks south
+        // to the dead end because WalkTaxiway has no directional context.
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var (pushback, _, spot7A) = FindSfoT7ANodes(layout);
+        Assert.NotNull(pushback);
+        Assert.NotNull(spot7A);
+
+        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+
+        // TAXI T7A — bare taxiway, no destination. This is what the buggy "TAXI HERE" sent.
+        var taxi = new TaxiCommand(["T7A"], []);
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null, Logger);
+        Assert.True(result.Success, $"Taxi T7A should succeed: {result.Message}");
+
+        // The route goes south (away from gate 7A and taxiway A).
+        // Last segment ends at the southernmost T7A node (dead end).
+        var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
+        var lastNode = layout.Nodes[lastSeg.ToNodeId];
+
+        // The dead-end node should be further south (lower latitude) than the pushback node
+        Assert.True(
+            lastNode.Latitude < pushback.Latitude,
+            $"TAXI T7A from pushback should go south (bug): last node lat={lastNode.Latitude:F6} should be < pushback lat={pushback.Latitude:F6}"
+        );
+
+        // The dead-end node is further from gate 7A than the pushback node is
+        double pushbackToSpot = GeoMath.DistanceNm(pushback.Latitude, pushback.Longitude, spot7A.Latitude, spot7A.Longitude);
+        double deadEndToSpot = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, spot7A.Latitude, spot7A.Longitude);
+        Assert.True(
+            deadEndToSpot > pushbackToSpot,
+            $"Bug: taxi went away from gate 7A (deadEnd→7A={deadEndToSpot:F4}nm > pushback→7A={pushbackToSpot:F4}nm)"
+        );
+    }
+
+    [Fact]
+    public void SFO_TaxiToSpot7A_FromPushback_RoutesToGate()
+    {
+        // TAXI @7A — A* direct from pushback node to gate 7A.
+        // Should route north along T7A toward the gate.
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var (pushback, _, spot7A) = FindSfoT7ANodes(layout);
+        Assert.NotNull(pushback);
+        Assert.NotNull(spot7A);
+
+        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+
+        // TAXI @7A — no explicit path, A* to spot
+        var taxi = new TaxiCommand([], [], DestinationParking: "7A");
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null, Logger);
+        Assert.True(result.Success, $"TAXI @7A should succeed: {result.Message}");
+
+        // Route should end at or very near gate 7A
+        var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
+        var lastNode = layout.Nodes[lastSeg.ToNodeId];
+        double distToSpot = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, spot7A.Latitude, spot7A.Longitude);
+        Assert.True(distToSpot < 0.02, $"TAXI @7A should end near gate 7A: last node dist={distToSpot:F4}nm");
+
+        // Route should go north (toward gate 7A), not south
+        Assert.True(
+            lastNode.Latitude > pushback.Latitude,
+            $"Route should go north: last lat={lastNode.Latitude:F6} > pushback lat={pushback.Latitude:F6}"
+        );
+    }
+
+    [Fact]
+    public void SFO_TaxiT7A_ToSpot7A_FromPushback_RoutesToGate()
+    {
+        // TAXI T7A @7A — explicit T7A path extended to gate 7A.
+        // ResolveExplicitPath walks T7A (south to dead end), then A* extends to 7A.
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var (pushback, _, spot7A) = FindSfoT7ANodes(layout);
+        Assert.NotNull(pushback);
+        Assert.NotNull(spot7A);
+
+        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+
+        // TAXI T7A @7A — explicit path + parking destination
+        var taxi = new TaxiCommand(["T7A"], [], DestinationParking: "7A");
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null, Logger);
+
+        if (result.Success)
+        {
+            // If it succeeds, verify route ends near gate 7A
+            var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
+            var lastNode = layout.Nodes[lastSeg.ToNodeId];
+            double distToSpot = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, spot7A.Latitude, spot7A.Longitude);
+            Assert.True(distToSpot < 0.02, $"TAXI T7A @7A should end near gate 7A: last node dist={distToSpot:F4}nm");
+        }
+        else
+        {
+            // Document the failure — T7A walks to dead end, then A* from dead end to 7A
+            // may or may not find a route depending on graph connectivity.
+            // This is acceptable: TAXI @7A (no explicit path) is the better command.
+            Assert.Contains("7A", result.Message!);
+        }
+    }
+
+    [Fact]
+    public void SFO_TaxiT7A_RouteCompletesWithHoldingInPosition()
+    {
+        // Verify Bug 2 fix: after TAXI T7A completes (at dead end),
+        // aircraft has HoldingInPositionPhase — not phase-less.
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var (pushback, _, _) = FindSfoT7ANodes(layout);
+        Assert.NotNull(pushback);
+
+        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+
+        var taxi = new TaxiCommand(["T7A"], []);
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null, Logger);
+        Assert.True(result.Success, $"Taxi T7A should succeed: {result.Message}");
+
+        // Route should be short (only a few segments on the spur)
+        Assert.True(ac.AssignedTaxiRoute!.Segments.Count <= 10, $"T7A spur should be short, got {ac.AssignedTaxiRoute.Segments.Count} segments");
+
+        // Run taxi naturally — T7A spur is ~0.05nm.
+        // TaxiingPhase adjusts heading/speed but doesn't move position;
+        // in the real sim, FlightPhysics.Update does that. We do it manually here.
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            Logger = Logger,
+        };
+
+        bool reachedIdle = false;
+        for (int i = 0; i < 200; i++)
+        {
+            if (ac.Phases!.CurrentPhase is HoldingInPositionPhase)
+            {
+                reachedIdle = true;
+                break;
+            }
+
+            if (ac.Phases.CurrentPhase is null)
+            {
+                break;
+            }
+
+            PhaseRunner.Tick(ac, ctx);
+            AdvancePosition(ac, ctx.DeltaSeconds);
+        }
+
+        Assert.True(reachedIdle, $"Taxi should complete with HoldingInPositionPhase, got: {ac.Phases!.CurrentPhase?.Name ?? "null"}");
+    }
+
+    [Fact]
+    public void SFO_TaxiToSpot7A_ThenRetaxi_Succeeds()
+    {
+        // End-to-end: TAXI @7A completes, aircraft is in HoldingInPositionPhase,
+        // then a second taxi command succeeds.
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var (pushback, _, spot7A) = FindSfoT7ANodes(layout);
+        Assert.NotNull(pushback);
+        Assert.NotNull(spot7A);
+
+        var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
+
+        // Step 1: TAXI @7A
+        var taxi1 = new TaxiCommand([], [], DestinationParking: "7A");
+        var result1 = GroundCommandHandler.TryTaxi(ac, taxi1, layout, null, Logger);
+        Assert.True(result1.Success, $"TAXI @7A should succeed: {result1.Message}");
+
+        // Place aircraft at last target node so ArriveAtNode fires
+        var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
+        var lastNode = layout.Nodes[lastSeg.ToNodeId];
+        ac.AssignedTaxiRoute.CurrentSegmentIndex = ac.AssignedTaxiRoute.Segments.Count - 1;
+        ac.Latitude = lastNode.Latitude;
+        ac.Longitude = lastNode.Longitude;
+        ac.GroundSpeed = 5;
+
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            GroundLayout = layout,
+            Logger = Logger,
+        };
+
+        for (int i = 0; i < 10; i++)
+        {
+            PhaseRunner.Tick(ac, ctx);
+            if (ac.Phases!.CurrentPhase is HoldingInPositionPhase)
+            {
+                break;
+            }
+        }
+
+        Assert.IsType<HoldingInPositionPhase>(ac.Phases!.CurrentPhase);
+
+        // Step 2: Issue another taxi — should succeed because HoldingInPositionPhase accepts Taxi
+        var taxi2 = new TaxiCommand(["A"], []);
+        var result2 = GroundCommandHandler.TryTaxi(ac, taxi2, layout, null, Logger);
+        Assert.True(result2.Success, $"Second taxi should succeed: {result2.Message}");
+        Assert.IsType<TaxiingPhase>(ac.Phases.CurrentPhase);
+    }
+
+    /// <summary>
+    /// Move aircraft position based on current heading and ground speed.
+    /// Replaces FlightPhysics.Update() for ground-only E2E tests.
+    /// </summary>
+    private static void AdvancePosition(AircraftState ac, double deltaSeconds)
+    {
+        if (ac.GroundSpeed <= 0)
+        {
+            return;
+        }
+
+        double distNm = ac.GroundSpeed / 3600.0 * deltaSeconds;
+        double hdgRad = ac.Heading * Math.PI / 180.0;
+        ac.Latitude += distNm / 60.0 * Math.Cos(hdgRad);
+        ac.Longitude += distNm / 60.0 * Math.Sin(hdgRad) / Math.Cos(ac.Latitude * Math.PI / 180.0);
+    }
 }

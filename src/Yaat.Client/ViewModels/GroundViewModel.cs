@@ -143,7 +143,7 @@ public partial class GroundViewModel : ObservableObject
         foreach (var seg in route.Segments)
         {
             var name = seg.TaxiwayName;
-            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -435,11 +435,19 @@ public partial class GroundViewModel : ObservableObject
     /// Routes with no crossings return a single entry.
     /// Each entry: (displayLabel, command).
     /// </summary>
-    public List<(string Label, string Command)> BuildTaxiCrossingVariants(TaxiRoute route)
+    public List<(string Label, string Command)> BuildTaxiCrossingVariants(TaxiRoute route, string? spotName = null)
     {
         var taxiways = BuildTaxiCommand(route);
+        var spotSuffix = spotName is not null ? $" @{spotName}" : "";
+
         if (string.IsNullOrEmpty(taxiways))
         {
+            // No taxiway path but have a spot destination — route via @SPOT only
+            if (spotName is not null)
+            {
+                return [("", $"TAXI @{spotName}")];
+            }
+
             return [];
         }
 
@@ -454,13 +462,13 @@ public partial class GroundViewModel : ObservableObject
 
         if (crossings.Count == 0)
         {
-            return [("", $"TAXI {taxiways}")];
+            return [("", $"TAXI {taxiways}{spotSuffix}")];
         }
 
         var results = new List<(string Label, string Command)>();
 
         // Variation 0: hold short of first crossing
-        results.Add(($"HS {crossings[0]}", $"TAXI {taxiways} HS {crossings[0]}"));
+        results.Add(($"HS {crossings[0]}", $"TAXI {taxiways} HS {crossings[0]}{spotSuffix}"));
 
         // Variations 1..N-1: cross some, hold short of next
         for (int i = 0; i < crossings.Count - 1; i++)
@@ -468,13 +476,13 @@ public partial class GroundViewModel : ObservableObject
             var crossParts = crossings.Take(i + 1).Select(r => $"CROSS {r}");
             var holdAt = crossings[i + 1];
             var label = $"CROSS {string.Join(" ", crossings.Take(i + 1))} HS {holdAt}";
-            var cmd = $"TAXI {taxiways} HS {holdAt}, {string.Join(", ", crossParts)}";
+            var cmd = $"TAXI {taxiways} HS {holdAt}{spotSuffix}, {string.Join(", ", crossParts)}";
             results.Add((label, cmd));
         }
 
         // Variation N: cross all
         var allCrossParts = crossings.Select(r => $"CROSS {r}");
-        results.Add(($"CROSS {string.Join(" ", crossings)}", $"TAXI {taxiways}, {string.Join(", ", allCrossParts)}"));
+        results.Add(($"CROSS {string.Join(" ", crossings)}", $"TAXI {taxiways}{spotSuffix}, {string.Join(", ", allCrossParts)}"));
 
         return results;
     }

@@ -261,6 +261,16 @@ public sealed class TaxiingPhase : Phase
             ctx.Logger.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
 
             ApplyDepartureClearanceIfPending(ctx);
+
+            // If no departure clearance was consumed, insert an idle phase so the
+            // aircraft remains in a ground state that accepts subsequent commands.
+            // ApplyDepartureClearanceIfPending inserts after current; check if anything follows.
+            var phases = ctx.Aircraft.Phases;
+            if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
+            {
+                phases.InsertAfterCurrent(new HoldingInPositionPhase());
+            }
+
             return true;
         }
 
@@ -281,8 +291,14 @@ public sealed class TaxiingPhase : Phase
 
         if (holdShort.Reason == HoldShortReason.DestinationRunway)
         {
-            // Destination runway: no resume — departure clearance will take over
+            // Destination runway: departure clearance takes over if present,
+            // otherwise hold in position so the aircraft stays in a ground state.
             ApplyDepartureClearanceIfPending(ctx);
+            var phaseList = ctx.Aircraft.Phases;
+            if (phaseList is not null && phaseList.Phases.Count <= phaseList.CurrentIndex + 1)
+            {
+                phases.Add(new HoldingInPositionPhase());
+            }
             return phases;
         }
 
@@ -311,10 +327,15 @@ public sealed class TaxiingPhase : Phase
             }
         }
 
-        // If there are remaining segments, resume taxiing
+        // If there are remaining segments, resume taxiing;
+        // otherwise hold in position so the aircraft stays in a ground state.
         if (!route.IsComplete)
         {
             phases.Add(new TaxiingPhase());
+        }
+        else
+        {
+            phases.Add(new HoldingInPositionPhase());
         }
 
         return phases;
