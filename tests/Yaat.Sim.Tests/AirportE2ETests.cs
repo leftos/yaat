@@ -159,6 +159,123 @@ public class AirportE2ETests
     }
 
     [Fact]
+    public void OAK_TaxiDCBTUW_HasHoldShortsForBothRunways()
+    {
+        var layout = LoadLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parking = FindParking(layout, "NEW7");
+        Assert.NotNull(parking);
+
+        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+
+        var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], []);
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null, Logger);
+        Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
+
+        var route = ac.AssignedTaxiRoute!;
+
+        var allHs = route.HoldShortPoints;
+        var hsInfo = string.Join("; ", allHs.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
+
+        // Also dump all RunwayHoldShort nodes encountered in the route
+        var hsNodesInRoute = route
+            .Segments.Where(s => layout.Nodes.TryGetValue(s.ToNodeId, out var n) && n.Type == GroundNodeType.RunwayHoldShort)
+            .Select(s =>
+            {
+                var n = layout.Nodes[s.ToNodeId];
+                return $"seg→{s.ToNodeId}(rwy={n.RunwayId},lat={n.Latitude:F6},lon={n.Longitude:F6})";
+            })
+            .ToList();
+        var hsNodeInfo = string.Join("; ", hsNodesInRoute);
+
+        // Route crosses both 28R/10L and 28L/10R on B taxiway
+        var has28R = allHs.Any(h =>
+            h.Reason == HoldShortReason.RunwayCrossing && h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28R")
+        );
+        var has28L = allHs.Any(h =>
+            h.Reason == HoldShortReason.RunwayCrossing && h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28L")
+        );
+
+        Assert.True(has28R, $"Route should have hold-short for 28R. HS: [{hsInfo}]. HS nodes in route: [{hsNodeInfo}]");
+        Assert.True(has28L, $"Route should have hold-short for 28L. HS: [{hsInfo}]. HS nodes in route: [{hsNodeInfo}]");
+    }
+
+    [Theory]
+    [InlineData(150)] // Default — same as test without runway lookup
+    [InlineData(75)] // Narrow runways (OAK 12/30, 15/33)
+    [InlineData(200)] // Wide
+    public void OAK_TaxiDCBTUW_HasHoldShortsForBothRunways_WithRunwayWidth(int widthFt)
+    {
+        var layout = LoadLayoutWithWidth("OAK", "oak", widthFt);
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parking = FindParking(layout, "NEW7");
+        Assert.NotNull(parking);
+
+        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+
+        var taxi = new TaxiCommand(["D", "C", "B", "T", "U", "W"], []);
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null, Logger);
+        Assert.True(result.Success, $"Taxi should succeed (width={widthFt}): {result.Message}");
+
+        var route = ac.AssignedTaxiRoute!;
+        var allHs = route.HoldShortPoints;
+        var hsInfo = string.Join("; ", allHs.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
+
+        var has28R = allHs.Any(h =>
+            h.Reason == HoldShortReason.RunwayCrossing && h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28R")
+        );
+        var has28L = allHs.Any(h =>
+            h.Reason == HoldShortReason.RunwayCrossing && h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28L")
+        );
+
+        Assert.True(has28R, $"Route should have hold-short for 28R (width={widthFt}). HS: [{hsInfo}]");
+        Assert.True(has28L, $"Route should have hold-short for 28L (width={widthFt}). HS: [{hsInfo}]");
+    }
+
+    private static AirportGroundLayout? LoadLayoutWithWidth(string airportId, string subdir, int widthFt)
+    {
+        string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        var runwayLookup = new AllWidthRunwayLookup(widthFt);
+        return GeoJsonParser.Parse(airportId, File.ReadAllText(path), runwayLookup: runwayLookup, runwayAirportCode: airportId);
+    }
+
+    private class AllWidthRunwayLookup(int widthFt) : IRunwayLookup
+    {
+        public RunwayInfo? GetRunway(string airportCode, string runwayId) =>
+            new RunwayInfo
+            {
+                AirportId = airportCode,
+                Id = RunwayIdentifier.Parse(runwayId),
+                Designator = RunwayIdentifier.Parse(runwayId).End1,
+                Lat1 = 0,
+                Lon1 = 0,
+                Elevation1Ft = 0,
+                Heading1 = 0,
+                Lat2 = 0,
+                Lon2 = 0,
+                Elevation2Ft = 0,
+                Heading2 = 0,
+                LengthFt = 0,
+                WidthFt = widthFt,
+            };
+
+        public IReadOnlyList<RunwayInfo> GetRunways(string airportCode) => [];
+    }
+
+    [Fact]
     public void OAK_PushbackFromParking_FacingD_Succeeds()
     {
         var layout = LoadLayout("OAK", "oak");

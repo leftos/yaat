@@ -827,6 +827,26 @@ public static class CommandDispatcher
         );
         if (towerResult is not null)
         {
+            if (towerResult.Success)
+            {
+                // Dispatch remaining parallel commands in the same block (e.g. CROSS after TAXI)
+                var block = compound.Blocks[0];
+                for (int i = 1; i < block.Commands.Count; i++)
+                {
+                    TryApplyTowerCommand(
+                        block.Commands[i],
+                        aircraft,
+                        aircraft.Phases?.CurrentPhase ?? currentPhase,
+                        runways,
+                        groundLayout,
+                        fixes,
+                        logger,
+                        procedureLookup,
+                        autoCrossRunway
+                    );
+                }
+            }
+
             return towerResult;
         }
 

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
@@ -11,7 +13,12 @@ internal static class HoldShortAnnotator
     /// hold-short points at each runway crossing entry. Exit-side nodes are
     /// recognised by entry/exit pairing and skipped.
     /// </summary>
-    internal static void AddImplicitRunwayHoldShorts(AirportGroundLayout layout, List<TaxiRouteSegment> segments, List<HoldShortPoint> holdShorts)
+    internal static void AddImplicitRunwayHoldShorts(
+        AirportGroundLayout layout,
+        List<TaxiRouteSegment> segments,
+        List<HoldShortPoint> holdShorts,
+        Microsoft.Extensions.Logging.ILogger? logger = null
+    )
     {
         // Entry/exit pairing by encounter order: the first HS node for a
         // runway is the entry side (add hold-short); the second distinct HS
@@ -34,17 +41,20 @@ internal static class HoldShortAnnotator
             // Skip if we've already processed this exact HS node for this runway
             if (!seenHsNodes.Add((rwyId, node.Id)))
             {
+                logger?.LogDebug("[HoldShortAnnotator] Skipping duplicate HS node {NodeId} for {Runway}", node.Id, rwyId);
                 continue;
             }
 
             if (enteredRunways.Remove(rwyId))
             {
                 // Exit-side HS: paired with the previous entry, skip
+                logger?.LogDebug("[HoldShortAnnotator] Exit-side HS node {NodeId} for {Runway} — paired with entry, skipping", node.Id, rwyId);
                 continue;
             }
 
             // Entry-side: track for pairing and add hold-short
             enteredRunways[rwyId] = node.Id;
+            logger?.LogDebug("[HoldShortAnnotator] Entry-side HS node {NodeId} for {Runway} — adding hold-short", node.Id, rwyId);
 
             if (!HoldShortExists(holdShorts, node.Id))
             {

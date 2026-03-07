@@ -79,11 +79,13 @@ internal static class GroundCommandHandler
             return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
         }
 
+        var hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
         logger.LogInformation(
-            "[TryTaxi] {Callsign}: route resolved — {SegCount} segments, {HsCount} hold-shorts, summary: {Summary}",
+            "[TryTaxi] {Callsign}: route resolved — {SegCount} segments, {HsCount} hold-shorts [{HsDetails}], summary: {Summary}",
             aircraft.Callsign,
             route.Segments.Count,
             route.HoldShortPoints.Count,
+            hsDetails,
             route.ToSummary()
         );
 

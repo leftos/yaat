@@ -634,4 +634,28 @@ public class GroundCommandHandlerTests
 
         public IReadOnlyList<RunwayInfo> GetRunways(string airportCode) => airportCode == airportId ? [_runway] : [];
     }
+
+    // -------------------------------------------------------------------------
+    // DispatchCompound: TAXI + CROSS in same block
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void DispatchCompound_TaxiWithCross_PreClearsHoldShort()
+    {
+        var ac = MakeAircraftAtParking();
+        var layout = MakeSimpleLayout();
+
+        // Compound: TAXI A, CROSS 28R — one block, two parallel commands
+        var compound = new CompoundCommand([new ParsedBlock(null, [new TaxiCommand(["A"], []), new CrossRunwayCommand("28R")])]);
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, layout, null, Logger, new Random(42));
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.NotNull(ac.AssignedTaxiRoute);
+        // The CROSS 28R should have pre-cleared the hold-short
+        var allHs = ac.AssignedTaxiRoute!.HoldShortPoints;
+        var hs = allHs.FirstOrDefault(h => h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28R"));
+        Assert.NotNull(hs);
+        Assert.True(hs!.IsCleared);
+    }
 }

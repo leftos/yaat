@@ -304,7 +304,7 @@ public sealed class TaxiingPhase : Phase
 
         if (holdShort.Reason == HoldShortReason.RunwayCrossing)
         {
-            int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort);
+            int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout);
             if (exitNodeId is not null)
             {
                 phases.Add(new CrossingRunwayPhase(exitNodeId.Value));
@@ -345,17 +345,34 @@ public sealed class TaxiingPhase : Phase
     /// Scan remaining segments for the paired exit hold-short node (same RunwayId) on the far side of the crossing.
     /// Falls back to the next segment's ToNodeId if no explicit exit node is found.
     /// </summary>
-    private static int? FindRunwayCrossingExitNode(TaxiRoute route, HoldShortPoint entryHoldShort)
+    private static int? FindRunwayCrossingExitNode(TaxiRoute route, HoldShortPoint entryHoldShort, AirportGroundLayout? layout)
     {
+        // Parse the entry runway identifier for matching
+        var entryRwyId = entryHoldShort.TargetName is not null ? RunwayIdentifier.Parse(entryHoldShort.TargetName) : (RunwayIdentifier?)null;
+
         for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
         {
             var seg = route.Segments[i];
-            var exitHs = route.GetHoldShortAt(seg.ToNodeId);
-            if (exitHs is not null && exitHs.Reason == HoldShortReason.RunwayCrossing && exitHs.NodeId != entryHoldShort.NodeId)
+
+            // Check the layout node directly — exit-side HS nodes are not in HoldShortPoints
+            if (
+                layout is not null
+                && layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
+                && node.Type == GroundNodeType.RunwayHoldShort
+                && node.RunwayId is { } nodeRwyId
+                && seg.ToNodeId != entryHoldShort.NodeId
+                && entryRwyId is not null
+                && nodeRwyId.Equals(entryRwyId.Value)
+            )
             {
-                // Mark exit hold-short as cleared (we're crossing through it)
-                exitHs.IsCleared = true;
-                return exitHs.NodeId;
+                // Mark exit hold-short as cleared if it exists in the route's hold-short list
+                var exitHs = route.GetHoldShortAt(seg.ToNodeId);
+                if (exitHs is not null)
+                {
+                    exitHs.IsCleared = true;
+                }
+
+                return seg.ToNodeId;
             }
         }
 
