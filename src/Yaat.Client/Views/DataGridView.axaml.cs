@@ -30,6 +30,18 @@ public partial class DataGridView : UserControl
         }
 
         grid.DoubleTapped += OnGridDoubleTapped;
+        grid.ContextRequested += OnGridContextRequested;
+    }
+
+    protected override void OnUnloaded(RoutedEventArgs e)
+    {
+        base.OnUnloaded(e);
+
+        var grid = GetDataGrid();
+        if (grid is not null)
+        {
+            grid.ContextRequested -= OnGridContextRequested;
+        }
     }
 
     private void OnGridDoubleTapped(object? sender, TappedEventArgs e)
@@ -40,6 +52,69 @@ public partial class DataGridView : UserControl
         }
 
         OpenFlightPlanEditor(ac, vm, TopLevel.GetTopLevel(this) as Window);
+    }
+
+    private void OnGridContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not DataGrid grid || grid.SelectedItem is not AircraftModel ac || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var callsign = ac.Callsign;
+        var initials = vm.Preferences.UserInitials;
+        var menu = new ContextMenu();
+
+        menu.Items.Add(
+            new MenuItem
+            {
+                Header = $"{callsign} — {ac.AircraftType}",
+                IsEnabled = false,
+                FontWeight = Avalonia.Media.FontWeight.Bold,
+            }
+        );
+        menu.Items.Add(new Separator());
+
+        AddCommandTextBox(menu, cmd => vm.Connection.SendCommandAsync(callsign, cmd, initials));
+
+        menu.Items.Add(new Separator());
+        var editItem = new MenuItem { Header = "Edit flight plan" };
+        editItem.Click += (_, _) => OpenFlightPlanEditor(ac, vm, TopLevel.GetTopLevel(this) as Window);
+        menu.Items.Add(editItem);
+
+        var deleteItem = new MenuItem { Header = "Delete" };
+        deleteItem.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, "DEL", initials);
+        menu.Items.Add(deleteItem);
+
+        grid.ContextMenu = menu;
+    }
+
+    private static void AddCommandTextBox(ContextMenu menu, Func<string, Task> onSubmit)
+    {
+        var textBox = new TextBox
+        {
+            Watermark = "Command",
+            FontSize = 12,
+            MinWidth = 160,
+        };
+        textBox.KeyDown += async (_, e) =>
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                var text = textBox.Text?.Trim();
+                if (!string.IsNullOrEmpty(text))
+                {
+                    menu.Close();
+                    await onSubmit(text);
+                }
+            }
+            else if (e.Key != Key.Escape)
+            {
+                e.Handled = true;
+            }
+        };
+        menu.Items.Add(textBox);
     }
 
     public static void OpenFlightPlanEditor(AircraftModel ac, MainViewModel vm, Window? owner)

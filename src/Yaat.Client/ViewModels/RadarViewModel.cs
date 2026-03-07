@@ -880,6 +880,11 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, "ACCEPT", initials);
     }
 
+    public async Task SendRawCommandAsync(string callsign, string initials, string command)
+    {
+        await _sendCommand(callsign, command, initials);
+    }
+
     public async Task DeleteAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "DEL", initials);
