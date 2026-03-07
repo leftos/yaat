@@ -65,16 +65,11 @@ A junction node is one connected to edges from multiple distinct taxiways (e.g.,
 
 Junction nodes should NOT be reused as hold-short nodes because aircraft holding short would block other taxiways. Instead, a new hold-short node is interpolated on the specific taxiway edge between the runway boundary and the junction.
 
-#### Hold-Short Distance Table
+#### Hold-Short Distance
 
-| Runway Width | ADG | Hold-Short Distance from Centerline |
-|-------------|-----|-------------------------------------|
-| < 75ft | I (small GA) | 125ft |
-| < 100ft | II (regional) | 200ft |
-| < 150ft | III (commercial) | 250ft |
-| >= 150ft | IV-VI (major) | 300ft |
+Hold-short distance from centerline = `(runwayWidth / 2) + 75ft`. This places the node 75ft from the runway edge, biased closer to the runway than FAA AC 150/5300-13B Table 3-2 standards to avoid placing nodes near nearby taxiway junctions.
 
-Default runway width when navdata is unavailable: 150ft.
+Default runway width when navdata is unavailable: 150ft (→ hold-short at 150ft from centerline).
 
 ### Step 6: Connect parking/spots/helipads
 

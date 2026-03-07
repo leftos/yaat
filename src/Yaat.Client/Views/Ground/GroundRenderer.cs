@@ -209,6 +209,24 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _bgPaint = new() { Color = BackgroundColor, Style = SKPaintStyle.Fill };
 
+    private readonly SKPaint _debugLabelPaint = new()
+    {
+        Color = new SKColor(255, 100, 255, 200),
+        TextSize = 10,
+        IsAntialias = true,
+        SubpixelText = true,
+        Typeface = SKTypeface.FromFamilyName("Consolas"),
+    };
+
+    private readonly SKPaint _debugEdgeLabelPaint = new()
+    {
+        Color = new SKColor(100, 255, 100, 180),
+        TextSize = 9,
+        IsAntialias = true,
+        SubpixelText = true,
+        Typeface = SKTypeface.FromFamilyName("Consolas"),
+    };
+
     private readonly List<LabelCandidate> _labelCandidates = new(256);
 
     public void Render(
@@ -223,7 +241,8 @@ public sealed class GroundRenderer : IDisposable
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
         double airportCenterLat = 0,
         double airportCenterLon = 0,
-        double airportElevation = 0
+        double airportElevation = 0,
+        bool showDebugInfo = false
     )
     {
         canvas.Clear(BackgroundColor);
@@ -236,10 +255,10 @@ public sealed class GroundRenderer : IDisposable
         _labelCandidates.Clear();
 
         DrawRunways(canvas, vp, layout);
-        DrawEdges(canvas, vp, layout);
+        DrawEdges(canvas, vp, layout, showDebugInfo);
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
-        DrawNodes(canvas, vp, layout, hoveredNodeId);
+        DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo);
         DrawLabels(canvas);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
         DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
@@ -305,7 +324,7 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawEdges(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
+    private void DrawEdges(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showDebugInfo)
     {
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
         foreach (var node in layout.Nodes)
@@ -347,7 +366,14 @@ public sealed class GroundRenderer : IDisposable
                 canvas.DrawLine(from.X, from.Y, to.X, to.Y, paint);
             }
 
-            if (!isRunway)
+            if (showDebugInfo)
+            {
+                var mx = (from.X + to.X) / 2f;
+                var my = (from.Y + to.Y) / 2f;
+                string debugLabel = $"{edge.TaxiwayName} {edge.FromNodeId}-{edge.ToNodeId}";
+                canvas.DrawText(debugLabel, mx + 2, my + 4, _debugEdgeLabelPaint);
+            }
+            else if (!isRunway)
             {
                 var mx = (from.X + to.X) / 2f;
                 var my = (from.Y + to.Y) / 2f;
@@ -442,7 +468,7 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawNodes(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, int? hoveredNodeId)
+    private void DrawNodes(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, int? hoveredNodeId, bool showDebugInfo)
     {
         foreach (var node in layout.Nodes)
         {
@@ -474,7 +500,12 @@ public sealed class GroundRenderer : IDisposable
                 canvas.DrawText("H", sx - 3, sy + 3, _nodeLabelPaint);
             }
 
-            if (node.Name is not null && node.Type is "Parking" or "Helipad" or "Spot")
+            if (showDebugInfo)
+            {
+                string debugLabel = node.Name is not null ? $"{node.Id} {node.Name} ({node.Type})" : $"{node.Id} ({node.Type})";
+                canvas.DrawText(debugLabel, sx + 5, sy - 3, _debugLabelPaint);
+            }
+            else if (node.Name is not null && node.Type is "Parking" or "Helipad" or "Spot")
             {
                 _labelCandidates.Add(new LabelCandidate(node.Name, sx + 5, sy - 3, LabelPriority.ParkingSpot, _nodeLabelPaint, null));
             }
@@ -686,5 +717,7 @@ public sealed class GroundRenderer : IDisposable
         _dataBlockTextPaint.Dispose();
         _dataBlockBgPaint.Dispose();
         _bgPaint.Dispose();
+        _debugLabelPaint.Dispose();
+        _debugEdgeLabelPaint.Dispose();
     }
 }

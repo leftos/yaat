@@ -120,14 +120,11 @@ public class RunwayCrossingDetectorTests
     // -------------------------------------------------------------------------
 
     [Theory]
-    [InlineData(60.0, 125.0)] // ADG I: < 75ft
-    [InlineData(74.0, 125.0)] // ADG I: < 75ft boundary
-    [InlineData(75.0, 200.0)] // ADG II: >= 75, < 100
-    [InlineData(99.0, 200.0)] // ADG II: < 100 boundary
-    [InlineData(100.0, 250.0)] // ADG III: >= 100, < 150
-    [InlineData(149.0, 250.0)] // ADG III: < 150 boundary
-    [InlineData(150.0, 300.0)] // ADG IV+: >= 150
-    [InlineData(200.0, 300.0)] // ADG IV+: wide runway
+    [InlineData(60.0, 105.0)] // halfWidth 30 + 75 buffer
+    [InlineData(74.0, 112.0)] // halfWidth 37 + 75 buffer
+    [InlineData(100.0, 125.0)] // halfWidth 50 + 75 buffer
+    [InlineData(150.0, 150.0)] // halfWidth 75 + 75 buffer
+    [InlineData(200.0, 175.0)] // halfWidth 100 + 75 buffer
     public void BuildRunwayRectangle_HoldShortDistance_MatchesWidthCategory(double widthFt, double expectedHoldShortFt)
     {
         var rwy = NorthSouthRunway();
@@ -228,13 +225,13 @@ public class RunwayCrossingDetectorTests
         var rwy = NorthSouthRunway();
         var layout = EmptyLayout();
 
-        // For 150ft-wide runway (default), hold-short distance = 300ft from centerline
-        double holdShortFt = 300.0;
+        // For 150ft-wide runway (default), hold-short distance = 75 + 75 = 150ft from centerline
+        double holdShortFt = 150.0;
 
         double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
 
-        // Place the off-node within 50ft of the ideal hold-short distance (at 290ft, 10ft short)
+        // Place the off-node within 50ft of the ideal hold-short distance (at 140ft, 10ft short)
         var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, (holdShortFt - 10.0) / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
@@ -264,7 +261,7 @@ public class RunwayCrossingDetectorTests
         double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
 
-        // Place off-node at 600ft from centerline (300ft away from ideal 300ft HS point — well beyond 50ft reuse)
+        // Place off-node at 600ft from centerline (450ft away from ideal 150ft HS point — well beyond 50ft reuse)
         var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 600.0 / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
@@ -300,7 +297,7 @@ public class RunwayCrossingDetectorTests
         double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
 
-        // Off-node at 800ft east — HS should be interpolated at ~300ft
+        // Off-node at 800ft east — HS should be interpolated at ~150ft
         var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 800.0 / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
@@ -319,8 +316,8 @@ public class RunwayCrossingDetectorTests
         // HS node should be between on-node and off-node (latitude should be same since E-W edge,
         // longitude should be between the two)
         double hsDistFromCenter = GeoMath.DistanceNm(midLat, rwy.Coords[0].Lon, hsNode.Latitude, hsNode.Longitude) * FeetPerNm;
-        // Should be near the hold-short distance (300ft for 150ft-wide runway)
-        Assert.InRange(hsDistFromCenter, 250.0, 350.0);
+        // Should be near the hold-short distance (150ft for 150ft-wide runway)
+        Assert.InRange(hsDistFromCenter, 100.0, 200.0);
     }
 
     // -------------------------------------------------------------------------

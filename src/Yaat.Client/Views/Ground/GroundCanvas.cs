@@ -43,6 +43,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(AirportElevation)
     );
 
+    public static readonly StyledProperty<bool> ShowDebugInfoProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(ShowDebugInfo));
+
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
     private readonly SKPaint _hitTestPaint = new()
@@ -108,6 +110,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(AirportElevationProperty, value);
     }
 
+    public bool ShowDebugInfo
+    {
+        get => GetValue(ShowDebugInfoProperty);
+        set => SetValue(ShowDebugInfoProperty, value);
+    }
+
     public int? HoveredNodeId => _hoveredNodeId;
 
     /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
@@ -148,6 +156,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == SelectedAircraftProperty
             || change.Property == ActiveRouteProperty
             || change.Property == PreviewRouteProperty
+            || change.Property == ShowDebugInfoProperty
         )
         {
             MarkDirty();
@@ -164,7 +173,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
         double AirportCenterLat,
         double AirportCenterLon,
-        double AirportElevation
+        double AirportElevation,
+        bool ShowDebugInfo
     );
 
     protected override object? CreateRenderSnapshot()
@@ -179,7 +189,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             new Dictionary<string, SKPoint>(_dataBlockOffsets),
             AirportCenterLat,
             AirportCenterLon,
-            AirportElevation
+            AirportElevation,
+            ShowDebugInfo
         );
     }
 
@@ -202,7 +213,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.DataBlockOffsets,
             s.AirportCenterLat,
             s.AirportCenterLon,
-            s.AirportElevation
+            s.AirportElevation,
+            s.ShowDebugInfo
         );
     }
 

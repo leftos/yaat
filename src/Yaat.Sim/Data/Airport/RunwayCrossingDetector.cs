@@ -212,7 +212,18 @@ internal static class RunwayCrossingDetector
     {
         string rwyEdgeName = $"RWY{rect.CombinedId}";
 
-        // Find all HS nodes for this runway and their on-runway neighbors
+        // Classify all nodes as on/off runway for walk lookups
+        var onRunwaySet = new HashSet<int>();
+        foreach (var (nid, n) in layout.Nodes)
+        {
+            if (IsOnRunway(n.Latitude, n.Longitude, rect))
+            {
+                onRunwaySet.Add(nid);
+            }
+        }
+
+        // For each HS node, walk from the on-runway neighbor toward the
+        // centerline to find the best representative node for RWY edges.
         var onRunwayNodes = new List<(int Id, double AlongTrack)>();
         var seen = new HashSet<int>();
 
@@ -228,53 +239,13 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            // For each HS node, find the neighbor closest to the runway centerline.
-            // Use layout.Edges because node adjacency lists aren't populated yet
-            // (GeoJsonParser Step 7 runs after crossing detection).
-            int bestNeighborId = -1;
-            double bestCrossTrack = double.MaxValue;
+            int bestId = FindCenterlineNode(nodeId, layout, rect, onRunwaySet);
 
-            foreach (var edge in layout.Edges)
+            if (bestId != -1 && seen.Add(bestId))
             {
-                int neighborId;
-                if (edge.FromNodeId == nodeId)
-                {
-                    neighborId = edge.ToNodeId;
-                }
-                else if (edge.ToNodeId == nodeId)
-                {
-                    neighborId = edge.FromNodeId;
-                }
-                else
-                {
-                    continue;
-                }
-
-                if (!layout.Nodes.TryGetValue(neighborId, out var neighbor))
-                {
-                    continue;
-                }
-
-                double crossTrack = Math.Abs(
-                    GeoMath.SignedCrossTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.Heading)
-                );
-
-                if (crossTrack < bestCrossTrack)
-                {
-                    bestCrossTrack = crossTrack;
-                    bestNeighborId = neighborId;
-                }
-            }
-
-            // Only add the on-runway neighbor — HS nodes are at hold-short
-            // distance (off the runway) and should not get RWY centerline edges.
-            // The HS node already connects to its on-runway neighbor via the
-            // original taxiway edge that was split during HS insertion.
-            if (bestNeighborId != -1 && seen.Add(bestNeighborId))
-            {
-                var neighbor = layout.Nodes[bestNeighborId];
-                double at = GeoMath.AlongTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.Heading);
-                onRunwayNodes.Add((bestNeighborId, at));
+                var bestNode = layout.Nodes[bestId];
+                double at = GeoMath.AlongTrackDistanceNm(bestNode.Latitude, bestNode.Longitude, rect.RefLat, rect.RefLon, rect.Heading);
+                onRunwayNodes.Add((bestId, at));
             }
         }
 
@@ -332,19 +303,123 @@ internal static class RunwayCrossingDetector
     }
 
     /// <summary>
-    /// Determines the hold-short distance from runway centerline (ft) based on
-    /// runway width as a proxy for Airplane Design Group (ADG).
-    /// Per AC 150/5300-13B Table 3-2.
+    /// Buffer distance (ft) from the runway edge to the hold-short node.
+    /// Real-world FAA distances (AC 150/5300-13B Table 3-2) place hold-shorts
+    /// 125-300ft from centerline, but that pushes nodes far from the runway and
+    /// close to nearby taxiway junctions. For simulation purposes a tighter
+    /// buffer from the runway edge produces better-looking stop positions.
+    /// </summary>
+    private const double HoldShortBufferFromEdgeFt = 75.0;
+
+    /// <summary>
+    /// Determines the hold-short distance from runway centerline (ft).
+    /// Uses the runway half-width plus a fixed buffer from the runway edge.
     /// </summary>
     private static double HoldShortDistanceForWidth(double runwayWidthFt)
     {
-        return runwayWidthFt switch
+        return (runwayWidthFt / 2.0) + HoldShortBufferFromEdgeFt;
+    }
+
+    /// <summary>
+    /// Starting from an HS node, finds its on-runway neighbor then walks along
+    /// on-runway nodes (via non-RWY edges) to find the node closest to the
+    /// runway centerline. This avoids using an intermediate on-runway node
+    /// that's off-centerline when a centerline node exists one or more hops away.
+    /// </summary>
+    private static int FindCenterlineNode(int hsNodeId, AirportGroundLayout layout, in RunwayRectangle rect, HashSet<int> onRunwaySet)
+    {
+        // Step 1: find the immediate on-runway neighbor of the HS node
+        int startId = -1;
+        double startCrossTrack = double.MaxValue;
+
+        foreach (var edge in layout.Edges)
         {
-            < 75 => 125, // ADG I: small GA (e.g., Cessna 172, Beechcraft Baron)
-            < 100 => 200, // ADG II: regional (e.g., King Air, CRJ-200)
-            < 150 => 250, // ADG III: commercial (e.g., B737, A320)
-            _ => 300, // ADG IV-VI: major (e.g., B777, A380)
-        };
+            int neighborId;
+            if (edge.FromNodeId == hsNodeId)
+            {
+                neighborId = edge.ToNodeId;
+            }
+            else if (edge.ToNodeId == hsNodeId)
+            {
+                neighborId = edge.FromNodeId;
+            }
+            else
+            {
+                continue;
+            }
+
+            if (!layout.Nodes.TryGetValue(neighborId, out var neighbor))
+            {
+                continue;
+            }
+
+            double ct = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.Heading));
+            if (ct < startCrossTrack)
+            {
+                startCrossTrack = ct;
+                startId = neighborId;
+            }
+        }
+
+        if (startId == -1)
+        {
+            return -1;
+        }
+
+        // Step 2: walk along on-runway neighbors (non-RWY edges) toward centerline
+        int bestId = startId;
+        double bestCrossTrack = startCrossTrack;
+        var visited = new HashSet<int> { hsNodeId, startId };
+
+        var queue = new Queue<int>();
+        queue.Enqueue(startId);
+
+        while (queue.Count > 0)
+        {
+            int current = queue.Dequeue();
+
+            foreach (var edge in layout.Edges)
+            {
+                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                int nextId;
+                if (edge.FromNodeId == current)
+                {
+                    nextId = edge.ToNodeId;
+                }
+                else if (edge.ToNodeId == current)
+                {
+                    nextId = edge.FromNodeId;
+                }
+                else
+                {
+                    continue;
+                }
+
+                if (!visited.Add(nextId) || !onRunwaySet.Contains(nextId))
+                {
+                    continue;
+                }
+
+                var nextNode = layout.Nodes[nextId];
+                double ct = Math.Abs(
+                    GeoMath.SignedCrossTrackDistanceNm(nextNode.Latitude, nextNode.Longitude, rect.RefLat, rect.RefLon, rect.Heading)
+                );
+
+                if (ct < bestCrossTrack)
+                {
+                    bestCrossTrack = ct;
+                    bestId = nextId;
+                }
+
+                queue.Enqueue(nextId);
+            }
+        }
+
+        return bestId;
     }
 
     /// <summary>

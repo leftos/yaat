@@ -70,6 +70,17 @@ public partial class GroundView : UserControl
         }
     }
 
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+
+        if (e.Key == Key.D && e.KeyModifiers == KeyModifiers.Control && _canvas is not null)
+        {
+            _canvas.ShowDebugInfo = !_canvas.ShowDebugInfo;
+            e.Handled = true;
+        }
+    }
+
     private void OnAircraftLeftClicked(string callsign)
     {
         if (DataContext is not GroundViewModel vm)
