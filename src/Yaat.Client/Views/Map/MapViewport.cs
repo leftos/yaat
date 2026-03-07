@@ -16,6 +16,12 @@ public sealed class MapViewport
     public float PixelWidth { get; set; }
     public float PixelHeight { get; set; }
 
+    /// <summary>
+    /// Clockwise rotation in degrees applied to the display.
+    /// Set to magnetic declination (east positive) to show magnetic north up.
+    /// </summary>
+    public double RotationDeg { get; set; }
+
     private double PixelsPerDeg => DefaultPixelsPerDeg * Zoom;
     private double CosCenter => Math.Cos(CenterLat * Math.PI / 180.0);
 
@@ -23,9 +29,21 @@ public sealed class MapViewport
     {
         var ppd = PixelsPerDeg;
         var cos = CosCenter;
-        var x = (float)((lon - CenterLon) * cos * ppd + PixelWidth / 2.0);
-        var y = (float)(-(lat - CenterLat) * ppd + PixelHeight / 2.0);
-        return (x, y);
+        var rx = (lon - CenterLon) * cos * ppd;
+        var ry = -(lat - CenterLat) * ppd;
+
+        if (RotationDeg != 0)
+        {
+            var rad = RotationDeg * Math.PI / 180.0;
+            var cosR = Math.Cos(rad);
+            var sinR = Math.Sin(rad);
+            var rotX = rx * cosR - ry * sinR;
+            var rotY = rx * sinR + ry * cosR;
+            rx = rotX;
+            ry = rotY;
+        }
+
+        return ((float)(rx + PixelWidth / 2.0), (float)(ry + PixelHeight / 2.0));
     }
 
     public (double Lat, double Lon) ScreenToLatLon(float x, float y)
@@ -37,8 +55,22 @@ public sealed class MapViewport
             cos = 1e-10;
         }
 
-        var lon = (x - PixelWidth / 2.0) / (cos * ppd) + CenterLon;
-        var lat = -(y - PixelHeight / 2.0) / ppd + CenterLat;
+        var sx = x - PixelWidth / 2.0;
+        var sy = y - PixelHeight / 2.0;
+
+        if (RotationDeg != 0)
+        {
+            var rad = -RotationDeg * Math.PI / 180.0;
+            var cosR = Math.Cos(rad);
+            var sinR = Math.Sin(rad);
+            var ux = sx * cosR - sy * sinR;
+            var uy = sx * sinR + sy * cosR;
+            sx = ux;
+            sy = uy;
+        }
+
+        var lon = sx / (cos * ppd) + CenterLon;
+        var lat = -sy / ppd + CenterLat;
         return (lat, lon);
     }
 
@@ -51,8 +83,22 @@ public sealed class MapViewport
             cos = 1e-10;
         }
 
-        CenterLon -= deltaScreenX / (cos * ppd);
-        CenterLat += deltaScreenY / ppd;
+        var dx = (double)deltaScreenX;
+        var dy = (double)deltaScreenY;
+
+        if (RotationDeg != 0)
+        {
+            var rad = -RotationDeg * Math.PI / 180.0;
+            var cosR = Math.Cos(rad);
+            var sinR = Math.Sin(rad);
+            var udx = dx * cosR - dy * sinR;
+            var udy = dx * sinR + dy * cosR;
+            dx = udx;
+            dy = udy;
+        }
+
+        CenterLon -= dx / (cos * ppd);
+        CenterLat += dy / ppd;
     }
 
     public void ZoomAt(float screenX, float screenY, double factor)
@@ -67,8 +113,22 @@ public sealed class MapViewport
             cos = 1e-10;
         }
 
-        CenterLon = lon - (screenX - PixelWidth / 2.0) / (cos * ppd);
-        CenterLat = lat + (screenY - PixelHeight / 2.0) / ppd;
+        var sx = screenX - PixelWidth / 2.0;
+        var sy = screenY - PixelHeight / 2.0;
+
+        if (RotationDeg != 0)
+        {
+            var rad = -RotationDeg * Math.PI / 180.0;
+            var cosR = Math.Cos(rad);
+            var sinR = Math.Sin(rad);
+            var ux = sx * cosR - sy * sinR;
+            var uy = sx * sinR + sy * cosR;
+            sx = ux;
+            sy = uy;
+        }
+
+        CenterLon = lon - sx / (cos * ppd);
+        CenterLat = lat + sy / ppd;
     }
 
     public MapViewport Clone()
@@ -80,6 +140,7 @@ public sealed class MapViewport
             Zoom = Zoom,
             PixelWidth = PixelWidth,
             PixelHeight = PixelHeight,
+            RotationDeg = RotationDeg,
         };
     }
 

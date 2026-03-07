@@ -5,6 +5,7 @@ using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
+using Yaat.Sim;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.Views.Radar;
@@ -396,6 +397,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             && RadarCenterLon != 0
         )
         {
+            Viewport.RotationDeg = MagneticDeclination.GetDeclination(RadarCenterLat, RadarCenterLon);
+
             if (Viewport.PixelWidth >= 1 && Viewport.PixelHeight >= 1)
             {
                 _suppressCenterSync = true;
@@ -919,6 +922,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return;
         }
 
+        Viewport.RotationDeg = MagneticDeclination.GetDeclination(RadarCenterLat, RadarCenterLon);
         Viewport.CenterLat = RadarCenterLat;
         Viewport.CenterLon = RadarCenterLon;
         ZoomToRange();
