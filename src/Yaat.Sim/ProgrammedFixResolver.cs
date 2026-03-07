@@ -27,7 +27,8 @@ public static class ProgrammedFixResolver
             string airport = !string.IsNullOrEmpty(destination) ? destination : (departure ?? "");
             if (!string.IsNullOrEmpty(airport))
             {
-                var procedure = approachLookup.GetApproach(airport, expectedApproach);
+                string resolvedId = approachLookup.ResolveApproachId(airport, expectedApproach) ?? expectedApproach;
+                var procedure = approachLookup.GetApproach(airport, resolvedId);
                 if (procedure is not null)
                 {
                     foreach (var name in ApproachCommandHandler.GetApproachFixNames(procedure))
