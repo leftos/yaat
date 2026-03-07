@@ -164,15 +164,24 @@ public sealed class LineUpPhase : Phase
 
     private void ComputeCenterlineTarget(PhaseContext ctx)
     {
-        double headingRad = _runwayHeading * Math.PI / 180.0;
         double threshLat = ctx.Runway!.ThresholdLatitude;
         double threshLon = ctx.Runway.ThresholdLongitude;
 
         double along = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, threshLat, threshLon, _runwayHeading);
 
-        double latRad = threshLat * Math.PI / 180.0;
-        _centerlineLat = threshLat + along * Math.Cos(headingRad) / 60.0;
-        _centerlineLon = threshLon + along * Math.Sin(headingRad) / (60.0 * Math.Cos(latRad));
+        // Bias the target forward along the runway so the aircraft curves
+        // toward the centerline instead of turning in place. Without this,
+        // TurnHeadingToward may pick the wrong 180° turn direction when the
+        // hold-short heading is perpendicular to the runway, causing brief
+        // backtracking toward the threshold.
+        double crossTrack = Math.Abs(
+            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, threshLat, threshLon, _runwayHeading)
+        );
+        along += crossTrack + 0.02;
+
+        var target = GeoMath.ProjectPoint(threshLat, threshLon, _runwayHeading, along);
+        _centerlineLat = target.Lat;
+        _centerlineLon = target.Lon;
     }
 
     private void FindOnRunwayNode(PhaseContext ctx)
@@ -270,12 +279,25 @@ public sealed class LineUpPhase : Phase
         }
     }
 
-    private static void NavigateToTarget(PhaseContext ctx, double targetLat, double targetLon, double dist)
+    private void NavigateToTarget(PhaseContext ctx, double targetLat, double targetLon, double dist)
     {
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, targetLat, targetLon);
 
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
+        double diff = FlightPhysics.NormalizeAngle(bearing - ctx.Aircraft.Heading);
+
+        if (Math.Abs(diff) > 90)
+        {
+            // Large turn needed — prefer the direction that passes through the
+            // runway heading first, avoiding backtracking toward the threshold.
+            double rwyDiff = FlightPhysics.NormalizeAngle(_runwayHeading - ctx.Aircraft.Heading);
+            double turnDir = rwyDiff >= 0 ? 1.0 : -1.0;
+            ctx.Aircraft.Heading = FlightPhysics.NormalizeHeading(ctx.Aircraft.Heading + turnDir * maxTurn);
+        }
+        else
+        {
+            ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
+        }
 
         // Near-normal taxi speed, reduced during sharp turns
         double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - ctx.Aircraft.Heading));
