@@ -5,6 +5,6 @@
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Aircraft List">
 
-    <views:DataGridView />
+    <views:DataGridView x:Name="PopOutDataGridView" />
 
 </Window>

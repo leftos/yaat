@@ -388,7 +388,8 @@ public partial class MainWindow : Window
                 }
 
                 var chooser = new ColumnChooserWindow(entries, vm.ShowOnlyActiveAircraft);
-                await chooser.ShowDialog(this);
+                var ownerWindow = TopLevel.GetTopLevel(dataGrid) as Window ?? this;
+                await chooser.ShowDialog(ownerWindow);
 
                 if (!chooser.Confirmed)
                 {
@@ -699,6 +700,13 @@ public partial class MainWindow : Window
         _dataGridWindow = new DataGridWindow { DataContext = vm };
         _dataGridWindow.Closing += OnDataGridWindowClosing;
         _dataGridWindow.Show();
+
+        var popOutView = _dataGridWindow.FindControl<DataGridView>("PopOutDataGridView");
+        var popOutGrid = popOutView?.GetDataGrid();
+        if (popOutGrid is not null)
+        {
+            SetupDataGrid(popOutGrid, vm);
+        }
     }
 
     private void CloseDataGridWindow()
