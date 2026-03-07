@@ -1,10 +1,15 @@
 // Discord interaction types
 const PING = 1;
 const APPLICATION_COMMAND = 2;
+const MESSAGE_COMPONENT = 3;
 
 // Response types
 const PONG = 1;
 const DEFERRED_CHANNEL_MESSAGE = 5;
+const UPDATE_MESSAGE = 7;
+
+// Role IDs
+const MEMBER_ROLE_ID = "1479929042429018192";
 
 // Status labels → display text and emoji
 const STATUS_LABELS = {
@@ -102,6 +107,33 @@ async function handleDiscordInteraction(request, env, ctx) {
     );
 
     return jsonResponse({ type: DEFERRED_CHANNEL_MESSAGE });
+  }
+
+  if (interaction.type === MESSAGE_COMPONENT) {
+    if (interaction.data.custom_id === "accept_rules") {
+      const userId = interaction.member?.user?.id;
+      const guildId = interaction.guild_id;
+      if (!userId || !guildId) {
+        return ephemeral("Something went wrong. Please try again.");
+      }
+
+      ctx.waitUntil(
+        grantMemberRole(guildId, userId, env).catch((err) =>
+          console.error("Failed to grant Member role:", err),
+        ),
+      );
+
+      return jsonResponse({
+        type: 4,
+        data: {
+          content:
+            "You've accepted the rules. Welcome to the server! You should now have access to all channels.",
+          flags: 64,
+        },
+      });
+    }
+
+    return ephemeral("Unknown button.");
   }
 
   return new Response("Unknown interaction type", { status: 400 });
@@ -417,6 +449,19 @@ async function editOriginalResponse(appId, token, data) {
   );
   if (!res.ok) {
     console.error("Failed to edit response:", await res.text());
+  }
+}
+
+async function grantMemberRole(guildId, userId, env) {
+  const res = await fetch(
+    `https://discord.com/api/v10/guilds/${guildId}/members/${userId}/roles/${MEMBER_ROLE_ID}`,
+    {
+      method: "PUT",
+      headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}` },
+    },
+  );
+  if (!res.ok) {
+    console.error("Failed to grant Member role:", await res.text());
   }
 }
 
