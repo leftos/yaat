@@ -1,0 +1,173 @@
+name: Discord Docs Sync
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "INSTALL.md"
+      - "README.md"
+      - "USER_GUIDE.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Sync docs to Discord
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          INSTALL_WEBHOOK: ${{ secrets.DISCORD_INSTALL_WEBHOOK_URL }}
+          README_WEBHOOK: ${{ secrets.DISCORD_README_WEBHOOK_URL }}
+          USERGUIDE_WEBHOOK: ${{ secrets.DISCORD_USERGUIDE_WEBHOOK_URL }}
+          INSTALL_CHANNEL: "1479913221921181747"
+          README_CHANNEL: "1479913261620002817"
+          USERGUIDE_CHANNEL: "1479913276631683354"
+          REPO_URL: "https://github.com/${{ github.repository }}/blob/${{ github.sha }}"
+        run: |
+          set -euo pipefail
+
+          clear_channel() {
+            local channel="$1"
+            local messages
+            messages=$(curl -sS -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
+              "https://discord.com/api/v10/channels/${channel}/messages?limit=100" | jq -r '.[].id')
+            for msg_id in $messages; do
+              curl -sS -X DELETE -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
+                "https://discord.com/api/v10/channels/${channel}/messages/${msg_id}" || true
+              sleep 0.5
+            done
+          }
+
+          post_chunks() {
+            local file="$1" webhook="$2"
+            python3 -c "
+          import json, sys, urllib.request, time
+
+          with open(sys.argv[1], encoding='utf-8') as f:
+              text = f.read()
+
+          webhook = sys.argv[2]
+          limit = 1900
+          chunks, current = [], ''
+
+          for line in text.split('\n'):
+              candidate = current + ('\n' if current else '') + line
+              if len(candidate) > limit and current:
+                  chunks.append(current)
+                  current = line
+              else:
+                  current = candidate
+          if current:
+              chunks.append(current)
+
+          for i, chunk in enumerate(chunks):
+              payload = json.dumps({'content': chunk}).encode('utf-8')
+              req = urllib.request.Request(webhook + '?wait=true', data=payload, headers={'Content-Type': 'application/json'})
+              urllib.request.urlopen(req)
+              if i < len(chunks) - 1:
+                  time.sleep(1)
+
+          print(f'Posted {len(chunks)} message(s) for {sys.argv[1]}')
+          " "$file" "$webhook"
+          }
+
+          post_toc() {
+            local file="$1" webhook="$2" title="$3" file_path="$4"
+            python3 -c "
+          import json, sys, urllib.request, re
+
+          with open(sys.argv[1], encoding='utf-8') as f:
+              lines = f.readlines()
+
+          repo_url = sys.argv[3]
+          file_path = sys.argv[4]
+          title = sys.argv[5]
+
+          toc_lines = []
+          in_toc = False
+          for line in lines:
+              stripped = line.strip()
+              if stripped == '## Table of Contents':
+                  in_toc = True
+                  continue
+              if in_toc:
+                  if stripped.startswith('##'):
+                      break
+                  if stripped.startswith('- ['):
+                      indent = len(line) - len(line.lstrip())
+                      match = re.match(r'-\s+\[(.+?)\]\((.+?)\)', stripped)
+                      if match:
+                          text, anchor = match.group(1), match.group(2)
+                          link = f'{repo_url}/{file_path}{anchor}'
+                          prefix = '  ' * (indent // 2)
+                          toc_lines.append(f'{prefix}- [{text}]({link})')
+
+          if not toc_lines:
+              for line in lines:
+                  stripped = line.strip()
+                  match = re.match(r'^(#{2,4})\s+(.+)', stripped)
+                  if match:
+                      level = len(match.group(1)) - 2
+                      heading = match.group(2)
+                      anchor = '#' + re.sub(r'[^\w\s-]', '', heading.lower()).strip().replace(' ', '-')
+                      link = f'{repo_url}/{file_path}{anchor}'
+                      prefix = '  ' * level
+                      toc_lines.append(f'{prefix}- [{heading}]({link})')
+
+          full_text = f'# {title}\n\nFull document: {repo_url}/{file_path}\n\n' + '\n'.join(toc_lines)
+
+          limit = 1900
+          chunks, current = [], ''
+          for line in full_text.split('\n'):
+              candidate = current + ('\n' if current else '') + line
+              if len(candidate) > limit and current:
+                  chunks.append(current)
+                  current = line
+              else:
+                  current = candidate
+          if current:
+              chunks.append(current)
+
+          import time
+          for i, chunk in enumerate(chunks):
+              payload = json.dumps({'content': chunk}).encode('utf-8')
+              req = urllib.request.Request(sys.argv[2] + '?wait=true', data=payload, headers={'Content-Type': 'application/json'})
+              urllib.request.urlopen(req)
+              if i < len(chunks) - 1:
+                  time.sleep(1)
+
+          print(f'Posted {len(chunks)} message(s) for {file_path} ToC')
+          " "$file" "$webhook" "$REPO_URL" "$file_path" "$title"
+          }
+
+          sync_full() {
+            local file="$1" webhook="$2" channel="$3"
+            echo "Syncing $file (full content)..."
+            clear_channel "$channel"
+            post_chunks "$file" "$webhook"
+          }
+
+          sync_toc() {
+            local file="$1" webhook="$2" channel="$3" title="$4" file_path="$5"
+            echo "Syncing $file (table of contents)..."
+            clear_channel "$channel"
+            post_toc "$file" "$webhook" "$title" "$file_path"
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            sync_full "INSTALL.md" "$INSTALL_WEBHOOK" "$INSTALL_CHANNEL"
+            sync_full "README.md" "$README_WEBHOOK" "$README_CHANNEL"
+            sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md"
+          else
+            CHANGED=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || echo "")
+            echo "$CHANGED" | grep -q "INSTALL.md" && sync_full "INSTALL.md" "$INSTALL_WEBHOOK" "$INSTALL_CHANNEL" || true
+            echo "$CHANGED" | grep -q "README.md" && sync_full "README.md" "$README_WEBHOOK" "$README_CHANNEL" || true
+            echo "$CHANGED" | grep -q "USER_GUIDE.md" && sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md" || true
+          fi
