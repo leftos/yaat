@@ -33,6 +33,12 @@ public class CommandScheme
                 [CanonicalCommandType.Speed] = new() { Aliases = ["SPD", "S", "SLOW", "SL", "SPEED"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ResumeNormalSpeed] = new() { Aliases = ["RNS", "NS"], Format = "{verb}" },
                 [CanonicalCommandType.DeleteSpeedRestrictions] = new() { Aliases = ["DSR"], Format = "{verb}" },
+                // Force (immediate override)
+                [CanonicalCommandType.ForceHeading] = new() { Aliases = ["FHN"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ForceAltitude] = new() { Aliases = ["CMN"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.ForceSpeed] = new() { Aliases = ["SPDN"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.Warp] = new() { Aliases = ["WARP"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.WarpGround] = new() { Aliases = ["WARPG"], Format = "{verb} {arg}" },
                 // Transponder
                 [CanonicalCommandType.Squawk] = new() { Aliases = ["SQ", "SQUAWK"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.SquawkVfr] = new() { Aliases = ["SQVFR", "SQV"], Format = "{verb}" },

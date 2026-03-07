@@ -858,6 +858,32 @@ These commands don't require an aircraft selection:
 
 The pause/unpause button and sim rate dropdown in the bottom bar also control these.
 
+### Force Override Commands
+
+When things go wrong and you need to immediately correct an aircraft's state (rather than waiting for flight physics to gradually adjust), use force commands:
+
+| Command | Effect |
+|---------|--------|
+| `FHN 270` | Force heading: immediately set heading to 270° |
+| `CMN 50` | Force altitude: immediately set altitude to 5,000 ft |
+| `SPDN 250` | Force speed: immediately set IAS to 250 knots |
+
+These commands set both the aircraft's current state and its targets simultaneously, so there is no gradual transition. Useful for RPO corrections when an aircraft is in the wrong state.
+
+### Warp Commands
+
+Teleport an aircraft to a specific position:
+
+| Command | Effect |
+|---------|--------|
+| `WARP OAK005002 020 050 120` | Warp to OAK 005°/2nm, heading 020, altitude 5,000 ft, speed 120 kts |
+| `WARP SJC 180 100 250` | Warp to SJC fix, heading 180, altitude 10,000 ft, speed 250 kts |
+| `WARPG C B` | Warp to the intersection of taxiways C and B (ground aircraft only) |
+
+**WARP** accepts a fix name or FRD (Fix-Radial-Distance) as the position, followed by heading (1-360), altitude (shorthand hundreds), and speed (knots). The aircraft is placed airborne at the specified position.
+
+**WARPG** finds the intersection node of two taxiways in the aircraft's airport layout and teleports the aircraft there. The aircraft must have a loaded ground layout (i.e., be at an airport).
+
 ## Simulation Controls
 
 At the bottom-right of the window:

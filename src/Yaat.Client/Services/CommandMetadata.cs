@@ -21,6 +21,12 @@ public static class CommandMetadata
         new(CanonicalCommandType.Speed, "Speed", "250", false, "Altitude / Speed"),
         new(CanonicalCommandType.ResumeNormalSpeed, "Resume Normal Speed", null, false, "Altitude / Speed"),
         new(CanonicalCommandType.DeleteSpeedRestrictions, "Delete Speed Restrictions", null, false, "Altitude / Speed"),
+        // Force (immediate override)
+        new(CanonicalCommandType.ForceHeading, "Force Heading", "270", false, "Sim Control"),
+        new(CanonicalCommandType.ForceAltitude, "Force Altitude", "50", false, "Sim Control"),
+        new(CanonicalCommandType.ForceSpeed, "Force Speed", "250", false, "Sim Control"),
+        new(CanonicalCommandType.Warp, "Warp to Position", "OAK090010 270 050 200", false, "Sim Control"),
+        new(CanonicalCommandType.WarpGround, "Warp to Taxiway", "C B", false, "Sim Control"),
         // Transponder
         new(CanonicalCommandType.Squawk, "Squawk", "1234", false, "Transponder"),
         new(CanonicalCommandType.SquawkVfr, "Squawk VFR", null, false, "Transponder"),

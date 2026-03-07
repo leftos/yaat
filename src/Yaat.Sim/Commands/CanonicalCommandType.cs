@@ -149,6 +149,13 @@ public enum CanonicalCommandType
     ResumeNormalSpeed,
     DeleteSpeedRestrictions,
 
+    // Force (immediate override) commands
+    ForceHeading,
+    ForceAltitude,
+    ForceSpeed,
+    Warp,
+    WarpGround,
+
     // Consolidation
     Consolidate,
     ConsolidateFull,

@@ -33,6 +33,16 @@ public record ResumeNormalSpeedCommand : ParsedCommand;
 
 public record DeleteSpeedRestrictionsCommand : ParsedCommand;
 
+public record ForceHeadingCommand(int Heading) : ParsedCommand;
+
+public record ForceAltitudeCommand(int Altitude) : ParsedCommand;
+
+public record ForceSpeedCommand(int Speed) : ParsedCommand;
+
+public record WarpCommand(string PositionLabel, double Latitude, double Longitude, int Heading, int Altitude, int Speed) : ParsedCommand;
+
+public record WarpGroundCommand(string Taxiway1, string Taxiway2) : ParsedCommand;
+
 public record SquawkCommand(uint Code) : ParsedCommand;
 
 public record SquawkResetCommand : ParsedCommand;

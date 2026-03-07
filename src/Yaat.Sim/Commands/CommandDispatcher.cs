@@ -331,6 +331,82 @@ public static class CommandDispatcher
                 return Ok("Speed restrictions deleted");
             }
 
+            case ForceHeadingCommand fhCmd:
+            {
+                ClearActiveProcedure(aircraft);
+                aircraft.Targets.NavigationRoute.Clear();
+                aircraft.Heading = fhCmd.Heading;
+                aircraft.Track = fhCmd.Heading;
+                aircraft.Targets.TargetHeading = fhCmd.Heading;
+                aircraft.Targets.PreferredTurnDirection = null;
+                return Ok($"Force heading {fhCmd.Heading:000}");
+            }
+
+            case ForceAltitudeCommand faCmd:
+            {
+                aircraft.SidViaMode = false;
+                aircraft.SidViaCeiling = null;
+                aircraft.StarViaMode = false;
+                aircraft.StarViaFloor = null;
+                aircraft.Altitude = faCmd.Altitude;
+                aircraft.VerticalSpeed = 0;
+                aircraft.Targets.TargetAltitude = faCmd.Altitude;
+                return Ok($"Force altitude {faCmd.Altitude:N0}");
+            }
+
+            case ForceSpeedCommand fsCmd:
+            {
+                aircraft.IndicatedAirspeed = fsCmd.Speed;
+                aircraft.Targets.TargetSpeed = fsCmd.Speed;
+                aircraft.Targets.SpeedFloor = null;
+                aircraft.Targets.SpeedCeiling = null;
+                aircraft.SpeedRestrictionsDeleted = false;
+                return Ok($"Force speed {fsCmd.Speed}");
+            }
+
+            case WarpCommand warpCmd:
+            {
+                ClearActiveProcedure(aircraft);
+                aircraft.Targets.NavigationRoute.Clear();
+                aircraft.Latitude = warpCmd.Latitude;
+                aircraft.Longitude = warpCmd.Longitude;
+                aircraft.Heading = warpCmd.Heading;
+                aircraft.Track = warpCmd.Heading;
+                aircraft.Altitude = warpCmd.Altitude;
+                aircraft.VerticalSpeed = 0;
+                aircraft.IndicatedAirspeed = warpCmd.Speed;
+                aircraft.Targets.TargetHeading = warpCmd.Heading;
+                aircraft.Targets.PreferredTurnDirection = null;
+                aircraft.Targets.TargetAltitude = warpCmd.Altitude;
+                aircraft.Targets.TargetSpeed = warpCmd.Speed;
+                aircraft.Targets.SpeedFloor = null;
+                aircraft.Targets.SpeedCeiling = null;
+                aircraft.IsOnGround = false;
+                return Ok($"Warped to {warpCmd.PositionLabel}, heading {warpCmd.Heading:000}, {warpCmd.Altitude:N0} ft, {warpCmd.Speed} kts");
+            }
+
+            case WarpGroundCommand warpGCmd:
+            {
+                var layout = aircraft.GroundLayout;
+                if (layout is null)
+                {
+                    return new CommandResult(false, "No airport layout loaded for this aircraft");
+                }
+
+                var node = FindTaxiwayIntersection(layout, warpGCmd.Taxiway1, warpGCmd.Taxiway2);
+                if (node is null)
+                {
+                    return new CommandResult(false, $"No intersection found between {warpGCmd.Taxiway1} and {warpGCmd.Taxiway2}");
+                }
+
+                aircraft.Latitude = node.Latitude;
+                aircraft.Longitude = node.Longitude;
+                aircraft.GroundSpeed = 0;
+                aircraft.IndicatedAirspeed = 0;
+                aircraft.Targets.TargetSpeed = null;
+                return Ok($"Warped to {warpGCmd.Taxiway1}/{warpGCmd.Taxiway2} intersection");
+            }
+
             case DirectToCommand cmd:
             {
                 if (validateDctFixes)
@@ -1876,6 +1952,34 @@ public static class CommandDispatcher
         }
 
         return Ok("Descend via STAR");
+    }
+
+    private static GroundNode? FindTaxiwayIntersection(AirportGroundLayout layout, string taxiway1, string taxiway2)
+    {
+        foreach (var node in layout.Nodes.Values)
+        {
+            bool hasTwy1 = false;
+            bool hasTwy2 = false;
+            foreach (var edge in node.Edges)
+            {
+                if (string.Equals(edge.TaxiwayName, taxiway1, StringComparison.OrdinalIgnoreCase))
+                {
+                    hasTwy1 = true;
+                }
+
+                if (string.Equals(edge.TaxiwayName, taxiway2, StringComparison.OrdinalIgnoreCase))
+                {
+                    hasTwy2 = true;
+                }
+
+                if (hasTwy1 && hasTwy2)
+                {
+                    return node;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static void ClearActiveProcedure(AircraftState aircraft)
