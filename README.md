@@ -21,6 +21,7 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [yaat-server](https://github.com/leftos/yaat-server) cloned as a sibling directory (private repo — access required)
+- **Linux only:** `libfontconfig1` and `libfreetype6` (required by SkiaSharp for font rendering)
 
 ### Quick Start
 

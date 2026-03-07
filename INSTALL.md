@@ -4,8 +4,42 @@ This guide walks you through installing and running YAAT from scratch, assuming 
 
 ## What You Need
 
-- **Windows 10 or later** (YAAT is a Windows desktop app)
+- **Windows 10 or later**, **macOS**, or **Linux** (YAAT uses Avalonia UI and runs on all three platforms)
 - **An internet connection** (to download tools and code)
+
+## Platform Notes
+
+The instructions below use Windows/PowerShell examples, but the build and run commands (`dotnet build`, `dotnet run`) are identical on all platforms. Adapt paths and shell commands to your OS as needed.
+
+### Linux
+
+Install these system packages before building (SkiaSharp requires them for font rendering):
+
+**Debian/Ubuntu:**
+
+```bash
+sudo apt install libfontconfig1 libfreetype6
+```
+
+**Fedora:**
+
+```bash
+sudo dnf install fontconfig freetype
+```
+
+**Arch:**
+
+```bash
+sudo pacman -S fontconfig freetype2
+```
+
+You also need a monospace font installed. Most distros include `DejaVu Sans Mono` by default; if not, install it (e.g., `sudo apt install fonts-dejavu-core`).
+
+**Wayland note:** Avalonia supports Wayland but window position save/restore may not work (Wayland doesn't allow apps to set their own window position). Everything else works normally.
+
+### macOS
+
+No extra dependencies needed. .NET and Avalonia handle everything.
 
 ## Step 1: Install Git
 
@@ -29,8 +63,8 @@ You should see something like `git version 2.47.1.windows.1`.
 .NET is the framework YAAT is built with. You need the SDK (Software Development Kit) to build and run it.
 
 1. Go to [https://dotnet.microsoft.com/download/dotnet/10.0](https://dotnet.microsoft.com/download/dotnet/10.0)
-2. Under **SDK**, download the **Windows x64** installer
-3. Run the installer and follow the prompts
+2. Under **SDK**, download the installer for your platform (Windows x64, macOS, or Linux)
+3. Run the installer and follow the prompts (on Linux, you can also install via your package manager — see [Microsoft's instructions](https://learn.microsoft.com/en-us/dotnet/core/install/linux))
 
 To verify, open a new PowerShell window and type:
 
@@ -126,9 +160,9 @@ Once the client window opens:
 
 You're now ready to create a room and load a scenario. See the [User Guide](USER_GUIDE.md) for detailed usage instructions.
 
-## Step 6: Connect CRC (Optional)
+## Step 6: Connect CRC (Optional, Windows Only)
 
-If you want students to connect with [CRC](https://crc.virtualnas.net) (the VATSIM radar client), you need to tell CRC where your YAAT server is.
+CRC (the VATSIM radar client) is a Windows application. If you want students to connect with [CRC](https://crc.virtualnas.net), you need to tell CRC where your YAAT server is. The YAAT server itself can run on any platform — only CRC needs Windows.
 
 ### Option A: Use the Setup Script (Recommended)
 
@@ -216,7 +250,14 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 - Check that the server URL in Settings matches (default: `http://localhost:5000`)
 - If you changed the server port, update the client's Connection setting to match
 
+### Client crashes or shows no text on Linux
+
+Make sure `libfontconfig1` and `libfreetype6` (or your distro's equivalent) are installed. SkiaSharp needs these for font rendering — without them, the app may crash on startup or render blank text.
+
 ### Where are log files?
 
-- **Client log:** `%LOCALAPPDATA%\yaat\yaat-client.log` (paste this path into File Explorer's address bar)
-- **Server log:** `C:\dev\yaat-server\src\Yaat.Server\bin\Debug\net10.0\yaat-server.log`
+- **Client log:**
+  - Windows: `%LOCALAPPDATA%\yaat\yaat-client.log` (paste this path into File Explorer's address bar)
+  - Linux: `~/.local/share/yaat/yaat-client.log`
+  - macOS: `~/Library/Application Support/yaat/yaat-client.log`
+- **Server log:** `yaat-server/src/Yaat.Server/bin/Debug/net10.0/yaat-server.log` (relative to where you cloned it)
