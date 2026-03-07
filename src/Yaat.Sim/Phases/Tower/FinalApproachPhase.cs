@@ -183,6 +183,13 @@ public sealed class FinalApproachPhase : Phase
             return;
         }
 
+        // VFR aircraft are not included in the approach report at all
+        if (ctx.Aircraft.IsVfr)
+        {
+            _interceptChecked = true;
+            return;
+        }
+
         double crossTrack = Math.Abs(
             GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading)
         );
@@ -197,10 +204,13 @@ public sealed class FinalApproachPhase : Phase
         // Aircraft is established on the localizer — check distance
         _interceptChecked = true;
 
+        // Visual approaches are not subject to 7110.65 §5-9-1 intercept rules
+        bool isVisualApproach = ctx.Aircraft.Phases?.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.Ordinal) == true;
+
         double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(ctx.Runway.AirportId, ctx.Runway.Designator);
         double interceptAngle = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - _runwayHeading));
 
-        bool isDistanceLegal = distNm >= minIntercept;
+        bool isDistanceLegal = isVisualApproach || distNm >= minIntercept;
         if (!isDistanceLegal && !_isPatternTraffic)
         {
             ctx.Aircraft.PendingWarnings.Add(
@@ -211,7 +221,7 @@ public sealed class FinalApproachPhase : Phase
         // TBL 5-9-1: max intercept angle depends on distance to approach gate
         double distToGate = distNm - minIntercept;
         double maxAngle = distToGate < 2.0 ? 20.0 : 30.0;
-        bool isAngleLegal = interceptAngle <= maxAngle;
+        bool isAngleLegal = isVisualApproach || interceptAngle <= maxAngle;
 
         // Glideslope deviation at establishment
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation);

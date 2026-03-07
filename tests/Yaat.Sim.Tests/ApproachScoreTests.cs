@@ -623,6 +623,62 @@ public class ApproachScoreTests
     }
 
     [Fact]
+    public void VfrAircraft_NoScoreCreated()
+    {
+        var aircraft = MakeEstablishedAircraft();
+        aircraft.FlightRules = "VFR";
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.ActiveApproach = new ApproachClearance
+        {
+            ApproachId = "VIS28R",
+            AirportCode = "OAK",
+            RunwayId = "28R",
+            FinalApproachCourse = 280,
+        };
+
+        var phase = new FinalApproachPhase();
+        var ctx = MakeContext(aircraft);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        Assert.Empty(aircraft.PendingApproachScores);
+        Assert.Null(aircraft.ActiveApproachScore);
+    }
+
+    [Fact]
+    public void VisualApproach_InterceptAlwaysLegal()
+    {
+        // Place aircraft close to threshold (inside minimum intercept distance)
+        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 2.0);
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.ActiveApproach = new ApproachClearance
+        {
+            ApproachId = "VIS28R",
+            AirportCode = "OAK",
+            RunwayId = "28R",
+            FinalApproachCourse = 280,
+        };
+
+        var phase = new FinalApproachPhase();
+        var ctx = MakeContext(aircraft);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        // Score should be created (IFR aircraft on visual approach)
+        Assert.Single(aircraft.PendingApproachScores);
+        var score = aircraft.PendingApproachScores[0];
+
+        // Intercept should be marked legal even though distance is below minimum
+        Assert.True(score.IsInterceptDistanceLegal);
+        Assert.True(score.IsInterceptAngleLegal);
+
+        // No illegal intercept warning
+        Assert.Empty(aircraft.PendingWarnings);
+    }
+
+    [Fact]
     public void GlideSlopeGeometry_AltitudeAtDistance_CorrectValues()
     {
         // Standard 3° glideslope: ~318 ft/nm
