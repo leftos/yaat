@@ -34,7 +34,7 @@ public sealed class MapViewport
 
         if (RotationDeg != 0)
         {
-            var rad = RotationDeg * Math.PI / 180.0;
+            var rad = -RotationDeg * Math.PI / 180.0;
             var cosR = Math.Cos(rad);
             var sinR = Math.Sin(rad);
             var rotX = rx * cosR - ry * sinR;
@@ -60,7 +60,7 @@ public sealed class MapViewport
 
         if (RotationDeg != 0)
         {
-            var rad = -RotationDeg * Math.PI / 180.0;
+            var rad = RotationDeg * Math.PI / 180.0;
             var cosR = Math.Cos(rad);
             var sinR = Math.Sin(rad);
             var ux = sx * cosR - sy * sinR;
@@ -88,7 +88,7 @@ public sealed class MapViewport
 
         if (RotationDeg != 0)
         {
-            var rad = -RotationDeg * Math.PI / 180.0;
+            var rad = RotationDeg * Math.PI / 180.0;
             var cosR = Math.Cos(rad);
             var sinR = Math.Sin(rad);
             var udx = dx * cosR - dy * sinR;
@@ -118,7 +118,7 @@ public sealed class MapViewport
 
         if (RotationDeg != 0)
         {
-            var rad = -RotationDeg * Math.PI / 180.0;
+            var rad = RotationDeg * Math.PI / 180.0;
             var cosR = Math.Cos(rad);
             var sinR = Math.Sin(rad);
             var ux = sx * cosR - sy * sinR;
