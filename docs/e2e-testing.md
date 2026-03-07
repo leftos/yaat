@@ -8,28 +8,32 @@ Prefer real airport GeoJSON layouts over synthetic test layouts for ground opera
 
 ### Airport GeoJSON
 
-Combined GeoJSON files live in yaat-server: `X:\dev\yaat-server\ArtccResources\ZOA\airports\`
+Test GeoJSON files live in `tests/Yaat.Sim.Tests/TestData/` (e.g., `oak.geojson`).
 
-These are the same files the server loads at runtime. Each is a single combined GeoJSON with all features (taxiways, parking, runways, spots, helipads).
+To add a new airport, download from the vNAS training API:
 
-The per-feature split files in `X:\dev\vzoa\training-files\atctrainer-airport-files\` are for editing in QGIS — don't use them in tests.
+```
+https://data-api.vnas.vatsim.net/api/training/airports/{FAA_ID}/map
+```
+
+Example: `curl -o tests/Yaat.Sim.Tests/TestData/mia.geojson https://data-api.vnas.vatsim.net/api/training/airports/MIA/map`
 
 ### Loading in Tests
 
-```csharp
-// In TaxiPathfinderTests.cs
-private const string ArtccResourcesDir = @"X:\dev\yaat-server\ArtccResources\ZOA\airports";
+GeoJSON files are checked into `tests/Yaat.Sim.Tests/TestData/`:
 
-private static AirportGroundLayout? LoadAirportLayout(string airportId, string subdir)
+```csharp
+// In AirportE2ETests.cs / TaxiPathfinderTests.cs
+private const string TestDataDir = "TestData";
+
+private static AirportGroundLayout? LoadLayout(string airportId, string subdir)
 {
-    string combined = Path.Combine(ArtccResourcesDir, $"{subdir}.geojson");
-    if (File.Exists(combined))
-        return GeoJsonParser.Parse(airportId, File.ReadAllText(combined));
+    string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
+    if (File.Exists(path))
+        return GeoJsonParser.Parse(airportId, File.ReadAllText(path));
     return null;
 }
 ```
-
-Tests return early if the file is missing, so they pass even without the yaat-server repo cloned.
 
 ### Finding Nodes
 

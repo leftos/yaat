@@ -13,6 +13,19 @@ public static class TaxiPathfinder
     private const double MaxRunwayBridgeNm = 3000.0 / GeoMath.FeetPerNm;
 
     /// <summary>
+    /// Heavy cost penalty (nm-equivalent) added when A* traverses a runway
+    /// centerline edge. Prevents backtaxi/through-taxi on runways unless no
+    /// taxiway-only path exists.
+    /// </summary>
+    internal const double RunwayEdgePenaltyNm = 50.0;
+
+    /// <summary>
+    /// Cost penalty (nm-equivalent) added when A* transitions from one taxiway
+    /// to another. Biases toward routes with fewer taxiway changes.
+    /// </summary>
+    internal const double TaxiwayTransitionPenaltyNm = 0.15;
+
+    /// <summary>
     /// Validate and resolve an explicit taxiway path (e.g., "S T U W W1").
     /// Returns the route along the named taxiways, with implicit hold-short at
     /// runway crossings and explicit hold-short points.
@@ -673,7 +686,21 @@ public static class TaxiPathfinder
                     continue;
                 }
 
-                double tentativeG = currentG + edge.DistanceNm;
+                double penalty = 0;
+                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    penalty += RunwayEdgePenaltyNm;
+                }
+
+                if (
+                    cameFrom.TryGetValue(current, out var prev)
+                    && !string.Equals(prev.Edge.TaxiwayName, edge.TaxiwayName, StringComparison.OrdinalIgnoreCase)
+                )
+                {
+                    penalty += TaxiwayTransitionPenaltyNm;
+                }
+
+                double tentativeG = currentG + edge.DistanceNm + penalty;
 
                 if (tentativeG >= gScore.GetValueOrDefault(neighbor, double.MaxValue))
                 {

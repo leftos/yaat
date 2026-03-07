@@ -19,15 +19,16 @@ namespace Yaat.Sim.Tests;
 public class AirportE2ETests
 {
     private static readonly ILogger Logger = new NullLogger<AirportE2ETests>();
-    private const string ArtccResourcesDir = @"X:\dev\yaat-server\ArtccResources\ZOA\airports";
+    private const string TestDataDir = "TestData";
 
     private static AirportGroundLayout? LoadLayout(string airportId, string subdir)
     {
-        string combined = Path.Combine(ArtccResourcesDir, $"{subdir}.geojson");
-        if (File.Exists(combined))
+        string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
+        if (File.Exists(path))
         {
-            return GeoJsonParser.Parse(airportId, File.ReadAllText(combined));
+            return GeoJsonParser.Parse(airportId, File.ReadAllText(path));
         }
+
         return null;
     }
 
@@ -412,6 +413,190 @@ public class AirportE2ETests
                 $"Node {id} has duplicate edges: {string.Join(", ", dupes.Select(g => $"{g.Key.TaxiwayName}({g.Key.FromNodeId}->{g.Key.ToNodeId}) x{g.Count()}"))}"
             );
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Pathfinder route ranking: fewest taxiway transitions should rank first
+    // -------------------------------------------------------------------------
+
+    private static GroundNode? FindNodeOnTaxiway(AirportGroundLayout layout, string taxiwayName)
+    {
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Type != GroundNodeType.TaxiwayIntersection)
+            {
+                continue;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return node;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static GroundNode? FindHoldShortForRunway(AirportGroundLayout layout, string runway)
+    {
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Type == GroundNodeType.RunwayHoldShort && node.RunwayId is { } rwyId && rwyId.Contains(runway))
+            {
+                return node;
+            }
+        }
+
+        return null;
+    }
+
+    private static List<string> GetTaxiwaySequence(TaxiRoute route)
+    {
+        var names = new List<string>();
+        foreach (var seg in route.Segments)
+        {
+            if (
+                seg.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(seg.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                continue;
+            }
+
+            if (names.Count == 0 || !string.Equals(names[^1], seg.TaxiwayName, StringComparison.OrdinalIgnoreCase))
+            {
+                names.Add(seg.TaxiwayName.ToUpperInvariant());
+            }
+        }
+
+        return names;
+    }
+
+    [Fact]
+    public void OAK_FindRoutes_FromC_ToRunway30_PrefersCBW()
+    {
+        var layout = LoadLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Find a node on C that also connects to B (the C/B junction)
+        GroundNode? startNode = null;
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (node.Type != GroundNodeType.TaxiwayIntersection)
+            {
+                continue;
+            }
+
+            bool hasC = false;
+            bool hasB = false;
+            foreach (var edge in node.Edges)
+            {
+                if (string.Equals(edge.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasC = true;
+                }
+
+                if (string.Equals(edge.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasB = true;
+                }
+            }
+
+            if (hasC && hasB)
+            {
+                startNode = node;
+                break;
+            }
+        }
+
+        Assert.NotNull(startNode);
+
+        var hsNode = FindHoldShortForRunway(layout, "30");
+        Assert.NotNull(hsNode);
+
+        var routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id);
+        Assert.True(routes.Count > 0, "Should find at least one route from C/B junction to RWY 30");
+
+        // The first (best) route should use B → W (with optional variant suffix
+        // like W1 if the destination is a variant hold-short) — fewest taxiway transitions
+        var bestSeq = GetTaxiwaySequence(routes[0]);
+        Assert.True(
+            bestSeq.Count <= 4 && bestSeq.Contains("B") && bestSeq.Any(n => n.StartsWith("W")),
+            $"Best route should go via B → W (few taxiways), got: [{string.Join(", ", bestSeq)}]"
+        );
+
+        // Should NOT route through S → T → U (many intermediate taxiways)
+        Assert.DoesNotContain("S", bestSeq);
+        Assert.DoesNotContain("T", bestSeq);
+        Assert.DoesNotContain("U", bestSeq);
+    }
+
+    [Fact]
+    public void OAK_FindRoutes_RankedByTaxiwayTransitions()
+    {
+        var layout = LoadLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // From a C node to a runway 30 hold-short: verify routes are ranked
+        // with fewer taxiway transitions first
+        var startNode = FindNodeOnTaxiway(layout, "C");
+        Assert.NotNull(startNode);
+
+        var hsNode = FindHoldShortForRunway(layout, "30");
+        Assert.NotNull(hsNode);
+
+        var routes = TaxiPathfinder.FindRoutes(layout, startNode.Id, hsNode.Id);
+        if (routes.Count < 2)
+        {
+            return; // Can't test ranking with only one route
+        }
+
+        // The first route (from penalized A*) should have the fewest taxiway
+        // transitions. Alternatives from Yen's K-shortest are sorted by distance,
+        // so they may have fewer or more taxiways.
+        var firstSeq = GetTaxiwaySequence(routes[0]);
+        int minTaxiways = routes.Min(r => GetTaxiwaySequence(r).Count);
+        Assert.True(
+            firstSeq.Count <= minTaxiways + 1,
+            $"First route [{string.Join(", ", firstSeq)}] ({firstSeq.Count} taxiways) should be among the simplest; min across all routes is {minTaxiways}"
+        );
+    }
+
+    [Fact]
+    public void OAK_FindRoutes_FromParking_ToRunway30_FirstRouteIsReasonable()
+    {
+        var layout = LoadLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parking = FindParking(layout, "NEW7");
+        Assert.NotNull(parking);
+
+        var hsNode = FindHoldShortForRunway(layout, "30");
+        Assert.NotNull(hsNode);
+
+        var routes = TaxiPathfinder.FindRoutes(layout, parking.Id, hsNode.Id);
+        Assert.True(routes.Count > 0, "Should find route from NEW7 to RWY 30");
+
+        var bestSeq = GetTaxiwaySequence(routes[0]);
+
+        // The canonical route is D C B W — should not be something convoluted
+        // with 6+ taxiway transitions
+        Assert.True(
+            bestSeq.Count <= 5,
+            $"Best route from NEW7 to RWY 30 should have ≤5 taxiways, got {bestSeq.Count}: [{string.Join(", ", bestSeq)}]"
+        );
     }
 
     // -------------------------------------------------------------------------

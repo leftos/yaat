@@ -1160,15 +1160,14 @@ public class TaxiPathfinderTests
 
     // --- Integration tests using real airport GeoJSON ---
 
-    private const string ArtccResourcesDir = @"X:\dev\yaat-server\ArtccResources\ZOA\airports";
+    private const string TestDataDir = "TestData";
 
     private static AirportGroundLayout? LoadAirportLayout(string airportId, string subdir)
     {
-        // Use the combined GeoJSON from yaat-server ArtccResources (same file the server loads at runtime)
-        string combined = Path.Combine(ArtccResourcesDir, $"{subdir}.geojson");
-        if (File.Exists(combined))
+        string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
+        if (File.Exists(path))
         {
-            return GeoJsonParser.Parse(airportId, File.ReadAllText(combined));
+            return GeoJsonParser.Parse(airportId, File.ReadAllText(path));
         }
 
         return null;
