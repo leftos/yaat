@@ -1,0 +1,19 @@
+{
+  "name": "yaat-discord-bot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "register": "node src/register.js"
+  },
+  "devDependencies": {
+    "wrangler": "4.71.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
+  }
+}

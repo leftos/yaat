@@ -1,0 +1,21 @@
+name = "yaat-discord-bot"
+main = "src/worker.js"
+compatibility_date = "2024-12-01"
+
+[vars]
+GITHUB_REPO = "leftos/yaat"
+
+# Set these via `wrangler secret put <NAME>`:
+# DISCORD_PUBLIC_KEY   - from Discord app > General Information
+# DISCORD_BOT_TOKEN    - from Discord app > Bot
+# GITHUB_TOKEN         - GitHub PAT with repo scope
+# DISCORD_ALLOWED_USER_ID - your Discord user ID
+# GITHUB_WEBHOOK_SECRET - secret for GitHub webhook signature verification
+
+[[kv_namespaces]]
+binding = "THREAD_ISSUES"
+id = "192a2dd842c74910968cbdf1946be82a"
+
+# Auto-sync new thread replies as issue comments every 15 minutes
+[triggers]
+crons = ["*/15 * * * *"]
