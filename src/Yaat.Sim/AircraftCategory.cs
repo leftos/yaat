@@ -265,11 +265,11 @@ public static class CategoryPerformance
     {
         return cat switch
         {
-            AircraftCategory.Jet => 1.0,
-            AircraftCategory.Turboprop => 0.75,
-            AircraftCategory.Piston => 0.5,
-            AircraftCategory.Helicopter => 0.3,
-            _ => 1.0,
+            AircraftCategory.Jet => 2.5,
+            AircraftCategory.Turboprop => 1.5,
+            AircraftCategory.Piston => 1.0,
+            AircraftCategory.Helicopter => 0.75,
+            _ => 2.5,
         };
     }
 

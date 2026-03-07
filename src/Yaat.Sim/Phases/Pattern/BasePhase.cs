@@ -10,8 +10,7 @@ namespace Yaat.Sim.Phases.Pattern;
 /// </summary>
 public sealed class BasePhase : Phase
 {
-    private const double MinCrossTrackNm = 0.15;
-    private const double MaxCrossTrackNm = 3.0;
+    private const double MinTurnRadiusNm = 0.15;
 
     private double _thresholdLat;
     private double _thresholdLon;
@@ -94,17 +93,20 @@ public sealed class BasePhase : Phase
             GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _finalHeading)
         );
 
-        // Turn initiation distance: groundspeed / 100, clamped to sane bounds
-        double turnInitNm = Math.Clamp(ctx.Aircraft.GroundSpeed / 100.0, MinCrossTrackNm, MaxCrossTrackNm);
-        bool complete = crossTrack < turnInitNm;
+        // Turn initiation: begin turn when cross-track from extended centerline
+        // equals the turn radius. This produces a geometrically correct 90° arc
+        // that rolls out on centerline at the expected final approach distance.
+        double turnRate = CategoryPerformance.PatternTurnRate(ctx.Category);
+        double turnRadiusNm = Math.Max(ctx.Aircraft.GroundSpeed / (turnRate * 62.832), MinTurnRadiusNm);
+        bool complete = crossTrack <= turnRadiusNm;
         if (complete)
         {
             ctx.Logger.LogDebug(
-                "[Base] {Callsign}: final turn point reached, alt={Alt:F0}ft, xtrack={XT:F2}nm, initDist={Init:F2}nm",
+                "[Base] {Callsign}: final turn point reached, alt={Alt:F0}ft, xtrack={XT:F2}nm, turnR={R:F2}nm",
                 ctx.Aircraft.Callsign,
                 ctx.Aircraft.Altitude,
                 crossTrack,
-                turnInitNm
+                turnRadiusNm
             );
         }
 
