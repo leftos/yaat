@@ -124,7 +124,7 @@ Once the client window opens:
 5. Close Settings
 6. **File > Connect** to connect to the server
 
-You're now ready to create a room and load a scenario. See the [User Guide](../USER_GUIDE.md) for detailed usage instructions.
+You're now ready to create a room and load a scenario. See the [User Guide](USER_GUIDE.md) for detailed usage instructions.
 
 ## Step 6: Connect CRC (Optional)
 
@@ -165,7 +165,7 @@ This finds your CRC installation via the registry and creates or updates its `De
 3. In CRC's environment selector, choose **YAAT Local**
 4. Connect with your VATSIM credentials — the instructor can then pull you into a room from the YAAT client
 
-See the [User Guide](../USER_GUIDE.md#students-panel) for managing CRC clients from the instructor side.
+See the [User Guide](USER_GUIDE.md#students-panel) for managing CRC clients from the instructor side.
 
 ## Updating to the Latest Version
 

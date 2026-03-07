@@ -35,53 +35,87 @@ jobs:
 
           clear_channel() {
             local channel="$1"
-            local messages
-            messages=$(curl -sS -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
-              "https://discord.com/api/v10/channels/${channel}/messages?limit=100" | jq -r '.[].id')
-            for msg_id in $messages; do
-              curl -sS -X DELETE -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
-                "https://discord.com/api/v10/channels/${channel}/messages/${msg_id}" || true
-              sleep 0.5
-            done
+            python3 -c "
+          import json, urllib.request, time, sys
+          bot_token, channel = sys.argv[1], sys.argv[2]
+          while True:
+              req = urllib.request.Request(f'https://discord.com/api/v10/channels/{channel}/messages?limit=100', headers={'Authorization': f'Bot {bot_token}', 'User-Agent': 'YAAT-Discord-Docs/1.0'})
+              msgs = json.loads(urllib.request.urlopen(req).read())
+              if not msgs:
+                  break
+              for m in msgs:
+                  dreq = urllib.request.Request(f'https://discord.com/api/v10/channels/{channel}/messages/{m[\"id\"]}', method='DELETE', headers={'Authorization': f'Bot {bot_token}', 'User-Agent': 'YAAT-Discord-Docs/1.0'})
+                  try:
+                      urllib.request.urlopen(dreq)
+                  except Exception:
+                      pass
+                  time.sleep(0.5)
+              print(f'Deleted {len(msgs)} message(s) from {channel}')
+          " "$DISCORD_BOT_TOKEN" "$channel"
           }
 
           post_chunks() {
             local file="$1" webhook="$2"
             python3 -c "
-          import json, sys, urllib.request, time
+          import json, sys, urllib.request, time, re
 
           with open(sys.argv[1], encoding='utf-8') as f:
               text = f.read()
 
+          repo_url = sys.argv[3]
+
+          # Rewrite relative markdown links to GitHub blob URLs
+          def rewrite_link(m):
+              label, path = m.group(1), m.group(2)
+              if path.startswith('http') or path.startswith('#'):
+                  return m.group(0)
+              # Strip leading ../ since all docs are at repo root
+              clean = path.lstrip('./')
+              return f'[{label}]({repo_url}/{clean})'
+
+          text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', rewrite_link, text)
+
           webhook = sys.argv[2]
           limit = 1900
-          chunks, current = [], ''
+          lines = text.split('\n')
+          chunks, current, best_break, prev = [], '', '', ''
 
-          for line in text.split('\n'):
+          for line in lines:
               candidate = current + ('\n' if current else '') + line
+              # Track good break points BEFORE adding the line: blank lines, headings, or non-indented non-empty lines
+              stripped = line.strip()
+              is_break = stripped == '' or stripped.startswith('#') or (stripped and not line[0].isspace())
+              if is_break and current:
+                  best_break = current
               if len(candidate) > limit and current:
-                  chunks.append(current)
-                  current = line
+                  if best_break:
+                      chunks.append(best_break)
+                      remainder = current[len(best_break):].lstrip('\n')
+                      current = remainder + ('\n' if remainder else '') + line if remainder else line
+                  else:
+                      chunks.append(current)
+                      current = line
+                  best_break = ''
               else:
                   current = candidate
           if current:
               chunks.append(current)
 
           for i, chunk in enumerate(chunks):
-              payload = json.dumps({'content': chunk}).encode('utf-8')
-              req = urllib.request.Request(webhook + '?wait=true', data=payload, headers={'Content-Type': 'application/json'})
+              payload = json.dumps({'content': chunk.strip(), 'flags': 4}).encode('utf-8')
+              req = urllib.request.Request(webhook + '?wait=true', data=payload, headers={'Content-Type': 'application/json', 'User-Agent': 'YAAT-Discord-Docs/1.0'})
               urllib.request.urlopen(req)
               if i < len(chunks) - 1:
                   time.sleep(1)
 
           print(f'Posted {len(chunks)} message(s) for {sys.argv[1]}')
-          " "$file" "$webhook"
+          " "$file" "$webhook" "$REPO_URL"
           }
 
           post_toc() {
             local file="$1" webhook="$2" title="$3" file_path="$4"
             python3 -c "
-          import json, sys, urllib.request, re
+          import json, sys, urllib.request, re, time
 
           with open(sys.argv[1], encoding='utf-8') as f:
               lines = f.readlines()
@@ -124,21 +158,31 @@ jobs:
           full_text = f'# {title}\n\nFull document: {repo_url}/{file_path}\n\n' + '\n'.join(toc_lines)
 
           limit = 1900
-          chunks, current = [], ''
-          for line in full_text.split('\n'):
+          toc_lines_split = full_text.split('\n')
+          chunks, current, best_break = [], '', ''
+          for line in toc_lines_split:
               candidate = current + ('\n' if current else '') + line
+              stripped = line.strip()
+              is_break = stripped == '' or stripped.startswith('#') or (stripped.startswith('- ') and not line[0].isspace())
+              if is_break and current:
+                  best_break = current
               if len(candidate) > limit and current:
-                  chunks.append(current)
-                  current = line
+                  if best_break:
+                      chunks.append(best_break)
+                      remainder = current[len(best_break):].lstrip('\n')
+                      current = remainder + ('\n' if remainder else '') + line if remainder else line
+                  else:
+                      chunks.append(current)
+                      current = line
+                  best_break = ''
               else:
                   current = candidate
           if current:
               chunks.append(current)
 
-          import time
           for i, chunk in enumerate(chunks):
-              payload = json.dumps({'content': chunk}).encode('utf-8')
-              req = urllib.request.Request(sys.argv[2] + '?wait=true', data=payload, headers={'Content-Type': 'application/json'})
+              payload = json.dumps({'content': chunk.strip(), 'flags': 4}).encode('utf-8')
+              req = urllib.request.Request(sys.argv[2] + '?wait=true', data=payload, headers={'Content-Type': 'application/json', 'User-Agent': 'YAAT-Discord-Docs/1.0'})
               urllib.request.urlopen(req)
               if i < len(chunks) - 1:
                   time.sleep(1)
