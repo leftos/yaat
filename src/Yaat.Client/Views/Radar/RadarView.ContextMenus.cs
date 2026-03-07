@@ -85,6 +85,8 @@ public partial class RadarView
         }
 
         menu.Items.Add(new Separator());
+        AddCommandTextBox(menu, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
+        menu.Items.Add(new Separator());
 
         menu.Items.Add(BuildHeadingSubmenu(vm, callsign, initials, ac));
         menu.Items.Add(BuildAltitudeSubmenu(vm, callsign, initials, ac));
@@ -114,7 +116,17 @@ public partial class RadarView
         menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
 
         menu.Items.Add(new Separator());
-        AddCommandTextBox(menu, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
+        var isMinified = _canvas?.IsMinified(callsign) ?? false;
+        menu.Items.Add(
+            CreateMenuItem(
+                isMinified ? "Full datablock" : "Mini datablock",
+                () =>
+                {
+                    _canvas?.ToggleMinifiedDataBlock(callsign);
+                    return Task.CompletedTask;
+                }
+            )
+        );
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
         ShowContextMenu(menu, screenPos);

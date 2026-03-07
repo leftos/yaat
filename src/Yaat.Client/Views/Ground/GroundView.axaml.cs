@@ -190,6 +190,8 @@ public partial class GroundView : UserControl
             }
         );
         menu.Items.Add(new Separator());
+        AddCommandTextBox(menu, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
+        menu.Items.Add(new Separator());
 
         if (phase == "At Parking")
         {
@@ -275,7 +277,6 @@ public partial class GroundView : UserControl
         }
 
         menu.Items.Add(new Separator());
-        AddCommandTextBox(menu, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
         ShowContextMenu(menu, screenPos);

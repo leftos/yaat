@@ -316,6 +316,20 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         MarkDirty();
     }
 
+    /// <summary>Toggles full/mini datablock for the given callsign.</summary>
+    public void ToggleMinifiedDataBlock(string callsign)
+    {
+        if (!_minifiedCallsigns.Remove(callsign))
+        {
+            _minifiedCallsigns.Add(callsign);
+        }
+
+        MarkDirty();
+    }
+
+    /// <summary>Returns true if the callsign's datablock is currently minified.</summary>
+    public bool IsMinified(string callsign) => _minifiedCallsigns.Contains(callsign);
+
     /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
     public void SurfaceDataBlock(string callsign)
     {
@@ -767,12 +781,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 }
                 else
                 {
-                    if (!_minifiedCallsigns.Remove(_dragCallsign))
-                    {
-                        _minifiedCallsigns.Add(_dragCallsign);
-                    }
-
-                    InvalidateVisual();
+                    AircraftLeftClicked?.Invoke(_dragCallsign);
                 }
             }
 
@@ -885,7 +894,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        const float hitRadius = 16f;
+        const float hitRadius = 28f;
         AircraftModel? closest = null;
         float closestDist = hitRadius;
 

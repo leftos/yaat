@@ -385,7 +385,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        const float hitRadius = 12f;
+        const float hitRadius = 20f;
         GroundNodeDto? closest = null;
         float closestDist = hitRadius;
 
@@ -419,11 +419,6 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         foreach (var ac in sorted)
         {
-            if (!ac.IsOnGround)
-            {
-                continue;
-            }
-
             var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
 
             SKPoint offset = DataBlockLayout.DefaultOffset;
@@ -449,17 +444,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             return null;
         }
 
-        const float hitRadius = 19f;
+        const float hitRadius = 28f;
         AircraftModel? closest = null;
         float closestDist = hitRadius;
 
-        foreach (var ac in Aircraft)
+        foreach (var ac in FilterActiveAircraft(Aircraft))
         {
-            if (!ac.IsOnGround)
-            {
-                continue;
-            }
-
             var (sx, sy) = Viewport.LatLonToScreen(ac.Latitude, ac.Longitude);
             var dx = (float)screenPos.X - sx;
             var dy = (float)screenPos.Y - sy;
