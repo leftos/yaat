@@ -72,16 +72,40 @@ jobs:
             exit 1
           fi
 
-          if [ ${#CLAUDE_RESPONSE} -gt 4000 ]; then
-            CLAUDE_RESPONSE="${CLAUDE_RESPONSE:0:3997}..."
-          fi
-
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Split into chunks at bullet boundaries, respecting Discord's 4096 char embed limit
           echo "$CLAUDE_RESPONSE" > /tmp/summary.txt
-          jq -n --rawfile desc /tmp/summary.txt \
-            --arg title "Daily Dev Digest — ${TODAY}" \
-            --arg ts "$TIMESTAMP" \
-            '{embeds: [{title: $title, description: ($desc | rtrimstr("\n")), color: 16750848, footer: {text: "Covers commits from the last 24 hours"}, timestamp: $ts}]}' \
-            > /tmp/discord_payload.json
+          python3 -c "
+          import json, sys
+
+          text = open('/tmp/summary.txt').read().strip()
+          limit = 4000
+          chunks = []
+          current = ''
+
+          for line in text.split('\n'):
+              if len(current) + len(line) + 1 > limit and current:
+                  chunks.append(current.strip())
+                  current = line
+              else:
+                  current += ('\n' if current else '') + line
+          if current.strip():
+              chunks.append(current.strip())
+
+          title = sys.argv[1]
+          ts = sys.argv[2]
+          embeds = []
+          for i, chunk in enumerate(chunks):
+              embed = {'description': chunk, 'color': 16750848}
+              if i == 0:
+                  embed['title'] = title
+              if i == len(chunks) - 1:
+                  embed['footer'] = {'text': 'Covers commits from the last 24 hours'}
+                  embed['timestamp'] = ts
+              embeds.append(embed)
+
+          json.dump({'embeds': embeds}, open('/tmp/discord_payload.json', 'w'))
+          " "Daily Dev Digest — ${TODAY}" "$TIMESTAMP"
 
           curl -sS -f -H "Content-Type: application/json" -d @/tmp/discord_payload.json "$DISCORD_WEBHOOK_URL"
