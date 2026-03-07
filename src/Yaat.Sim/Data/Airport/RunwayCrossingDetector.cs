@@ -141,7 +141,12 @@ internal static class RunwayCrossingDetector
 
         double distOffToIdeal = Math.Abs(crossOff - rect.HoldShortNm) * GeoMath.FeetPerNm;
 
-        if (distOffToIdeal <= HoldShortReuseFt && offNode.Type != GroundNodeType.RunwayHoldShort)
+        // Don't reuse junction nodes (connected to multiple taxiways) as hold-short —
+        // aircraft holding short would block other taxiways. Only reuse simple
+        // intermediate nodes that serve a single taxiway.
+        bool isJunction = HasMultipleTaxiwayConnections(offNode.Id, layout);
+
+        if (distOffToIdeal <= HoldShortReuseFt && offNode.Type != GroundNodeType.RunwayHoldShort && !isJunction)
         {
             // Existing node is close enough — upgrade it to hold-short
             var upgraded = new GroundNode
@@ -153,6 +158,7 @@ internal static class RunwayCrossingDetector
                 RunwayId = rect.CombinedId,
                 Name = offNode.Name,
             };
+
             layout.Nodes[offNode.Id] = upgraded;
 
             logger?.LogDebug("Reused node {NodeId} as hold-short for {Runway} on {Taxiway}", offNode.Id, rect.CombinedId, edge.TaxiwayName);
@@ -222,13 +228,28 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            // For each HS node, find the neighbor closest to the runway centerline
+            // For each HS node, find the neighbor closest to the runway centerline.
+            // Use layout.Edges because node adjacency lists aren't populated yet
+            // (GeoJsonParser Step 7 runs after crossing detection).
             int bestNeighborId = -1;
             double bestCrossTrack = double.MaxValue;
 
-            foreach (var edge in node.Edges)
+            foreach (var edge in layout.Edges)
             {
-                int neighborId = edge.FromNodeId == nodeId ? edge.ToNodeId : edge.FromNodeId;
+                int neighborId;
+                if (edge.FromNodeId == nodeId)
+                {
+                    neighborId = edge.ToNodeId;
+                }
+                else if (edge.ToNodeId == nodeId)
+                {
+                    neighborId = edge.FromNodeId;
+                }
+                else
+                {
+                    continue;
+                }
+
                 if (!layout.Nodes.TryGetValue(neighborId, out var neighbor))
                 {
                     continue;
@@ -271,16 +292,12 @@ internal static class RunwayCrossingDetector
 
             // Skip if already connected by any edge
             bool alreadyConnected = false;
-            if (layout.Nodes.TryGetValue(fromId, out var fromNode))
+            foreach (var edge in layout.Edges)
             {
-                foreach (var edge in fromNode.Edges)
+                if ((edge.FromNodeId == fromId && edge.ToNodeId == toId) || (edge.FromNodeId == toId && edge.ToNodeId == fromId))
                 {
-                    int otherId = edge.FromNodeId == fromId ? edge.ToNodeId : edge.FromNodeId;
-                    if (otherId == toId)
-                    {
-                        alreadyConnected = true;
-                        break;
-                    }
+                    alreadyConnected = true;
+                    break;
                 }
             }
 
@@ -302,8 +319,7 @@ internal static class RunwayCrossingDetector
             };
 
             layout.Edges.Add(rwyEdge);
-            from.Edges.Add(rwyEdge);
-            to.Edges.Add(rwyEdge);
+            // Node adjacency lists are wired up in GeoJsonParser Step 7.
 
             logger?.LogDebug(
                 "Runway centerline edge: {From}->{To} on {Runway} ({DistFt:F0}ft)",
@@ -332,6 +348,40 @@ internal static class RunwayCrossingDetector
     }
 
     /// <summary>
+    /// Returns true if the node has edges connecting to more than one distinct
+    /// non-runway taxiway, making it a junction that shouldn't be reused as hold-short.
+    /// Checks layout.Edges directly because node adjacency lists (GroundNode.Edges)
+    /// are not populated until after crossing detection completes.
+    /// </summary>
+    private static bool HasMultipleTaxiwayConnections(int nodeId, AirportGroundLayout layout)
+    {
+        string? firstTaxiway = null;
+        foreach (var edge in layout.Edges)
+        {
+            if (edge.FromNodeId != nodeId && edge.ToNodeId != nodeId)
+            {
+                continue;
+            }
+
+            if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (firstTaxiway is null)
+            {
+                firstTaxiway = edge.TaxiwayName;
+            }
+            else if (!string.Equals(edge.TaxiwayName, firstTaxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Splits an edge into two segments through one intermediate node.
     /// Replaces: from-to with from-mid, mid-to.
     /// </summary>
@@ -341,10 +391,6 @@ internal static class RunwayCrossingDetector
 
         var fromNode = layout.Nodes[edge.FromNodeId];
         var toNode = layout.Nodes[edge.ToNodeId];
-
-        // Remove old edge from node adjacency
-        fromNode.Edges.Remove(edge);
-        toNode.Edges.Remove(edge);
 
         var edgeA = new GroundEdge
         {
@@ -364,12 +410,7 @@ internal static class RunwayCrossingDetector
 
         layout.Edges.Add(edgeA);
         layout.Edges.Add(edgeB);
-
-        // Update node adjacency lists
-        fromNode.Edges.Add(edgeA);
-        midNode.Edges.Add(edgeA);
-        midNode.Edges.Add(edgeB);
-        toNode.Edges.Add(edgeB);
+        // Node adjacency lists are wired up in GeoJsonParser Step 7.
     }
 }
 

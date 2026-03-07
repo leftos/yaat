@@ -360,6 +360,60 @@ public class AirportE2ETests
         Assert.False(result.Success, "D alone should not reach runway 30");
     }
 
+    [Fact]
+    public void OAK_HoldShortNodes_NotAtJunctions()
+    {
+        var layout = LoadLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var hsNodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort).ToList();
+
+        Assert.True(hsNodes.Count > 0, "OAK should have hold-short nodes");
+
+        var failures = new List<string>();
+        foreach (var hs in hsNodes)
+        {
+            // A junction node connects to multiple distinct non-runway taxiways.
+            // Hold-short nodes should NOT be at junctions — they should be on a
+            // single taxiway between the runway surface and the next intersection.
+            var taxiwayNames = hs
+                .Edges.Where(e => !e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.TaxiwayName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (taxiwayNames.Count > 1)
+            {
+                failures.Add($"Node {hs.Id} (rwy={hs.RunwayId}): [{string.Join(", ", taxiwayNames)}]");
+            }
+        }
+
+        Assert.True(failures.Count == 0, $"Hold-short nodes at junctions:\n{string.Join("\n", failures)}");
+    }
+
+    [Fact]
+    public void OAK_NoDuplicateEdgesOnNodes()
+    {
+        var layout = LoadLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        foreach (var (id, node) in layout.Nodes)
+        {
+            // Each edge should appear exactly once in the node's adjacency list
+            var dupes = node.Edges.GroupBy(e => (e.FromNodeId, e.ToNodeId, e.TaxiwayName)).Where(g => g.Count() > 1).ToList();
+            Assert.True(
+                dupes.Count == 0,
+                $"Node {id} has duplicate edges: {string.Join(", ", dupes.Select(g => $"{g.Key.TaxiwayName}({g.Key.FromNodeId}->{g.Key.ToNodeId}) x{g.Count()}"))}"
+            );
+        }
+    }
+
     // -------------------------------------------------------------------------
     // P4.2: SFO E2E
     // -------------------------------------------------------------------------
