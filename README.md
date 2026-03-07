@@ -1,6 +1,6 @@
 # YAAT
 
-Yet Another ATC Trainer — an instructor/RPO desktop client for air traffic control training. Connects to a [yaat-server](https://github.com/leftos/yaat-server) instance that simulates aircraft and feeds them to [CRC](https://crc.virtualnas.net) (the VATSIM radar client) via its native SignalR+MessagePack protocol.
+Yet Another ATC Trainer — an instructor/RPO desktop client for air traffic control training. Connects to a [yaat-server](https://github.com/leftos/yaat-server) instance that simulates aircraft and feeds them to [CRC](https://vnas.vatsim.net/crc) (the VATSIM radar client) via its native SignalR+MessagePack protocol.
 
 Instructors and RPOs use YAAT to create training rooms, load scenarios, issue ATC commands, control weather, and manage simulated traffic while students work the scopes in CRC.
 
