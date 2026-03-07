@@ -21,6 +21,9 @@ What you expected to happen.
 **Actual behavior**
 What actually happened.
 
+**Saved replay**
+If possible, save a replay via Scenario → Save Recording and attach the `.json` file here. This lets us reproduce the exact state leading up to the bug.
+
 **Screenshots / logs**
 If applicable, add screenshots or paste relevant log output.
 - Client log: `%LOCALAPPDATA%/yaat/yaat-client.log`

@@ -1,0 +1,87 @@
+name: Discord Nightly Digest
+
+on:
+  schedule:
+    - cron: "0 10 * * *"  # 02:00 PT (10:00 UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Collect commits and post digest
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_NIGHTLY_WEBHOOK_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          SINCE=$(date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%SZ)
+          TODAY=$(date -u +%Y-%m-%d)
+
+          YAAT_COMMITS=$(gh api "repos/${{ github.repository }}/commits?since=${SINCE}&per_page=100" \
+            --jq '.[] | "commit \(.sha[0:7])\n\(.commit.message)\n"' || echo "")
+
+          SERVER_COMMITS=$(gh api "repos/leftos/yaat-server/commits?since=${SINCE}&per_page=100" \
+            --jq '.[] | "commit \(.sha[0:7])\n\(.commit.message)\n"' || echo "")
+
+          if [ -z "$YAAT_COMMITS" ] && [ -z "$SERVER_COMMITS" ]; then
+            echo "No commits today, skipping digest."
+            exit 0
+          fi
+
+          COMMIT_LOG=""
+          if [ -n "$YAAT_COMMITS" ]; then
+            COMMIT_LOG="=== yaat (client + simulation library) ==="$'\n'"${YAAT_COMMITS}"$'\n'
+          fi
+          if [ -n "$SERVER_COMMITS" ]; then
+            COMMIT_LOG="${COMMIT_LOG}=== yaat-server ==="$'\n'"${SERVER_COMMITS}"
+          fi
+
+          echo "$COMMIT_LOG" > /tmp/commits.txt
+
+          jq -n --rawfile commits /tmp/commits.txt \
+            '{
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 2048,
+              system: "You are writing a daily development digest for the YAAT (Yet Another ATC Trainer) Discord server. YAAT is a desktop ATC training app with three components: a client (Avalonia UI), a shared simulation library (Yaat.Sim — flight physics, phases, commands, navigation), and a server (ASP.NET Core — SignalR comms, CRC protocol, training rooms). The app simulates realistic ATC scenarios for controller training.",
+              messages: [{
+                role: "user",
+                content: ("Summarize today'\''s development activity into a Discord message. Write an informed, contextual summary — not just a list of commits. Explain what changed and why it matters. Group related work together. Mention specific features, bug fixes, or infrastructure changes by name. Keep it under 400 words. Use bold for emphasis and bullet points for structure. Do not use headings, code blocks, or other markdown. Do not add preamble or sign-off.\n\n" + $commits)
+              }]
+            }' > /tmp/claude_payload.json
+
+          CLAUDE_RAW=$(curl -sS https://api.anthropic.com/v1/messages \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -d @/tmp/claude_payload.json)
+
+          CLAUDE_RESPONSE=$(echo "$CLAUDE_RAW" | jq -r '.content[0].text // empty')
+          if [ -z "$CLAUDE_RESPONSE" ]; then
+            echo "Claude API error: $(echo "$CLAUDE_RAW" | jq -r '.error.message // "unknown"')"
+            exit 1
+          fi
+
+          if [ ${#CLAUDE_RESPONSE} -gt 4000 ]; then
+            CLAUDE_RESPONSE="${CLAUDE_RESPONSE:0:3997}..."
+          fi
+
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "$CLAUDE_RESPONSE" > /tmp/summary.txt
+          jq -n --rawfile desc /tmp/summary.txt \
+            --arg title "Daily Dev Digest — ${TODAY}" \
+            --arg ts "$TIMESTAMP" \
+            '{embeds: [{title: $title, description: ($desc | rtrimstr("\n")), color: 16750848, footer: {text: "Covers commits from the last 24 hours"}, timestamp: $ts}]}' \
+            > /tmp/discord_payload.json
+
+          curl -sS -f -H "Content-Type: application/json" -d @/tmp/discord_payload.json "$DISCORD_WEBHOOK_URL"

@@ -1,0 +1,57 @@
+name: Discord Push Notification
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Send Discord notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+
+          REPO="${{ github.repository }}"
+          REPO_NAME="${REPO##*/}"
+          REPO_URL="https://github.com/${REPO}"
+          BRANCH="${{ github.ref_name }}"
+          ACTOR="${{ github.actor }}"
+          COMPARE_URL="${REPO_URL}/compare/${{ github.event.before }}...${{ github.event.after }}"
+
+          COMMIT_LIST=""
+          while IFS= read -r line; do
+            SHA="${line%% *}"
+            MSG="${line#* }"
+            SHORT_SHA="${SHA:0:7}"
+            ESCAPED_MSG=$(echo "$MSG" | sed 's/\\/\\\\/g; s/"/\\"/g')
+            COMMIT_LIST="${COMMIT_LIST}[\`${SHORT_SHA}\`](${REPO_URL}/commit/${SHA}) ${ESCAPED_MSG}\\n"
+          done < <(git log --format="%H %s" ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || git log --format="%H %s" -1)
+
+          COMMIT_COUNT=$(git rev-list --count ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || echo "1")
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "embeds": [{
+              "title": "${COMMIT_COUNT} new commit(s) to ${REPO_NAME}:${BRANCH}",
+              "url": "${COMPARE_URL}",
+              "description": "${COMMIT_LIST}",
+              "color": 5814783,
+              "footer": { "text": "Pushed by ${ACTOR}" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          EOF
+          )
+
+          curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
