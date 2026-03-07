@@ -31,6 +31,15 @@ public partial class GroundViewModel : ObservableObject
     private TaxiRoute? _previewRoute;
 
     [ObservableProperty]
+    private bool _isDrawingRoute;
+
+    [ObservableProperty]
+    private TaxiRoute? _drawnRoutePreview;
+
+    [ObservableProperty]
+    private IReadOnlyList<int>? _drawWaypoints;
+
+    [ObservableProperty]
     private double _airportCenterLat;
 
     [ObservableProperty]
@@ -38,6 +47,10 @@ public partial class GroundViewModel : ObservableObject
 
     [ObservableProperty]
     private double _airportElevation;
+
+    private AircraftModel? _drawAircraft;
+    private List<int> _drawWaypointIds = [];
+    private List<TaxiRoute> _drawSubRoutes = [];
 
     public ObservableCollection<AircraftModel> GroundAircraft { get; } = [];
 
@@ -60,6 +73,11 @@ public partial class GroundViewModel : ObservableObject
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {
         _onSelectionChanged?.Invoke(value);
+
+        if (IsDrawingRoute && value != _drawAircraft)
+        {
+            CancelDrawRoute();
+        }
     }
 
     public async Task LoadLayoutAsync(string airportId)
@@ -719,6 +737,113 @@ public partial class GroundViewModel : ObservableObject
         }
 
         return result;
+    }
+
+    // --- Draw route mode ---
+
+    public void StartDrawRoute(AircraftModel aircraft)
+    {
+        var startNode = GetAircraftNearestNodeId(aircraft);
+        if (startNode is null)
+        {
+            return;
+        }
+
+        _drawAircraft = aircraft;
+        _drawWaypointIds = [startNode.Value];
+        _drawSubRoutes = [];
+        DrawnRoutePreview = null;
+        DrawWaypoints = [startNode.Value];
+        IsDrawingRoute = true;
+    }
+
+    public bool AddDrawWaypoint(int nodeId)
+    {
+        if (_drawWaypointIds.Count == 0 || nodeId == _drawWaypointIds[^1])
+        {
+            return false;
+        }
+
+        var subRoute = FindRouteToNode(_drawWaypointIds[^1], nodeId);
+        if (subRoute is null)
+        {
+            return false;
+        }
+
+        _drawSubRoutes.Add(subRoute);
+        _drawWaypointIds.Add(nodeId);
+        DrawWaypoints = [.. _drawWaypointIds];
+        DrawnRoutePreview = MergeSubRoutes();
+        return true;
+    }
+
+    public void UndoDrawWaypoint()
+    {
+        if (_drawWaypointIds.Count <= 1)
+        {
+            return;
+        }
+
+        _drawWaypointIds.RemoveAt(_drawWaypointIds.Count - 1);
+        _drawSubRoutes.RemoveAt(_drawSubRoutes.Count - 1);
+        DrawWaypoints = [.. _drawWaypointIds];
+        DrawnRoutePreview = _drawSubRoutes.Count > 0 ? MergeSubRoutes() : null;
+    }
+
+    public (TaxiRoute Route, string Command)? FinishDrawRoute()
+    {
+        if (_drawSubRoutes.Count == 0)
+        {
+            CancelDrawRoute();
+            return null;
+        }
+
+        var merged = MergeSubRoutes();
+        var taxiways = BuildTaxiCommand(merged);
+        ClearDrawState();
+
+        if (string.IsNullOrEmpty(taxiways))
+        {
+            return null;
+        }
+
+        return (merged, $"TAXI {taxiways}");
+    }
+
+    public void CancelDrawRoute()
+    {
+        ClearDrawState();
+    }
+
+    private void ClearDrawState()
+    {
+        _drawAircraft = null;
+        _drawWaypointIds = [];
+        _drawSubRoutes = [];
+        IsDrawingRoute = false;
+        DrawnRoutePreview = null;
+        DrawWaypoints = null;
+    }
+
+    private TaxiRoute MergeSubRoutes()
+    {
+        var segments = new List<TaxiRouteSegment>();
+        var holdShorts = new List<HoldShortPoint>();
+        var seenHoldShortNodes = new HashSet<int>();
+
+        foreach (var sub in _drawSubRoutes)
+        {
+            segments.AddRange(sub.Segments);
+            foreach (var hs in sub.HoldShortPoints)
+            {
+                if (seenHoldShortNodes.Add(hs.NodeId))
+                {
+                    holdShorts.Add(hs);
+                }
+            }
+        }
+
+        return new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
     }
 
     private static AirportGroundLayout ReconstructLayout(GroundLayoutDto dto)

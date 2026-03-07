@@ -43,6 +43,16 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(AirportElevation)
     );
 
+    public static readonly StyledProperty<TaxiRoute?> DrawnRoutePreviewProperty = AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(
+        nameof(DrawnRoutePreview)
+    );
+
+    public static readonly StyledProperty<bool> IsDrawingRouteProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(IsDrawingRoute));
+
+    public static readonly StyledProperty<IReadOnlyList<int>?> DrawWaypointsProperty = AvaloniaProperty.Register<GroundCanvas, IReadOnlyList<int>?>(
+        nameof(DrawWaypoints)
+    );
+
     public static readonly StyledProperty<bool> ShowDebugInfoProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(ShowDebugInfo));
 
     private readonly GroundRenderer _renderer = new();
@@ -112,6 +122,24 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(ShowDebugInfoProperty, value);
     }
 
+    public TaxiRoute? DrawnRoutePreview
+    {
+        get => GetValue(DrawnRoutePreviewProperty);
+        set => SetValue(DrawnRoutePreviewProperty, value);
+    }
+
+    public bool IsDrawingRoute
+    {
+        get => GetValue(IsDrawingRouteProperty);
+        set => SetValue(IsDrawingRouteProperty, value);
+    }
+
+    public IReadOnlyList<int>? DrawWaypoints
+    {
+        get => GetValue(DrawWaypointsProperty);
+        set => SetValue(DrawWaypointsProperty, value);
+    }
+
     public int? HoveredNodeId => _hoveredNodeId;
 
     /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
@@ -136,6 +164,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when empty space is left-clicked (deselect).</summary>
     public event Action? EmptySpaceClicked;
 
+    /// <summary>Fired when a node is left-clicked during draw mode.</summary>
+    public event Action<int>? DrawNodeClicked;
+
+    /// <summary>Fired when a node is right-clicked or double-clicked during draw mode (finish).</summary>
+    public event Action<int, Point>? DrawNodeFinished;
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -152,9 +186,16 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == SelectedAircraftProperty
             || change.Property == ActiveRouteProperty
             || change.Property == PreviewRouteProperty
+            || change.Property == DrawnRoutePreviewProperty
+            || change.Property == DrawWaypointsProperty
             || change.Property == ShowDebugInfoProperty
         )
         {
+            MarkDirty();
+        }
+        else if (change.Property == IsDrawingRouteProperty)
+        {
+            Cursor = IsDrawingRoute ? new Cursor(StandardCursorType.Cross) : Cursor.Default;
             MarkDirty();
         }
     }
@@ -166,6 +207,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         int? HoveredNodeId,
         TaxiRoute? ActiveRoute,
         TaxiRoute? PreviewRoute,
+        TaxiRoute? DrawnRoutePreview,
+        IReadOnlyList<int>? DrawWaypoints,
+        bool IsDrawingRoute,
         IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
         double AirportCenterLat,
         double AirportCenterLon,
@@ -182,6 +226,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             _hoveredNodeId,
             ActiveRoute,
             PreviewRoute,
+            DrawnRoutePreview,
+            DrawWaypoints,
+            IsDrawingRoute,
             new Dictionary<string, SKPoint>(_dataBlockOffsets),
             AirportCenterLat,
             AirportCenterLon,
@@ -206,6 +253,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.HoveredNodeId,
             s.ActiveRoute,
             s.PreviewRoute,
+            s.DrawnRoutePreview,
+            s.DrawWaypoints,
             s.DataBlockOffsets,
             s.AirportCenterLat,
             s.AirportCenterLon,
@@ -316,6 +365,33 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             }
         }
 
+        if (IsDrawingRoute)
+        {
+            if (props.IsLeftButtonPressed)
+            {
+                var node = FindNodeAtPoint(pos);
+                if (node is not null)
+                {
+                    DrawNodeClicked?.Invoke(node.Id);
+                    e.Handled = true;
+                    return;
+                }
+            }
+            else if (props.IsRightButtonPressed)
+            {
+                var node = FindNodeAtPoint(pos);
+                if (node is not null)
+                {
+                    DrawNodeFinished?.Invoke(node.Id, pos);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            base.OnPointerPressed(e);
+            return;
+        }
+
         if (props.IsRightButtonPressed)
         {
             if (HandleRightClick(pos))
@@ -330,6 +406,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             var ac = FindAircraftAtPoint(pos);
             if (ac is not null)
             {
+                SurfaceDataBlock(ac.Callsign);
                 if (Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
                 {
                     AircraftCtrlClicked?.Invoke(ac.Callsign);

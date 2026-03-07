@@ -714,6 +714,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             var ac = FindAircraftAtPoint(pos);
             if (ac is not null)
             {
+                SurfaceDataBlock(ac.Callsign);
                 if (Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
                 {
                     AircraftCtrlClicked?.Invoke(ac.Callsign);

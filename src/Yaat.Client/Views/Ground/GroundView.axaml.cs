@@ -39,6 +39,8 @@ public partial class GroundView : UserControl
         _canvas.AircraftCtrlClicked += OnAircraftCtrlClicked;
         _canvas.EmptySpaceClicked += OnEmptySpaceClicked;
         _canvas.PointerPressed += OnCanvasPointerPressed;
+        _canvas.DrawNodeClicked += OnDrawNodeClicked;
+        _canvas.DrawNodeFinished += OnDrawNodeFinished;
 
         _taxiInputOverlay = this.FindControl<Border>("TaxiInputOverlay");
         _taxiInputBox = this.FindControl<TextBox>("TaxiInputBox");
@@ -61,6 +63,8 @@ public partial class GroundView : UserControl
             _canvas.AircraftCtrlClicked -= OnAircraftCtrlClicked;
             _canvas.EmptySpaceClicked -= OnEmptySpaceClicked;
             _canvas.PointerPressed -= OnCanvasPointerPressed;
+            _canvas.DrawNodeClicked -= OnDrawNodeClicked;
+            _canvas.DrawNodeFinished -= OnDrawNodeFinished;
         }
 
         if (_taxiInputBox is not null)
@@ -73,6 +77,23 @@ public partial class GroundView : UserControl
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+
+        if (DataContext is GroundViewModel vm && vm.IsDrawingRoute)
+        {
+            if (e.Key == Key.Escape)
+            {
+                vm.CancelDrawRoute();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Back)
+            {
+                vm.UndoDrawWaypoint();
+                e.Handled = true;
+                return;
+            }
+        }
 
         if (e.Key == Key.D && Services.PlatformHelper.HasActionModifier(e.KeyModifiers) && _canvas is not null)
         {
@@ -141,6 +162,19 @@ public partial class GroundView : UserControl
             {
                 menu.Items.Add(CreateMenuItem($"Hold short {node.RunwayId}", () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
             }
+
+            var nid = nodeId;
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Draw taxi route...",
+                    () =>
+                    {
+                        vm.StartDrawRoute(vm.SelectedAircraft!);
+                        vm.AddDrawWaypoint(nid);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
 
             var (prefill, caretPos) = BuildCustomTaxiPrefill(vm, node, nodeId);
             menu.Items.Add(
@@ -277,6 +311,24 @@ public partial class GroundView : UserControl
             menu.Items.Add(CreateMenuItem("Cancel takeoff clearance", () => vm.CancelTakeoffClearanceAsync(callsign, initials)));
         }
 
+        if (
+            phase is "At Parking" or "Pushback" or "Taxiing" or "Holding After Exit" or "Holding After Pushback"
+            || phase.StartsWith("Holding Short", StringComparison.Ordinal)
+        )
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Draw taxi route...",
+                    () =>
+                    {
+                        vm.StartDrawRoute(vm.SelectedAircraft!);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+
         menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
@@ -289,6 +341,105 @@ public partial class GroundView : UserControl
         {
             vm.SelectedAircraft = null;
         }
+    }
+
+    private void OnDrawNodeClicked(int nodeId)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.AddDrawWaypoint(nodeId);
+        }
+    }
+
+    private void OnDrawNodeFinished(int nodeId, Point screenPos)
+    {
+        if (DataContext is not GroundViewModel vm)
+        {
+            return;
+        }
+
+        vm.AddDrawWaypoint(nodeId);
+        var result = vm.FinishDrawRoute();
+        if (result is null)
+        {
+            return;
+        }
+
+        var (route, _) = result.Value;
+        var callsign = vm.SelectedAircraft?.Callsign;
+        if (callsign is null)
+        {
+            return;
+        }
+
+        var initials = GetInitials();
+        var menu = new ContextMenu();
+
+        var variants = vm.BuildTaxiCrossingVariants(route);
+        if (variants.Count <= 1)
+        {
+            var command = variants.Count == 1 ? variants[0].Command : "";
+            menu.Items.Add(
+                new MenuItem
+                {
+                    Header = command,
+                    IsEnabled = false,
+                    FontWeight = Avalonia.Media.FontWeight.Bold,
+                }
+            );
+            menu.Items.Add(
+                CreateMenuItem(
+                    "Send",
+                    () =>
+                    {
+                        vm.ActiveRoute = route;
+                        return vm.SendRawCommandAsync(callsign, initials, command);
+                    }
+                )
+            );
+        }
+        else
+        {
+            var defaultCommand = variants[^1].Command;
+            menu.Items.Add(
+                new MenuItem
+                {
+                    Header = defaultCommand,
+                    IsEnabled = false,
+                    FontWeight = Avalonia.Media.FontWeight.Bold,
+                }
+            );
+            foreach (var (label, command) in variants)
+            {
+                var cmd = command;
+                menu.Items.Add(
+                    CreateMenuItem(
+                        string.IsNullOrEmpty(label) ? cmd : label,
+                        () =>
+                        {
+                            vm.ActiveRoute = route;
+                            return vm.SendRawCommandAsync(callsign, initials, cmd);
+                        }
+                    )
+                );
+            }
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(
+            CreateMenuItem(
+                "Copy to command input",
+                () =>
+                {
+                    var taxiways = vm.BuildTaxiCommand(route);
+                    ShowTaxiInput(callsign, initials, $"TAXI {taxiways}", $"TAXI {taxiways}".Length);
+                    return Task.CompletedTask;
+                }
+            )
+        );
+        menu.Items.Add(CreateMenuItem("Cancel", () => Task.CompletedTask));
+
+        ShowContextMenu(menu, screenPos);
     }
 
     private static void AddTaxiRouteItems(

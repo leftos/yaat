@@ -83,6 +83,8 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor AircraftSelected = new(255, 255, 255);
     private static readonly SKColor AircraftDimmed = new(80, 80, 100);
     private static readonly SKColor AircraftAirborne = new(0, 200, 255);
+    private static readonly SKColor DrawnRouteColor = new(0, 200, 255);
+    private static readonly SKColor WaypointMarkerColor = new(255, 200, 0);
     private static readonly SKColor HoverRingColor = new(255, 255, 255, 160);
 
     private const double AirborneMaxAglFt = 4000;
@@ -199,6 +201,32 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(0, 0, 0, 160), Style = SKPaintStyle.Fill };
 
+    private readonly SKPaint _drawnRoutePaint = new()
+    {
+        Color = DrawnRouteColor,
+        StrokeWidth = 5,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
+    };
+
+    private readonly SKPaint _waypointMarkerPaint = new()
+    {
+        Color = WaypointMarkerColor,
+        Style = SKPaintStyle.Fill,
+        IsAntialias = true,
+    };
+
+    private readonly SKPaint _waypointTextPaint = new()
+    {
+        Color = SKColors.Black,
+        TextSize = 10,
+        IsAntialias = true,
+        SubpixelText = true,
+        Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
+        TextAlign = SKTextAlign.Center,
+    };
+
     private readonly SKPaint _hoverPaint = new()
     {
         Color = HoverRingColor,
@@ -238,6 +266,8 @@ public sealed class GroundRenderer : IDisposable
         int? hoveredNodeId,
         TaxiRoute? activeRoute,
         TaxiRoute? previewRoute,
+        TaxiRoute? drawnRoutePreview,
+        IReadOnlyList<int>? drawWaypoints,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
         double airportCenterLat = 0,
         double airportCenterLon = 0,
@@ -258,6 +288,7 @@ public sealed class GroundRenderer : IDisposable
         DrawEdges(canvas, vp, layout, showDebugInfo);
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
+        DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
         DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo);
         DrawLabels(canvas);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
@@ -426,6 +457,33 @@ public sealed class GroundRenderer : IDisposable
     private void DrawPreviewRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
     {
         DrawRoute(canvas, vp, layout, route, _previewRoutePaint);
+    }
+
+    private void DrawDrawnRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? drawnRoute, IReadOnlyList<int>? waypoints)
+    {
+        DrawRoute(canvas, vp, layout, drawnRoute, _drawnRoutePaint);
+
+        if (waypoints is null || waypoints.Count == 0 || layout.Nodes.Count == 0)
+        {
+            return;
+        }
+
+        var nodePositions = new Dictionary<int, (float X, float Y)>();
+        foreach (var node in layout.Nodes)
+        {
+            nodePositions[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
+        }
+
+        for (int i = 0; i < waypoints.Count; i++)
+        {
+            if (!nodePositions.TryGetValue(waypoints[i], out var pos))
+            {
+                continue;
+            }
+
+            canvas.DrawCircle(pos.X, pos.Y, 8f, _waypointMarkerPaint);
+            canvas.DrawText($"{i + 1}", pos.X, pos.Y + _waypointTextPaint.TextSize / 3f, _waypointTextPaint);
+        }
     }
 
     private static void DrawRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route, SKPaint paint)
@@ -709,6 +767,9 @@ public sealed class GroundRenderer : IDisposable
         _taxiLabelPaint.Dispose();
         _activeRoutePaint.Dispose();
         _previewRoutePaint.Dispose();
+        _drawnRoutePaint.Dispose();
+        _waypointMarkerPaint.Dispose();
+        _waypointTextPaint.Dispose();
         _nodePaint.Dispose();
         _nodeLabelPaint.Dispose();
         _aircraftPaint.Dispose();

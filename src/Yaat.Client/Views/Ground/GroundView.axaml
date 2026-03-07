@@ -11,6 +11,9 @@
                              SelectedAircraft="{Binding SelectedAircraft}"
                              ActiveRoute="{Binding ActiveRoute}"
                              PreviewRoute="{Binding PreviewRoute}"
+                             DrawnRoutePreview="{Binding DrawnRoutePreview}"
+                             IsDrawingRoute="{Binding IsDrawingRoute}"
+                             DrawWaypoints="{Binding DrawWaypoints}"
                              AirportCenterLat="{Binding AirportCenterLat}"
                              AirportCenterLon="{Binding AirportCenterLon}"
                              AirportElevation="{Binding AirportElevation}"
@@ -22,6 +25,14 @@
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNull}}" />
+
+        <!-- Draw route status overlay -->
+        <Border IsVisible="{Binding IsDrawingRoute}"
+                Background="#CC000000" Padding="8,4"
+                HorizontalAlignment="Center" VerticalAlignment="Top"
+                CornerRadius="4" Margin="0,8">
+            <TextBlock Text="Click nodes to add waypoints. Right-click node to finish. Backspace to undo. Esc to cancel." Foreground="White" FontSize="12"/>
+        </Border>
 
         <!-- Custom taxi route input overlay -->
         <Border x:Name="TaxiInputOverlay"
