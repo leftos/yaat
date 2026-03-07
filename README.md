@@ -59,7 +59,7 @@ cd path/to/yaat-server
 .\Setup-CrcEnvironment.ps1
 ```
 
-This registers the local server in CRC's `DevEnvironments.json`. Restart CRC and select "YAAT Local" from the environment list. See the [installation guide](docs/installation-guide.md#step-6-connect-crc-optional) for manual setup or details.
+This registers the local server in CRC's `DevEnvironments.json`. Restart CRC and select "YAAT Local" from the environment list. See the [installation guide](install.md#step-6-connect-crc-optional) for manual setup or details.
 
 ## Project Structure
 
