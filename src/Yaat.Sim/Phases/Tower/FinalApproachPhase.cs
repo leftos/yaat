@@ -294,6 +294,7 @@ public sealed class FinalApproachPhase : Phase
         var goAround = new GoAroundPhase
         {
             TargetAltitude = isPattern ? (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category)) : null,
+            ReenterPattern = isPattern,
         };
 
         ctx.Aircraft.Phases.ReplaceUpcoming([goAround]);

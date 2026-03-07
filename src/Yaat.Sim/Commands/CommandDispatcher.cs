@@ -709,6 +709,8 @@ public static class CommandDispatcher
             EnterLeftBaseCommand { RunwayId: not null } => true,
             EnterRightBaseCommand { RunwayId: not null } => true,
             EnterFinalCommand { RunwayId: not null } => true,
+            MakeLeftTrafficCommand { RunwayId: not null } => true,
+            MakeRightTrafficCommand { RunwayId: not null } => true,
             _ => false,
         };
     }
@@ -886,7 +888,12 @@ public static class CommandDispatcher
                         gaTargetAlt = (int)(fieldElev + patAgl);
                     }
 
-                    var goAround = new GoAroundPhase { AssignedHeading = ga.AssignedHeading, TargetAltitude = gaTargetAlt };
+                    var goAround = new GoAroundPhase
+                    {
+                        AssignedHeading = ga.AssignedHeading,
+                        TargetAltitude = gaTargetAlt,
+                        ReenterPattern = isGaPattern,
+                    };
                     aircraft.Phases.ReplaceUpcoming([goAround]);
                     aircraft.Phases.AdvanceToNext(gaCtx);
 

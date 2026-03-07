@@ -25,6 +25,12 @@ public sealed class GoAroundPhase : Phase
     /// <summary>Altitude to climb to (null = self-clear at 2000 AGL).</summary>
     public int? TargetAltitude { get; init; }
 
+    /// <summary>
+    /// When true, the aircraft re-enters the traffic pattern after the go-around climb.
+    /// Set for pattern traffic and visual approaches; false for instrument approaches.
+    /// </summary>
+    public bool ReenterPattern { get; init; }
+
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
@@ -92,7 +98,23 @@ public sealed class GoAroundPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        // All standard commands clear the go-around phase
-        return CommandAcceptance.ClearsPhase;
+        // Tower commands that set state for the next approach are accepted
+        // without interrupting the go-around climb.
+        return cmd switch
+        {
+            CanonicalCommandType.ClearedToLand
+            or CanonicalCommandType.CancelLandingClearance
+            or CanonicalCommandType.ClearedForOption
+            or CanonicalCommandType.TouchAndGo
+            or CanonicalCommandType.StopAndGo
+            or CanonicalCommandType.LowApproach
+            or CanonicalCommandType.MakeLeftTraffic
+            or CanonicalCommandType.MakeRightTraffic
+            or CanonicalCommandType.ExitLeft
+            or CanonicalCommandType.ExitRight
+            or CanonicalCommandType.ExitTaxiway
+            or CanonicalCommandType.Sequence => CommandAcceptance.Allowed,
+            _ => CommandAcceptance.ClearsPhase,
+        };
     }
 }
