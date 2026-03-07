@@ -173,8 +173,10 @@ internal static class ArgumentSuggester
         AddOption("OC", "On course (direct to destination)", partial, prefix, suggestions, maxSuggestions);
         AddOption("MRC", "Right crosswind departure (90° right)", partial, prefix, suggestions, maxSuggestions);
         AddOption("MRD", "Right downwind departure (180° right)", partial, prefix, suggestions, maxSuggestions);
+        AddOption("MR270", "Right 270° departure (270° right turn)", partial, prefix, suggestions, maxSuggestions);
         AddOption("MLC", "Left crosswind departure (90° left)", partial, prefix, suggestions, maxSuggestions);
         AddOption("MLD", "Left downwind departure (180° left)", partial, prefix, suggestions, maxSuggestions);
+        AddOption("ML270", "Left 270° departure (270° left turn)", partial, prefix, suggestions, maxSuggestions);
         AddOption("DCT", "Direct to fix — CTO DCT {fix}", partial, prefix, suggestions, maxSuggestions);
         AddCtoHeadingHints(partial, prefix, suggestions, maxSuggestions);
     }

@@ -396,8 +396,9 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO 060 250` | Cleared for takeoff, fly heading 060, climb and maintain 25,000 ft |
 | `CTO MRC` | Cleared for takeoff, right crosswind departure (90° right turn) |
 | `CTO MRD` | Cleared for takeoff, right downwind departure (180° right turn) |
+| `CTO MR270` | Cleared for takeoff, right 270° departure (turn right 270° from runway heading) |
 | `CTO MR45` | Cleared for takeoff, turn right 45° from runway heading |
-| `CTO MLC` / `MLD` / `ML45` | Left-turn equivalents of MRC/MRD/MR{N} |
+| `CTO ML270` / `MLC` / `MLD` / `ML45` | Left-turn equivalents of MR270/MRC/MRD/MR{N} |
 | `CTO MRH` / `RH` / `MSO` | Cleared for takeoff, fly runway heading |
 | `CTO H270` | Cleared for takeoff, fly heading 270 (shortest turn) |
 | `CTO RH270` / `RT270` | Cleared for takeoff, turn right heading 270 |
@@ -1084,7 +1085,7 @@ As you type in the command bar, a popup appears with matching suggestions:
 - **Command verbs** — matching verbs from your active command scheme with syntax hints (e.g., `FH  Fly Heading {270}`)
 - **Callsigns** — aircraft whose callsign matches what you've typed, showing type and route
 - **Command arguments** — after typing a verb + space, context-specific options appear:
-  - **CTO modifiers** — departure instructions vary by flight rules. IFR: `RH` and heading prefixes (`H`, `RH`, `LH`). VFR: all modifiers including `OC`, `MRC`, `MRD`, `MLC`, `MLD`, `MLT`, `MRT`, `DCT`.
+  - **CTO modifiers** — departure instructions vary by flight rules. IFR: `RH` and heading prefixes (`H`, `RH`, `LH`). VFR: all modifiers including `OC`, `MRC`, `MRD`, `MR270`, `MLC`, `MLD`, `ML270`, `MLT`, `MRT`, `DCT`.
   - **Runway designators** — for `ELD`, `ERD`, `EF`, `ELB`, `ERB`, `CROSS`, `CTL`, `CVA`: shows runways from the primary airport
   - **Fix names** — for `DCT`, `DCTF`, `ADCTF`, `HFIXL`, `HFIXR`, `HFIX`, `CFIX`, `DEPART`, `JFAC`, and `AT` conditions: route fixes + navdata fixes
 - **Macros** (yellow) — when typing `#`, matching macro names with parameter hints (e.g., `#HC $1 $2` or `#FC $hdg $alt`)
