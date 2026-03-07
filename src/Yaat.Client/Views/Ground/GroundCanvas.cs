@@ -515,6 +515,21 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         _hasFitBounds = true;
     }
 
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        if (IsPanZoomEnabled && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            var delta = e.Delta.Y > 0 ? 1.0 : -1.0;
+            Viewport.RotationDeg = (Viewport.RotationDeg + delta) % 360.0;
+            OnViewportChanged();
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
+
+        base.OnPointerWheelChanged(e);
+    }
+
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
