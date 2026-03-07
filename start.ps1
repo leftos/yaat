@@ -12,11 +12,11 @@ $ServerDir = Join-Path (Split-Path $ClientDir) "yaat-server"
 
 if ($Pull) {
     Write-Host "Pulling yaat-client..."
-    git -C $ClientDir pull --ff-only
+    git -C "$ClientDir" pull --ff-only
     if ($LASTEXITCODE -ne 0) { Write-Error "Client pull failed"; exit 1 }
 
     Write-Host "Pulling yaat-server..."
-    git -C $ServerDir pull --ff-only
+    git -C "$ServerDir" pull --ff-only
     if ($LASTEXITCODE -ne 0) { Write-Error "Server pull failed"; exit 1 }
 }
 
@@ -29,10 +29,10 @@ dotnet build "$ClientDir\src\Yaat.Client" -v q
 if ($LASTEXITCODE -ne 0) { Write-Error "Client build failed"; exit 1 }
 
 Write-Host "Starting yaat-server..."
-$server = Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project $ServerDir\src\Yaat.Server"
+$server = Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ServerDir\src\Yaat.Server`""
 
 Write-Host "Starting yaat-client..."
-$client = Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project $ClientDir\src\Yaat.Client -- --autoconnect"
+$client = Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ClientDir\src\Yaat.Client`" -- --autoconnect"
 
 Write-Host "Server PID: $($server.Id)  Client PID: $($client.Id)"
 Write-Host "Press Ctrl-C to stop both."
