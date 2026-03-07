@@ -1,6 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -44,9 +46,32 @@ public partial class DataGridView : UserControl
         }
     }
 
+    private static bool IsInDataRow(object? source)
+    {
+        for (var visual = source as Control; visual is not null; visual = visual.GetVisualParent() as Control)
+        {
+            if (visual is DataGridRow)
+            {
+                return true;
+            }
+
+            if (visual is DataGridColumnHeader)
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
     private void OnGridDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (sender is not DataGrid grid || grid.SelectedItem is not AircraftModel ac || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (!IsInDataRow(e.Source))
         {
             return;
         }
@@ -57,6 +82,11 @@ public partial class DataGridView : UserControl
     private void OnGridContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (sender is not DataGrid grid || grid.SelectedItem is not AircraftModel ac || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (!IsInDataRow(e.Source))
         {
             return;
         }
