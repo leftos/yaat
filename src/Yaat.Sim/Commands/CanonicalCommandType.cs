@@ -74,6 +74,7 @@ public enum CanonicalCommandType
     Resume,
     CrossRunway,
     HoldShort,
+    AssignRunway,
     Follow,
     ExitLeft,
     ExitRight,
