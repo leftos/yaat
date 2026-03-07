@@ -82,7 +82,7 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor AircraftParked = new(100, 100, 100);
     private static readonly SKColor AircraftSelected = new(255, 255, 255);
     private static readonly SKColor AircraftDimmed = new(80, 80, 100);
-    private static readonly SKColor AircraftAirborne = new(0, 200, 255, 120);
+    private static readonly SKColor AircraftAirborne = new(0, 200, 255);
     private static readonly SKColor HoverRingColor = new(255, 255, 255, 160);
 
     private const double AirborneMaxAglFt = 4000;

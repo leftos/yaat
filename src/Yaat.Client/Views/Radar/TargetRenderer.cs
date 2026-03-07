@@ -82,7 +82,7 @@ public sealed class TargetRenderer : IDisposable
             var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
 
             bool isSelected = ac == selectedAircraft;
-            bool isOnGround = showTopDown && ac.IsOnGround;
+            bool isOnGround = showTopDown && (int)(ac.Altitude / 100) < 1;
             var baseSymbolColor = isOnGround ? GroundColor : SymbolColor;
             var baseDbColor = isOnGround ? GroundColor : DataBlockColor;
             var symbolColor = isSelected ? SelectedColor : baseSymbolColor;
