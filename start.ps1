@@ -7,8 +7,8 @@ param(
     [switch]$Pull
 )
 
-$ServerDir = "X:\dev\yaat-server"
-$ClientDir = "X:\dev\yaat"
+$ClientDir = $PSScriptRoot
+$ServerDir = Join-Path (Split-Path $ClientDir) "yaat-server"
 
 if ($Pull) {
     Write-Host "Pulling yaat-client..."
