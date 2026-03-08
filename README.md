@@ -53,14 +53,7 @@ dotnet run --project src/Yaat.Client
 
 The client connects to `http://localhost:5000` by default.
 
-**CRC setup** (for students connecting via the radar client):
-
-```powershell
-cd path/to/yaat-server
-.\Setup-CrcEnvironment.ps1
-```
-
-This registers the local server in CRC's `DevEnvironments.json`. Restart CRC and select "YAAT Local" from the environment list. See the [installation guide](INSTALL.md) for manual setup or details.
+**CRC setup** (for students connecting via the radar client): see the [User Guide — Connecting CRC](USER_GUIDE.md#connecting-crc-optional) for setup script and manual configuration options.
 
 ## Project Structure
 
