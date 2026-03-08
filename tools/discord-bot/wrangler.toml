@@ -12,6 +12,10 @@ GITHUB_REPO = "leftos/yaat"
 # DISCORD_ALLOWED_USER_ID - your Discord user ID
 # GITHUB_WEBHOOK_SECRET - secret for GitHub webhook signature verification
 
+[[r2_buckets]]
+binding = "ATTACHMENTS"
+bucket_name = "yaat-attachments"
+
 [[kv_namespaces]]
 binding = "THREAD_ISSUES"
 id = "192a2dd842c74910968cbdf1946be82a"

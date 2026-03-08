@@ -13,6 +13,11 @@ const commands = [
     type: 1,
   },
   {
+    name: "recreate-issue",
+    description: "Re-fetch thread, reupload attachments, and replace the linked GitHub issue body",
+    type: 1,
+  },
+  {
     name: "resolve",
     description: "Mark this thread as resolved (adds checkmark to title and reaction)",
     type: 1,

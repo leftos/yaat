@@ -11,6 +11,9 @@ const UPDATE_MESSAGE = 7;
 // Role IDs
 const MEMBER_ROLE_ID = "1479929042429018192";
 
+// R2 public URL for uploaded attachments
+const R2_PUBLIC_URL = "https://pub-1f460757f70f46d8b557747a4d0ffe0d.r2.dev";
+
 // Status labels → display text, emoji, and whether they represent a terminal (closed) state
 const STATUS_LABELS = {
   "in progress": {
@@ -100,18 +103,25 @@ async function handleDiscordInteraction(request, env, ctx) {
       return ephemeral("This command must be used inside a forum thread.");
     }
 
+    const commandName = interaction.data.name;
+
     ctx.waitUntil(
       processCommand({
         threadId: channel.id,
         guildId: interaction.guild_id,
-        commandName: interaction.data.name,
+        commandName,
         token: interaction.token,
         appId: interaction.application_id,
         env,
       }).catch((err) => console.error("Command processing failed:", err)),
     );
 
-    return jsonResponse({ type: DEFERRED_CHANNEL_MESSAGE });
+    const silentCommands = ["recreate-issue"];
+    const deferResponse = { type: DEFERRED_CHANNEL_MESSAGE };
+    if (silentCommands.includes(commandName)) {
+      deferResponse.data = { flags: 64 };
+    }
+    return jsonResponse(deferResponse);
   }
 
   if (interaction.type === MESSAGE_COMPONENT) {
@@ -318,6 +328,37 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
 
     const existing = await env.THREAD_ISSUES.get(threadId, { type: "json" });
 
+    if (commandName === "recreate-issue") {
+      if (!existing) {
+        await editOriginalResponse(appId, token, {
+          content: "No linked GitHub issue found. Use `/create-issue` or `/create-feature-request` first.",
+        });
+        return;
+      }
+
+      const threadUrl = `https://discord.com/channels/${guildId}/${threadId}`;
+      const messages = await discordApi(
+        `/channels/${threadId}/messages?limit=100`,
+        env.DISCORD_BOT_TOKEN,
+      );
+      messages.reverse();
+
+      const urlMap = await reuploadAttachments(messages, env.ATTACHMENTS);
+      const conversation = formatConversation(messages, urlMap);
+      const body = `> Created from [Discord thread](${threadUrl})\n\n## Conversation\n\n${conversation}`;
+
+      await updateGitHubIssue(env.GITHUB_TOKEN, env.GITHUB_REPO, existing.issueNumber, { body });
+
+      const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : "0";
+      existing.lastSyncedMessageId = lastMessageId;
+      await env.THREAD_ISSUES.put(threadId, JSON.stringify(existing));
+
+      await editOriginalResponse(appId, token, {
+        content: `Recreated issue body with permanent attachments: ${existing.issueUrl}`,
+      });
+      return;
+    }
+
     if (existing) {
       const count = await syncThread(env, threadId, existing);
       await editOriginalResponse(appId, token, {
@@ -351,7 +392,8 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
     );
     messages.reverse();
 
-    const conversation = formatConversation(messages);
+    const urlMap = await reuploadAttachments(messages, env.ATTACHMENTS);
+    const conversation = formatConversation(messages, urlMap);
     const body = `> Created from [Discord thread](${threadUrl})\n\n## Conversation\n\n${conversation}`;
 
     const issue = await createGitHubIssue(env.GITHUB_TOKEN, env.GITHUB_REPO, {
@@ -426,9 +468,11 @@ async function syncThread(env, threadId, mapping) {
     return true;
   });
 
+  const urlMap = await reuploadAttachments(filteredMessages, env.ATTACHMENTS);
+
   for (const msg of filteredMessages) {
     const author = msg.author.global_name || msg.author.username;
-    const commentBody = `**${author}** via Discord:\n\n${formatMessage(msg)}`;
+    const commentBody = `**${author}** via Discord:\n\n${formatMessage(msg, urlMap)}`;
 
     await createGitHubComment(env.GITHUB_TOKEN, env.GITHUB_REPO, mapping.issueNumber, commentBody);
   }
@@ -440,15 +484,39 @@ async function syncThread(env, threadId, mapping) {
   return filteredMessages.length;
 }
 
+// --- Attachment re-upload ---
+
+async function reuploadAttachments(messages, r2Bucket) {
+  const urlMap = new Map();
+  for (const msg of messages) {
+    for (const att of msg.attachments || []) {
+      try {
+        const res = await fetch(att.url);
+        if (!res.ok) continue;
+        const data = await res.arrayBuffer();
+        const key = `${msg.id}-${att.filename}`;
+        await r2Bucket.put(key, data, {
+          httpMetadata: { contentType: att.content_type || "application/octet-stream" },
+        });
+        urlMap.set(att.url, `${R2_PUBLIC_URL}/${key}`);
+      } catch (err) {
+        console.error(`Failed to reupload ${att.filename}:`, err);
+      }
+    }
+  }
+  return urlMap;
+}
+
 // --- Formatting ---
 
-function formatMessage(msg) {
+function formatMessage(msg, urlMap = new Map()) {
   const parts = [];
   if (msg.content) parts.push(msg.content);
   if (msg.attachments?.length) {
     for (const att of msg.attachments) {
+      const url = urlMap.get(att.url) || att.url;
       const isImage = att.content_type?.startsWith("image/");
-      parts.push(isImage ? `![${att.filename}](${att.url})` : `[${att.filename}](${att.url})`);
+      parts.push(isImage ? `![${att.filename}](${url})` : `[${att.filename}](${url})`);
     }
   }
   if (msg.embeds?.length) {
@@ -461,7 +529,7 @@ function formatMessage(msg) {
   return parts.length > 0 ? parts.join("\n") : "*[empty message]*";
 }
 
-function formatConversation(messages) {
+function formatConversation(messages, urlMap = new Map()) {
   return messages
     .filter((msg) => !msg.author.bot)
     .map((msg) => {
@@ -473,7 +541,7 @@ function formatConversation(messages) {
         minute: "2-digit",
         hour12: false,
       });
-      return `**${author}** (${timestamp}):\n${formatMessage(msg)}`;
+      return `**${author}** (${timestamp}):\n${formatMessage(msg, urlMap)}`;
     })
     .join("\n\n---\n\n");
 }
@@ -520,6 +588,24 @@ async function createGitHubIssue(token, repo, { title, body, labels }) {
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`GitHub API failed (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
+async function updateGitHubIssue(token, repo, issueNumber, fields) {
+  const res = await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "User-Agent": "yaat-discord-bot",
+      Accept: "application/vnd.github.v3+json",
+    },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GitHub update issue failed (${res.status}): ${text}`);
   }
   return res.json();
 }
