@@ -424,6 +424,8 @@ public partial class MainViewModel : ObservableObject
         _connection.CrcRoomMembersChanged += OnCrcRoomMembersChanged;
         _connection.WeatherChanged += OnWeatherChanged;
         _connection.PositionDisplayChanged += OnPositionDisplayChanged;
+        _connection.ScenarioLoaded += OnScenarioLoaded;
+        _connection.ScenarioUnloaded += OnScenarioUnloaded;
 
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;

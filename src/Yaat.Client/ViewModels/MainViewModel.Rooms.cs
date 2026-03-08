@@ -355,6 +355,11 @@ public partial class MainViewModel
             {
                 _ = Radar.LoadVideoMapsForArtccAsync(_preferences.ArtccId, state.PrimaryAirportId, state.ScenarioId);
             }
+
+            if (state.PositionDisplayConfig is not null)
+            {
+                Radar.ApplyPositionDisplayConfig(state.PositionDisplayConfig);
+            }
         }
 
         Aircraft.Clear();

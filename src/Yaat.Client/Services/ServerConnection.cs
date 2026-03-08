@@ -25,6 +25,8 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<CrcRoomMembersChangedDto>? CrcRoomMembersChanged;
     public event Action<WeatherChangedDto>? WeatherChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
+    public event Action<ScenarioLoadedDto>? ScenarioLoaded;
+    public event Action? ScenarioUnloaded;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -62,6 +64,9 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<WeatherChangedDto>("WeatherChanged", dto => WeatherChanged?.Invoke(dto));
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
+
+        _connection.On<ScenarioLoadedDto>("ScenarioLoaded", dto => ScenarioLoaded?.Invoke(dto));
+        _connection.On("ScenarioUnloaded", () => ScenarioUnloaded?.Invoke());
 
         _connection.Reconnecting += error =>
         {
@@ -505,7 +510,18 @@ public record RoomStateDto(
     bool IsPaused,
     double SimRate,
     string? PrimaryAirportId,
-    List<AircraftDto> AllAircraft
+    List<AircraftDto> AllAircraft,
+    PositionDisplayConfigDto? PositionDisplayConfig = null
+);
+
+public record ScenarioLoadedDto(
+    string ScenarioId,
+    string ScenarioName,
+    string? PrimaryAirportId,
+    bool IsPaused,
+    int SimRate,
+    List<AircraftDto> AllAircraft,
+    PositionDisplayConfigDto? PositionDisplayConfig = null
 );
 
 public record RoomMemberDto(string Cid, string Initials, string ArtccId);

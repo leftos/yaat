@@ -294,6 +294,63 @@ public partial class MainViewModel
         }
     }
 
+    private void OnScenarioLoaded(ScenarioLoadedDto dto)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _log.LogInformation("Scenario loaded by another client: '{Name}' ({Id})", dto.ScenarioName, dto.ScenarioId);
+
+            ActiveScenarioId = dto.ScenarioId;
+            ActiveScenarioName = dto.ScenarioName;
+            _commandInput.PrimaryAirportId = dto.PrimaryAirportId;
+            Radar.SetPrimaryAirportId(dto.PrimaryAirportId);
+            SetRadarAirportPosition(dto.PrimaryAirportId);
+            ApplySimState(dto.IsPaused, dto.SimRate);
+
+            if (!string.IsNullOrEmpty(dto.PrimaryAirportId))
+            {
+                SetDistanceReference(dto.PrimaryAirportId);
+                _ = Ground.LoadLayoutAsync(dto.PrimaryAirportId);
+            }
+
+            Aircraft.Clear();
+            foreach (var ac in dto.AllAircraft)
+            {
+                Aircraft.Add(AircraftModel.FromDto(ac, ComputeDistance));
+            }
+
+            if (!string.IsNullOrEmpty(_preferences.ArtccId))
+            {
+                _ = Radar.LoadVideoMapsForArtccAsync(_preferences.ArtccId, dto.PrimaryAirportId, dto.ScenarioId);
+            }
+
+            if (dto.PositionDisplayConfig is not null)
+            {
+                Radar.ApplyPositionDisplayConfig(dto.PositionDisplayConfig);
+            }
+
+            _ = SendAutoAcceptDelay();
+            _ = SendAutoDeleteMode();
+            _ = SendValidateDctFixes();
+            _ = SendAutoClearedToLand();
+            _ = SendAutoCrossRunway();
+
+            StatusText = $"Scenario loaded: {dto.ScenarioName}";
+            AddSystemEntry($"Scenario loaded: {dto.ScenarioName} ({dto.AllAircraft.Count} aircraft)");
+        });
+    }
+
+    private void OnScenarioUnloaded()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _log.LogInformation("Scenario unloaded by another client");
+            ClearScenarioState();
+            StatusText = "Scenario unloaded";
+            AddSystemEntry("Scenario unloaded by another user");
+        });
+    }
+
     private void ClearScenarioState()
     {
         ActiveScenarioId = null;
