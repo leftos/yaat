@@ -441,7 +441,8 @@
                                ProgrammedFixNames="{Binding ProgrammedFixNames}"
                                IsDrawingRoute="{Binding IsDrawingRoute}"
                                DrawnWaypoints="{Binding DrawnWaypoints}"
-                               WaypointConditions="{Binding WaypointConditionsSnapshot}" />
+                               WaypointConditions="{Binding WaypointConditionsSnapshot}"
+                               WeatherInfo="{Binding WeatherInfo}" />
 
             <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
             <Popup x:Name="MapPopup"

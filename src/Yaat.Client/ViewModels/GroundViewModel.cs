@@ -25,6 +25,9 @@ public partial class GroundViewModel : ObservableObject
     private AircraftModel? _selectedAircraft;
 
     [ObservableProperty]
+    private WeatherDisplayInfo? _weatherInfo;
+
+    [ObservableProperty]
     private TaxiRoute? _activeRoute;
 
     [ObservableProperty]

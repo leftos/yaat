@@ -972,6 +972,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 
 The ground layout loads automatically when a scenario is loaded for an airport with ground data.
 
+When weather is loaded, wind direction/speed and altimeter setting are displayed in the top-left corner of the ground view.
+
 ### Radar View
 
 A simplified STARS-style radar display showing aircraft targets, video maps, and navigation fixes. Useful for approach/departure operations.
@@ -995,6 +997,8 @@ A simplified STARS-style radar display showing aircraft targets, video maps, and
 **Right-click context menus:**
 - **On an aircraft**: Heading (fly/present/turn left/turn right), Altitude (common values), Speed, Approach (ILS/RNAV/VIS per runway), Track operations, Delete
 - **On the map** (with aircraft selected): "Fly heading" (computed bearing to click point), "Direct to" (nearest fix within 5nm)
+
+When weather is loaded, wind and altimeter are displayed in the top-left corner of the radar view in STARS green.
 
 **Datablocks** show callsign, altitude, ground speed, and owner. When SP1 or SP2 is set, an additional line displays the scratchpad values.
 

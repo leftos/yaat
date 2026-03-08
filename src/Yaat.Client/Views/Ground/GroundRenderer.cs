@@ -1,6 +1,7 @@
 using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
@@ -272,7 +273,8 @@ public sealed class GroundRenderer : IDisposable
         double airportCenterLat = 0,
         double airportCenterLon = 0,
         double airportElevation = 0,
-        bool showDebugInfo = false
+        bool showDebugInfo = false,
+        WeatherDisplayInfo? weatherInfo = null
     )
     {
         canvas.Clear(BackgroundColor);
@@ -293,6 +295,24 @@ public sealed class GroundRenderer : IDisposable
         DrawLabels(canvas);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
         DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
+
+        if (weatherInfo is not null)
+        {
+            DrawWeatherOverlay(canvas, weatherInfo);
+        }
+    }
+
+    private static void DrawWeatherOverlay(SKCanvas canvas, WeatherDisplayInfo info)
+    {
+        using var paint = new SKPaint
+        {
+            Color = new SKColor(0xCC, 0xCC, 0xCC), // light gray
+            TextSize = 14,
+            Typeface = PlatformHelper.MonospaceTypeface,
+            IsAntialias = true,
+        };
+
+        canvas.DrawText(info.ToDisplayString(), 10, 20, paint);
     }
 
     private void DrawRunways(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
