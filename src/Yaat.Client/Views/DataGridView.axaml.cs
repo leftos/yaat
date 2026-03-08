@@ -4,7 +4,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Yaat.Client.Models;
-using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
@@ -47,6 +46,7 @@ public partial class DataGridView : UserControl
         if (grid is not null)
         {
             grid.SelectionChanged -= OnGridSelectionChanged;
+            grid.DoubleTapped -= OnGridDoubleTapped;
             grid.ContextRequested -= OnGridContextRequested;
         }
 
@@ -121,7 +121,7 @@ public partial class DataGridView : UserControl
             return;
         }
 
-        OpenFlightPlanEditor(ac, vm, TopLevel.GetTopLevel(this) as Window);
+        FlightPlanEditorManager.Open(ac, vm, TopLevel.GetTopLevel(this) as Window);
     }
 
     private void OnGridContextRequested(object? sender, ContextRequestedEventArgs e)
@@ -154,7 +154,7 @@ public partial class DataGridView : UserControl
 
         menu.Items.Add(new Separator());
         var editItem = new MenuItem { Header = "Edit flight plan" };
-        editItem.Click += (_, _) => OpenFlightPlanEditor(ac, vm, TopLevel.GetTopLevel(this) as Window);
+        editItem.Click += (_, _) => FlightPlanEditorManager.Open(ac, vm, TopLevel.GetTopLevel(this) as Window);
         menu.Items.Add(editItem);
 
         var deleteItem = new MenuItem { Header = "Delete" };
@@ -190,42 +190,5 @@ public partial class DataGridView : UserControl
             }
         };
         menu.Items.Add(textBox);
-    }
-
-    public static void OpenFlightPlanEditor(AircraftModel ac, MainViewModel vm, Window? owner)
-    {
-        var window = new FlightPlanEditorWindow(
-            ac,
-            async (callsign, amendment) =>
-            {
-                var dto = new FlightPlanAmendmentDto(
-                    AircraftType: amendment.AircraftType,
-                    EquipmentSuffix: amendment.EquipmentSuffix,
-                    Departure: amendment.Departure,
-                    Destination: amendment.Destination,
-                    CruiseSpeed: amendment.CruiseSpeed,
-                    CruiseAltitude: amendment.CruiseAltitude,
-                    FlightRules: amendment.FlightRules,
-                    Route: amendment.Route,
-                    Remarks: amendment.Remarks,
-                    Scratchpad1: amendment.Scratchpad1,
-                    Scratchpad2: amendment.Scratchpad2,
-                    BeaconCode: amendment.BeaconCode
-                );
-
-                await vm.Connection.AmendFlightPlanAsync(callsign, dto);
-            }
-        );
-
-        new WindowGeometryHelper(window, vm.Preferences, "FlightPlanEditor", 640, 250).Restore();
-
-        if (owner is not null)
-        {
-            window.Show(owner);
-        }
-        else
-        {
-            window.Show();
-        }
     }
 }
