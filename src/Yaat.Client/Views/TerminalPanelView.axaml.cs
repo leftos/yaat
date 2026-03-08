@@ -1,7 +1,9 @@
 using System.Collections.Specialized;
+using System.Linq;
 using System.Text;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 
@@ -11,7 +13,6 @@ public partial class TerminalPanelView : UserControl
 {
     private readonly List<TerminalEntryKind> _lineKinds = [];
     private TerminalColorizer? _colorizer;
-    private bool _isNearBottom = true;
 
     public TerminalPanelView()
     {
@@ -25,8 +26,6 @@ public partial class TerminalPanelView : UserControl
         _colorizer = new TerminalColorizer(_lineKinds);
         TerminalEditor.TextArea.TextView.LineTransformers.Add(_colorizer);
         TerminalEditor.TextArea.Caret.CaretBrush = Brushes.Transparent;
-
-        TerminalEditor.TextArea.TextView.ScrollOffsetChanged += OnScrollOffsetChanged;
 
         if (DataContext is MainViewModel vm)
         {
@@ -42,8 +41,6 @@ public partial class TerminalPanelView : UserControl
             vm.TerminalEntries.CollectionChanged -= OnEntriesChanged;
         }
 
-        TerminalEditor.TextArea.TextView.ScrollOffsetChanged -= OnScrollOffsetChanged;
-
         if (_colorizer is not null)
         {
             TerminalEditor.TextArea.TextView.LineTransformers.Remove(_colorizer);
@@ -55,6 +52,7 @@ public partial class TerminalPanelView : UserControl
 
     private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        var shouldScroll = IsScrolledToBottom();
         var doc = TerminalEditor.Document;
 
         switch (e.Action)
@@ -99,9 +97,9 @@ public partial class TerminalPanelView : UserControl
             }
         }
 
-        if (_isNearBottom)
+        if (shouldScroll)
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => TerminalEditor.ScrollToEnd(), Avalonia.Threading.DispatcherPriority.Background);
+            Avalonia.Threading.Dispatcher.UIThread.Post(ScrollToBottom, Avalonia.Threading.DispatcherPriority.Background);
         }
     }
 
@@ -125,12 +123,21 @@ public partial class TerminalPanelView : UserControl
         TerminalEditor.Document.Text = sb.ToString();
     }
 
-    private void OnScrollOffsetChanged(object? sender, EventArgs e)
+    private void ScrollToBottom()
     {
-        var textView = TerminalEditor.TextArea.TextView;
-        var viewportBottom = textView.ScrollOffset.Y + textView.Bounds.Height;
-        var documentHeight = textView.DocumentHeight;
-        _isNearBottom = documentHeight - viewportBottom < 20;
+        TerminalEditor.TextArea.Caret.Offset = TerminalEditor.Document.TextLength;
+        TerminalEditor.TextArea.Caret.BringCaretToView();
+    }
+
+    private bool IsScrolledToBottom()
+    {
+        var scrollViewer = TerminalEditor.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        if (scrollViewer is null)
+        {
+            return true;
+        }
+
+        return scrollViewer.Offset.Y >= scrollViewer.Extent.Height - scrollViewer.Viewport.Height - 1;
     }
 
     private static string FormatEntry(TerminalEntry entry)

@@ -35,7 +35,11 @@
                        Foreground="White"
                        Padding="4"
                        HorizontalScrollBarVisibility="Disabled"
-                       VerticalScrollBarVisibility="Auto" />
+                       VerticalScrollBarVisibility="Auto">
+            <ae:TextEditor.Options>
+                <ae:TextEditorOptions AllowScrollBelowDocument="False" />
+            </ae:TextEditor.Options>
+        </ae:TextEditor>
 
     </DockPanel>
 </UserControl>
