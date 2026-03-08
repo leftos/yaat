@@ -19,11 +19,13 @@ public sealed class PushbackPhase : Phase
     private const double HeadingReachedDeg = 0.5;
     private const double LogIntervalSeconds = 3.0;
     private const double NoseRotationProgressThreshold = 0.6;
+    private const double AlignmentThresholdDeg = 20.0;
 
     private double _startLat;
     private double _startLon;
     private double _totalDistToTarget;
     private bool _reachedTarget;
+    private bool _isAligned;
     private double _timeSinceLastLog;
 
     public int? TargetHeading { get; init; }
@@ -37,15 +39,44 @@ public sealed class PushbackPhase : Phase
         _startLat = ctx.Aircraft.Latitude;
         _startLon = ctx.Aircraft.Longitude;
 
-        ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
-        ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
         ctx.Targets.TargetHeading = null;
         ctx.Aircraft.IsOnGround = true;
 
+        if (TargetLatitude is not null && TargetLongitude is not null)
+        {
+            _totalDistToTarget = GeoMath.DistanceNm(_startLat, _startLon, TargetLatitude.Value, TargetLongitude.Value);
+        }
+
+        double? alignmentHeading = ComputeAlignmentHeading(ctx);
+        if (alignmentHeading is null)
+        {
+            // Simple pushback with no heading — no alignment needed
+            _isAligned = true;
+            ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
+            ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+        }
+        else
+        {
+            double diff = Math.Abs(FlightPhysics.NormalizeAngle(alignmentHeading.Value - ctx.Aircraft.Heading));
+            if (diff <= AlignmentThresholdDeg)
+            {
+                _isAligned = true;
+                ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
+                ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+            }
+            else
+            {
+                _isAligned = false;
+                ctx.Aircraft.PushbackHeading = null;
+                ctx.Targets.TargetSpeed = 0;
+            }
+        }
+
         ctx.Logger.LogDebug(
-            "[Push] {Callsign}: started, pushHdg={PushHdg:F0}, noseHdg={NoseHdg:F0}, targetHdg={TargetHdg}, pos=({Lat:F6},{Lon:F6})",
+            "[Push] {Callsign}: started, aligned={Aligned}, pushHdg={PushHdg}, noseHdg={NoseHdg:F0}, targetHdg={TargetHdg}, pos=({Lat:F6},{Lon:F6})",
             ctx.Aircraft.Callsign,
-            ctx.Aircraft.PushbackHeading,
+            _isAligned,
+            ctx.Aircraft.PushbackHeading?.ToString("F0") ?? "null",
             ctx.Aircraft.Heading,
             TargetHeading?.ToString() ?? "none",
             _startLat,
@@ -53,7 +84,6 @@ public sealed class PushbackPhase : Phase
         );
         if (TargetLatitude is not null && TargetLongitude is not null)
         {
-            _totalDistToTarget = GeoMath.DistanceNm(_startLat, _startLon, TargetLatitude.Value, TargetLongitude.Value);
             ctx.Logger.LogDebug(
                 "[Push] {Callsign}: target position ({TLat:F6},{TLon:F6}), totalDist={Dist:F4}nm",
                 ctx.Aircraft.Callsign,
@@ -74,6 +104,29 @@ public sealed class PushbackPhase : Phase
         }
 
         double turnRate = CategoryPerformance.PushbackTurnRate(ctx.Category);
+
+        // Alignment stage: rotate in place before pushing
+        if (!_isAligned)
+        {
+            double? alignmentHeading = ComputeAlignmentHeading(ctx);
+            if (alignmentHeading is not null)
+            {
+                ctx.Targets.TargetSpeed = 0;
+                ctx.Aircraft.PushbackHeading = null;
+                bool aligned = TurnNoseToward(ctx, alignmentHeading.Value, turnRate);
+                double diff = Math.Abs(FlightPhysics.NormalizeAngle(alignmentHeading.Value - ctx.Aircraft.Heading));
+                if (diff <= AlignmentThresholdDeg)
+                {
+                    _isAligned = true;
+                    ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
+                    ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
+                    _startLat = ctx.Aircraft.Latitude;
+                    _startLon = ctx.Aircraft.Longitude;
+                    ctx.Logger.LogDebug("[Push] {Callsign}: alignment complete, starting push", ctx.Aircraft.Callsign);
+                }
+            }
+            return false;
+        }
 
         // Once at target, stop all movement — only rotate nose in place.
         // Before reaching target, reassert speed so FlightPhysics can ramp
@@ -200,6 +253,28 @@ public sealed class PushbackPhase : Phase
         ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, target, maxTurn);
         double diff = FlightPhysics.NormalizeAngle(target - ctx.Aircraft.Heading);
         return Math.Abs(diff) < HeadingReachedDeg;
+    }
+
+    /// <summary>
+    /// Returns the heading the nose should face so the tail points at the target.
+    /// Null means no alignment needed (simple pushback with no heading).
+    /// </summary>
+    private double? ComputeAlignmentHeading(PhaseContext ctx)
+    {
+        if (TargetLatitude is not null && TargetLongitude is not null)
+        {
+            // Nose faces away from target so tail points at it
+            double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLatitude.Value, TargetLongitude.Value);
+            return (bearingToTarget + 180.0) % 360.0;
+        }
+
+        if (TargetHeading is { } hdg)
+        {
+            // Simple heading mode: nose should face TargetHeading (push = heading+180)
+            return hdg;
+        }
+
+        return null;
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)

@@ -584,20 +584,31 @@ public class GroundPhaseTests
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
-        // Initial pushback heading is opposite of nose (= 180)
-        Assert.Equal(180, aircraft.PushbackHeading!.Value, 1.0);
+        // 90° diff > 20° threshold → alignment stage, no PushbackHeading yet
+        Assert.Null(aircraft.PushbackHeading);
 
-        // After a few ticks, nose starts turning right, pushback heading should follow
+        // Tick through alignment until aligned (nose rotates toward 90)
+        for (int i = 0; i < 100; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+            if (aircraft.PushbackHeading is not null)
+            {
+                break;
+            }
+        }
+
+        // Should now be aligned and pushing
+        Assert.NotNull(aircraft.PushbackHeading);
+        Assert.True(aircraft.Heading > 60, "Nose should have rotated toward 90 during alignment");
+
+        // After more ticks, pushback heading should track nose+180
         for (int i = 0; i < 5; i++)
         {
             FlightPhysics.Update(aircraft, 1.0);
             phase.OnTick(ctx);
         }
 
-        // Nose should have turned toward 90 (from 0)
-        Assert.True(aircraft.Heading > 0, "Nose should have started rotating");
-
-        // PushbackHeading should be ~180° offset from current nose, not stuck at 180
         double expectedPush = (aircraft.Heading + 180.0) % 360.0;
         Assert.Equal(expectedPush, aircraft.PushbackHeading!.Value, 1.0);
     }
@@ -626,7 +637,9 @@ public class GroundPhaseTests
     [Fact]
     public void PushbackPhase_TargetedMode_ArcsGraduallyTowardTarget()
     {
-        // Aircraft facing east, target is to the south
+        // Aircraft facing east, target is to the south.
+        // Alignment heading = (180+180)%360 = 0 (nose north, tail south).
+        // Aircraft heading = 90, diff = 90° > 20° → alignment stage first.
         var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 90);
         double targetLat = 37.619; // south
         double targetLon = -122.380;
@@ -642,15 +655,24 @@ public class GroundPhaseTests
         var ctx = MakeContext(aircraft);
         aircraft.Phases.Start(ctx);
 
-        // Initial PushbackHeading = 270 (opposite of 90)
+        // Should be in alignment stage — no PushbackHeading yet
+        Assert.Null(aircraft.PushbackHeading);
+
+        // Tick through alignment until push stage begins
+        for (int i = 0; i < 100; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+            if (aircraft.PushbackHeading is not null)
+            {
+                break;
+            }
+        }
+
+        Assert.NotNull(aircraft.PushbackHeading);
         double initialPushHdg = aircraft.PushbackHeading!.Value;
-        Assert.Equal(270, initialPushHdg, 1.0);
 
-        // Bearing to target is ~180 (due south)
-        double bearingToTarget = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, targetLat, targetLon);
-
-        // After one tick, PushbackHeading should NOT have snapped to bearingToTarget.
-        // It should have moved at most PushbackTurnRate degrees (5 deg/s × 1s = 5°).
+        // Now in push stage — after one tick, PushbackHeading arcs gradually
         FlightPhysics.Update(aircraft, 1.0);
         phase.OnTick(ctx);
 
@@ -659,7 +681,6 @@ public class GroundPhaseTests
         double maxAllowed = CategoryPerformance.PushbackTurnRate(AircraftCategory.Jet) * 1.0 + 1.0;
 
         Assert.True(changeDeg <= maxAllowed, $"PushbackHeading changed {changeDeg:F1}° in 1s, max expected ~{maxAllowed:F0}°");
-        Assert.NotEqual(bearingToTarget, newPushHdg, 5.0);
     }
 
     // --- PushbackTurnRate is slower than GroundTurnRate ---
@@ -819,5 +840,124 @@ public class GroundPhaseTests
 
         Assert.Equal(0, ctx.Targets.TargetSpeed);
         Assert.Equal(0, aircraft.GroundSpeed);
+    }
+
+    // --- Pushback alignment stage ---
+
+    [Fact]
+    public void PushbackPhase_TargetedMode_RotatesBeforePushing()
+    {
+        // Aircraft facing east, target to the north → alignment heading = (0+180)%360 = 180
+        // Current heading = 90, diff = 90° > 20° → alignment stage
+        var aircraft = MakeGroundAircraft(lat: 37.620, lon: -122.380, heading: 90);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase { TargetLatitude = 37.621, TargetLongitude = -122.380 };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // Alignment stage: no PushbackHeading, speed = 0
+        Assert.Null(aircraft.PushbackHeading);
+        Assert.Equal(0, ctx.Targets.TargetSpeed);
+
+        // Tick a few times — heading should change, position should not
+        double startLat = aircraft.Latitude;
+        double startLon = aircraft.Longitude;
+        double startHeading = aircraft.Heading;
+
+        for (int i = 0; i < 5; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
+        Assert.NotEqual(startHeading, aircraft.Heading);
+        Assert.Equal(startLat, aircraft.Latitude, 6);
+        Assert.Equal(startLon, aircraft.Longitude, 6);
+
+        // Eventually transitions to push stage
+        for (int i = 0; i < 100; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+            if (aircraft.PushbackHeading is not null)
+            {
+                break;
+            }
+        }
+
+        Assert.NotNull(aircraft.PushbackHeading);
+        Assert.True(ctx.Targets.TargetSpeed > 0);
+    }
+
+    [Fact]
+    public void PushbackPhase_HeadingMode_RotatesBeforePushing()
+    {
+        // Heading = 0, target heading = 90 → diff = 90° > 20° → alignment
+        var aircraft = MakeGroundAircraft(heading: 0);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase { TargetHeading = 90 };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        Assert.Null(aircraft.PushbackHeading);
+        Assert.Equal(0, ctx.Targets.TargetSpeed);
+
+        // Position unchanged during alignment
+        double startLat = aircraft.Latitude;
+        double startLon = aircraft.Longitude;
+
+        for (int i = 0; i < 5; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
+        Assert.Equal(startLat, aircraft.Latitude, 6);
+        Assert.Equal(startLon, aircraft.Longitude, 6);
+        Assert.Null(aircraft.PushbackHeading);
+    }
+
+    [Fact]
+    public void PushbackPhase_AlreadyAligned_SkipsRotation()
+    {
+        // Heading = 10, target heading = 0 → diff = 10° < 20° → skip alignment
+        var aircraft = MakeGroundAircraft(heading: 10);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase { TargetHeading = 0 };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        // PushbackHeading set immediately
+        Assert.NotNull(aircraft.PushbackHeading);
+        Assert.True(ctx.Targets.TargetSpeed > 0);
+    }
+
+    [Fact]
+    public void PushbackPhase_NoMovementDuringAlignment()
+    {
+        // Large misalignment: heading = 0, target heading = 180 → 180° diff
+        var aircraft = MakeGroundAircraft(heading: 0);
+        aircraft.Phases = new PhaseList();
+        var phase = new PushbackPhase { TargetHeading = 180 };
+        aircraft.Phases.Add(phase);
+        var ctx = MakeContext(aircraft);
+        aircraft.Phases.Start(ctx);
+
+        double startLat = aircraft.Latitude;
+        double startLon = aircraft.Longitude;
+
+        // Tick 10 times during alignment
+        for (int i = 0; i < 10; i++)
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            phase.OnTick(ctx);
+        }
+
+        // Position must not change during alignment
+        Assert.Equal(startLat, aircraft.Latitude, 6);
+        Assert.Equal(startLon, aircraft.Longitude, 6);
     }
 }
