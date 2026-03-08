@@ -28,8 +28,7 @@ public static class TaxiPathfinder
     /// <summary>
     /// Returns true if the token is a node reference (e.g., "!42").
     /// </summary>
-    internal static bool IsNodeReference(string token) =>
-        token.Length > 1 && token[0] == '!' && int.TryParse(token.AsSpan(1), out _);
+    internal static bool IsNodeReference(string token) => token.Length > 1 && token[0] == '!' && int.TryParse(token.AsSpan(1), out _);
 
     /// <summary>
     /// Parses the numeric node ID from a node reference token (e.g., "!42" → 42).
