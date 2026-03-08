@@ -450,3 +450,5 @@ When invoking aviation-sim-expert, always include:
 - **Commits**: `fix:`/`feat:`/`add:`/`docs:`/`ref:`/`test:` etc. Imperative, ≤72 chars.
 - **Memory Updates**: Distill Explore agent findings into auto-memory at `C:\Users\Leftos\.claude\projects\X--dev-yaat\memory\`.
 - **Milestone Roadmap**: See `docs/plans/main-plan.md`. M0/M1 complete; M2 (tower ops) next.
+- **Issue triage plans**: When running parallel agents to explore/plan all open GitHub issues, each agent must write its plan as a markdown file in `docs/plans/open-issues/` (e.g., `issue-23-wait-command.md`). This makes plans persistent and actionable across sessions.
+- **Issue completion**: After implementing an issue fix, delete its plan file from `docs/plans/open-issues/` and create a PR linked to the GitHub issue (`Closes #N`).
