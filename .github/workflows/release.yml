@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rid: [win-x64, linux-x64, osx-arm64]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7  # v5.2.0
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish
+        run: |
+          dotnet publish src/Yaat.Client \
+            -c Release -r ${{ matrix.rid }} --self-contained \
+            -p:PublishSingleFile=true \
+            -o publish/${{ matrix.rid }}
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: yaat-client-${{ matrix.rid }}
+          path: publish/${{ matrix.rid }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3  # v8.0.0
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          # Windows
+          cp artifacts/yaat-client-win-x64/Yaat.Client.exe release/Yaat.Client-win-x64.exe
+          # Linux
+          cp artifacts/yaat-client-linux-x64/Yaat.Client release/Yaat.Client-linux-x64
+          chmod +x release/Yaat.Client-linux-x64
+          # macOS
+          cp artifacts/yaat-client-osx-arm64/Yaat.Client release/Yaat.Client-osx-arm64
+          chmod +x release/Yaat.Client-osx-arm64
+
+      - uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b  # v2.5.0
+        with:
+          generate_release_notes: true
+          files: release/*
