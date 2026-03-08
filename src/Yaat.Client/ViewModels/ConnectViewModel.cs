@@ -40,14 +40,26 @@ public partial class ConnectViewModel : ObservableObject
         _saveAction = saveAction;
         _closeAction = closeAction;
         SelectedServer = Servers.FirstOrDefault(s => s.Url == lastUsedUrl) ?? Servers.FirstOrDefault();
+
+        // Subscribe to property changes on existing servers
+        foreach (var server in Servers)
+            server.PropertyChanged += OnServerPropertyChanged;
+    }
+
+    private void OnServerPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SavedServer.Name) or nameof(SavedServer.Url))
+            SaveServers();
     }
 
     [RelayCommand]
     private void AddServer()
     {
         var entry = new SavedServer("New Server", "http://localhost:5000");
+        entry.PropertyChanged += OnServerPropertyChanged;
         Servers.Add(entry);
         SelectedServer = entry;
+        SaveServers();
     }
 
     [RelayCommand(CanExecute = nameof(CanRemove))]
@@ -56,8 +68,10 @@ public partial class ConnectViewModel : ObservableObject
         if (SelectedServer is null)
             return;
         int idx = Servers.IndexOf(SelectedServer);
+        SelectedServer.PropertyChanged -= OnServerPropertyChanged;
         Servers.Remove(SelectedServer);
         SelectedServer = Servers.ElementAtOrDefault(Math.Max(0, idx - 1));
+        SaveServers();
     }
 
     private bool CanRemove() => SelectedServer is not null;
@@ -70,7 +84,15 @@ public partial class ConnectViewModel : ObservableObject
         int idx = Servers.IndexOf(SelectedServer);
         if (idx <= 0)
             return;
-        Servers.Move(idx, idx - 1);
+        var items = Servers.ToList();
+        items.RemoveAt(idx);
+        items.Insert(idx - 1, SelectedServer);
+        Servers.Clear();
+        foreach (var item in items)
+            Servers.Add(item);
+        MoveUpCommand.NotifyCanExecuteChanged();
+        MoveDownCommand.NotifyCanExecuteChanged();
+        SaveServers();
     }
 
     private bool CanMoveUp() => SelectedServer is not null && Servers.IndexOf(SelectedServer) > 0;
@@ -83,11 +105,24 @@ public partial class ConnectViewModel : ObservableObject
         int idx = Servers.IndexOf(SelectedServer);
         if (idx < 0 || idx >= Servers.Count - 1)
             return;
-        Servers.Move(idx, idx + 1);
+        var items = Servers.ToList();
+        items.RemoveAt(idx);
+        items.Insert(idx + 1, SelectedServer);
+        Servers.Clear();
+        foreach (var item in items)
+            Servers.Add(item);
+        MoveUpCommand.NotifyCanExecuteChanged();
+        MoveDownCommand.NotifyCanExecuteChanged();
+        SaveServers();
     }
 
     private bool CanMoveDown() =>
         SelectedServer is not null && Servers.IndexOf(SelectedServer) < Servers.Count - 1;
+
+    private void SaveServers()
+    {
+        _saveAction(Servers, SelectedServer?.Url ?? Servers.FirstOrDefault()?.Url ?? "http://localhost:5000");
+    }
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private async Task ConnectAsync()
