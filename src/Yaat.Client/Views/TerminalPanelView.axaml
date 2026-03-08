@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yaat.Client.ViewModels"
+             xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              x:Class="Yaat.Client.Views.TerminalPanelView">
 
     <DockPanel>
@@ -23,15 +24,18 @@
                     Padding="6,2" />
         </Grid>
 
-        <!-- Scrolling terminal text (read-only, selectable, colorized per entry kind) -->
-        <ScrollViewer x:Name="TerminalScrollViewer"
-                      Background="#1A1A1E">
-            <SelectableTextBlock x:Name="TerminalTextBlock"
-                                 FontFamily="{StaticResource MonoFont}"
-                                 FontSize="12"
-                                 TextWrapping="Wrap"
-                                 Padding="4" />
-        </ScrollViewer>
+        <!-- Scrolling terminal text (read-only, colorized per entry kind) -->
+        <ae:TextEditor x:Name="TerminalEditor"
+                       IsReadOnly="True"
+                       ShowLineNumbers="False"
+                       FontFamily="{StaticResource MonoFont}"
+                       FontSize="12"
+                       WordWrap="True"
+                       Background="#1A1A1E"
+                       Foreground="White"
+                       Padding="4"
+                       HorizontalScrollBarVisibility="Disabled"
+                       VerticalScrollBarVisibility="Auto" />
 
     </DockPanel>
 </UserControl>
