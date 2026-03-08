@@ -66,7 +66,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private Point _dragStartMousePos;
     private bool _dragThresholdMet;
     private readonly Dictionary<string, int> _dataBlockZOrder = new();
-    private int _nextZOrder;
+    private int _nextZOrder = 1;
 
     public GroundLayoutDto? Layout
     {

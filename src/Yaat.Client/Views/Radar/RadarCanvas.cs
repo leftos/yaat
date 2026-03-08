@@ -124,7 +124,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private Point _lastPointerPos;
     private readonly HashSet<string> _minifiedCallsigns = new();
     private readonly Dictionary<string, int> _dataBlockZOrder = new();
-    private int _nextZOrder;
+    private int _nextZOrder = 1;
 
     public RadarCanvas()
     {
