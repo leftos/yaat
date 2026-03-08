@@ -281,6 +281,100 @@ public partial class MainViewModel : ObservableObject
 
     public event Action? GridLayoutReset;
 
+    [ObservableProperty]
+    private bool _showCommandEntries = true;
+
+    [ObservableProperty]
+    private bool _showResponseEntries = true;
+
+    [ObservableProperty]
+    private bool _showSystemEntries = true;
+
+    [ObservableProperty]
+    private bool _showSayEntries = true;
+
+    [ObservableProperty]
+    private bool _showWarningEntries = true;
+
+    [ObservableProperty]
+    private bool _showErrorEntries = true;
+
+    [ObservableProperty]
+    private bool _showChatEntries = true;
+
+    public event Action? TerminalFilterChanged;
+
+    partial void OnShowCommandEntriesChanged(bool value) => PersistTerminalFilters();
+
+    partial void OnShowResponseEntriesChanged(bool value) => PersistTerminalFilters();
+
+    partial void OnShowSystemEntriesChanged(bool value) => PersistTerminalFilters();
+
+    partial void OnShowSayEntriesChanged(bool value) => PersistTerminalFilters();
+
+    partial void OnShowWarningEntriesChanged(bool value) => PersistTerminalFilters();
+
+    partial void OnShowErrorEntriesChanged(bool value) => PersistTerminalFilters();
+
+    partial void OnShowChatEntriesChanged(bool value) => PersistTerminalFilters();
+
+    private void PersistTerminalFilters()
+    {
+        var hidden = new HashSet<TerminalEntryKind>();
+        if (!ShowCommandEntries)
+        {
+            hidden.Add(TerminalEntryKind.Command);
+        }
+
+        if (!ShowResponseEntries)
+        {
+            hidden.Add(TerminalEntryKind.Response);
+        }
+
+        if (!ShowSystemEntries)
+        {
+            hidden.Add(TerminalEntryKind.System);
+        }
+
+        if (!ShowSayEntries)
+        {
+            hidden.Add(TerminalEntryKind.Say);
+        }
+
+        if (!ShowWarningEntries)
+        {
+            hidden.Add(TerminalEntryKind.Warning);
+        }
+
+        if (!ShowErrorEntries)
+        {
+            hidden.Add(TerminalEntryKind.Error);
+        }
+
+        if (!ShowChatEntries)
+        {
+            hidden.Add(TerminalEntryKind.Chat);
+        }
+
+        _preferences.SetHiddenTerminalKinds(hidden);
+        TerminalFilterChanged?.Invoke();
+    }
+
+    public bool IsEntryVisible(TerminalEntryKind kind) =>
+        kind switch
+        {
+            TerminalEntryKind.Command => ShowCommandEntries,
+            TerminalEntryKind.Response => ShowResponseEntries,
+            TerminalEntryKind.System => ShowSystemEntries,
+            TerminalEntryKind.Say => ShowSayEntries,
+            TerminalEntryKind.Warning => ShowWarningEntries,
+            TerminalEntryKind.Error => ShowErrorEntries,
+            TerminalEntryKind.Chat => ShowChatEntries,
+            _ => true,
+        };
+
+    public IEnumerable<TerminalEntry> GetFilteredTerminalEntries() => TerminalEntries.Where(e => IsEntryVisible(e.Kind));
+
     public ObservableCollection<string> CommandHistory { get; } = [];
 
     public ObservableCollection<TerminalEntry> TerminalEntries { get; } = [];
@@ -300,6 +394,15 @@ public partial class MainViewModel : ObservableObject
             obj is not AircraftModel ac || (!_showOnlyActiveAircraft || !ac.IsDelayed) && MatchesFilter(ac, _aircraftFilterText);
         _showOnlyActiveAircraft = _preferences.ShowOnlyActiveAircraft;
         _showTimelineBar = _preferences.ShowTimelineBar;
+
+        var hidden = _preferences.HiddenTerminalKinds;
+        _showCommandEntries = !hidden.Contains(TerminalEntryKind.Command);
+        _showResponseEntries = !hidden.Contains(TerminalEntryKind.Response);
+        _showSystemEntries = !hidden.Contains(TerminalEntryKind.System);
+        _showSayEntries = !hidden.Contains(TerminalEntryKind.Say);
+        _showWarningEntries = !hidden.Contains(TerminalEntryKind.Warning);
+        _showErrorEntries = !hidden.Contains(TerminalEntryKind.Error);
+        _showChatEntries = !hidden.Contains(TerminalEntryKind.Chat);
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);

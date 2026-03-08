@@ -35,6 +35,7 @@ internal sealed class TerminalColorizer : DocumentColorizingTransformer
             TerminalEntryKind.Say => Brushes.Green,
             TerminalEntryKind.Warning => Brushes.Orange,
             TerminalEntryKind.Error => Brushes.Red,
+            TerminalEntryKind.Chat => Brushes.Cyan,
             _ => Brushes.White,
         };
 }

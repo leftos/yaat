@@ -1058,16 +1058,24 @@ The terminal panel sits below the tab area. It shows a scrolling history of all 
 
 Each line shows:
 ```
-HH:MM:SS  AB  UAL123  FH 270
+HH:MM:SS  CMD  AB  UAL123  FH 270
 ```
-- **Timestamp** (gray) — when the entry was received
-- **Initials** (blue) — who issued the command (2-letter user initials)
-- **Callsign** (gold) — which aircraft was targeted
+- **Timestamp** — when the entry was received
+- **Kind tag** — entry category matching the filter buttons (CMD, RSP, SYS, SAY, WRN, ERR, CHAT)
+- **Initials** — who issued the command (2-letter user initials)
+- **Callsign** — which aircraft was targeted
 - **Message** (colored by type):
-  - **White** — command echo
-  - **Green** — server response/feedback
-  - **Gray** — system message (errors, scenario events, chat)
-  - **Orange** — SAY (future instructor messages)
+  - **White** — command echo (CMD)
+  - **Light gray** — server response/feedback (RSP)
+  - **Gray** — system message (SYS)
+  - **Green** — SAY (instructor messages)
+  - **Orange** — warnings (WRN)
+  - **Red** — errors (ERR)
+  - **Cyan** — chat messages (CHAT)
+
+### Filters
+
+The terminal header includes toggle buttons to filter entries by kind: **CMD** (commands), **RSP** (responses), **SYS** (system), **SAY** (chat), **WRN** (warnings), **ERR** (errors). Click a toggle to hide/show that kind. Hidden entries remain in the backing store — toggling a filter back on restores all entries of that kind. All entries are always written to the client log file regardless of filter state. Filter state persists across sessions.
 
 ### Multi-User Visibility
 

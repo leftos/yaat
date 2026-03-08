@@ -8,6 +8,7 @@ public enum TerminalEntryKind
     Say,
     Warning,
     Error,
+    Chat,
 }
 
 public sealed class TerminalEntry

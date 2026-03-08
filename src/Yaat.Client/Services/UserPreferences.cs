@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
+using Yaat.Client.Models;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;
@@ -32,6 +33,10 @@ public sealed class UserPreferences
         _data = Load();
         _commandScheme = _data.CommandScheme is not null ? FromSaved(_data.CommandScheme) ?? CommandScheme.Default() : CommandScheme.Default();
         _macros = _data.Macros.Select(m => new MacroDefinition { Name = m.Name, Expansion = m.Expansion }).ToList();
+        HiddenTerminalKinds = _data
+            .HiddenTerminalKinds.Where(s => Enum.TryParse<TerminalEntryKind>(s, out _))
+            .Select(s => Enum.Parse<TerminalEntryKind>(s))
+            .ToHashSet();
     }
 
     public CommandScheme CommandScheme => _commandScheme;
@@ -82,6 +87,7 @@ public sealed class UserPreferences
     public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
     public string AircraftSelectKey => _data.AircraftSelectKey;
     public string FocusInputKey => _data.FocusInputKey;
+    public HashSet<TerminalEntryKind> HiddenTerminalKinds { get; private set; } = [];
 
     public void SetServerUrl(string url)
     {
@@ -242,6 +248,13 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetHiddenTerminalKinds(HashSet<TerminalEntryKind> hidden)
+    {
+        HiddenTerminalKinds = hidden;
+        _data.HiddenTerminalKinds = hidden.Select(k => k.ToString()).ToList();
+        Save();
+    }
+
     public void SetFavoriteCommands(List<FavoriteCommand> favorites)
     {
         _data.FavoriteCommands = favorites;
@@ -399,6 +412,7 @@ public sealed class UserPreferences
             RecentWeatherFiles = GetFieldOr<List<RecentWeather>>(obj, "recentWeatherFiles", []),
             AircraftSelectKey = GetFieldOr(obj, "aircraftSelectKey", "Add"),
             FocusInputKey = GetFieldOr(obj, "focusInputKey", "OemTilde"),
+            HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
         };
     }
 
@@ -538,6 +552,7 @@ public sealed class UserPreferences
         public List<RecentWeather> RecentWeatherFiles { get; set; } = [];
         public string AircraftSelectKey { get; set; } = "Add";
         public string FocusInputKey { get; set; } = "OemTilde";
+        public List<string> HiddenTerminalKinds { get; set; } = [];
     }
 
     private sealed class SavedCommandScheme

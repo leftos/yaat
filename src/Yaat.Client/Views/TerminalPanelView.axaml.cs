@@ -30,6 +30,7 @@ public partial class TerminalPanelView : UserControl
         if (DataContext is MainViewModel vm)
         {
             vm.TerminalEntries.CollectionChanged += OnEntriesChanged;
+            vm.TerminalFilterChanged += OnFilterChanged;
             RebuildDocument(vm);
         }
     }
@@ -39,6 +40,7 @@ public partial class TerminalPanelView : UserControl
         if (DataContext is MainViewModel vm)
         {
             vm.TerminalEntries.CollectionChanged -= OnEntriesChanged;
+            vm.TerminalFilterChanged -= OnFilterChanged;
         }
 
         if (_colorizer is not null)
@@ -50,8 +52,17 @@ public partial class TerminalPanelView : UserControl
         base.OnUnloaded(e);
     }
 
+    private void OnFilterChanged()
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            RebuildDocument(vm);
+        }
+    }
+
     private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        var vm = DataContext as MainViewModel;
         var shouldScroll = IsScrolledToBottom();
         var doc = TerminalEditor.Document;
 
@@ -60,6 +71,11 @@ public partial class TerminalPanelView : UserControl
             case NotifyCollectionChangedAction.Add when e.NewItems is { Count: > 0 }:
             {
                 var entry = (TerminalEntry)e.NewItems[0]!;
+                if (vm is not null && !vm.IsEntryVisible(entry.Kind))
+                {
+                    break;
+                }
+
                 var text = FormatEntry(entry);
                 if (doc.TextLength > 0)
                 {
@@ -76,11 +92,9 @@ public partial class TerminalPanelView : UserControl
 
             case NotifyCollectionChangedAction.Remove when e.OldStartingIndex == 0:
             {
-                var firstLine = doc.GetLineByNumber(1);
-                doc.Remove(0, firstLine.TotalLength);
-                if (_lineKinds.Count > 0)
+                if (vm is not null)
                 {
-                    _lineKinds.RemoveAt(0);
+                    RebuildDocument(vm);
                 }
 
                 break;
@@ -88,7 +102,7 @@ public partial class TerminalPanelView : UserControl
 
             default:
             {
-                if (DataContext is MainViewModel vm)
+                if (vm is not null)
                 {
                     RebuildDocument(vm);
                 }
@@ -108,7 +122,7 @@ public partial class TerminalPanelView : UserControl
         _lineKinds.Clear();
         var sb = new StringBuilder();
         var first = true;
-        foreach (var entry in vm.TerminalEntries)
+        foreach (var entry in vm.GetFilteredTerminalEntries())
         {
             if (!first)
             {
@@ -140,10 +154,25 @@ public partial class TerminalPanelView : UserControl
         return scrollViewer.Offset.Y >= scrollViewer.Extent.Height - scrollViewer.Viewport.Height - 1;
     }
 
+    private static string KindTag(TerminalEntryKind kind) =>
+        kind switch
+        {
+            TerminalEntryKind.Command => "CMD",
+            TerminalEntryKind.Response => "RSP",
+            TerminalEntryKind.System => "SYS",
+            TerminalEntryKind.Say => "SAY",
+            TerminalEntryKind.Warning => "WRN",
+            TerminalEntryKind.Error => "ERR",
+            TerminalEntryKind.Chat => "CHAT",
+            _ => "???",
+        };
+
     private static string FormatEntry(TerminalEntry entry)
     {
         var sb = new StringBuilder();
         sb.Append(entry.Timestamp.ToString("HH:mm:ss"));
+        sb.Append("  ");
+        sb.Append(KindTag(entry.Kind).PadRight(4));
         if (!string.IsNullOrEmpty(entry.Initials))
         {
             sb.Append("  ");

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views;
@@ -11,6 +12,7 @@ public partial class MainViewModel
 {
     private void AddTerminalEntry(TerminalEntry entry)
     {
+        _log.LogInformation("[Terminal] [{Kind}] {Initials} {Callsign}: {Message}", entry.Kind, entry.Initials, entry.Callsign, entry.Message);
         TerminalEntries.Add(entry);
         while (TerminalEntries.Count > 500)
         {
