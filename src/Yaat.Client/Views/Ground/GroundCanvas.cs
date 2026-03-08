@@ -4,6 +4,7 @@ using Avalonia.Input;
 using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim.Data.Airport;
 
@@ -54,6 +55,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     );
 
     public static readonly StyledProperty<bool> ShowDebugInfoProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(ShowDebugInfo));
+
+    public static readonly StyledProperty<WeatherDisplayInfo?> WeatherInfoProperty = AvaloniaProperty.Register<GroundCanvas, WeatherDisplayInfo?>(
+        nameof(WeatherInfo)
+    );
 
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
@@ -120,6 +125,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(ShowDebugInfoProperty);
         set => SetValue(ShowDebugInfoProperty, value);
+    }
+
+    public WeatherDisplayInfo? WeatherInfo
+    {
+        get => GetValue(WeatherInfoProperty);
+        set => SetValue(WeatherInfoProperty, value);
     }
 
     public TaxiRoute? DrawnRoutePreview
@@ -214,7 +225,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         double AirportCenterLat,
         double AirportCenterLon,
         double AirportElevation,
-        bool ShowDebugInfo
+        bool ShowDebugInfo,
+        WeatherDisplayInfo? WeatherInfo
     );
 
     protected override object? CreateRenderSnapshot()
@@ -233,7 +245,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             AirportCenterLat,
             AirportCenterLon,
             AirportElevation,
-            ShowDebugInfo
+            ShowDebugInfo,
+            WeatherInfo
         );
     }
 
@@ -259,7 +272,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.AirportCenterLat,
             s.AirportCenterLon,
             s.AirportElevation,
-            s.ShowDebugInfo
+            s.ShowDebugInfo,
+            s.WeatherInfo
         );
     }
 

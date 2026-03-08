@@ -17,7 +17,8 @@
                              AirportCenterLat="{Binding AirportCenterLat}"
                              AirportCenterLon="{Binding AirportCenterLon}"
                              AirportElevation="{Binding AirportElevation}"
-                             Aircraft="{Binding $parent[Window].DataContext.Aircraft}" />
+                             Aircraft="{Binding $parent[Window].DataContext.Aircraft}"
+                             WeatherInfo="{Binding WeatherInfo}" />
 
         <!-- No layout message -->
         <TextBlock Text="No airport layout loaded"

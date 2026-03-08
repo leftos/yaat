@@ -82,6 +82,9 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlySet<string>? _programmedFixNames;
 
+    [ObservableProperty]
+    private IReadOnlyList<WeatherDisplayInfo>? _weatherInfo;
+
     private readonly Dictionary<BriteTarget, int> _brightnessValues = new()
     {
         [BriteTarget.Dcb] = 100,

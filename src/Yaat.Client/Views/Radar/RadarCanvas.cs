@@ -102,6 +102,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyDictionary<int, WaypointCondition>?
     >(nameof(WaypointConditions));
 
+    public static readonly StyledProperty<IReadOnlyList<WeatherDisplayInfo>?> WeatherInfoProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<WeatherDisplayInfo>?
+    >(nameof(WeatherInfo));
+
     private static readonly SKPoint DefaultDataBlockOffset = new(28, -28);
     private const float DataBlockPad = 3f;
     private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
@@ -275,6 +280,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(WaypointConditionsProperty);
         set => SetValue(WaypointConditionsProperty, value);
+    }
+
+    public IReadOnlyList<WeatherDisplayInfo>? WeatherInfo
+    {
+        get => GetValue(WeatherInfoProperty);
+        set => SetValue(WeatherInfoProperty, value);
     }
 
     public float BrightnessA
@@ -465,7 +476,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         string? RubberBandLabel,
         IReadOnlyDictionary<int, WaypointCondition>? WaypointConditions,
         IReadOnlySet<string> MinifiedCallsigns,
-        bool ShowTopDown
+        bool ShowTopDown,
+        IReadOnlyList<WeatherDisplayInfo>? WeatherInfo
     );
 
     protected override object? CreateRenderSnapshot()
@@ -526,7 +538,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             drawRouteCursorLabel,
             IsDrawingRoute ? WaypointConditions : null,
             new HashSet<string>(_minifiedCallsigns),
-            ShowTopDown
+            ShowTopDown,
+            WeatherInfo
         );
     }
 
@@ -587,7 +600,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.RubberBandLabel,
             s.WaypointConditions,
             s.MinifiedCallsigns,
-            s.ShowTopDown
+            s.ShowTopDown,
+            s.WeatherInfo
         );
     }
 

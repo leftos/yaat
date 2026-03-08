@@ -234,6 +234,52 @@ public class MetarParserTests
         Assert.Equal(600, result.CeilingFeetAgl); // BKN006 = 600ft (lowest BKN/OVC)
     }
 
+    // -------------------------------------------------------------------------
+    // Parse — wind
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("KOAK 121853Z 27012KT 10SM CLR 20/12 A2992", 270, 12, null)]
+    [InlineData("KOAK 121853Z 36015G25KT 10SM CLR 20/12 A2992", 360, 15, 25)]
+    [InlineData("KOAK 121853Z VRB05KT 10SM CLR 20/12 A2992", null, 5, null)]
+    [InlineData("KOAK 121853Z 00000KT 10SM CLR 20/12 A2992", 0, 0, null)]
+    public void Parse_Wind_Correct(string metar, int? expectedDir, int? expectedSpd, int? expectedGust)
+    {
+        var result = MetarParser.Parse(metar);
+        Assert.NotNull(result);
+        Assert.Equal(expectedDir, result.WindDirectionDeg);
+        Assert.Equal(expectedSpd, result.WindSpeedKts);
+        Assert.Equal(expectedGust, result.WindGustKts);
+    }
+
+    // -------------------------------------------------------------------------
+    // Parse — altimeter
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("KOAK 121853Z 27012KT 10SM CLR 20/12 A2992", 29.92)]
+    [InlineData("KOAK 121853Z 27012KT 10SM CLR 20/12 A3012", 30.12)]
+    [InlineData("KOAK 121853Z 27012KT 10SM CLR 20/12 A2850", 28.50)]
+    public void Parse_Altimeter_Correct(string metar, double expected)
+    {
+        var result = MetarParser.Parse(metar);
+        Assert.NotNull(result);
+        Assert.NotNull(result.AltimeterInHg);
+        Assert.Equal(expected, result.AltimeterInHg!.Value, 2);
+    }
+
+    [Fact]
+    public void Parse_NoAltimeter_ReturnsNull()
+    {
+        var result = MetarParser.Parse("KOAK 121853Z 27012KT 10SM CLR 20/12");
+        Assert.NotNull(result);
+        Assert.Null(result.AltimeterInHg);
+    }
+
+    // -------------------------------------------------------------------------
+    // Real-world METARs — wind + altimeter
+    // -------------------------------------------------------------------------
+
     [Fact]
     public void Parse_RealMetar_MetarPrefix_Handled()
     {
