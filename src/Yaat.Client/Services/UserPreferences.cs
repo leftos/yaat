@@ -88,6 +88,10 @@ public sealed class UserPreferences
     public string AircraftSelectKey => _data.AircraftSelectKey;
     public string FocusInputKey => _data.FocusInputKey;
     public HashSet<TerminalEntryKind> HiddenTerminalKinds { get; private set; } = [];
+    public bool GroundShowRunwayLabels => _data.GroundShowRunwayLabels;
+    public bool GroundShowTaxiwayLabels => _data.GroundShowTaxiwayLabels;
+    public bool GroundShowHoldShortLabels => _data.GroundShowHoldShortLabels;
+    public bool GroundShowParkingLabels => _data.GroundShowParkingLabels;
 
     public void SetServerUrl(string url)
     {
@@ -245,6 +249,15 @@ public sealed class UserPreferences
     public void SetFocusInputKey(string key)
     {
         _data.FocusInputKey = key;
+        Save();
+    }
+
+    public void SetGroundLabelFilters(bool runways, bool taxiways, bool holdShorts, bool parking)
+    {
+        _data.GroundShowRunwayLabels = runways;
+        _data.GroundShowTaxiwayLabels = taxiways;
+        _data.GroundShowHoldShortLabels = holdShorts;
+        _data.GroundShowParkingLabels = parking;
         Save();
     }
 
@@ -413,6 +426,10 @@ public sealed class UserPreferences
             AircraftSelectKey = GetFieldOr(obj, "aircraftSelectKey", "Add"),
             FocusInputKey = GetFieldOr(obj, "focusInputKey", "OemTilde"),
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
+            GroundShowRunwayLabels = GetFieldOr(obj, "groundShowRunwayLabels", true),
+            GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
+            GroundShowHoldShortLabels = GetFieldOr(obj, "groundShowHoldShortLabels", true),
+            GroundShowParkingLabels = GetFieldOr(obj, "groundShowParkingLabels", true),
         };
     }
 
@@ -553,6 +570,10 @@ public sealed class UserPreferences
         public string AircraftSelectKey { get; set; } = "Add";
         public string FocusInputKey { get; set; } = "OemTilde";
         public List<string> HiddenTerminalKinds { get; set; } = [];
+        public bool GroundShowRunwayLabels { get; set; } = true;
+        public bool GroundShowTaxiwayLabels { get; set; } = true;
+        public bool GroundShowHoldShortLabels { get; set; } = true;
+        public bool GroundShowParkingLabels { get; set; } = true;
     }
 
     private sealed class SavedCommandScheme

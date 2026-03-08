@@ -403,7 +403,7 @@ public partial class MainViewModel : ObservableObject
         _showWarningEntries = !hidden.Contains(TerminalEntryKind.Warning);
         _showErrorEntries = !hidden.Contains(TerminalEntryKind.Error);
         _showChatEntries = !hidden.Contains(TerminalEntryKind.Chat);
-        Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged);
+        Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged, _preferences);
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);
 
