@@ -1,0 +1,73 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Yaat.Client.ViewModels"
+        x:Class="Yaat.Client.Views.ConnectWindow"
+        Icon="avares://Yaat.Client/Resources/icon.png"
+        Title="Connect to Server"
+        Width="560"
+        Height="400"
+        CanResize="True">
+
+    <Design.DataContext>
+        <vm:ConnectViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="*,Auto" Margin="12">
+
+        <!-- Server list + sidebar buttons -->
+        <Grid ColumnDefinitions="*,Auto">
+            <DataGrid Grid.Column="0"
+                      ItemsSource="{Binding Servers}"
+                      SelectedItem="{Binding SelectedServer}"
+                      AutoGenerateColumns="False"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="False"
+                      SelectionMode="Single">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180" />
+                    <DataGridTextColumn Header="URL" Binding="{Binding Url}" Width="*" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="4" VerticalAlignment="Top">
+                <Button Content="Add" Command="{Binding AddServerCommand}" Width="72" />
+                <Button Content="Remove" Command="{Binding RemoveServerCommand}" Width="72" />
+                <Separator Height="8" />
+                <Button Content="↑" Command="{Binding MoveUpCommand}" Width="72" />
+                <Button Content="↓" Command="{Binding MoveDownCommand}" Width="72" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Bottom strip -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
+            <!-- Connecting indicator -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
+                        IsVisible="{Binding IsConnecting}">
+                <ProgressBar IsIndeterminate="True" Width="100" />
+                <TextBlock Text="Connecting..." VerticalAlignment="Center" />
+            </StackPanel>
+            <!-- Error message -->
+            <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}"
+                       Foreground="Red"
+                       VerticalAlignment="Center"
+                       Margin="8,0" />
+            <!-- Cancel button (only while connecting) -->
+            <Button Grid.Column="2"
+                    Content="Cancel"
+                    x:Name="CancelButton"
+                    IsVisible="{Binding IsConnecting}"
+                    Margin="0,0,8,0"
+                    Command="{Binding CancelConnectCommand}" />
+            <!-- Connect / Close buttons -->
+            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8">
+                <Button Content="Connect"
+                        Command="{Binding ConnectCommand}"
+                        IsDefault="True"
+                        IsVisible="{Binding !IsConnecting}" />
+                <Button Content="Close"
+                        x:Name="CloseButton"
+                        IsVisible="{Binding !IsConnecting}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

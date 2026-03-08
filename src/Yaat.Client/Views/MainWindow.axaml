@@ -20,8 +20,11 @@
         <!-- Menu bar -->
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="_File">
-                <MenuItem Header="{Binding ConnectMenuText, FallbackValue='_Connect'}"
-                          Command="{Binding ConnectCommand}" />
+                <MenuItem Header="Connect..."
+                          x:Name="ConnectMenuItem" />
+                <MenuItem Header="Disconnect"
+                          Command="{Binding DisconnectCommand}"
+                          IsVisible="{Binding IsConnected}" />
                 <Separator />
                 <MenuItem Header="E_xit"
                           Command="{Binding ExitCommand}" />

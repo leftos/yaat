@@ -95,9 +95,6 @@ public partial class SettingsViewModel : ObservableObject
         .ToArray();
 
     [ObservableProperty]
-    private string _serverUrl = "http://localhost:5000";
-
-    [ObservableProperty]
     private string _vatsimCid = "";
 
     [ObservableProperty]
@@ -167,7 +164,6 @@ public partial class SettingsViewModel : ObservableObject
         GroupedVerbMappings = new DataGridCollectionView(VerbMappings);
         GroupedVerbMappings.GroupDescriptions.Add(new DataGridPathGroupDescription("Category"));
         LoadFromScheme(_preferences.CommandScheme);
-        _serverUrl = _preferences.ServerUrl;
         _vatsimCid = _preferences.VatsimCid;
         _userInitials = _preferences.UserInitials;
         _artccId = _preferences.ArtccId;
@@ -209,7 +205,6 @@ public partial class SettingsViewModel : ObservableObject
     {
         var scheme = BuildSchemeFromRows();
         _preferences.SetCommandScheme(scheme);
-        _preferences.SetServerUrl(ServerUrl);
         _preferences.SetVatsimCid(VatsimCid);
         _preferences.SetUserInitials(UserInitials);
         _preferences.SetArtccId(ArtccId);

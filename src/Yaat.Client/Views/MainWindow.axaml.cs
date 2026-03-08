@@ -40,6 +40,12 @@ public partial class MainWindow : Window
             settingsItem.Click += OnSettingsClick;
         }
 
+        var connectItem = this.FindControl<MenuItem>("ConnectMenuItem");
+        if (connectItem is not null)
+        {
+            connectItem.Click += OnConnectClick;
+        }
+
         var loadItem = this.FindControl<MenuItem>("LoadScenarioMenuItem");
         if (loadItem is not null)
         {
@@ -120,11 +126,6 @@ public partial class MainWindow : Window
         }
 
         ApplyKeybinds(vm.Preferences);
-
-        if (App.AutoConnect)
-        {
-            _ = vm.ConnectCommand.ExecuteAsync(null);
-        }
     }
 
     private void SetupDataGrid(DataGrid dataGrid, MainViewModel vm)
@@ -1025,6 +1026,25 @@ public partial class MainWindow : Window
         {
             vm.StatusText = $"Approach report error: {ex.Message}";
         }
+    }
+
+    private async void OnConnectClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        ConnectWindow? connectWindow = null;
+        var connectVm = new ConnectViewModel(
+            vm.Preferences.SavedServers,
+            vm.Preferences.LastUsedServerUrl,
+            connectAction: vm.AttemptConnectAsync,
+            saveAction: (servers, lastUrl) => vm.Preferences.SetSavedServers(servers, lastUrl),
+            closeAction: () => connectWindow?.Close()
+        );
+        connectWindow = new ConnectWindow(connectVm, vm.Preferences);
+        await connectWindow.ShowDialog(this);
     }
 
     private async void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

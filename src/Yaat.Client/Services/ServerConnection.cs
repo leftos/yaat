@@ -30,7 +30,7 @@ public sealed class ServerConnection : IAsyncDisposable
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
-    public async Task ConnectAsync(string serverUrl)
+    public async Task ConnectAsync(string serverUrl, CancellationToken ct = default)
     {
         if (_connection is not null)
         {
@@ -89,7 +89,7 @@ public sealed class ServerConnection : IAsyncDisposable
             return Task.CompletedTask;
         };
 
-        await _connection.StartAsync();
+        await _connection.StartAsync(ct);
         _log.LogInformation("Connected");
 
         StartHeartbeat();

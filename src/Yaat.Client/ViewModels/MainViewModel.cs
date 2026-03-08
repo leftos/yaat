@@ -34,7 +34,6 @@ public partial class MainViewModel : ObservableObject
     public RadarViewModel Radar { get; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
     [NotifyCanExecuteChangedFor(nameof(LoadScenarioCommand))]
     [NotifyCanExecuteChangedFor(nameof(SendCommandCommand))]
     [NotifyCanExecuteChangedFor(nameof(TogglePauseCommand))]
@@ -46,18 +45,9 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(LoadLiveWeatherCommand))]
     private bool _isConnected;
 
-    public string ServerUrl
-    {
-        get => _preferences.ServerUrl;
-        set
-        {
-            if (_preferences.ServerUrl != value)
-            {
-                _preferences.SetServerUrl(value);
-                OnPropertyChanged();
-            }
-        }
-    }
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DisconnectCommand))]
+    private bool _isConnecting;
 
     [ObservableProperty]
     private string _statusText = "Disconnected";

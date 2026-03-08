@@ -10,54 +10,64 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
-    [RelayCommand(CanExecute = nameof(CanToggleConnect))]
-    private async Task ConnectAsync()
+    internal async Task<bool> AttemptConnectAsync(string url, CancellationToken ct)
     {
-        if (IsConnected)
-        {
-            await DisconnectAsync();
-            return;
-        }
-
         if (_preferences.UserInitials.Length != 2)
         {
             StatusText = "Set your 2-letter initials in Settings before connecting";
-            return;
+            return false;
         }
 
         if (string.IsNullOrWhiteSpace(_preferences.VatsimCid))
         {
             StatusText = "Set your VATSIM CID in Settings before connecting";
-            return;
+            return false;
         }
 
         if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
         {
             StatusText = "Set your ARTCC ID in Settings before connecting";
-            return;
+            return false;
         }
 
         try
         {
+            IsConnecting = true;
             StatusText = "Connecting...";
-            await _connection.ConnectAsync(ServerUrl);
+            await _connection.ConnectAsync(url, ct);
             IsConnected = true;
+            IsConnecting = false;
             StatusText = "Connected — select or create a room";
             await RefreshRoomListAsync();
             ShowRoomList = true;
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            IsConnecting = false;
+            StatusText = "Connection cancelled";
+            return false;
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Connection failed");
+            IsConnecting = false;
             StatusText = $"Error: {ex.Message}";
             IsConnected = false;
+            return false;
         }
     }
 
-    private static bool CanToggleConnect() => true;
-
+    [RelayCommand(CanExecute = nameof(CanDisconnect))]
     private async Task DisconnectAsync()
     {
+        if (IsConnecting)
+        {
+            IsConnecting = false;
+            StatusText = "Disconnect requested";
+            return;
+        }
+
         if (ActiveRoomId is not null)
         {
             try
@@ -75,6 +85,8 @@ public partial class MainViewModel
         StatusText = "Disconnected";
         ClearRoomState();
     }
+
+    private bool CanDisconnect() => IsConnected || IsConnecting;
 
     [RelayCommand(CanExecute = nameof(CanCreateRoom))]
     private async Task CreateRoomAsync()

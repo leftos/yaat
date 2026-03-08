@@ -2,12 +2,30 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;
+
+public sealed partial class SavedServer : ObservableObject
+{
+    [ObservableProperty]
+    private string _name = string.Empty;
+
+    [ObservableProperty]
+    private string _url = string.Empty;
+
+    public SavedServer() { }
+
+    public SavedServer(string name, string url)
+    {
+        _name = name;
+        _url = url;
+    }
+}
 
 public sealed class UserPreferences
 {
@@ -40,7 +58,8 @@ public sealed class UserPreferences
     }
 
     public CommandScheme CommandScheme => _commandScheme;
-    public string ServerUrl => _data.ServerUrl;
+    public IReadOnlyList<SavedServer> SavedServers => _data.SavedServers;
+    public string LastUsedServerUrl => _data.LastUsedServerUrl;
     public string VatsimCid => _data.VatsimCid;
     public string UserInitials => _data.UserInitials;
     public string ArtccId => _data.ArtccId;
@@ -93,9 +112,10 @@ public sealed class UserPreferences
     public bool GroundShowHoldShortLabels => _data.GroundShowHoldShortLabels;
     public bool GroundShowParkingLabels => _data.GroundShowParkingLabels;
 
-    public void SetServerUrl(string url)
+    public void SetSavedServers(IEnumerable<SavedServer> servers, string lastUsedUrl)
     {
-        _data.ServerUrl = url.Trim();
+        _data.SavedServers = servers.ToList();
+        _data.LastUsedServerUrl = lastUsedUrl.Trim();
         Save();
     }
 
@@ -356,6 +376,9 @@ public sealed class UserPreferences
             var saved = JsonSerializer.Deserialize<SavedPrefs>(json, JsonOptions);
             if (saved is not null)
             {
+                // Normalize empty server list on load
+                if (saved.SavedServers is null or { Count: 0 })
+                    saved.SavedServers = [new SavedServer("Local", "http://localhost:5000")];
                 return saved;
             }
         }
@@ -388,10 +411,11 @@ public sealed class UserPreferences
             return new SavedPrefs();
         }
 
-        return new SavedPrefs
+        var result = new SavedPrefs
         {
             CommandScheme = GetFieldOr<SavedCommandScheme?>(obj, "commandScheme", null),
-            ServerUrl = GetFieldOr(obj, "serverUrl", "http://localhost:5000"),
+            SavedServers = GetFieldOr<List<SavedServer>>(obj, "savedServers", []),
+            LastUsedServerUrl = GetFieldOr(obj, "lastUsedServerUrl", "http://localhost:5000"),
             VatsimCid = GetFieldOr(obj, "vatsimCid", ""),
             UserInitials = GetFieldOr(obj, "userInitials", ""),
             ArtccId = GetFieldOr(obj, "artccId", ""),
@@ -431,6 +455,12 @@ public sealed class UserPreferences
             GroundShowHoldShortLabels = GetFieldOr(obj, "groundShowHoldShortLabels", true),
             GroundShowParkingLabels = GetFieldOr(obj, "groundShowParkingLabels", true),
         };
+
+        // Normalize empty server list on recovery
+        if (result.SavedServers is null or { Count: 0 })
+            result.SavedServers = [new SavedServer("Local", "http://localhost:5000")];
+
+        return result;
     }
 
     private static T GetFieldOr<T>(JsonObject obj, string name, T fallback)
@@ -535,7 +565,8 @@ public sealed class UserPreferences
     private sealed class SavedPrefs
     {
         public SavedCommandScheme? CommandScheme { get; set; }
-        public string ServerUrl { get; set; } = "http://localhost:5000";
+        public List<SavedServer> SavedServers { get; set; } = [];
+        public string LastUsedServerUrl { get; set; } = "http://localhost:5000";
         public string VatsimCid { get; set; } = "";
         public string UserInitials { get; set; } = "";
         public string ArtccId { get; set; } = "";
