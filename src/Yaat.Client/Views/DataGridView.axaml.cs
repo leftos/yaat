@@ -36,6 +36,12 @@ public partial class DataGridView : UserControl
         grid.DoubleTapped += OnGridDoubleTapped;
         grid.ContextRequested += OnGridContextRequested;
         vm.PropertyChanged += OnViewModelPropertyChanged;
+
+        var searchBox = this.FindControl<TextBox>("SearchBox");
+        if (searchBox is not null)
+        {
+            searchBox.KeyDown += OnSearchBoxKeyDown;
+        }
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
@@ -50,10 +56,32 @@ public partial class DataGridView : UserControl
             grid.ContextRequested -= OnGridContextRequested;
         }
 
+        var searchBox = this.FindControl<TextBox>("SearchBox");
+        if (searchBox is not null)
+        {
+            searchBox.KeyDown -= OnSearchBoxKeyDown;
+        }
+
         if (DataContext is MainViewModel vm)
         {
             vm.PropertyChanged -= OnViewModelPropertyChanged;
         }
+    }
+
+    private void OnSearchBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape)
+        {
+            return;
+        }
+
+        if (sender is TextBox textBox)
+        {
+            textBox.Text = "";
+        }
+
+        GetDataGrid()?.Focus();
+        e.Handled = true;
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

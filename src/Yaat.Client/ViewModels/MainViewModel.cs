@@ -224,12 +224,43 @@ public partial class MainViewModel : ObservableObject
     public DataGridCollectionView AircraftView { get; }
 
     [ObservableProperty]
+    private string _aircraftFilterText = "";
+
+    partial void OnAircraftFilterTextChanged(string value)
+    {
+        AircraftView.Refresh();
+    }
+
+    [ObservableProperty]
     private bool _showOnlyActiveAircraft;
 
     partial void OnShowOnlyActiveAircraftChanged(bool value)
     {
         _preferences.SetShowOnlyActiveAircraft(value);
         AircraftView.Refresh();
+    }
+
+    private static bool MatchesFilter(AircraftModel ac, string filter)
+    {
+        if (string.IsNullOrEmpty(filter))
+        {
+            return true;
+        }
+
+        return Contains(ac.Callsign, filter)
+            || Contains(ac.AircraftType, filter)
+            || ac.BeaconCode.ToString("D4").Contains(filter, StringComparison.OrdinalIgnoreCase)
+            || Contains(ac.Departure, filter)
+            || Contains(ac.Destination, filter)
+            || Contains(ac.Route, filter)
+            || Contains(ac.AssignedRunway, filter)
+            || Contains(ac.CurrentPhase, filter)
+            || Contains(ac.Scratchpad1, filter)
+            || Contains(ac.Scratchpad2, filter)
+            || Contains(ac.ActiveApproachId, filter)
+            || Contains(ac.OwnerDisplay, filter);
+
+        static bool Contains(string? value, string filter) => value is not null && value.Contains(filter, StringComparison.OrdinalIgnoreCase);
     }
 
     [ObservableProperty]
@@ -265,7 +296,8 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel()
     {
         AircraftView = new DataGridCollectionView(Aircraft);
-        AircraftView.Filter = obj => obj is not AircraftModel ac || !_showOnlyActiveAircraft || !ac.IsDelayed;
+        AircraftView.Filter = obj =>
+            obj is not AircraftModel ac || (!_showOnlyActiveAircraft || !ac.IsDelayed) && MatchesFilter(ac, _aircraftFilterText);
         _showOnlyActiveAircraft = _preferences.ShowOnlyActiveAircraft;
         _showTimelineBar = _preferences.ShowTimelineBar;
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged);
