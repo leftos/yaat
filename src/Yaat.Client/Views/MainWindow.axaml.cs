@@ -1037,8 +1037,11 @@ public partial class MainWindow : Window
         var dialog = new SettingsWindow(vm.Preferences);
         await dialog.ShowDialog(this);
 
-        vm.RefreshCommandScheme();
-        ApplyKeybinds(vm.Preferences);
+        if ((dialog.DataContext as SettingsViewModel)?.Saved == true)
+        {
+            vm.RefreshCommandScheme();
+            ApplyKeybinds(vm.Preferences);
+        }
     }
 
     private void OnNewWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
