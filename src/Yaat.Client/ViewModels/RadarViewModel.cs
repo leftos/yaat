@@ -58,6 +58,18 @@ public partial class RadarViewModel : ObservableObject
 
     public string? PrimaryAirportId { get; private set; }
 
+    /// <summary>
+    /// Airport IDs from the active position's STARS area. Used to filter
+    /// which METARs (wind/altimeter) to display on the radar.
+    /// </summary>
+    public List<string> WeatherAirports { get; private set; } = [];
+
+    /// <summary>
+    /// Position-scoped mapGroup mapIds, set by <see cref="ApplyPositionDisplayConfig"/>.
+    /// Used by <see cref="ApplyVideoMapsDto"/> when it loads later to pick the right group.
+    /// </summary>
+    private List<int?>? _positionMapGroupMapIds;
+
     private double _primaryAirportLat;
     private double _primaryAirportLon;
 
@@ -401,40 +413,74 @@ public partial class RadarViewModel : ObservableObject
             MapToggles.Add(item);
         }
 
-        // Build map shortcuts from first mapGroup (indices 0-5).
-        // vNAS stores them column-major (top-to-bottom, left-to-right for a 2-row grid)
-        // but UniformGrid fills row-major, so transpose: [0,2,4,1,3,5].
-        MapShortcuts.Clear();
-        if (dto.MapGroups.Count > 0)
+        // Build map shortcuts: prefer position-scoped mapGroup if set,
+        // otherwise fall back to first mapGroup from the DTO.
+        if (_positionMapGroupMapIds is not null)
         {
-            var group = dto.MapGroups[0];
-            var count = Math.Min(6, group.MapIds.Count);
-            int[] rowMajorOrder = [0, 2, 4, 1, 3, 5];
-            foreach (var srcIdx in rowMajorOrder)
-            {
-                if (srcIdx >= count)
-                {
-                    continue;
-                }
-
-                var starsId = group.MapIds[srcIdx];
-                if (starsId is null)
-                {
-                    continue;
-                }
-
-                var toggle = FindToggleByStarsId(starsId.Value);
-                var shortName = toggle?.ShortName ?? $"M{starsId}";
-                var shortcut = new MapShortcutItem
-                {
-                    Index = srcIdx,
-                    StarsId = starsId.Value,
-                    ShortName = shortName,
-                    IsEnabled = toggle?.IsEnabled ?? false,
-                };
-                MapShortcuts.Add(shortcut);
-            }
+            BuildMapShortcutsFromGroup(_positionMapGroupMapIds);
         }
+        else if (dto.MapGroups.Count > 0)
+        {
+            BuildMapShortcutsFromGroup(dto.MapGroups[0].MapIds);
+        }
+        else
+        {
+            MapShortcuts.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds the 3x2 DCB map shortcut grid from a mapGroup's mapIds.
+    /// vNAS stores them column-major (top-to-bottom, left-to-right for a 2-row grid)
+    /// but UniformGrid fills row-major, so transpose: [0,2,4,1,3,5].
+    /// </summary>
+    private void BuildMapShortcutsFromGroup(List<int?> mapIds)
+    {
+        MapShortcuts.Clear();
+        var count = Math.Min(6, mapIds.Count);
+        int[] rowMajorOrder = [0, 2, 4, 1, 3, 5];
+        foreach (var srcIdx in rowMajorOrder)
+        {
+            if (srcIdx >= count)
+            {
+                continue;
+            }
+
+            var starsId = mapIds[srcIdx];
+            if (starsId is null)
+            {
+                continue;
+            }
+
+            var toggle = FindToggleByStarsId(starsId.Value);
+            var shortName = toggle?.ShortName ?? $"M{starsId}";
+            var shortcut = new MapShortcutItem
+            {
+                Index = srcIdx,
+                StarsId = starsId.Value,
+                ShortName = shortName,
+                IsEnabled = toggle?.IsEnabled ?? false,
+            };
+            MapShortcuts.Add(shortcut);
+        }
+    }
+
+    /// <summary>
+    /// Applies position-scoped display config: rebuilds DCB map shortcuts
+    /// from the position's mapGroup and stores underlying airports for
+    /// weather readout.
+    /// </summary>
+    public void ApplyPositionDisplayConfig(PositionDisplayConfigDto config)
+    {
+        _positionMapGroupMapIds = config.MapGroupMapIds;
+        BuildMapShortcutsFromGroup(config.MapGroupMapIds);
+        WeatherAirports = config.UnderlyingAirports;
+        _log.LogInformation(
+            "Applied position display config for TCP {TcpCode}: {MapCount} maps, {AirportCount} weather airports",
+            config.TcpCode,
+            config.MapGroupMapIds.Count,
+            config.UnderlyingAirports.Count
+        );
     }
 
     public void SortMapTogglesEnabledFirst()
@@ -467,6 +513,8 @@ public partial class RadarViewModel : ObservableObject
         MapToggles.Clear();
         BrightnessLookup.Clear();
         ActiveVideoMaps = null;
+        _positionMapGroupMapIds = null;
+        WeatherAirports = [];
         _videoMapService.ClearMemoryCache();
     }
 

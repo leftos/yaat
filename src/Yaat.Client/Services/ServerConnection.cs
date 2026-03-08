@@ -24,6 +24,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<CrcLobbyChangedDto>? CrcLobbyChanged;
     public event Action<CrcRoomMembersChangedDto>? CrcRoomMembersChanged;
     public event Action<WeatherChangedDto>? WeatherChanged;
+    public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -59,6 +60,8 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<CrcRoomMembersChangedDto>("CrcRoomMembersChanged", dto => CrcRoomMembersChanged?.Invoke(dto));
 
         _connection.On<WeatherChangedDto>("WeatherChanged", dto => WeatherChanged?.Invoke(dto));
+
+        _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
 
         _connection.Reconnecting += error =>
         {
@@ -471,8 +474,12 @@ public record LoadScenarioResultDto(
     int SimRate,
     string? PrimaryAirportId,
     List<string> Warnings,
-    List<AircraftDto> AllAircraft
+    List<AircraftDto> AllAircraft,
+    string? WeatherName = null,
+    PositionDisplayConfigDto? PositionDisplayConfig = null
 );
+
+public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
 
 public record CommandResultDto(bool Success, string? Message);
 

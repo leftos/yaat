@@ -47,6 +47,7 @@ public partial class MainViewModel
     private readonly ArtccAirportResolver _airportResolver = new();
 
     private string? _activeWeatherJson;
+    private IReadOnlyList<WeatherDisplayInfo>? _allWeatherInfo;
 
     public string? ActiveWeatherJson => _activeWeatherJson;
 
@@ -264,6 +265,7 @@ public partial class MainViewModel
             if (dto.Name is null)
             {
                 SetActiveWeatherJson(null);
+                _allWeatherInfo = null;
                 Ground.WeatherInfo = null;
                 Radar.WeatherInfo = null;
             }
@@ -289,7 +291,8 @@ public partial class MainViewModel
                 SetActiveWeatherJson(JsonSerializer.Serialize(profile));
 
                 var allInfo = ExtractAllWeatherDisplay(dto.Metars);
-                Radar.WeatherInfo = allInfo;
+                _allWeatherInfo = allInfo;
+                Radar.WeatherInfo = FilterWeatherForPosition(allInfo, Radar.WeatherAirports);
                 Ground.WeatherInfo = PickGroundWeather(allInfo, Ground.Layout?.AirportId);
             }
         });
@@ -341,5 +344,45 @@ public partial class MainViewModel
 
         // Fall back to first station if no match
         return allInfo.Count > 0 ? allInfo[0] : null;
+    }
+
+    /// <summary>
+    /// Filters weather display info to only stations matching the position's
+    /// underlying airports. Returns all stations if no position filter is set.
+    /// </summary>
+    private static IReadOnlyList<WeatherDisplayInfo>? FilterWeatherForPosition(
+        IReadOnlyList<WeatherDisplayInfo>? allInfo,
+        List<string> weatherAirports
+    )
+    {
+        if (allInfo is null)
+        {
+            return null;
+        }
+
+        if (weatherAirports.Count == 0)
+        {
+            return allInfo;
+        }
+
+        var filtered = new List<WeatherDisplayInfo>();
+        foreach (var info in allInfo)
+        {
+            if (info.StationId is not null && weatherAirports.Any(a => string.Equals(a, info.StationId, StringComparison.OrdinalIgnoreCase)))
+            {
+                filtered.Add(info);
+            }
+        }
+
+        return filtered.Count > 0 ? filtered : allInfo;
+    }
+
+    /// <summary>
+    /// Re-applies weather filtering when the active position changes.
+    /// Called from <see cref="OnPositionDisplayChanged"/>.
+    /// </summary>
+    private void UpdateRadarWeatherDisplay()
+    {
+        Radar.WeatherInfo = FilterWeatherForPosition(_allWeatherInfo, Radar.WeatherAirports);
     }
 }

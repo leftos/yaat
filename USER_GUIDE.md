@@ -690,6 +690,10 @@ By default, you operate as the scenario's student position. Use `AS` to act as a
 
 Resolution order: per-command `AS` prefix > persistent active position > student position default.
 
+Changing your active position also updates the radar display:
+- **DCB map shortcuts** switch to the position's configured 3x2 map group (matching real STARS map group assignments by TCP code).
+- **Weather airports** update to the position's STARS area's underlying airports (determines which METARs are relevant for the radar readout area).
+
 #### Track Commands
 
 | Command | Effect |

@@ -430,4 +430,13 @@ public partial class MainViewModel
             }
         });
     }
+
+    private void OnPositionDisplayChanged(PositionDisplayConfigDto config)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            Radar.ApplyPositionDisplayConfig(config);
+            UpdateRadarWeatherDisplay();
+        });
+    }
 }

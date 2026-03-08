@@ -320,6 +320,7 @@ public partial class MainViewModel : ObservableObject
         _connection.CrcLobbyChanged += OnCrcLobbyChanged;
         _connection.CrcRoomMembersChanged += OnCrcRoomMembersChanged;
         _connection.WeatherChanged += OnWeatherChanged;
+        _connection.PositionDisplayChanged += OnPositionDisplayChanged;
 
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;
@@ -655,6 +656,41 @@ public partial class MainViewModel : ObservableObject
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
         }
+        if (
+            parsed.Type
+            is CanonicalCommandType.SetActivePosition
+                or CanonicalCommandType.AcceptAllHandoffs
+                or CanonicalCommandType.InitiateHandoffAll
+                or CanonicalCommandType.CoordinationAutoAck
+        )
+        {
+            var verb = parsed.Type switch
+            {
+                CanonicalCommandType.SetActivePosition => "AS",
+                CanonicalCommandType.AcceptAllHandoffs => "ACCEPTALL",
+                CanonicalCommandType.InitiateHandoffAll => "HOALL",
+                CanonicalCommandType.CoordinationAutoAck => "RDAUTO",
+                _ => "",
+            };
+            var canonical = string.IsNullOrEmpty(parsed.Argument) ? verb : $"{verb} {parsed.Argument}";
+            try
+            {
+                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                AddHistory(canonical);
+                if (!string.IsNullOrEmpty(result.Message))
+                {
+                    StatusText = result.Message;
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "{Verb} failed", verb);
+                StatusText = $"{verb} error: {ex.Message}";
+            }
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+        }
     }
 
     private static bool IsGlobalCommand(CanonicalCommandType type)
@@ -669,7 +705,11 @@ public partial class MainViewModel : ObservableObject
                 or CanonicalCommandType.SquawkStandbyAll
                 or CanonicalCommandType.Consolidate
                 or CanonicalCommandType.ConsolidateFull
-                or CanonicalCommandType.Deconsolidate;
+                or CanonicalCommandType.Deconsolidate
+                or CanonicalCommandType.SetActivePosition
+                or CanonicalCommandType.AcceptAllHandoffs
+                or CanonicalCommandType.InitiateHandoffAll
+                or CanonicalCommandType.CoordinationAutoAck;
     }
 
     /// <summary>
