@@ -107,6 +107,8 @@ public static class CommandDescriber
             ClearedVisualApproachCommand => CanonicalCommandType.ClearedVisualApproach,
             ReportFieldInSightCommand => CanonicalCommandType.ReportFieldInSight,
             ReportTrafficInSightCommand => CanonicalCommandType.ReportTrafficInSight,
+            WaitCommand => CanonicalCommandType.Wait,
+            WaitDistanceCommand => CanonicalCommandType.WaitDistance,
             _ => CanonicalCommandType.FlyHeading, // fallback
         };
     }
