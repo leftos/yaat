@@ -11,30 +11,35 @@ const UPDATE_MESSAGE = 7;
 // Role IDs
 const MEMBER_ROLE_ID = "1479929042429018192";
 
-// Status labels → display text and emoji
+// Status labels → display text, emoji, and whether they represent a terminal (closed) state
 const STATUS_LABELS = {
   "in progress": {
     emoji: "🔧",
     message: "This issue is now **in progress** — someone is actively working on it.",
+    terminal: false,
   },
   completed: {
     emoji: "✅",
     message: "This issue has been **completed** and the fix/feature should be available soon.",
+    terminal: true,
   },
   wontfix: {
     emoji: "🚫",
     message:
       "This issue has been marked as **won't fix** — it's been reviewed but won't be addressed at this time.",
+    terminal: true,
   },
   "not a bug": {
     emoji: "❌",
     message:
       "This has been reviewed and determined to be **not a bug** — the current behavior is working as intended.",
+    terminal: true,
   },
   duplicate: {
     emoji: "♻️",
     message:
       "This issue has been closed as a **duplicate** — it's already being tracked in another issue.",
+    terminal: true,
   },
 };
 
@@ -190,15 +195,16 @@ async function handleIssueEvent(payload, env) {
     await postToDiscordThread(env.DISCORD_BOT_TOKEN, threadId, statusMessage);
   }
 
-  // Determine if this is a terminal (resolved) state or a reopen
-  const isTerminal =
-    (action === "labeled" && label && STATUS_LABELS[label.name.toLowerCase()]) ||
-    (action === "closed");
-  const isReopened = action === "reopened";
-
-  if (isTerminal) {
-    await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
-  } else if (isReopened) {
+  // Determine resolution type
+  if (action === "labeled" && label) {
+    const status = STATUS_LABELS[label.name.toLowerCase()];
+    if (status?.terminal) {
+      await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId, status.emoji);
+    }
+  } else if (action === "closed") {
+    const emoji = issue.state_reason === "not_planned" ? "🚫" : "✅";
+    await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId, emoji);
+  } else if (action === "reopened") {
     await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
   }
 }
@@ -236,46 +242,62 @@ async function postToDiscordThread(botToken, threadId, content) {
   }
 }
 
-async function markThreadResolved(botToken, threadId) {
-  // Add checkmark to thread title (if not already present)
+// Known resolution emojis used as title prefixes
+const RESOLUTION_EMOJIS = ["✅", "🚫", "❌", "♻️"];
+
+async function markThreadResolved(botToken, threadId, emoji = "✅") {
   const thread = await discordApi(`/channels/${threadId}`, botToken);
-  if (!thread.name.startsWith("\u2705")) {
-    await fetch(`https://discord.com/api/v10/channels/${threadId}`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bot ${botToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name: `\u2705 ${thread.name}` }),
-    });
+
+  // Strip any existing resolution emoji prefix before adding the new one
+  let name = thread.name;
+  for (const e of RESOLUTION_EMOJIS) {
+    if (name.startsWith(`${e} `)) {
+      name = name.slice(e.length + 1);
+      break;
+    }
+  }
+  const newName = `${emoji} ${name}`;
+  if (thread.name !== newName) {
+    await discordPatch(`/channels/${threadId}`, botToken, { name: newName, archived: true });
+  } else if (!thread.archived) {
+    await discordPatch(`/channels/${threadId}`, botToken, { archived: true });
   }
 
-  // Add checkmark reaction to the thread starter message (ID matches threadId in forum threads)
+  // Add reaction matching the resolution type
+  const encodedEmoji = encodeURIComponent(emoji);
   await fetch(
-    `https://discord.com/api/v10/channels/${threadId}/messages/${threadId}/reactions/%E2%9C%85/@me`,
+    `https://discord.com/api/v10/channels/${threadId}/messages/${threadId}/reactions/${encodedEmoji}/@me`,
     { method: "PUT", headers: { Authorization: `Bot ${botToken}` } },
   );
 }
 
 async function unmarkThreadResolved(botToken, threadId) {
-  // Remove checkmark from thread title
+  // Unarchive first (Discord requires unarchive before other modifications)
   const thread = await discordApi(`/channels/${threadId}`, botToken);
-  if (thread.name.startsWith("\u2705 ")) {
-    await fetch(`https://discord.com/api/v10/channels/${threadId}`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bot ${botToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name: thread.name.slice(2) }),
-    });
+
+  // Strip any resolution emoji prefix
+  let name = thread.name;
+  let changed = false;
+  for (const e of RESOLUTION_EMOJIS) {
+    if (name.startsWith(`${e} `)) {
+      name = name.slice(e.length + 1);
+      changed = true;
+      break;
+    }
   }
 
-  // Remove checkmark reaction
-  await fetch(
-    `https://discord.com/api/v10/channels/${threadId}/messages/${threadId}/reactions/%E2%9C%85/@me`,
-    { method: "DELETE", headers: { Authorization: `Bot ${botToken}` } },
-  );
+  const patch = { archived: false };
+  if (changed) patch.name = name;
+  await discordPatch(`/channels/${threadId}`, botToken, patch);
+
+  // Remove all resolution emoji reactions
+  for (const e of RESOLUTION_EMOJIS) {
+    const encoded = encodeURIComponent(e);
+    await fetch(
+      `https://discord.com/api/v10/channels/${threadId}/messages/${threadId}/reactions/${encoded}/@me`,
+      { method: "DELETE", headers: { Authorization: `Bot ${botToken}` } },
+    );
+  }
 }
 
 // --- Command processing ---
@@ -467,6 +489,21 @@ async function discordApi(path, botToken) {
     throw new Error(`Discord API ${path} failed (${res.status}): ${text}`);
   }
   return res.json();
+}
+
+async function discordPatch(path, botToken, body) {
+  const res = await fetch(`https://discord.com/api/v10${path}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bot ${botToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`Discord PATCH ${path} failed (${res.status}): ${text}`);
+  }
 }
 
 async function createGitHubIssue(token, repo, { title, body, labels }) {

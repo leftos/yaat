@@ -87,14 +87,14 @@ DISCORD_APP_ID=<app-id> DISCORD_BOT_TOKEN=<token> npm run register
 
 The following GitHub labels trigger Discord notifications when applied:
 
-| Label | Discord message |
-|-------|-----------------|
-| `in progress` | 🔧 In Progress |
-| `completed` | ✅ Completed |
-| `wontfix` | 🚫 Won't Fix |
-| `not a bug` | ❌ Not a Bug |
-| `duplicate` | ♻️ Duplicate |
+| Label | Discord message | Thread title prefix | Archives thread? |
+|-------|-----------------|---------------------|------------------|
+| `in progress` | 🔧 In Progress | — | No |
+| `completed` | ✅ Completed | ✅ | Yes |
+| `wontfix` | 🚫 Won't Fix | 🚫 | Yes |
+| `not a bug` | ❌ Not a Bug | ❌ | Yes |
+| `duplicate` | ♻️ Duplicate | ♻️ | Yes |
 
-Closing an issue also posts a status (✅ Completed or 🚫 Won't Fix depending on close reason). Reopening posts 🔄 Reopened.
+Closing an issue also posts a status and archives the thread (✅ for completed, 🚫 for not planned). Reopening posts 🔄 Reopened, removes the emoji prefix, and unarchives the thread.
 
 Create these labels in GitHub if they don't exist yet.
