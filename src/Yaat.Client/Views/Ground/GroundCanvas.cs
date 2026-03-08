@@ -54,6 +54,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(DrawWaypoints)
     );
 
+    public static readonly StyledProperty<TaxiRoute?> DrawHoverPreviewProperty = AvaloniaProperty.Register<GroundCanvas, TaxiRoute?>(
+        nameof(DrawHoverPreview)
+    );
+
     public static readonly StyledProperty<bool> ShowDebugInfoProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(ShowDebugInfo));
 
     public static readonly StyledProperty<WeatherDisplayInfo?> WeatherInfoProperty = AvaloniaProperty.Register<GroundCanvas, WeatherDisplayInfo?>(
@@ -151,6 +155,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(DrawWaypointsProperty, value);
     }
 
+    public TaxiRoute? DrawHoverPreview
+    {
+        get => GetValue(DrawHoverPreviewProperty);
+        set => SetValue(DrawHoverPreviewProperty, value);
+    }
+
     public int? HoveredNodeId => _hoveredNodeId;
 
     /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
@@ -181,6 +191,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     /// <summary>Fired when a node is right-clicked or double-clicked during draw mode (finish).</summary>
     public event Action<int, Point>? DrawNodeFinished;
 
+    /// <summary>Fired when the hovered node changes during draw mode. Args: nodeId (null if no node).</summary>
+    public event Action<int?>? DrawNodeHovered;
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -198,6 +211,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == ActiveRouteProperty
             || change.Property == PreviewRouteProperty
             || change.Property == DrawnRoutePreviewProperty
+            || change.Property == DrawHoverPreviewProperty
             || change.Property == DrawWaypointsProperty
             || change.Property == ShowDebugInfoProperty
         )
@@ -219,6 +233,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         TaxiRoute? ActiveRoute,
         TaxiRoute? PreviewRoute,
         TaxiRoute? DrawnRoutePreview,
+        TaxiRoute? DrawHoverPreview,
         IReadOnlyList<int>? DrawWaypoints,
         bool IsDrawingRoute,
         IReadOnlyDictionary<string, SKPoint> DataBlockOffsets,
@@ -239,6 +254,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ActiveRoute,
             PreviewRoute,
             DrawnRoutePreview,
+            DrawHoverPreview,
             DrawWaypoints,
             IsDrawingRoute,
             new Dictionary<string, SKPoint>(_dataBlockOffsets),
@@ -267,6 +283,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.ActiveRoute,
             s.PreviewRoute,
             s.DrawnRoutePreview,
+            s.DrawHoverPreview,
             s.DrawWaypoints,
             s.DataBlockOffsets,
             s.AirportCenterLat,
@@ -567,6 +584,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         {
             _hoveredNodeId = newId;
             MarkDirty();
+
+            if (IsDrawingRoute)
+            {
+                DrawNodeHovered?.Invoke(newId);
+            }
         }
     }
 

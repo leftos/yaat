@@ -41,6 +41,7 @@ public partial class GroundView : UserControl
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.DrawNodeClicked += OnDrawNodeClicked;
         _canvas.DrawNodeFinished += OnDrawNodeFinished;
+        _canvas.DrawNodeHovered += OnDrawNodeHovered;
 
         _taxiInputOverlay = this.FindControl<Border>("TaxiInputOverlay");
         _taxiInputBox = this.FindControl<TextBox>("TaxiInputBox");
@@ -65,6 +66,7 @@ public partial class GroundView : UserControl
             _canvas.PointerPressed -= OnCanvasPointerPressed;
             _canvas.DrawNodeClicked -= OnDrawNodeClicked;
             _canvas.DrawNodeFinished -= OnDrawNodeFinished;
+            _canvas.DrawNodeHovered -= OnDrawNodeHovered;
         }
 
         if (_taxiInputBox is not null)
@@ -340,6 +342,14 @@ public partial class GroundView : UserControl
         if (DataContext is GroundViewModel vm)
         {
             vm.SelectedAircraft = null;
+        }
+    }
+
+    private void OnDrawNodeHovered(int? nodeId)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.UpdateDrawHoverPreview(nodeId);
         }
     }
 

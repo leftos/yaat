@@ -85,6 +85,7 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor AircraftDimmed = new(80, 80, 100);
     private static readonly SKColor AircraftAirborne = new(0, 200, 255);
     private static readonly SKColor DrawnRouteColor = new(0, 200, 255);
+    private static readonly SKColor DrawHoverPreviewColor = new(255, 180, 50);
     private static readonly SKColor WaypointMarkerColor = new(255, 200, 0);
     private static readonly SKColor HoverRingColor = new(255, 255, 255, 160);
 
@@ -211,6 +212,15 @@ public sealed class GroundRenderer : IDisposable
         StrokeCap = SKStrokeCap.Round,
     };
 
+    private readonly SKPaint _drawHoverPreviewPaint = new()
+    {
+        Color = DrawHoverPreviewColor,
+        StrokeWidth = 5,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
+    };
+
     private readonly SKPaint _waypointMarkerPaint = new()
     {
         Color = WaypointMarkerColor,
@@ -268,6 +278,7 @@ public sealed class GroundRenderer : IDisposable
         TaxiRoute? activeRoute,
         TaxiRoute? previewRoute,
         TaxiRoute? drawnRoutePreview,
+        TaxiRoute? drawHoverPreview,
         IReadOnlyList<int>? drawWaypoints,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
         double airportCenterLat = 0,
@@ -291,6 +302,7 @@ public sealed class GroundRenderer : IDisposable
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
         DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
+        DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
         DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo);
         DrawLabels(canvas);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
@@ -477,6 +489,11 @@ public sealed class GroundRenderer : IDisposable
     private void DrawPreviewRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
     {
         DrawRoute(canvas, vp, layout, route, _previewRoutePaint);
+    }
+
+    private void DrawDrawHoverPreview(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? hoverRoute)
+    {
+        DrawRoute(canvas, vp, layout, hoverRoute, _drawHoverPreviewPaint);
     }
 
     private void DrawDrawnRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? drawnRoute, IReadOnlyList<int>? waypoints)
@@ -788,6 +805,7 @@ public sealed class GroundRenderer : IDisposable
         _activeRoutePaint.Dispose();
         _previewRoutePaint.Dispose();
         _drawnRoutePaint.Dispose();
+        _drawHoverPreviewPaint.Dispose();
         _waypointMarkerPaint.Dispose();
         _waypointTextPaint.Dispose();
         _nodePaint.Dispose();

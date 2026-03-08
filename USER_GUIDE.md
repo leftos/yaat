@@ -1014,6 +1014,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
   - All phases include "Delete" at the bottom
 - **On empty space** (with aircraft selected): multi-route taxi options (same as node right-click), or pushback directions if aircraft is at parking
 
+**Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route..." to enter draw mode. Click nodes to add waypoints — the route is computed via A* between consecutive waypoints. As you hover over nodes, a dashed preview shows what the next segment would look like. Right-click a node to finish. Backspace undoes the last waypoint, Escape cancels.
+
 The ground layout loads automatically when a scenario is loaded for an airport with ground data.
 
 When weather is loaded, wind direction/speed and altimeter setting are displayed in the top-left corner of the ground view.

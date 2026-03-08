@@ -43,6 +43,9 @@ public partial class GroundViewModel : ObservableObject
     private IReadOnlyList<int>? _drawWaypoints;
 
     [ObservableProperty]
+    private TaxiRoute? _drawHoverPreview;
+
+    [ObservableProperty]
     private double _airportCenterLat;
 
     [ObservableProperty]
@@ -777,6 +780,7 @@ public partial class GroundViewModel : ObservableObject
         _drawWaypointIds.Add(nodeId);
         DrawWaypoints = [.. _drawWaypointIds];
         DrawnRoutePreview = MergeSubRoutes();
+        DrawHoverPreview = null;
         return true;
     }
 
@@ -813,6 +817,17 @@ public partial class GroundViewModel : ObservableObject
         return (merged, $"TAXI {taxiways}");
     }
 
+    public void UpdateDrawHoverPreview(int? nodeId)
+    {
+        if (!IsDrawingRoute || _drawWaypointIds.Count == 0 || nodeId is null || nodeId == _drawWaypointIds[^1])
+        {
+            DrawHoverPreview = null;
+            return;
+        }
+
+        DrawHoverPreview = FindRouteToNode(_drawWaypointIds[^1], nodeId.Value);
+    }
+
     public void CancelDrawRoute()
     {
         ClearDrawState();
@@ -825,6 +840,7 @@ public partial class GroundViewModel : ObservableObject
         _drawSubRoutes = [];
         IsDrawingRoute = false;
         DrawnRoutePreview = null;
+        DrawHoverPreview = null;
         DrawWaypoints = null;
     }
 

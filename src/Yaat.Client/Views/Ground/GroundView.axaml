@@ -12,6 +12,7 @@
                              ActiveRoute="{Binding ActiveRoute}"
                              PreviewRoute="{Binding PreviewRoute}"
                              DrawnRoutePreview="{Binding DrawnRoutePreview}"
+                             DrawHoverPreview="{Binding DrawHoverPreview}"
                              IsDrawingRoute="{Binding IsDrawingRoute}"
                              DrawWaypoints="{Binding DrawWaypoints}"
                              AirportCenterLat="{Binding AirportCenterLat}"
