@@ -100,6 +100,26 @@ internal static class GroundCommandHandler
             }
         }
 
+        // Pre-clear specific runway crossings from CROSS keywords in the TAXI command
+        if (taxi.CrossRunways is { Count: > 0 })
+        {
+            foreach (var hs in route.HoldShortPoints)
+            {
+                if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
+                {
+                    var hsRwyId = RunwayIdentifier.Parse(hs.TargetName);
+                    foreach (var crossRwy in taxi.CrossRunways)
+                    {
+                        if (hsRwyId.Contains(crossRwy))
+                        {
+                            hs.IsCleared = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         // Auto-detect runway from final node when no explicit destination runway
         RunwayInfo? detectedRunway = null;
         if (taxi.DestinationRunway is null && route.Segments.Count > 0)

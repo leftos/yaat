@@ -196,7 +196,8 @@ public record TaxiCommand(
     List<string> HoldShorts,
     string? DestinationRunway = null,
     bool NoDelete = false,
-    string? DestinationParking = null
+    string? DestinationParking = null,
+    List<string>? CrossRunways = null
 ) : ParsedCommand;
 
 public record HoldPositionCommand : ParsedCommand;
