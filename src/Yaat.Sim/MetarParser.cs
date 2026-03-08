@@ -4,7 +4,15 @@ namespace Yaat.Sim;
 
 public static partial class MetarParser
 {
-    public record ParsedMetar(string StationId, int? CeilingFeetAgl, double? VisibilityStatuteMiles);
+    public record ParsedMetar(
+        string StationId,
+        int? CeilingFeetAgl,
+        double? VisibilityStatuteMiles,
+        int? WindDirectionDeg = null,
+        int? WindSpeedKts = null,
+        int? WindGustKts = null,
+        double? AltimeterInHg = null
+    );
 
     // Visibility patterns: "M1/4SM", "P6SM", "10SM", "3SM", "1/2SM", "1 1/2SM"
     [GeneratedRegex(@"(?<!\S)([PM]?\d+(?:\s+\d+/\d+)?(?:/\d+)?)\s*SM(?!\S)", RegexOptions.Compiled)]
@@ -21,6 +29,14 @@ public static partial class MetarParser
     // Clear sky: CLR or SKC
     [GeneratedRegex(@"\b(CLR|SKC)\b", RegexOptions.Compiled)]
     private static partial Regex ClearSkyRegex();
+
+    // Wind: dddssKT or dddssGggKT or VRBssKT
+    [GeneratedRegex(@"\b(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT\b", RegexOptions.Compiled)]
+    private static partial Regex WindRegex();
+
+    // Altimeter: A followed by 4 digits (e.g., A2992 = 29.92 inHg)
+    [GeneratedRegex(@"\bA(\d{4})\b", RegexOptions.Compiled)]
+    private static partial Regex AltimeterRegex();
 
     public static ParsedMetar? Parse(string? metar)
     {
@@ -58,8 +74,10 @@ public static partial class MetarParser
 
         double? visibility = ParseVisibility(metar);
         int? ceiling = ParseCeiling(metar);
+        var (windDir, windSpd, windGust) = ParseWind(metar);
+        double? altimeter = ParseAltimeter(metar);
 
-        return new ParsedMetar(stationId, ceiling, visibility);
+        return new ParsedMetar(stationId, ceiling, visibility, windDir, windSpd, windGust, altimeter);
     }
 
     public static ParsedMetar? FindStation(IEnumerable<string> metars, string airportId)
@@ -203,5 +221,31 @@ public static partial class MetarParser
         }
 
         return lowestCeiling;
+    }
+
+    private static (int? Direction, int? Speed, int? Gust) ParseWind(string metar)
+    {
+        var match = WindRegex().Match(metar);
+        if (!match.Success)
+        {
+            return (null, null, null);
+        }
+
+        int? direction = match.Groups[1].Value == "VRB" ? null : int.Parse(match.Groups[1].Value);
+        int speed = int.Parse(match.Groups[2].Value);
+        int? gust = match.Groups[4].Success ? int.Parse(match.Groups[4].Value) : null;
+
+        return (direction, speed, gust);
+    }
+
+    private static double? ParseAltimeter(string metar)
+    {
+        var match = AltimeterRegex().Match(metar);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        return int.Parse(match.Groups[1].Value) / 100.0;
     }
 }

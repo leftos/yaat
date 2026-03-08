@@ -4,6 +4,13 @@
              x:Class="Yaat.Client.Views.DataGridView"
              x:DataType="vm:MainViewModel">
 
+    <DockPanel>
+    <TextBox x:Name="SearchBox"
+             DockPanel.Dock="Top"
+             Watermark="Search aircraft (callsign, type, squawk, dep, dest...)"
+             Text="{Binding AircraftFilterText, Mode=TwoWay}"
+             Margin="4,4,4,2"
+             FontSize="12" />
     <DataGrid x:Name="AircraftGrid"
               ItemsSource="{Binding AircraftView}"
               AutoGenerateColumns="False"
@@ -140,5 +147,6 @@
             <DataGridTextColumn Header="Pending Cmds" Binding="{Binding PendingCommands}" Width="Auto" />
         </DataGrid.Columns>
     </DataGrid>
+    </DockPanel>
 
 </UserControl>

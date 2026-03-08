@@ -190,8 +190,8 @@ public sealed class TargetRenderer : IDisposable
             float textW = MathF.Max(w1, w2);
             int lineCount = 2;
 
-            // Line 3: owner TCP + scratchpads on same line
-            string? line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.Scratchpad1, ac.Scratchpad2);
+            // Line 3: owner TCP + handoff indicator + scratchpads on same line
+            string? line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.HandoffDisplay, ac.Scratchpad1, ac.Scratchpad2);
             if (line3 is not null)
             {
                 float w3 = _dataBlockPaint.MeasureText(line3);
@@ -226,21 +226,32 @@ public sealed class TargetRenderer : IDisposable
         }
     }
 
-    private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? sp1, string? sp2)
+    private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? handoffDisplay, string? sp1, string? sp2)
     {
         bool hasOwner = !string.IsNullOrEmpty(ownerDisplay);
+        bool hasHandoff = !string.IsNullOrEmpty(handoffDisplay);
         bool hasSp1 = !string.IsNullOrEmpty(sp1);
         bool hasSp2 = !string.IsNullOrEmpty(sp2);
 
-        if (!hasOwner && !hasSp1 && !hasSp2)
+        if (!hasOwner && !hasHandoff && !hasSp1 && !hasSp2)
         {
             return null;
         }
 
-        var parts = new List<string>(3);
+        var parts = new List<string>(4);
         if (hasOwner)
         {
-            parts.Add(ownerDisplay!);
+            // Flash handoff indicator: 500ms on/off cycle (all flash in sync, STARS behavior)
+            bool showHandoff = hasHandoff && Environment.TickCount64 / 500 % 2 == 0;
+            parts.Add(showHandoff ? $"{ownerDisplay} >{handoffDisplay}" : ownerDisplay!);
+        }
+        else if (hasHandoff)
+        {
+            bool showHandoff = Environment.TickCount64 / 500 % 2 == 0;
+            if (showHandoff)
+            {
+                parts.Add($">{handoffDisplay}");
+            }
         }
 
         if (hasSp1)
@@ -253,7 +264,7 @@ public sealed class TargetRenderer : IDisposable
             parts.Add($"+{sp2}");
         }
 
-        return string.Join(" ", parts);
+        return parts.Count > 0 ? string.Join(" ", parts) : null;
     }
 
     private static string FormatCwtType(string cwt, string aircraftType)

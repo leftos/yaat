@@ -158,7 +158,8 @@ public sealed class RadarRenderer : IDisposable
         string? rubberBandLabel = null,
         IReadOnlyDictionary<int, WaypointCondition>? waypointConditions = null,
         IReadOnlySet<string>? minifiedCallsigns = null,
-        bool showTopDown = false
+        bool showTopDown = false,
+        IReadOnlyList<WeatherDisplayInfo>? weatherInfo = null
     )
     {
         canvas.Clear(BackgroundColor);
@@ -203,6 +204,31 @@ public sealed class RadarRenderer : IDisposable
         else if (drawRouteOrigin is { } origin && rubberBandTarget is { } target)
         {
             DrawRubberBandFromOrigin(canvas, vp, origin, target, rubberBandLabel);
+        }
+
+        // Weather overlay (top-left)
+        if (weatherInfo is { Count: > 0 })
+        {
+            DrawWeatherOverlay(canvas, weatherInfo);
+        }
+    }
+
+    private static void DrawWeatherOverlay(SKCanvas canvas, IReadOnlyList<WeatherDisplayInfo> stations)
+    {
+        using var paint = new SKPaint
+        {
+            Color = new SKColor(0x00, 0xC8, 0x00), // STARS green
+            TextSize = 14,
+            Typeface = Services.PlatformHelper.MonospaceTypeface,
+            IsAntialias = true,
+        };
+
+        float y = 20;
+        const float lineHeight = 18;
+        foreach (var station in stations)
+        {
+            canvas.DrawText(station.ToDisplayString(), 10, y, paint);
+            y += lineHeight;
         }
     }
 

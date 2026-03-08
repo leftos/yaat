@@ -7,6 +7,37 @@ using Yaat.Sim;
 
 namespace Yaat.Client.ViewModels;
 
+public record WeatherDisplayInfo(string? StationId, int? WindDirectionDeg, int? WindSpeedKts, int? WindGustKts, double? AltimeterInHg)
+{
+    public string ToDisplayString()
+    {
+        var parts = new List<string>(3);
+
+        if (StationId is not null)
+        {
+            parts.Add(StationId);
+        }
+
+        if (AltimeterInHg is not null)
+        {
+            parts.Add($"{AltimeterInHg:F2}");
+        }
+
+        if (WindDirectionDeg is not null || WindSpeedKts is not null)
+        {
+            var wind = $"{WindDirectionDeg:D3}{WindSpeedKts:D2}";
+            if (WindGustKts is not null)
+            {
+                wind += $"G{WindGustKts:D2}";
+            }
+
+            parts.Add(wind);
+        }
+
+        return string.Join(" ", parts);
+    }
+}
+
 /// <summary>
 /// Weather loading and clearing commands, and the WeatherChanged event handler.
 /// </summary>
@@ -233,6 +264,8 @@ public partial class MainViewModel
             if (dto.Name is null)
             {
                 SetActiveWeatherJson(null);
+                Ground.WeatherInfo = null;
+                Radar.WeatherInfo = null;
             }
             else
             {
@@ -254,7 +287,59 @@ public partial class MainViewModel
                         ?? [],
                 };
                 SetActiveWeatherJson(JsonSerializer.Serialize(profile));
+
+                var allInfo = ExtractAllWeatherDisplay(dto.Metars);
+                Radar.WeatherInfo = allInfo;
+                Ground.WeatherInfo = PickGroundWeather(allInfo, Ground.Layout?.AirportId);
             }
         });
+    }
+
+    private static IReadOnlyList<WeatherDisplayInfo>? ExtractAllWeatherDisplay(IReadOnlyList<string>? metars)
+    {
+        if (metars is null || metars.Count == 0)
+        {
+            return null;
+        }
+
+        var list = new List<WeatherDisplayInfo>(metars.Count);
+        foreach (var raw in metars)
+        {
+            var parsed = MetarParser.Parse(raw);
+            if (parsed is null)
+            {
+                continue;
+            }
+
+            // Strip K prefix for US ICAO stations (KOAK → OAK)
+            var displayId = parsed.StationId;
+            if (displayId?.Length == 4 && displayId.StartsWith('K'))
+            {
+                displayId = displayId[1..];
+            }
+
+            list.Add(new WeatherDisplayInfo(displayId, parsed.WindDirectionDeg, parsed.WindSpeedKts, parsed.WindGustKts, parsed.AltimeterInHg));
+        }
+
+        return list.Count > 0 ? list : null;
+    }
+
+    private static WeatherDisplayInfo? PickGroundWeather(IReadOnlyList<WeatherDisplayInfo>? allInfo, string? airportId)
+    {
+        if (allInfo is null || airportId is null)
+        {
+            return allInfo?.Count > 0 ? allInfo[0] : null;
+        }
+
+        foreach (var info in allInfo)
+        {
+            if (string.Equals(info.StationId, airportId, StringComparison.OrdinalIgnoreCase))
+            {
+                return info;
+            }
+        }
+
+        // Fall back to first station if no match
+        return allInfo.Count > 0 ? allInfo[0] : null;
     }
 }

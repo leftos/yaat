@@ -102,6 +102,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyDictionary<int, WaypointCondition>?
     >(nameof(WaypointConditions));
 
+    public static readonly StyledProperty<IReadOnlyList<WeatherDisplayInfo>?> WeatherInfoProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<WeatherDisplayInfo>?
+    >(nameof(WeatherInfo));
+
     private static readonly SKPoint DefaultDataBlockOffset = new(28, -28);
     private const float DataBlockPad = 3f;
     private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
@@ -275,6 +280,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(WaypointConditionsProperty);
         set => SetValue(WaypointConditionsProperty, value);
+    }
+
+    public IReadOnlyList<WeatherDisplayInfo>? WeatherInfo
+    {
+        get => GetValue(WeatherInfoProperty);
+        set => SetValue(WeatherInfoProperty, value);
     }
 
     public float BrightnessA
@@ -465,7 +476,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         string? RubberBandLabel,
         IReadOnlyDictionary<int, WaypointCondition>? WaypointConditions,
         IReadOnlySet<string> MinifiedCallsigns,
-        bool ShowTopDown
+        bool ShowTopDown,
+        IReadOnlyList<WeatherDisplayInfo>? WeatherInfo
     );
 
     protected override object? CreateRenderSnapshot()
@@ -526,7 +538,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             drawRouteCursorLabel,
             IsDrawingRoute ? WaypointConditions : null,
             new HashSet<string>(_minifiedCallsigns),
-            ShowTopDown
+            ShowTopDown,
+            WeatherInfo
         );
     }
 
@@ -587,7 +600,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.RubberBandLabel,
             s.WaypointConditions,
             s.MinifiedCallsigns,
-            s.ShowTopDown
+            s.ShowTopDown,
+            s.WeatherInfo
         );
     }
 
@@ -867,8 +881,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         float textW = MathF.Max(w1, w2);
         int lineCount = 2;
 
-        // Owner + scratchpads on same line
-        var line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.Scratchpad1, ac.Scratchpad2);
+        // Owner + handoff + scratchpads on same line (always include handoff for consistent hit rect)
+        var line3 = BuildOwnerScratchpadLine(ac.OwnerDisplay, ac.HandoffDisplay, ac.Scratchpad1, ac.Scratchpad2);
         if (line3 is not null)
         {
             float w3 = _hitTestPaint.MeasureText(line3);
@@ -1113,21 +1127,27 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         return sorted;
     }
 
-    private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? sp1, string? sp2)
+    private static string? BuildOwnerScratchpadLine(string? ownerDisplay, string? handoffDisplay, string? sp1, string? sp2)
     {
         bool hasOwner = !string.IsNullOrEmpty(ownerDisplay);
+        bool hasHandoff = !string.IsNullOrEmpty(handoffDisplay);
         bool hasSp1 = !string.IsNullOrEmpty(sp1);
         bool hasSp2 = !string.IsNullOrEmpty(sp2);
 
-        if (!hasOwner && !hasSp1 && !hasSp2)
+        if (!hasOwner && !hasHandoff && !hasSp1 && !hasSp2)
         {
             return null;
         }
 
-        var parts = new List<string>(3);
+        var parts = new List<string>(4);
         if (hasOwner)
         {
-            parts.Add(ownerDisplay!);
+            // Always include handoff for hit-test sizing (no flash)
+            parts.Add(hasHandoff ? $"{ownerDisplay} >{handoffDisplay}" : ownerDisplay!);
+        }
+        else if (hasHandoff)
+        {
+            parts.Add($">{handoffDisplay}");
         }
 
         if (hasSp1)
@@ -1140,7 +1160,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             parts.Add($"+{sp2}");
         }
 
-        return string.Join(" ", parts);
+        return parts.Count > 0 ? string.Join(" ", parts) : null;
     }
 
     private static IReadOnlyList<AircraftModel> FilterAircraft(IReadOnlyList<AircraftModel>? aircraft, bool showTopDown)

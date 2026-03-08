@@ -61,7 +61,7 @@ public static class CommandDispatcher
                     return new CommandResult(false, $"{CommandDescriber.DescribeNatural(cmd)} requires an active runway assignment");
                 }
 
-                if (CommandDescriber.IsGroundCommand(cmd))
+                if (CommandDescriber.IsGroundCommand(cmd) && !aircraft.IsOnGround)
                 {
                     return new CommandResult(false, $"{CommandDescriber.DescribeNatural(cmd)} requires the aircraft to be on the ground");
                 }
@@ -812,6 +812,16 @@ public static class CommandDispatcher
         // Extract the first command to check acceptance
         var firstCmd = compound.Blocks[0].Commands[0];
         var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
+
+        // WAIT is a delayed execution wrapper — always accepted, clears phases so the queue can tick
+        if (cmdType is CanonicalCommandType.Wait or CanonicalCommandType.WaitDistance)
+        {
+            var ctx = BuildMinimalContext(aircraft, logger);
+            aircraft.Phases?.Clear(ctx);
+            aircraft.Phases = null;
+            aircraft.Targets.TurnRateOverride = null;
+            return null;
+        }
 
         // Try tower/ground-specific handling first (phase-interactive commands)
         var towerResult = TryApplyTowerCommand(

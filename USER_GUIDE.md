@@ -9,6 +9,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
   - [Launch](#launch)
   - [Configuration](#configuration)
   - [Connecting](#connecting)
+  - [Connecting CRC (Optional)](#connecting-crc-optional)
   - [Loading a Scenario](#loading-a-scenario)
   - [Unloading a Scenario](#unloading-a-scenario)
   - [Loading a Weather Profile](#loading-a-weather-profile)
@@ -100,6 +101,45 @@ Initials and ARTCC ID are required — you cannot connect without them.
 1. Configure your identity in **Settings** (required)
 2. **File > Connect** (or **Disconnect** to close the connection)
 3. After connecting, the room list appears — create or join a room
+
+### Connecting CRC (Optional)
+
+CRC (Consolidated Radar Client) is the VATSIM radar client that students use to work scopes. Connecting CRC to YAAT is optional — you can use YAAT standalone for command practice.
+
+**Option A: Setup script (recommended)**
+
+The yaat-server repo includes a script that configures CRC automatically:
+
+```powershell
+cd path/to/yaat-server
+.\Setup-CrcEnvironment.ps1
+```
+
+This finds your CRC installation via the registry and creates or updates its `DevEnvironments.json` with a "YAAT Local" entry pointing to `http://localhost:5000`.
+
+**Option B: Manual configuration**
+
+1. Find your CRC installation folder (check `HKCU:\Software\CRC\Install_Dir` in the registry, or look in `%LOCALAPPDATA%\Programs\crc`)
+2. Create or edit `DevEnvironments.json` in that folder:
+
+```json
+[
+  {
+    "name": "YAAT Local",
+    "clientHubUrl": "http://localhost:5000/hubs/client",
+    "apiBaseUrl": "http://localhost:5000",
+    "isDisabled": false,
+    "isSweatbox": false
+  }
+]
+```
+
+**Connecting from CRC:**
+
+1. Make sure the YAAT server is running
+2. Restart CRC (it reads `DevEnvironments.json` on startup)
+3. In CRC's environment selector, choose **YAAT Local**
+4. Connect with your VATSIM credentials — the instructor can then pull the student into a room from the [Students Panel](#students-panel)
 
 ### Loading a Scenario
 
@@ -972,6 +1012,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 
 The ground layout loads automatically when a scenario is loaded for an airport with ground data.
 
+When weather is loaded, wind direction/speed and altimeter setting are displayed in the top-left corner of the ground view.
+
 ### Radar View
 
 A simplified STARS-style radar display showing aircraft targets, video maps, and navigation fixes. Useful for approach/departure operations.
@@ -995,6 +1037,8 @@ A simplified STARS-style radar display showing aircraft targets, video maps, and
 **Right-click context menus:**
 - **On an aircraft**: Heading (fly/present/turn left/turn right), Altitude (common values), Speed, Approach (ILS/RNAV/VIS per runway), Track operations, Delete
 - **On the map** (with aircraft selected): "Fly heading" (computed bearing to click point), "Direct to" (nearest fix within 5nm)
+
+When weather is loaded, wind and altimeter are displayed in the top-left corner of the radar view in STARS green.
 
 **Datablocks** show callsign, altitude, ground speed, and owner. When SP1 or SP2 is set, an additional line displays the scratchpad values.
 
@@ -1052,6 +1096,8 @@ Warning messages appear as gray system entries when the simulator detects potent
 - **Illegal approach intercept**: `Illegal intercept: turned on final 5.2nm from threshold (min 9.0nm) [7110.65 §5-9-1]` — an aircraft was vectored onto the final approach course closer to the runway than the minimum intercept distance derived from the approach gate (FAA 7110.65 §5-9-1). The minimum distance is computed from FAA CIFP data as: approach gate + 2nm, where approach gate = max(FAF distance + 1nm, 5nm). Pattern traffic (base-to-final turns) is exempt.
 
 ## Students Panel
+
+Before students can connect, CRC must be configured to point at your YAAT server — see [Connecting CRC](#connecting-crc-optional) above.
 
 CRC clients (students) connect to the server independently using their own VATSIM CID. If a student's CID doesn't match any YAAT client in a room, their CRC session sits in the "lobby" — connected but not receiving any room data.
 
