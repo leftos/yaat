@@ -1,5 +1,6 @@
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Views;
 
 namespace Yaat.Client.ViewModels;
 
@@ -88,6 +89,7 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
+            FlightPlanEditorManager.Close();
             var ac = FindAircraft(callsign);
             if (ac is not null)
             {
