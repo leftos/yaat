@@ -26,7 +26,19 @@ public static class TaxiPathfinder
     internal const double TaxiwayTransitionPenaltyNm = 0.15;
 
     /// <summary>
+    /// Returns true if the token is a node reference (e.g., "!42").
+    /// </summary>
+    internal static bool IsNodeReference(string token) =>
+        token.Length > 1 && token[0] == '!' && int.TryParse(token.AsSpan(1), out _);
+
+    /// <summary>
+    /// Parses the numeric node ID from a node reference token (e.g., "!42" → 42).
+    /// </summary>
+    internal static int ParseNodeId(string token) => int.Parse(token.AsSpan(1));
+
+    /// <summary>
     /// Validate and resolve an explicit taxiway path (e.g., "S T U W W1").
+    /// Supports !nodeId tokens for exact node references (A* between them).
     /// Returns the route along the named taxiways, with implicit hold-short at
     /// runway crossings and explicit hold-short points.
     /// When a destination runway is set and the last user-specified taxiway doesn't
@@ -64,6 +76,32 @@ public static class TaxiPathfinder
             int segCountBefore = segments.Count;
             segmentCountBeforeLastTw = segCountBefore;
 
+            // Node reference: A* from current position to the specified node
+            if (IsNodeReference(twName))
+            {
+                int targetNodeId = ParseNodeId(twName);
+                if (!layout.Nodes.ContainsKey(targetNodeId))
+                {
+                    failReason = $"Node !{targetNodeId} does not exist";
+                    return null;
+                }
+
+                if (currentNodeId != targetNodeId)
+                {
+                    var subRoute = FindRoute(layout, currentNodeId, targetNodeId);
+                    if (subRoute is null)
+                    {
+                        failReason = $"No route from node {currentNodeId} to !{targetNodeId}";
+                        return null;
+                    }
+
+                    segments.AddRange(subRoute.Segments);
+                    currentNodeId = targetNodeId;
+                }
+
+                continue;
+            }
+
             // For the first taxiway: allow current-taxiway walk and RAMP fallback
             // (parking→taxiway). Between explicitly listed taxiways: only BFS
             // (short hop) and runway centerline bridging are allowed.
@@ -98,7 +136,7 @@ public static class TaxiPathfinder
         }
 
         // Auto-infer numbered taxiway variant for destination runway
-        if (destinationRunway is not null && taxiwayNames.Count > 0)
+        if (destinationRunway is not null && taxiwayNames.Count > 0 && !IsNodeReference(taxiwayNames[^1]))
         {
             bool inferred = TaxiVariantResolver.TryInferVariant(
                 layout,

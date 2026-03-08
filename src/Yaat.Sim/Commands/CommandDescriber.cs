@@ -1,3 +1,4 @@
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 
@@ -735,14 +736,16 @@ public static class CommandDescriber
 
     private static string FormatTaxiNatural(TaxiCommand taxi)
     {
+        var displayPath = taxi.Path.Where(t => !TaxiPathfinder.IsNodeReference(t)).ToList();
+
         if (taxi.DestinationParking is not null)
         {
-            return taxi.Path.Count > 0
-                ? $"Taxi via {string.Join(" ", taxi.Path)} to spot {taxi.DestinationParking}"
+            return displayPath.Count > 0
+                ? $"Taxi via {string.Join(" ", displayPath)} to spot {taxi.DestinationParking}"
                 : $"Taxi to spot {taxi.DestinationParking}";
         }
 
-        return $"Taxi via {string.Join(" ", taxi.Path)}";
+        return displayPath.Count > 0 ? $"Taxi via {string.Join(" ", displayPath)}" : "Taxi";
     }
 
     private static string FormatCvaCanonical(ClearedVisualApproachCommand cmd)

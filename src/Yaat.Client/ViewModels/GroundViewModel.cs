@@ -483,9 +483,9 @@ public partial class GroundViewModel : ObservableObject
     /// Routes with no crossings return a single entry.
     /// Each entry: (displayLabel, command).
     /// </summary>
-    public List<(string Label, string Command)> BuildTaxiCrossingVariants(TaxiRoute route, string? spotName = null)
+    public List<(string Label, string Command)> BuildTaxiCrossingVariants(TaxiRoute route, string? spotName = null, string? pathOverride = null)
     {
-        var taxiways = BuildTaxiCommand(route);
+        var taxiways = pathOverride ?? BuildTaxiCommand(route);
         var spotSuffix = spotName is not null ? $" @{spotName}" : "";
 
         if (string.IsNullOrEmpty(taxiways))
@@ -821,7 +821,7 @@ public partial class GroundViewModel : ObservableObject
         DrawnRoutePreview = _drawSubRoutes.Count > 0 ? MergeSubRoutes() : null;
     }
 
-    public (TaxiRoute Route, string Command)? FinishDrawRoute()
+    public (TaxiRoute Route, string Command, string NodeRefPath)? FinishDrawRoute()
     {
         if (_drawSubRoutes.Count == 0)
         {
@@ -830,15 +830,17 @@ public partial class GroundViewModel : ObservableObject
         }
 
         var merged = MergeSubRoutes();
-        var taxiways = BuildTaxiCommand(merged);
+        // Skip index 0 (aircraft's starting node)
+        var nodeRefs = _drawWaypointIds.Skip(1).Select(id => $"!{id}");
+        var nodeRefPath = string.Join(" ", nodeRefs);
         ClearDrawState();
 
-        if (string.IsNullOrEmpty(taxiways))
+        if (string.IsNullOrEmpty(nodeRefPath))
         {
             return null;
         }
 
-        return (merged, $"TAXI {taxiways}");
+        return (merged, $"TAXI {nodeRefPath}", nodeRefPath);
     }
 
     public void UpdateDrawHoverPreview(int? nodeId)

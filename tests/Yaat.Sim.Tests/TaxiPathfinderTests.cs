@@ -1970,4 +1970,103 @@ public class TaxiPathfinderTests
 
         Assert.Null(route);
     }
+
+    // --- Node reference (!nodeId) tests ---
+
+    [Fact]
+    public void IsNodeReference_ValidToken()
+    {
+        Assert.True(TaxiPathfinder.IsNodeReference("!42"));
+        Assert.True(TaxiPathfinder.IsNodeReference("!0"));
+        Assert.True(TaxiPathfinder.IsNodeReference("!999"));
+    }
+
+    [Fact]
+    public void IsNodeReference_InvalidToken()
+    {
+        Assert.False(TaxiPathfinder.IsNodeReference("!"));
+        Assert.False(TaxiPathfinder.IsNodeReference("42"));
+        Assert.False(TaxiPathfinder.IsNodeReference("A"));
+        Assert.False(TaxiPathfinder.IsNodeReference("@42"));
+        Assert.False(TaxiPathfinder.IsNodeReference("!abc"));
+        Assert.False(TaxiPathfinder.IsNodeReference("!12x"));
+    }
+
+    [Fact]
+    public void ParseNodeId_ExtractsId()
+    {
+        Assert.Equal(42, TaxiPathfinder.ParseNodeId("!42"));
+        Assert.Equal(0, TaxiPathfinder.ParseNodeId("!0"));
+        Assert.Equal(999, TaxiPathfinder.ParseNodeId("!999"));
+    }
+
+    [Fact]
+    public void ResolveExplicitPath_SingleNodeRef_AStarToNode()
+    {
+        // Layout: 0 --[A]--> 1 --[A]--> 2 --[A]--> 3
+        //                    1 --[B]--> 4
+        var layout = BuildSimpleLayout();
+
+        // From node 0, A* to node 3 (should find path through A taxiway)
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["!3"], out string? failReason);
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+        Assert.True(route.Segments.Count >= 1);
+        Assert.Equal(0, route.Segments[0].FromNodeId);
+        Assert.Equal(3, route.Segments[^1].ToNodeId);
+    }
+
+    [Fact]
+    public void ResolveExplicitPath_ConsecutiveNodeRefs_AStarBetweenThem()
+    {
+        var layout = BuildSimpleLayout();
+
+        // A* from node 0 → node 1, then node 1 → node 4
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["!1", "!4"], out string? failReason);
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+
+        // Should end at node 4
+        Assert.Equal(4, route.Segments[^1].ToNodeId);
+    }
+
+    [Fact]
+    public void ResolveExplicitPath_MixedTaxiwayAndNodeRef()
+    {
+        var layout = BuildSimpleLayout();
+
+        // Walk A taxiway, then A* to node 4
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "!4"], out string? failReason);
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+        Assert.Equal(4, route.Segments[^1].ToNodeId);
+    }
+
+    [Fact]
+    public void ResolveExplicitPath_InvalidNodeRef_ReturnsNull()
+    {
+        var layout = BuildSimpleLayout();
+
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["!99999"], out string? failReason);
+
+        Assert.Null(route);
+        Assert.NotNull(failReason);
+        Assert.Contains("99999", failReason);
+    }
+
+    [Fact]
+    public void ResolveExplicitPath_NodeRefSameAsCurrent_NoOp()
+    {
+        var layout = BuildSimpleLayout();
+
+        // A* from node 0 to node 0 should be a no-op, then walk to node 3
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["!0", "!3"], out string? failReason);
+
+        Assert.Null(failReason);
+        Assert.NotNull(route);
+        Assert.Equal(3, route.Segments[^1].ToNodeId);
+    }
 }

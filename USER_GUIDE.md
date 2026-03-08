@@ -393,6 +393,8 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 | `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |
 | `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
 | `TAXI S T U @B12 NODEL` | Taxi via S, T, U to parking B12 (exempt from auto-delete) |
+| `TAXI !42 !18 !95` | Taxi via exact node IDs (used by draw route; see Ground View debug overlay) |
+| `TAXI A !42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |
 | `HOLD` / `HP` | Hold position (stop wherever on the ground) |
 | `RES` / `RESUME` | Resume taxi after hold |
 | `CROSS 28L` | Cross runway 28L (clears hold-short) |
@@ -1014,7 +1016,9 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
   - All phases include "Delete" at the bottom
 - **On empty space** (with aircraft selected): multi-route taxi options (same as node right-click), or pushback directions if aircraft is at parking
 
-**Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route..." to enter draw mode. Click nodes to add waypoints — the route is computed via A* between consecutive waypoints. As you hover over nodes, a dashed preview shows what the next segment would look like. Right-click a node to finish. Backspace undoes the last waypoint, Escape cancels.
+**Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route..." to enter draw mode. Click nodes to add waypoints — the route is computed via A* between consecutive waypoints. As you hover over nodes, a dashed preview shows what the next segment would look like. Right-click a node to finish. Backspace undoes the last waypoint, Escape cancels. The resulting command uses node ID references (`!nodeId` tokens) instead of taxiway names, guaranteeing the aircraft follows the exact drawn path. The terminal displays the human-readable taxiway names.
+
+**Debug overlay:** Press **Ctrl+D** to toggle a debug overlay that shows node IDs, names, types, and edge labels on the ground map. Use this to find specific node IDs for manual `!nodeId` taxi commands (e.g., `TAXI !42 !18 !95`). Node references can be mixed freely with taxiway names (e.g., `TAXI A !42 B`). This is useful when automatic taxiway-name resolution picks the wrong path and you need precise control over a specific junction or segment.
 
 The ground layout loads automatically when a scenario is loaded for an airport with ground data.
 

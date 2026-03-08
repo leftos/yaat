@@ -416,7 +416,7 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var (route, _) = result.Value;
+        var (route, _, nodeRefPath) = result.Value;
         var callsign = vm.SelectedAircraft?.Callsign;
         if (callsign is null)
         {
@@ -426,7 +426,7 @@ public partial class GroundView : UserControl
         var initials = GetInitials();
         var menu = new ContextMenu();
 
-        var variants = vm.BuildTaxiCrossingVariants(route);
+        var variants = vm.BuildTaxiCrossingVariants(route, pathOverride: nodeRefPath);
         if (variants.Count <= 1)
         {
             var command = variants.Count == 1 ? variants[0].Command : "";
