@@ -5,6 +5,42 @@
              x:Class="Yaat.Client.Views.Ground.GroundView"
              x:DataType="vm:GroundViewModel">
 
+    <UserControl.Styles>
+        <Style Selector="Button.gnd-filter">
+            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#999" />
+            <Setter Property="Background" Value="#22FFFFFF" />
+            <Setter Property="BorderBrush" Value="#444" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.gnd-filter:pointerover">
+            <Setter Property="Background" Value="#33FFFFFF" />
+        </Style>
+        <Style Selector="Button.gnd-filter.active">
+            <Setter Property="Background" Value="#44FFFFFF" />
+            <Setter Property="Foreground" Value="#DDD" />
+            <Setter Property="BorderBrush" Value="#888" />
+        </Style>
+    </UserControl.Styles>
+
     <Panel>
         <ground:GroundCanvas x:Name="Canvas"
                              Layout="{Binding Layout}"
@@ -19,7 +55,24 @@
                              AirportCenterLon="{Binding AirportCenterLon}"
                              AirportElevation="{Binding AirportElevation}"
                              Aircraft="{Binding $parent[Window].DataContext.Aircraft}"
-                             WeatherInfo="{Binding WeatherInfo}" />
+                             WeatherInfo="{Binding WeatherInfo}"
+                             ShowRunwayLabels="{Binding ShowRunwayLabels}"
+                             ShowTaxiwayLabels="{Binding ShowTaxiwayLabels}"
+                             ShowHoldShortLabels="{Binding ShowHoldShortLabels}"
+                             ShowParkingLabels="{Binding ShowParkingLabels}" />
+
+        <!-- Label filter bar -->
+        <StackPanel Orientation="Horizontal" Spacing="2"
+                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,6,6,0"
+                    IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <TextBlock Text="Labels:" Foreground="#888" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"
+                       FontFamily="{StaticResource MonoFont}" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowRunwayLabels}" Content="RWY" Click="OnToggleRunwayLabels" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowTaxiwayLabels}" Content="TWY" Click="OnToggleTaxiwayLabels" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowHoldShortLabels}" Content="HS" Click="OnToggleHoldShortLabels" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowParkingLabels}" Content="PARK" Click="OnToggleParkingLabels" />
+        </StackPanel>
 
         <!-- No layout message -->
         <TextBlock Text="No airport layout loaded"

@@ -104,6 +104,47 @@ public partial class GroundView : UserControl
         }
     }
 
+    private void OnToggleRunwayLabels(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.ShowRunwayLabels = !vm.ShowRunwayLabels;
+            SaveLabelFilters(vm);
+        }
+    }
+
+    private void OnToggleTaxiwayLabels(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.ShowTaxiwayLabels = !vm.ShowTaxiwayLabels;
+            SaveLabelFilters(vm);
+        }
+    }
+
+    private void OnToggleHoldShortLabels(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.ShowHoldShortLabels = !vm.ShowHoldShortLabels;
+            SaveLabelFilters(vm);
+        }
+    }
+
+    private void OnToggleParkingLabels(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.ShowParkingLabels = !vm.ShowParkingLabels;
+            SaveLabelFilters(vm);
+        }
+    }
+
+    private static void SaveLabelFilters(GroundViewModel vm)
+    {
+        vm.Preferences?.SetGroundLabelFilters(vm.ShowRunwayLabels, vm.ShowTaxiwayLabels, vm.ShowHoldShortLabels, vm.ShowParkingLabels);
+    }
+
     private void OnAircraftLeftClicked(string callsign)
     {
         if (DataContext is not GroundViewModel vm)

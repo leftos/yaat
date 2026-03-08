@@ -64,6 +64,26 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(WeatherInfo)
     );
 
+    public static readonly StyledProperty<bool> ShowRunwayLabelsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
+        nameof(ShowRunwayLabels),
+        defaultValue: true
+    );
+
+    public static readonly StyledProperty<bool> ShowTaxiwayLabelsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
+        nameof(ShowTaxiwayLabels),
+        defaultValue: true
+    );
+
+    public static readonly StyledProperty<bool> ShowHoldShortLabelsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
+        nameof(ShowHoldShortLabels),
+        defaultValue: true
+    );
+
+    public static readonly StyledProperty<bool> ShowParkingLabelsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
+        nameof(ShowParkingLabels),
+        defaultValue: true
+    );
+
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
     private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = Services.PlatformHelper.MonospaceTypefaceBold };
@@ -135,6 +155,30 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(WeatherInfoProperty);
         set => SetValue(WeatherInfoProperty, value);
+    }
+
+    public bool ShowRunwayLabels
+    {
+        get => GetValue(ShowRunwayLabelsProperty);
+        set => SetValue(ShowRunwayLabelsProperty, value);
+    }
+
+    public bool ShowTaxiwayLabels
+    {
+        get => GetValue(ShowTaxiwayLabelsProperty);
+        set => SetValue(ShowTaxiwayLabelsProperty, value);
+    }
+
+    public bool ShowHoldShortLabels
+    {
+        get => GetValue(ShowHoldShortLabelsProperty);
+        set => SetValue(ShowHoldShortLabelsProperty, value);
+    }
+
+    public bool ShowParkingLabels
+    {
+        get => GetValue(ShowParkingLabelsProperty);
+        set => SetValue(ShowParkingLabelsProperty, value);
     }
 
     public TaxiRoute? DrawnRoutePreview
@@ -214,6 +258,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == DrawHoverPreviewProperty
             || change.Property == DrawWaypointsProperty
             || change.Property == ShowDebugInfoProperty
+            || change.Property == ShowRunwayLabelsProperty
+            || change.Property == ShowTaxiwayLabelsProperty
+            || change.Property == ShowHoldShortLabelsProperty
+            || change.Property == ShowParkingLabelsProperty
         )
         {
             MarkDirty();
@@ -241,7 +289,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         double AirportCenterLon,
         double AirportElevation,
         bool ShowDebugInfo,
-        WeatherDisplayInfo? WeatherInfo
+        WeatherDisplayInfo? WeatherInfo,
+        bool ShowRunwayLabels,
+        bool ShowTaxiwayLabels,
+        bool ShowHoldShortLabels,
+        bool ShowParkingLabels
     );
 
     protected override object? CreateRenderSnapshot()
@@ -262,7 +314,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             AirportCenterLon,
             AirportElevation,
             ShowDebugInfo,
-            WeatherInfo
+            WeatherInfo,
+            ShowRunwayLabels,
+            ShowTaxiwayLabels,
+            ShowHoldShortLabels,
+            ShowParkingLabels
         );
     }
 
@@ -290,7 +346,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.AirportCenterLon,
             s.AirportElevation,
             s.ShowDebugInfo,
-            s.WeatherInfo
+            s.WeatherInfo,
+            s.ShowRunwayLabels,
+            s.ShowTaxiwayLabels,
+            s.ShowHoldShortLabels,
+            s.ShowParkingLabels
         );
     }
 

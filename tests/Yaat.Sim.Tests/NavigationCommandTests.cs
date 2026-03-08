@@ -513,13 +513,15 @@ public class NavigationCommandTests
                 int fixesReached = prevCount - curCount;
                 for (int j = 0; j < fixesReached; j++)
                 {
-                    passedFixes.Add(passedFixes.Count switch
-                    {
-                        0 => "FIXA",
-                        1 => "FIXB",
-                        2 => "FIXC",
-                        _ => "UNKNOWN",
-                    });
+                    passedFixes.Add(
+                        passedFixes.Count switch
+                        {
+                            0 => "FIXA",
+                            1 => "FIXB",
+                            2 => "FIXC",
+                            _ => "UNKNOWN",
+                        }
+                    );
                 }
 
                 prevCount = curCount;

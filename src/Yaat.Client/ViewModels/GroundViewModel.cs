@@ -18,6 +18,8 @@ public partial class GroundViewModel : ObservableObject
     private AirportGroundLayout? _domainLayout;
     private Func<string, double?>? _getAirportElevation;
 
+    public UserPreferences? Preferences { get; }
+
     [ObservableProperty]
     private GroundLayoutDto? _layout;
 
@@ -54,6 +56,18 @@ public partial class GroundViewModel : ObservableObject
     [ObservableProperty]
     private double _airportElevation;
 
+    [ObservableProperty]
+    private bool _showRunwayLabels = true;
+
+    [ObservableProperty]
+    private bool _showTaxiwayLabels = true;
+
+    [ObservableProperty]
+    private bool _showHoldShortLabels = true;
+
+    [ObservableProperty]
+    private bool _showParkingLabels = true;
+
     private AircraftModel? _drawAircraft;
     private List<int> _drawWaypointIds = [];
     private List<TaxiRoute> _drawSubRoutes = [];
@@ -63,12 +77,22 @@ public partial class GroundViewModel : ObservableObject
     public GroundViewModel(
         ServerConnection connection,
         Func<string, string, string, Task> sendCommand,
-        Action<AircraftModel?>? onSelectionChanged = null
+        Action<AircraftModel?>? onSelectionChanged = null,
+        UserPreferences? preferences = null
     )
     {
         _connection = connection;
         _sendCommand = sendCommand;
         _onSelectionChanged = onSelectionChanged;
+        Preferences = preferences;
+
+        if (preferences is not null)
+        {
+            ShowRunwayLabels = preferences.GroundShowRunwayLabels;
+            ShowTaxiwayLabels = preferences.GroundShowTaxiwayLabels;
+            ShowHoldShortLabels = preferences.GroundShowHoldShortLabels;
+            ShowParkingLabels = preferences.GroundShowParkingLabels;
+        }
     }
 
     public void SetElevationLookup(Func<string, double?> lookup)

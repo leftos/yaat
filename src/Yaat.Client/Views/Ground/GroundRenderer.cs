@@ -285,7 +285,11 @@ public sealed class GroundRenderer : IDisposable
         double airportCenterLon = 0,
         double airportElevation = 0,
         bool showDebugInfo = false,
-        WeatherDisplayInfo? weatherInfo = null
+        WeatherDisplayInfo? weatherInfo = null,
+        bool showRunwayLabels = true,
+        bool showTaxiwayLabels = true,
+        bool showHoldShortLabels = true,
+        bool showParkingLabels = true
     )
     {
         canvas.Clear(BackgroundColor);
@@ -297,13 +301,13 @@ public sealed class GroundRenderer : IDisposable
 
         _labelCandidates.Clear();
 
-        DrawRunways(canvas, vp, layout);
-        DrawEdges(canvas, vp, layout, showDebugInfo);
+        DrawRunways(canvas, vp, layout, showRunwayLabels);
+        DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels, hoveredNodeId);
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
         DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
         DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
-        DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo);
+        DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShortLabels, showParkingLabels);
         DrawLabels(canvas);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
         DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
@@ -327,7 +331,7 @@ public sealed class GroundRenderer : IDisposable
         canvas.DrawText(info.ToDisplayString(), 10, 20, paint);
     }
 
-    private void DrawRunways(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
+    private void DrawRunways(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showLabels)
     {
         if (layout.Runways is null)
         {
@@ -382,12 +386,15 @@ public sealed class GroundRenderer : IDisposable
             double midLon = (first[1] + last[1]) / 2.0;
             var (mx, my) = vp.LatLonToScreen(midLat, midLon);
 
-            string label = rwy.Name.Replace(" - ", "/");
-            _labelCandidates.Add(new LabelCandidate(label, mx, my + 4, LabelPriority.Runway, _runwayLabelPaint, null));
+            if (showLabels)
+            {
+                string label = rwy.Name.Replace(" - ", "/");
+                _labelCandidates.Add(new LabelCandidate(label, mx, my + 4, LabelPriority.Runway, _runwayLabelPaint, null));
+            }
         }
     }
 
-    private void DrawEdges(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showDebugInfo)
+    private void DrawEdges(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showDebugInfo, bool showTaxiwayLabels, int? hoveredNodeId)
     {
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
         foreach (var node in layout.Nodes)
@@ -438,23 +445,30 @@ public sealed class GroundRenderer : IDisposable
             }
             else if (!isRunway)
             {
-                var mx = (from.X + to.X) / 2f;
-                var my = (from.Y + to.Y) / 2f;
+                // Show label if taxiway labels are on, or if hovering a connected node (hover-to-show)
+                bool isNearHover =
+                    !showTaxiwayLabels && hoveredNodeId.HasValue && (edge.FromNodeId == hoveredNodeId.Value || edge.ToNodeId == hoveredNodeId.Value);
 
-                // Skip if too close to an existing label for the same taxiway
-                if (IsTaxiLabelTooClose(taxiLabelPositions, edge.TaxiwayName, mx, my))
+                if (showTaxiwayLabels || isNearHover)
                 {
-                    continue;
-                }
+                    var mx = (from.X + to.X) / 2f;
+                    var my = (from.Y + to.Y) / 2f;
 
-                if (!taxiLabelPositions.TryGetValue(edge.TaxiwayName, out var positions))
-                {
-                    positions = [];
-                    taxiLabelPositions[edge.TaxiwayName] = positions;
-                }
+                    // Skip if too close to an existing label for the same taxiway
+                    if (IsTaxiLabelTooClose(taxiLabelPositions, edge.TaxiwayName, mx, my))
+                    {
+                        continue;
+                    }
 
-                positions.Add((mx, my));
-                _labelCandidates.Add(new LabelCandidate(edge.TaxiwayName, mx + 3, my - 3, LabelPriority.Taxiway, _taxiLabelPaint, null));
+                    if (!taxiLabelPositions.TryGetValue(edge.TaxiwayName, out var positions))
+                    {
+                        positions = [];
+                        taxiLabelPositions[edge.TaxiwayName] = positions;
+                    }
+
+                    positions.Add((mx, my));
+                    _labelCandidates.Add(new LabelCandidate(edge.TaxiwayName, mx + 3, my - 3, LabelPriority.Taxiway, _taxiLabelPaint, null));
+                }
             }
         }
     }
@@ -563,7 +577,15 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawNodes(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, int? hoveredNodeId, bool showDebugInfo)
+    private void DrawNodes(
+        SKCanvas canvas,
+        MapViewport vp,
+        GroundLayoutDto layout,
+        int? hoveredNodeId,
+        bool showDebugInfo,
+        bool showHoldShortLabels,
+        bool showParkingLabels
+    )
     {
         foreach (var node in layout.Nodes)
         {
@@ -602,11 +624,17 @@ public sealed class GroundRenderer : IDisposable
             }
             else if (node.Name is not null && node.Type is "Parking" or "Helipad" or "Spot")
             {
-                _labelCandidates.Add(new LabelCandidate(node.Name, sx + 5, sy - 3, LabelPriority.ParkingSpot, _nodeLabelPaint, null));
+                if (showParkingLabels || hoveredNodeId == node.Id)
+                {
+                    _labelCandidates.Add(new LabelCandidate(node.Name, sx + 5, sy - 3, LabelPriority.ParkingSpot, _nodeLabelPaint, null));
+                }
             }
             else if (node.RunwayId is not null && node.Type == "RunwayHoldShort")
             {
-                _labelCandidates.Add(new LabelCandidate($"HS {node.RunwayId}", sx + 5, sy - 3, LabelPriority.HoldShort, _nodeLabelPaint, null));
+                if (showHoldShortLabels || hoveredNodeId == node.Id)
+                {
+                    _labelCandidates.Add(new LabelCandidate($"HS {node.RunwayId}", sx + 5, sy - 3, LabelPriority.HoldShort, _nodeLabelPaint, null));
+                }
             }
 
             if (hoveredNodeId == node.Id)

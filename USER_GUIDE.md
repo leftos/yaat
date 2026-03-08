@@ -1018,6 +1018,8 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 
 The ground layout loads automatically when a scenario is loaded for an airport with ground data.
 
+**Label filters:** A filter bar in the top-right corner lets you toggle visibility for four label categories: **RWY** (runway designators), **TWY** (taxiway names), **HS** (hold-short markers), and **PARK** (parking/spot names). Click a button to toggle that category on or off. When a category is hidden, hovering over the relevant element temporarily shows its label. Filter state is persisted across sessions.
+
 When weather is loaded, wind direction/speed and altimeter setting are displayed in the top-left corner of the ground view.
 
 ### Radar View
