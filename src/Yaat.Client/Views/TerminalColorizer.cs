@@ -1,6 +1,6 @@
+using Avalonia.Media;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Rendering;
-using Avalonia.Media;
 using Yaat.Client.Models;
 
 namespace Yaat.Client.Views;
