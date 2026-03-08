@@ -6,6 +6,8 @@ namespace Yaat.Client.Views;
 
 public partial class ConnectWindow : Window
 {
+    public ConnectWindow() { InitializeComponent(); }
+
     public ConnectWindow(ConnectViewModel vm, UserPreferences preferences)
     {
         InitializeComponent();
