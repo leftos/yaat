@@ -25,7 +25,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          SINCE=$(date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%SZ)
+          # Find the last successful run of this workflow to avoid re-posting commits
+          LAST_RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/discord-nightly.yml/runs?status=success&per_page=1" \
+            --jq '.workflow_runs[0].created_at // empty' 2>/dev/null || echo "")
+          if [ -n "$LAST_RUN" ]; then
+            SINCE="$LAST_RUN"
+          else
+            SINCE=$(date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%SZ)
+          fi
           TODAY=$(date -u +%Y-%m-%d)
 
           YAAT_COMMITS=$(gh api "repos/${{ github.repository }}/commits?since=${SINCE}&per_page=100" \
@@ -101,7 +108,7 @@ jobs:
               if i == 0:
                   embed['title'] = title
               if i == len(chunks) - 1:
-                  embed['footer'] = {'text': 'Covers commits from the last 24 hours'}
+                  embed['footer'] = {'text': 'Covers commits since the last digest'}
                   embed['timestamp'] = ts
               embeds.append(embed)
 
