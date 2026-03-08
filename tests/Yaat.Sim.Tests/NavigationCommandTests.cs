@@ -457,7 +457,7 @@ public class NavigationCommandTests
         Assert.Equal(runway, aircraft.Phases.AssignedRunway);
     }
 
-    // --- DCT with no fixes ---
+    // --- DCT ---
 
     [Fact]
     public void DirectTo_EmptyFixList_SetsEmptyRoute()
@@ -469,6 +469,71 @@ public class NavigationCommandTests
 
         Assert.True(result.Success);
         Assert.Empty(aircraft.Targets.NavigationRoute);
+    }
+
+    [Fact]
+    public void DirectTo_MultipleWaypoints_NavigatesSequentially()
+    {
+        // Three fixes roughly along a line heading east from the aircraft.
+        // Each fix is ~2nm apart so the aircraft can reach them at 250 kts.
+        var fixA = new ResolvedFix("FIXA", 37.7, -122.15);
+        var fixB = new ResolvedFix("FIXB", 37.7, -122.10);
+        var fixC = new ResolvedFix("FIXC", 37.7, -122.05);
+
+        var aircraft = MakeAircraft(heading: 090, altitude: 5000, lat: 37.7, lon: -122.2);
+        aircraft.IndicatedAirspeed = 250;
+
+        var cmd = new DirectToCommand([fixA, fixB, fixC]);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Logger, Random.Shared);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
+        Assert.Equal("FIXA", aircraft.Targets.NavigationRoute[0].Name);
+        Assert.Equal("FIXB", aircraft.Targets.NavigationRoute[1].Name);
+        Assert.Equal("FIXC", aircraft.Targets.NavigationRoute[2].Name);
+
+        // Simulate physics ticks until the aircraft reaches all fixes or we time out.
+        // At 250 kts the ~10nm total distance takes ~2.5 min.
+        const double dt = 1.0;
+        const int maxTicks = 300; // 5 minutes of sim time
+
+        // Track which fixes we've passed through.
+        var passedFixes = new List<string>();
+        int prevCount = aircraft.Targets.NavigationRoute.Count;
+
+        for (int i = 0; i < maxTicks; i++)
+        {
+            FlightPhysics.Update(aircraft, dt);
+
+            int curCount = aircraft.Targets.NavigationRoute.Count;
+            if (curCount < prevCount)
+            {
+                // A fix was reached — the removed fix name is the one that was at index 0.
+                // We can infer it from the sequence.
+                int fixesReached = prevCount - curCount;
+                for (int j = 0; j < fixesReached; j++)
+                {
+                    passedFixes.Add(passedFixes.Count switch
+                    {
+                        0 => "FIXA",
+                        1 => "FIXB",
+                        2 => "FIXC",
+                        _ => "UNKNOWN",
+                    });
+                }
+
+                prevCount = curCount;
+            }
+
+            if (curCount == 0)
+            {
+                break;
+            }
+        }
+
+        Assert.Equal(["FIXA", "FIXB", "FIXC"], passedFixes);
+        Assert.Empty(aircraft.Targets.NavigationRoute);
+        Assert.Null(aircraft.Targets.TargetHeading);
     }
 
     // --- CFIX with AtOrBelow ---
