@@ -475,6 +475,7 @@ When invoking aviation-sim-expert, always include:
 
 ## Rules
 
+- **Never read secrets files into context.** Do not `Read` `.env`, credentials files, key files, or any file likely to contain secrets. If you need to know what variables a secrets file defines, parse it for **key names only** (e.g., `grep` for `^[A-Z_]+=` and strip values). Exposing secret values in the conversation context is a leak — treat it as a hard error.
 - **No guessing at root causes**: When debugging, reproduce the problem with a test first. Use real airport layouts and E2E tests (see `docs/e2e-testing.md`). Do not speculate about causes — write a failing test that demonstrates the bug, then fix it.
 - **Unreleased software**: YAAT has no public release and no external users. Do not add backwards-compatibility shims, migration paths, deprecated aliases, or dual config formats. There is nothing to stay compatible with. Delete and replace freely.
 - **User Guide**: Update `USER_GUIDE.md` before committing user-facing changes.
