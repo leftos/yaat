@@ -109,9 +109,6 @@ public enum CanonicalCommandType
     TemporaryAltitude,
     Cruise,
     OnHandoff,
-    FrequencyChange,
-    ContactTcp,
-    ContactTower,
 
     // Coordination
     CoordinationRelease,

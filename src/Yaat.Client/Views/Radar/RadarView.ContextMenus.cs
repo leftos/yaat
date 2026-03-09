@@ -111,7 +111,6 @@ public partial class RadarView
         AddTrackItems(menu, vm, callsign, initials);
 
         menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildCommunicationSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
 
@@ -369,15 +368,6 @@ public partial class RadarView
         menu.Items.Add(CreateInputMenuItem("Temporary altitude...", "Altitude", input => vm.TemporaryAltitudeAsync(cs, init, int.Parse(input))));
         menu.Items.Add(CreateInputMenuItem("Cruise...", "Altitude", input => vm.CruiseAsync(cs, init, int.Parse(input))));
         menu.Items.Add(CreateMenuItem("Annotate", () => vm.AnnotateAsync(cs, init)));
-        return menu;
-    }
-
-    private MenuItem BuildCommunicationSubmenu(RadarViewModel vm, string cs, string init)
-    {
-        var menu = new MenuItem { Header = "Communication" };
-        menu.Items.Add(CreateMenuItem("Frequency change", () => vm.FrequencyChangeAsync(cs, init)));
-        menu.Items.Add(CreateInputMenuItem("Contact...", "TCP / Position ID", input => vm.ContactTcpAsync(cs, init, input)));
-        menu.Items.Add(CreateMenuItem("Contact tower", () => vm.ContactTowerAsync(cs, init)));
         return menu;
     }
 

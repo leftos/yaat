@@ -105,8 +105,6 @@ public class AircraftState
     public int? TemporaryAltitude { get; set; }
     public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }
-    public bool FrequencyChangeApproved { get; set; }
-    public string? ContactPosition { get; set; }
     public bool OnHandoff { get; set; }
     public double? HandoffInitiatedAt { get; set; }
     public int? AssignedAltitude { get; set; }

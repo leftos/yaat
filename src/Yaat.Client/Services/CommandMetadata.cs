@@ -124,9 +124,6 @@ public static class CommandMetadata
         new(CanonicalCommandType.Scratchpad2, "Scratchpad 2", "OTP", false, "Data Operations"),
         new(CanonicalCommandType.TemporaryAltitude, "Temporary Altitude", "40", false, "Data Operations"),
         new(CanonicalCommandType.Cruise, "Cruise Altitude", "240", false, "Data Operations"),
-        new(CanonicalCommandType.FrequencyChange, "Frequency Change", null, false, "Data Operations"),
-        new(CanonicalCommandType.ContactTcp, "Contact Position", "2B", false, "Data Operations"),
-        new(CanonicalCommandType.ContactTower, "Contact Tower", null, false, "Data Operations"),
         new(CanonicalCommandType.OnHandoff, "On Handoff", null, false, "Track Operations"),
         // Coordination
         new(CanonicalCommandType.CoordinationRelease, "Release (Rundown)", "POAK", false, "Coordination"),

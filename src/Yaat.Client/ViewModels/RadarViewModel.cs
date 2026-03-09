@@ -995,23 +995,6 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, "ANNOTATE", initials);
     }
 
-    // --- Communication ---
-
-    public async Task FrequencyChangeAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "FC", initials);
-    }
-
-    public async Task ContactTcpAsync(string callsign, string initials, string tcp)
-    {
-        await _sendCommand(callsign, $"CT {tcp}", initials);
-    }
-
-    public async Task ContactTowerAsync(string callsign, string initials)
-    {
-        await _sendCommand(callsign, "TO", initials);
-    }
-
     // --- Hold ---
 
     public async Task HoldPresentLeftAsync(string callsign, string initials)

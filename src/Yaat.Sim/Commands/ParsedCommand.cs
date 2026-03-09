@@ -278,12 +278,6 @@ public record CruiseCommand(int AltitudeHundreds) : ParsedCommand;
 
 public record OnHandoffCommand : ParsedCommand;
 
-public record FrequencyChangeCommand : ParsedCommand;
-
-public record ContactTcpCommand(string TcpCode) : ParsedCommand;
-
-public record ContactTowerCommand : ParsedCommand;
-
 // Coordination commands
 public record CoordinationReleaseCommand(string? ListId) : ParsedCommand;
 

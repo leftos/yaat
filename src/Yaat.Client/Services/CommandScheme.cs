@@ -136,9 +136,6 @@ public class CommandScheme
                 [CanonicalCommandType.TemporaryAltitude] = new() { Aliases = ["TEMPALT", "TA", "TEMP", "QQ"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.Cruise] = new() { Aliases = ["CRUISE", "QZ"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.OnHandoff] = new() { Aliases = ["ONHO", "ONH"], Format = "{verb}" },
-                [CanonicalCommandType.FrequencyChange] = new() { Aliases = ["FC"], Format = "{verb}" },
-                [CanonicalCommandType.ContactTcp] = new() { Aliases = ["CT"], Format = "{verb} {arg}" },
-                [CanonicalCommandType.ContactTower] = new() { Aliases = ["TO"], Format = "{verb}" },
                 // Coordination
                 [CanonicalCommandType.CoordinationRelease] = new() { Aliases = ["RD"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.CoordinationHold] = new() { Aliases = ["RDH"], Format = "{verb} {arg?}" },
