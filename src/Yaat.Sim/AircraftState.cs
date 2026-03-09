@@ -79,6 +79,7 @@ public class AircraftState
     public string? ParkingSpot { get; set; }
     public string? CurrentTaxiway { get; set; }
     public bool IsHeld { get; set; }
+    public string? GiveWayTarget { get; set; }
     public bool AutoDeleteExempt { get; set; }
 
     /// <summary>

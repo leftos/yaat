@@ -77,6 +77,13 @@ public partial class CommandInputController : ObservableObject
                 var atPrefix = FixSuggester.GetTextBeforeLastWord(text);
                 FixSuggester.AddFixSuggestions(atArg, atPrefix, selectedAircraft, Suggestions, FixDb, MaxSuggestions);
             }
+            else if (string.Equals(conditionVerb, "GIVEWAY", StringComparison.OrdinalIgnoreCase) || string.Equals(conditionVerb, "BEHIND", StringComparison.OrdinalIgnoreCase))
+            {
+                // For GIVEWAY/BEHIND conditions, suggest callsigns
+                var callsignArg = GetConditionArgFragment(fragment, isGiveWay: true);
+                var callsignPrefix = FixSuggester.GetTextBeforeLastWord(text);
+                AddCallsignSuggestionsWithPrefix(callsignArg, callsignPrefix, aircraft);
+            }
 
             IsSuggestionsVisible = Suggestions.Count > 0;
             return;
@@ -375,13 +382,53 @@ public partial class CommandInputController : ObservableObject
             return "";
         }
 
+        // Check for "GIVEWAY <arg> " or "BEHIND <arg> " prefix (8 and 7 chars respectively)
+        if (upper.StartsWith("GIVEWAY ", StringComparison.Ordinal))
+        {
+            conditionVerb = "GIVEWAY";
+            var afterPrefix = fragment[8..].TrimStart();
+            var spaceIdx = afterPrefix.IndexOf(' ');
+            if (spaceIdx >= 0)
+            {
+                return afterPrefix[(spaceIdx + 1)..].TrimStart();
+            }
+
+            // Still typing the callsign (e.g., "GIVEWAY SWA")
+            return "";
+        }
+
+        if (upper.StartsWith("BEHIND ", StringComparison.Ordinal))
+        {
+            conditionVerb = "BEHIND";
+            var afterPrefix = fragment[7..].TrimStart();
+            var spaceIdx = afterPrefix.IndexOf(' ');
+            if (spaceIdx >= 0)
+            {
+                return afterPrefix[(spaceIdx + 1)..].TrimStart();
+            }
+
+            // Still typing the callsign (e.g., "BEHIND SWA")
+            return "";
+        }
+
         return fragment;
     }
 
-    private static string GetConditionArgFragment(string fragment)
+    private static string GetConditionArgFragment(string fragment, bool isGiveWay = false)
     {
-        // Extract the partial argument after "AT " — e.g., "AT SUN" → "SUN", "AT " → ""
-        var afterKeyword = fragment[3..].TrimStart();
+        // Extract the partial argument after the condition keyword
+        // "AT SUN" → "SUN", "AT " → ""
+        // "GIVEWAY SWA" → "SWA", "GIVEWAY " → ""
+        // "BEHIND SWA" → "SWA", "BEHIND " → ""
+        int skipLen = 3;
+        if (isGiveWay)
+        {
+            // Check which form we have
+            var upper = fragment.TrimStart().ToUpperInvariant();
+            skipLen = upper.StartsWith("GIVEWAY ") ? 8 : (upper.StartsWith("BEHIND ") ? 7 : 3);
+        }
+
+        var afterKeyword = fragment[skipLen..].TrimStart();
         return afterKeyword;
     }
 
@@ -420,6 +467,42 @@ public partial class CommandInputController : ObservableObject
                     Text = "AT",
                     Description = "At {fix/FR/FRD} — trigger at fix, radial, or FRD point",
                     InsertText = "AT ",
+                }
+            );
+        }
+
+        if (Suggestions.Count >= MaxSuggestions)
+        {
+            return;
+        }
+
+        if ("GIVEWAY".StartsWith(upper, StringComparison.Ordinal) && upper.Length > 0)
+        {
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = "GIVEWAY",
+                    Description = "Give way to {callsign} — delay until target passes",
+                    InsertText = "GIVEWAY ",
+                }
+            );
+        }
+
+        if (Suggestions.Count >= MaxSuggestions)
+        {
+            return;
+        }
+
+        if ("BEHIND".StartsWith(upper, StringComparison.Ordinal) && upper.Length > 0)
+        {
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = "BEHIND",
+                    Description = "Behind {callsign} — alias for give way",
+                    InsertText = "BEHIND ",
                 }
             );
         }
@@ -490,6 +573,35 @@ public partial class CommandInputController : ObservableObject
                     Text = ac.Callsign,
                     Description = desc,
                     InsertText = ac.Callsign + " ",
+                }
+            );
+            count++;
+        }
+    }
+
+    private void AddCallsignSuggestionsWithPrefix(string token, string prefix, IReadOnlyCollection<AircraftModel> aircraft)
+    {
+        var count = 0;
+        foreach (var ac in aircraft)
+        {
+            if (count >= MaxSuggestions)
+            {
+                break;
+            }
+
+            if (!ac.Callsign.Contains(token, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var desc = $"{ac.AircraftType} {ac.Departure}-{ac.Destination}".Trim();
+            Suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Callsign,
+                    Text = ac.Callsign,
+                    Description = desc,
+                    InsertText = prefix + ac.Callsign + " ",
                 }
             );
             count++;

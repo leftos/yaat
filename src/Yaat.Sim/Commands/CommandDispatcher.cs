@@ -1236,6 +1236,9 @@ public static class CommandDispatcher
             case FollowCommand follow:
                 return GroundCommandHandler.TryFollow(aircraft, follow, groundLayout, logger);
 
+            case GiveWayCommand gw:
+                return GroundCommandHandler.TryGiveWay(aircraft, gw.TargetCallsign);
+
             case ExitLeftCommand el:
                 return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left }, el.NoDelete);
 

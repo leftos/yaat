@@ -86,6 +86,7 @@ public static class CommandDescriber
             CrossRunwayCommand => CanonicalCommandType.CrossRunway,
             HoldShortCommand => CanonicalCommandType.HoldShort,
             FollowCommand => CanonicalCommandType.Follow,
+            GiveWayCommand => CanonicalCommandType.GiveWay,
             ExitLeftCommand => CanonicalCommandType.ExitLeft,
             ExitRightCommand => CanonicalCommandType.ExitRight,
             ExitTaxiwayCommand => CanonicalCommandType.ExitTaxiway,
@@ -242,6 +243,7 @@ public static class CommandDescriber
             CrossRunwayCommand cross => $"CROSS {cross.RunwayId}",
             HoldShortCommand hs => $"HS {hs.Target}",
             FollowCommand follow => $"FOLLOW {follow.TargetCallsign}",
+            GiveWayCommand gw => $"GIVEWAY {gw.TargetCallsign}",
             ExitLeftCommand => "EL",
             ExitRightCommand => "ER",
             ExitTaxiwayCommand et => $"EXIT {et.Taxiway}",
@@ -350,6 +352,7 @@ public static class CommandDescriber
             CrossRunwayCommand cross => $"Cross runway {cross.RunwayId}",
             HoldShortCommand hs => $"Hold short of {hs.Target}",
             FollowCommand follow => $"Follow {follow.TargetCallsign}",
+            GiveWayCommand gw => $"Give way to {gw.TargetCallsign}",
             ExitLeftCommand => "Exit left",
             ExitRightCommand => "Exit right",
             ExitTaxiwayCommand et => $"Exit at {et.Taxiway}",
@@ -432,7 +435,8 @@ public static class CommandDescriber
                 or ResumeCommand
                 or CrossRunwayCommand
                 or HoldShortCommand
-                or FollowCommand;
+                or FollowCommand
+                or GiveWayCommand;
     }
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)

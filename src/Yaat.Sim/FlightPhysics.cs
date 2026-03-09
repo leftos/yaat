@@ -42,6 +42,7 @@ public static class FlightPhysics
         AutoCancelSpeedAtFinal(aircraft);
         UpdatePosition(aircraft, deltaSeconds, weather);
         UpdateCommandQueue(aircraft, deltaSeconds, aircraftLookup);
+        UpdateGiveWayResume(aircraft, aircraftLookup);
     }
 
     private static void UpdateNavigation(AircraftState aircraft, WeatherProfile? weather)
@@ -475,6 +476,41 @@ public static class FlightPhysics
 
             // Apply the block's commands
             ApplyBlock(aircraft, block);
+        }
+    }
+
+    private static void UpdateGiveWayResume(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup)
+    {
+        if (aircraft.GiveWayTarget is null || !aircraft.IsHeld || !aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        if (aircraftLookup is null)
+        {
+            return;
+        }
+
+        var target = aircraftLookup(aircraft.GiveWayTarget);
+        if (target is null || !target.IsOnGround)
+        {
+            // Target is gone or airborne — resume
+            aircraft.IsHeld = false;
+            aircraft.GiveWayTarget = null;
+            return;
+        }
+
+        // Check if give-way condition is met (target has passed)
+        var trigger = new BlockTrigger
+        {
+            Type = BlockTriggerType.GiveWay,
+            TargetCallsign = aircraft.GiveWayTarget,
+        };
+
+        if (IsGiveWayMet(aircraft, trigger, aircraftLookup))
+        {
+            aircraft.IsHeld = false;
+            aircraft.GiveWayTarget = null;
         }
     }
 

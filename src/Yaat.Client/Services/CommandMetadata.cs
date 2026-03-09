@@ -92,6 +92,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.HoldShort, "Hold Short", "B", false, "Ground"),
         new(CanonicalCommandType.AssignRunway, "Assign Runway", "30", false, "Ground"),
         new(CanonicalCommandType.Follow, "Follow", "SWA123", false, "Ground"),
+        new(CanonicalCommandType.GiveWay, "Give Way", "SWA123", false, "Ground"),
         new(CanonicalCommandType.ExitLeft, "Exit Left", null, false, "Ground"),
         new(CanonicalCommandType.ExitRight, "Exit Right", null, false, "Ground"),
         new(CanonicalCommandType.ExitTaxiway, "Exit Taxiway", "A3", false, "Ground"),

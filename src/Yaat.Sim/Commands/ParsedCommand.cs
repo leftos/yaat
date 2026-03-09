@@ -212,6 +212,8 @@ public record AssignRunwayCommand(string RunwayId) : ParsedCommand;
 
 public record FollowCommand(string TargetCallsign) : ParsedCommand;
 
+public record GiveWayCommand(string TargetCallsign) : ParsedCommand;
+
 // Exit commands
 public record ExitLeftCommand(bool NoDelete = false) : ParsedCommand;
 

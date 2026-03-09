@@ -396,6 +396,7 @@ internal static class GroundCommandHandler
         }
 
         aircraft.IsHeld = true;
+        aircraft.GiveWayTarget = null;
         return CommandDispatcher.Ok("Hold position");
     }
 
@@ -407,6 +408,7 @@ internal static class GroundCommandHandler
         }
 
         aircraft.IsHeld = false;
+        aircraft.GiveWayTarget = null;
         return CommandDispatcher.Ok("Resume taxi");
     }
 
@@ -499,6 +501,23 @@ internal static class GroundCommandHandler
         phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout));
 
         return CommandDispatcher.Ok($"Follow {follow.TargetCallsign}");
+    }
+
+    internal static CommandResult TryGiveWay(AircraftState aircraft, string targetCallsign)
+    {
+        if (!aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "Give way requires aircraft on the ground");
+        }
+
+        if (aircraft.AssignedTaxiRoute is null)
+        {
+            return new CommandResult(false, "Aircraft must have a taxi route assigned");
+        }
+
+        aircraft.IsHeld = true;
+        aircraft.GiveWayTarget = targetCallsign;
+        return CommandDispatcher.Ok($"Give way to {targetCallsign}");
     }
 
     internal static CommandResult TryAirTaxi(AircraftState aircraft, string? destination, AirportGroundLayout? groundLayout, ILogger logger)

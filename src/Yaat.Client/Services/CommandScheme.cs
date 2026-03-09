@@ -104,6 +104,7 @@ public class CommandScheme
                 [CanonicalCommandType.HoldShort] = new() { Aliases = ["HS"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.AssignRunway] = new() { Aliases = ["RWY"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.Follow] = new() { Aliases = ["FOLLOW", "FOL"], Format = "{verb} {arg}" },
+                [CanonicalCommandType.GiveWay] = new() { Aliases = ["GIVEWAY", "BEHIND"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ExitLeft] = new() { Aliases = ["EL"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.ExitRight] = new() { Aliases = ["ER"], Format = "{verb} {arg?}" },
                 [CanonicalCommandType.ExitTaxiway] = new() { Aliases = ["EXIT"], Format = "{verb} {arg}" },

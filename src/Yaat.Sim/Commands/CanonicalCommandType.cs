@@ -76,6 +76,7 @@ public enum CanonicalCommandType
     HoldShort,
     AssignRunway,
     Follow,
+    GiveWay,
     ExitLeft,
     ExitRight,
     ExitTaxiway,
