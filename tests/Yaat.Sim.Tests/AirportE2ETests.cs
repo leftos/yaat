@@ -1111,6 +1111,31 @@ public class AirportE2ETests
     }
 
     [Fact]
+    public void SFO_TaxiM1_ToRunway1L_ShouldSucceed()
+    {
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Find a node on M1 (not at a multi-taxiway junction)
+        var m1Node = layout.Nodes.Values.FirstOrDefault(n =>
+            n.Edges.Any(e => string.Equals(e.TaxiwayName, "M1", StringComparison.OrdinalIgnoreCase))
+            && n.Type == GroundNodeType.TaxiwayIntersection
+        );
+        Assert.NotNull(m1Node);
+
+        var ac = MakeGroundAircraft("SFO", m1Node.Latitude, m1Node.Longitude);
+
+        // TAXI M1 to runway 1L — M1 connects to 1L holds-short
+        var taxi = new TaxiCommand(["M1"], [], DestinationRunway: "1L");
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null, Logger);
+
+        Assert.True(result.Success, $"TAXI M1 1L should succeed: {result.Message}");
+    }
+
+    [Fact]
     public void SFO_TaxiwayE_WalkMisses28R_FixedByVariantResolver()
     {
         // Documents that WalkTaxiway on E from the C/E junction goes west
