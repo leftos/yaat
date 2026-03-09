@@ -167,6 +167,9 @@ public class AircraftState
     public int? GlobalLeaderDirection { get; set; }
     public List<Tcp> ForcedPointoutsTo { get; set; } = [];
 
+    // Per-TCP shared state (per-track, per-controller display overrides)
+    public Dictionary<string, StarsTrackSharedState> SharedState { get; set; } = [];
+
     // Sequence state
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }
