@@ -1061,6 +1061,7 @@ public partial class MainWindow : Window
         {
             vm.RefreshCommandScheme();
             ApplyKeybinds(vm.Preferences);
+            SyncAllRadarViewTint();
         }
     }
 
@@ -1105,6 +1106,22 @@ public partial class MainWindow : Window
     }
 
     private Key _focusInputKey = Key.OemTilde;
+
+    private void SyncAllRadarViewTint()
+    {
+        // Embedded RadarView
+        foreach (var rv in this.GetVisualDescendants().OfType<RadarView>())
+        {
+            rv.SyncAssignmentTint();
+        }
+
+        // Pop-out RadarView
+        if (_radarViewWindow is not null)
+        {
+            var poppedRadar = _radarViewWindow.GetVisualDescendants().OfType<RadarView>().FirstOrDefault();
+            poppedRadar?.SyncAssignmentTint();
+        }
+    }
 
     private void ApplyKeybinds(UserPreferences prefs)
     {

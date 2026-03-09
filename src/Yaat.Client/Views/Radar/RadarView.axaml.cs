@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
@@ -68,6 +69,8 @@ public partial class RadarView : UserControl
             _canvas.SetBrightnessLookup(vm.BrightnessLookup);
             SyncCanvasBrightness(vm);
         }
+
+        SyncAssignmentTint();
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
@@ -346,6 +349,39 @@ public partial class RadarView : UserControl
             _canvas.BrightnessB = vm.MapBrightnessB;
             _canvas.RangeRingBrightness = vm.RangeRingBrightness;
         }
+    }
+
+    public void SyncAssignmentTint()
+    {
+        if (_canvas is null)
+        {
+            return;
+        }
+
+        var mainVm = FindMainViewModel();
+        var prefs = mainVm?.Preferences;
+        if (prefs is null)
+        {
+            return;
+        }
+
+        _canvas.LocalUserInitials = prefs.UserInitials;
+        _canvas.AssignmentTintColor = prefs.AssignmentTintEnabled ? ParseHexColor(prefs.AssignmentTintColor) : null;
+    }
+
+    private static SKColor? ParseHexColor(string hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return null;
+        }
+
+        if (SKColor.TryParse(hex, out var color))
+        {
+            return color;
+        }
+
+        return null;
     }
 
     private void OnDcbPointerWheelChanged(object? sender, PointerWheelEventArgs e)

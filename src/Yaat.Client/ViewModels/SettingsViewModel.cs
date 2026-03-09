@@ -143,6 +143,12 @@ public partial class SettingsViewModel : ObservableObject
     private string _focusInputKeyDisplay = "~";
 
     [ObservableProperty]
+    private bool _assignmentTintEnabled;
+
+    [ObservableProperty]
+    private string _assignmentTintColor = "#00FF00";
+
+    [ObservableProperty]
     private bool _isCapturingKey;
 
     private string _aircraftSelectKeyName = "Add";
@@ -179,6 +185,8 @@ public partial class SettingsViewModel : ObservableObject
         _aircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
         _focusInputKeyName = _preferences.FocusInputKey;
         _focusInputKeyDisplay = KeyNameToDisplay(_focusInputKeyName);
+        _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
+        _assignmentTintColor = _preferences.AssignmentTintColor;
         LoadMacros();
     }
 
@@ -215,6 +223,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSimulationShortcuts(AutoClearedToLand, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
+        _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
         SaveMacros();
         Saved = true;
     }

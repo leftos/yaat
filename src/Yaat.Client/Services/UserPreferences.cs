@@ -111,6 +111,8 @@ public sealed class UserPreferences
     public bool GroundShowTaxiwayLabels => _data.GroundShowTaxiwayLabels;
     public bool GroundShowHoldShortLabels => _data.GroundShowHoldShortLabels;
     public bool GroundShowParkingLabels => _data.GroundShowParkingLabels;
+    public bool AssignmentTintEnabled => _data.AssignmentTintEnabled;
+    public string AssignmentTintColor => _data.AssignmentTintColor;
 
     public void SetSavedServers(IEnumerable<SavedServer> servers, string lastUsedUrl)
     {
@@ -269,6 +271,13 @@ public sealed class UserPreferences
     public void SetFocusInputKey(string key)
     {
         _data.FocusInputKey = key;
+        Save();
+    }
+
+    public void SetAssignmentTint(bool enabled, string color)
+    {
+        _data.AssignmentTintEnabled = enabled;
+        _data.AssignmentTintColor = color;
         Save();
     }
 
@@ -457,6 +466,8 @@ public sealed class UserPreferences
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
             GroundShowHoldShortLabels = GetFieldOr(obj, "groundShowHoldShortLabels", true),
             GroundShowParkingLabels = GetFieldOr(obj, "groundShowParkingLabels", true),
+            AssignmentTintEnabled = GetFieldOr(obj, "assignmentTintEnabled", false),
+            AssignmentTintColor = GetFieldOr(obj, "assignmentTintColor", "#00FF00"),
         };
 
         // Normalize empty server list on recovery
@@ -610,6 +621,8 @@ public sealed class UserPreferences
         public bool GroundShowTaxiwayLabels { get; set; } = true;
         public bool GroundShowHoldShortLabels { get; set; } = true;
         public bool GroundShowParkingLabels { get; set; } = true;
+        public bool AssignmentTintEnabled { get; set; }
+        public string AssignmentTintColor { get; set; } = "#00FF00";
     }
 
     private sealed class SavedCommandScheme

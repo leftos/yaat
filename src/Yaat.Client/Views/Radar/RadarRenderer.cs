@@ -120,6 +120,18 @@ public sealed class RadarRenderer : IDisposable
         set => _videoMapRenderer.BrightnessB = value;
     }
 
+    public string? LocalUserInitials
+    {
+        get => _targetRenderer.LocalUserInitials;
+        set => _targetRenderer.LocalUserInitials = value;
+    }
+
+    public SKColor? AssignmentTintColor
+    {
+        get => _targetRenderer.AssignmentTintColor;
+        set => _targetRenderer.AssignmentTintColor = value;
+    }
+
     public float RangeRingBrightness
     {
         get => _rangeRingBrightness;

@@ -61,6 +61,12 @@ public sealed class TargetRenderer : IDisposable
         IsAntialias = true,
     };
 
+    /// <summary>Local user's initials for assignment tint matching.</summary>
+    public string? LocalUserInitials { get; set; }
+
+    /// <summary>When non-null, aircraft assigned to LocalUserInitials use this color.</summary>
+    public SKColor? AssignmentTintColor { get; set; }
+
     private const float SymbolSize = 5f;
     private const float LeaderLength = 40f;
 
@@ -83,8 +89,14 @@ public sealed class TargetRenderer : IDisposable
 
             bool isSelected = ac == selectedAircraft;
             bool isOnGround = showTopDown && (int)(ac.Altitude / 100) < 1;
-            var baseSymbolColor = isOnGround ? GroundColor : SymbolColor;
-            var baseDbColor = isOnGround ? GroundColor : DataBlockColor;
+            var tintColor =
+                AssignmentTintColor is { } tint
+                && LocalUserInitials is not null
+                && string.Equals(ac.AssignedTo, LocalUserInitials, StringComparison.OrdinalIgnoreCase)
+                    ? tint
+                    : (SKColor?)null;
+            var baseSymbolColor = tintColor ?? (isOnGround ? GroundColor : SymbolColor);
+            var baseDbColor = tintColor ?? (isOnGround ? GroundColor : DataBlockColor);
             var symbolColor = isSelected ? SelectedColor : baseSymbolColor;
             var dbColor = isSelected ? SelectedColor : baseDbColor;
             bool isMinified = minifiedCallsigns is not null && minifiedCallsigns.Contains(ac.Callsign);

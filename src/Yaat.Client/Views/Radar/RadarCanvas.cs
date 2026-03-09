@@ -318,6 +318,26 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public string? LocalUserInitials
+    {
+        get => _renderer.LocalUserInitials;
+        set
+        {
+            _renderer.LocalUserInitials = value;
+            MarkDirty();
+        }
+    }
+
+    public SKColor? AssignmentTintColor
+    {
+        get => _renderer.AssignmentTintColor;
+        set
+        {
+            _renderer.AssignmentTintColor = value;
+            MarkDirty();
+        }
+    }
+
     /// <summary>
     /// Sets the brightness category lookup (mapId → "A"/"B").
     /// </summary>

@@ -318,6 +318,28 @@
                                        FontSize="11" />
                         </StackPanel>
                         <Separator Margin="0,4" />
+                        <TextBlock Text="Radar Display"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <CheckBox Content="Tint my assigned aircraft"
+                                      IsChecked="{Binding AssignmentTintEnabled}" />
+                            <StackPanel Spacing="4"
+                                        IsVisible="{Binding AssignmentTintEnabled}"
+                                        Margin="28,0,0,0">
+                                <TextBlock Text="Tint Color (hex):"
+                                           Foreground="{DynamicResource SubtleTextBrush}" />
+                                <TextBox Text="{Binding AssignmentTintColor}"
+                                         MaxLength="7"
+                                         Watermark="#00FF00"
+                                         Width="100"
+                                         HorizontalAlignment="Left" />
+                                <TextBlock Text="Hex color for targets and datablocks of aircraft assigned to you. Default: #00FF00 (green)."
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Separator Margin="0,4" />
                         <CheckBox Content="Server Admin Mode"
                                   IsChecked="{Binding IsAdminMode}" />
                         <StackPanel Spacing="4"
