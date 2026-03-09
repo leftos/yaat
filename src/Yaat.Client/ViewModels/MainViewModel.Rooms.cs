@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
@@ -384,6 +385,7 @@ public partial class MainViewModel
         _ = SendAutoDeleteMode();
         _ = SendValidateDctFixes();
         _ = RefreshCrcLobbyAsync();
+        _ = FetchAssignmentsAsync();
     }
 
     private void ClearRoomState()
@@ -394,6 +396,9 @@ public partial class MainViewModel
         CrcLobbyClients.Clear();
         CrcRoomMembers.Clear();
         ShowCrcPanel = false;
+        _aircraftAssignments = [];
+        AssignableMembers.Clear();
+        OnPropertyChanged(nameof(HasAnyAssignments));
         ClearScenarioState();
     }
 
@@ -455,5 +460,78 @@ public partial class MainViewModel
             Radar.ApplyPositionDisplayConfig(config);
             UpdateRadarWeatherDisplay();
         });
+    }
+
+    // --- Aircraft assignments ---
+
+    public ObservableCollection<AssignableMemberDto> AssignableMembers { get; } = [];
+
+    /// <summary>callsign → initials for display.</summary>
+    private Dictionary<string, string> _aircraftAssignments = [];
+
+    public bool HasAnyAssignments => _aircraftAssignments.Count > 0;
+
+    public string? GetAssignedInitials(string callsign) => _aircraftAssignments.GetValueOrDefault(callsign);
+
+    private void OnAircraftAssignmentsChanged(AircraftAssignmentsDto dto)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _aircraftAssignments = dto.Assignments;
+            OnPropertyChanged(nameof(HasAnyAssignments));
+
+            AssignableMembers.Clear();
+            foreach (var m in dto.Members)
+            {
+                AssignableMembers.Add(m);
+            }
+
+            foreach (var ac in Aircraft)
+            {
+                ac.AssignedTo = _aircraftAssignments.GetValueOrDefault(ac.Callsign);
+            }
+        });
+    }
+
+    public async Task AssignAircraftAsync(List<string> callsigns, string targetConnectionId)
+    {
+        try
+        {
+            await _connection.AssignAircraftAsync(callsigns, targetConnectionId);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "AssignAircraft failed");
+            StatusText = $"Assign error: {ex.Message}";
+        }
+    }
+
+    public async Task UnassignAircraftAsync(List<string> callsigns)
+    {
+        try
+        {
+            await _connection.UnassignAircraftAsync(callsigns);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "UnassignAircraft failed");
+            StatusText = $"Unassign error: {ex.Message}";
+        }
+    }
+
+    private async Task FetchAssignmentsAsync()
+    {
+        try
+        {
+            var dto = await _connection.GetAircraftAssignmentsAsync();
+            if (dto is not null)
+            {
+                OnAircraftAssignmentsChanged(dto);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to fetch assignments");
+        }
     }
 }

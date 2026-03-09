@@ -216,6 +216,7 @@ The main grid shows all aircraft in your scenario, grouped into **Active** and *
 | Alt | Current altitude (ft) |
 | Spd | Current ground speed (kts) |
 | VS | Vertical speed (fpm) |
+| Ctrl | Assigned controller initials (see [Aircraft Assignments](#aircraft-assignments)) |
 | Owner | Track owner (sector code, e.g., "2B", or callsign) |
 | HO | Pending handoff target (sector code or callsign) |
 | SP1 | Scratchpad 1 text |
@@ -1131,6 +1132,24 @@ Under the **Scenario** menu:
 - **Load Recording...** — loads a previously saved recording; enters playback mode at t=0
 
 Recordings are self-contained JSON files that include the scenario definition, RNG seed, weather state, and all user actions with timestamps. They can be shared between users for review or training.
+
+## Aircraft Assignments
+
+When multiple instructors/RPOs are in the same room, aircraft can be assigned to specific members for sole control.
+
+**Assigning aircraft:** Right-click one or more aircraft in the Aircraft List (or a single target on the Radar View) and select **Assign > [initials]** to assign them to that member. Any room member can assign or reassign any aircraft to any other member.
+
+**Enforcement:** Once any assignment exists in the room, commands to aircraft assigned to someone else are rejected. The error message shows who the aircraft is assigned to.
+
+**Override:** Prefix your command with `** ` (double asterisk + space) to bypass the assignment check. The terminal shows the override: `JE (override): AAL100 FH 270`.
+
+**Unassigning:** Right-click and select **Unassign** to return aircraft to "everyone" (any member can command them).
+
+**Visual indicators:**
+- The **Ctrl** column in the Aircraft List shows the assigned controller's initials
+- The radar datablock shows `[INITIALS]` on line 3 when an aircraft is assigned
+
+Assignments are cleared when a member leaves the room, when an aircraft is deleted, or when the scenario is unloaded.
 
 ## Views
 

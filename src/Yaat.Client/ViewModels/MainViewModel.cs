@@ -449,6 +449,7 @@ public partial class MainViewModel : ObservableObject
         _connection.PositionDisplayChanged += OnPositionDisplayChanged;
         _connection.ScenarioLoaded += OnScenarioLoaded;
         _connection.ScenarioUnloaded += OnScenarioUnloaded;
+        _connection.AircraftAssignmentsChanged += OnAircraftAssignmentsChanged;
 
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;
@@ -548,6 +549,14 @@ public partial class MainViewModel : ObservableObject
         if (string.IsNullOrEmpty(text))
         {
             return;
+        }
+
+        // Assignment override: "** " prefix bypasses ownership check
+        bool forceOverride = false;
+        if (text.StartsWith("** ", StringComparison.Ordinal))
+        {
+            forceOverride = true;
+            text = text[3..].TrimStart();
         }
 
         // Chat messages: ' / > prefix → broadcast text, not a command
@@ -661,8 +670,9 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, compound.CanonicalString, originalCommand);
-            var result = await _connection.SendCommandAsync(target.Callsign, compound.CanonicalString, _preferences.UserInitials);
+            var canonical = forceOverride ? $"** {compound.CanonicalString}" : compound.CanonicalString;
+            _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalCommand);
+            var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
 
             AddHistory(originalCommand);
 

@@ -27,6 +27,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
     public event Action? ScenarioUnloaded;
+    public event Action<AircraftAssignmentsDto>? AircraftAssignmentsChanged;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -67,6 +68,7 @@ public sealed class ServerConnection : IAsyncDisposable
 
         _connection.On<ScenarioLoadedDto>("ScenarioLoaded", dto => ScenarioLoaded?.Invoke(dto));
         _connection.On("ScenarioUnloaded", () => ScenarioUnloaded?.Invoke());
+        _connection.On<AircraftAssignmentsDto>("AircraftAssignmentsChanged", dto => AircraftAssignmentsChanged?.Invoke(dto));
 
         _connection.Reconnecting += error =>
         {
@@ -157,6 +159,26 @@ public sealed class ServerConnection : IAsyncDisposable
     {
         EnsureConnected();
         await _connection!.InvokeAsync("ClearWeather");
+    }
+
+    // --- Aircraft assignments ---
+
+    public async Task AssignAircraftAsync(List<string> callsigns, string targetConnectionId)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("AssignAircraft", callsigns, targetConnectionId);
+    }
+
+    public async Task UnassignAircraftAsync(List<string> callsigns)
+    {
+        EnsureConnected();
+        await _connection!.InvokeAsync("UnassignAircraft", callsigns);
+    }
+
+    public async Task<AircraftAssignmentsDto?> GetAircraftAssignmentsAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<AircraftAssignmentsDto?>("GetAircraftAssignments");
     }
 
     // --- Aircraft commands ---
@@ -630,3 +652,7 @@ public record ApproachReportDto(
 public record TimelineInfoDto(double ElapsedSeconds, double TapeEnd, bool IsPlayback, bool IsAvailable);
 
 public record RewindResultDto(bool Success, string? Error, List<AircraftDto>? Aircraft = null);
+
+public record AssignableMemberDto(string ConnectionId, string Initials);
+
+public record AircraftAssignmentsDto(Dictionary<string, string> Assignments, List<AssignableMemberDto> Members);

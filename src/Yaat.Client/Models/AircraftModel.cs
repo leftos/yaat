@@ -432,6 +432,9 @@ public partial class AircraftModel : ObservableObject
         TemporaryAltitude.HasValue ? (TemporaryAltitude.Value >= 180 ? $"FL{TemporaryAltitude.Value}" : $"{TemporaryAltitude.Value}") : "";
 
     [ObservableProperty]
+    private string? _assignedTo;
+
+    [ObservableProperty]
     private double? _distanceFromFix;
 
     [ObservableProperty]
