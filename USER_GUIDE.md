@@ -1148,6 +1148,7 @@ When multiple instructors/RPOs are in the same room, aircraft can be assigned to
 **Visual indicators:**
 - The **Ctrl** column in the Aircraft List shows the assigned controller's initials
 - The radar datablock shows `[INITIALS]` on line 3 when an aircraft is assigned
+- Optional color tint: in **Settings > Advanced > Radar Display**, enable **Tint my assigned aircraft** to render your assigned targets and datablocks in a custom color (default green `#00FF00`). Enter any hex color code.
 
 Assignments are cleared when a member leaves the room, when an aircraft is deleted, or when the scenario is unloaded.
 
