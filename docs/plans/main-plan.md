@@ -452,9 +452,46 @@ Detailed chunk plan: [M4 STARS Track Operations](track-operations.md) (9 chunks)
 
 ---
 
+### Milestone 5.5: STARS ARTCC Configuration Expansion ✅
+
+**Goal:** Expand server-side ARTCC config parsing to cover all STARS/TRACON/ATCT fields and implement the features they enable.
+
+**Plan:** [STARS ARTCC Configuration Expansion](../../.claude/plans/merry-orbiting-hollerith.md)
+
+#### Completed Chunks
+
+- [x] **A1: Config model expansion** — 14 new fields on StarsConfig, 9 on StarsListConfig, 10 on StarsAreaConfig, 9 on AsdexConfig; 13 new config classes (AtpaVolumeConfig, BeaconCodeBankConfig, ScratchpadRuleConfig, etc.)
+- [x] **B1a: WasScratchpad1Cleared** — AircraftState flag + CRC pipeline wiring (CrcClientState.Stars, TrackCommandHandler, RoomEngine flight plan amend)
+- [x] **B1b: Duplicate beacon code detection** — Computed per broadcast cycle, passed through DtoConverter.ToStarsTrack and ToAsdexTrack
+- [x] **B1c: DisplayRequestedAltitude** — ArtccConfigService.GetAreaConfigForPosition, wired in CrcBroadcastService
+- [x] **B2: Beacon code banks** — BeaconCodePool accepts config banks, IFR/VFR routing with Any fallback, initialized on scenario load
+- [x] **B3: ASDEX fix resolution** — FixRules search pattern matching (#-wildcard), UseDestinationIdAsFix fallback, wired in DtoConverter.ToAsdexTrack
+- [x] **C1: Tower list tracker** — TowerListTracker class, proximity-based P-list entries sorted by DropZoneEntryTime, initialized on scenario load, updated per tick
+- [x] **C2: Scratchpad rule engine** — ScratchpadRuleEngine evaluates primary/secondary rules on track/spawn, matches airport IDs + altitude range + route pattern
+- [x] **D1: ATPA volume geometry** — AtpaVolumeGeometry.IsInside (altitude, heading deviation, along/cross-track), DistanceFromThreshold
+- [x] **D2: ATPA in-trail sequence** — AtpaProcessor computes per-volume aircraft ordering, wake turbulence separation (WTG-based), scratchpad filtering
+- [x] **D3: ATPA alert/monitor + integration** — TCP code resolution, alert/monitor cone lists, DI registration, wired into CrcBroadcastService and DtoConverter
+
+#### New Files (yaat-server)
+- `Simulation/AtpaVolumeGeometry.cs` — volume containment testing
+- `Simulation/AtpaProcessor.cs` — in-trail sequencing + separation computation
+- `Simulation/ScratchpadRuleEngine.cs` — auto-scratchpad assignment from config rules
+- `Simulation/TowerListTracker.cs` — proximity-based tower P-list tracking
+
+#### Definition of Done
+- All vNAS ARTCC config fields deserialized (no more dropped JSON)
+- ATPA volumes compute in-trail separation and populate CRC DTOs
+- Beacon codes assigned from configured IFR/VFR banks
+- Scratchpad rules auto-assign on track initiation
+- Tower P-lists populated based on aircraft proximity
+- Duplicate beacon code detection active
+- All 1353 tests pass across both repos
+
+---
+
 ### Milestone 6: Enroute Control & ERAM
 
-**Goal:** Enroute navigation, airways, Mach, ERAM track operations.
+**Goal:** Enroute navigation, airways, Mach, ERAM track operations, and ERAM-deferred ARTCC config features.
 
 #### yaat-server
 
@@ -462,11 +499,17 @@ Detailed chunk plan: [M4 STARS Track Operations](track-operations.md) (9 chunks)
 2. **Mach speed**: `MACH {mach}` command
 3. **ERAM track operations**: `ProcessEramMessage` handling (HO, QD, PO tokens), `EramTrackDto` ownership population, `EramPointout` support (multiple simultaneous point-outs per track)
 4. **ERAM data block format**: Context-aware Fdb/PairedLdb/UnpairedLdb based on sector ownership and quick-look state
+5. **ERAM facility configuration**: Parse facility-level `eramConfiguration` (nasId, geoMaps, asrSites, beacon code banks, conflict alert floor, coordination fixes, neighboring CAATS/STARS configs)
+6. **autoAtcRules**: Route-based descent crossing restrictions and descend-via automation (32 rules in ZOA); requires ERAM track processing
+7. **restrictions**: Sector-to-sector altitude/route restrictions (488 entries in ZOA); requires ERAM sector model
+8. **Deferred ARTCC config items**: Flight strips configuration, TDLS configuration, configuration plan activation, implied compound command execution, STARS readout area content, transceiver data
 
 #### Definition of Done
 - Aircraft navigate airways
 - High-altitude Mach operations
 - ERAM track ownership and handoffs work in CRC
+- ERAM facility config parsed and used for sector-level features
+- autoAtcRules and restrictions evaluated where applicable
 
 ---
 
@@ -621,6 +664,7 @@ Entity updates are **not** sent over UDP yet; CRC receives them via WebSocket in
 - [Milestone 3: Ground Operations](encapsulated-crunching-sutherland.md)
 - [Milestone 4: STARS Track Operations](track-operations.md)
 - [Milestone 5: Approach Control](milestone-5.md)
+- Milestone 5.5: STARS ARTCC Configuration Expansion — COMPLETE
 - [Milestone 9: Helicopter Operations](milestone-9.md)
 
 ---
