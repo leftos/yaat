@@ -21,3 +21,6 @@ tools/oak_layout_dump.json
 
 ## Environment variables
 .env
+
+## Deployment
+deploy-to-droplet.ps1
