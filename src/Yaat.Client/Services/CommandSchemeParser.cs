@@ -62,10 +62,7 @@ public static class CommandSchemeParser
         var upper = trimmed.ToUpperInvariant();
         if (!isCompound)
         {
-            isCompound =
-                upper.StartsWith("LV ")
-                || upper.StartsWith("AT ")
-                || upper.StartsWith("ATFN ");
+            isCompound = upper.StartsWith("LV ") || upper.StartsWith("AT ") || upper.StartsWith("ATFN ");
 
             // GIVEWAY/BEHIND are compound only if they have 3+ tokens (condition form)
             if (!isCompound && (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ")))

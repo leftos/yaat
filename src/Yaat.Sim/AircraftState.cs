@@ -159,6 +159,14 @@ public class AircraftState
     // Conflict alert
     public bool IsCaInhibited { get; set; }
 
+    // Per-track STARS display state (shared across CRC scopes on same TCP)
+    public bool IsModeCInhibited { get; set; }
+    public bool IsMsawInhibited { get; set; }
+    public bool IsDuplicateBeaconInhibited { get; set; }
+    public int? TpaType { get; set; }
+    public int? GlobalLeaderDirection { get; set; }
+    public List<Tcp> ForcedPointoutsTo { get; set; } = [];
+
     // Sequence state
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }

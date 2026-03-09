@@ -77,7 +77,10 @@ public partial class CommandInputController : ObservableObject
                 var atPrefix = FixSuggester.GetTextBeforeLastWord(text);
                 FixSuggester.AddFixSuggestions(atArg, atPrefix, selectedAircraft, Suggestions, FixDb, MaxSuggestions);
             }
-            else if (string.Equals(conditionVerb, "GIVEWAY", StringComparison.OrdinalIgnoreCase) || string.Equals(conditionVerb, "BEHIND", StringComparison.OrdinalIgnoreCase))
+            else if (
+                string.Equals(conditionVerb, "GIVEWAY", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(conditionVerb, "BEHIND", StringComparison.OrdinalIgnoreCase)
+            )
             {
                 // For GIVEWAY/BEHIND conditions, suggest callsigns
                 var callsignArg = GetConditionArgFragment(fragment, isGiveWay: true);

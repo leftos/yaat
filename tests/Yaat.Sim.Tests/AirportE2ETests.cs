@@ -1121,8 +1121,7 @@ public class AirportE2ETests
 
         // Find a node on M1 (not at a multi-taxiway junction)
         var m1Node = layout.Nodes.Values.FirstOrDefault(n =>
-            n.Edges.Any(e => string.Equals(e.TaxiwayName, "M1", StringComparison.OrdinalIgnoreCase))
-            && n.Type == GroundNodeType.TaxiwayIntersection
+            n.Edges.Any(e => string.Equals(e.TaxiwayName, "M1", StringComparison.OrdinalIgnoreCase)) && n.Type == GroundNodeType.TaxiwayIntersection
         );
         Assert.NotNull(m1Node);
 

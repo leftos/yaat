@@ -501,11 +501,7 @@ public static class FlightPhysics
         }
 
         // Check if give-way condition is met (target has passed)
-        var trigger = new BlockTrigger
-        {
-            Type = BlockTriggerType.GiveWay,
-            TargetCallsign = aircraft.GiveWayTarget,
-        };
+        var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = aircraft.GiveWayTarget };
 
         if (IsGiveWayMet(aircraft, trigger, aircraftLookup))
         {
