@@ -14,7 +14,7 @@ src/Yaat.Sim/       Shared simulation library (no UI dependencies)
 tests/              Unit tests for both projects
 ```
 
-`Yaat.Sim` is shared between this repo and yaat-server. Changes to simulation logic here are picked up by yaat-server on its next build (sibling directory reference).
+`Yaat.Sim` is shared between this repo and yaat-server. Changes to simulation logic here are picked up by yaat-server on its next build (sibling directory reference). If you're also working in yaat-server, make sure to [set up its git hooks](https://github.com/leftos/yaat-server/blob/master/CONTRIBUTING.md#git-hooks) so the submodule pin stays in sync.
 
 ## Building
 

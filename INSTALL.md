@@ -97,6 +97,13 @@ This creates two folders: `C:\dev\yaat` and `C:\dev\yaat-server`.
 
 **Important:** Both folders must be side by side in the same parent directory. The server references shared code from the client repo, so they need to be next to each other.
 
+4. Set up git hooks in yaat-server (keeps the `Yaat.Sim` submodule pin in sync automatically):
+
+```powershell
+cd C:\dev\yaat-server
+git config core.hooksPath .githooks
+```
+
 ## Step 4: Build and Run
 
 ### Option A: Use the Start Script (Recommended)
