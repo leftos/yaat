@@ -95,40 +95,38 @@ public class ConflictAlertDetectorTests
     }
 
     // -------------------------------------------------------------------------
-    // Convergence check
+    // Current-only detection (no prediction)
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void Diverging_Within_Threshold_NotDetected()
+    public void Diverging_Within_Threshold_StillDetected()
     {
         // Two aircraft 2.5nm apart, same altitude, flying AWAY from each other
+        // CA only checks current separation — direction doesn't matter
         var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250);
         var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.5), altitude: 5000, heading: 90, groundSpeed: 250);
 
         var result = ConflictAlertDetector.Detect([a, b]);
 
-        // Currently within 3nm threshold but diverging — predicted separation > current
-        // Still detected because current separation already violates
         Assert.Single(result);
     }
 
     [Fact]
-    public void FarApart_Converging_PredictedViolation_Detected()
+    public void JustOutsideThreshold_NotDetected_EvenIfConverging()
     {
-        // Two aircraft 3.1nm apart (just outside threshold) but converging fast
-        // At 500kts combined closure, 5s lookahead = 0.69nm closer → 2.41nm < 3nm
+        // 3.1nm apart (outside 3nm threshold) and converging — no prediction, so no alert
         var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 90, groundSpeed: 300);
         var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.1), altitude: 5000, heading: 270, groundSpeed: 300);
 
         var result = ConflictAlertDetector.Detect([a, b]);
 
-        Assert.Single(result);
+        Assert.Empty(result);
     }
 
     [Fact]
-    public void FarApart_Diverging_NoPredictedViolation_NotDetected()
+    public void FarApart_SameAltitude_NotDetected()
     {
-        // 4nm apart, diverging — no violation now or predicted
+        // 4nm apart at same altitude — no conflict
         var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250);
         var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), altitude: 5000, heading: 90, groundSpeed: 250);
 
@@ -164,7 +162,7 @@ public class ConflictAlertDetectorTests
     [Fact]
     public void Hysteresis_ExistingConflict_ClearsWhenBothDimensionsExceed()
     {
-        // 3.5nm apart AND 1200ft vertical — both exceed hysteresis thresholds
+        // 3.5nm apart AND 1200ft vertical — both exceed hysteresis thresholds → clears
         var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000);
         var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.5), altitude: 6200);
 
@@ -177,9 +175,10 @@ public class ConflictAlertDetectorTests
     }
 
     [Fact]
-    public void Hysteresis_ExistingConflict_RemainsWhenVerticalStillClose()
+    public void Hysteresis_ExistingConflict_ClearsWhenHorizontalExceeds()
     {
         // 3.5nm apart (exceeds horizontal hysteresis) but only 900ft vertical (within vertical hysteresis)
+        // Either dimension exceeding hysteresis clears the alert
         var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000);
         var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(3.5), altitude: 5900);
 
@@ -188,7 +187,23 @@ public class ConflictAlertDetectorTests
 
         var result = ConflictAlertDetector.Detect([a, b], existing);
 
-        Assert.Single(result);
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Hysteresis_ExistingConflict_ClearsWhenVerticalExceeds()
+    {
+        // 2nm apart (within horizontal hysteresis) but 1200ft vertical (exceeds vertical hysteresis)
+        // Either dimension exceeding hysteresis clears the alert
+        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000);
+        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 6200);
+
+        string id = ConflictAlertDetector.MakeConflictId("AAL100", "UAL200");
+        var existing = new HashSet<string> { id };
+
+        var result = ConflictAlertDetector.Detect([a, b], existing);
+
+        Assert.Empty(result);
     }
 
     // -------------------------------------------------------------------------
@@ -313,63 +328,31 @@ public class ConflictAlertDetectorTests
     }
 
     // -------------------------------------------------------------------------
-    // Vertical dynamics: climbing away / descending into
+    // Current-only: vertical speed is irrelevant
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void ClimbingAway_VerticalSeparationIncreasing_NotDetected()
+    public void CurrentViolation_DetectedRegardlessOfVerticalSpeed()
     {
-        // Aircraft at same position, 800ft apart (within threshold), but climbing apart
-        var a = MakeAircraft("AAL100", altitude: 5000, verticalSpeed: 2000); // climbing
-        var b = MakeAircraft("UAL200", altitude: 4200, verticalSpeed: -1000); // descending away
+        // 800ft apart (within threshold) — detected even though climbing apart
+        var a = MakeAircraft("AAL100", altitude: 5000, verticalSpeed: 2000);
+        var b = MakeAircraft("UAL200", altitude: 4200, verticalSpeed: -1000);
 
-        // After 5s lookahead: a at 5167ft, b at 4117ft → 1050ft apart (> 1000ft)
-        // Current: 800ft apart (violation), but predicted shows increasing separation
         var result = ConflictAlertDetector.Detect([a, b]);
 
-        // Current violation still triggers (800 < 1000), so conflict detected
         Assert.Single(result);
     }
 
     [Fact]
-    public void DescendingInto_SamePosition_PredictedViolation()
+    public void VerticalSeparated_NotDetected_EvenIfDescendingToward()
     {
-        // Aircraft at same horizontal position, 1100ft apart (just outside threshold)
-        // but descending toward each other
+        // 1100ft apart (outside threshold) — not detected even though converging vertically
         var a = MakeAircraft("AAL100", altitude: 6100, verticalSpeed: -2000);
         var b = MakeAircraft("UAL200", altitude: 5000, verticalSpeed: 0);
 
-        // After 5s: a at 5933ft, b at 5000 → 933ft apart (< 1000ft)
         var result = ConflictAlertDetector.Detect([a, b]);
 
-        Assert.Single(result);
-    }
-
-    [Fact]
-    public void ClimbingAway_BeyondCurrentThreshold_NoPredictedViolation()
-    {
-        // 4nm apart horizontally (beyond threshold), same alt but flying apart + climbing apart
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 5000, heading: 270, groundSpeed: 250, verticalSpeed: 2000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(4.0), altitude: 5000, heading: 90, groundSpeed: 250, verticalSpeed: -2000);
-
-        var result = ConflictAlertDetector.Detect([a, b]);
-
-        // Diverging both horizontally and vertically — no conflict
         Assert.Empty(result);
-    }
-
-    [Fact]
-    public void DescendingInto_ConvergingVerticallyOnly_WithinHorizontal()
-    {
-        // 2nm apart, 1100ft apart vertically (barely separated)
-        // One descending into the other
-        var a = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 6100, heading: 90, groundSpeed: 250, verticalSpeed: -3000);
-        var b = MakeAircraft("UAL200", BaseLat, BaseLon + LonOffsetForNm(2.0), altitude: 5000, heading: 90, groundSpeed: 250, verticalSpeed: 0);
-
-        // After 5s: a at 5850ft → 850ft separation < 1000ft
-        var result = ConflictAlertDetector.Detect([a, b]);
-
-        Assert.Single(result);
     }
 
     // -------------------------------------------------------------------------

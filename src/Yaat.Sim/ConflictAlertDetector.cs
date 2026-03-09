@@ -5,7 +5,7 @@ namespace Yaat.Sim;
 /// <summary>
 /// Stateless STARS-style Conflict Alert (CA) detection.
 /// Called once per tick after physics. Reports pairs of airborne aircraft
-/// that are predicted to violate separation thresholds.
+/// that currently violate separation thresholds.
 /// </summary>
 public static class ConflictAlertDetector
 {
@@ -17,22 +17,15 @@ public static class ConflictAlertDetector
     private const double HysteresisHorizontalNm = 3.3;
     private const double HysteresisVerticalFt = 1100;
 
-    // Linear extrapolation lookahead
-    private const double LookaheadSeconds = 5.0;
-
     // Final approach suppression zone
     private const double ApproachZoneHalfWidthNm = 2.0;
     private const double ApproachZoneLengthNm = 30.0;
     private const double ApproachZoneCeilingAboveGsFt = 1500;
 
-    // Speed conversions
-    private const double KnotsToNmPerSecond = 1.0 / 3600.0;
-    private const double FpmToFps = 1.0 / 60.0;
-
     public record ConflictPair(string CallsignA, string CallsignB, string Id);
 
     /// <summary>
-    /// Detect pairs of aircraft in or approaching a separation conflict.
+    /// Detect pairs of aircraft currently in a separation conflict.
     /// Pass <paramref name="existingConflictIds"/> to enable hysteresis
     /// (existing alerts use wider thresholds to clear).
     /// </summary>
@@ -100,40 +93,12 @@ public static class ConflictAlertDetector
 
         if (alreadyInConflict)
         {
-            // Hysteresis: existing conflict clears only when BOTH dimensions exceed thresholds
-            return currentHorizontal < HysteresisHorizontalNm || currentVertical < HysteresisVerticalFt;
+            // Hysteresis: clears when either dimension exceeds its hysteresis threshold
+            return currentHorizontal < HysteresisHorizontalNm && currentVertical < HysteresisVerticalFt;
         }
 
-        // New conflict: check current separation
-        bool currentViolation = currentHorizontal < HorizontalNm && currentVertical < VerticalFt;
-
-        // Check predicted separation (linear extrapolation)
-        var (predHorizontal, predVertical) = PredictSeparation(a, b);
-        bool predictedViolation = predHorizontal < HorizontalNm && predVertical < VerticalFt;
-
-        // Convergence check: predicted separation must be ≤ current (they're getting closer)
-        bool converging = predHorizontal <= currentHorizontal || predVertical <= currentVertical;
-
-        return currentViolation || (predictedViolation && converging);
-    }
-
-    private static (double Horizontal, double Vertical) PredictSeparation(AircraftState a, AircraftState b)
-    {
-        var (aLat, aLon, aAlt) = Extrapolate(a);
-        var (bLat, bLon, bAlt) = Extrapolate(b);
-
-        double horizontal = GeoMath.DistanceNm(aLat, aLon, bLat, bLon);
-        double vertical = Math.Abs(aAlt - bAlt);
-
-        return (horizontal, vertical);
-    }
-
-    private static (double Lat, double Lon, double Alt) Extrapolate(AircraftState ac)
-    {
-        double distNm = ac.GroundSpeed * KnotsToNmPerSecond * LookaheadSeconds;
-        var (lat, lon) = GeoMath.ProjectPoint(ac.Latitude, ac.Longitude, ac.Track, distNm);
-        double alt = ac.Altitude + ac.VerticalSpeed * FpmToFps * LookaheadSeconds;
-        return (lat, lon, alt);
+        // Current separation violation: both dimensions must be within thresholds
+        return currentHorizontal < HorizontalNm && currentVertical < VerticalFt;
     }
 
     private static bool IsSuppressedByApproachZone(AircraftState a, AircraftState b)
