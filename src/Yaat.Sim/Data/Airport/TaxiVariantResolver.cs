@@ -45,6 +45,7 @@ internal static class TaxiVariantResolver
         // Find hold-short nodes for the destination runway
         var variants = new List<(GroundNode HsNode, string VariantName)>();
         var nonVariantConnectors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var sameNameHoldShorts = new List<GroundNode>();
 
         foreach (var node in layout.Nodes.Values)
         {
@@ -64,6 +65,10 @@ internal static class TaxiVariantResolver
 
                 if (string.Equals(edgeName, lastTaxiwayName, StringComparison.OrdinalIgnoreCase))
                 {
+                    // The last taxiway reaches this hold-short, but the walk
+                    // may have gone the wrong direction at a fork. Track it so
+                    // we can A* extend if needed.
+                    sameNameHoldShorts.Add(node);
                     continue;
                 }
 
@@ -91,6 +96,18 @@ internal static class TaxiVariantResolver
                 destinationRunway,
                 ref currentNodeId
             );
+        }
+
+        // The walk went the wrong direction at a fork — the last taxiway does
+        // reach the destination runway hold-short, but the walker missed it.
+        // A* extend from the current endpoint to the nearest reachable hold-short.
+        if (sameNameHoldShorts.Count > 0)
+        {
+            bool extended = ExtendToSameNameHoldShort(layout, segments, sameNameHoldShorts, ref currentNodeId);
+            if (extended)
+            {
+                return true;
+            }
         }
 
         if (nonVariantConnectors.Count > 0)
@@ -254,5 +271,46 @@ internal static class TaxiVariantResolver
         }
 
         return bestName;
+    }
+
+    /// <summary>
+    /// Extends the route via A* from the current endpoint to the nearest
+    /// hold-short node that the last taxiway reaches but the walk missed
+    /// (wrong fork at a junction).
+    /// </summary>
+    private static bool ExtendToSameNameHoldShort(
+        AirportGroundLayout layout,
+        List<TaxiRouteSegment> segments,
+        List<GroundNode> holdShortNodes,
+        ref int currentNodeId
+    )
+    {
+        // Try each hold-short, pick the one with the shortest A* route
+        TaxiRoute? bestRoute = null;
+        int bestHsId = -1;
+
+        foreach (var hs in holdShortNodes)
+        {
+            var route = TaxiPathfinder.FindRoute(layout, currentNodeId, hs.Id);
+            if (route is null)
+            {
+                continue;
+            }
+
+            if (bestRoute is null || route.Segments.Count < bestRoute.Segments.Count)
+            {
+                bestRoute = route;
+                bestHsId = hs.Id;
+            }
+        }
+
+        if (bestRoute is null)
+        {
+            return false;
+        }
+
+        segments.AddRange(bestRoute.Segments);
+        currentNodeId = bestHsId;
+        return true;
     }
 }

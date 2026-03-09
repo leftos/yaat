@@ -1037,6 +1037,123 @@ public class AirportE2ETests
         Assert.IsType<TaxiingPhase>(ac.Phases.CurrentPhase);
     }
 
+    // -------------------------------------------------------------------------
+    // SFO E2E: Issue #39 — taxiways not detected as connecting to runway 28R
+    //
+    // `TAXI C E 28R HS E` fails with "specify connecting taxiway" because
+    // taxiway E has no hold-short node for runway 28R. The error lists
+    // taxiways that DO connect (C, C2, C3, D, K, L, N, P, Q, R, S1, S2, T)
+    // but E is missing.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void SFO_TaxiCE_ToRunway28R_ShouldSucceed()
+    {
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Find a C-only node (not at C/E junction) to simulate a realistic start
+        var cOnlyNode = layout.Nodes.Values.FirstOrDefault(n =>
+            n.Edges.Any(e => string.Equals(e.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase))
+            && !n.Edges.Any(e => string.Equals(e.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase))
+            && n.Type == GroundNodeType.TaxiwayIntersection
+        );
+        Assert.NotNull(cOnlyNode);
+
+        var ac = MakeGroundAircraft("SFO", cOnlyNode.Latitude, cOnlyNode.Longitude);
+
+        // TAXI C E 28R — should find a route from C via E to runway 28R
+        var taxi = new TaxiCommand(["C", "E"], [], DestinationRunway: "28R");
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null, Logger);
+
+        Assert.True(result.Success, $"TAXI C E 28R should succeed: {result.Message}");
+    }
+
+    [Fact]
+    public void SFO_TaxiwayE_HasHoldShortFor28R()
+    {
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Find all hold-short nodes for 28R/10L
+        var hs28R = layout
+            .Nodes.Values.Where(n =>
+                n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } rId && (rId.Contains("28R") || rId.Contains("10L"))
+            )
+            .ToList();
+
+        Assert.True(hs28R.Count > 0, "SFO should have hold-short nodes for 28R/10L");
+
+        // Collect all taxiways that connect to 28R hold-short nodes
+        var connectingTaxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var hs in hs28R)
+        {
+            foreach (var edge in hs.Edges)
+            {
+                if (!edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    connectingTaxiways.Add(edge.TaxiwayName);
+                }
+            }
+        }
+
+        // Taxiway E should be among them
+        Assert.True(
+            connectingTaxiways.Contains("E"),
+            $"Taxiway E should connect to a 28R hold-short. Connected taxiways: [{string.Join(", ", connectingTaxiways.Order())}]"
+        );
+    }
+
+    [Fact]
+    public void SFO_TaxiwayE_WalkMisses28R_FixedByVariantResolver()
+    {
+        // Documents that WalkTaxiway on E from the C/E junction goes west
+        // (crossing 1L/19R and 1R/19L) and misses the eastern 28R hold-shorts.
+        // TaxiVariantResolver.ExtendToSameNameHoldShort fixes this by A*
+        // extending from the walk endpoint to the 28R hold-short.
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var ceJunction = layout.Nodes.Values.FirstOrDefault(n =>
+            n.Edges.Any(e => string.Equals(e.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase))
+            && n.Edges.Any(e => string.Equals(e.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase))
+        );
+        Assert.NotNull(ceJunction);
+
+        // Walk E — goes west, misses 28R hold-shorts
+        var segments = new List<TaxiRouteSegment>();
+        bool walked = TaxiPathfinder.WalkTaxiway(layout, ceJunction.Id, "E", segments, out _);
+        Assert.True(walked, "Should be able to walk E from C/E junction");
+
+        // Verify the walk does NOT pass through 28R hold-short (the root cause)
+        bool passedHs28R = segments.Any(seg =>
+        {
+            var toNode = layout.Nodes[seg.ToNodeId];
+            return toNode.Type == GroundNodeType.RunwayHoldShort && toNode.RunwayId is { } rId && (rId.Contains("28R") || rId.Contains("10L"));
+        });
+        Assert.False(passedHs28R, "Walk should miss 28R (goes west instead of east)");
+
+        // But 28R hold-short nodes with E edges DO exist
+        var hs28RWithE = layout
+            .Nodes.Values.Where(n =>
+                n.Type == GroundNodeType.RunwayHoldShort
+                && n.RunwayId is { } rId
+                && (rId.Contains("28R") || rId.Contains("10L"))
+                && n.Edges.Any(e => string.Equals(e.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase))
+            )
+            .ToList();
+        Assert.True(hs28RWithE.Count > 0, "28R hold-shorts with E edges should exist");
+    }
+
     /// <summary>
     /// Move aircraft position based on current heading and ground speed.
     /// Replaces FlightPhysics.Update() for ground-only E2E tests.
