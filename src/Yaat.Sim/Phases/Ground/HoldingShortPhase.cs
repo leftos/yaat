@@ -73,6 +73,9 @@ public sealed class HoldingShortPhase : Phase
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedTakeoffPresent => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.HoldShort => CommandAcceptance.Allowed,
+            CanonicalCommandType.Resume => _holdShort.Reason == HoldShortReason.ExplicitHoldShort
+                ? CommandAcceptance.ClearsPhase
+                : CommandAcceptance.Rejected,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };

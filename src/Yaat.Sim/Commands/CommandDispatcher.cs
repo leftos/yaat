@@ -1158,6 +1158,10 @@ public static class CommandDispatcher
                 aircraft.IsHeld = false;
                 return Ok("Resume taxi");
 
+            case ResumeCommand when currentPhase is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort } holdShort:
+                holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
+                return Ok("Resume taxi");
+
             // Helicopter commands
             case AirTaxiCommand atxi:
                 return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, groundLayout, logger);

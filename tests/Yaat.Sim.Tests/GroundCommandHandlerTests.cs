@@ -466,6 +466,68 @@ public class GroundCommandHandlerTests
         Assert.False(result.Success);
     }
 
+    [Fact]
+    public void Resume_ClearsExplicitHoldShortPhase()
+    {
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = true;
+
+        var holdShort = new HoldShortPoint
+        {
+            NodeId = 1,
+            Reason = HoldShortReason.ExplicitHoldShort,
+            TargetName = "E",
+        };
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new HoldingShortPhase(holdShort));
+        var ctx = new Phases.PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Logger = Logger,
+        };
+        ac.Phases.Start(ctx);
+
+        Assert.IsType<HoldingShortPhase>(ac.Phases.CurrentPhase);
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand()])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, Logger, new Random(42));
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+    }
+
+    [Fact]
+    public void Resume_DoesNotClearRunwayCrossingHoldShortPhase()
+    {
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = true;
+
+        var holdShort = new HoldShortPoint
+        {
+            NodeId = 1,
+            Reason = HoldShortReason.RunwayCrossing,
+            TargetName = "28R",
+        };
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new HoldingShortPhase(holdShort));
+        var ctx = new Phases.PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Logger = Logger,
+        };
+        ac.Phases.Start(ctx);
+
+        var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand()])]);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, Logger, new Random(42));
+
+        Assert.False(result.Success);
+    }
+
     // -------------------------------------------------------------------------
     // TryAssignRunway
     // -------------------------------------------------------------------------
