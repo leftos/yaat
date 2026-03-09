@@ -392,7 +392,7 @@ TowerCab:  show when within 20nm of subscribed airport AND altitude <= field_ele
 **Impact on M2:** OnRunway aircraft and aircraft in ground phases (takeoff roll, landing rollout, touch-and-go) will not appear in CRC until we implement TowerCab and ASDEX DTO support. This is a blocking issue for tower training realism — the controller needs to see aircraft on the runway.
 
 **Reference code:**
-- C# DTO definitions: `X:\dev\towercab-3d-vnas\docs\repos\messaging-master\Entities\` (TowerCabAircraftDto.cs, AsdexTargetDto.cs, AsdexTrackDto.cs, AsdexTrackStatus.cs)
+- C# DTO definitions: `X:\dev\vatsim-vnas\messaging\Entities\` (TowerCabAircraftDto.cs, AsdexTargetDto.cs, AsdexTrackDto.cs, AsdexTrackStatus.cs)
 - Rust DTO definitions: `vatsim-server-rs/crates/messaging/src/dtos.rs` lines 434-766
 - ASDEX visibility logic: `vatsim-server-rs/crates/server/src/clientstate/updates.rs`
 

@@ -1,7 +1,7 @@
 # CRC Protocol Support
 
 Status of yaat-server's support for the CRC WebSocket hub protocol.
-Authoritative interface definitions: `X:\dev\towercab-3d-vnas\docs\repos\messaging-master\`
+Authoritative interface definitions: `X:\dev\vatsim-vnas\messaging\`
 
 > **vatsim-server-rs is read-only.** Its stubs don't mean a feature isn't needed — YAAT needs
 > full two-way interaction. Evaluate mutation-capable methods against vNAS messaging/data interfaces.

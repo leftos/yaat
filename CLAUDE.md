@@ -391,10 +391,10 @@ YAAT Client ──SignalR JSON──> yaat-server <──SignalR+MessagePack─�
 
 > **vatsim-server-rs is a read-only emulation server.** It was designed to feed CRC with data, not to accept mutations. Many CRC→server methods (CreateFlightPlan, AmendFlightPlan, track operations, etc.) are stubbed with nil-ack responses because the Rust server never needed to implement them. YAAT's server needs full two-way interaction — students and RPOs create flight plans, amend them, drop tracks, etc. Use vatsim-server-rs as reference for wire format, DTO field ordering, and subscription/broadcast patterns, but evaluate feature needs independently. For mutation-capable methods, use the vNAS messaging-master interfaces and data-master models as the authoritative reference instead.
 
-**vNAS source reference** (`X:\dev\towercab-3d-vnas\docs\repos\`):
-- **common-master** — `GeoCalc`, `NavCalc`, `GeoPoint`, etc.
-- **data-master** — Navigation, scenarios, aircraft specs, facility config models
-- **messaging-master** — CRC hub DTOs/commands/topics (definitive reference)
+**vNAS source reference** (`X:\dev\vatsim-vnas\`):
+- **common** — `GeoCalc`, `NavCalc`, `GeoPoint`, etc.
+- **data** — Navigation, scenarios, aircraft specs, facility config models
+- **messaging** — CRC hub DTOs/commands/topics (definitive reference)
 
 **vNAS APIs:**
 - Config: `https://configuration.vnas.vatsim.net/` (serials, URLs, environment endpoints)
