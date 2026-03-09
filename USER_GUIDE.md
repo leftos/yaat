@@ -280,6 +280,8 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 
 The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 270` or `H270` maps to Fly Heading. Similarly, `T` is shared: `T30L` is relative left 30°, `T30R` is relative right 30°.
 
+#### Heading
+
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Fly heading | `FH 270` | `H` | `FH270`, `H270` |
@@ -288,6 +290,11 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Relative left | `LT 30` | `T` | `T30L` |
 | Relative right | `RT 30` | `T` | `T30R` |
 | Fly present heading | `FPH` | `FCH`, `H` | — |
+
+#### Altitude / Speed
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Climb and maintain | `CM 240` | `C` | `CM240`, `C240` |
 | Descend and maintain | `DM 050` | `D` | `DM050`, `D050` |
 | Speed | `SPD 250` | `S`, `SLOW`, `SL`, `SPEED` | `SPD250`, `S250` |
@@ -295,6 +302,11 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Speed ceiling | `SPD 210-` | — | — |
 | Resume normal speed | `RNS` | `NS` | — |
 | Delete speed restrictions | `DSR` | — | — |
+
+#### Squawk / Transponder
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Squawk | `SQ 4521` | `SQUAWK` | `SQ4521` |
 | Squawk (reset) | `SQ` | — | — |
 | Squawk VFR | `SQVFR` | `SQV` | — |
@@ -302,10 +314,20 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Squawk standby | `SQSBY` | `SS`, `SQS` | — |
 | Ident | `IDENT` | `ID`, `SQI`, `SQID` | — |
 | Random squawk | `RANDSQ` | — | — |
+
+#### Navigation
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Direct to fix | `DCT SUNOL` | — | — |
 | Force direct to | `DCTF SJC` | — | — |
 | Append direct to | `ADCT SUNOL` | — | — |
 | Append force DCT | `ADCTF SUNOL` | — | — |
+
+#### Ground
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Pushback | `PUSH` | — | — |
 | Taxi | `TAXI S T U` | — | — |
 | Hold position | `HOLD` | `HP` | — |
@@ -314,6 +336,11 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Hold short | `HS B` | — | — |
 | Follow | `FOLLOW SWA123` | `FOL` | — |
 | Give way | `GIVEWAY SWA123` | `BEHIND` | — |
+
+#### Approach / Procedures
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Cleared approach | `CAPP ILS28R` | — | — |
 | Join approach | `JAPP ILS28R` | — | — |
 | Straight-in apch | `CAPPSI ILS28R` | `JAPPSI` | — |
@@ -333,6 +360,11 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Report field | `RFIS` | — | — |
 | Report traffic | `RTIS` | — | — |
 | List approaches | `APPS` | `APPS OAK` | — |
+
+#### Tower
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Line up and wait | `LUAW` | `POS`, `LU`, `PH` | — |
 | Cleared for takeoff | `CTO` | — | — |
 | Cancel takeoff | `CTOC` | — | — |
@@ -344,6 +376,11 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Low approach | `LA` | — | — |
 | Cleared for option | `COPT` | — | — |
 | Landing sequence | `SEQ 2 UAL123` | — | — |
+
+#### Pattern
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Enter L downwind | `ELD` | — | — |
 | Enter R downwind | `ERD` | — | — |
 | Enter L base | `ELB` | — | — |
@@ -361,6 +398,11 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Left 270 | `L270` | — | — |
 | Right 270 | `R270` | — | — |
 | Circle airport | `CA` | `CIRCLE` | — |
+
+#### Track Operations
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Track | `TRACK` | — | — |
 | Drop | `DROP` | — | — |
 | Handoff | `HO 3Y` | — | `HO3Y` |
@@ -371,16 +413,31 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Handoff all | `HOALL 3Y` | — | — |
 | Pointout | `PO 3Y` | — | — |
 | Acknowledge | `OK` | — | — |
+
+#### Data Operations
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Annotate | `ANNOTATE` | `AN`, `BOX` | — |
 | Scratchpad 1 | `SP1 OAK` | — | — |
 | Scratchpad 2 | `SP2 I8R` | — | — |
 | Temp altitude | `TEMPALT 120` | `TA`, `TEMP`, `QQ` | — |
 | Cruise | `CRUISE 240` | `QZ` | — |
 | On-handoff | `ONHO` | `ONH` | — |
+
+#### Consolidation
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Active position | `AS 2B` | — | — |
 | Consolidate | `CON 1T 1F` | — | — |
 | Consolidate full | `CON+ 1T 1F` | — | — |
 | Deconsolidate | `DECON 1F` | — | — |
+
+#### Sim Control
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
 | Pause | `PAUSE` | `P` | — |
 | Unpause | `UNPAUSE` | `U`, `UN`, `UNP`, `UP` | — |
 | Sim rate | `SIMRATE 2` | — | — |
@@ -429,6 +486,9 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 |---------|--------|
 | `PUSH` | Push back from parking (reverse at ~5 kts) |
 | `PUSH 270` | Push back facing heading 270 |
+| `PUSH A` | Push back onto taxiway A |
+| `PUSH TE 180` | Push back onto taxiway TE, facing heading 180 |
+| `PUSH TE T` | Push back onto taxiway TE, facing toward taxiway T |
 | `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1 |
 | `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
 | `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |
