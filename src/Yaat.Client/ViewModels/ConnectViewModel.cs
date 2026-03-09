@@ -33,7 +33,8 @@ public partial class ConnectViewModel : ObservableObject
         string lastUsedUrl,
         Func<string, CancellationToken, Task<bool>> connectAction,
         Action<IList<SavedServer>, string> saveAction,
-        Action closeAction)
+        Action closeAction
+    )
     {
         Servers = new ObservableCollection<SavedServer>(servers);
         _connectAction = connectAction;
@@ -43,13 +44,17 @@ public partial class ConnectViewModel : ObservableObject
 
         // Subscribe to property changes on existing servers
         foreach (var server in Servers)
+        {
             server.PropertyChanged += OnServerPropertyChanged;
+        }
     }
 
     private void OnServerPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(SavedServer.Name) or nameof(SavedServer.Url))
+        {
             SaveServers();
+        }
     }
 
     [RelayCommand]
@@ -66,7 +71,10 @@ public partial class ConnectViewModel : ObservableObject
     private void RemoveServer()
     {
         if (SelectedServer is null)
+        {
             return;
+        }
+
         int idx = Servers.IndexOf(SelectedServer);
         SelectedServer.PropertyChanged -= OnServerPropertyChanged;
         Servers.Remove(SelectedServer);
@@ -80,16 +88,25 @@ public partial class ConnectViewModel : ObservableObject
     private void MoveUp()
     {
         if (SelectedServer is null)
+        {
             return;
+        }
+
         int idx = Servers.IndexOf(SelectedServer);
         if (idx <= 0)
+        {
             return;
+        }
+
         var items = Servers.ToList();
         items.RemoveAt(idx);
         items.Insert(idx - 1, SelectedServer);
         Servers.Clear();
         foreach (var item in items)
+        {
             Servers.Add(item);
+        }
+
         MoveUpCommand.NotifyCanExecuteChanged();
         MoveDownCommand.NotifyCanExecuteChanged();
         SaveServers();
@@ -101,23 +118,31 @@ public partial class ConnectViewModel : ObservableObject
     private void MoveDown()
     {
         if (SelectedServer is null)
+        {
             return;
+        }
+
         int idx = Servers.IndexOf(SelectedServer);
         if (idx < 0 || idx >= Servers.Count - 1)
+        {
             return;
+        }
+
         var items = Servers.ToList();
         items.RemoveAt(idx);
         items.Insert(idx + 1, SelectedServer);
         Servers.Clear();
         foreach (var item in items)
+        {
             Servers.Add(item);
+        }
+
         MoveUpCommand.NotifyCanExecuteChanged();
         MoveDownCommand.NotifyCanExecuteChanged();
         SaveServers();
     }
 
-    private bool CanMoveDown() =>
-        SelectedServer is not null && Servers.IndexOf(SelectedServer) < Servers.Count - 1;
+    private bool CanMoveDown() => SelectedServer is not null && Servers.IndexOf(SelectedServer) < Servers.Count - 1;
 
     private void SaveServers()
     {
@@ -128,7 +153,9 @@ public partial class ConnectViewModel : ObservableObject
     private async Task ConnectAsync()
     {
         if (SelectedServer is null)
+        {
             return;
+        }
 
         using var cts = new CancellationTokenSource();
         _currentCts = cts;
