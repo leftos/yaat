@@ -35,6 +35,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
   - [Holding Patterns](#holding-patterns)
   - [Hold Commands](#hold-commands)
   - [Track Operations](#track-operations)
+  - [Consolidation](#consolidation)
   - [Conditional Blocks](#conditional-blocks)
   - [Wait Commands](#wait-commands)
   - [Delayed Aircraft Commands](#delayed-aircraft-commands)
@@ -42,6 +43,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
   - [Global Commands](#global-commands)
   - [Force Override Commands](#force-override-commands)
   - [Warp Commands](#warp-commands)
+  - [Say Command](#say-command)
 - [Simulation Controls](#simulation-controls)
 - [Views](#views)
   - [Tabs and Pop-Out](#tabs-and-pop-out)
@@ -274,15 +276,17 @@ FH 270
 
 ### Command Reference
 
-YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and VICE. Commands are space-separated by default (e.g., `FH 270`), but numeric arguments can be written without a space when unambiguous (e.g., `FH270`, `H270`, `CM240`).
+YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and VICE. Commands are space-separated by default (e.g., `FH 270`), but numeric arguments can be written without a space when unambiguous (e.g., `FH270`, `H270`, `CM240`). This concatenation works for any verb with a numeric argument — not just the examples listed below.
+
+The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 270` or `H270` maps to Fly Heading. Similarly, `T` is shared: `T30L` is relative left 30°, `T30R` is relative right 30°.
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Fly heading | `FH 270` | `H` | `FH270`, `H270` |
 | Turn left | `TL 180` | `L` | `TL180`, `L180` |
 | Turn right | `TR 090` | `R` | `TR090`, `R090` |
-| Relative left | `LT 30` | `T30L` | — |
-| Relative right | `RT 30` | `T30R` | — |
+| Relative left | `LT 30` | `T` | `T30L` |
+| Relative right | `RT 30` | `T` | `T30R` |
 | Fly present heading | `FPH` | `FCH`, `H` | — |
 | Climb and maintain | `CM 240` | `C` | `CM240`, `C240` |
 | Descend and maintain | `DM 050` | `D` | `DM050`, `D050` |
@@ -299,6 +303,9 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 | Ident | `IDENT` | `ID`, `SQI`, `SQID` | — |
 | Random squawk | `RANDSQ` | — | — |
 | Direct to fix | `DCT SUNOL` | — | — |
+| Force direct to | `DCTF SJC` | — | — |
+| Append direct to | `ADCT SUNOL` | — | — |
+| Append force DCT | `ADCTF SUNOL` | — | — |
 | Pushback | `PUSH` | — | — |
 | Taxi | `TAXI S T U` | — | — |
 | Hold position | `HOLD` | `HP` | — |
@@ -306,26 +313,54 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 | Cross runway | `CROSS 28L` | — | — |
 | Hold short | `HS B` | — | — |
 | Follow | `FOLLOW SWA123` | `FOL` | — |
+| Give way | `GIVEWAY SWA123` | `BEHIND` | — |
 | Cleared approach | `CAPP ILS28R` | — | — |
 | Join approach | `JAPP ILS28R` | — | — |
 | Straight-in apch | `CAPPSI ILS28R` | `JAPPSI` | — |
 | Forced approach | `CAPPF ILS28R` | `JAPPF` | — |
 | Pos/Turn/Alt/Clr | `PTAC 280 025 ILS30` | — | — |
-| Join final | `JFAC ILS28R` | — | — |
-| Join arrival | `JARR OAK.SALI2` | — | — |
-| Join radial out | `JRADO SJC 150` | — | — |
-| Join radial in | `JRADI SJC 150` | — | — |
-| Cross fix alt | `CFIX A034` | — | — |
+| Join final | `JFAC ILS28R` | `JLOC`, `JF` | — |
+| Join arrival | `JARR OAK.SALI2` | `ARR`, `STAR`, `JSTAR` | — |
+| Join radial out | `JRADO SJC 150` | `JRAD` | — |
+| Join radial in | `JRADI SJC 150` | `JICRS` | — |
+| Cross fix | `CFIX SUNOL A034` | — | — |
 | Descend via | `DVIA` | — | — |
 | Climb via | `CVIA` | — | — |
-| Depart heading | `DEPART 270` | — | — |
-| Holding pattern | `HOLD SUNOL R 180 1M` | — | — |
+| Depart fix | `DEPART SUNOL 270` | `DEP` | — |
+| Holding pattern | `HOLDP SUNOL R 180 1M` | `HOLD` (with args) | — |
 | Expect approach | `EAPP I28R` | `EXPECT` | — |
 | Visual approach | `CVA 28R` | `VISUAL` | — |
 | Report field | `RFIS` | — | — |
-| Report traffic | `RTIS AAL123` | — | — |
-| Force direct to | `DCTF SJC` | — | — |
+| Report traffic | `RTIS` | — | — |
 | List approaches | `APPS` | `APPS OAK` | — |
+| Line up and wait | `LUAW` | `POS`, `LU`, `PH` | — |
+| Cleared for takeoff | `CTO` | — | — |
+| Cancel takeoff | `CTOC` | — | — |
+| Cleared to land | `CTL` | `FS` | — |
+| Cancel landing | `CLC` | `CTLC` | — |
+| Go around | `GA` | — | — |
+| Touch and go | `TG` | — | — |
+| Stop and go | `SG` | — | — |
+| Low approach | `LA` | — | — |
+| Cleared for option | `COPT` | — | — |
+| Landing sequence | `SEQ 2 UAL123` | — | — |
+| Enter L downwind | `ELD` | — | — |
+| Enter R downwind | `ERD` | — | — |
+| Enter L base | `ELB` | — | — |
+| Enter R base | `ERB` | — | — |
+| Enter final | `EF` | — | — |
+| Make L traffic | `MLT` | — | — |
+| Make R traffic | `MRT` | — | — |
+| Turn crosswind | `TC` | — | — |
+| Turn downwind | `TD` | — | — |
+| Turn base | `TB` | — | — |
+| Extend leg | `EXT` | — | — |
+| Short approach | `SA` | `MSA` | — |
+| Left 360 | `L360` | — | — |
+| Right 360 | `R360` | — | — |
+| Left 270 | `L270` | — | — |
+| Right 270 | `R270` | — | — |
+| Circle airport | `CA` | `CIRCLE` | — |
 | Track | `TRACK` | — | — |
 | Drop | `DROP` | — | — |
 | Handoff | `HO 3Y` | — | `HO3Y` |
@@ -343,7 +378,14 @@ YAAT uses a unified command scheme that accepts aliases from both ATCTrainer and
 | Cruise | `CRUISE 240` | `QZ` | — |
 | On-handoff | `ONHO` | `ONH` | — |
 | Active position | `AS 2B` | — | — |
+| Consolidate | `CON 1T 1F` | — | — |
+| Consolidate full | `CON+ 1T 1F` | — | — |
+| Deconsolidate | `DECON 1F` | — | — |
+| Pause | `PAUSE` | `P` | — |
+| Unpause | `UNPAUSE` | `U`, `UN`, `UNP`, `UP` | — |
+| Sim rate | `SIMRATE 2` | — | — |
 | Delete aircraft | `DEL` | `X` | — |
+| Say | `SAY text` | — | — |
 
 Aliases are fully editable in **Settings > Commands**.
 
@@ -403,6 +445,7 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 | `HS 28L` | Hold short at the next runway 28L crossing |
 | `RWY 30` | Assign runway 30 (override runway assignment without taxi) |
 | `FOLLOW SWA123` | Follow another aircraft on the ground |
+| `GIVEWAY SWA123` | Wait for SWA123 to pass before executing the next command (see [Conditional Blocks](#conditional-blocks)) |
 
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts.
 
@@ -433,7 +476,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 
 | Command | Effect |
 |---------|--------|
-| `LUAW` | Line up and wait — aircraft holds on runway |
+| `LUAW` / `POS` / `LU` / `PH` | Line up and wait — aircraft holds on runway |
 | `CTO` | Cleared for takeoff (default departure) |
 | `CTO 060` | Cleared for takeoff, fly heading 060 |
 | `CTO 060 250` | Cleared for takeoff, fly heading 060, climb and maintain 25,000 ft |
@@ -514,10 +557,18 @@ The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments
 | `EF` | Enter final (straight-in) |
 | `EF 28R` | Enter final, assign runway |
 | `MLT` / `MRT` | Make left/right traffic (sets pattern direction) |
+| `MLT 28R` / `MRT 28R` | Make left/right traffic for a specific runway (cross-runway pattern) |
 | `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg) |
 | `EXT` | Extend current pattern leg (upwind, crosswind, downwind, or base) |
+| `SA` / `MSA` | Make short approach (cut base turn short) |
+| `L360` / `R360` | Left/right 360° orbit in the pattern |
+| `L270` / `R270` | Left/right 270° turn |
+| `CA` / `CIRCLE` | Circle the airport |
+| `SEQ 2 UAL123` | Landing sequence: you are number 2, follow UAL123 |
 
 All pattern entry commands (ELB, ERB, ELD, ERD, EF) accept an optional runway argument that assigns or overrides the runway. ELB/ERB also accept an optional distance argument that controls how far from the threshold the final turn occurs (default is the standard pattern geometry).
+
+`SEQ` assigns a sequence number and optionally a traffic to follow. Use `SEQ 2 UAL123` to tell the aircraft "number 2, follow UAL123." The number-only form `SEQ 2` sets the sequence position without specifying traffic.
 
 ### Approach Options
 
@@ -547,13 +598,18 @@ Approach clearances use FAA CIFP procedure data. Approach IDs can be full CIFP i
 | `APPS` | List available approaches for the aircraft's destination airport |
 | `APPS OAK` | List available approaches at a specific airport |
 
-**Rich CAPP forms** combine approach clearance with navigation:
+`JFAC` also accepts aliases `JLOC` and `JF`.
+
+**Rich approach forms** — All approach commands (CAPP, JAPP, CAPPSI, JAPPSI, CAPPF, JAPPF) support rich forms that combine navigation with the clearance:
 
 | Command | Effect |
 |---------|--------|
 | `CAPP AT SUNOL ILS28R` | Navigate to fix SUNOL, then fly the ILS 28R |
 | `CAPP DCT SUNOL ILS28R` | Direct to SUNOL, then fly the ILS 28R |
 | `CAPP DCT SUNOL CFIX A034 ILS28R` | Direct to SUNOL, cross at or above 3,400, then ILS 28R |
+| `JAPP AT SUNOL ILS28R` | Navigate to SUNOL, then join ILS 28R at nearest fix |
+| `JAPP DCT SUNOL ILS28R` | Direct to SUNOL, then join ILS 28R |
+| `CAPPSI DCT SUNOL ILS28R` | Direct to SUNOL, then cleared straight-in ILS 28R |
 
 **CFIX altitude prefixes:** `A034` = at or above 3,400, `B034` = at or below 3,400, `034` = at 3,400.
 
@@ -613,16 +669,29 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 | Command | Effect |
 |---------|--------|
 | `DCT SUNOL` | Direct to fix SUNOL |
+| `DCT SUNOL CEDES MYCOB` | Direct to multiple fixes in sequence |
+| `DCTF SJC` | Force direct to — bypasses route validation |
 | `ADCT SUNOL` | Append direct to — adds SUNOL to the end of the current route |
-| `JARR OAK.SALI2` | Join STAR: navigate to nearest fix on the SALI2 arrival into OAK (with CIFP altitude/speed constraints when available) |
+| `ADCTF SUNOL` | Append force direct to — appends without route validation |
+| `JARR OAK.SALI2` | Join STAR: navigate to nearest fix on the SALI2 arrival into OAK |
+| `JARR SALI2` | Join STAR by name (airport inferred from destination) |
+| `JARR SALI2 KENNO` | Join STAR via specific entry fix KENNO |
+| `JARR OAK.SALI2 KENNO` | Join STAR with both airport qualifier and entry fix |
 | `JRADO SJC 150` | Join radial outbound: fly to SJC VOR, then outbound on the 150° radial |
 | `JRADI SJC 150` | Join radial inbound: intercept and fly inbound on the 150° radial to SJC |
-| `CFIX A034` | Cross next fix at or above 3,400 ft (modifies current target altitude) |
+| `CFIX A034` | Cross next fix at or above 3,400 ft |
+| `CFIX SUNOL A034` | Cross specific fix SUNOL at or above 3,400 ft |
 | `DVIA` | Descend via STAR — enables altitude/speed constraint following on active STAR |
 | `DVIA 240` | Descend via STAR, except maintain FL240 (altitude floor) |
 | `CVIA` | Climb via SID — re-enables altitude/speed constraint following on active SID |
 | `CVIA 190` | Climb via SID, except maintain FL190 (altitude ceiling) |
-| `DEPART 270` | Depart heading 270 (sets heading after departure) |
+| `DEPART SUNOL 270` | Depart fix SUNOL on heading 270 |
+
+`JARR` also accepts aliases `ARR`, `STAR`, and `JSTAR`. `JRADO` also accepts `JRAD`. `JRADI` also accepts `JICRS`. `DEPART` also accepts `DEP`.
+
+JARR supports CIFP altitude/speed constraints when available. The airport prefix (`OAK.`) is optional — when omitted, the aircraft's destination airport is used. The entry fix specifies where to join the STAR; when omitted, the nearest fix ahead of the aircraft is used.
+
+CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for the next fix in the route, while `CFIX {fix} {altitude}` targets a specific named fix. Altitude prefixes: `A` = at or above, `B` = at or below, no prefix = at exactly.
 
 **SID/STAR via mode** — When CIFP procedure data is available, SID and STAR fixes carry published altitude and speed restrictions. Via mode controls whether the aircraft follows those restrictions:
 
@@ -660,11 +729,14 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 
 | Command | Effect |
 |---------|--------|
-| `HOLD SUNOL R 180 1M` | Hold at SUNOL, right turns, 180° inbound, 1-minute legs |
-| `HOLD SUNOL L 090 5` | Hold at SUNOL, left turns, 090° inbound, 5nm legs |
-| `HOLD SUNOL R 180` | Hold at SUNOL, right turns, 180° inbound (default 1-minute legs) |
+| `HOLDP SUNOL R 180 1M` | Hold at SUNOL, right turns, 180° inbound, 1-minute legs |
+| `HOLDP SUNOL L 090 5` | Hold at SUNOL, left turns, 090° inbound, 5nm legs |
+| `HOLDP SUNOL R 180` | Hold at SUNOL, right turns, 180° inbound (default 1-minute legs) |
+| `HOLD SUNOL R 180 1M` | Same as HOLDP (parser detects holding pattern from arguments) |
 
-Hold format: `HOLD {fix} {L/R} {inbound_course} {leg_length}`. Leg length ending in `M` is minutes; plain number is nautical miles. Any RPO command (heading, altitude, approach, etc.) exits the hold.
+Hold format: `HOLDP {fix} {L/R} {inbound_course} {leg_length}`. Leg length ending in `M` is minutes; plain number is nautical miles. Any RPO command (heading, altitude, approach, etc.) exits the hold.
+
+The explicit verb is `HOLDP`. However, `HOLD` followed by holding pattern arguments (fix name + L/R + course) is automatically recognized as a holding pattern rather than a ground hold-position command.
 
 ### Hold Commands
 
@@ -767,6 +839,18 @@ Two optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simpli
 
 Both settings default to off (standard behavior). They are synced to the server on scenario load and when settings are saved.
 
+### Consolidation
+
+Consolidation commands manage STARS position consolidation, allowing one controller position to absorb responsibility for another position's airspace.
+
+| Command | Effect |
+|---------|--------|
+| `CON 1T 1F` | Consolidate positions 1T and 1F (1T absorbs 1F's airspace) |
+| `CON+ 1T 1F` | Full consolidation — includes all display settings and map groups |
+| `DECON 1F` | Deconsolidate position 1F (restore it as an independent position) |
+
+These are global commands — no aircraft selection is needed. TCP codes follow the same format as track operations (e.g., "2B" = subset 2, sector B).
+
 ### Conditional Blocks
 
 Use `LV` (level at altitude) and `AT` (at fix) to trigger blocks on specific conditions instead of waiting for the previous block:
@@ -866,6 +950,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 | At fix | `ADD {rules} {weight} {engine} @{fix} {alt}` | `ADD IFR L J @SUNOL 8000` |
 | Lined up on runway | `ADD {rules} {weight} {engine} {runway}` | `ADD VFR S P 28R` |
 | On final | `ADD {rules} {weight} {engine} {runway} {dist}` | `ADD IFR L J 28R 8` |
+| At parking/helipad | `ADD {rules} {weight} {engine} %{spot}` | `ADD VFR S P %H1 H60` |
 
 **Parameters:**
 
@@ -880,6 +965,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 - **At fix**: `@{fix}` is a fix name or FRD (fix-radial-distance, e.g., `SJC090015`), `{alt}` is altitude in feet. Aircraft spawns at the fix heading toward the primary airport.
 - **Lined up**: `{runway}` is the runway designator (e.g., `28R`). Aircraft spawns on the runway threshold, ready for takeoff clearance.
 - **On final**: `{runway}` plus `{dist}` in NM. Aircraft spawns on final approach at that distance from the runway.
+- **At parking/helipad**: `%{spot}` is a parking or helipad name (e.g., `%H1`, `%B12`). Aircraft spawns at ground level at that spot. Useful for helicopters and ground operations.
 
 **Optional trailing tokens:**
 - Explicit aircraft type: `ADD IFR H J -090 20 15000 B77L`
@@ -901,14 +987,18 @@ These commands don't require an aircraft selection:
 
 | Command | Effect |
 |---------|--------|
-| `PAUSE` | Pause the simulation |
-| `UNPAUSE` | Resume the simulation |
+| `PAUSE` / `P` | Pause the simulation |
+| `UNPAUSE` / `U` / `UN` / `UNP` / `UP` | Resume the simulation |
 | `SIMRATE <n>` | Set simulation speed (1, 2, 4, 8, 16) |
 | `ADD ...` | Spawn an aircraft (see above) |
 | `SQALL` | Reset all aircraft to their assigned squawk codes |
 | `SNALL` | Set all aircraft transponders to mode C (normal) |
 | `SSALL` | Set all aircraft transponders to standby |
+| `ACCEPTALL` | Accept all pending inbound handoffs |
+| `HOALL 3Y` | Handoff all your aircraft to TCP 3Y |
 | `RDAUTO <listId>` | Toggle auto-acknowledge for a coordination list |
+| `CON` / `CON+` / `DECON` | Consolidation commands (see [Consolidation](#consolidation)) |
+| `RFIS` / `RTIS` | Report field/traffic in sight (see [Approach Control Commands](#approach-control-commands)) |
 
 The pause/unpause button and sim rate dropdown in the bottom bar also control these.
 
@@ -937,6 +1027,17 @@ Teleport an aircraft to a specific position:
 **WARP** accepts a fix name or FRD (Fix-Radial-Distance) as the position, followed by heading (1-360), altitude (shorthand hundreds), and speed (knots). The aircraft is placed airborne at the specified position.
 
 **WARPG** finds the intersection node of two taxiways in the aircraft's airport layout and teleports the aircraft there. The aircraft must have a loaded ground layout (i.e., be at an airport).
+
+### Say Command
+
+Make an aircraft broadcast a message (simulating pilot readback or request):
+
+| Command | Effect |
+|---------|--------|
+| `SAY REQUEST VFR TRANSITION` | Aircraft broadcasts "REQUEST VFR TRANSITION" |
+| `SAY UNABLE` | Aircraft broadcasts "UNABLE" |
+
+The message text is broadcast verbatim as a radio transmission from the aircraft. Aliases: `SAY`.
 
 ## Simulation Controls
 
