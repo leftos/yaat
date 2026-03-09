@@ -167,16 +167,49 @@ public partial class MainViewModel : ObservableObject
     partial void OnIsDataGridPoppedOutChanged(bool value)
     {
         _preferences.SetPoppedOut("DataGrid", value);
+        if (value && SelectedTabIndex == 0)
+        {
+            SelectedTabIndex = FindNextVisibleTabIndex(0);
+        }
     }
 
     partial void OnIsGroundViewPoppedOutChanged(bool value)
     {
         _preferences.SetPoppedOut("GroundView", value);
+        if (value && SelectedTabIndex == 1)
+        {
+            SelectedTabIndex = FindNextVisibleTabIndex(1);
+        }
     }
 
     partial void OnIsRadarViewPoppedOutChanged(bool value)
     {
         _preferences.SetPoppedOut("RadarView", value);
+        if (value && SelectedTabIndex == 2)
+        {
+            SelectedTabIndex = FindNextVisibleTabIndex(2);
+        }
+    }
+
+    private int FindNextVisibleTabIndex(int currentIndex)
+    {
+        // Tab 0: Aircraft List, Tab 1: Ground View, Tab 2: Radar View
+        if (currentIndex == 0)
+        {
+            return IsGroundViewPoppedOut ? 2 : 1;
+        }
+
+        if (currentIndex == 1)
+        {
+            return IsDataGridPoppedOut ? 2 : 0;
+        }
+
+        if (currentIndex == 2)
+        {
+            return IsGroundViewPoppedOut ? 0 : 1;
+        }
+
+        return 0;
     }
 
     [ObservableProperty]
