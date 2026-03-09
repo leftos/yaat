@@ -52,11 +52,8 @@ M4 adds STARS track ownership, handoffs, point-outs, and related operations. Thi
 | Cruise | CRUISE, QZ | — | altitude | Set cruise altitude |
 | FlightStrip | STRIP | — | TBD | Flight strip management (deferred to later) |
 | OnHandoff | ONHO, ONH | — | none | Mark aircraft as on-handoff status |
-| FrequencyChange | — | FC | none | Approve frequency change |
-| ContactTcp | — | CT | TCP code | Tell pilot to contact TCP |
-| ContactTower | — | TO | none | Tell pilot to contact tower |
 
-Commands whose effect is pilot-side (FC, CT, TO) set a flag on `AircraftState` and generate a terminal notification. Pilot AI (M8+) will consume these flags. STRIP is deferred — flight strip management is a separate feature.
+**Note:** Pilot-AI-only commands (FC, CT, TO) were deferred to M8+ and removed from the M4 spec. They are not relevant to RPO mode.
 
 ### Work Spans Three Codebases
 
@@ -92,8 +89,6 @@ Foundation types and AircraftState fields. No server or client changes yet.
   - `string? Scratchpad2 { get; set; }` — scratchpad field 2
   - `int? TemporaryAltitude { get; set; }` — temporary altitude (hundreds of feet)
   - `bool IsAnnotated { get; set; }` — annotation/box flag
-  - `bool FrequencyChangeApproved { get; set; }` — FC flag for pilot AI
-  - `string? ContactPosition { get; set; }` — position callsign pilot should contact (CT/TO)
   - `bool OnHandoff { get; set; }` — on-handoff status flag
   - `DateTime? HandoffInitiatedAt { get; set; }` — when current handoff was initiated (for auto-accept timing)
   - `int? AssignedAltitude { get; set; }` — assigned altitude from autoTrackConditions.clearedAltitude (hundreds of feet)
@@ -110,7 +105,7 @@ Add all new command types, parsed command records, ATCTrainer/VICE patterns, and
   - `AcceptAllHandoffs`, `InitiateHandoffAll`
   - `PointOut`, `Acknowledge`, `Annotate`
   - `Scratchpad`, `TemporaryAltitude`, `Cruise`
-  - `OnHandoff`, `FrequencyChange`, `ContactTcp`, `ContactTower`
+  - `OnHandoff`
 - [x] Add to `ParsedCommand.cs` (new records):
   - `record TrackAircraftCommand : ParsedCommand`
   - `record DropTrackCommand : ParsedCommand`
@@ -126,9 +121,6 @@ Add all new command types, parsed command records, ATCTrainer/VICE patterns, and
   - `record TemporaryAltitudeCommand(int AltitudeHundreds) : ParsedCommand`
   - `record CruiseCommand(int AltitudeHundreds) : ParsedCommand`
   - `record OnHandoffCommand : ParsedCommand`
-  - `record FrequencyChangeCommand : ParsedCommand`
-  - `record ContactTcpCommand(string TcpCode) : ParsedCommand`
-  - `record ContactTowerCommand : ParsedCommand`
 - [x] Add to `AtcTrainerPreset.cs`:
   - `TRACK` → TrackAircraft (no args)
   - `DROP` → DropTrack (no args)
@@ -145,9 +137,6 @@ Add all new command types, parsed command records, ATCTrainer/VICE patterns, and
   - `CRUISE {alt}` / `QZ {alt}` → Cruise (1 arg)
   - `ONHO` / `ONH` → OnHandoff (no args)
 - [x] Add to `VicePreset.cs`:
-  - `FC` → FrequencyChange (no args)
-  - `CT{tcp}` → ContactTcp (1 arg, concatenated)
-  - `TO` → ContactTower (no args)
   - Plus VICE equivalents for all ATCTrainer commands above (where applicable; VICE may not have all)
 - [x] Add to `CommandMetadata.cs` `AllCommands` list:
   - One `CommandInfo` per new CanonicalCommandType (label, sample arg, IsGlobal for ACCEPTALL/HOALL)
@@ -300,9 +289,6 @@ Server-side dispatch for all track commands received from the training hub.
   - **TA/QQ {alt}**: Parse altitude → hundreds. Set `TemporaryAltitude`. Return success.
   - **CRUISE/QZ {alt}**: Parse altitude → feet. Set `CruiseAltitude`. Return success.
   - **ONHO/ONH**: Toggle `OnHandoff` flag. Return success.
-  - **FC**: Set `FrequencyChangeApproved = true`. Generate terminal broadcast "frequency change approved". Return success.
-  - **CT {tcp}**: Resolve TCP → position callsign. Set `ContactPosition`. Generate terminal broadcast "contact {position} {frequency}". Return success.
-  - **TO**: Resolve tower position from scenario. Set `ContactPosition`. Generate terminal broadcast "contact tower {frequency}". Return success.
 - [x] Error handling: all track commands return `CommandResultDto` with success/error + message
 
 ---

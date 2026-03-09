@@ -380,8 +380,8 @@ Detailed chunk plan: [M4 STARS Track Operations](track-operations.md) (9 chunks)
 #### Yaat.Sim
 
 1. **Track ownership types**: `TrackOwner`, `TrackOwnerType`, `Tcp`, `StarsPointout`, `StarsPointoutStatus`
-2. **AircraftState fields**: `Owner`, `HandoffPeer`, `HandoffRedirectedBy`, `Pointout`, `Scratchpad1/2`, `TemporaryAltitude`, `IsAnnotated`, `FrequencyChangeApproved`, `ContactPosition`, `OnHandoff`
-3. **New CanonicalCommandType values**: `TrackAircraft`, `DropTrack`, `InitiateHandoff`, `AcceptHandoff`, `CancelHandoff`, `AcceptAllHandoffs`, `InitiateHandoffAll`, `PointOut`, `Acknowledge`, `Annotate`, `Scratchpad`, `TemporaryAltitude`, `Cruise`, `OnHandoff`, `FrequencyChange`, `ContactTcp`, `ContactTower`
+2. **AircraftState fields**: `Owner`, `HandoffPeer`, `HandoffRedirectedBy`, `Pointout`, `Scratchpad1/2`, `TemporaryAltitude`, `IsAnnotated`, `OnHandoff`
+3. **New CanonicalCommandType values**: `TrackAircraft`, `DropTrack`, `InitiateHandoff`, `AcceptHandoff`, `CancelHandoff`, `AcceptAllHandoffs`, `InitiateHandoffAll`, `PointOut`, `Acknowledge`, `Annotate`, `Scratchpad`, `TemporaryAltitude`, `Cruise`, `OnHandoff`
 
 #### yaat-server
 
