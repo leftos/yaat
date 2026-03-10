@@ -1092,6 +1092,7 @@ Teleport an aircraft to a specific position:
 | `WARP SJC 180 100 250` | Warp to SJC fix, heading 180, altitude 10,000 ft, speed 250 kts |
 | `WARPG C B` | Warp to the intersection of taxiways C and B (ground aircraft only) |
 | `WARPG #42` | Warp to node ID 42 (ground aircraft only; use Ctrl+D debug overlay to find IDs) |
+| `WARPG @B12` | Warp to parking spot B12 (ground aircraft only) |
 
 **WARP** accepts a fix name or FRD (Fix-Radial-Distance) as the position, followed by heading (1-360), altitude (shorthand hundreds), and speed (knots). The aircraft is placed airborne at the specified position.
 

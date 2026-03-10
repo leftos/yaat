@@ -404,6 +404,15 @@ public static class CommandDispatcher
                     }
                     description = $"node #{nodeId}" + (node.Name is not null ? $" ({node.Name})" : "");
                 }
+                else if (warpGCmd.ParkingName is string parkingName)
+                {
+                    node = layout.FindSpotByName(parkingName);
+                    if (node is null)
+                    {
+                        return new CommandResult(false, $"Parking/spot '{parkingName}' not found in airport layout");
+                    }
+                    description = $"parking {parkingName}";
+                }
                 else
                 {
                     node = FindTaxiwayIntersection(layout, warpGCmd.Taxiway1, warpGCmd.Taxiway2);

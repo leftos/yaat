@@ -41,7 +41,7 @@ public record ForceSpeedCommand(int Speed) : ParsedCommand;
 
 public record WarpCommand(string PositionLabel, double Latitude, double Longitude, int Heading, int Altitude, int Speed) : ParsedCommand;
 
-public record WarpGroundCommand(string Taxiway1, string Taxiway2, int? NodeId = null) : ParsedCommand;
+public record WarpGroundCommand(string Taxiway1, string Taxiway2, int? NodeId = null, string? ParkingName = null) : ParsedCommand;
 
 public record SquawkCommand(uint Code) : ParsedCommand;
 
