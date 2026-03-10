@@ -44,7 +44,39 @@ public sealed class ApproachNavigationPhase : Phase
         var fix = Fixes[_currentFixIndex];
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, fix.Latitude, fix.Longitude);
 
-        if (dist < FixArrivalThresholdNm)
+        // Determine sequencing threshold: fly-by fixes with a following fix use anticipation
+        double threshold = FixArrivalThresholdNm;
+        bool hasNextFix = _currentFixIndex < Fixes.Count - 1;
+        double anticipationNm = 0;
+
+        if (hasNextFix && !fix.IsFlyOver)
+        {
+            var nextFix = Fixes[_currentFixIndex + 1];
+            double currentBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, fix.Latitude, fix.Longitude);
+            double nextBearing = GeoMath.BearingTo(fix.Latitude, fix.Longitude, nextFix.Latitude, nextFix.Longitude);
+            double turnRate =
+                ctx.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(AircraftCategorization.Categorize(ctx.Aircraft.AircraftType));
+            anticipationNm = FlightPhysics.ComputeAnticipationDistanceNm(ctx.Aircraft.GroundSpeed, turnRate, currentBearing, nextBearing);
+            threshold = Math.Max(anticipationNm, FixArrivalThresholdNm);
+        }
+
+        bool inAnticipationZone = anticipationNm > FixArrivalThresholdNm && dist < threshold;
+
+        // For fly-by with anticipation, wait until along-track past the waypoint
+        bool shouldSequence;
+        if (inAnticipationZone)
+        {
+            var nextFix = Fixes[_currentFixIndex + 1];
+            double nextBearing = GeoMath.BearingTo(fix.Latitude, fix.Longitude, nextFix.Latitude, nextFix.Longitude);
+            double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, fix.Latitude, fix.Longitude, nextBearing);
+            shouldSequence = alongTrack >= 0;
+        }
+        else
+        {
+            shouldSequence = dist < FixArrivalThresholdNm;
+        }
+
+        if (shouldSequence)
         {
             ctx.Logger.LogDebug(
                 "[ApproachNav] {Callsign}: reached fix {Fix} ({Idx}/{Total}), alt={Alt:F0}ft, IAS={Ias:F0}kts",
@@ -170,5 +202,6 @@ public sealed record ApproachFix(
     double Longitude,
     CifpAltitudeRestriction? Altitude = null,
     int? SpeedKts = null,
-    CifpFixRole Role = CifpFixRole.None
+    CifpFixRole Role = CifpFixRole.None,
+    bool IsFlyOver = false
 );

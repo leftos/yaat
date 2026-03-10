@@ -68,4 +68,5 @@ public class NavigationTarget
     public required double Longitude { get; init; }
     public CifpAltitudeRestriction? AltitudeRestriction { get; init; }
     public CifpSpeedRestriction? SpeedRestriction { get; init; }
+    public bool IsFlyOver { get; init; }
 }

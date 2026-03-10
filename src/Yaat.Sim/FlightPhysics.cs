@@ -55,7 +55,41 @@ public static class FlightPhysics
 
         var nav = route[0];
         double distNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
-        if (distNm < NavArrivalNm)
+
+        // Determine sequencing threshold: fly-by waypoints with a following waypoint
+        // use turn anticipation; fly-over and terminal waypoints use NavArrivalNm.
+        double threshold = NavArrivalNm;
+        double anticipationNm = 0;
+        bool inAnticipationZone = false;
+
+        if (route.Count >= 2 && !nav.IsFlyOver)
+        {
+            double currentLegBearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+            double nextLegBearing = GeoMath.BearingTo(nav.Latitude, nav.Longitude, route[1].Latitude, route[1].Longitude);
+            double turnRate =
+                aircraft.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(AircraftCategorization.Categorize(aircraft.AircraftType));
+            anticipationNm = ComputeAnticipationDistanceNm(aircraft.GroundSpeed, turnRate, currentLegBearing, nextLegBearing);
+            threshold = Math.Max(anticipationNm, NavArrivalNm);
+        }
+
+        inAnticipationZone = anticipationNm > NavArrivalNm && distNm < threshold;
+
+        // Sequence waypoint: for fly-by with anticipation, wait until the aircraft
+        // has passed abeam the waypoint (along-track goes negative along the next leg bearing).
+        // For fly-over or last waypoint, sequence at NavArrivalNm.
+        bool shouldSequence;
+        if (inAnticipationZone && route.Count >= 2)
+        {
+            double nextLegBearing = GeoMath.BearingTo(nav.Latitude, nav.Longitude, route[1].Latitude, route[1].Longitude);
+            double alongTrack = GeoMath.AlongTrackDistanceNm(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude, nextLegBearing);
+            shouldSequence = alongTrack >= 0;
+        }
+        else
+        {
+            shouldSequence = distNm < NavArrivalNm;
+        }
+
+        if (shouldSequence)
         {
             route.RemoveAt(0);
             if (route.Count == 0)
@@ -66,12 +100,34 @@ public static class FlightPhysics
                 return;
             }
 
-            // Apply constraints from the next fix proactively
             nav = route[0];
             ApplyFixConstraints(aircraft, nav);
         }
 
-        double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+        // Compute steering heading
+        double bearing;
+        if (inAnticipationZone && !shouldSequence && route.Count >= 2)
+        {
+            // Arc-blended steering: compute tangent heading along inscribed turn circle
+            double currentLegBearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+            double nextLegBearing = GeoMath.BearingTo(nav.Latitude, nav.Longitude, route[1].Latitude, route[1].Longitude);
+            double turnRate =
+                aircraft.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(AircraftCategorization.Categorize(aircraft.AircraftType));
+            bearing = ComputeArcBlendedHeading(
+                aircraft.Latitude,
+                aircraft.Longitude,
+                aircraft.GroundSpeed,
+                turnRate,
+                nav.Latitude,
+                nav.Longitude,
+                currentLegBearing,
+                nextLegBearing
+            );
+        }
+        else
+        {
+            bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
+        }
 
         // Apply wind correction angle so the aircraft flies a straight ground track, not a pursuit curve.
         double wca = 0;
@@ -84,6 +140,82 @@ public static class FlightPhysics
 
         aircraft.Targets.TargetHeading = NormalizeHeading(bearing + wca);
         aircraft.Targets.PreferredTurnDirection = null;
+    }
+
+    /// <summary>
+    /// Computes the turn anticipation distance for a fly-by waypoint.
+    /// Based on turn radius (from ground speed and turn rate) and the course change angle.
+    /// Returns 0 for negligible turns (&lt;1°), capped at 5nm.
+    /// </summary>
+    internal static double ComputeAnticipationDistanceNm(
+        double groundSpeedKts,
+        double turnRateDegPerSec,
+        double currentLegBearing,
+        double nextLegBearing
+    )
+    {
+        double courseChange = Math.Abs(NormalizeAngle(nextLegBearing - currentLegBearing));
+        if (courseChange < 1.0)
+        {
+            return 0;
+        }
+
+        // Turn radius: R = GS / (turnRate × 2π) in nm (GS in nm/hr, turnRate in deg/s → rad/s)
+        double turnRateRadPerSec = turnRateDegPerSec * Math.PI / 180.0;
+        double gsNmPerSec = groundSpeedKts / 3600.0;
+        double radiusNm = gsNmPerSec / turnRateRadPerSec;
+
+        double halfAngleRad = courseChange * Math.PI / 360.0;
+        double anticipation = radiusNm * Math.Tan(halfAngleRad);
+
+        return Math.Min(anticipation, 5.0);
+    }
+
+    /// <summary>
+    /// Computes an arc-blended heading for smooth fly-by turns.
+    /// Finds the inscribed turn circle tangent to both legs and returns the tangent heading.
+    /// </summary>
+    internal static double ComputeArcBlendedHeading(
+        double aircraftLat,
+        double aircraftLon,
+        double groundSpeedKts,
+        double turnRateDegPerSec,
+        double waypointLat,
+        double waypointLon,
+        double currentLegBearing,
+        double nextLegBearing
+    )
+    {
+        double courseChange = NormalizeAngle(nextLegBearing - currentLegBearing);
+        if (Math.Abs(courseChange) < 1.0)
+        {
+            return GeoMath.BearingTo(aircraftLat, aircraftLon, waypointLat, waypointLon);
+        }
+
+        // Turn radius
+        double turnRateRadPerSec = turnRateDegPerSec * Math.PI / 180.0;
+        double gsNmPerSec = groundSpeedKts / 3600.0;
+        double radiusNm = gsNmPerSec / turnRateRadPerSec;
+
+        // Turn center: offset perpendicular to the bisector of the two legs
+        bool turnRight = courseChange > 0;
+        double bisector = NormalizeHeading(currentLegBearing + courseChange / 2.0);
+        double perpBearing = turnRight ? bisector + 90.0 : bisector - 90.0;
+        perpBearing = NormalizeHeading(perpBearing);
+
+        // Offset distance from waypoint to turn center
+        double halfAngleRad = Math.Abs(courseChange) * Math.PI / 360.0;
+        double cosHalf = Math.Cos(halfAngleRad);
+        double offsetNm = cosHalf > 0.01 ? radiusNm / cosHalf : radiusNm;
+
+        var (centerLat, centerLon) = GeoMath.ProjectPoint(waypointLat, waypointLon, perpBearing, offsetNm);
+
+        // Aircraft's bearing from turn center
+        double radialFromCenter = GeoMath.BearingTo(centerLat, centerLon, aircraftLat, aircraftLon);
+
+        // Tangent heading = perpendicular to radial, in turn direction
+        double tangent = turnRight ? radialFromCenter + 90.0 : radialFromCenter - 90.0;
+        return NormalizeHeading(tangent);
     }
 
     /// <summary>

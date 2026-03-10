@@ -454,6 +454,9 @@ public static partial class CifpParser
         string fixId = line[29..34].Trim();
 
         // Waypoint description at positions 40-43 (0-indexed: 39-42)
+        // Fly-over flag: 2nd character of waypoint description (position 41, 0-indexed: 40)
+        bool isFlyOver = line.Length > 40 && line[40] == 'Y';
+
         // Fix role from character at position 43 (0-indexed: 42)
         CifpFixRole fixRole = CifpFixRole.None;
         if (line.Length > 42)
@@ -573,7 +576,8 @@ public static partial class CifpParser
             theta,
             rho,
             outboundCourse,
-            legDistanceNm
+            legDistanceNm,
+            isFlyOver
         );
     }
 
@@ -606,7 +610,8 @@ public static partial class CifpParser
             raw.Theta,
             raw.Rho,
             raw.OutboundCourse,
-            raw.LegDistanceNm
+            raw.LegDistanceNm,
+            raw.IsFlyOver
         );
     }
 
@@ -739,7 +744,8 @@ public static partial class CifpParser
             arcCenterLon,
             raw.RecommendedNavaidId,
             raw.Theta,
-            raw.Rho
+            raw.Rho,
+            raw.IsFlyOver
         );
     }
 
@@ -770,7 +776,8 @@ public static partial class CifpParser
             arcCenterLon,
             raw.RecommendedNavaidId,
             raw.Theta,
-            raw.Rho
+            raw.Rho,
+            raw.IsFlyOver
         );
     }
 
@@ -868,7 +875,8 @@ public static partial class CifpParser
         double? Theta,
         double? Rho,
         double? OutboundCourse,
-        double? LegDistanceNm
+        double? LegDistanceNm,
+        bool IsFlyOver
     );
 
     private sealed record RawApproachLeg(
@@ -889,7 +897,8 @@ public static partial class CifpParser
         double? Theta,
         double? Rho,
         double? OutboundCourse,
-        double? LegDistanceNm
+        double? LegDistanceNm,
+        bool IsFlyOver
     );
 
     private static void ProcessApproachRecord(string line, Dictionary<string, FafCandidate> fafByApproach)

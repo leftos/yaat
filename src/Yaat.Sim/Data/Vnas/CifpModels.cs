@@ -59,7 +59,8 @@ public sealed record CifpLeg(
     double? ArcCenterLon = null,
     string? RecommendedNavaidId = null,
     double? Theta = null,
-    double? Rho = null
+    double? Rho = null,
+    bool IsFlyOver = false
 );
 
 public sealed record CifpTransition(string Name, IReadOnlyList<CifpLeg> Legs);

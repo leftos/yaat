@@ -590,7 +590,17 @@ public static class ApproachCommandHandler
                 }
             }
 
-            result.Add(new ApproachFix(leg.FixIdentifier, pos.Value.Lat, pos.Value.Lon, leg.Altitude, leg.Speed?.SpeedKts, leg.FixRole));
+            result.Add(
+                new ApproachFix(
+                    leg.FixIdentifier,
+                    pos.Value.Lat,
+                    pos.Value.Lon,
+                    leg.Altitude,
+                    leg.Speed?.SpeedKts,
+                    leg.FixRole,
+                    leg.IsFlyOver || leg.FixRole is CifpFixRole.FAF or CifpFixRole.MAHP
+                )
+            );
             previousFixPos = (pos.Value.Lat, pos.Value.Lon);
         }
 
