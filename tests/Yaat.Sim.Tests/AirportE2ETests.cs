@@ -1194,4 +1194,42 @@ public class AirportE2ETests
         ac.Latitude += distNm / 60.0 * Math.Cos(hdgRad);
         ac.Longitude += distNm / 60.0 * Math.Sin(hdgRad) / Math.Cos(ac.Latitude * Math.PI / 180.0);
     }
+
+    [Fact]
+    public void OAK_TaxiFromPCM_B_ToRunway28L_StopsAtFirstHoldShort()
+    {
+        var layout = LoadLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var parking = FindParking(layout, "PCM1");
+        Assert.NotNull(parking);
+
+        var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
+
+        var taxi = new TaxiCommand(["B"], [], DestinationRunway: "28L");
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null, Logger);
+        Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
+
+        var route = ac.AssignedTaxiRoute!;
+        var crossings = route.HoldShortPoints.Where(h => h.Reason == HoldShortReason.RunwayCrossing).ToList();
+        var destinations = route.HoldShortPoints.Where(h => h.Reason == HoldShortReason.DestinationRunway).ToList();
+
+        var hsInfo = string.Join("; ", route.HoldShortPoints.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
+
+        // Route should stop at the first 28L/10R hold-short on B, not walk past both runways
+        Assert.Equal(1, destinations.Count);
+        Assert.Empty(crossings);
+        Assert.False(
+            route.HoldShortPoints.Any(h => h.TargetName is not null && h.TargetName.Contains("28R")),
+            $"Route should NOT cross 28R/10L. Hold-shorts: [{hsInfo}]"
+        );
+
+        // Destination hold-short should be at a 28L/10R hold-short node
+        var destHs = destinations[0];
+        Assert.NotNull(destHs.TargetName);
+        Assert.Contains("28L", destHs.TargetName);
+    }
 }

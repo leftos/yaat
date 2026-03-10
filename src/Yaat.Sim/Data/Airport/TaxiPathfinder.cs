@@ -575,6 +575,14 @@ public static class TaxiPathfinder
             {
                 break;
             }
+
+            // Stop at the first runway hold-short matching the destination runway.
+            // Without this, WalkTaxiway walks past the correct hold-short to the taxiway dead-end,
+            // potentially crossing unrelated runways.
+            if (destinationHint is not null && layout.Nodes.TryGetValue(currentId, out var arrNode) && arrNode.Type == GroundNodeType.RunwayHoldShort && arrNode.RunwayId is not null && arrNode.RunwayId == destinationHint.RunwayId)
+            {
+                break;
+            }
         }
 
         endNodeId = currentId;

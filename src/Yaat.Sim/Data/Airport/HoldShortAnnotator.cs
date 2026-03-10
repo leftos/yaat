@@ -169,6 +169,12 @@ internal static class HoldShortAnnotator
         }
 
         int lastNodeId = segments[^1].ToNodeId;
+
+        // Remove any crossing hold-short at this node — the aircraft is taxiing TO
+        // this runway, not crossing it. Without this, the same node gets both a
+        // RunwayCrossing and DestinationRunway hold-short.
+        holdShorts.RemoveAll(h => h.NodeId == lastNodeId && h.Reason == HoldShortReason.RunwayCrossing);
+
         holdShorts.Add(
             new HoldShortPoint
             {

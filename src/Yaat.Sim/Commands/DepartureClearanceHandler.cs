@@ -183,8 +183,17 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, $"Cannot resolve runway {depHoldShort.TargetName}");
         }
 
-        // Pre-clear so aircraft doesn't stop at the hold-short
+        // Pre-clear the destination hold-short and any runway crossings for the same runway.
+        // The route may cross the departure runway before reaching the destination hold-short
+        // (e.g., taxiway B at OAK crosses 28L/10R before reaching the 28L threshold).
         depHoldShort.IsCleared = true;
+        foreach (var hs in route.HoldShortPoints)
+        {
+            if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null && hs.TargetName.Contains(runway.Designator, StringComparison.OrdinalIgnoreCase))
+            {
+                hs.IsCleared = true;
+            }
+        }
 
         // Pre-resolve navigation targets for route-based departures
         var routeResult = ResolveDepartureRoute(departure, aircraft, fixes);
