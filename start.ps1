@@ -66,7 +66,7 @@ if (-not $ServerOnly) {
     if ($ClientOnly) {
         $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ClientDir\src\Yaat.Client`""
     } else {
-        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ClientDir\src\Yaat.Client`" -- --autoconnect"
+        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ClientDir\src\Yaat.Client`" -- --autoconnect http://localhost:5000"
     }
 }
 

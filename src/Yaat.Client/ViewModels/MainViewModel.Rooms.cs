@@ -36,9 +36,11 @@ public partial class MainViewModel
             IsConnecting = true;
             StatusText = "Connecting...";
             await _connection.ConnectAsync(url, ct);
+            _connectedServerUrl = url;
             IsConnected = true;
             IsConnecting = false;
             StatusText = "Connected — select or create a room";
+            AddSystemEntry($"Connected to {url}");
             await RefreshRoomListAsync();
             ShowRoomList = true;
             return true;
@@ -81,9 +83,12 @@ public partial class MainViewModel
             }
         }
 
+        var url = _connectedServerUrl;
         await _connection.DisconnectAsync();
         IsConnected = false;
         StatusText = "Disconnected";
+        AddSystemEntry($"Disconnected from {url}");
+        _connectedServerUrl = "";
         ClearRoomState();
     }
 
@@ -285,7 +290,7 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             StatusText = "Connection lost — reconnecting...";
-            AddSystemEntry("Connection lost, attempting to reconnect");
+            AddSystemEntry($"Connection lost to {_connectedServerUrl}, attempting to reconnect");
         });
     }
 
@@ -306,7 +311,7 @@ public partial class MainViewModel
                 {
                     ApplyRoomState(state);
                     StatusText = "Reconnected to room";
-                    AddSystemEntry("Reconnected to room");
+                    AddSystemEntry($"Reconnected to {_connectedServerUrl}");
                 }
                 else
                 {
@@ -327,11 +332,14 @@ public partial class MainViewModel
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var reason = error is not null ? $"Server connection lost — {error.Message}" : "Server connection closed";
+            var reason = error is not null
+                ? $"Connection to {_connectedServerUrl} lost — {error.Message}"
+                : $"Connection to {_connectedServerUrl} closed";
             _log.LogWarning(error, "Connection closed permanently");
             IsConnected = false;
             StatusText = reason;
             AddSystemEntry(reason);
+            _connectedServerUrl = "";
             ClearRoomState();
         });
     }

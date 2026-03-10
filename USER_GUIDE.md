@@ -89,6 +89,13 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
 dotnet run --project src/Yaat.Client
 ```
 
+**Auto-connect:** Pass `--autoconnect <target>` to connect automatically on startup. The target can be a saved server name (from Settings > Connection) or a full URL:
+
+```bash
+dotnet run --project src/Yaat.Client -- --autoconnect Local
+dotnet run --project src/Yaat.Client -- --autoconnect http://192.168.1.50:5000
+```
+
 ### Configuration
 
 Before connecting, open **Settings** and configure:

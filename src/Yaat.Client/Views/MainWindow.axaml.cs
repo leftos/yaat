@@ -126,6 +126,32 @@ public partial class MainWindow : Window
         }
 
         ApplyKeybinds(vm.Preferences);
+
+        if (App.AutoConnectTarget is { } target)
+        {
+            _ = AutoConnectAsync(vm, target);
+        }
+    }
+
+    private static async Task AutoConnectAsync(MainViewModel vm, string target)
+    {
+        string url;
+        var match = vm.Preferences.SavedServers.FirstOrDefault(s => s.Name.Equals(target, StringComparison.OrdinalIgnoreCase));
+        if (match is not null)
+        {
+            url = match.Url;
+        }
+        else if (Uri.TryCreate(target, UriKind.Absolute, out _))
+        {
+            url = target;
+        }
+        else
+        {
+            vm.StatusText = $"--autoconnect: '{target}' is not a saved server name or valid URL";
+            return;
+        }
+
+        await vm.AttemptConnectAsync(url, CancellationToken.None);
     }
 
     private void SetupDataGrid(DataGrid dataGrid, MainViewModel vm)

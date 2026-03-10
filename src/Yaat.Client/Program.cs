@@ -25,7 +25,11 @@ public static class Program
             e.SetObserved();
         };
 
-        App.AutoConnect = args.Contains("--autoconnect", StringComparer.OrdinalIgnoreCase);
+        int autoIdx = Array.FindIndex(args, a => a.Equals("--autoconnect", StringComparison.OrdinalIgnoreCase));
+        if (autoIdx >= 0 && autoIdx + 1 < args.Length)
+        {
+            App.AutoConnectTarget = args[autoIdx + 1];
+        }
 
         try
         {

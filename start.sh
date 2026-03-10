@@ -82,7 +82,7 @@ if ! $SERVER_ONLY; then
     if $CLIENT_ONLY; then
         dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" &
     else
-        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" -- --autoconnect &
+        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" -- --autoconnect http://localhost:5000 &
     fi
     PIDS+=($!)
 fi

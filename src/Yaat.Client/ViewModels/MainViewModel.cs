@@ -28,6 +28,7 @@ public partial class MainViewModel : ObservableObject
     public UserPreferences Preferences => _preferences;
     public CommandInputController CommandInput => _commandInput;
 
+    private string _connectedServerUrl = "";
     private bool _isSyncingSelection;
 
     public GroundViewModel Ground { get; }

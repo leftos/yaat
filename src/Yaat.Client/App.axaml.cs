@@ -7,7 +7,7 @@ namespace Yaat.Client;
 
 public class App : Application
 {
-    public static bool AutoConnect { get; set; }
+    public static string? AutoConnectTarget { get; set; }
 
     public override void Initialize()
     {
