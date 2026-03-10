@@ -4,7 +4,7 @@ Procedural arrival traffic generation. Independent of Phase 2 — only depends o
 
 ## ScenarioSession.cs — GeneratorState
 
-**File:** `X:\dev\yaat-server\src\Yaat.Server\Simulation\ScenarioSession.cs`
+**File:** `..\yaat-server\src\Yaat.Server\Simulation\ScenarioSession.cs`
 
 New class:
 ```csharp
@@ -25,7 +25,7 @@ public List<GeneratorState> Generators { get; } = [];
 
 ## ScenarioLoader.cs — Passthrough
 
-**File:** `X:\dev\yaat-server\src\Yaat.Server\Scenarios\ScenarioLoader.cs`
+**File:** `..\yaat-server\src\Yaat.Server\Scenarios\ScenarioLoader.cs`
 
 - Add `public List<AircraftGenerator> Generators { get; init; } = [];` to `ScenarioLoadResult`
 - Remove the "deferred to M4" warning (lines 77-80)
@@ -33,7 +33,7 @@ public List<GeneratorState> Generators { get; } = [];
 
 ## SimulationHostedService.cs — Generator Init
 
-**File:** `X:\dev\yaat-server\src\Yaat.Server\Simulation\SimulationHostedService.cs`
+**File:** `..\yaat-server\src\Yaat.Server\Simulation\SimulationHostedService.cs`
 
 In `LoadScenario`, after delayed/trigger queue population, for each `result.Generators`:
 1. Validate: need `primaryAirportId` and `gen.Runway` — warn and skip if missing

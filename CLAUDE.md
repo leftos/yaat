@@ -254,7 +254,7 @@ SpawnRequest.cs                # Spawn descriptor
 Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
 ```
 
-### yaat-server — ASP.NET Core server (`X:\dev\yaat-server\`)
+### yaat-server — ASP.NET Core server (`..\yaat-server\`)
 
 Separate repo. References Yaat.Sim via sibling project ref. Provides: SignalR comms, CRC protocol, training rooms, scenario loading, broadcast fan-out.
 
@@ -386,7 +386,7 @@ YAAT Client ──SignalR JSON──> yaat-server <──SignalR+MessagePack─�
 
 | Repo | Path | Purpose |
 |------|------|---------|
-| yaat-server | `X:\dev\yaat-server` | ASP.NET Core server, simulation engine, CRC protocol |
+| yaat-server | `..\yaat-server` | ASP.NET Core server, simulation engine, CRC protocol |
 | vzoa | `X:\dev\vzoa` | vZOA training files; airport GeoJSON at `training-files/atctrainer-airport-files/` |
 | vatsim-server-rs | `X:\dev\vatsim-server-rs` | Rust CRC protocol reference (DTO ordering, varint framing) — **read-only emulation server**, see caveat below |
 | lc-trainer | `X:\dev\lc-trainer` | Previous WPF trainer (**NOT trusted** — aviation details need expert review) |

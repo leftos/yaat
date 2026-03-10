@@ -53,7 +53,7 @@ vatsim-server-rs sends one `StarsConsolidationItemDto` per active position's TCP
 ### Scope
 
 This plan covers two repos:
-- **yaat-server** (`X:\dev\yaat-server\src\Yaat.Server\`) — All consolidation logic, broadcast, state management
+- **yaat-server** (`..\yaat-server\src\Yaat.Server\`) — All consolidation logic, broadcast, state management
 - **yaat** (`X:\dev\yaat\src\Yaat.Sim\`) — No changes expected; Tcp record already has ParentTcpId
 
 ---

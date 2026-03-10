@@ -2,7 +2,7 @@
 
 Auto-generated from `sfo.geojson` with manual verification. For use in E2E test development.
 
-**Source**: `X:\dev\yaat-server\ArtccResources\ZOA\airports\sfo.geojson`
+**Source**: `..\yaat-server\ArtccResources\ZOA\airports\sfo.geojson`
 **Parser**: `GeoJsonParser.Parse("SFO", ...)` — parking connects via RAMP edge to nearest taxiway within 0.15nm.
 
 ## Key Layout Notes

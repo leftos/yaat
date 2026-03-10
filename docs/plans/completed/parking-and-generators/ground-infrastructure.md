@@ -4,7 +4,7 @@ Shared foundation for parking, ground ops, and generators.
 
 ## ScenarioModels.cs — StartingConditions
 
-**File:** `X:\dev\yaat-server\src\Yaat.Server\Scenarios\ScenarioModels.cs`
+**File:** `..\yaat-server\src\Yaat.Server\Scenarios\ScenarioModels.cs`
 
 Add two properties to `StartingConditions`:
 ```csharp
@@ -39,7 +39,7 @@ Same file. Replace the stub `AircraftGenerator` (lines 188-192, currently only h
 
 ## YaatOptions.cs
 
-**File:** `X:\dev\yaat-server\src\Yaat.Server\YaatOptions.cs`
+**File:** `..\yaat-server\src\Yaat.Server\YaatOptions.cs`
 
 ```csharp
 public string? AirportFilesPath { get; set; }
@@ -49,7 +49,7 @@ Optional config. No `ValidateOnStart` — missing path produces warnings at use 
 
 ## AirportGroundDataService.cs (new)
 
-**New file:** `X:\dev\yaat-server\src\Yaat.Server\Data\AirportGroundDataService.cs`
+**New file:** `..\yaat-server\src\Yaat.Server\Data\AirportGroundDataService.cs`
 
 Implements `IAirportGroundData` from Yaat.Sim. Constructor takes `IOptions<YaatOptions>` + `ILogger`.
 
@@ -63,7 +63,7 @@ Behavior:
 
 ## Program.cs — DI
 
-**File:** `X:\dev\yaat-server\src\Yaat.Server\Program.cs`
+**File:** `..\yaat-server\src\Yaat.Server\Program.cs`
 
 After `IRunwayLookup` registration:
 ```csharp
@@ -72,6 +72,6 @@ builder.Services.AddSingleton<IAirportGroundData, AirportGroundDataService>();
 
 ## SimulationHostedService.cs — Constructor
 
-**File:** `X:\dev\yaat-server\src\Yaat.Server\Simulation\SimulationHostedService.cs`
+**File:** `..\yaat-server\src\Yaat.Server\Simulation\SimulationHostedService.cs`
 
 Add `IAirportGroundData` to primary constructor parameters.

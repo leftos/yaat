@@ -24,7 +24,7 @@ Both repos will be published to GitHub under `leftos` (yaat-server private, yaat
 
 ### Phase 1: yaat-server project scaffolding
 
-1. Create `X:\dev\yaat-server\` with `dotnet new sln` + `dotnet new web` under `src/YaatServer/`
+1. Create `..\yaat-server\` with `dotnet new sln` + `dotnet new web` under `src/YaatServer/`
 2. Add NuGet: `MessagePack` (neuecc v3.x)
 3. Set up `Program.cs` with WebSocket middleware, SignalR for training hub, route stubs
 4. Copy `ZOA.json` from `X:\dev\vatsim-server-rs\data\ZOA.json` into `Data/ArtccConfigs/`

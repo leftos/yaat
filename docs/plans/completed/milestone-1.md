@@ -6,7 +6,7 @@ YAAT's M0 proof-of-concept is complete: CRC sees hardcoded aircraft, the Avaloni
 
 Work spans three codebases:
 - **Yaat.Sim** (`X:\dev\yaat\src\Yaat.Sim\`) — shared physics + state library
-- **Yaat.Server** (`X:\dev\yaat-server\src\Yaat.Server\`) — scenario loading, commands, hub expansion
+- **Yaat.Server** (`..\yaat-server\src\Yaat.Server\`) — scenario loading, commands, hub expansion
 - **Yaat.Client** (`X:\dev\yaat\src\Yaat.Client\`) — scenario browser, command input, sim controls
 
 ## Pre-step: CLAUDE.md Updates

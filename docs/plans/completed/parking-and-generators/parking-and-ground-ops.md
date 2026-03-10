@@ -4,7 +4,7 @@ Makes ground-level aircraft spawn correctly and respond to taxi commands. Covers
 
 ## ScenarioLoader.cs — Parking Position Type
 
-**File:** `X:\dev\yaat-server\src\Yaat.Server\Scenarios\ScenarioLoader.cs`
+**File:** `..\yaat-server\src\Yaat.Server\Scenarios\ScenarioLoader.cs`
 
 Replace `case "Parking":` deferral (lines 168-170) with `LoadAtParking()` method.
 
@@ -44,7 +44,7 @@ This fixes scenarios where `heading: 133` is specified but silently ignored.
 
 ## SimulationHostedService.cs — Runtime Wiring
 
-**File:** `X:\dev\yaat-server\src\Yaat.Server\Simulation\SimulationHostedService.cs`
+**File:** `..\yaat-server\src\Yaat.Server\Simulation\SimulationHostedService.cs`
 
 ### ResolveGroundLayout helper
 

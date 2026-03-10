@@ -15,7 +15,7 @@ The goal: create a training server + instructor/RPO app that works **alongside C
 ### Two Repositories
 
 ```
-X:\dev\yaat-server\     (C# ASP.NET Core 8, new repo)
+..\yaat-server\     (C# ASP.NET Core 8, new repo)
   Server that CRC and YAAT clients connect to
 
 X:\dev\yaat\            (C# Avalonia 11 + .NET 8, this repo)
@@ -65,7 +65,7 @@ yaat-server needs a minimal `/api` endpoint that CRC expects for session managem
 
 ## Project Structure
 
-### yaat-server (`X:\dev\yaat-server`)
+### yaat-server (`..\yaat-server`)
 
 ```
 yaat-server/

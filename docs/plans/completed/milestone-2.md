@@ -8,7 +8,7 @@ M2 introduces the **Phase system** — the foundation for all future behavior �
 
 Work spans three codebases:
 - **Yaat.Sim** (`X:\dev\yaat\src\Yaat.Sim\`) — Phase infrastructure, pattern geometry, ground roll physics
-- **Yaat.Server** (`X:\dev\yaat-server\src\Yaat.Server\`) — Phase implementations, tower commands, runway data, hub updates
+- **Yaat.Server** (`..\yaat-server\src\Yaat.Server\`) — Phase implementations, tower commands, runway data, hub updates
 - **Yaat.Client** (`X:\dev\yaat\src\Yaat.Client\`) — Phase display, tower state UI
 
 ### Key Design Decisions

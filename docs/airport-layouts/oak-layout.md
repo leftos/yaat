@@ -2,7 +2,7 @@
 
 Auto-generated from `oak.geojson` with manual verification. For use in E2E test development.
 
-**Source**: `X:\dev\yaat-server\ArtccResources\ZOA\airports\oak.geojson`
+**Source**: `..\yaat-server\ArtccResources\ZOA\airports\oak.geojson`
 **Parser**: `GeoJsonParser.Parse("OAK", ...)` — parking connects via RAMP edge to nearest taxiway within 0.15nm.
 
 ## Verified Taxi Routes (for E2E tests)
