@@ -105,7 +105,7 @@ public partial class MainViewModel
                     Title = "Save Recording",
                     DefaultExtension = "yaat-recording.json",
                     FileTypeChoices = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.json"] }],
-                    SuggestedFileName = $"{ActiveScenarioName ?? "recording"}.yaat-recording.json",
+                    SuggestedFileName = $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-recording.json",
                 }
             );
 
