@@ -170,6 +170,11 @@ jobs:
               is_break = stripped == '' or stripped.startswith('#') or (stripped.startswith('- ') and not line[0].isspace())
               if is_break and current:
                   best_break = current
+              # Track the most recent top-level section name
+              if stripped.startswith('- [') and line and not line[0].isspace():
+                  m = re.match(r'-\s+\[(.+?)\]', stripped)
+                  if m:
+                      last_top_level = m.group(1)
               if len(candidate) > limit and current:
                   if best_break:
                       chunks.append(best_break)
@@ -183,6 +188,25 @@ jobs:
                   current = candidate
           if current:
               chunks.append(current)
+
+          # Prepend continuation header when a chunk starts mid-section
+          for i in range(1, len(chunks)):
+              first_line = chunks[i].lstrip('\n').split('\n')[0] if chunks[i].strip() else ''
+              if first_line and first_line[0].isspace():
+                  # Find the parent top-level section from previous chunks
+                  parent = ''
+                  for prev in reversed(chunks[:i]):
+                      for pl in reversed(prev.split('\n')):
+                          ps = pl.strip()
+                          if ps.startswith('- [') and pl and not pl[0].isspace():
+                              pm = re.match(r'-\s+\[(.+?)\]', ps)
+                              if pm:
+                                  parent = pm.group(1)
+                              break
+                      if parent:
+                          break
+                  if parent:
+                      chunks[i] = f'- **{parent}** *(continued)*\n{chunks[i]}'
 
           for i, chunk in enumerate(chunks):
               payload = json.dumps({'content': chunk.strip(), 'flags': 4}).encode('utf-8')
