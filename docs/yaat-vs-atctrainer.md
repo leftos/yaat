@@ -110,12 +110,9 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 |---------|-----------|------|------------|
 | Climb/descend | `CM`/`DM` | `CM`/`DM`, `C`/`D`, `CM240` | YAAT adds short aliases + concatenation |
 | AGL altitudes | Not documented | `KOAK+010` format | YAAT-only |
-| Expedite | `EXP [alt]` | `EXP [alt]` | Both; YAAT added |
-| Normal rate | `NORM` | `NORM` | Both; YAAT added |
 | Cross fix at alt | `CFIX {fix} {alt}`/`CF` | `CFIX {fix} {alt}`, `CFIX {alt}` | YAAT adds fix-less form (next fix in route) + A/B prefixes |
 | Climb/Descend Via | `CVIA`/`DVIA` | `CVIA`/`DVIA` | Both; YAAT adds altitude cap/floor: `CVIA 190`, `DVIA 240` |
 | DVIA CFIX | `DVIA CFIX {fix} {alt}` | via compound: `DVIA; CFIX {fix} {alt}` | ATCTrainer combines in one command |
-| DVIA SPD | `DVIA SPD {spd} {fix}` | `DVIA SPD {spd} {fix}` | Both; YAAT added |
 
 ### Speed
 
@@ -124,8 +121,6 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Speed | `SPD {kts}` (aliases: DS, IS, SLOW, SL, SPEED) | `SPD {kts}`, `S`, `SLOW`, `SL`, `SPEED`, `S250` | YAAT drops DS/IS aliases (directional implication); adds `S` + concatenation |
 | Speed floor/ceiling | — | `SPD 210+` / `SPD 210-` | YAAT-only (unless ATCTrainer has it) |
 | Delete speed restrictions | — | `DSR` | YAAT-only — suppresses SID/STAR via-mode speed |
-| Mach | `MACH {mach}` / `M {mach}` | `MACH {mach}` / `M {mach}` | Both; YAAT added |
-| Reduce final approach speed | `RFAS`/`FAS` | `RFAS`/`FAS` | Both; YAAT added |
 | SPD UNTIL shorthand | `SPD 250 FIX` (requires waypoint) | `SPD 210 UNTIL 10` → staged reductions | YAAT-only |
 
 ### Transponder
