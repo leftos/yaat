@@ -110,10 +110,10 @@
         </DataGrid.RowDetailsTemplate>
         <DataGrid.Columns>
             <DataGridTextColumn Header="Callsign" Binding="{Binding Callsign}" Width="Auto" />
+            <DataGridTextColumn Header="RPO" Binding="{Binding AssignedTo}" Width="Auto" />
             <DataGridTextColumn Header="Status" Binding="{Binding StatusDisplay}" Width="Auto" />
             <DataGridTextColumn Header="Owner" Binding="{Binding OwnerDisplay}" Width="Auto" />
             <DataGridTextColumn Header="HO" Binding="{Binding HandoffDisplay}" Width="Auto" />
-            <DataGridTextColumn Header="Ctrl" Binding="{Binding AssignedTo}" Width="Auto" />
             <DataGridTextColumn Header="SP1" Binding="{Binding Scratchpad1}" Width="Auto" />
             <DataGridTextColumn Header="SP2" Binding="{Binding Scratchpad2}" Width="Auto" />
             <DataGridTextColumn Header="TA" Binding="{Binding TempAltDisplay}" Width="Auto" />
