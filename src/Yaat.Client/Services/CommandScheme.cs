@@ -178,6 +178,9 @@ public class CommandScheme
                 [CanonicalCommandType.ClearedVisualApproach] = new() { Aliases = ["CVA", "VISUAL"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ReportFieldInSight] = new() { Aliases = ["RFIS"], Format = "{verb}" },
                 [CanonicalCommandType.ReportTrafficInSight] = new() { Aliases = ["RTIS"], Format = "{verb} {arg?}" },
+                // Queue
+                [CanonicalCommandType.DeleteQueuedCommands] = new() { Aliases = ["DELAT"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.ShowQueuedCommands] = new() { Aliases = ["SHOWAT"], Format = "{verb}" },
                 // Consolidation
                 [CanonicalCommandType.Consolidate] = new() { Aliases = ["CON"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ConsolidateFull] = new() { Aliases = ["CON+"], Format = "{verb} {arg}" },

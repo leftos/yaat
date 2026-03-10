@@ -123,6 +123,8 @@ public static class CommandDescriber
             ReportTrafficInSightCommand => CanonicalCommandType.ReportTrafficInSight,
             WaitCommand => CanonicalCommandType.Wait,
             WaitDistanceCommand => CanonicalCommandType.WaitDistance,
+            DeleteQueuedCommand => CanonicalCommandType.DeleteQueuedCommands,
+            ShowQueuedCommand => CanonicalCommandType.ShowQueuedCommands,
             _ => CanonicalCommandType.FlyHeading, // fallback
         };
     }
@@ -176,6 +178,8 @@ public static class CommandDescriber
             ClearedVisualApproachCommand => TrackedCommandType.Immediate,
             ReportFieldInSightCommand => TrackedCommandType.Immediate,
             ReportTrafficInSightCommand => TrackedCommandType.Immediate,
+            DeleteQueuedCommand => TrackedCommandType.Immediate,
+            ShowQueuedCommand => TrackedCommandType.Immediate,
             _ => TrackedCommandType.Immediate,
         };
     }
@@ -298,6 +302,8 @@ public static class CommandDescriber
             ClearedVisualApproachCommand cmd => FormatCvaCanonical(cmd),
             ReportFieldInSightCommand => "RFIS",
             ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null ? $"RTIS {cmd.TargetCallsign}" : "RTIS",
+            DeleteQueuedCommand del => del.BlockNumber is not null ? $"DELAT {del.BlockNumber}" : "DELAT",
+            ShowQueuedCommand => "SHOWAT",
             _ => command.ToString() ?? "?",
         };
     }
@@ -427,6 +433,8 @@ public static class CommandDescriber
             ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null
                 ? $"Report traffic in sight, {cmd.TargetCallsign}"
                 : "Report traffic in sight",
+            DeleteQueuedCommand del => del.BlockNumber is not null ? $"Delete queued block {del.BlockNumber}" : "Delete all queued commands",
+            ShowQueuedCommand => "Show queued commands",
             _ => command.ToString() ?? "?",
         };
     }

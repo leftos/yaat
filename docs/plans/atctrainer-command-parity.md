@@ -65,15 +65,13 @@ All touch `PatternBuilder`, `PatternGeometry`, or pattern phase classes. One pas
 
 Both touch `CommandQueue` internals and command display. Tiny pass.
 
-- [ ] **DELAT** — Remove queued commands *(medium)*
-  - Clears pending command blocks from the `CommandQueue`
-  - Currently no way to cancel pending blocks after `;` chains
-  - Simple: `aircraft.CommandQueue.Clear()` or clear specific blocks
+- [x] **DELAT** — Remove queued commands *(medium)*
+  - `DELAT` removes all pending blocks; `DELAT {n}` removes a specific block by 1-based index
+  - Pending blocks numbered in details pane and SHOWAT output
 
-- [ ] **SHOWAT** — Display pending AT/LV/WAIT commands *(medium)*
-  - Shows queued conditional triggers in the terminal
-  - Read from `CommandQueue` and format for display
-  - Could also show in the aircraft detail panel
+- [x] **SHOWAT** — Display pending AT/LV/WAIT commands *(medium)*
+  - Shows numbered pending blocks as ephemeral terminal entries (only sender sees output)
+  - Also shown in DataGrid details pane with `[Active]` / `[1]` / `[2]` numbering
 
 ## Pass 4 — Ground Operations (Ground Phases + GroundConflictDetector)
 

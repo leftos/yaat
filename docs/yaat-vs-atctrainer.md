@@ -307,10 +307,10 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | VFR flight plan | `VP {type} {alt} {route}` | — | ATCTrainer-only |
 | Remarks | `REMARKS {text}` | — (use Flight Plan Editor) | Different approach |
 | Cleared | `CLRD` | — | ATCTrainer-only |
-| Delete at | `DELAT` | — | ATCTrainer-only (remove queued commands) |
+| Delete at | `DELAT` | `DELAT` / `DELAT {n}` | Parity; YAAT adds per-block delete by number |
 | Open chat | `OPENCHAT {controller}` | — | ATCTrainer-only |
 | Operations/Stats | `OPS`/`STATS` | — | ATCTrainer-only |
-| Show at | `SHOWAT` | — | ATCTrainer-only (display pending AT commands) |
+| Show at | `SHOWAT` | `SHOWAT` | Parity; output is ephemeral (only sender sees it) |
 | Chat messages | No specifix prefixes, chat messages can be misinterpreted as commands | `'msg`, `/msg`, `>msg` | YAAT has dedicated chat prefixes |
 
 ## Behavioral Differences
@@ -415,10 +415,8 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 - `FP`/`VP` (Create flight plan via command)
 - `REMARKS` (Alter flight plan remarks via command)
 - `CLRD` (Aircraft has clearance)
-- `DELAT` (Remove queued commands)
 - `OPENCHAT` (Open PM window)
 - `OPS`/`STATS` (Operations statistics)
-- `SHOWAT` (Display pending AT commands)
 - `SAYF` (Frequency message)
 - `APT`/`DEST` (Change primary airport)
 - `SHOWPATH`/`HIDEPATH` (Debug path display)

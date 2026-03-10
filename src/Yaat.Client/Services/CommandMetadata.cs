@@ -167,6 +167,9 @@ public static class CommandMetadata
         new(CanonicalCommandType.ClearedVisualApproach, "Cleared Visual Approach", "28R", false, "Approach"),
         new(CanonicalCommandType.ReportFieldInSight, "Report Field In Sight", "", true, "Approach"),
         new(CanonicalCommandType.ReportTrafficInSight, "Report Traffic In Sight", "AAL123", true, "Approach"),
+        // Queue
+        new(CanonicalCommandType.DeleteQueuedCommands, "Delete Queued Commands", "2", false, "Queue"),
+        new(CanonicalCommandType.ShowQueuedCommands, "Show Queued Commands", null, false, "Queue"),
         // Consolidation
         new(CanonicalCommandType.Consolidate, "Consolidate", "1T 1F", true, "Consolidation"),
         new(CanonicalCommandType.ConsolidateFull, "Consolidate (Full)", "1T 1F", true, "Consolidation"),

@@ -233,7 +233,7 @@ The main grid shows all aircraft in your scenario, grouped into **Active** and *
 | Rwy | Assigned runway |
 | AHdg / AAlt / ASpd | Assigned targets — AHdg shows the next fix name when navigating, or heading when under vectors |
 | Dist | Distance in NM from the reference fix (see below) |
-| Pending Cmds | Queued command blocks not yet executed (from compound commands) |
+| Pending Cmds | Numbered pending command blocks (from compound commands). Shows `[Active]` for the current block, then `[1]`, `[2]`, etc. for queued blocks |
 
 Click an aircraft row to select it, or type a callsign in the command input and press the aircraft select key (**Numpad +** by default, configurable in Settings > Advanced). Press **Esc** to deselect. Click a column header to sort by that column; click again to reverse the sort direction. Sorting always keeps the Active group on top and Delayed on the bottom, sorting within each group independently.
 
@@ -250,7 +250,7 @@ Selecting an aircraft row expands a detail panel below it showing additional sta
 | Clearance | A clearance has been issued | Clearance type and runway, e.g. "Cleared to land Rwy 28L" |
 | Route | Aircraft has a navigation route | Remaining waypoints in the route |
 | Cruise | Filed cruise altitude exists | Filed cruise altitude and speed |
-| Pending | Queued command blocks exist | Full pending commands text (same as grid column, with more space) |
+| Pending | Queued command blocks exist | Numbered pending commands: `[Active]` current block, `[1]`/`[2]`/... queued blocks. Use `DELAT {n}` to remove by number |
 
 Sections with no data are hidden. Selecting a different row collapses the previous panel and expands the new one.
 
@@ -454,6 +454,8 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Unpause | `UNPAUSE` | `U`, `UN`, `UNP`, `UP` | — |
 | Sim rate | `SIMRATE 2` | — | — |
 | Delete aircraft | `DEL` | `X` | — |
+| Delete queued commands | `DELAT` / `DELAT 2` | — | — |
+| Show queued commands | `SHOWAT` | — | — |
 | Say | `SAY text` | — | — |
 
 Aliases are fully editable in **Settings > Commands**.

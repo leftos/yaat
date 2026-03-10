@@ -168,6 +168,10 @@ public enum CanonicalCommandType
     Warp,
     WarpGround,
 
+    // Queue
+    DeleteQueuedCommands,
+    ShowQueuedCommands,
+
     // Consolidation
     Consolidate,
     ConsolidateFull,
