@@ -54,6 +54,12 @@ public class ControlTargets
     public bool HasExplicitSpeedCommand { get; set; }
 
     /// <summary>
+    /// Target Mach number. When set, UpdateSpeed recomputes equivalent IAS each tick
+    /// so the aircraft maintains constant Mach as altitude changes.
+    /// </summary>
+    public double? TargetMach { get; set; }
+
+    /// <summary>
     /// Waypoint queue for DCT (direct-to) navigation.
     /// The aircraft steers toward the first waypoint; when reached,
     /// it advances to the next. Cleared when all waypoints are visited.

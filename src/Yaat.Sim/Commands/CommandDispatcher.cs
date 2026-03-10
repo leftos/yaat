@@ -256,6 +256,7 @@ public static class CommandDispatcher
             case ClimbMaintainCommand cmd:
                 aircraft.SidViaMode = false;
                 aircraft.SidViaCeiling = null;
+                aircraft.IsExpediting = false;
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
                 aircraft.Targets.HasExplicitSpeedCommand = false;
                 return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
@@ -263,6 +264,7 @@ public static class CommandDispatcher
             case DescendMaintainCommand cmd:
                 aircraft.StarViaMode = false;
                 aircraft.StarViaFloor = null;
+                aircraft.IsExpediting = false;
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
                 aircraft.Targets.HasExplicitSpeedCommand = false;
                 return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
@@ -279,8 +281,9 @@ public static class CommandDispatcher
                     }
                 }
 
-                // Any SPD command clears DSR flag
+                // Any SPD command clears DSR flag and Mach hold
                 aircraft.SpeedRestrictionsDeleted = false;
+                aircraft.Targets.TargetMach = null;
 
                 aircraft.Targets.HasExplicitSpeedCommand = true;
 
@@ -323,6 +326,7 @@ public static class CommandDispatcher
                 aircraft.Targets.TargetSpeed = null;
                 aircraft.Targets.SpeedFloor = null;
                 aircraft.Targets.SpeedCeiling = null;
+                aircraft.Targets.TargetMach = null;
                 aircraft.Targets.HasExplicitSpeedCommand = false;
                 return Ok("Resume normal speed");
             }
@@ -334,6 +338,7 @@ public static class CommandDispatcher
                 aircraft.Targets.TargetSpeed = approachSpeed;
                 aircraft.Targets.SpeedFloor = null;
                 aircraft.Targets.SpeedCeiling = null;
+                aircraft.Targets.TargetMach = null;
                 aircraft.Targets.HasExplicitSpeedCommand = true;
                 return Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
             }
@@ -343,8 +348,58 @@ public static class CommandDispatcher
                 aircraft.Targets.TargetSpeed = null;
                 aircraft.Targets.SpeedFloor = null;
                 aircraft.Targets.SpeedCeiling = null;
+                aircraft.Targets.TargetMach = null;
                 aircraft.SpeedRestrictionsDeleted = true;
                 return Ok("Speed restrictions deleted");
+            }
+
+            case ExpediteCommand exp:
+            {
+                if (aircraft.Targets.TargetAltitude is null)
+                {
+                    return new CommandResult(false, "Expedite requires an active altitude assignment");
+                }
+
+                aircraft.IsExpediting = true;
+
+                if (exp.UntilAltitude is not null)
+                {
+                    // Add a queued block that clears expedite at the specified altitude
+                    aircraft.Queue.Blocks.Add(
+                        new CommandBlock
+                        {
+                            Trigger = new BlockTrigger { Type = BlockTriggerType.ReachAltitude, Altitude = exp.UntilAltitude.Value },
+                            ApplyAction = ac =>
+                            {
+                                ac.IsExpediting = false;
+                                ac.Targets.DesiredVerticalRate = null;
+                            },
+                            Description = $"NORM at {exp.UntilAltitude}",
+                            NaturalDescription = $"Resume normal rate at {exp.UntilAltitude:N0}",
+                            Commands = { new TrackedCommand { Type = TrackedCommandType.Immediate } },
+                        }
+                    );
+                    return Ok($"Expedite climb/descent through {exp.UntilAltitude:N0}");
+                }
+
+                return Ok("Expedite climb/descent");
+            }
+
+            case NormalRateCommand:
+            {
+                aircraft.IsExpediting = false;
+                aircraft.Targets.DesiredVerticalRate = null;
+                return Ok("Resume normal rate");
+            }
+
+            case MachCommand mach:
+            {
+                aircraft.Targets.TargetMach = mach.MachNumber;
+                aircraft.Targets.TargetSpeed = null;
+                aircraft.Targets.SpeedFloor = null;
+                aircraft.Targets.SpeedCeiling = null;
+                aircraft.Targets.HasExplicitSpeedCommand = true;
+                return Ok($"Maintain Mach {mach.MachNumber:F2}");
             }
 
             case ForceHeadingCommand fhCmd:
@@ -2026,6 +2081,37 @@ public static class CommandDispatcher
         aircraft.StarViaMode = true;
         aircraft.StarViaFloor = cmd.Altitude;
         aircraft.SpeedRestrictionsDeleted = false;
+
+        // DVIA SPD <speed> <fix>: inject a speed restriction at the specified fix in the nav route
+        if (cmd.Speed is { } speed && cmd.SpeedFixName is not null && cmd.SpeedFixLat is not null && cmd.SpeedFixLon is not null)
+        {
+            var route = aircraft.Targets.NavigationRoute;
+            bool found = false;
+            for (int i = 0; i < route.Count; i++)
+            {
+                if (string.Equals(route[i].Name, cmd.SpeedFixName, StringComparison.OrdinalIgnoreCase))
+                {
+                    route[i] = new NavigationTarget
+                    {
+                        Name = route[i].Name,
+                        Latitude = route[i].Latitude,
+                        Longitude = route[i].Longitude,
+                        AltitudeRestriction = route[i].AltitudeRestriction,
+                        SpeedRestriction = new CifpSpeedRestriction(speed, true),
+                        IsFlyOver = route[i].IsFlyOver,
+                    };
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                return new CommandResult(false, $"Fix {cmd.SpeedFixName} not found in current route");
+            }
+
+            return Ok($"Descend via STAR, {speed} knots at {cmd.SpeedFixName}");
+        }
 
         if (cmd.Altitude is not null)
         {

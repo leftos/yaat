@@ -114,13 +114,16 @@ AircraftState.cs               # Mutable entity: position, flight plan, identity
                                # BankAngle (degrees, +right/-left, computed by FlightPhysics.UpdateHeading from TAS + turn rate)
                                # ActiveSidId/ActiveStarId, SidViaMode/StarViaMode, SidViaCeiling/StarViaFloor
                                # HasReportedFieldInSight, HasReportedTrafficInSight, FollowingCallsign (visual approach)
+                               # IsExpediting (1.5x climb/descent rate multiplier, cleared at altitude snap or by NORM/CM/DM)
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
                                # NavigationTarget: optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
+                               # TargetMach: when set, UpdateSpeed recomputes equivalent IAS each tick (Mach hold)
 FlightPhysics.cs               # Static 6-step Update: navigation→heading→altitude→speed→position→queue
                                # 14 CFR 91.117: 250 KIAS cap below 10,000 ft in UpdateSpeed() and ApplyFixConstraints()
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
                                # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
                                # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction
+                               # Expedite: IsExpediting → 1.5x climb/descent rate; Mach hold: TargetMach → recompute IAS each tick
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF)
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
@@ -132,7 +135,7 @@ ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft threshold
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
                                # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
 WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360), IasToTas (8-point
-                               # lookup table), ComputeWindCorrectionAngle; gusts stored but not applied to physics
+                               # lookup table), TasToIas, MachToIas (ISA speed-of-sound model), ComputeWindCorrectionAngle
 MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record
 MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm
 WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
@@ -157,7 +160,8 @@ StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→
 Commands/CanonicalCommandType.cs    # Enum of every command type
 Commands/ParsedCommand.cs           # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition
 Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interaction), ApplyCommand, TryTaxi
-                                    # CVIA/DVIA dispatch, JARR CIFP STAR resolution, procedure clearing on vectoring
+                                    # CVIA/DVIA dispatch (DVIA SPD fix), JARR CIFP STAR resolution, procedure clearing on vectoring
+                                    # EXP/NORM (expedite flag + queue trigger), MACH (TargetMach), CM/DM clear IsExpediting
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes

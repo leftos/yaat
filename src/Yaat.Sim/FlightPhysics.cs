@@ -395,6 +395,7 @@ public static class FlightPhysics
             aircraft.VerticalSpeed = 0;
             aircraft.Targets.TargetAltitude = null;
             aircraft.Targets.DesiredVerticalRate = null;
+            aircraft.IsExpediting = false;
             return;
         }
 
@@ -408,6 +409,11 @@ public static class FlightPhysics
         else
         {
             rate = climbing ? CategoryPerformance.ClimbRate(cat, current) : CategoryPerformance.DescentRate(cat);
+        }
+
+        if (aircraft.IsExpediting)
+        {
+            rate *= 1.5;
         }
 
         double feetPerSec = rate / 60.0;
@@ -429,6 +435,18 @@ public static class FlightPhysics
     private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         bool below10k = !aircraft.IsOnGround && aircraft.Altitude < 10_000;
+
+        // Mach hold: recompute equivalent IAS each tick so the aircraft maintains constant Mach.
+        if (aircraft.Targets.TargetMach is { } targetMach && !aircraft.IsOnGround)
+        {
+            double machIas = WindInterpolator.MachToIas(targetMach, aircraft.Altitude);
+            if (below10k)
+            {
+                machIas = Math.Min(machIas, 250);
+            }
+
+            aircraft.Targets.TargetSpeed = machIas;
+        }
 
         // Floor/ceiling enforcement: if IAS violates a floor or ceiling, create a target to correct it.
         if (aircraft.Targets.TargetSpeed is null)

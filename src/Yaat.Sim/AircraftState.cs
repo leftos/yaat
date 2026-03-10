@@ -127,6 +127,9 @@ public class AircraftState
     /// <summary>DSR flag: when true, suppresses via-mode speed constraints at waypoints. Cleared by new SPD, CVIA, or DVIA.</summary>
     public bool SpeedRestrictionsDeleted { get; set; }
 
+    /// <summary>When true, climb/descent rate is multiplied by 1.5. Cleared on altitude reached or by NORM/CM/DM.</summary>
+    public bool IsExpediting { get; set; }
+
     // Visual approach state
     public bool HasReportedFieldInSight { get; set; }
     public bool HasReportedTrafficInSight { get; set; }

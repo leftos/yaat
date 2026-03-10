@@ -149,6 +149,9 @@ public enum CanonicalCommandType
     ResumeNormalSpeed,
     ReduceToFinalApproachSpeed,
     DeleteSpeedRestrictions,
+    Expedite,
+    NormalRate,
+    Mach,
 
     // Force (immediate override) commands
     ForceHeading,

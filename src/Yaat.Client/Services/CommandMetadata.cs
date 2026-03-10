@@ -22,6 +22,9 @@ public static class CommandMetadata
         new(CanonicalCommandType.ResumeNormalSpeed, "Resume Normal Speed", null, false, "Altitude / Speed"),
         new(CanonicalCommandType.ReduceToFinalApproachSpeed, "Reduce to Final Approach Speed", null, false, "Altitude / Speed"),
         new(CanonicalCommandType.DeleteSpeedRestrictions, "Delete Speed Restrictions", null, false, "Altitude / Speed"),
+        new(CanonicalCommandType.Expedite, "Expedite", "50", false, "Altitude / Speed"),
+        new(CanonicalCommandType.NormalRate, "Normal Rate", null, false, "Altitude / Speed"),
+        new(CanonicalCommandType.Mach, "Maintain Mach", ".82", false, "Altitude / Speed"),
         // Force (immediate override)
         new(CanonicalCommandType.ForceHeading, "Force Heading", "270", false, "Sim Control"),
         new(CanonicalCommandType.ForceAltitude, "Force Altitude", "50", false, "Sim Control"),

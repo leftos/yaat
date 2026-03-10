@@ -309,7 +309,10 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Speed floor | `SPD 210+` | — | — |
 | Speed ceiling | `SPD 210-` | — | — |
 | Resume normal speed | `RNS` | `NS` | — |
-| Reduce to final approach speed | `RFAS` | — | — |
+| Expedite climb/descent | `EXP [alt]` | — | — |
+| Resume normal rate | `NORM` | — | — |
+| Reduce to final approach speed | `RFAS` | `FAS` | — |
+| Mach number | `MACH .82` | `M` | — |
 | Delete speed restrictions | `DSR` | — | — |
 
 #### Squawk / Transponder
@@ -752,6 +755,7 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 | `CFIX SUNOL A034` | Cross specific fix SUNOL at or above 3,400 ft |
 | `DVIA` | Descend via STAR — enables altitude/speed constraint following on active STAR |
 | `DVIA 240` | Descend via STAR, except maintain FL240 (altitude floor) |
+| `DVIA SPD 180 SUNOL` | Descend via STAR with speed restriction (maintain 180 knots at SUNOL) |
 | `CVIA` | Climb via SID — re-enables altitude/speed constraint following on active SID |
 | `CVIA 190` | Climb via SID, except maintain FL190 (altitude ceiling) |
 | `DEPART SUNOL 270` | Depart fix SUNOL on heading 270 |
@@ -779,7 +783,11 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 | `SPD 210+` | Speed floor: maintain 210 knots or greater |
 | `SPD 210-` | Speed ceiling: do not exceed 210 knots |
 | `RNS` / `NS` | Resume normal speed: clears speed/floor/ceiling, preserves SID/STAR via mode |
-| `RFAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts) |
+| `EXP` | Expedite climb/descent: increases vertical rate (approx 1.5x category rate) |
+| `EXP 50` | Expedite through 5,000 ft, then resume normal rate (requires active altitude assignment) |
+| `NORM` | Resume normal vertical rate: clears expedite and any custom vertical rate |
+| `RFAS` / `FAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts) |
+| `MACH .82` / `M .82` | Maintain Mach number (also accepts `0.82` or `82`); IAS adjusts with altitude |
 | `DSR` | Delete speed restrictions: clears all speed + suppresses via-mode speed at future waypoints |
 | `SPD 210; ATFN 10 SPD 180` | Maintain 210, then at 10nm final slow to 180 |
 | `SPD 210 UNTIL 10` | Shorthand: maintain 210 until 10nm final, then cancel |

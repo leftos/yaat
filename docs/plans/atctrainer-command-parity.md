@@ -6,23 +6,23 @@ Commands that exist in ATCTrainer but not yet in YAAT, grouped by codebase area 
 
 All touch `FlightPhysics.UpdateSpeed`/`UpdateAltitude` and `ControlTargets`. One exploration of the speed/altitude pipeline covers all four.
 
-- [ ] **EXP / NORM** — Expedite climb/descent + resume normal rate *(high)*
+- [x] **EXP / NORM** — Expedite climb/descent + resume normal rate *(high)*
   - `EXP` multiplies climb/descent rate (~1.5x category rate)
   - `EXP {alt}` expedites then resumes normal rate at altitude
   - `NORM` restores normal climb/descent rate
   - Add `IsExpediting` flag to `AircraftState`; multiply rate in `FlightPhysics.UpdateAltitude`
 
-- [ ] **MACH** — Maintain mach number *(high)*
+- [x] **MACH** — Maintain mach number *(high)*
   - `MACH {mach}` / `M {mach}` — e.g., `MACH .82`
   - Needed for enroute high-altitude operations
   - Store mach target on `ControlTargets`; convert to IAS based on altitude in `FlightPhysics.UpdateSpeed`
   - Display mach in aircraft grid when above transition altitude
 
-- [ ] **RFAS / FAS** — Reduce to final approach speed *(high)*
+- [x] **RFAS / FAS** — Reduce to final approach speed *(high)*
   - Sets speed to the aircraft's category final approach speed
   - Simple: look up `CategoryPerformance.FinalApproachSpeed` and set as speed target
 
-- [ ] **DVIA SPD** — Via-mode with speed restriction *(medium)*
+- [x] **DVIA SPD** — Via-mode with speed restriction *(medium)*
   - `DVIA SPD {speed} {fix}` — descend via with speed restriction at fix
   - ATCTrainer combines this in one command; YAAT could support it too
   - Parse as combined DVIA + CFIX-speed variant

@@ -32,8 +32,11 @@ public class CommandScheme
                 [CanonicalCommandType.DescendMaintain] = new() { Aliases = ["DM", "D"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.Speed] = new() { Aliases = ["SPD", "S", "SLOW", "SL", "SPEED"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ResumeNormalSpeed] = new() { Aliases = ["RNS", "NS"], Format = "{verb}" },
-                [CanonicalCommandType.ReduceToFinalApproachSpeed] = new() { Aliases = ["RFAS"], Format = "{verb}" },
+                [CanonicalCommandType.ReduceToFinalApproachSpeed] = new() { Aliases = ["RFAS", "FAS"], Format = "{verb}" },
                 [CanonicalCommandType.DeleteSpeedRestrictions] = new() { Aliases = ["DSR"], Format = "{verb}" },
+                [CanonicalCommandType.Expedite] = new() { Aliases = ["EXP"], Format = "{verb} {arg?}" },
+                [CanonicalCommandType.NormalRate] = new() { Aliases = ["NORM"], Format = "{verb}" },
+                [CanonicalCommandType.Mach] = new() { Aliases = ["MACH", "M"], Format = "{verb} {arg}" },
                 // Force (immediate override)
                 [CanonicalCommandType.ForceHeading] = new() { Aliases = ["FHN"], Format = "{verb} {arg}" },
                 [CanonicalCommandType.ForceAltitude] = new() { Aliases = ["CMN"], Format = "{verb} {arg}" },

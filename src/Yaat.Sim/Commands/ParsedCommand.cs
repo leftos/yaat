@@ -35,6 +35,12 @@ public record ReduceToFinalApproachSpeedCommand : ParsedCommand;
 
 public record DeleteSpeedRestrictionsCommand : ParsedCommand;
 
+public record ExpediteCommand(int? UntilAltitude = null) : ParsedCommand;
+
+public record NormalRateCommand : ParsedCommand;
+
+public record MachCommand(double MachNumber) : ParsedCommand;
+
 public record ForceHeadingCommand(int Heading) : ParsedCommand;
 
 public record ForceAltitudeCommand(int Altitude) : ParsedCommand;
@@ -350,7 +356,8 @@ public record PositionTurnAltitudeClearanceCommand(int Heading, int Altitude, st
 
 public record ClimbViaCommand(int? Altitude) : ParsedCommand;
 
-public record DescendViaCommand(int? Altitude) : ParsedCommand;
+public record DescendViaCommand(int? Altitude, int? Speed = null, string? SpeedFixName = null, double? SpeedFixLat = null, double? SpeedFixLon = null)
+    : ParsedCommand;
 
 public record CrossFixCommand(string FixName, double FixLat, double FixLon, int Altitude, CrossFixAltitudeType AltType, int? Speed) : ParsedCommand;
 

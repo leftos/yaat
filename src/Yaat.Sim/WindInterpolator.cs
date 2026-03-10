@@ -102,14 +102,50 @@ public static class WindInterpolator
     /// </summary>
     public static double IasToTas(double ias, double altitudeFt)
     {
+        return ias * GetTasFactor(altitudeFt);
+    }
+
+    /// <summary>
+    /// Converts true airspeed (TAS) to indicated airspeed (IAS/CAS) using the inverse
+    /// of the altitude-based TAS factor lookup table.
+    /// </summary>
+    public static double TasToIas(double tas, double altitudeFt)
+    {
+        double factor = GetTasFactor(altitudeFt);
+        return factor > 0 ? tas / factor : tas;
+    }
+
+    /// <summary>
+    /// Converts a Mach number to indicated airspeed (IAS) at the given altitude.
+    /// Uses ISA temperature model to compute speed of sound, then divides by TAS factor.
+    /// </summary>
+    public static double MachToIas(double mach, double altitudeFt)
+    {
+        double tas = mach * SpeedOfSoundKts(altitudeFt);
+        return TasToIas(tas, altitudeFt);
+    }
+
+    /// <summary>
+    /// ISA speed of sound at the given altitude in knots.
+    /// Below 36,089 ft: T = 288.15 - 0.001981 × alt (K). Above: T = 216.65 K (tropopause).
+    /// Speed of sound = 661.5 × sqrt(T / 288.15).
+    /// </summary>
+    internal static double SpeedOfSoundKts(double altitudeFt)
+    {
+        double tempK = altitudeFt < 36_089 ? 288.15 - 0.001981 * altitudeFt : 216.65;
+        return 661.5 * Math.Sqrt(tempK / 288.15);
+    }
+
+    private static double GetTasFactor(double altitudeFt)
+    {
         if (altitudeFt <= TasFactors[0].Altitude)
         {
-            return ias * TasFactors[0].Factor;
+            return TasFactors[0].Factor;
         }
 
         if (altitudeFt >= TasFactors[^1].Altitude)
         {
-            return ias * TasFactors[^1].Factor;
+            return TasFactors[^1].Factor;
         }
 
         int upper = 1;
@@ -122,7 +158,7 @@ public static class WindInterpolator
         var (highAlt, highFactor) = TasFactors[upper];
         double t = (altitudeFt - lowAlt) / (highAlt - lowAlt);
 
-        return ias * (lowFactor + t * (highFactor - lowFactor));
+        return lowFactor + t * (highFactor - lowFactor);
     }
 
     /// <summary>
