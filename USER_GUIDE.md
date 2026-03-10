@@ -536,7 +536,7 @@ Helicopters are detected automatically from the ICAO type designator. They use t
 
 Helicopters can also use all standard tower commands (`CTO`, `CTL`, `LUAW`, `TG`, `SG`, `GA`) with runway assignments — they hover-taxi onto the runway, hold position, and take off/land like fixed-wing aircraft. This is typical for IFR operations. `CTO` requires a runway; `CTOPP` does not.
 
-**Spawning helicopters:** Use the ADD command with a helicopter type (e.g., `H60`, `EC35`, `R44`). Use `%` prefix for helipad/parking spawn: `ADD V S P %H1 H60`.
+**Spawning helicopters:** Use the ADD command with a helicopter type (e.g., `H60`, `EC35`, `R44`). Use `@` prefix for helipad/parking spawn: `ADD V S P @H1 H60`.
 
 ### Tower Commands
 
@@ -1018,7 +1018,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 | At fix | `ADD {rules} {weight} {engine} @{fix} {alt}` | `ADD IFR L J @SUNOL 8000` |
 | Lined up on runway | `ADD {rules} {weight} {engine} {runway}` | `ADD VFR S P 28R` |
 | On final | `ADD {rules} {weight} {engine} {runway} {dist}` | `ADD IFR L J 28R 8` |
-| At parking/helipad | `ADD {rules} {weight} {engine} %{spot}` | `ADD VFR S P %H1 H60` |
+| At parking/helipad | `ADD {rules} {weight} {engine} @{spot}` | `ADD VFR S P @H1 H60` |
 
 **Parameters:**
 
@@ -1033,7 +1033,7 @@ Spawn an aircraft on demand without a scenario file. Requires an active scenario
 - **At fix**: `@{fix}` is a fix name or FRD (fix-radial-distance, e.g., `SJC090015`), `{alt}` is altitude in feet. Aircraft spawns at the fix heading toward the primary airport.
 - **Lined up**: `{runway}` is the runway designator (e.g., `28R`). Aircraft spawns on the runway threshold, ready for takeoff clearance.
 - **On final**: `{runway}` plus `{dist}` in NM. Aircraft spawns on final approach at that distance from the runway.
-- **At parking/helipad**: `%{spot}` is a parking or helipad name (e.g., `%H1`, `%B12`). Aircraft spawns at ground level at that spot. Useful for helicopters and ground operations.
+- **At parking/helipad**: `@{spot}` is a parking or helipad name (e.g., `@H1`, `@B12`). Aircraft spawns at ground level at that spot. Disambiguated from at-fix by the absence of an altitude argument. Useful for helicopters and ground operations.
 
 **Optional trailing tokens:**
 - Explicit aircraft type: `ADD IFR H J -090 20 15000 B77L`

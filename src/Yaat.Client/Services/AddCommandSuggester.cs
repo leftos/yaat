@@ -205,7 +205,7 @@ internal static class AddCommandSuggester
                     suggestions,
                     maxSuggestions,
                     ("-", "Airborne — -{bearing} {dist_nm} {alt_ft}"),
-                    ("@", "At fix — @{fix_or_FRD} {alt_ft}")
+                    ("@", "At fix — @{fix_or_FRD} {alt_ft}, or at parking — @{spot}")
                 );
                 AddRunwaySuggestions(prefix, partial, suggestions, fixDb, primaryAirportId, maxSuggestions);
             }

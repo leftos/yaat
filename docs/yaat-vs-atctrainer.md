@@ -294,7 +294,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 
 | Variant | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
-| At parking | `ADD {rules} {wt} {eng} @{space} [type] *[airline]` | `ADD {rules} {wt} {eng} %{spot} [type] *[airline]` | Different prefix: `@` vs `%` |
+| At parking | `ADD {rules} {wt} {eng} @{space} [type] *[airline]` | `ADD {rules} {wt} {eng} @{spot} [type] *[airline]` | Same `@` prefix |
 | On runway | Not documented as separate | `ADD {rules} {wt} {eng} {rwy}` | YAAT adds lined-up-on-runway |
 | At fix | — | `ADD {rules} {wt} {eng} @{fix} {alt}` | YAAT-only |
 
