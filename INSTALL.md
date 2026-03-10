@@ -224,7 +224,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 Make sure `libfontconfig1` and `libfreetype6` (or your distro's equivalent) are installed. SkiaSharp needs these for font rendering — without them, the app may crash on startup or render blank text.
 
-### Where are log files?
+### Where are the log files?
 
 - **Client log:**
   - Windows: `%LOCALAPPDATA%\yaat\yaat-client.log` (paste this path into File Explorer's address bar)
