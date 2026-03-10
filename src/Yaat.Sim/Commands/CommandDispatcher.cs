@@ -393,10 +393,25 @@ public static class CommandDispatcher
                     return new CommandResult(false, "No airport layout loaded for this aircraft");
                 }
 
-                var node = FindTaxiwayIntersection(layout, warpGCmd.Taxiway1, warpGCmd.Taxiway2);
-                if (node is null)
+                GroundNode? node;
+                string description;
+
+                if (warpGCmd.NodeId is int nodeId)
                 {
-                    return new CommandResult(false, $"No intersection found between {warpGCmd.Taxiway1} and {warpGCmd.Taxiway2}");
+                    if (!layout.Nodes.TryGetValue(nodeId, out node))
+                    {
+                        return new CommandResult(false, $"Node !{nodeId} not found in airport layout");
+                    }
+                    description = $"node !{nodeId}" + (node.Name is not null ? $" ({node.Name})" : "");
+                }
+                else
+                {
+                    node = FindTaxiwayIntersection(layout, warpGCmd.Taxiway1, warpGCmd.Taxiway2);
+                    if (node is null)
+                    {
+                        return new CommandResult(false, $"No intersection found between {warpGCmd.Taxiway1} and {warpGCmd.Taxiway2}");
+                    }
+                    description = $"{warpGCmd.Taxiway1}/{warpGCmd.Taxiway2} intersection";
                 }
 
                 aircraft.Latitude = node.Latitude;
@@ -404,7 +419,7 @@ public static class CommandDispatcher
                 aircraft.GroundSpeed = 0;
                 aircraft.IndicatedAirspeed = 0;
                 aircraft.Targets.TargetSpeed = null;
-                return Ok($"Warped to {warpGCmd.Taxiway1}/{warpGCmd.Taxiway2} intersection");
+                return Ok($"Warped to {description}");
             }
 
             case DirectToCommand cmd:

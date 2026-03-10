@@ -26,7 +26,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.ForceAltitude, "Force Altitude", "50", false, "Sim Control"),
         new(CanonicalCommandType.ForceSpeed, "Force Speed", "250", false, "Sim Control"),
         new(CanonicalCommandType.Warp, "Warp to Position", "OAK090010 270 050 200", false, "Sim Control"),
-        new(CanonicalCommandType.WarpGround, "Warp to Taxiway", "C B", false, "Sim Control"),
+        new(CanonicalCommandType.WarpGround, "Warp Ground", "C B  or  !42", false, "Sim Control"),
         // Transponder
         new(CanonicalCommandType.Squawk, "Squawk", "1234", false, "Transponder"),
         new(CanonicalCommandType.SquawkVfr, "Squawk VFR", null, false, "Transponder"),

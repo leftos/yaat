@@ -1277,8 +1277,18 @@ public partial class MainWindow : Window
                 ShowInTaskbar = false,
             };
 
-            var yesButton = new Button { Content = "Exit", Width = 80, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
-            var noButton = new Button { Content = "Cancel", Width = 80, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+            var yesButton = new Button
+            {
+                Content = "Exit",
+                Width = 80,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            };
+            var noButton = new Button
+            {
+                Content = "Cancel",
+                Width = 80,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            };
 
             var confirmed = false;
             yesButton.Click += (_, _) =>
@@ -1294,7 +1304,11 @@ public partial class MainWindow : Window
                 Spacing = 16,
                 Children =
                 {
-                    new TextBlock { Text = "A scenario is currently loaded. Are you sure you want to exit?", TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                    new TextBlock
+                    {
+                        Text = "A scenario is currently loaded. Are you sure you want to exit?",
+                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                    },
                     new StackPanel
                     {
                         Orientation = Avalonia.Layout.Orientation.Horizontal,

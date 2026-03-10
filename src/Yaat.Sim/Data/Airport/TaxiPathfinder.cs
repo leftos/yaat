@@ -28,12 +28,12 @@ public static class TaxiPathfinder
     /// <summary>
     /// Returns true if the token is a node reference (e.g., "!42").
     /// </summary>
-    internal static bool IsNodeReference(string token) => token.Length > 1 && token[0] == '!' && int.TryParse(token.AsSpan(1), out _);
+    public static bool IsNodeReference(string token) => token.Length > 1 && token[0] == '!' && int.TryParse(token.AsSpan(1), out _);
 
     /// <summary>
     /// Parses the numeric node ID from a node reference token (e.g., "!42" → 42).
     /// </summary>
-    internal static int ParseNodeId(string token) => int.Parse(token.AsSpan(1));
+    public static int ParseNodeId(string token) => int.Parse(token.AsSpan(1));
 
     /// <summary>
     /// Validate and resolve an explicit taxiway path (e.g., "S T U W W1").
@@ -579,7 +579,13 @@ public static class TaxiPathfinder
             // Stop at the first runway hold-short matching the destination runway.
             // Without this, WalkTaxiway walks past the correct hold-short to the taxiway dead-end,
             // potentially crossing unrelated runways.
-            if (destinationHint is not null && layout.Nodes.TryGetValue(currentId, out var arrNode) && arrNode.Type == GroundNodeType.RunwayHoldShort && arrNode.RunwayId is not null && arrNode.RunwayId == destinationHint.RunwayId)
+            if (
+                destinationHint is not null
+                && layout.Nodes.TryGetValue(currentId, out var arrNode)
+                && arrNode.Type == GroundNodeType.RunwayHoldShort
+                && arrNode.RunwayId is not null
+                && arrNode.RunwayId == destinationHint.RunwayId
+            )
             {
                 break;
             }

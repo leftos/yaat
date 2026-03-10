@@ -1220,7 +1220,7 @@ public class AirportE2ETests
         var hsInfo = string.Join("; ", route.HoldShortPoints.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
 
         // Route should stop at the first 28L/10R hold-short on B, not walk past both runways
-        Assert.Equal(1, destinations.Count);
+        Assert.Single(destinations);
         Assert.Empty(crossings);
         Assert.False(
             route.HoldShortPoints.Any(h => h.TargetName is not null && h.TargetName.Contains("28R")),

@@ -189,7 +189,11 @@ internal static class DepartureClearanceHandler
         depHoldShort.IsCleared = true;
         foreach (var hs in route.HoldShortPoints)
         {
-            if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null && hs.TargetName.Contains(runway.Designator, StringComparison.OrdinalIgnoreCase))
+            if (
+                hs.Reason == HoldShortReason.RunwayCrossing
+                && hs.TargetName is not null
+                && hs.TargetName.Contains(runway.Designator, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 hs.IsCleared = true;
             }

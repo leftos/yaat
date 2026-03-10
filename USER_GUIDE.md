@@ -1091,10 +1091,11 @@ Teleport an aircraft to a specific position:
 | `WARP OAK005002 020 050 120` | Warp to OAK 005°/2nm, heading 020, altitude 5,000 ft, speed 120 kts |
 | `WARP SJC 180 100 250` | Warp to SJC fix, heading 180, altitude 10,000 ft, speed 250 kts |
 | `WARPG C B` | Warp to the intersection of taxiways C and B (ground aircraft only) |
+| `WARPG !42` | Warp to node ID 42 (ground aircraft only; use Ctrl+D debug overlay to find IDs) |
 
 **WARP** accepts a fix name or FRD (Fix-Radial-Distance) as the position, followed by heading (1-360), altitude (shorthand hundreds), and speed (knots). The aircraft is placed airborne at the specified position.
 
-**WARPG** finds the intersection node of two taxiways in the aircraft's airport layout and teleports the aircraft there. The aircraft must have a loaded ground layout (i.e., be at an airport).
+**WARPG** accepts either two taxiway names (finds their intersection) or a node ID reference (`!{id}`). The aircraft must have a loaded ground layout (i.e., be at an airport). Use the Ground View debug overlay (Ctrl+D) to find node IDs.
 
 ### Say Command
 
