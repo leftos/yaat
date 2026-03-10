@@ -1261,6 +1261,61 @@ public partial class MainWindow : Window
         }
     }
 
+    protected override async void OnClosing(WindowClosingEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && vm.IsConnected && vm.IsInRoom && vm.HasScenario)
+        {
+            e.Cancel = true;
+
+            var dialog = new Window
+            {
+                Title = "Confirm Exit",
+                Width = 360,
+                Height = 150,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                CanResize = false,
+                ShowInTaskbar = false,
+            };
+
+            var yesButton = new Button { Content = "Exit", Width = 80, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+            var noButton = new Button { Content = "Cancel", Width = 80, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+
+            var confirmed = false;
+            yesButton.Click += (_, _) =>
+            {
+                confirmed = true;
+                dialog.Close();
+            };
+            noButton.Click += (_, _) => dialog.Close();
+
+            dialog.Content = new StackPanel
+            {
+                Margin = new Avalonia.Thickness(20),
+                Spacing = 16,
+                Children =
+                {
+                    new TextBlock { Text = "A scenario is currently loaded. Are you sure you want to exit?", TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children = { yesButton, noButton },
+                    },
+                },
+            };
+
+            await dialog.ShowDialog(this);
+
+            if (confirmed)
+            {
+                Close();
+            }
+        }
+
+        base.OnClosing(e);
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (e.Key == _focusInputKey)
