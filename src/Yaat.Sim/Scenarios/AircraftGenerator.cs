@@ -323,6 +323,7 @@ public static class AircraftGenerator
             GroundSpeed = init.Speed,
             IndicatedAirspeed = init.Speed,
             IsOnGround = init.IsOnGround,
+            ParkingSpot = request.ParkingName,
             AssignedBeaconCode = beaconCode,
             BeaconCode = beaconCode,
             TransponderMode = transponderMode,
