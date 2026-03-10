@@ -7,6 +7,7 @@ on:
       - "INSTALL.md"
       - "README.md"
       - "USER_GUIDE.md"
+      - "docs/yaat-vs-atctrainer.md"
   workflow_dispatch:
 
 permissions:
@@ -30,6 +31,8 @@ jobs:
           INSTALL_CHANNEL: "1479913221921181747"
           README_CHANNEL: "1479913261620002817"
           USERGUIDE_CHANNEL: "1479913276631683354"
+          COMPARISON_WEBHOOK: ${{ secrets.DISCORD_COMPARISON_WEBHOOK_URL }}
+          COMPARISON_CHANNEL: "REPLACE_WITH_CHANNEL_ID"
           REPO_URL: "https://github.com/${{ github.repository }}/blob/${{ github.sha }}"
         run: |
           set -euo pipefail
@@ -237,9 +240,11 @@ jobs:
             sync_full "INSTALL.md" "$INSTALL_WEBHOOK" "$INSTALL_CHANNEL"
             sync_full "README.md" "$README_WEBHOOK" "$README_CHANNEL"
             sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md"
+            sync_toc "docs/yaat-vs-atctrainer.md" "$COMPARISON_WEBHOOK" "$COMPARISON_CHANNEL" "YAAT vs ATCTrainer" "docs/yaat-vs-atctrainer.md"
           else
             CHANGED=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || echo "")
             echo "$CHANGED" | grep -q "INSTALL.md" && sync_full "INSTALL.md" "$INSTALL_WEBHOOK" "$INSTALL_CHANNEL" || true
             echo "$CHANGED" | grep -q "README.md" && sync_full "README.md" "$README_WEBHOOK" "$README_CHANNEL" || true
             echo "$CHANGED" | grep -q "USER_GUIDE.md" && sync_toc "USER_GUIDE.md" "$USERGUIDE_WEBHOOK" "$USERGUIDE_CHANNEL" "YAAT User Guide" "USER_GUIDE.md" || true
+            echo "$CHANGED" | grep -q "docs/yaat-vs-atctrainer.md" && sync_toc "docs/yaat-vs-atctrainer.md" "$COMPARISON_WEBHOOK" "$COMPARISON_CHANNEL" "YAAT vs ATCTrainer" "docs/yaat-vs-atctrainer.md" || true
           fi
