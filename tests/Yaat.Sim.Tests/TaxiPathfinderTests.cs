@@ -1971,33 +1971,33 @@ public class TaxiPathfinderTests
         Assert.Null(route);
     }
 
-    // --- Node reference (!nodeId) tests ---
+    // --- Node reference (#nodeId) tests ---
 
     [Fact]
     public void IsNodeReference_ValidToken()
     {
-        Assert.True(TaxiPathfinder.IsNodeReference("!42"));
-        Assert.True(TaxiPathfinder.IsNodeReference("!0"));
-        Assert.True(TaxiPathfinder.IsNodeReference("!999"));
+        Assert.True(TaxiPathfinder.IsNodeReference("#42"));
+        Assert.True(TaxiPathfinder.IsNodeReference("#0"));
+        Assert.True(TaxiPathfinder.IsNodeReference("#999"));
     }
 
     [Fact]
     public void IsNodeReference_InvalidToken()
     {
-        Assert.False(TaxiPathfinder.IsNodeReference("!"));
+        Assert.False(TaxiPathfinder.IsNodeReference("#"));
         Assert.False(TaxiPathfinder.IsNodeReference("42"));
         Assert.False(TaxiPathfinder.IsNodeReference("A"));
         Assert.False(TaxiPathfinder.IsNodeReference("@42"));
-        Assert.False(TaxiPathfinder.IsNodeReference("!abc"));
-        Assert.False(TaxiPathfinder.IsNodeReference("!12x"));
+        Assert.False(TaxiPathfinder.IsNodeReference("#abc"));
+        Assert.False(TaxiPathfinder.IsNodeReference("#12x"));
     }
 
     [Fact]
     public void ParseNodeId_ExtractsId()
     {
-        Assert.Equal(42, TaxiPathfinder.ParseNodeId("!42"));
-        Assert.Equal(0, TaxiPathfinder.ParseNodeId("!0"));
-        Assert.Equal(999, TaxiPathfinder.ParseNodeId("!999"));
+        Assert.Equal(42, TaxiPathfinder.ParseNodeId("#42"));
+        Assert.Equal(0, TaxiPathfinder.ParseNodeId("#0"));
+        Assert.Equal(999, TaxiPathfinder.ParseNodeId("#999"));
     }
 
     [Fact]
@@ -2008,7 +2008,7 @@ public class TaxiPathfinderTests
         var layout = BuildSimpleLayout();
 
         // From node 0, A* to node 3 (should find path through A taxiway)
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["!3"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#3"], out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -2023,7 +2023,7 @@ public class TaxiPathfinderTests
         var layout = BuildSimpleLayout();
 
         // A* from node 0 → node 1, then node 1 → node 4
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["!1", "!4"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#1", "#4"], out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -2038,7 +2038,7 @@ public class TaxiPathfinderTests
         var layout = BuildSimpleLayout();
 
         // Walk A taxiway, then A* to node 4
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "!4"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "#4"], out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);
@@ -2050,7 +2050,7 @@ public class TaxiPathfinderTests
     {
         var layout = BuildSimpleLayout();
 
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["!99999"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#99999"], out string? failReason);
 
         Assert.Null(route);
         Assert.NotNull(failReason);
@@ -2063,7 +2063,7 @@ public class TaxiPathfinderTests
         var layout = BuildSimpleLayout();
 
         // A* from node 0 to node 0 should be a no-op, then walk to node 3
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["!0", "!3"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["#0", "#3"], out string? failReason);
 
         Assert.Null(failReason);
         Assert.NotNull(route);

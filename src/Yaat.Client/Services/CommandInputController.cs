@@ -100,12 +100,12 @@ public partial class CommandInputController : ObservableObject
         // If the first token is a callsign (not a verb), find it in the list.
         var targetAircraft = ResolveTargetAircraft(firstToken, hasSpace, aircraft, selectedAircraft, scheme);
 
-        // Check if the trailing token is a macro reference (#NAME) at any position
+        // Check if the trailing token is a macro reference (!NAME) at any position
         var trailingToken = hasSpace ? GetTrailingToken(fragmentForSuggestion) : null;
 
         if (!hasSpace)
         {
-            if (firstToken.StartsWith('#'))
+            if (firstToken.StartsWith('!'))
             {
                 AddMacroSuggestions(firstToken, text);
             }
@@ -117,7 +117,7 @@ public partial class CommandInputController : ObservableObject
                 AddConditionSuggestions(firstToken);
             }
         }
-        else if (trailingToken is not null && trailingToken.StartsWith('#'))
+        else if (trailingToken is not null && trailingToken.StartsWith('!'))
         {
             AddMacroSuggestions(trailingToken, text);
         }
@@ -518,7 +518,7 @@ public partial class CommandInputController : ObservableObject
             return;
         }
 
-        var namePrefix = token[1..]; // strip #
+        var namePrefix = token[1..]; // strip !
         var prefix = GetTextBeforeCurrentToken(fullText);
 
         foreach (var macro in Macros)
@@ -540,9 +540,9 @@ public partial class CommandInputController : ObservableObject
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Macro,
-                    Text = $"#{macro.Name}{paramHint}",
+                    Text = $"!{macro.Name}{paramHint}",
                     Description = BuildMacroDescription(macro),
-                    InsertText = prefix + "#" + macro.Name + " ",
+                    InsertText = prefix + "!" + macro.Name + " ",
                 }
             );
         }

@@ -10,7 +10,7 @@ public static partial class MacroExpander
     private const int MaxExpansionDepth = 20;
 
     /// <summary>
-    /// Expands macro references (#NAME args...) in commandText.
+    /// Expands macro references (!NAME args...) in commandText.
     /// Expands recursively until no macros remain or the result stabilizes.
     /// Returns the expanded string, or null if no macros were found.
     /// Sets error if a macro is referenced but args are missing or name is unknown.
@@ -46,7 +46,7 @@ public static partial class MacroExpander
     {
         error = null;
 
-        if (!commandText.Contains('#'))
+        if (!commandText.Contains('!'))
         {
             return null;
         }
@@ -57,7 +57,7 @@ public static partial class MacroExpander
 
         while (i < commandText.Length)
         {
-            if (commandText[i] == '#' && IsMacroBoundary(commandText, i))
+            if (commandText[i] == '!' && IsMacroBoundary(commandText, i))
             {
                 var nameStart = i + 1;
                 var nameEnd = nameStart;
@@ -71,7 +71,7 @@ public static partial class MacroExpander
 
                 if (macro is null)
                 {
-                    error = $"Unknown macro \"#{name}\"";
+                    error = $"Unknown macro \"!{name}\"";
                     return null;
                 }
 
@@ -89,7 +89,7 @@ public static partial class MacroExpander
                     if (pos >= commandText.Length || commandText[pos] is ';' or ',')
                     {
                         var hint = paramNames.Count > 0 ? $" ({string.Join(", ", paramNames.Select(n => $"${n}"))})" : "";
-                        error = $"Macro \"#{macro.Name}\" expects {paramNames.Count} parameter(s), got {p}{hint}";
+                        error = $"Macro \"!{macro.Name}\" expects {paramNames.Count} parameter(s), got {p}{hint}";
                         return null;
                     }
 
@@ -117,14 +117,14 @@ public static partial class MacroExpander
         return expanded ? result.ToString() : null;
     }
 
-    private static bool IsMacroBoundary(string text, int hashIndex)
+    private static bool IsMacroBoundary(string text, int bangIndex)
     {
-        if (hashIndex == 0)
+        if (bangIndex == 0)
         {
             return true;
         }
 
-        var prev = text[hashIndex - 1];
+        var prev = text[bangIndex - 1];
         return prev is ' ' or ';' or ',';
     }
 

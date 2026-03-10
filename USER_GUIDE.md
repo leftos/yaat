@@ -503,8 +503,8 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 | `RWY 30 TAXI T U W` | Same as above (RWY-first syntax) |
 | `TAXI S T U HS 28L` | Taxi via S, T, U with explicit hold-short at runway 28L |
 | `TAXI S T U @B12 NODEL` | Taxi via S, T, U to parking B12 (exempt from auto-delete) |
-| `TAXI !42 !18 !95` | Taxi via exact node IDs (used by draw route; see Ground View debug overlay) |
-| `TAXI A !42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |
+| `TAXI #42 #18 #95` | Taxi via exact node IDs (used by draw route; see Ground View debug overlay) |
+| `TAXI A #42 B` | Mixed: walk taxiway A, A* to node 42, walk taxiway B |
 | `HOLD` / `HP` | Hold position (stop wherever on the ground) |
 | `RES` / `RESUME` | Resume taxi after hold |
 | `CROSS 28L` | Cross runway 28L (clears hold-short) |
@@ -1091,7 +1091,7 @@ Teleport an aircraft to a specific position:
 | `WARP OAK005002 020 050 120` | Warp to OAK 005°/2nm, heading 020, altitude 5,000 ft, speed 120 kts |
 | `WARP SJC 180 100 250` | Warp to SJC fix, heading 180, altitude 10,000 ft, speed 250 kts |
 | `WARPG C B` | Warp to the intersection of taxiways C and B (ground aircraft only) |
-| `WARPG !42` | Warp to node ID 42 (ground aircraft only; use Ctrl+D debug overlay to find IDs) |
+| `WARPG #42` | Warp to node ID 42 (ground aircraft only; use Ctrl+D debug overlay to find IDs) |
 
 **WARP** accepts a fix name or FRD (Fix-Radial-Distance) as the position, followed by heading (1-360), altitude (shorthand hundreds), and speed (knots). The aircraft is placed airborne at the specified position.
 
@@ -1208,7 +1208,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 
 **Draw taxi route mode:** Right-click a node or aircraft and select "Draw taxi route..." to enter draw mode. Click nodes to add waypoints — the route is computed via A* between consecutive waypoints. As you hover over nodes, a dashed preview shows what the next segment would look like. Right-click a node to finish. Backspace undoes the last waypoint, Escape cancels. The resulting command uses node ID references (`!nodeId` tokens) instead of taxiway names, guaranteeing the aircraft follows the exact drawn path. The terminal displays the human-readable taxiway names.
 
-**Debug overlay:** Press **Ctrl+D** to toggle a debug overlay that shows node IDs, names, types, and edge labels on the ground map. Use this to find specific node IDs for manual `!nodeId` taxi commands (e.g., `TAXI !42 !18 !95`). Node references can be mixed freely with taxiway names (e.g., `TAXI A !42 B`). This is useful when automatic taxiway-name resolution picks the wrong path and you need precise control over a specific junction or segment.
+**Debug overlay:** Press **Ctrl+D** to toggle a debug overlay that shows node IDs, names, types, and edge labels on the ground map. Use this to find specific node IDs for manual `#nodeId` taxi commands (e.g., `TAXI #42 #18 #95`). Node references can be mixed freely with taxiway names (e.g., `TAXI A #42 B`). This is useful when automatic taxiway-name resolution picks the wrong path and you need precise control over a specific junction or segment.
 
 The ground layout loads automatically when a scenario is loaded for an airport with ground data.
 
@@ -1354,7 +1354,7 @@ As you type in the command bar, a popup appears with matching suggestions:
   - **CTO modifiers** — departure instructions vary by flight rules. IFR: `RH` and heading prefixes (`H`, `RH`, `LH`). VFR: all modifiers including `OC`, `MRC`, `MRD`, `MR270`, `MLC`, `MLD`, `ML270`, `MLT`, `MRT`, `DCT`.
   - **Runway designators** — for `ELD`, `ERD`, `EF`, `ELB`, `ERB`, `CROSS`, `CTL`, `CVA`: shows runways from the primary airport
   - **Fix names** — for `DCT`, `DCTF`, `ADCTF`, `HFIXL`, `HFIXR`, `HFIX`, `CFIX`, `DEPART`, `JFAC`, and `AT` conditions: route fixes + navdata fixes
-- **Macros** (yellow) — when typing `#`, matching macro names with parameter hints (e.g., `#HC $1 $2` or `#FC $hdg $alt`)
+- **Macros** (yellow) — when typing `!`, matching macro names with parameter hints (e.g., `!HC $1 $2` or `!FC $hdg $alt`)
 - After accepting a callsign, the popup immediately shows all available command verbs
 
 Suggestions are context-aware: after a `;` or `,` separator in compound commands, suggestions reset for the new command. Conditions (`LV`, `AT`) are also suggested. When the input starts with a callsign, suggestions use that aircraft's data (route fixes, flight rules) rather than the grid-selected aircraft.
@@ -1370,13 +1370,13 @@ If no aircraft is targeted, only navdata fixes are shown. Route fixes always app
 
 ## Macros
 
-Macros let you define reusable command shortcuts. A macro maps a `#NAME` to a command expansion, optionally with positional parameters.
+Macros let you define reusable command shortcuts. A macro maps a `!NAME` to a command expansion, optionally with positional parameters.
 
 ### Defining Macros
 
 Open **Settings > Macros** to create, edit, and manage macros. Each macro has:
 
-- **Name** — alphanumeric identifier (e.g., `BAYTOUR`, `HC`). The `#` prefix is added automatically when you type it.
+- **Name** — alphanumeric identifier (e.g., `BAYTOUR`, `HC`). The `!` prefix is added automatically when you type it.
 - **Expansion** — the command(s) to expand to. Can include parameter placeholders.
 
 ### Parameters
@@ -1385,18 +1385,18 @@ Macros support two parameter styles:
 
 | Style | Expansion | Invocation | Result |
 |-------|-----------|------------|--------|
-| Positional | `FH $1, CM $2` | `#HC 270 5000` | `FH 270, CM 5000` |
-| Named | `FH $hdg, CM $alt` | `#FC 270 5000` | `FH 270, CM 5000` |
+| Positional | `FH $1, CM $2` | `!HC 270 5000` | `FH 270, CM 5000` |
+| Named | `FH $hdg, CM $alt` | `!FC 270 5000` | `FH 270, CM 5000` |
 
-Named parameters serve as documentation — the autocomplete popup shows `#FC $hdg $alt` instead of `#FC $1 $2`, making it clear what each argument means. Arguments are always supplied positionally (in the order they first appear in the expansion).
+Named parameters serve as documentation — the autocomplete popup shows `!FC $hdg $alt` instead of `!FC $1 $2`, making it clear what each argument means. Arguments are always supplied positionally (in the order they first appear in the expansion).
 
 ### Usage
 
-Type `#` followed by the macro name in the command bar:
+Type `!` followed by the macro name in the command bar:
 
-- `#BAYTOUR` → expands to `DCT VPCOL VPCHA VPMID`
-- `#HC 270 5000` → expands to `FH 270, CM 5000`
-- `#HC 270 5000; DCT SUNOL` → macro + compound: `FH 270, CM 5000; DCT SUNOL`
+- `!BAYTOUR` → expands to `DCT VPCOL VPCHA VPMID`
+- `!HC 270 5000` → expands to `FH 270, CM 5000`
+- `!HC 270 5000; DCT SUNOL` → macro + compound: `FH 270, CM 5000; DCT SUNOL`
 
 Macros work anywhere in a compound command (after `;` or `,` separators). The command history records the original macro text, not the expansion.
 

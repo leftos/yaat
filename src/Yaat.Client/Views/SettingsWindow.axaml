@@ -219,7 +219,7 @@
                                Foreground="{DynamicResource SubtleTextBrush}"
                                FontSize="11"
                                Margin="0,0,0,8"
-                               Text="Define reusable command shortcuts. Use #NAME to invoke a macro. Use $1, $2, etc. for positional parameters. Example: Name=HC, Expansion=FH $1, CM $2 → type #HC 270 5000" />
+                               Text="Define reusable command shortcuts. Use !NAME to invoke a macro. Use $1, $2, etc. for positional parameters. Example: Name=HC, Expansion=FH $1, CM $2 → type !HC 270 5000" />
 
                     <!-- Bottom buttons for macros -->
                     <StackPanel DockPanel.Dock="Bottom"

@@ -400,9 +400,9 @@ public static class CommandDispatcher
                 {
                     if (!layout.Nodes.TryGetValue(nodeId, out node))
                     {
-                        return new CommandResult(false, $"Node !{nodeId} not found in airport layout");
+                        return new CommandResult(false, $"Node #{nodeId} not found in airport layout");
                     }
-                    description = $"node !{nodeId}" + (node.Name is not null ? $" ({node.Name})" : "");
+                    description = $"node #{nodeId}" + (node.Name is not null ? $" ({node.Name})" : "");
                 }
                 else
                 {

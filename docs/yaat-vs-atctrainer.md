@@ -396,7 +396,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 - Edit all flight plan fields and amend
 
 ### Macros & Favorites
-- `#NAME` macros with parameters (positional/named)
+- `!NAME` macros with parameters (positional/named)
 - Import/export macro files
 - Favorites bar with scenario-specific option
 
