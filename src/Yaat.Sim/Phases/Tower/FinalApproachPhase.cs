@@ -109,9 +109,11 @@ public sealed class FinalApproachPhase : Phase
         double turnRadiusNm = ctx.Aircraft.GroundSpeed / (turnRate * 62.832);
 
         // Blend: at large XTE, lead = turnRadius (kinematic intercept arc).
-        // At small XTE, lead → absXte (heading converges to runway heading).
+        // At small XTE, lead → proportional to turn radius (prevents heading oscillation).
+        // Floor at 30% of turn radius keeps correction angles gentle near centerline.
         double xteRatio = turnRadiusNm > 0.01 ? Math.Clamp(absXte / turnRadiusNm, 0.0, 1.0) : 1.0;
-        double leadNm = Math.Max(turnRadiusNm * xteRatio + absXte * (1.0 - xteRatio), AimPointMinNm);
+        double minLead = Math.Max(turnRadiusNm * 0.3, AimPointMinNm);
+        double leadNm = Math.Max(turnRadiusNm * xteRatio + absXte * (1.0 - xteRatio), minLead);
 
         double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading);
         double aimAlongTrack = Math.Min(alongTrack + leadNm, 0.0);
