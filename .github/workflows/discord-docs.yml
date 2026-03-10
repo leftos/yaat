@@ -32,7 +32,7 @@ jobs:
           README_CHANNEL: "1479913261620002817"
           USERGUIDE_CHANNEL: "1479913276631683354"
           COMPARISON_WEBHOOK: ${{ secrets.DISCORD_COMPARISON_WEBHOOK_URL }}
-          COMPARISON_CHANNEL: "REPLACE_WITH_CHANNEL_ID"
+          COMPARISON_CHANNEL: "1480989023311757426"
           REPO_URL: "https://github.com/${{ github.repository }}/blob/${{ github.sha }}"
         run: |
           set -euo pipefail
