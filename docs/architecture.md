@@ -141,16 +141,18 @@ StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→
 # Commands/
 Commands/CanonicalCommandType.cs    # Enum of every command type
 Commands/ParsedCommand.cs           # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition
-Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interaction), ApplyCommand, TryTaxi
-                                    # CVIA/DVIA dispatch (DVIA SPD fix), JARR CIFP STAR resolution, procedure clearing on vectoring
-                                    # EXP/NORM (expedite flag + queue trigger), MACH (TargetMach), CM/DM clear IsExpediting
+Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interaction), ApplyCommand (thin routing switch),
+                                    # TryApplyTowerCommand, queue infrastructure, condition conversion, shared utilities
+Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands
+Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depart/cross fix, JARR STAR resolution,
+                                    # CVIA/DVIA (DVIA SPD fix), JFAC, holding pattern, RFIS/RTIS, list approaches
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
 Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
-Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution (runway transitions, ResolveLegsToTargets with RF/AF arc expansion)
+Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution, CancelTakeoff, ClearedTakeoffPresent (CTOPP)
 Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
-Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, etc.)
+Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.)
 
 # Phases/ — clearance-gated behavior
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance

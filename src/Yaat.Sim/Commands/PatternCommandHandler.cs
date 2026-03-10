@@ -1,5 +1,6 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
@@ -643,5 +644,97 @@ internal static class PatternCommandHandler
         }
 
         phases.TrafficDirection = PatternDirection.Left;
+    }
+
+    internal static CommandResult TryGoAround(GoAroundCommand ga, AircraftState aircraft)
+    {
+        if (aircraft.Phases is null || aircraft.Phases.IsComplete)
+        {
+            return new CommandResult(false, "Go around not applicable");
+        }
+
+        if (ga.TrafficPattern is { } patDir)
+        {
+            aircraft.Phases.TrafficDirection = patDir;
+        }
+
+        bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
+        var gaCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+        int? gaTargetAlt = ga.TargetAltitude;
+
+        if (gaTargetAlt is null && isGaPattern)
+        {
+            double fieldElev = gaCtx.Runway?.ElevationFt ?? 0;
+            double patAgl = CategoryPerformance.PatternAltitudeAgl(gaCtx.Category);
+            gaTargetAlt = (int)(fieldElev + patAgl);
+        }
+
+        var goAround = new GoAroundPhase
+        {
+            AssignedHeading = ga.AssignedHeading,
+            TargetAltitude = gaTargetAlt,
+            ReenterPattern = isGaPattern,
+        };
+        aircraft.Phases.ReplaceUpcoming([goAround]);
+        aircraft.Phases.AdvanceToNext(gaCtx);
+
+        var gaMsg = "Go around";
+        if (ga.TrafficPattern is PatternDirection.Left)
+        {
+            gaMsg += ", make left traffic";
+        }
+        else if (ga.TrafficPattern is PatternDirection.Right)
+        {
+            gaMsg += ", make right traffic";
+        }
+        if (ga.AssignedHeading is not null)
+        {
+            gaMsg += $", fly heading {ga.AssignedHeading:000}";
+        }
+        if (ga.TargetAltitude is not null)
+        {
+            gaMsg += $", climb to {ga.TargetAltitude:N0}";
+        }
+        return CommandDispatcher.Ok(gaMsg);
+    }
+
+    internal static CommandResult TryClearedToLand(ClearedToLandCommand ctl, AircraftState aircraft)
+    {
+        if (aircraft.Phases is null)
+        {
+            return new CommandResult(false, "Aircraft has no active phase sequence");
+        }
+
+        aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
+        aircraft.Phases.TrafficDirection = null;
+        var isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();
+        CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, landingCtl);
+        if (ctl.NoDelete)
+        {
+            aircraft.AutoDeleteExempt = true;
+        }
+        return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}");
+    }
+
+    internal static CommandResult TryCancelLandingClearance(AircraftState aircraft)
+    {
+        if (aircraft.Phases is null || aircraft.Phases.LandingClearance is null)
+        {
+            return new CommandResult(false, "No landing clearance to cancel");
+        }
+
+        aircraft.Phases.LandingClearance = null;
+        aircraft.Phases.ClearedRunwayId = null;
+        return CommandDispatcher.Ok($"Landing clearance cancelled{CommandDispatcher.RunwayLabel(aircraft)}");
+    }
+
+    internal static CommandResult TrySetSequence(SequenceCommand seq, AircraftState aircraft)
+    {
+        aircraft.SequenceNumber = seq.Number;
+        aircraft.FollowTarget = seq.FollowCallsign;
+        var seqMsg = seq.FollowCallsign is not null ? $"Number {seq.Number}, follow {seq.FollowCallsign}" : $"Number {seq.Number} in sequence";
+        return CommandDispatcher.Ok(seqMsg);
     }
 }

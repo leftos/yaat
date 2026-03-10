@@ -852,4 +852,73 @@ internal static class DepartureClearanceHandler
             }
         }
     }
+
+    internal static CommandResult TryCancelTakeoff(AircraftState aircraft, Phase currentPhase)
+    {
+        if (currentPhase is LinedUpAndWaitingPhase luawCancel)
+        {
+            foreach (var req in luawCancel.Requirements)
+            {
+                if (req.Type == ClearanceType.ClearedForTakeoff)
+                {
+                    req.IsSatisfied = false;
+                }
+            }
+            luawCancel.Departure = null;
+            luawCancel.AssignedAltitude = null;
+            return CommandDispatcher.Ok($"Takeoff clearance cancelled, hold position{CommandDispatcher.RunwayLabel(aircraft)}");
+        }
+        if (currentPhase is TakeoffPhase && aircraft.IsOnGround)
+        {
+            // Abort takeoff during ground roll
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            aircraft.Phases?.Clear(ctx);
+            aircraft.Phases = null;
+            aircraft.Targets.TargetSpeed = 0;
+            return CommandDispatcher.Ok("Abort takeoff, hold position");
+        }
+        return new CommandResult(false, "No takeoff clearance to cancel");
+    }
+
+    internal static CommandResult TryClearedTakeoffPresent(AircraftState aircraft, AirportGroundLayout? groundLayout)
+    {
+        var ctoppCat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        if (ctoppCat != AircraftCategory.Helicopter)
+        {
+            return new CommandResult(false, "CTOPP is only valid for helicopters");
+        }
+
+        if (!aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "CTOPP requires the aircraft to be on the ground");
+        }
+
+        // Clear existing phases and set up vertical takeoff
+        var ctoppCtx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        if (aircraft.Phases is not null)
+        {
+            aircraft.Phases.Clear(ctoppCtx);
+        }
+
+        aircraft.IsHeld = false;
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new HelicopterTakeoffPhase());
+        aircraft.Phases.Add(new InitialClimbPhase { IsVfr = aircraft.IsVfr, CruiseAltitude = aircraft.CruiseAltitude });
+
+        // Field elevation = current altitude (on ground)
+        ctoppCtx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = ctoppCat,
+            DeltaSeconds = 0,
+            Runway = null,
+            FieldElevation = aircraft.Altitude,
+            GroundLayout = groundLayout,
+            Logger = SimLog.CreateLogger("DepartureClearanceHandler"),
+        };
+        aircraft.Phases.Start(ctoppCtx);
+
+        return CommandDispatcher.Ok("Cleared for takeoff, present position");
+    }
 }

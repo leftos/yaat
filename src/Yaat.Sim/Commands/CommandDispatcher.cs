@@ -196,528 +196,101 @@ public static class CommandDispatcher
     {
         switch (command)
         {
+            // --- Heading ---
             case FlyHeadingCommand cmd:
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                aircraft.Targets.TargetHeading = cmd.Heading;
-                aircraft.Targets.PreferredTurnDirection = null;
-                return Ok($"Fly heading {cmd.Heading:000}");
-
+                return FlightCommandHandler.ApplyHeading(cmd, aircraft);
             case TurnLeftCommand cmd:
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                aircraft.Targets.TargetHeading = cmd.Heading;
-                aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
-                return Ok($"Turn left heading {cmd.Heading:000}");
-
+                return FlightCommandHandler.ApplyTurnLeft(cmd, aircraft);
             case TurnRightCommand cmd:
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                aircraft.Targets.TargetHeading = cmd.Heading;
-                aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
-                return Ok($"Turn right heading {cmd.Heading:000}");
-
+                return FlightCommandHandler.ApplyTurnRight(cmd, aircraft);
             case LeftTurnCommand cmd:
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                var leftHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading - cmd.Degrees);
-                aircraft.Targets.TargetHeading = leftHdg;
-                aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
-                return Ok($"Turn {cmd.Degrees} degrees left, heading {leftHdg:000}");
-
+                return FlightCommandHandler.ApplyLeftTurn(cmd, aircraft);
             case RightTurnCommand cmd:
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                var rightHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading + cmd.Degrees);
-                aircraft.Targets.TargetHeading = rightHdg;
-                aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
-                return Ok($"Turn {cmd.Degrees} degrees right, heading {rightHdg:000}");
-
+                return FlightCommandHandler.ApplyRightTurn(cmd, aircraft);
             case FlyPresentHeadingCommand:
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
-                aircraft.Targets.PreferredTurnDirection = null;
-                return Ok("Fly present heading");
+                return FlightCommandHandler.ApplyFlyPresentHeading(aircraft);
+            case ForceHeadingCommand cmd:
+                return FlightCommandHandler.ApplyForceHeading(cmd, aircraft);
 
+            // --- Altitude ---
             case ClimbMaintainCommand cmd:
-                aircraft.SidViaMode = false;
-                aircraft.SidViaCeiling = null;
-                aircraft.IsExpediting = false;
-                aircraft.Targets.TargetAltitude = cmd.Altitude;
-                aircraft.Targets.HasExplicitSpeedCommand = false;
-                return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
-
+                return FlightCommandHandler.ApplyClimbMaintain(cmd, aircraft);
             case DescendMaintainCommand cmd:
-                aircraft.StarViaMode = false;
-                aircraft.StarViaFloor = null;
-                aircraft.IsExpediting = false;
-                aircraft.Targets.TargetAltitude = cmd.Altitude;
-                aircraft.Targets.HasExplicitSpeedCommand = false;
-                return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
+                return FlightCommandHandler.ApplyDescendMaintain(cmd, aircraft);
+            case ForceAltitudeCommand cmd:
+                return FlightCommandHandler.ApplyForceAltitude(cmd, aircraft);
 
+            // --- Speed ---
             case SpeedCommand cmd:
-            {
-                // Reject speed commands inside 5nm final per §5-7-1.a.2.d
-                if (!aircraft.IsOnGround && aircraft.Phases?.AssignedRunway is { } spdRwy)
-                {
-                    double spdDist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, spdRwy.ThresholdLatitude, spdRwy.ThresholdLongitude);
-                    if (spdDist <= 5.0)
-                    {
-                        return new CommandResult(false, "Cannot assign speed inside 5nm final [7110.65 §5-7-1.a.2.d]");
-                    }
-                }
-
-                // Any SPD command clears DSR flag and Mach hold
-                aircraft.SpeedRestrictionsDeleted = false;
-                aircraft.Targets.TargetMach = null;
-
-                aircraft.Targets.HasExplicitSpeedCommand = true;
-
-                switch (cmd.Modifier)
-                {
-                    case SpeedModifier.Floor:
-                        aircraft.Targets.SpeedFloor = cmd.Speed;
-                        aircraft.Targets.SpeedCeiling = null;
-                        aircraft.Targets.TargetSpeed = null;
-                        break;
-                    case SpeedModifier.Ceiling:
-                        aircraft.Targets.SpeedCeiling = cmd.Speed;
-                        aircraft.Targets.SpeedFloor = null;
-                        aircraft.Targets.TargetSpeed = null;
-                        break;
-                    default:
-                        aircraft.Targets.TargetSpeed = cmd.Speed;
-                        aircraft.Targets.SpeedFloor = null;
-                        aircraft.Targets.SpeedCeiling = null;
-                        break;
-                }
-
-                // Helicopter min radar speed warning per §5-7-3.e.5
-                var spdCat = AircraftCategorization.Categorize(aircraft.AircraftType);
-                if (spdCat == AircraftCategory.Helicopter && cmd.Speed > 0 && cmd.Speed < 60)
-                {
-                    aircraft.PendingWarnings.Add($"Speed {cmd.Speed} below helicopter minimum 60 KIAS [7110.65 §5-7-3.e.5]");
-                }
-
-                return cmd.Modifier switch
-                {
-                    SpeedModifier.Floor => Ok($"Maintain {cmd.Speed} knots or greater"),
-                    SpeedModifier.Ceiling => Ok($"Do not exceed {cmd.Speed} knots"),
-                    _ => Ok($"Speed {cmd.Speed}"),
-                };
-            }
-
+                return FlightCommandHandler.ApplySpeed(cmd, aircraft);
             case ResumeNormalSpeedCommand:
-            {
-                aircraft.Targets.TargetSpeed = null;
-                aircraft.Targets.SpeedFloor = null;
-                aircraft.Targets.SpeedCeiling = null;
-                aircraft.Targets.TargetMach = null;
-                aircraft.Targets.HasExplicitSpeedCommand = false;
-                return Ok("Resume normal speed");
-            }
-
+                return FlightCommandHandler.ApplyResumeNormalSpeed(aircraft);
             case ReduceToFinalApproachSpeedCommand:
-            {
-                var rfasCat = AircraftCategorization.Categorize(aircraft.AircraftType);
-                double approachSpeed = CategoryPerformance.ApproachSpeed(rfasCat, aircraft.AircraftType);
-                aircraft.Targets.TargetSpeed = approachSpeed;
-                aircraft.Targets.SpeedFloor = null;
-                aircraft.Targets.SpeedCeiling = null;
-                aircraft.Targets.TargetMach = null;
-                aircraft.Targets.HasExplicitSpeedCommand = true;
-                return Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
-            }
-
+                return FlightCommandHandler.ApplyReduceToFinalApproachSpeed(aircraft);
             case DeleteSpeedRestrictionsCommand:
-            {
-                aircraft.Targets.TargetSpeed = null;
-                aircraft.Targets.SpeedFloor = null;
-                aircraft.Targets.SpeedCeiling = null;
-                aircraft.Targets.TargetMach = null;
-                aircraft.SpeedRestrictionsDeleted = true;
-                return Ok("Speed restrictions deleted");
-            }
-
-            case ExpediteCommand exp:
-            {
-                if (aircraft.Targets.TargetAltitude is null)
-                {
-                    return new CommandResult(false, "Expedite requires an active altitude assignment");
-                }
-
-                aircraft.IsExpediting = true;
-
-                if (exp.UntilAltitude is not null)
-                {
-                    // Add a queued block that clears expedite at the specified altitude
-                    aircraft.Queue.Blocks.Add(
-                        new CommandBlock
-                        {
-                            Trigger = new BlockTrigger { Type = BlockTriggerType.ReachAltitude, Altitude = exp.UntilAltitude.Value },
-                            ApplyAction = ac =>
-                            {
-                                ac.IsExpediting = false;
-                                ac.Targets.DesiredVerticalRate = null;
-                            },
-                            Description = $"NORM at {exp.UntilAltitude}",
-                            NaturalDescription = $"Resume normal rate at {exp.UntilAltitude:N0}",
-                            Commands = { new TrackedCommand { Type = TrackedCommandType.Immediate } },
-                        }
-                    );
-                    return Ok($"Expedite climb/descent through {exp.UntilAltitude:N0}");
-                }
-
-                return Ok("Expedite climb/descent");
-            }
-
+                return FlightCommandHandler.ApplyDeleteSpeedRestrictions(aircraft);
+            case ExpediteCommand cmd:
+                return FlightCommandHandler.ApplyExpedite(cmd, aircraft);
             case NormalRateCommand:
-            {
-                aircraft.IsExpediting = false;
-                aircraft.Targets.DesiredVerticalRate = null;
-                return Ok("Resume normal rate");
-            }
+                return FlightCommandHandler.ApplyNormalRate(aircraft);
+            case MachCommand cmd:
+                return FlightCommandHandler.ApplyMach(cmd, aircraft);
+            case ForceSpeedCommand cmd:
+                return FlightCommandHandler.ApplyForceSpeed(cmd, aircraft);
 
-            case MachCommand mach:
-            {
-                aircraft.Targets.TargetMach = mach.MachNumber;
-                aircraft.Targets.TargetSpeed = null;
-                aircraft.Targets.SpeedFloor = null;
-                aircraft.Targets.SpeedCeiling = null;
-                aircraft.Targets.HasExplicitSpeedCommand = true;
-                return Ok($"Maintain Mach {mach.MachNumber:F2}");
-            }
-
-            case ForceHeadingCommand fhCmd:
-            {
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                aircraft.Heading = fhCmd.Heading;
-                aircraft.Track = fhCmd.Heading;
-                aircraft.Targets.TargetHeading = fhCmd.Heading;
-                aircraft.Targets.PreferredTurnDirection = null;
-                return Ok($"Force heading {fhCmd.Heading:000}");
-            }
-
-            case ForceAltitudeCommand faCmd:
-            {
-                aircraft.SidViaMode = false;
-                aircraft.SidViaCeiling = null;
-                aircraft.StarViaMode = false;
-                aircraft.StarViaFloor = null;
-                aircraft.Altitude = faCmd.Altitude;
-                aircraft.VerticalSpeed = 0;
-                aircraft.Targets.TargetAltitude = faCmd.Altitude;
-                return Ok($"Force altitude {faCmd.Altitude:N0}");
-            }
-
-            case ForceSpeedCommand fsCmd:
-            {
-                aircraft.IndicatedAirspeed = fsCmd.Speed;
-                aircraft.Targets.TargetSpeed = fsCmd.Speed;
-                aircraft.Targets.SpeedFloor = null;
-                aircraft.Targets.SpeedCeiling = null;
-                aircraft.Targets.HasExplicitSpeedCommand = true;
-                aircraft.SpeedRestrictionsDeleted = false;
-                return Ok($"Force speed {fsCmd.Speed}");
-            }
-
-            case WarpCommand warpCmd:
-            {
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                aircraft.Latitude = warpCmd.Latitude;
-                aircraft.Longitude = warpCmd.Longitude;
-                aircraft.Heading = warpCmd.Heading;
-                aircraft.Track = warpCmd.Heading;
-                aircraft.Altitude = warpCmd.Altitude;
-                aircraft.VerticalSpeed = 0;
-                aircraft.IndicatedAirspeed = warpCmd.Speed;
-                aircraft.Targets.TargetHeading = warpCmd.Heading;
-                aircraft.Targets.PreferredTurnDirection = null;
-                aircraft.Targets.TargetAltitude = warpCmd.Altitude;
-                aircraft.Targets.TargetSpeed = warpCmd.Speed;
-                aircraft.Targets.SpeedFloor = null;
-                aircraft.Targets.SpeedCeiling = null;
-                aircraft.IsOnGround = false;
-                return Ok($"Warped to {warpCmd.PositionLabel}, heading {warpCmd.Heading:000}, {warpCmd.Altitude:N0} ft, {warpCmd.Speed} kts");
-            }
-
-            case WarpGroundCommand warpGCmd:
-            {
-                var layout = aircraft.GroundLayout;
-                if (layout is null)
-                {
-                    return new CommandResult(false, "No airport layout loaded for this aircraft");
-                }
-
-                GroundNode? node;
-                string description;
-
-                if (warpGCmd.NodeId is int nodeId)
-                {
-                    if (!layout.Nodes.TryGetValue(nodeId, out node))
-                    {
-                        return new CommandResult(false, $"Node #{nodeId} not found in airport layout");
-                    }
-                    description = $"node #{nodeId}" + (node.Name is not null ? $" ({node.Name})" : "");
-                }
-                else if (warpGCmd.ParkingName is string parkingName)
-                {
-                    node = layout.FindSpotByName(parkingName);
-                    if (node is null)
-                    {
-                        return new CommandResult(false, $"Parking/spot '{parkingName}' not found in airport layout");
-                    }
-                    description = $"parking {parkingName}";
-                }
-                else
-                {
-                    node = FindTaxiwayIntersection(layout, warpGCmd.Taxiway1, warpGCmd.Taxiway2);
-                    if (node is null)
-                    {
-                        return new CommandResult(false, $"No intersection found between {warpGCmd.Taxiway1} and {warpGCmd.Taxiway2}");
-                    }
-                    description = $"{warpGCmd.Taxiway1}/{warpGCmd.Taxiway2} intersection";
-                }
-
-                aircraft.Latitude = node.Latitude;
-                aircraft.Longitude = node.Longitude;
-                aircraft.GroundSpeed = 0;
-                aircraft.IndicatedAirspeed = 0;
-                aircraft.Targets.TargetSpeed = null;
-                return Ok($"Warped to {description}");
-            }
-
-            case DirectToCommand cmd:
-            {
-                if (validateDctFixes)
-                {
-                    var programmed = aircraft.GetProgrammedFixes(approachLookup);
-                    if (programmed.Count > 0)
-                    {
-                        var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
-                        if (unprogrammed.Count > 0)
-                        {
-                            var names = string.Join(", ", unprogrammed.Select(f => f.Name));
-                            return new CommandResult(false, $"Fix {names} not programmed — use DCTF to override");
-                        }
-                    }
-                }
-
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                var resolved = cmd.Fixes.ToList();
-                int originalCount = resolved.Count;
-                if (fixes is not null)
-                {
-                    RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, fixes);
-                }
-                foreach (var fix in resolved)
-                {
-                    aircraft.Targets.NavigationRoute.Add(
-                        new NavigationTarget
-                        {
-                            Name = fix.Name,
-                            Latitude = fix.Lat,
-                            Longitude = fix.Lon,
-                        }
-                    );
-                }
-                var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
-                bool routeRejoined = resolved.Count > originalCount;
-                return routeRejoined ? Ok($"Proceed direct {fixNames}, then filed route") : Ok($"Proceed direct {fixNames}");
-            }
-
-            case ForceDirectToCommand fCmd:
-            {
-                ClearActiveProcedure(aircraft);
-                aircraft.Targets.NavigationRoute.Clear();
-                var fResolved = fCmd.Fixes.ToList();
-                int fOriginalCount = fResolved.Count;
-                if (fixes is not null)
-                {
-                    RouteChainer.AppendRouteRemainder(fResolved, aircraft.Route, fixes);
-                }
-                foreach (var fix in fResolved)
-                {
-                    aircraft.Targets.NavigationRoute.Add(
-                        new NavigationTarget
-                        {
-                            Name = fix.Name,
-                            Latitude = fix.Lat,
-                            Longitude = fix.Lon,
-                        }
-                    );
-                }
-                var fFixNames = string.Join(" ", fCmd.Fixes.Select(f => f.Name));
-                bool fRouteRejoined = fResolved.Count > fOriginalCount;
-                return fRouteRejoined ? Ok($"Proceed direct {fFixNames}, then filed route") : Ok($"Proceed direct {fFixNames}");
-            }
-
-            case AppendDirectToCommand adct:
-            {
-                if (validateDctFixes)
-                {
-                    var adctProgrammed = aircraft.GetProgrammedFixes(approachLookup);
-                    if (adctProgrammed.Count > 0)
-                    {
-                        var adctUnprogrammed = adct.Fixes.Where(f => !adctProgrammed.Contains(f.Name)).ToList();
-                        if (adctUnprogrammed.Count > 0)
-                        {
-                            var adctBadNames = string.Join(", ", adctUnprogrammed.Select(f => f.Name));
-                            return new CommandResult(false, $"Fix {adctBadNames} not programmed — use DCTF to override");
-                        }
-                    }
-                }
-
-                var adctResolved = adct.Fixes.ToList();
-                int adctOriginal = adctResolved.Count;
-                if (fixes is not null)
-                {
-                    RouteChainer.AppendRouteRemainder(adctResolved, aircraft.Route, fixes);
-                }
-                if (aircraft.Targets.NavigationRoute.Count == 0)
-                {
-                    foreach (var fix in adctResolved)
-                    {
-                        aircraft.Targets.NavigationRoute.Add(
-                            new NavigationTarget
-                            {
-                                Name = fix.Name,
-                                Latitude = fix.Lat,
-                                Longitude = fix.Lon,
-                            }
-                        );
-                    }
-                    var adctNames = string.Join(" ", adct.Fixes.Select(f => f.Name));
-                    return adctResolved.Count > adctOriginal
-                        ? Ok($"Proceed direct {adctNames}, then filed route")
-                        : Ok($"Proceed direct {adctNames}");
-                }
-                else
-                {
-                    foreach (var fix in adctResolved)
-                    {
-                        aircraft.Targets.NavigationRoute.Add(
-                            new NavigationTarget
-                            {
-                                Name = fix.Name,
-                                Latitude = fix.Lat,
-                                Longitude = fix.Lon,
-                            }
-                        );
-                    }
-                    var adctAppended = string.Join(" ", adct.Fixes.Select(f => f.Name));
-                    return adctResolved.Count > adctOriginal
-                        ? Ok($"Then direct {adctAppended}, then filed route")
-                        : Ok($"Then direct {adctAppended}");
-                }
-            }
-
-            case AppendForceDirectToCommand adctf:
-            {
-                var adctfResolved = adctf.Fixes.ToList();
-                int adctfOriginal = adctfResolved.Count;
-                if (fixes is not null)
-                {
-                    RouteChainer.AppendRouteRemainder(adctfResolved, aircraft.Route, fixes);
-                }
-                if (aircraft.Targets.NavigationRoute.Count == 0)
-                {
-                    foreach (var fix in adctfResolved)
-                    {
-                        aircraft.Targets.NavigationRoute.Add(
-                            new NavigationTarget
-                            {
-                                Name = fix.Name,
-                                Latitude = fix.Lat,
-                                Longitude = fix.Lon,
-                            }
-                        );
-                    }
-                    var adctfNames = string.Join(" ", adctf.Fixes.Select(f => f.Name));
-                    return adctfResolved.Count > adctfOriginal
-                        ? Ok($"Proceed direct {adctfNames}, then filed route")
-                        : Ok($"Proceed direct {adctfNames}");
-                }
-                else
-                {
-                    foreach (var fix in adctfResolved)
-                    {
-                        aircraft.Targets.NavigationRoute.Add(
-                            new NavigationTarget
-                            {
-                                Name = fix.Name,
-                                Latitude = fix.Lat,
-                                Longitude = fix.Lon,
-                            }
-                        );
-                    }
-                    var adctfAppended = string.Join(" ", adctf.Fixes.Select(f => f.Name));
-                    return adctfResolved.Count > adctfOriginal
-                        ? Ok($"Then direct {adctfAppended}, then filed route")
-                        : Ok($"Then direct {adctfAppended}");
-                }
-            }
-
+            // --- Squawk ---
             case SquawkCommand cmd:
-                aircraft.BeaconCode = cmd.Code;
-                return Ok($"Squawk {cmd.Code:D4}");
-
+                return FlightCommandHandler.ApplySquawk(cmd, aircraft);
             case SquawkResetCommand:
-                aircraft.BeaconCode = aircraft.AssignedBeaconCode;
-                return Ok($"Squawk {aircraft.AssignedBeaconCode:D4}");
-
+                return FlightCommandHandler.ApplySquawkReset(aircraft);
             case SquawkVfrCommand:
-                aircraft.BeaconCode = 1200;
-                return Ok("Squawk VFR");
-
+                return FlightCommandHandler.ApplySquawkVfr(aircraft);
             case SquawkNormalCommand:
-                aircraft.TransponderMode = "C";
-                return Ok("Squawk normal");
-
+                return FlightCommandHandler.ApplySquawkNormal(aircraft);
             case SquawkStandbyCommand:
-                aircraft.TransponderMode = "Standby";
-                return Ok("Squawk standby");
-
+                return FlightCommandHandler.ApplySquawkStandby(aircraft);
             case IdentCommand:
-                aircraft.IsIdenting = true;
-                return Ok("Ident");
-
+                return FlightCommandHandler.ApplyIdent(aircraft);
             case RandomSquawkCommand:
-                aircraft.BeaconCode = SimulationWorld.GenerateBeaconCode(rng);
-                return Ok($"Squawk {aircraft.BeaconCode:D4}");
+                return FlightCommandHandler.ApplyRandomSquawk(aircraft, rng);
 
+            // --- Direct-to ---
+            case DirectToCommand cmd:
+                return FlightCommandHandler.ApplyDirectTo(cmd, aircraft, fixes, approachLookup, validateDctFixes);
+            case ForceDirectToCommand cmd:
+                return FlightCommandHandler.ApplyForceDirectTo(cmd, aircraft, fixes);
+            case AppendDirectToCommand cmd:
+                return FlightCommandHandler.ApplyAppendDirectTo(cmd, aircraft, fixes, approachLookup, validateDctFixes);
+            case AppendForceDirectToCommand cmd:
+                return FlightCommandHandler.ApplyAppendForceDirectTo(cmd, aircraft, fixes);
+
+            // --- Warp ---
+            case WarpCommand cmd:
+                return FlightCommandHandler.ApplyWarp(cmd, aircraft);
+            case WarpGroundCommand cmd:
+                return FlightCommandHandler.ApplyWarpGround(cmd, aircraft);
+
+            // --- Misc ---
             case WaitCommand cmd:
                 return Ok($"Wait {cmd.Seconds} seconds");
-
             case WaitDistanceCommand cmd:
                 return Ok($"Wait {cmd.DistanceNm} nm");
-
             case SayCommand:
                 return Ok(""); // SAY is a broadcast; handled before dispatch
 
-            // --- Approach/navigation commands (Chunks 5, 6, 7) ---
-
-            case JoinRadialOutboundCommand jrado:
-                return DispatchJrado(jrado, aircraft);
-
-            case JoinRadialInboundCommand jradi:
-                return DispatchJradi(jradi, aircraft);
-
-            case DepartFixCommand depart:
-                return DispatchDepartFix(depart, aircraft);
-
-            case CrossFixCommand cfix:
-                return DispatchCrossFix(cfix, aircraft);
-
-            case ClimbViaCommand cvia:
-                return DispatchClimbVia(cvia, aircraft);
-
-            case DescendViaCommand dvia:
-                return DispatchDescendVia(dvia, aircraft);
+            // --- Navigation commands ---
+            case JoinRadialOutboundCommand cmd:
+                return NavigationCommandHandler.DispatchJrado(cmd, aircraft);
+            case JoinRadialInboundCommand cmd:
+                return NavigationCommandHandler.DispatchJradi(cmd, aircraft);
+            case DepartFixCommand cmd:
+                return NavigationCommandHandler.DispatchDepartFix(cmd, aircraft);
+            case CrossFixCommand cmd:
+                return NavigationCommandHandler.DispatchCrossFix(cmd, aircraft);
+            case ClimbViaCommand cmd:
+                return NavigationCommandHandler.DispatchClimbVia(cmd, aircraft);
+            case DescendViaCommand cmd:
+                return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft);
 
             case ExpectApproachCommand eapp:
             {
@@ -731,37 +304,33 @@ public static class CommandDispatcher
                 return Ok($"Expecting {eappProc.ApproachId} approach");
             }
 
-            case ListApproachesCommand apps:
-                return DispatchListApproaches(apps, aircraft, approachLookup);
+            case ListApproachesCommand cmd:
+                return NavigationCommandHandler.DispatchListApproaches(cmd, aircraft, approachLookup);
+            case JoinStarCommand cmd:
+                return NavigationCommandHandler.DispatchJarr(cmd, aircraft, fixes, procedureLookup);
+            case HoldingPatternCommand cmd:
+                return NavigationCommandHandler.DispatchHoldingPattern(cmd, aircraft);
+            case JoinFinalApproachCourseCommand cmd:
+                return NavigationCommandHandler.DispatchJfac(cmd, aircraft, approachLookup, runways);
 
-            case JoinStarCommand jarr:
-                return DispatchJarr(jarr, aircraft, fixes, procedureLookup);
-
-            case HoldingPatternCommand hold:
-                return DispatchHoldingPattern(hold, aircraft);
-
-            case JoinFinalApproachCourseCommand jfac:
-                return DispatchJfac(jfac, aircraft, approachLookup, runways);
-
-            case ClearedApproachCommand capp:
-                return ApproachCommandHandler.TryClearedApproach(capp, aircraft, approachLookup, runways, fixes);
-
-            case JoinApproachCommand japp:
+            // --- Approach commands ---
+            case ClearedApproachCommand cmd:
+                return ApproachCommandHandler.TryClearedApproach(cmd, aircraft, approachLookup, runways, fixes);
+            case JoinApproachCommand cmd:
                 return ApproachCommandHandler.TryJoinApproach(
-                    japp.ApproachId,
-                    japp.AirportCode,
-                    japp.Force,
+                    cmd.ApproachId,
+                    cmd.AirportCode,
+                    cmd.Force,
                     straightIn: false,
                     aircraft,
                     approachLookup,
                     runways,
                     fixes
                 );
-
-            case ClearedApproachStraightInCommand cappsi:
+            case ClearedApproachStraightInCommand cmd:
                 return ApproachCommandHandler.TryJoinApproach(
-                    cappsi.ApproachId,
-                    cappsi.AirportCode,
+                    cmd.ApproachId,
+                    cmd.AirportCode,
                     force: false,
                     straightIn: true,
                     aircraft,
@@ -769,11 +338,10 @@ public static class CommandDispatcher
                     runways,
                     fixes
                 );
-
-            case JoinApproachStraightInCommand jappsi:
+            case JoinApproachStraightInCommand cmd:
                 return ApproachCommandHandler.TryJoinApproach(
-                    jappsi.ApproachId,
-                    jappsi.AirportCode,
+                    cmd.ApproachId,
+                    cmd.AirportCode,
                     force: false,
                     straightIn: true,
                     aircraft,
@@ -781,89 +349,76 @@ public static class CommandDispatcher
                     runways,
                     fixes
                 );
-
-            case PositionTurnAltitudeClearanceCommand ptac:
-                return ApproachCommandHandler.TryPtac(ptac, aircraft, approachLookup, runways);
-
-            case ClearedVisualApproachCommand cva:
-                return ApproachCommandHandler.TryClearedVisualApproach(cva, aircraft, runways);
-
+            case PositionTurnAltitudeClearanceCommand cmd:
+                return ApproachCommandHandler.TryPtac(cmd, aircraft, approachLookup, runways);
+            case ClearedVisualApproachCommand cmd:
+                return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, runways);
             case ReportFieldInSightCommand:
-                return DispatchReportFieldInSight(aircraft);
+                return NavigationCommandHandler.DispatchReportFieldInSight(aircraft);
+            case ReportTrafficInSightCommand cmd:
+                return NavigationCommandHandler.DispatchReportTrafficInSight(aircraft, cmd.TargetCallsign);
 
-            case ReportTrafficInSightCommand rtis:
-                return DispatchReportTrafficInSight(aircraft, rtis.TargetCallsign);
-
-            // Pattern entry commands — handle here so they work from the queue path
-            // (no active phases). These create a new PhaseList.
-            case EnterLeftDownwindCommand eld:
+            // --- Pattern entry commands ---
+            case EnterLeftDownwindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     PatternDirection.Left,
                     PatternEntryLeg.Downwind,
-                    runwayId: eld.RunwayId,
+                    runwayId: cmd.RunwayId,
                     runways: runways
                 );
-
-            case EnterRightDownwindCommand erd:
+            case EnterRightDownwindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     PatternDirection.Right,
                     PatternEntryLeg.Downwind,
-                    runwayId: erd.RunwayId,
+                    runwayId: cmd.RunwayId,
                     runways: runways
                 );
-
-            case EnterLeftCrosswindCommand elc:
+            case EnterLeftCrosswindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     PatternDirection.Left,
                     PatternEntryLeg.Crosswind,
-                    runwayId: elc.RunwayId,
+                    runwayId: cmd.RunwayId,
                     runways: runways
                 );
-
-            case EnterRightCrosswindCommand erc:
+            case EnterRightCrosswindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     PatternDirection.Right,
                     PatternEntryLeg.Crosswind,
-                    runwayId: erc.RunwayId,
+                    runwayId: cmd.RunwayId,
                     runways: runways
                 );
-
-            case EnterLeftBaseCommand elb:
+            case EnterLeftBaseCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     PatternDirection.Left,
                     PatternEntryLeg.Base,
-                    runwayId: elb.RunwayId,
-                    finalDistanceNm: elb.FinalDistanceNm,
+                    runwayId: cmd.RunwayId,
+                    finalDistanceNm: cmd.FinalDistanceNm,
                     runways: runways
                 );
-
-            case EnterRightBaseCommand erb:
+            case EnterRightBaseCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     PatternDirection.Right,
                     PatternEntryLeg.Base,
-                    runwayId: erb.RunwayId,
-                    finalDistanceNm: erb.FinalDistanceNm,
+                    runwayId: cmd.RunwayId,
+                    finalDistanceNm: cmd.FinalDistanceNm,
                     runways: runways
                 );
-
-            case EnterFinalCommand ef:
+            case EnterFinalCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
                     PatternDirection.Left,
                     PatternEntryLeg.Final,
-                    runwayId: ef.RunwayId,
+                    runwayId: cmd.RunwayId,
                     runways: runways
                 );
-
-            case PatternSizeCommand ps:
-                return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm);
-
+            case PatternSizeCommand cmd:
+                return PatternCommandHandler.TrySetPatternSize(aircraft, cmd.SizeNm);
             case Plan270Command:
                 return PatternCommandHandler.TryPlan270(aircraft);
 
@@ -1001,29 +556,7 @@ public static class CommandDispatcher
                 );
 
             case CancelTakeoffClearanceCommand:
-                if (currentPhase is LinedUpAndWaitingPhase luawCancel)
-                {
-                    foreach (var req in luawCancel.Requirements)
-                    {
-                        if (req.Type == ClearanceType.ClearedForTakeoff)
-                        {
-                            req.IsSatisfied = false;
-                        }
-                    }
-                    luawCancel.Departure = null;
-                    luawCancel.AssignedAltitude = null;
-                    return Ok($"Takeoff clearance cancelled, hold position{RunwayLabel(aircraft)}");
-                }
-                if (currentPhase is TakeoffPhase && aircraft.IsOnGround)
-                {
-                    // Abort takeoff during ground roll
-                    var ctx = BuildMinimalContext(aircraft);
-                    aircraft.Phases?.Clear(ctx);
-                    aircraft.Phases = null;
-                    aircraft.Targets.TargetSpeed = 0;
-                    return Ok("Abort takeoff, hold position");
-                }
-                return new CommandResult(false, "No takeoff clearance to cancel");
+                return DepartureClearanceHandler.TryCancelTakeoff(aircraft, currentPhase);
 
             case LineUpAndWaitCommand:
                 return DepartureClearanceHandler.TryDepartureClearance(
@@ -1038,79 +571,13 @@ public static class CommandDispatcher
                 );
 
             case ClearedToLandCommand ctl:
-                if (aircraft.Phases is not null)
-                {
-                    aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
-                    aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
-                    aircraft.Phases.TrafficDirection = null;
-                    var isHeliCtl = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
-                    Phase landingCtl = isHeliCtl ? new HelicopterLandingPhase() : new LandingPhase();
-                    ReplaceApproachEnding(aircraft.Phases, landingCtl);
-                    if (ctl.NoDelete)
-                    {
-                        aircraft.AutoDeleteExempt = true;
-                    }
-                    return Ok($"Cleared to land{RunwayLabel(aircraft)}");
-                }
-                return new CommandResult(false, "Aircraft has no active phase sequence");
+                return PatternCommandHandler.TryClearedToLand(ctl, aircraft);
 
             case CancelLandingClearanceCommand:
-                if (aircraft.Phases is not null && aircraft.Phases.LandingClearance is not null)
-                {
-                    aircraft.Phases.LandingClearance = null;
-                    aircraft.Phases.ClearedRunwayId = null;
-                    return Ok($"Landing clearance cancelled{RunwayLabel(aircraft)}");
-                }
-                return new CommandResult(false, "No landing clearance to cancel");
+                return PatternCommandHandler.TryCancelLandingClearance(aircraft);
 
             case GoAroundCommand ga:
-                if (aircraft.Phases is not null && !aircraft.Phases.IsComplete)
-                {
-                    if (ga.TrafficPattern is { } patDir)
-                    {
-                        aircraft.Phases.TrafficDirection = patDir;
-                    }
-
-                    bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
-                    var gaCtx = BuildMinimalContext(aircraft);
-                    int? gaTargetAlt = ga.TargetAltitude;
-
-                    if (gaTargetAlt is null && isGaPattern)
-                    {
-                        double fieldElev = gaCtx.Runway?.ElevationFt ?? 0;
-                        double patAgl = CategoryPerformance.PatternAltitudeAgl(gaCtx.Category);
-                        gaTargetAlt = (int)(fieldElev + patAgl);
-                    }
-
-                    var goAround = new GoAroundPhase
-                    {
-                        AssignedHeading = ga.AssignedHeading,
-                        TargetAltitude = gaTargetAlt,
-                        ReenterPattern = isGaPattern,
-                    };
-                    aircraft.Phases.ReplaceUpcoming([goAround]);
-                    aircraft.Phases.AdvanceToNext(gaCtx);
-
-                    var gaMsg = "Go around";
-                    if (ga.TrafficPattern is PatternDirection.Left)
-                    {
-                        gaMsg += ", make left traffic";
-                    }
-                    else if (ga.TrafficPattern is PatternDirection.Right)
-                    {
-                        gaMsg += ", make right traffic";
-                    }
-                    if (ga.AssignedHeading is not null)
-                    {
-                        gaMsg += $", fly heading {ga.AssignedHeading:000}";
-                    }
-                    if (ga.TargetAltitude is not null)
-                    {
-                        gaMsg += $", climb to {ga.TargetAltitude:N0}";
-                    }
-                    return Ok(gaMsg);
-                }
-                return new CommandResult(false, "Go around not applicable");
+                return PatternCommandHandler.TryGoAround(ga, aircraft);
 
             // Pattern entry commands
             case EnterLeftDownwindCommand eld:
@@ -1121,7 +588,6 @@ public static class CommandDispatcher
                     runwayId: eld.RunwayId,
                     runways: runways
                 );
-
             case EnterRightDownwindCommand erd:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
@@ -1130,7 +596,6 @@ public static class CommandDispatcher
                     runwayId: erd.RunwayId,
                     runways: runways
                 );
-
             case EnterLeftCrosswindCommand elc:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
@@ -1139,7 +604,6 @@ public static class CommandDispatcher
                     runwayId: elc.RunwayId,
                     runways: runways
                 );
-
             case EnterRightCrosswindCommand erc:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
@@ -1148,7 +612,6 @@ public static class CommandDispatcher
                     runwayId: erc.RunwayId,
                     runways: runways
                 );
-
             case EnterLeftBaseCommand elb:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
@@ -1158,7 +621,6 @@ public static class CommandDispatcher
                     finalDistanceNm: elb.FinalDistanceNm,
                     runways: runways
                 );
-
             case EnterRightBaseCommand erb:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
@@ -1168,7 +630,6 @@ public static class CommandDispatcher
                     finalDistanceNm: erb.FinalDistanceNm,
                     runways: runways
                 );
-
             case EnterFinalCommand ef:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
@@ -1181,25 +642,18 @@ public static class CommandDispatcher
             // Pattern modification commands
             case MakeLeftTrafficCommand mlt:
                 return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, runways);
-
             case MakeRightTrafficCommand mrt:
                 return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId, runways);
-
             case TurnCrosswindCommand:
                 return PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(aircraft, "crosswind");
-
             case TurnDownwindCommand:
                 return PatternCommandHandler.TryPatternTurnTo<CrosswindPhase>(aircraft, "downwind");
-
             case TurnBaseCommand:
                 return PatternCommandHandler.TryPatternTurnBase(aircraft);
-
             case ExtendDownwindCommand:
                 return PatternCommandHandler.TryExtendPattern(aircraft);
-
             case MakeShortApproachCommand:
                 return PatternCommandHandler.TryMakeShortApproach(aircraft);
-
             case MakeLeft360Command:
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 360);
             case MakeRight360Command:
@@ -1208,46 +662,31 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 270);
             case MakeRight270Command:
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270);
-
             case CircleAirportCommand:
                 return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left);
-
             case PatternSizeCommand ps:
                 return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm);
-
             case MakeNormalApproachCommand:
                 return PatternCommandHandler.TryMakeNormalApproach(aircraft);
-
             case Cancel270Command:
                 return PatternCommandHandler.TryCancel270(aircraft);
-
             case MakeLeftSTurnsCommand mls:
                 return PatternCommandHandler.TryMakeSTurns(aircraft, TurnDirection.Left, mls.Count);
-
             case MakeRightSTurnsCommand mrs:
                 return PatternCommandHandler.TryMakeSTurns(aircraft, TurnDirection.Right, mrs.Count);
-
             case Plan270Command:
                 return PatternCommandHandler.TryPlan270(aircraft);
 
             case SequenceCommand seq:
-                aircraft.SequenceNumber = seq.Number;
-                aircraft.FollowTarget = seq.FollowCallsign;
-                var seqMsg = seq.FollowCallsign is not null
-                    ? $"Number {seq.Number}, follow {seq.FollowCallsign}"
-                    : $"Number {seq.Number} in sequence";
-                return Ok(seqMsg);
+                return PatternCommandHandler.TrySetSequence(seq, aircraft);
 
             // Option approach / special ops commands
             case TouchAndGoCommand:
                 return PatternCommandHandler.TrySetupTouchAndGo(aircraft);
-
             case StopAndGoCommand:
                 return PatternCommandHandler.TrySetupStopAndGo(aircraft);
-
             case LowApproachCommand:
                 return PatternCommandHandler.TrySetupLowApproach(aircraft);
-
             case ClearedForOptionCommand:
                 return PatternCommandHandler.TrySetLandingClearance(
                     aircraft,
@@ -1258,13 +697,10 @@ public static class CommandDispatcher
             // Hold commands
             case HoldPresentPosition360Command hpp:
                 return PatternCommandHandler.TryHoldPresentPosition(aircraft, hpp.Direction);
-
             case HoldPresentPositionHoverCommand:
                 return PatternCommandHandler.TryHoldPresentPosition(aircraft, null);
-
             case HoldAtFixOrbitCommand hfix:
                 return PatternCommandHandler.TryHoldAtFix(aircraft, hfix.FixName, hfix.Lat, hfix.Lon, hfix.Direction);
-
             case HoldAtFixHoverCommand hfixH:
                 return PatternCommandHandler.TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null);
 
@@ -1272,11 +708,9 @@ public static class CommandDispatcher
             case HoldPositionCommand when currentPhase is AirTaxiPhase:
                 aircraft.IsHeld = true;
                 return Ok("Hold position");
-
             case ResumeCommand when currentPhase is AirTaxiPhase:
                 aircraft.IsHeld = false;
                 return Ok("Resume taxi");
-
             case ResumeCommand when currentPhase is HoldingShortPhase { HoldShort.Reason: HoldShortReason.ExplicitHoldShort } holdShort:
                 holdShort.SatisfyClearance(ClearanceType.RunwayCrossing);
                 return Ok("Resume taxi");
@@ -1284,696 +718,41 @@ public static class CommandDispatcher
             // Helicopter commands
             case AirTaxiCommand atxi:
                 return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, groundLayout);
-
             case LandCommand land:
                 return GroundCommandHandler.TryLand(aircraft, land, groundLayout);
 
             case ClearedTakeoffPresentCommand:
-            {
-                var ctoppCat = AircraftCategorization.Categorize(aircraft.AircraftType);
-                if (ctoppCat != AircraftCategory.Helicopter)
-                {
-                    return new CommandResult(false, "CTOPP is only valid for helicopters");
-                }
-
-                if (!aircraft.IsOnGround)
-                {
-                    return new CommandResult(false, "CTOPP requires the aircraft to be on the ground");
-                }
-
-                // Clear existing phases and set up vertical takeoff
-                var ctoppCtx = BuildMinimalContext(aircraft, groundLayout);
-                if (aircraft.Phases is not null)
-                {
-                    aircraft.Phases.Clear(ctoppCtx);
-                }
-
-                aircraft.IsHeld = false;
-                aircraft.Phases = new PhaseList();
-                aircraft.Phases.Add(new Phases.Tower.HelicopterTakeoffPhase());
-                aircraft.Phases.Add(new Phases.Tower.InitialClimbPhase { IsVfr = aircraft.IsVfr, CruiseAltitude = aircraft.CruiseAltitude });
-
-                // Field elevation = current altitude (on ground)
-                ctoppCtx = new PhaseContext
-                {
-                    Aircraft = aircraft,
-                    Targets = aircraft.Targets,
-                    Category = ctoppCat,
-                    DeltaSeconds = 0,
-                    Runway = null,
-                    FieldElevation = aircraft.Altitude,
-                    GroundLayout = groundLayout,
-                    Logger = Log,
-                };
-                aircraft.Phases.Start(ctoppCtx);
-
-                return Ok("Cleared for takeoff, present position");
-            }
+                return DepartureClearanceHandler.TryClearedTakeoffPresent(aircraft, groundLayout);
 
             // Ground commands
             case PushbackCommand push:
                 return GroundCommandHandler.TryPushback(aircraft, push, groundLayout);
-
             case TaxiCommand taxi:
                 return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, runways, autoCrossRunway);
-
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft);
-
             case ResumeCommand:
                 return GroundCommandHandler.TryResumeTaxi(aircraft);
-
             case CrossRunwayCommand cross:
                 return GroundCommandHandler.TryCrossRunway(aircraft, cross);
-
             case HoldShortCommand hs:
                 return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout);
-
             case AssignRunwayCommand assignRwy:
                 return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId, runways);
-
             case FollowCommand follow:
                 return GroundCommandHandler.TryFollow(aircraft, follow, groundLayout);
-
             case GiveWayCommand gw:
                 return GroundCommandHandler.TryGiveWay(aircraft, gw.TargetCallsign);
-
             case ExitLeftCommand el:
                 return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Left }, el.NoDelete);
-
             case ExitRightCommand er:
                 return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Side = ExitSide.Right }, er.NoDelete);
-
             case ExitTaxiwayCommand et:
                 return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Taxiway = et.Taxiway }, et.NoDelete);
 
             default:
                 return null;
         }
-    }
-
-    // --- Multi-block navigation command dispatchers ---
-
-    private static CommandResult DispatchJrado(JoinRadialOutboundCommand cmd, AircraftState aircraft)
-    {
-        // Block 0 (immediate): fly present heading
-        aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
-        aircraft.Targets.PreferredTurnDirection = null;
-
-        // Block 1: on radial intercept, fly outbound heading
-        var interceptBlock = new CommandBlock
-        {
-            Trigger = new BlockTrigger
-            {
-                Type = BlockTriggerType.InterceptRadial,
-                FixName = cmd.FixName,
-                FixLat = cmd.FixLat,
-                FixLon = cmd.FixLon,
-                Radial = cmd.Radial,
-            },
-            ApplyAction = ac =>
-            {
-                ac.Targets.NavigationRoute.Clear();
-                ac.Targets.TargetHeading = cmd.Radial;
-                ac.Targets.PreferredTurnDirection = null;
-            },
-            Description = $"at {cmd.FixName} R{cmd.Radial:D3}: FH {cmd.Radial:D3}",
-            NaturalDescription = $"On {cmd.FixName} {cmd.Radial:D3} radial: fly heading {cmd.Radial:D3}",
-        };
-        interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
-        aircraft.Queue.Blocks.Add(interceptBlock);
-
-        return Ok($"Fly present heading, intercept {cmd.FixName} {cmd.Radial:D3} radial outbound");
-    }
-
-    private static CommandResult DispatchJradi(JoinRadialInboundCommand cmd, AircraftState aircraft)
-    {
-        // Block 0 (immediate): fly present heading
-        aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
-        aircraft.Targets.PreferredTurnDirection = null;
-
-        // Block 1: on radial intercept, navigate inbound to fix
-        var interceptBlock = new CommandBlock
-        {
-            Trigger = new BlockTrigger
-            {
-                Type = BlockTriggerType.InterceptRadial,
-                FixName = cmd.FixName,
-                FixLat = cmd.FixLat,
-                FixLon = cmd.FixLon,
-                Radial = cmd.Radial,
-            },
-            ApplyAction = ac =>
-            {
-                ac.Targets.NavigationRoute.Clear();
-                ac.Targets.NavigationRoute.Add(
-                    new NavigationTarget
-                    {
-                        Name = cmd.FixName,
-                        Latitude = cmd.FixLat,
-                        Longitude = cmd.FixLon,
-                    }
-                );
-            },
-            Description = $"at {cmd.FixName} R{cmd.Radial:D3}: DCT {cmd.FixName}",
-            NaturalDescription = $"On {cmd.FixName} {cmd.Radial:D3} radial: proceed inbound to {cmd.FixName}",
-        };
-        interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
-        aircraft.Queue.Blocks.Add(interceptBlock);
-
-        return Ok($"Fly present heading, intercept {cmd.FixName} {cmd.Radial:D3} radial inbound");
-    }
-
-    private static CommandResult DispatchDepartFix(DepartFixCommand cmd, AircraftState aircraft)
-    {
-        // Block 0 (immediate): navigate to fix
-        aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = cmd.FixName,
-                Latitude = cmd.FixLat,
-                Longitude = cmd.FixLon,
-            }
-        );
-
-        // Block 1: on reaching fix, fly heading
-        var departBlock = new CommandBlock
-        {
-            Trigger = new BlockTrigger
-            {
-                Type = BlockTriggerType.ReachFix,
-                FixName = cmd.FixName,
-                FixLat = cmd.FixLat,
-                FixLon = cmd.FixLon,
-            },
-            ApplyAction = ac =>
-            {
-                ac.Targets.NavigationRoute.Clear();
-                ac.Targets.TargetHeading = cmd.Heading;
-                ac.Targets.PreferredTurnDirection = null;
-            },
-            Description = $"at {cmd.FixName}: FH {cmd.Heading:D3}",
-            NaturalDescription = $"At {cmd.FixName}: fly heading {cmd.Heading:D3}",
-        };
-        departBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
-        aircraft.Queue.Blocks.Add(departBlock);
-
-        return Ok($"Proceed direct {cmd.FixName}, depart heading {cmd.Heading:D3}");
-    }
-
-    private static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft)
-    {
-        // Capture current altitude for revert after fix passage
-        double? previousAlt = aircraft.Targets.TargetAltitude;
-
-        // Block 0 (immediate): navigate to fix + set crossing altitude
-        aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = cmd.FixName,
-                Latitude = cmd.FixLat,
-                Longitude = cmd.FixLon,
-            }
-        );
-
-        switch (cmd.AltType)
-        {
-            case CrossFixAltitudeType.At:
-                aircraft.Targets.TargetAltitude = cmd.Altitude;
-                break;
-            case CrossFixAltitudeType.AtOrAbove when aircraft.Altitude < cmd.Altitude:
-                aircraft.Targets.TargetAltitude = cmd.Altitude;
-                break;
-            case CrossFixAltitudeType.AtOrBelow when aircraft.Altitude > cmd.Altitude:
-                aircraft.Targets.TargetAltitude = cmd.Altitude;
-                break;
-        }
-
-        if (cmd.Speed is not null)
-        {
-            aircraft.Targets.TargetSpeed = cmd.Speed;
-        }
-
-        // Block 1: on reaching fix, revert to previous altitude target
-        var revertBlock = new CommandBlock
-        {
-            Trigger = new BlockTrigger
-            {
-                Type = BlockTriggerType.ReachFix,
-                FixName = cmd.FixName,
-                FixLat = cmd.FixLat,
-                FixLon = cmd.FixLon,
-            },
-            ApplyAction = ac =>
-            {
-                if (previousAlt is not null)
-                {
-                    ac.Targets.TargetAltitude = previousAlt;
-                }
-            },
-            Description = $"at {cmd.FixName}: revert altitude",
-            NaturalDescription = $"At {cmd.FixName}: resume assigned altitude",
-        };
-        revertBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Immediate });
-        aircraft.Queue.Blocks.Add(revertBlock);
-
-        var altTypeStr = cmd.AltType switch
-        {
-            CrossFixAltitudeType.AtOrAbove => "at or above",
-            CrossFixAltitudeType.AtOrBelow => "at or below",
-            _ => "at",
-        };
-        var cfixMsg = $"Cross {cmd.FixName} {altTypeStr} {cmd.Altitude:N0}";
-        if (cmd.Speed is not null)
-        {
-            cfixMsg += $", speed {cmd.Speed}";
-        }
-        return Ok(cfixMsg);
-    }
-
-    private static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft, IApproachLookup? approachLookup)
-    {
-        if (approachLookup is null)
-        {
-            return new CommandResult(false, "Approach data not available");
-        }
-
-        string airport = cmd.AirportCode ?? aircraft.Destination ?? "";
-        if (string.IsNullOrEmpty(airport))
-        {
-            return new CommandResult(false, "No airport specified and no destination in flight plan");
-        }
-
-        var approaches = approachLookup.GetApproaches(airport);
-        if (approaches.Count == 0)
-        {
-            return Ok($"No approaches found for {airport.ToUpperInvariant()}");
-        }
-
-        var grouped = approaches.GroupBy(a => a.Runway ?? "").OrderBy(g => g.Key);
-
-        var parts = grouped.Select(g =>
-        {
-            var items = string.Join(", ", g.Select(a => FormatApproachDisplay(a)));
-            return g.Key.Length > 0 ? $"RWY {g.Key}: {items}" : items;
-        });
-
-        return Ok($"{airport.ToUpperInvariant()} approaches: {string.Join(" | ", parts)}");
-    }
-
-    private static string FormatApproachDisplay(Data.Vnas.CifpApproachProcedure approach)
-    {
-        string typeName = approach.ApproachTypeName;
-        int parenIdx = typeName.IndexOf('(');
-        if (parenIdx >= 0)
-        {
-            typeName = typeName[..parenIdx];
-        }
-
-        string rwy = approach.Runway ?? "";
-
-        // Extract variant: anything in ApproachId after type code + runway
-        string variant = "";
-        if (approach.ApproachId.Length > 1 + rwy.Length)
-        {
-            variant = approach.ApproachId[(1 + rwy.Length)..];
-        }
-
-        return $"{typeName}{rwy}{variant}";
-    }
-
-    private static CommandResult DispatchJarr(
-        JoinStarCommand cmd,
-        AircraftState aircraft,
-        IFixLookup? fixes,
-        IProcedureLookup? procedureLookup = null
-    )
-    {
-        if (fixes is null)
-        {
-            return new CommandResult(false, "Fix database not available");
-        }
-
-        // Try CIFP STAR first for constrained navigation targets
-        var cifpResult = TryResolveStarFromCifp(cmd, aircraft, fixes, procedureLookup);
-        if (cifpResult is not null)
-        {
-            aircraft.Targets.NavigationRoute.Clear();
-            foreach (var target in cifpResult)
-            {
-                aircraft.Targets.NavigationRoute.Add(target);
-            }
-
-            aircraft.ActiveStarId = cmd.StarId;
-            aircraft.StarViaMode = false; // STAR via mode OFF by default
-
-            var cifpFixList = string.Join(" ", cifpResult.Select(t => t.Name));
-            return Ok($"Join STAR {cmd.StarId}: {cifpFixList}");
-        }
-
-        // Fallback to NavData body fixes (lateral path only, no constraints)
-        var starBody = fixes.GetStarBody(cmd.StarId);
-        if (starBody is null || starBody.Count == 0)
-        {
-            return new CommandResult(false, $"Unknown STAR: {cmd.StarId}");
-        }
-
-        List<string> routeFixes;
-
-        if (cmd.Transition is not null)
-        {
-            var transitions = fixes.GetStarTransitions(cmd.StarId);
-            var match = transitions?.FirstOrDefault(t => t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
-            if (match is null || match.Value.Fixes is null)
-            {
-                return new CommandResult(false, $"Unknown transition '{cmd.Transition}' for STAR {cmd.StarId}");
-            }
-
-            routeFixes = [.. match.Value.Fixes, .. starBody];
-        }
-        else
-        {
-            routeFixes = FindStarFixesAhead(aircraft, starBody, fixes);
-        }
-
-        if (routeFixes.Count == 0)
-        {
-            return new CommandResult(false, $"No navigable fixes found for STAR {cmd.StarId}");
-        }
-
-        // Deduplicate adjacent identical fix names
-        var deduped = new List<string>(routeFixes.Count);
-        foreach (var name in routeFixes)
-        {
-            if (deduped.Count == 0 || !string.Equals(deduped[^1], name, StringComparison.OrdinalIgnoreCase))
-            {
-                deduped.Add(name);
-            }
-        }
-
-        aircraft.Targets.NavigationRoute.Clear();
-        foreach (var fixName in deduped)
-        {
-            var pos = fixes.GetFixPosition(fixName);
-            if (pos is not null)
-            {
-                aircraft.Targets.NavigationRoute.Add(
-                    new NavigationTarget
-                    {
-                        Name = fixName,
-                        Latitude = pos.Value.Lat,
-                        Longitude = pos.Value.Lon,
-                    }
-                );
-            }
-        }
-
-        if (aircraft.Targets.NavigationRoute.Count == 0)
-        {
-            return new CommandResult(false, $"Could not resolve fixes for STAR {cmd.StarId}");
-        }
-
-        // Set STAR state even for NavData fallback (allows DVIA later)
-        aircraft.ActiveStarId = cmd.StarId;
-        aircraft.StarViaMode = false;
-
-        var fixListStr = string.Join(" ", deduped);
-        return Ok($"Join STAR {cmd.StarId}: {fixListStr}");
-    }
-
-    /// <summary>
-    /// Attempts to resolve a STAR from CIFP data with altitude/speed constraints.
-    /// Builds ordered leg sequence: enroute transition → common → runway transition.
-    /// Returns null if CIFP data is unavailable or STAR cannot be resolved.
-    /// </summary>
-    private static List<NavigationTarget>? TryResolveStarFromCifp(
-        JoinStarCommand cmd,
-        AircraftState aircraft,
-        IFixLookup fixes,
-        IProcedureLookup? procedures
-    )
-    {
-        if (procedures is null || aircraft.Destination is null)
-        {
-            return null;
-        }
-
-        var star = procedures.GetStar(aircraft.Destination, cmd.StarId);
-        if (star is null)
-        {
-            return null;
-        }
-
-        // Build ordered leg sequence: enroute transition → common → runway transition
-        var orderedLegs = new List<CifpLeg>();
-
-        // Enroute transition (if specified)
-        if (cmd.Transition is not null && star.EnrouteTransitions.TryGetValue(cmd.Transition, out var enTransition))
-        {
-            orderedLegs.AddRange(enTransition.Legs);
-        }
-
-        orderedLegs.AddRange(star.CommonLegs);
-
-        // Runway transition (if assigned runway available)
-        if (aircraft.Phases?.AssignedRunway is { } rwy)
-        {
-            var rwKey = "RW" + rwy.Designator;
-            if (star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
-            {
-                orderedLegs.AddRange(rwTransition.Legs);
-            }
-        }
-
-        if (orderedLegs.Count == 0)
-        {
-            return null;
-        }
-
-        // Convert legs to NavigationTargets with constraints
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs, fixes);
-
-        // Filter to fixes ahead of aircraft (same logic as NavData fallback)
-        if (cmd.Transition is null && targets.Count > 1)
-        {
-            targets = FindTargetsAhead(aircraft, targets);
-        }
-
-        return targets.Count > 0 ? targets : null;
-    }
-
-    /// <summary>
-    /// Filters NavigationTargets to those ahead of the aircraft (within ±90° of heading),
-    /// starting from the nearest such target.
-    /// </summary>
-    private static List<NavigationTarget> FindTargetsAhead(AircraftState aircraft, List<NavigationTarget> targets)
-    {
-        int bestIdx = -1;
-        double bestDist = double.MaxValue;
-
-        for (int i = 0; i < targets.Count; i++)
-        {
-            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, targets[i].Latitude, targets[i].Longitude);
-            double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
-            if (angleDiff > 180)
-            {
-                angleDiff = 360 - angleDiff;
-            }
-
-            if (angleDiff > 90)
-            {
-                continue;
-            }
-
-            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, targets[i].Latitude, targets[i].Longitude);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                bestIdx = i;
-            }
-        }
-
-        if (bestIdx < 0)
-        {
-            return targets;
-        }
-
-        return targets.GetRange(bestIdx, targets.Count - bestIdx);
-    }
-
-    /// <summary>
-    /// Find the subset of STAR body fixes ahead of the aircraft (within ±90° of heading),
-    /// starting from the nearest such fix. Prevents U-turns to fixes behind the aircraft.
-    /// </summary>
-    private static List<string> FindStarFixesAhead(AircraftState aircraft, IReadOnlyList<string> bodyFixes, IFixLookup fixes)
-    {
-        int bestIdx = -1;
-        double bestDist = double.MaxValue;
-
-        for (int i = 0; i < bodyFixes.Count; i++)
-        {
-            var pos = fixes.GetFixPosition(bodyFixes[i]);
-            if (pos is null)
-            {
-                continue;
-            }
-
-            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
-            double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
-            if (angleDiff > 180)
-            {
-                angleDiff = 360 - angleDiff;
-            }
-
-            if (angleDiff > 90)
-            {
-                continue;
-            }
-
-            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
-            if (dist < bestDist)
-            {
-                bestDist = dist;
-                bestIdx = i;
-            }
-        }
-
-        if (bestIdx < 0)
-        {
-            // No fixes ahead — use first fix as fallback
-            return [.. bodyFixes];
-        }
-
-        return bodyFixes.Skip(bestIdx).ToList();
-    }
-
-    private static CommandResult DispatchHoldingPattern(HoldingPatternCommand cmd, AircraftState aircraft)
-    {
-        var phase = new HoldingPatternPhase
-        {
-            FixName = cmd.FixName,
-            FixLat = cmd.FixLat,
-            FixLon = cmd.FixLon,
-            InboundCourse = cmd.InboundCourse,
-            LegLength = cmd.LegLength,
-            IsMinuteBased = cmd.IsMinuteBased,
-            Direction = cmd.Direction,
-            Entry = cmd.Entry,
-        };
-
-        RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
-        if (aircraft.Phases is not null)
-        {
-            var ctx = BuildMinimalContext(aircraft);
-            aircraft.Phases.Clear(ctx);
-        }
-
-        aircraft.Phases = runway is not null ? new PhaseList { AssignedRunway = runway } : new PhaseList();
-        aircraft.Phases.Add(phase);
-
-        var startCtx = BuildMinimalContext(aircraft);
-        aircraft.Phases.Start(startCtx);
-
-        var dirStr = cmd.Direction == TurnDirection.Left ? "left" : "right";
-        var legStr = cmd.IsMinuteBased ? $"{cmd.LegLength}min" : $"{cmd.LegLength}nm";
-        return Ok($"Hold at {cmd.FixName}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
-    }
-
-    private static CommandResult DispatchJfac(
-        JoinFinalApproachCourseCommand cmd,
-        AircraftState aircraft,
-        IApproachLookup? approachLookup,
-        IRunwayLookup? runways
-    )
-    {
-        if (approachLookup is null)
-        {
-            return new CommandResult(false, "Approach data not available");
-        }
-
-        string airport = ResolveAirport(aircraft);
-        if (string.IsNullOrEmpty(airport))
-        {
-            return new CommandResult(false, "Cannot determine airport for approach");
-        }
-
-        string? resolvedId = approachLookup.ResolveApproachId(airport, cmd.ApproachId);
-        if (resolvedId is null)
-        {
-            return new CommandResult(false, $"Unknown approach: {cmd.ApproachId} at {airport}");
-        }
-
-        var procedure = approachLookup.GetApproach(airport, resolvedId);
-        if (procedure?.Runway is null)
-        {
-            return new CommandResult(false, $"No runway for approach {resolvedId}");
-        }
-
-        if (runways is null)
-        {
-            return new CommandResult(false, "Runway data not available");
-        }
-
-        var runway = runways.GetRunway(airport, procedure.Runway);
-        if (runway is null)
-        {
-            return new CommandResult(false, $"Unknown runway {procedure.Runway} at {airport}");
-        }
-
-        // Ensure the runway designator matches the approach runway
-        var approachRunway = runway.Designator.Equals(procedure.Runway, StringComparison.OrdinalIgnoreCase)
-            ? runway
-            : runway.ForApproach(procedure.Runway);
-
-        double finalCourse = approachRunway.TrueHeading;
-
-        // Cancel existing speed restrictions per 7110.65 §5-7-1.a.4
-        aircraft.Targets.TargetSpeed = null;
-        aircraft.Targets.SpeedFloor = null;
-        aircraft.Targets.SpeedCeiling = null;
-
-        // Clear existing phases
-        if (aircraft.Phases is not null)
-        {
-            var ctx = BuildMinimalContext(aircraft);
-            aircraft.Phases.Clear(ctx);
-        }
-
-        // Build phase sequence: InterceptCourse → FinalApproach → Landing
-        var interceptPhase = new InterceptCoursePhase
-        {
-            FinalApproachCourse = finalCourse,
-            ThresholdLat = approachRunway.ThresholdLatitude,
-            ThresholdLon = approachRunway.ThresholdLongitude,
-        };
-
-        var finalPhase = new FinalApproachPhase();
-        var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
-        Phase landingPhase = isHeliApch ? new HelicopterLandingPhase() : new LandingPhase();
-
-        var clearance = new ApproachClearance
-        {
-            ApproachId = resolvedId,
-            AirportCode = airport,
-            RunwayId = procedure.Runway,
-            FinalApproachCourse = finalCourse,
-            Procedure = procedure,
-        };
-
-        aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
-
-        aircraft.Phases.Add(interceptPhase);
-        aircraft.Phases.Add(finalPhase);
-        aircraft.Phases.Add(landingPhase);
-
-        var startCtx = BuildMinimalContext(aircraft);
-        aircraft.Phases.Start(startCtx);
-
-        return Ok($"Join final approach course, {resolvedId}, runway {procedure.Runway}");
     }
 
     internal static string ResolveAirport(AircraftState aircraft)
@@ -2068,76 +847,7 @@ public static class CommandDispatcher
         return runway is not null ? $", Runway {runway.Designator}" : "";
     }
 
-    private static CommandResult DispatchClimbVia(ClimbViaCommand cmd, AircraftState aircraft)
-    {
-        if (aircraft.ActiveSidId is null)
-        {
-            return new CommandResult(false, "No active SID — climb via requires an active SID");
-        }
-
-        aircraft.SidViaMode = true;
-        aircraft.SidViaCeiling = cmd.Altitude;
-        aircraft.SpeedRestrictionsDeleted = false;
-
-        if (cmd.Altitude is not null)
-        {
-            return Ok($"Climb via SID, except maintain {cmd.Altitude:N0}");
-        }
-
-        return Ok("Climb via SID");
-    }
-
-    private static CommandResult DispatchDescendVia(DescendViaCommand cmd, AircraftState aircraft)
-    {
-        if (aircraft.ActiveStarId is null)
-        {
-            return new CommandResult(false, "No active STAR — descend via requires an active STAR");
-        }
-
-        aircraft.StarViaMode = true;
-        aircraft.StarViaFloor = cmd.Altitude;
-        aircraft.SpeedRestrictionsDeleted = false;
-
-        // DVIA SPD <speed> <fix>: inject a speed restriction at the specified fix in the nav route
-        if (cmd.Speed is { } speed && cmd.SpeedFixName is not null && cmd.SpeedFixLat is not null && cmd.SpeedFixLon is not null)
-        {
-            var route = aircraft.Targets.NavigationRoute;
-            bool found = false;
-            for (int i = 0; i < route.Count; i++)
-            {
-                if (string.Equals(route[i].Name, cmd.SpeedFixName, StringComparison.OrdinalIgnoreCase))
-                {
-                    route[i] = new NavigationTarget
-                    {
-                        Name = route[i].Name,
-                        Latitude = route[i].Latitude,
-                        Longitude = route[i].Longitude,
-                        AltitudeRestriction = route[i].AltitudeRestriction,
-                        SpeedRestriction = new CifpSpeedRestriction(speed, true),
-                        IsFlyOver = route[i].IsFlyOver,
-                    };
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                return new CommandResult(false, $"Fix {cmd.SpeedFixName} not found in current route");
-            }
-
-            return Ok($"Descend via STAR, {speed} knots at {cmd.SpeedFixName}");
-        }
-
-        if (cmd.Altitude is not null)
-        {
-            return Ok($"Descend via STAR, except maintain {cmd.Altitude:N0}");
-        }
-
-        return Ok("Descend via STAR");
-    }
-
-    private static GroundNode? FindTaxiwayIntersection(AirportGroundLayout layout, string taxiway1, string taxiway2)
+    internal static GroundNode? FindTaxiwayIntersection(AirportGroundLayout layout, string taxiway1, string taxiway2)
     {
         foreach (var node in layout.Nodes.Values)
         {
@@ -2335,30 +1045,5 @@ public static class CommandDispatcher
         }
 
         return at.FixName;
-    }
-
-    private static CommandResult DispatchReportFieldInSight(AircraftState aircraft)
-    {
-        if (aircraft.HasReportedFieldInSight)
-        {
-            aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the field in sight");
-            return Ok("Field in sight");
-        }
-
-        return new CommandResult(false, "Unable, field not in sight");
-    }
-
-    private static CommandResult DispatchReportTrafficInSight(AircraftState aircraft, string? targetCallsign)
-    {
-        if (aircraft.HasReportedTrafficInSight)
-        {
-            var msg = targetCallsign is not null
-                ? $"{aircraft.Callsign} has the traffic in sight ({targetCallsign})"
-                : $"{aircraft.Callsign} has the traffic in sight";
-            aircraft.PendingNotifications.Add(msg);
-            return Ok("Traffic in sight");
-        }
-
-        return new CommandResult(false, "Unable, traffic not in sight");
     }
 }
