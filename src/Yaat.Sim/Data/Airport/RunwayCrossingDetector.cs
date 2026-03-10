@@ -8,6 +8,8 @@ namespace Yaat.Sim.Data.Airport;
 /// </summary>
 internal static class RunwayCrossingDetector
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("RunwayCrossingDetector");
+
     /// <summary>Default runway width (ft) when navdata is unavailable.</summary>
     private const double DefaultRunwayWidthFt = 150.0;
 
@@ -22,7 +24,6 @@ internal static class RunwayCrossingDetector
         AirportGroundLayout layout,
         CoordinateIndex coordIndex,
         ref int nextNodeId,
-        ILogger? logger,
         IRunwayLookup? runwayLookup,
         string? runwayAirportCode
     )
@@ -87,13 +88,13 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            ProcessBoundaryEdge(layout, edge, onNode, offNode, rect, coordIndex, ref nextNodeId, logger);
+            ProcessBoundaryEdge(layout, edge, onNode, offNode, rect, coordIndex, ref nextNodeId);
         }
 
         // Connect on-runway nodes with centerline edges so that taxiways
         // crossing the same runway are linked (e.g., D and F at OAK both cross
         // 15/33 but have no GeoJSON edges between them).
-        ConnectOnRunwayNodes(layout, rect, logger);
+        ConnectOnRunwayNodes(layout, rect);
 
         return widthFt;
     }
@@ -132,8 +133,7 @@ internal static class RunwayCrossingDetector
         GroundNode offNode,
         in RunwayRectangle rect,
         CoordinateIndex coordIndex,
-        ref int nextNodeId,
-        ILogger? logger
+        ref int nextNodeId
     )
     {
         double crossOff = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(offNode.Latitude, offNode.Longitude, rect.RefLat, rect.RefLon, rect.Heading));
@@ -161,7 +161,7 @@ internal static class RunwayCrossingDetector
 
             layout.Nodes[offNode.Id] = upgraded;
 
-            logger?.LogDebug("Reused node {NodeId} as hold-short for {Runway} on {Taxiway}", offNode.Id, rect.CombinedId, edge.TaxiwayName);
+            Log.LogDebug("Reused node {NodeId} as hold-short for {Runway} on {Taxiway}", offNode.Id, rect.CombinedId, edge.TaxiwayName);
             return;
         }
 
@@ -192,7 +192,7 @@ internal static class RunwayCrossingDetector
 
         SplitEdgeAtOneNode(layout, edge, hsNode);
 
-        logger?.LogDebug(
+        Log.LogDebug(
             "Runway crossing: {Taxiway} boundary at {Runway} — hold-short node {NodeId} at ({Lat:F6}, {Lon:F6})",
             edge.TaxiwayName,
             rect.CombinedId,
@@ -208,7 +208,7 @@ internal static class RunwayCrossingDetector
     /// closer to the runway centerline (the on-runway dead-end), sorts them by
     /// along-track position, and links consecutive ones.
     /// </summary>
-    private static void ConnectOnRunwayNodes(AirportGroundLayout layout, in RunwayRectangle rect, ILogger? logger)
+    private static void ConnectOnRunwayNodes(AirportGroundLayout layout, in RunwayRectangle rect)
     {
         string rwyEdgeName = $"RWY{rect.CombinedId}";
 
@@ -292,13 +292,7 @@ internal static class RunwayCrossingDetector
             layout.Edges.Add(rwyEdge);
             // Node adjacency lists are wired up in GeoJsonParser Step 7.
 
-            logger?.LogDebug(
-                "Runway centerline edge: {From}->{To} on {Runway} ({DistFt:F0}ft)",
-                fromId,
-                toId,
-                rect.CombinedId,
-                dist * GeoMath.FeetPerNm
-            );
+            Log.LogDebug("Runway centerline edge: {From}->{To} on {Runway} ({DistFt:F0}ft)", fromId, toId, rect.CombinedId, dist * GeoMath.FeetPerNm);
         }
     }
 

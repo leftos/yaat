@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
@@ -12,7 +11,6 @@ internal static class PatternCommandHandler
         AircraftState aircraft,
         PatternDirection direction,
         PatternEntryLeg entryLeg,
-        ILogger logger,
         string? runwayId = null,
         double? finalDistanceNm = null,
         IRunwayLookup? runways = null
@@ -76,7 +74,7 @@ internal static class PatternCommandHandler
         }
 
         // Clear current phases and build new sequence from entry leg
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Clear(ctx);
 
         // For wrong-side entry: midfield crossing then downwind entry
@@ -256,12 +254,12 @@ internal static class PatternCommandHandler
     /// Advance to the next phase when the current phase is of type T.
     /// Used for TC (skip upwind to crosswind) and TD (skip crosswind to downwind).
     /// </summary>
-    internal static CommandResult TryPatternTurnTo<T>(AircraftState aircraft, string legName, ILogger logger)
+    internal static CommandResult TryPatternTurnTo<T>(AircraftState aircraft, string legName)
         where T : Phase
     {
         if (aircraft.Phases?.CurrentPhase is T)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.AdvanceToNext(ctx);
             return CommandDispatcher.Ok($"Turn {legName}");
         }
@@ -269,11 +267,11 @@ internal static class PatternCommandHandler
         return new CommandResult(false, $"Not on the leg before {legName}");
     }
 
-    internal static CommandResult TryPatternTurnBase(AircraftState aircraft, ILogger logger)
+    internal static CommandResult TryPatternTurnBase(AircraftState aircraft)
     {
         if (aircraft.Phases?.CurrentPhase is DownwindPhase)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.AdvanceToNext(ctx);
             return CommandDispatcher.Ok("Turn base");
         }
@@ -292,11 +290,11 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok("Extend downwind");
     }
 
-    internal static CommandResult TryMakeShortApproach(AircraftState aircraft, ILogger logger)
+    internal static CommandResult TryMakeShortApproach(AircraftState aircraft)
     {
         if (aircraft.Phases?.CurrentPhase is DownwindPhase)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.SkipTo<BasePhase>(ctx);
             return CommandDispatcher.Ok("Make short approach");
         }
@@ -328,7 +326,7 @@ internal static class PatternCommandHandler
         return new CommandResult(false, "Make normal approach requires downwind or base leg");
     }
 
-    internal static CommandResult TryCancel270(AircraftState aircraft, ILogger logger)
+    internal static CommandResult TryCancel270(AircraftState aircraft)
     {
         // NO270 cancels a planned (pending) 270 from P270. An in-progress 270
         // is cancelled by issuing any other command (FH, FPH, TB, etc.) since
@@ -349,7 +347,7 @@ internal static class PatternCommandHandler
         return new CommandResult(false, "No planned 270 to cancel");
     }
 
-    internal static CommandResult TryPlan270(AircraftState aircraft, ILogger logger)
+    internal static CommandResult TryPlan270(AircraftState aircraft)
     {
         if (aircraft.Phases is null || aircraft.Phases.IsComplete)
         {
@@ -404,7 +402,7 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"Pattern size {sizeNm:G} NM");
     }
 
-    internal static CommandResult TryMakeSTurns(AircraftState aircraft, TurnDirection initialDirection, int count, ILogger logger)
+    internal static CommandResult TryMakeSTurns(AircraftState aircraft, TurnDirection initialDirection, int count)
     {
         if (aircraft.Phases is null || aircraft.Phases.IsComplete)
         {
@@ -415,14 +413,14 @@ internal static class PatternCommandHandler
         var sturnPhase = new STurnPhase { InitialDirection = initialDirection, Count = count };
         aircraft.Phases.InsertAfterCurrent(sturnPhase);
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.AdvanceToNext(ctx);
 
         var dirStr = initialDirection == TurnDirection.Left ? "left" : "right";
         return CommandDispatcher.Ok($"S-turns, initial {dirStr}, {count} turns");
     }
 
-    internal static CommandResult TryMakeTurn(AircraftState aircraft, TurnDirection direction, double degrees, ILogger logger)
+    internal static CommandResult TryMakeTurn(AircraftState aircraft, TurnDirection direction, double degrees)
     {
         if (aircraft.Phases is null || aircraft.Phases.IsComplete)
         {
@@ -446,7 +444,7 @@ internal static class PatternCommandHandler
             aircraft.Phases.InsertAfterCurrent(turnPhase);
         }
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.AdvanceToNext(ctx);
 
         var dirStr = direction == TurnDirection.Left ? "left" : "right";
@@ -527,13 +525,13 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok(message);
     }
 
-    internal static CommandResult TryHoldPresentPosition(AircraftState aircraft, TurnDirection? orbitDirection, ILogger logger)
+    internal static CommandResult TryHoldPresentPosition(AircraftState aircraft, TurnDirection? orbitDirection)
     {
         var phase = new HoldPresentPositionPhase { OrbitDirection = orbitDirection };
 
         if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
             aircraft.Phases = new PhaseList { AssignedRunway = aircraft.Phases.AssignedRunway };
         }
@@ -543,7 +541,7 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Phases.Add(phase);
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
         var dirStr = orbitDirection switch
@@ -555,14 +553,7 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"Hold present position, {dirStr}");
     }
 
-    internal static CommandResult TryHoldAtFix(
-        AircraftState aircraft,
-        string fixName,
-        double lat,
-        double lon,
-        TurnDirection? orbitDirection,
-        ILogger logger
-    )
+    internal static CommandResult TryHoldAtFix(AircraftState aircraft, string fixName, double lat, double lon, TurnDirection? orbitDirection)
     {
         var phase = new HoldAtFixPhase
         {
@@ -575,13 +566,13 @@ internal static class PatternCommandHandler
         RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
         if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.Phases.Add(phase);
-        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+        var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
         var dirStr = orbitDirection switch

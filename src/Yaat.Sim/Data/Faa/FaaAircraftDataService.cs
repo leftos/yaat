@@ -17,13 +17,13 @@ public sealed class FaaAircraftDataService : IDisposable
 
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
+    private static readonly ILogger Log = SimLog.CreateLogger<FaaAircraftDataService>();
+
     private readonly HttpClient _http;
-    private readonly ILogger? _logger;
     private readonly string _cacheDir;
 
-    public FaaAircraftDataService(ILogger? logger = null)
+    public FaaAircraftDataService()
     {
-        _logger = logger;
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -41,14 +41,14 @@ public sealed class FaaAircraftDataService : IDisposable
         {
             if (TryLoadFromJson(cachePath))
             {
-                _logger?.LogInformation("FAA ACD data cached for cycle {Cycle}", cycleId);
+                Log.LogInformation("FAA ACD data cached for cycle {Cycle}", cycleId);
                 return;
             }
         }
 
         try
         {
-            _logger?.LogInformation("Downloading FAA ACD data from {Url}", AcdUrl);
+            Log.LogInformation("Downloading FAA ACD data from {Url}", AcdUrl);
 
             var bytes = await _http.GetByteArrayAsync(AcdUrl);
             var lookup = ParseXlsx(bytes);
@@ -59,15 +59,15 @@ public sealed class FaaAircraftDataService : IDisposable
                 await File.WriteAllTextAsync(cachePath, json);
 
                 AircraftApproachSpeed.Initialize(lookup);
-                _logger?.LogInformation("FAA ACD data cached for cycle {Cycle}: {Count} approach speeds", cycleId, lookup.Count);
+                Log.LogInformation("FAA ACD data cached for cycle {Cycle}: {Count} approach speeds", cycleId, lookup.Count);
                 return;
             }
 
-            _logger?.LogWarning("FAA ACD xlsx contained no valid entries");
+            Log.LogWarning("FAA ACD xlsx contained no valid entries");
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Failed to download FAA ACD data; trying previous cache");
+            Log.LogWarning(ex, "Failed to download FAA ACD data; trying previous cache");
         }
 
         // Fallback: try any previous cycle's JSON
@@ -76,7 +76,7 @@ public sealed class FaaAircraftDataService : IDisposable
             return;
         }
 
-        _logger?.LogWarning("No FAA ACD data available; category defaults will be used");
+        Log.LogWarning("No FAA ACD data available; category defaults will be used");
     }
 
     public void Dispose()
@@ -98,7 +98,7 @@ public sealed class FaaAircraftDataService : IDisposable
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Failed to parse FAA ACD cache at {Path}", path);
+            Log.LogWarning(ex, "Failed to parse FAA ACD cache at {Path}", path);
         }
 
         return false;
@@ -117,14 +117,14 @@ public sealed class FaaAircraftDataService : IDisposable
             {
                 if (TryLoadFromJson(file))
                 {
-                    _logger?.LogInformation("Loaded FAA ACD fallback from {File}", Path.GetFileName(file));
+                    Log.LogInformation("Loaded FAA ACD fallback from {File}", Path.GetFileName(file));
                     return true;
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Failed to scan FAA ACD cache directory");
+            Log.LogWarning(ex, "Failed to scan FAA ACD cache directory");
         }
 
         return false;
@@ -146,7 +146,7 @@ public sealed class FaaAircraftDataService : IDisposable
             var sheetEntry = archive.GetEntry("xl/worksheets/sheet1.xml");
             if (sheetEntry is null)
             {
-                _logger?.LogWarning("FAA ACD xlsx missing sheet1.xml");
+                Log.LogWarning("FAA ACD xlsx missing sheet1.xml");
                 return result;
             }
 
@@ -183,7 +183,7 @@ public sealed class FaaAircraftDataService : IDisposable
 
             if (icaoCol < 0 || approachSpeedCol < 0)
             {
-                _logger?.LogWarning("FAA ACD xlsx missing expected columns (ICAO_Code={Icao}, Approach_Speed_knot={Spd})", icaoCol, approachSpeedCol);
+                Log.LogWarning("FAA ACD xlsx missing expected columns (ICAO_Code={Icao}, Approach_Speed_knot={Spd})", icaoCol, approachSpeedCol);
                 return result;
             }
 
@@ -203,7 +203,7 @@ public sealed class FaaAircraftDataService : IDisposable
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Failed to parse FAA ACD xlsx");
+            Log.LogWarning(ex, "Failed to parse FAA ACD xlsx");
         }
 
         return result;

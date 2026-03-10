@@ -12,19 +12,15 @@ namespace Yaat.Sim.Data.Airport;
 /// </summary>
 public static class GeoJsonParser
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("GeoJsonParser");
+
     /// <summary>Snap tolerance in degrees (~10 feet ≈ 0.00003°).</summary>
     private const double SnapToleranceDeg = 0.00003;
 
     /// <summary>Max distance to connect a parking spot to a taxiway (nm).</summary>
     private const double ParkingConnectMaxNm = 0.15;
 
-    public static AirportGroundLayout Parse(
-        string airportId,
-        string geoJson,
-        ILogger? logger = null,
-        IRunwayLookup? runwayLookup = null,
-        string? runwayAirportCode = null
-    )
+    public static AirportGroundLayout Parse(string airportId, string geoJson, IRunwayLookup? runwayLookup = null, string? runwayAirportCode = null)
     {
         var doc = JsonDocument.Parse(geoJson);
         var root = doc.RootElement;
@@ -61,7 +57,7 @@ public static class GeoJsonParser
                     runwayFeatures.Add(ParseRunway(props, geom));
                     break;
                 default:
-                    logger?.LogWarning("Unknown GeoJSON feature type: {Type}", type);
+                    Log.LogWarning("Unknown GeoJSON feature type: {Type}", type);
                     break;
             }
         }
@@ -73,7 +69,6 @@ public static class GeoJsonParser
             spotFeatures,
             taxiwayFeatures,
             runwayFeatures,
-            logger,
             runwayLookup,
             runwayAirportCode
         );
@@ -85,7 +80,6 @@ public static class GeoJsonParser
     public static AirportGroundLayout ParseMultiple(
         string airportId,
         IEnumerable<string> geoJsonFiles,
-        ILogger? logger = null,
         IRunwayLookup? runwayLookup = null,
         string? runwayAirportCode = null
     )
@@ -94,7 +88,7 @@ public static class GeoJsonParser
 
         if (merged.Count == 1)
         {
-            return Parse(airportId, merged[0], logger, runwayLookup, runwayAirportCode);
+            return Parse(airportId, merged[0], runwayLookup, runwayAirportCode);
         }
 
         var allFeatures = new List<JsonElement>();
@@ -110,7 +104,7 @@ public static class GeoJsonParser
 
         // Rebuild as single FeatureCollection
         string combined = BuildCombinedJson(allFeatures);
-        return Parse(airportId, combined, logger, runwayLookup, runwayAirportCode);
+        return Parse(airportId, combined, runwayLookup, runwayAirportCode);
     }
 
     /// <summary>Max distance to connect a helipad to a taxiway (nm). Larger than parking since helipads may be further from taxiways.</summary>
@@ -123,7 +117,6 @@ public static class GeoJsonParser
         List<SpotFeature> spots,
         List<TaxiwayFeature> taxiways,
         List<RunwayFeature> runways,
-        ILogger? logger,
         IRunwayLookup? runwayLookup = null,
         string? runwayAirportCode = null
     )
@@ -176,7 +169,6 @@ public static class GeoJsonParser
                 layout,
                 coordIndex,
                 ref nextNodeId,
-                logger,
                 runwayLookup,
                 runwayAirportCode
             );
@@ -241,7 +233,7 @@ public static class GeoJsonParser
             }
         }
 
-        logger?.LogInformation(
+        Log.LogInformation(
             "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, " + "{ParkingCount} parking, {HelipadCount} helipads",
             airportId,
             layout.Nodes.Count,

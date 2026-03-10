@@ -106,6 +106,7 @@ FlightPhysics.cs               # Static 6-step Update: navigation→heading→al
                                # Bank angle: computed in UpdateHeading from atan(TAS × turnRate × coeff); sign follows turn direction
                                # Expedite: IsExpediting → 1.5x climb/descent rate; Mach hold: TargetMach → recompute IAS each tick
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF)
+SimLog.cs                      # Static logger factory for Yaat.Sim; Initialize(ILoggerFactory) at startup
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
 CommandQueue.cs                # CommandBlock (trigger + closure + TrackedCommands), BlockTrigger

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -91,13 +90,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         Assert.NotNull(aircraft.Phases);
@@ -132,13 +125,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -158,13 +145,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -183,13 +164,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -208,13 +183,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -237,13 +206,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -261,13 +224,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -288,13 +245,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -312,13 +263,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -338,7 +283,6 @@ public class PatternEntryTests
             aircraft,
             PatternDirection.Right,
             PatternEntryLeg.Base,
-            NullLogger.Instance,
             runwayId: "28R",
             finalDistanceNm: 3.0
         );
@@ -368,13 +312,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -391,13 +329,7 @@ public class PatternEntryTests
 
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -419,7 +351,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, NullLogger.Instance, runwayId: "28R");
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
 
@@ -440,7 +372,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, NullLogger.Instance, runwayId: "28R");
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right);
@@ -481,13 +413,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(lat, lon, 3000, hdg);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
         DumpPhases(aircraft);
@@ -524,13 +450,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(lat, lon, 3000, hdg);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
         DumpPhases(aircraft);
@@ -565,7 +485,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, leg, NullLogger.Instance, runwayId: "28R");
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, leg, runwayId: "28R");
 
         DumpPhases(aircraft);
         var phases = aircraft.Phases!.Phases;
@@ -589,7 +509,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, NullLogger.Instance, runwayId: "28R");
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         var phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -610,7 +530,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, NullLogger.Instance, runwayId: "28R");
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, runwayId: "28R");
 
         var phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -629,7 +549,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, NullLogger.Instance, runwayId: "28R");
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28R");
 
         var phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -654,7 +574,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, NullLogger.Instance, runwayId: "28R");
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         var mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
         Assert.NotNull(mc.Waypoints);
@@ -672,7 +592,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.21, 3000, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, NullLogger.Instance, runwayId: "28R");
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R");
 
         DumpPhases(aircraft);
 
@@ -777,7 +697,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases = new PhaseList();
 
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, NullLogger.Instance);
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind);
 
         Assert.False(result.Success);
         Assert.Contains("runway", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -791,13 +711,7 @@ public class PatternEntryTests
         aircraft.IsOnGround = true;
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -826,13 +740,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(nearEntry.Lat, nearEntry.Lon, waypoints.PatternAltitude, 112);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -870,13 +778,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -893,13 +795,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "28R"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R");
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -938,13 +834,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(lat, lon, 2500, hdg);
         aircraft.Phases!.AssignedRunway = runway;
 
-        var result = PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            NullLogger.Instance,
-            runwayId: "12"
-        );
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "12");
 
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
         DumpPhases(aircraft);

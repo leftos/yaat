@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Data;
@@ -7,15 +6,13 @@ namespace Yaat.Sim.Data;
 public sealed class ProcedureDatabase : IProcedureLookup
 {
     private string? _cifpFilePath;
-    private readonly ILogger? _logger;
 
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _sidCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpStarProcedure>> _starCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public ProcedureDatabase(string? cifpFilePath = null, ILogger? logger = null)
+    public ProcedureDatabase(string? cifpFilePath = null)
     {
         _cifpFilePath = cifpFilePath;
-        _logger = logger;
     }
 
     public void SetCifpPath(string path)
@@ -57,7 +54,7 @@ public sealed class ProcedureDatabase : IProcedureLookup
         }
 
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
-        return CifpParser.ParseSids(_cifpFilePath, icao, _logger);
+        return CifpParser.ParseSids(_cifpFilePath, icao);
     }
 
     private IReadOnlyList<CifpStarProcedure> LoadStars(string normalizedAirport)
@@ -68,7 +65,7 @@ public sealed class ProcedureDatabase : IProcedureLookup
         }
 
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
-        return CifpParser.ParseStars(_cifpFilePath, icao, _logger);
+        return CifpParser.ParseStars(_cifpFilePath, icao);
     }
 
     private static string NormalizeAirport(string code)

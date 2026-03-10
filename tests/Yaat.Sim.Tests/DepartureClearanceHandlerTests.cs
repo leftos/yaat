@@ -54,7 +54,7 @@ public class DepartureClearanceHandlerTests
         );
     }
 
-    private static PhaseContext MinCtx(AircraftState ac) => CommandDispatcher.BuildMinimalContext(ac, NullLogger.Instance);
+    private static PhaseContext MinCtx(AircraftState ac) => CommandDispatcher.BuildMinimalContext(ac);
 
     // -------------------------------------------------------------------------
     // TryDepartureClearance from HoldingShort

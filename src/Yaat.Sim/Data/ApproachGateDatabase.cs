@@ -17,11 +17,13 @@ public static class ApproachGateDatabase
     private const double GatePaddingNm = 1.0;
     private const double InterceptPaddingNm = 2.0;
 
+    private static readonly ILogger Log = SimLog.CreateLogger("ApproachGateDatabase");
+
     private static Dictionary<(string Airport, string Runway), double> _minIntercepts = [];
 
     private static bool _initialized;
 
-    public static void Initialize(CifpParseResult cifpData, IFixLookup fixLookup, IRunwayLookup runwayLookup, ILogger? logger = null)
+    public static void Initialize(CifpParseResult cifpData, IFixLookup fixLookup, IRunwayLookup runwayLookup)
     {
         var result = new Dictionary<(string Airport, string Runway), double>();
         int computed = 0;
@@ -67,7 +69,7 @@ public static class ApproachGateDatabase
         _minIntercepts = result;
         _initialized = true;
 
-        logger?.LogInformation("Approach gate database: {Computed} runways computed, " + "{Skipped} skipped (missing data)", computed, skipped);
+        Log.LogInformation("Approach gate database: {Computed} runways computed, " + "{Skipped} skipped (missing data)", computed, skipped);
     }
 
     /// <summary>

@@ -8,18 +8,19 @@ namespace Yaat.Sim.Commands;
 
 internal static class GroundCommandHandler
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("GroundCommandHandler");
+
     internal static CommandResult TryTaxi(
         AircraftState aircraft,
         TaxiCommand taxi,
         AirportGroundLayout? groundLayout,
         IRunwayLookup? runways,
-        ILogger logger,
         bool autoCrossRunway = false
     )
     {
         if (groundLayout is null)
         {
-            logger.LogWarning(
+            Log.LogWarning(
                 "[TryTaxi] {Callsign}: no ground layout (departure={Dep}, destination={Dest})",
                 aircraft.Callsign,
                 aircraft.Departure,
@@ -33,16 +34,11 @@ internal static class GroundCommandHandler
 
         if (startNode is null)
         {
-            logger.LogWarning(
-                "[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})",
-                aircraft.Callsign,
-                aircraft.Latitude,
-                aircraft.Longitude
-            );
+            Log.LogWarning("[TryTaxi] {Callsign}: no nearest node at ({Lat:F6}, {Lon:F6})", aircraft.Callsign, aircraft.Latitude, aircraft.Longitude);
             return new CommandResult(false, "Cannot find position on taxiway graph");
         }
 
-        logger.LogDebug(
+        Log.LogDebug(
             "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], destRwy={Rwy}, destParking={Pkg}",
             aircraft.Callsign,
             startNode.Id,
@@ -59,7 +55,7 @@ internal static class GroundCommandHandler
 
         if (taxi.DestinationParking is not null)
         {
-            route = ResolveParkingRoute(groundLayout, startNode, taxi, runways, logger, out failReason);
+            route = ResolveParkingRoute(groundLayout, startNode, taxi, runways, out failReason);
         }
         else
         {
@@ -68,7 +64,7 @@ internal static class GroundCommandHandler
 
         if (route is null)
         {
-            logger.LogWarning("[TryTaxi] {Callsign}: route resolution failed — {Reason}", aircraft.Callsign, failReason ?? "no matching taxiways");
+            Log.LogWarning("[TryTaxi] {Callsign}: route resolution failed — {Reason}", aircraft.Callsign, failReason ?? "no matching taxiways");
 
             if (failReason is not null)
             {
@@ -80,7 +76,7 @@ internal static class GroundCommandHandler
         }
 
         var hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
-        logger.LogInformation(
+        Log.LogInformation(
             "[TryTaxi] {Callsign}: route resolved — {SegCount} segments, {HsCount} hold-shorts [{HsDetails}], summary: {Summary}",
             aircraft.Callsign,
             route.Segments.Count,
@@ -124,7 +120,7 @@ internal static class GroundCommandHandler
         RunwayInfo? detectedRunway = null;
         if (taxi.DestinationRunway is null && route.Segments.Count > 0)
         {
-            detectedRunway = DetectRunwayFromRoute(route, groundLayout, aircraft, runways, logger);
+            detectedRunway = DetectRunwayFromRoute(route, groundLayout, aircraft, runways);
         }
         else if (taxi.DestinationRunway is not null)
         {
@@ -132,7 +128,7 @@ internal static class GroundCommandHandler
         }
 
         // Clear current phases
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         if (aircraft.Phases is not null)
         {
             aircraft.Phases.Clear(ctx);
@@ -154,7 +150,7 @@ internal static class GroundCommandHandler
         }
 
         aircraft.Phases.Add(new TaxiingPhase());
-        ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
         string msg = $"Taxi via {route.ToSummary()}";
@@ -191,7 +187,6 @@ internal static class GroundCommandHandler
         GroundNode startNode,
         TaxiCommand taxi,
         IRunwayLookup? runways,
-        ILogger logger,
         out string? failReason
     )
     {
@@ -245,7 +240,7 @@ internal static class GroundCommandHandler
         var extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, parkingNode.Id);
         if (extension is null)
         {
-            logger.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to parking {Parking}", endNodeId, taxi.DestinationParking);
+            Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to parking {Parking}", endNodeId, taxi.DestinationParking);
             failReason = $"Cannot reach parking spot '{taxi.DestinationParking}' from end of taxi route";
             return null;
         }
@@ -260,7 +255,7 @@ internal static class GroundCommandHandler
         return new TaxiRoute { Segments = combined, HoldShortPoints = holdShorts };
     }
 
-    internal static CommandResult TryPushback(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout, ILogger logger)
+    internal static CommandResult TryPushback(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout)
     {
         if (aircraft.Phases?.CurrentPhase is not AtParkingPhase)
         {
@@ -287,7 +282,7 @@ internal static class GroundCommandHandler
             targetLat = targetNode.Latitude;
             targetLon = targetNode.Longitude;
 
-            logger.LogDebug(
+            Log.LogDebug(
                 "[Pushback] {Callsign}: target taxiway {Twy} at node {NodeId} ({Lat:F6}, {Lon:F6})",
                 aircraft.Callsign,
                 push.Taxiway,
@@ -313,7 +308,7 @@ internal static class GroundCommandHandler
                     if (edgeHeading is not null)
                     {
                         resolvedHeading = FlightPhysics.NormalizeHeadingInt(edgeHeading.Value);
-                        logger.LogDebug(
+                        Log.LogDebug(
                             "[Pushback] {Callsign}: facing {FTwy} → heading {Hdg:000} (along {PTwy}, bearingToFacing={Brg:F0})",
                             aircraft.Callsign,
                             push.FacingTaxiway,
@@ -324,7 +319,7 @@ internal static class GroundCommandHandler
                     }
                     else
                     {
-                        logger.LogWarning(
+                        Log.LogWarning(
                             "[Pushback] {Callsign}: no {PTwy} edges at target node to align toward {FTwy}",
                             aircraft.Callsign,
                             push.Taxiway,
@@ -334,7 +329,7 @@ internal static class GroundCommandHandler
                 }
                 else
                 {
-                    logger.LogWarning(
+                    Log.LogWarning(
                         "[Pushback] {Callsign}: cannot find facing taxiway '{FTwy}' near exit node",
                         aircraft.Callsign,
                         push.FacingTaxiway
@@ -343,7 +338,7 @@ internal static class GroundCommandHandler
             }
         }
 
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Clear(ctx);
 
         var phase = new PushbackPhase
@@ -446,7 +441,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Cross {cross.RunwayId}");
     }
 
-    internal static CommandResult TryHoldShort(AircraftState aircraft, HoldShortCommand hs, AirportGroundLayout? groundLayout, ILogger logger)
+    internal static CommandResult TryHoldShort(AircraftState aircraft, HoldShortCommand hs, AirportGroundLayout? groundLayout)
     {
         if (!aircraft.IsOnGround)
         {
@@ -470,11 +465,11 @@ internal static class GroundCommandHandler
             return new CommandResult(false, $"No intersection with {hs.Target} along remaining taxi route");
         }
 
-        logger.LogDebug("[HS] {Callsign}: added hold short of {Target}", aircraft.Callsign, hs.Target);
+        Log.LogDebug("[HS] {Callsign}: added hold short of {Target}", aircraft.Callsign, hs.Target);
         return CommandDispatcher.Ok($"Hold short of {hs.Target}");
     }
 
-    internal static CommandResult TryFollow(AircraftState aircraft, FollowCommand follow, AirportGroundLayout? groundLayout, ILogger logger)
+    internal static CommandResult TryFollow(AircraftState aircraft, FollowCommand follow, AirportGroundLayout? groundLayout)
     {
         var currentPhase = aircraft.Phases?.CurrentPhase;
         if (currentPhase is null)
@@ -496,9 +491,9 @@ internal static class GroundCommandHandler
 
         // Replace phases with FollowingPhase
         var phases = aircraft.Phases!;
-        phases.Clear(CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout));
+        phases.Clear(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout));
         phases.Phases.Add(new FollowingPhase(follow.TargetCallsign));
-        phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout));
+        phases.Start(CommandDispatcher.BuildMinimalContext(aircraft, groundLayout));
 
         return CommandDispatcher.Ok($"Follow {follow.TargetCallsign}");
     }
@@ -520,7 +515,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Give way to {targetCallsign}");
     }
 
-    internal static CommandResult TryAirTaxi(AircraftState aircraft, string? destination, AirportGroundLayout? groundLayout, ILogger logger)
+    internal static CommandResult TryAirTaxi(AircraftState aircraft, string? destination, AirportGroundLayout? groundLayout)
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         if (cat != AircraftCategory.Helicopter)
@@ -550,7 +545,7 @@ internal static class GroundCommandHandler
         string resolvedName = destination.ToUpperInvariant();
 
         // Clear current phases and start air taxi
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         if (aircraft.Phases is not null)
         {
             aircraft.Phases.Clear(ctx);
@@ -559,13 +554,13 @@ internal static class GroundCommandHandler
         aircraft.IsHeld = false;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
-        ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
         return CommandDispatcher.Ok($"Air taxi to {resolvedName}");
     }
 
-    internal static CommandResult TryLand(AircraftState aircraft, LandCommand land, AirportGroundLayout? groundLayout, ILogger logger)
+    internal static CommandResult TryLand(AircraftState aircraft, LandCommand land, AirportGroundLayout? groundLayout)
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         if (cat != AircraftCategory.Helicopter)
@@ -614,7 +609,7 @@ internal static class GroundCommandHandler
         }
 
         // Clear current phases and set up air taxi → land sequence
-        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         if (aircraft.Phases is not null)
         {
             aircraft.Phases.Clear(ctx);
@@ -625,7 +620,7 @@ internal static class GroundCommandHandler
         aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
         aircraft.Phases.Add(new Phases.Tower.HelicopterLandingPhase());
         aircraft.Phases.Add(new AtParkingPhase());
-        ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger, groundLayout);
+        ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
 
         aircraft.ParkingSpot = resolvedName;
@@ -633,13 +628,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Land at {resolvedName}");
     }
 
-    private static RunwayInfo? DetectRunwayFromRoute(
-        TaxiRoute route,
-        AirportGroundLayout layout,
-        AircraftState aircraft,
-        IRunwayLookup? runways,
-        ILogger logger
-    )
+    private static RunwayInfo? DetectRunwayFromRoute(TaxiRoute route, AirportGroundLayout layout, AircraftState aircraft, IRunwayLookup? runways)
     {
         int finalNodeId = route.Segments[^1].ToNodeId;
         if (!layout.Nodes.TryGetValue(finalNodeId, out var node))
@@ -676,7 +665,7 @@ internal static class GroundCommandHandler
         var runway = ResolveClosestRunwayEnd(rwyId.Value, node.Latitude, node.Longitude, aircraft, runways);
         if (runway is not null)
         {
-            logger.LogDebug(
+            Log.LogDebug(
                 "[TryTaxi] {Callsign}: auto-detected runway {Rwy} from final node {NodeId}",
                 aircraft.Callsign,
                 runway.Designator,

@@ -31,7 +31,7 @@ public class ExpediteCommandTests
         var ac = CreateAircraft(altitude: 5000);
         ac.Targets.TargetAltitude = 10000;
 
-        var result = CommandDispatcher.Dispatch(new ExpediteCommand(), ac, null, null, null, Logger, Random.Shared);
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(), ac, null, null, null, Random.Shared);
 
         Assert.True(result.Success);
         Assert.True(ac.IsExpediting);
@@ -42,7 +42,7 @@ public class ExpediteCommandTests
     {
         var ac = CreateAircraft();
 
-        var result = CommandDispatcher.Dispatch(new ExpediteCommand(), ac, null, null, null, Logger, Random.Shared);
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(), ac, null, null, null, Random.Shared);
 
         Assert.False(result.Success);
         Assert.False(ac.IsExpediting);
@@ -56,7 +56,7 @@ public class ExpediteCommandTests
         ac.IsExpediting = true;
         ac.Targets.DesiredVerticalRate = 3000;
 
-        var result = CommandDispatcher.Dispatch(new NormalRateCommand(), ac, null, null, null, Logger, Random.Shared);
+        var result = CommandDispatcher.Dispatch(new NormalRateCommand(), ac, null, null, null, Random.Shared);
 
         Assert.True(result.Success);
         Assert.False(ac.IsExpediting);
@@ -94,7 +94,7 @@ public class ExpediteCommandTests
         ac.Targets.TargetAltitude = 10000;
         ac.IsExpediting = true;
 
-        CommandDispatcher.Dispatch(new ClimbMaintainCommand(15000), ac, null, null, null, Logger, Random.Shared);
+        CommandDispatcher.Dispatch(new ClimbMaintainCommand(15000), ac, null, null, null, Random.Shared);
 
         Assert.False(ac.IsExpediting);
     }
@@ -106,7 +106,7 @@ public class ExpediteCommandTests
         ac.Targets.TargetAltitude = 5000;
         ac.IsExpediting = true;
 
-        CommandDispatcher.Dispatch(new DescendMaintainCommand(3000), ac, null, null, null, Logger, Random.Shared);
+        CommandDispatcher.Dispatch(new DescendMaintainCommand(3000), ac, null, null, null, Random.Shared);
 
         Assert.False(ac.IsExpediting);
     }
@@ -133,7 +133,7 @@ public class ExpediteCommandTests
         var ac = CreateAircraft(altitude: 5000);
         ac.Targets.TargetAltitude = 15000;
 
-        var result = CommandDispatcher.Dispatch(new ExpediteCommand(10000), ac, null, null, null, Logger, Random.Shared);
+        var result = CommandDispatcher.Dispatch(new ExpediteCommand(10000), ac, null, null, null, Random.Shared);
 
         Assert.True(result.Success);
         Assert.True(ac.IsExpediting);

@@ -170,7 +170,7 @@ public sealed class ClimbSpeedScheduleTests
 
         // Simulate CM command
         var cmd = new Yaat.Sim.Commands.ClimbMaintainCommand(40000);
-        Yaat.Sim.Commands.CommandDispatcher.Dispatch(cmd, ac, runways: null, groundLayout: null, fixes: null, NullLogger.Instance, new Random(42));
+        Yaat.Sim.Commands.CommandDispatcher.Dispatch(cmd, ac, runways: null, groundLayout: null, fixes: null, new Random(42));
 
         Assert.False(ac.Targets.HasExplicitSpeedCommand);
     }
@@ -181,7 +181,7 @@ public sealed class ClimbSpeedScheduleTests
         var ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
 
         var cmd = new Yaat.Sim.Commands.SpeedCommand(210);
-        Yaat.Sim.Commands.CommandDispatcher.Dispatch(cmd, ac, runways: null, groundLayout: null, fixes: null, NullLogger.Instance, new Random(42));
+        Yaat.Sim.Commands.CommandDispatcher.Dispatch(cmd, ac, runways: null, groundLayout: null, fixes: null, new Random(42));
 
         Assert.True(ac.Targets.HasExplicitSpeedCommand);
     }

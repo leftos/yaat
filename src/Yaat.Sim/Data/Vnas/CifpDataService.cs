@@ -12,8 +12,9 @@ public sealed class CifpDataService : IDisposable
 {
     private const string CifpBaseUrl = "https://aeronav.faa.gov/Upload_313-d/cifp/";
 
+    private static readonly ILogger Log = SimLog.CreateLogger<CifpDataService>();
+
     private readonly HttpClient _http;
-    private readonly ILogger? _logger;
     private readonly string _cacheDir;
 
     /// <summary>
@@ -22,9 +23,8 @@ public sealed class CifpDataService : IDisposable
     /// </summary>
     public string? CifpFilePath { get; private set; }
 
-    public CifpDataService(ILogger? logger = null)
+    public CifpDataService()
     {
-        _logger = logger;
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
 
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -40,7 +40,7 @@ public sealed class CifpDataService : IDisposable
 
         if (File.Exists(cachePath))
         {
-            _logger?.LogInformation("CIFP data cached for cycle {Cycle}", cycleId);
+            Log.LogInformation("CIFP data cached for cycle {Cycle}", cycleId);
             CifpFilePath = cachePath;
             return;
         }
@@ -51,7 +51,7 @@ public sealed class CifpDataService : IDisposable
 
         try
         {
-            _logger?.LogInformation("Downloading CIFP data from {Url}", url);
+            Log.LogInformation("Downloading CIFP data from {Url}", url);
 
             var zipBytes = await _http.GetByteArrayAsync(url);
 
@@ -62,7 +62,7 @@ public sealed class CifpDataService : IDisposable
 
             if (cifpEntry is null)
             {
-                _logger?.LogWarning("FAACIFP file not found in zip archive");
+                Log.LogWarning("FAACIFP file not found in zip archive");
                 return;
             }
 
@@ -71,11 +71,11 @@ public sealed class CifpDataService : IDisposable
             await entryStream.CopyToAsync(fileStream);
 
             CifpFilePath = cachePath;
-            _logger?.LogInformation("CIFP data cached for cycle {Cycle} ({Size:N0} bytes)", cycleId, new FileInfo(cachePath).Length);
+            Log.LogInformation("CIFP data cached for cycle {Cycle} ({Size:N0} bytes)", cycleId, new FileInfo(cachePath).Length);
         }
         catch (Exception ex)
         {
-            _logger?.LogWarning(ex, "Failed to download CIFP data; " + "approach gate warnings will use defaults");
+            Log.LogWarning(ex, "Failed to download CIFP data; " + "approach gate warnings will use defaults");
         }
     }
 

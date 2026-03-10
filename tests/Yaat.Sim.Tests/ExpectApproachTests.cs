@@ -70,7 +70,7 @@ public class ExpectApproachTests
         var (approachLookup, runwayLookup) = MakeStubs();
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
@@ -83,7 +83,7 @@ public class ExpectApproachTests
         var (approachLookup, runwayLookup) = MakeStubs();
 
         var cmd = new ExpectApproachCommand("I28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.Contains("Expecting", result.Message);
@@ -98,7 +98,7 @@ public class ExpectApproachTests
 
         // Explicit airport overrides destination
         var cmd = new ExpectApproachCommand("ILS28R", "OAK");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
@@ -111,7 +111,7 @@ public class ExpectApproachTests
         var (approachLookup, runwayLookup) = MakeStubs();
 
         var cmd = new ExpectApproachCommand("VOR99", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -124,7 +124,7 @@ public class ExpectApproachTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared);
 
         Assert.False(result.Success);
         Assert.Contains("not available", result.Message);
@@ -138,7 +138,7 @@ public class ExpectApproachTests
         var (approachLookup, runwayLookup) = MakeStubs();
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
@@ -152,7 +152,7 @@ public class ExpectApproachTests
 
         // "ILS28R" should resolve to "I28R"
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);

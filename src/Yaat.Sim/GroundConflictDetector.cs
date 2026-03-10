@@ -17,6 +17,7 @@ namespace Yaat.Sim;
 /// </summary>
 public static class GroundConflictDetector
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("GroundConflictDetector");
     private const double TrailDistanceFt = 200.0;
     private const double StopDistanceFt = 100.0;
     private const double OppositeStopDistanceFt = 300.0;
@@ -39,7 +40,7 @@ public static class GroundConflictDetector
     /// Detect ground conflicts and set GroundSpeedLimit on affected aircraft.
     /// Clears all limits first, then classifies movement state, then checks pairs.
     /// </summary>
-    public static void ApplySpeedLimits(List<AircraftState> aircraft, AirportGroundLayout? layout, ILogger? logger = null)
+    public static void ApplySpeedLimits(List<AircraftState> aircraft, AirportGroundLayout? layout)
     {
         // Clear previous limits
         for (int i = 0; i < aircraft.Count; i++)
@@ -97,12 +98,12 @@ public static class GroundConflictDetector
                 // 1. Same-edge (both taxiing with layout)
                 if (layout is not null && stateA == MovementState.Taxiing && stateB == MovementState.Taxiing)
                 {
-                    if (TrySameEdge(a, b, distFt, logger))
+                    if (TrySameEdge(a, b, distFt))
                     {
                         continue;
                     }
 
-                    if (TryConvergence(a, b, layout, logger))
+                    if (TryConvergence(a, b, layout))
                     {
                         continue;
                     }
@@ -111,21 +112,21 @@ public static class GroundConflictDetector
                 // 2. Pushback yield
                 if (stateA == MovementState.Pushing || stateB == MovementState.Pushing)
                 {
-                    ResolvePushbackYield(a, stateA, dirA, b, stateB, dirB, distFt, logger);
+                    ResolvePushbackYield(a, stateA, dirA, b, stateB, dirB, distFt);
                     continue;
                 }
 
                 // 3. Proximity-to-stationary
                 if (stateA == MovementState.Stationary || stateB == MovementState.Stationary)
                 {
-                    ResolveProximityToStationary(a, stateA, dirA, b, stateB, dirB, distFt, logger);
+                    ResolveProximityToStationary(a, stateA, dirA, b, stateB, dirB, distFt);
                     continue;
                 }
 
                 // 4. Head-on fallback (both moving, no layout or untracked)
                 if (dirA is not null && dirB is not null && a.GroundSpeed > 0 && b.GroundSpeed > 0)
                 {
-                    ResolveHeadOn(a, dirA.Value, b, dirB.Value, distFt, logger);
+                    ResolveHeadOn(a, dirA.Value, b, dirB.Value, distFt);
                 }
             }
         }
@@ -241,7 +242,7 @@ public static class GroundConflictDetector
 
     // --- Conflict resolution ---
 
-    private static bool TrySameEdge(AircraftState a, AircraftState b, double distFt, ILogger? logger)
+    private static bool TrySameEdge(AircraftState a, AircraftState b, double distFt)
     {
         var segA = a.AssignedTaxiRoute?.CurrentSegment;
         var segB = b.AssignedTaxiRoute?.CurrentSegment;
@@ -269,11 +270,11 @@ public static class GroundConflictDetector
 
             if (distAToTarget > distBToTarget)
             {
-                ApplyTrailLimit(a, b, distFt, logger);
+                ApplyTrailLimit(a, b, distFt);
             }
             else
             {
-                ApplyTrailLimit(b, a, distFt, logger);
+                ApplyTrailLimit(b, a, distFt);
             }
         }
         else
@@ -281,15 +282,15 @@ public static class GroundConflictDetector
             // Opposite direction on same edge — head-on, both stop
             if (distFt <= OppositeStopDistanceFt)
             {
-                ApplyMinLimit(a, 0, logger, "same-edge head-on", b, distFt);
-                ApplyMinLimit(b, 0, logger, "same-edge head-on", a, distFt);
+                ApplyMinLimit(a, 0, "same-edge head-on", b, distFt);
+                ApplyMinLimit(b, 0, "same-edge head-on", a, distFt);
             }
         }
 
         return true;
     }
 
-    private static bool TryConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout, ILogger? logger)
+    private static bool TryConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout)
     {
         var routeA = a.AssignedTaxiRoute;
         var routeB = b.AssignedTaxiRoute;
@@ -317,11 +318,11 @@ public static class GroundConflictDetector
         double conflictDistFt = GeoMath.DistanceNm(a.Latitude, a.Longitude, b.Latitude, b.Longitude) * FtPerNm;
         if (distA > distB)
         {
-            ApplyMinLimit(a, 0, logger, "convergence", b, conflictDistFt);
+            ApplyMinLimit(a, 0, "convergence", b, conflictDistFt);
         }
         else
         {
-            ApplyMinLimit(b, 0, logger, "convergence", a, conflictDistFt);
+            ApplyMinLimit(b, 0, "convergence", a, conflictDistFt);
         }
 
         return true;
@@ -334,8 +335,7 @@ public static class GroundConflictDetector
         AircraftState b,
         MovementState stateB,
         double? dirB,
-        double distFt,
-        ILogger? logger
+        double distFt
     )
     {
         if (distFt > PushbackBufferFt)
@@ -349,7 +349,7 @@ public static class GroundConflictDetector
             double bearing = GeoMath.BearingTo(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
             if (HeadingDifference(dirA.Value, bearing) < 90)
             {
-                ApplyMinLimit(a, 0, logger, "pushback yield", b, distFt);
+                ApplyMinLimit(a, 0, "pushback yield", b, distFt);
             }
         }
 
@@ -358,7 +358,7 @@ public static class GroundConflictDetector
             double bearing = GeoMath.BearingTo(b.Latitude, b.Longitude, a.Latitude, a.Longitude);
             if (HeadingDifference(dirB.Value, bearing) < 90)
             {
-                ApplyMinLimit(b, 0, logger, "pushback yield", a, distFt);
+                ApplyMinLimit(b, 0, "pushback yield", a, distFt);
             }
         }
 
@@ -368,7 +368,7 @@ public static class GroundConflictDetector
             double bearing = GeoMath.BearingTo(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
             if (HeadingDifference(dirA.Value, bearing) < 90)
             {
-                ApplyTrailLimit(a, b, distFt, logger);
+                ApplyTrailLimit(a, b, distFt);
             }
         }
 
@@ -377,7 +377,7 @@ public static class GroundConflictDetector
             double bearing = GeoMath.BearingTo(b.Latitude, b.Longitude, a.Latitude, a.Longitude);
             if (HeadingDifference(dirB.Value, bearing) < 90)
             {
-                ApplyTrailLimit(b, a, distFt, logger);
+                ApplyTrailLimit(b, a, distFt);
             }
         }
     }
@@ -389,23 +389,22 @@ public static class GroundConflictDetector
         AircraftState b,
         MovementState stateB,
         double? dirB,
-        double distFt,
-        ILogger? logger
+        double distFt
     )
     {
         // Identify which is moving and which is stationary
         if (stateA != MovementState.Stationary && dirA is not null && a.GroundSpeed > 0)
         {
-            ApplyClosingLimit(a, dirA.Value, b, distFt, logger);
+            ApplyClosingLimit(a, dirA.Value, b, distFt);
         }
 
         if (stateB != MovementState.Stationary && dirB is not null && b.GroundSpeed > 0)
         {
-            ApplyClosingLimit(b, dirB.Value, a, distFt, logger);
+            ApplyClosingLimit(b, dirB.Value, a, distFt);
         }
     }
 
-    private static void ApplyClosingLimit(AircraftState mover, double moveDir, AircraftState obstacle, double distFt, ILogger? logger)
+    private static void ApplyClosingLimit(AircraftState mover, double moveDir, AircraftState obstacle, double distFt)
     {
         double bearing = GeoMath.BearingTo(mover.Latitude, mover.Longitude, obstacle.Latitude, obstacle.Longitude);
         if (HeadingDifference(moveDir, bearing) >= 90)
@@ -415,7 +414,7 @@ public static class GroundConflictDetector
 
         if (distFt <= StopDistanceFt)
         {
-            ApplyMinLimit(mover, 0, logger, "proximity stop", obstacle, distFt);
+            ApplyMinLimit(mover, 0, "proximity stop", obstacle, distFt);
         }
         else if (distFt <= TrailDistanceFt)
         {
@@ -427,11 +426,11 @@ public static class GroundConflictDetector
                 limitSpeed = SlowTaxiSpeedKts;
             }
 
-            ApplyMinLimit(mover, limitSpeed, logger, "proximity trail", obstacle, distFt);
+            ApplyMinLimit(mover, limitSpeed, "proximity trail", obstacle, distFt);
         }
     }
 
-    private static void ResolveHeadOn(AircraftState a, double dirA, AircraftState b, double dirB, double distFt, ILogger? logger)
+    private static void ResolveHeadOn(AircraftState a, double dirA, AircraftState b, double dirB, double distFt)
     {
         double headingDiff = HeadingDifference(dirA, dirB);
         if (headingDiff <= 120)
@@ -448,14 +447,14 @@ public static class GroundConflictDetector
         double bearingAtoB = GeoMath.BearingTo(a.Latitude, a.Longitude, b.Latitude, b.Longitude);
         if (HeadingDifference(dirA, bearingAtoB) < 90)
         {
-            ApplyMinLimit(a, 0, logger, "head-on", b, distFt);
-            ApplyMinLimit(b, 0, logger, "head-on", a, distFt);
+            ApplyMinLimit(a, 0, "head-on", b, distFt);
+            ApplyMinLimit(b, 0, "head-on", a, distFt);
         }
     }
 
     // --- Helpers ---
 
-    private static void ApplyTrailLimit(AircraftState trailer, AircraftState leader, double distFt, ILogger? logger = null)
+    private static void ApplyTrailLimit(AircraftState trailer, AircraftState leader, double distFt)
     {
         double maxSpeed;
         string reason;
@@ -474,13 +473,12 @@ public static class GroundConflictDetector
             return;
         }
 
-        ApplyMinLimit(trailer, maxSpeed, logger, reason, leader, distFt);
+        ApplyMinLimit(trailer, maxSpeed, reason, leader, distFt);
     }
 
     private static void ApplyMinLimit(
         AircraftState aircraft,
         double maxSpeed,
-        ILogger? logger = null,
         string? reason = null,
         AircraftState? other = null,
         double? distFt = null
@@ -497,9 +495,9 @@ public static class GroundConflictDetector
         }
 
         // Only log when this call actually set or lowered the limit
-        if (logger is not null && (existing is null || maxSpeed < existing))
+        if (existing is null || maxSpeed < existing)
         {
-            logger.LogDebug(
+            Log.LogDebug(
                 "[Conflict] {Callsign}: limit={Limit:F0}kts, reason={Reason}, other={Other}, dist={Dist:F0}ft",
                 aircraft.Callsign,
                 maxSpeed,

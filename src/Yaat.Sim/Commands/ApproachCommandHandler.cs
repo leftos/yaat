@@ -9,13 +9,14 @@ namespace Yaat.Sim.Commands;
 
 public static class ApproachCommandHandler
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("ApproachCommandHandler");
+
     public static CommandResult TryClearedApproach(
         ClearedApproachCommand cmd,
         AircraftState aircraft,
         IApproachLookup? approachLookup,
         IRunwayLookup? runways,
-        IFixLookup? fixes,
-        ILogger? logger
+        IFixLookup? fixes
     )
     {
         var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft, approachLookup, runways);
@@ -45,7 +46,7 @@ public static class ApproachCommandHandler
         var approachFixes = BuildApproachFixes(procedure, fixes);
 
         // Clear existing phases
-        ClearExistingPhases(aircraft, logger);
+        ClearExistingPhases(aircraft);
 
         var clearance = new ApproachClearance
         {
@@ -84,7 +85,7 @@ public static class ApproachCommandHandler
         var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
 
-        StartPhases(aircraft, logger);
+        StartPhases(aircraft);
 
         return new CommandResult(true, $"Cleared {procedure.ApproachId} approach, runway {procedure.Runway}");
     }
@@ -97,8 +98,7 @@ public static class ApproachCommandHandler
         AircraftState aircraft,
         IApproachLookup? approachLookup,
         IRunwayLookup? runways,
-        IFixLookup? fixes,
-        ILogger? logger
+        IFixLookup? fixes
     )
     {
         var resolved = ResolveApproach(approachId, airportCode, aircraft, approachLookup, runways);
@@ -134,7 +134,7 @@ public static class ApproachCommandHandler
         bool needsHold = procedure.HasHoldInLieu && !straightIn;
 
         // Clear existing phases
-        ClearExistingPhases(aircraft, logger);
+        ClearExistingPhases(aircraft);
 
         var clearance = new ApproachClearance
         {
@@ -181,7 +181,7 @@ public static class ApproachCommandHandler
         var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
 
-        StartPhases(aircraft, logger);
+        StartPhases(aircraft);
 
         string prefix = straightIn ? "Cleared straight-in" : "Join";
         return new CommandResult(true, $"{prefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
@@ -191,8 +191,7 @@ public static class ApproachCommandHandler
         PositionTurnAltitudeClearanceCommand cmd,
         AircraftState aircraft,
         IApproachLookup? approachLookup,
-        IRunwayLookup? runways,
-        ILogger? logger
+        IRunwayLookup? runways
     )
     {
         var resolved = ResolveApproach(cmd.ApproachId, null, aircraft, approachLookup, runways);
@@ -215,7 +214,7 @@ public static class ApproachCommandHandler
         aircraft.Targets.TargetAltitude = cmd.Altitude;
 
         // Clear existing phases
-        ClearExistingPhases(aircraft, logger);
+        ClearExistingPhases(aircraft);
 
         var clearance = new ApproachClearance
         {
@@ -240,7 +239,7 @@ public static class ApproachCommandHandler
         var isHeliApch = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
         aircraft.Phases.Add(isHeliApch ? new HelicopterLandingPhase() : new LandingPhase());
 
-        StartPhases(aircraft, logger);
+        StartPhases(aircraft);
 
         return new CommandResult(
             true,
@@ -248,12 +247,7 @@ public static class ApproachCommandHandler
         );
     }
 
-    public static CommandResult TryClearedVisualApproach(
-        ClearedVisualApproachCommand cmd,
-        AircraftState aircraft,
-        IRunwayLookup? runways,
-        ILogger? logger
-    )
+    public static CommandResult TryClearedVisualApproach(ClearedVisualApproachCommand cmd, AircraftState aircraft, IRunwayLookup? runways)
     {
         if (runways is null)
         {
@@ -278,7 +272,7 @@ public static class ApproachCommandHandler
         aircraft.Targets.TargetSpeed = null;
 
         // Clear existing phases
-        ClearExistingPhases(aircraft, logger);
+        ClearExistingPhases(aircraft);
 
         var clearance = new ApproachClearance
         {
@@ -337,7 +331,7 @@ public static class ApproachCommandHandler
             }
         }
 
-        StartPhases(aircraft, logger);
+        StartPhases(aircraft);
 
         var msg = $"Cleared visual approach runway {cmd.RunwayId}";
         if (cmd.FollowCallsign is not null)
@@ -674,11 +668,11 @@ public static class ApproachCommandHandler
         return fixes;
     }
 
-    private static void ClearExistingPhases(AircraftState aircraft, ILogger? logger)
+    private static void ClearExistingPhases(AircraftState aircraft)
     {
-        if (aircraft.Phases is not null && logger is not null)
+        if (aircraft.Phases is not null)
         {
-            var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
 
@@ -688,11 +682,11 @@ public static class ApproachCommandHandler
         aircraft.FollowingCallsign = null;
     }
 
-    private static void StartPhases(AircraftState aircraft, ILogger? logger)
+    private static void StartPhases(AircraftState aircraft)
     {
-        if (logger is not null && aircraft.Phases is not null)
+        if (aircraft.Phases is not null)
         {
-            var startCtx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+            var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Start(startCtx);
         }
     }

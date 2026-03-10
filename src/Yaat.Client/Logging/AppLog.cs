@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Yaat.Sim;
 
 namespace Yaat.Client.Logging;
 
@@ -25,6 +26,7 @@ public static class AppLog
             builder.SetMinimumLevel(LogLevel.Debug);
             builder.AddProvider(provider);
         });
+        SimLog.Initialize(_factory);
     }
 
     public static ILogger CreateLogger<T>()

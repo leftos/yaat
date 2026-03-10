@@ -269,7 +269,7 @@ public class ProcedureLoadingTests
         procedures.AddStar(CreateTestStar());
 
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Logger, Random.Shared, procedureLookup: procedures);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, procedureLookup: procedures);
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
@@ -302,7 +302,7 @@ public class ProcedureLoadingTests
         procedures.AddStar(CreateTestStar());
 
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Logger, Random.Shared, procedureLookup: procedures);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, procedureLookup: procedures);
 
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
         Assert.False(aircraft.StarViaMode);
@@ -322,7 +322,7 @@ public class ProcedureLoadingTests
         // No procedure lookup — forces NavData fallback
 
         var cmd = new JoinStarCommand("BDEGA3", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Logger, Random.Shared);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared);
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);

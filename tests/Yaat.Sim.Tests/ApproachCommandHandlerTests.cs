@@ -66,7 +66,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -80,7 +80,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -97,7 +97,7 @@ public class ApproachCommandHandlerTests
         Assert.Equal(210, aircraft.Targets.TargetSpeed);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -109,7 +109,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, "SUNOL", 37.5, -121.8, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
@@ -123,7 +123,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
@@ -137,7 +137,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, 3400, CrossFixAltitudeType.At);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.Equal(3400, aircraft.Targets.TargetAltitude);
@@ -153,7 +153,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.False(result.Success);
         Assert.Contains("Intercept angle", result.Message);
@@ -167,7 +167,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, true, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
     }
@@ -181,7 +181,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -195,7 +195,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -207,7 +207,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new JoinApproachCommand("ILS28R", null, true);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
     }
@@ -221,7 +221,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubsWithHoldInLieu();
 
         var cmd = new ClearedApproachStraightInCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.Contains("straight-in", result.Message);
@@ -238,7 +238,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubsWithHoldInLieu();
 
         var cmd = new JoinApproachStraightInCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is HoldingPatternPhase);
@@ -253,7 +253,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubsWithHoldInLieu();
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -272,7 +272,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, _) = MakeStubs();
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.True(result.Success);
         Assert.Equal(340, aircraft.Targets.TargetHeading);
@@ -286,7 +286,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, _) = MakeStubs();
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.NotNull(aircraft.Phases);
         Assert.Equal(3, aircraft.Phases.Phases.Count);
@@ -302,7 +302,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, _) = MakeStubs();
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -314,7 +314,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, _) = MakeStubs();
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared, approachLookup);
+        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -447,7 +447,7 @@ public class ApproachCommandHandlerTests
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new ClearedApproachCommand("VOR99", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Logger, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -460,7 +460,7 @@ public class ApproachCommandHandlerTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Logger, Random.Shared);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared);
 
         Assert.False(result.Success);
         Assert.Contains("not available", result.Message);

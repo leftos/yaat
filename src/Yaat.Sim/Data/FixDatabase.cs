@@ -30,11 +30,10 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
     private readonly Dictionary<string, List<RunwayInfo>> _runways = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly ILogger? _logger;
+    private static readonly ILogger Log = SimLog.CreateLogger<FixDatabase>();
 
-    public FixDatabase(NavDataSet? navData, string? customFixesBaseDir = null, ILogger? logger = null)
+    public FixDatabase(NavDataSet? navData, string? customFixesBaseDir = null)
     {
-        _logger = logger;
         BuildIndex(navData);
         BuildProcedureIndex(navData);
         LoadCustomFixes(customFixesBaseDir);
@@ -267,7 +266,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
     {
         if (navData is null)
         {
-            _logger?.LogWarning("No NavData available — fix lookup will be empty");
+            Log.LogWarning("No NavData available — fix lookup will be empty");
             return;
         }
 
@@ -429,7 +428,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
             }
         }
 
-        _logger?.LogInformation(
+        Log.LogInformation(
             "Fix database built: {Count} entries " + "({Airports} airports + {Fixes} fixes + {Runways} runways + {Airways} airways)",
             _fixes.Count,
             navData.Airports.Count,
@@ -511,7 +510,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
             _starAllFixes.TryAdd(star.Id, allFixes);
         }
 
-        _logger?.LogInformation("Procedure index: {Sids} SIDs, {Stars} STARs", _sidBodies.Count, _starBodies.Count);
+        Log.LogInformation("Procedure index: {Sids} SIDs, {Stars} STARs", _sidBodies.Count, _starBodies.Count);
     }
 
     private void LoadCustomFixes(string? baseDir)
@@ -522,7 +521,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
         foreach (var warning in loadResult.Warnings)
         {
-            _logger?.LogWarning("Custom fix: {Warning}", warning);
+            Log.LogWarning("Custom fix: {Warning}", warning);
         }
 
         int added = 0;
@@ -539,7 +538,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                 var resolved = FrdResolver.Resolve(def.Frd, this);
                 if (resolved is null)
                 {
-                    _logger?.LogWarning("Custom fix {Alias}: failed to resolve FRD '{Frd}'", def.Aliases[0], def.Frd);
+                    Log.LogWarning("Custom fix {Alias}: failed to resolve FRD '{Frd}'", def.Aliases[0], def.Frd);
                     continue;
                 }
 
@@ -559,12 +558,12 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                 }
                 else
                 {
-                    _logger?.LogWarning("Custom fix alias '{Alias}' conflicts with " + "existing entry", alias);
+                    Log.LogWarning("Custom fix alias '{Alias}' conflicts with " + "existing entry", alias);
                 }
             }
         }
 
-        _logger?.LogInformation("Custom fixes: {Added} aliases added from {Total} definitions", added, loadResult.Fixes.Count);
+        Log.LogInformation("Custom fixes: {Added} aliases added from {Total} definitions", added, loadResult.Fixes.Count);
     }
 
     private string[] BuildSortedNames()

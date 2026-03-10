@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Data;
@@ -7,15 +6,13 @@ namespace Yaat.Sim.Data;
 public sealed class ApproachDatabase : IApproachLookup
 {
     private string? _cifpFilePath;
-    private readonly ILogger? _logger;
 
     // Lazy per-airport cache: FAA code → list of procedures
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpApproachProcedure>> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-    public ApproachDatabase(string? cifpFilePath = null, ILogger? logger = null)
+    public ApproachDatabase(string? cifpFilePath = null)
     {
         _cifpFilePath = cifpFilePath;
-        _logger = logger;
     }
 
     /// <summary>Sets the CIFP file path after initialization (e.g., after async download).</summary>
@@ -136,7 +133,7 @@ public sealed class ApproachDatabase : IApproachLookup
 
         // ParseApproaches expects ICAO code (KOAK), but we store FAA code (OAK)
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
-        return CifpParser.ParseApproaches(_cifpFilePath, icao, _logger);
+        return CifpParser.ParseApproaches(_cifpFilePath, icao);
     }
 
     private static string NormalizeAirport(string code)

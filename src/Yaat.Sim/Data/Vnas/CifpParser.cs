@@ -9,6 +9,8 @@ namespace Yaat.Sim.Data.Vnas;
 /// </summary>
 public static partial class CifpParser
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("CifpParser");
+
     // Approach type priority: ILS > LOC > RNAV > everything else.
     // Lower value = higher priority.
     private static readonly Dictionary<char, int> ApproachTypePriority = new()
@@ -22,7 +24,7 @@ public static partial class CifpParser
 
     private const int DefaultPriority = 10;
 
-    public static CifpParseResult Parse(string cifpFilePath, ILogger? logger = null)
+    public static CifpParseResult Parse(string cifpFilePath)
     {
         var fafByApproach = new Dictionary<string, FafCandidate>();
         var terminalWaypoints = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
@@ -81,7 +83,7 @@ public static partial class CifpParser
             }
         }
 
-        logger?.LogInformation(
+        Log.LogInformation(
             "CIFP parsed: {Approaches} approach records, "
                 + "{Waypoints} waypoint records, "
                 + "{FafCount} FAF fixes, "
@@ -126,11 +128,7 @@ public static partial class CifpParser
     /// Returns a dictionary of fix identifier → (lat, lon) for CIFP-internal waypoints
     /// that may not exist in NavData (e.g., RF arc center fixes like CFPTK).
     /// </summary>
-    public static IReadOnlyDictionary<string, (double Lat, double Lon)> ParseTerminalWaypoints(
-        string cifpFilePath,
-        string airportIcao,
-        ILogger? logger = null
-    )
+    public static IReadOnlyDictionary<string, (double Lat, double Lon)> ParseTerminalWaypoints(string cifpFilePath, string airportIcao)
     {
         string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
         var waypoints = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
@@ -161,12 +159,12 @@ public static partial class CifpParser
             ProcessTerminalWaypoint(line, waypoints);
         }
 
-        logger?.LogInformation("CIFP terminal waypoints for {Airport}: {Count} parsed", airportIcao, waypoints.Count);
+        Log.LogInformation("CIFP terminal waypoints for {Airport}: {Count} parsed", airportIcao, waypoints.Count);
 
         return waypoints;
     }
 
-    public static IReadOnlyList<CifpApproachProcedure> ParseApproaches(string cifpFilePath, string airportIcao, ILogger? logger = null)
+    public static IReadOnlyList<CifpApproachProcedure> ParseApproaches(string cifpFilePath, string airportIcao)
     {
         string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
 
@@ -215,7 +213,7 @@ public static partial class CifpParser
         }
 
         // Load terminal waypoints for resolving RF arc center fixes
-        var terminalWaypoints = ParseTerminalWaypoints(cifpFilePath, airportIcao, logger);
+        var terminalWaypoints = ParseTerminalWaypoints(cifpFilePath, airportIcao);
 
         var results = new List<CifpApproachProcedure>(approachLegs.Count);
         string faaAirport = normalizedIcao.Trim();
@@ -233,7 +231,7 @@ public static partial class CifpParser
             }
         }
 
-        logger?.LogInformation("CIFP approaches for {Airport}: {Count} procedures parsed", faaAirport, results.Count);
+        Log.LogInformation("CIFP approaches for {Airport}: {Count} procedures parsed", faaAirport, results.Count);
 
         return results;
     }
@@ -242,22 +240,21 @@ public static partial class CifpParser
     /// Extracts shared column data from an ARINC 424 procedure leg record.
     /// Columns are identical for subsections D (SID), E (STAR), and F (approach).
     /// </summary>
-    public static IReadOnlyList<CifpSidProcedure> ParseSids(string cifpFilePath, string airportIcao, ILogger? logger = null)
+    public static IReadOnlyList<CifpSidProcedure> ParseSids(string cifpFilePath, string airportIcao)
     {
-        return ParseSidStarProcedures<CifpSidProcedure>(cifpFilePath, airportIcao, 'D', BuildSidProcedure, logger);
+        return ParseSidStarProcedures<CifpSidProcedure>(cifpFilePath, airportIcao, 'D', BuildSidProcedure);
     }
 
-    public static IReadOnlyList<CifpStarProcedure> ParseStars(string cifpFilePath, string airportIcao, ILogger? logger = null)
+    public static IReadOnlyList<CifpStarProcedure> ParseStars(string cifpFilePath, string airportIcao)
     {
-        return ParseSidStarProcedures<CifpStarProcedure>(cifpFilePath, airportIcao, 'E', BuildStarProcedure, logger);
+        return ParseSidStarProcedures<CifpStarProcedure>(cifpFilePath, airportIcao, 'E', BuildStarProcedure);
     }
 
     private static IReadOnlyList<T> ParseSidStarProcedures<T>(
         string cifpFilePath,
         string airportIcao,
         char subsection,
-        Func<string, string, List<RawProcedureLeg>, IReadOnlyDictionary<string, (double Lat, double Lon)>?, T?> builder,
-        ILogger? logger
+        Func<string, string, List<RawProcedureLeg>, IReadOnlyDictionary<string, (double Lat, double Lon)>?, T?> builder
     )
     {
         string normalizedIcao = airportIcao.ToUpperInvariant().PadRight(4);
@@ -303,7 +300,7 @@ public static partial class CifpParser
         }
 
         // Load terminal waypoints for resolving RF arc center fixes
-        var terminalWaypoints = ParseTerminalWaypoints(cifpFilePath, airportIcao, logger);
+        var terminalWaypoints = ParseTerminalWaypoints(cifpFilePath, airportIcao);
 
         string faaAirport = normalizedIcao.Trim();
         if (faaAirport.StartsWith('K'))
@@ -322,7 +319,7 @@ public static partial class CifpParser
         }
 
         string kind = subsection == 'D' ? "SIDs" : "STARs";
-        logger?.LogInformation("CIFP {Kind} for {Airport}: {Count} procedures parsed", kind, faaAirport, results.Count);
+        Log.LogInformation("CIFP {Kind} for {Airport}: {Count} procedures parsed", kind, faaAirport, results.Count);
 
         return results;
     }

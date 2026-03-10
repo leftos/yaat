@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -12,7 +11,6 @@ public sealed class SimulationWorld
     public Random Rng { get; set; } = Random.Shared;
     public WeatherProfile? Weather { get; set; }
     public AirportGroundLayout? GroundLayout { get; set; }
-    public ILogger? Logger { get; set; }
 
     public void AddAircraft(AircraftState aircraft)
     {
@@ -65,7 +63,7 @@ public sealed class SimulationWorld
                 return null;
             }
 
-            GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout, Logger);
+            GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout);
 
             var weather = Weather;
             foreach (var ac in _aircraft)

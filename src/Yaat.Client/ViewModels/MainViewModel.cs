@@ -473,11 +473,10 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            var logger = AppLog.CreateLogger<VnasDataService>();
-            using var vnasData = new VnasDataService(logger);
+            using var vnasData = new VnasDataService();
             await vnasData.InitializeAsync();
 
-            var fixDb = new FixDatabase(vnasData.NavData, logger: AppLog.CreateLogger<FixDatabase>());
+            var fixDb = new FixDatabase(vnasData.NavData);
 
             _commandInput.FixDb = fixDb;
             Radar.SetElevationLookup(fixDb.GetAirportElevation);
@@ -486,11 +485,11 @@ public partial class MainViewModel : ObservableObject
             _log.LogInformation("Navdata loaded: {Count} fixes available for autocomplete", fixDb.Count);
 
             // CIFP + approach database for FMC fix highlighting
-            using var cifpService = new CifpDataService(AppLog.CreateLogger<CifpDataService>());
+            using var cifpService = new CifpDataService();
             await cifpService.InitializeAsync();
             if (cifpService.CifpFilePath is not null)
             {
-                var approachDb = new ApproachDatabase(cifpService.CifpFilePath, AppLog.CreateLogger<ApproachDatabase>());
+                var approachDb = new ApproachDatabase(cifpService.CifpFilePath);
                 Radar.SetApproachDb(approachDb);
                 _log.LogInformation("Client-side CIFP initialized for FMC fix highlighting");
             }

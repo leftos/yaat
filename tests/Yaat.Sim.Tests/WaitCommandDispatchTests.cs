@@ -92,7 +92,7 @@ public class WaitCommandDispatchTests
         var ac = MakeGroundAircraft();
         StartPhase(ac, new PushbackPhase());
 
-        var result = CommandDispatcher.DispatchCompound(WaitCompound(15), ac, null, null, null, Logger, new Random(42));
+        var result = CommandDispatcher.DispatchCompound(WaitCompound(15), ac, null, null, null, new Random(42));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Null(ac.Phases);
@@ -105,7 +105,7 @@ public class WaitCommandDispatchTests
         var ac = MakeGroundAircraft();
         StartPhase(ac, new TaxiingPhase());
 
-        var result = CommandDispatcher.DispatchCompound(WaitCompound(10), ac, null, null, null, Logger, new Random(42));
+        var result = CommandDispatcher.DispatchCompound(WaitCompound(10), ac, null, null, null, new Random(42));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Null(ac.Phases);
@@ -121,7 +121,7 @@ public class WaitCommandDispatchTests
         var ac = MakeGroundAircraft();
         StartPhase(ac, new HoldingAfterPushbackPhase());
 
-        var result = CommandDispatcher.DispatchCompound(WaitCompound(5), ac, null, null, null, Logger, new Random(42));
+        var result = CommandDispatcher.DispatchCompound(WaitCompound(5), ac, null, null, null, new Random(42));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Null(ac.Phases);
@@ -140,7 +140,7 @@ public class WaitCommandDispatchTests
         // WAIT 15; TAXI A — two sequential blocks
         var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(15)]), new ParsedBlock(null, [new TaxiCommand(["A"], [])])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, Logger, new Random(42));
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Null(ac.Phases);
