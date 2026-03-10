@@ -1185,8 +1185,9 @@ Edit any field, then click **Amend** to send the changes to the server. The Amen
 
 An interactive airport surface map showing taxiways, runways, and aircraft positions. Useful for tower operations (taxi, hold short, cross runway).
 
-- **Pan**: left-click and drag
-- **Zoom**: mouse wheel
+- **Pan**: right-click and drag
+- **Zoom**: mouse wheel (hold **Ctrl** for fine zoom)
+- **Rotate**: Shift + mouse wheel (1° per notch)
 - **Select aircraft**: click an aircraft triangle on the map (syncs with the grid selection)
 
 **Right-click context menus:**
@@ -1210,7 +1211,11 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 
 The ground layout loads automatically when a scenario is loaded for an airport with ground data.
 
-**Label filters:** A filter bar in the top-right corner lets you toggle visibility for four label categories: **RWY** (runway designators), **TWY** (taxiway names), **HS** (hold-short markers), and **PARK** (parking/spot names). Click a button to toggle that category on or off. When a category is hidden, hovering over the relevant element temporarily shows its label. Filter state is persisted across sessions.
+**Controls bar:** A bar in the top-right corner provides label filters and a lock toggle:
+- **Label filters** — toggle visibility for four label categories: **RWY** (runway designators), **TWY** (taxiway names), **HS** (hold-short markers), and **PARK** (parking/spot names). Click a button to toggle that category on or off. When a category is hidden, hovering over the relevant element temporarily shows its label.
+- **LOCK / UNLK** — lock or unlock pan, zoom, and rotation. When locked, the map cannot be accidentally moved. Defaults to unlocked.
+
+**Per-scenario persistence** — Ground view settings (pan position, zoom, rotation, label filters, lock state) are saved independently for each scenario. When you load a scenario you've used before, the ground view restores your previous settings. Label filter and lock defaults for new scenarios come from your last-used values.
 
 When weather is loaded, wind direction/speed and altimeter setting are displayed in the top-left corner of the ground view.
 
@@ -1218,8 +1223,8 @@ When weather is loaded, wind direction/speed and altimeter setting are displayed
 
 A simplified STARS-style radar display showing aircraft targets, video maps, and navigation fixes. Useful for approach/departure operations.
 
-- **Pan**: left-click and drag
-- **Zoom**: mouse wheel
+- **Pan**: right-click and drag
+- **Zoom**: mouse wheel (hold **Ctrl** for fine zoom)
 - **Select aircraft**: click a target on the display (syncs with the grid selection)
 
 **DCB bar** (top of the radar view):
@@ -1228,7 +1233,7 @@ A simplified STARS-style radar display showing aircraft targets, video maps, and
 - **Map shortcuts**: up to 6 quick-toggle buttons for frequently used map groups
 - **RR**: toggle range rings; **RR SIZE** / **RR POS** adjust ring radius and center position
 - **FIX**: toggle fix name overlay
-- **LOCK**: lock/unlock pan and zoom (prevents accidental map movement)
+- **LOCK**: lock/unlock pan and zoom (prevents accidental map movement). Defaults to unlocked for new scenarios
 - **TOP-DN**: toggle top-down display mode
 - **PTL**: predicted track lines — adjust length (in minutes) with the spinner; **PTL OWN** shows lines for your tracked aircraft, **PTL ALL** shows lines for all aircraft
 - **BRITE**: open brightness controls to adjust intensity per video map category
@@ -1245,6 +1250,10 @@ When weather is loaded, wind and altimeter are displayed in the top-left corner 
 Video maps load automatically from the vNAS data API based on your ARTCC ID. Map lines render in green with brightness categories A/B.
 
 **Per-scenario persistence** — Radar view settings (enabled maps, center position, zoom range, range rings, PTL, brightness, lock state) are saved independently for each scenario. When you load a scenario you've used before, the radar view restores your previous settings for that scenario.
+
+### Copying View Settings
+
+Use **View > Copy View Settings From...** to apply another scenario's Ground and Radar view settings to the current scenario. The submenu lists all scenarios with saved settings (excluding the current one). Selecting an entry copies pan, zoom, rotation, label filters, lock state (Ground) and center, range, maps, range rings, brightness, PTL, lock state (Radar) to the active scenario.
 
 ## Terminal Panel
 

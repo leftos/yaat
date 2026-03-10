@@ -100,6 +100,12 @@ public partial class MainWindow : Window
             recentWeatherItem.SubmenuOpened += OnRecentWeatherSubmenuOpened;
         }
 
+        var copyViewItem = this.FindControl<MenuItem>("CopyViewSettingsMenuItem");
+        if (copyViewItem is not null)
+        {
+            copyViewItem.SubmenuOpened += OnCopyViewSettingsSubmenuOpened;
+        }
+
         var embeddedView = this.FindControl<DataGridView>("EmbeddedDataGridView");
         var dataGrid = embeddedView?.GetDataGrid();
         if (dataGrid is not null)
@@ -952,6 +958,38 @@ public partial class MainWindow : Window
             var item = new MenuItem { Header = entry.Name, Tag = entry };
             item.Click += OnRecentScenarioClick;
             ToolTip.SetTip(item, entry.IsApi ? $"API: {entry.ApiId}" : entry.FilePath);
+            menu.Items.Add(item);
+        }
+    }
+
+    private void OnCopyViewSettingsSubmenuOpened(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        menu.Items.Clear();
+        var scenarios = vm.Preferences.GetSavedViewScenarioIds();
+
+        // Exclude the current scenario
+        scenarios.RemoveAll(s => s.ScenarioId == vm.ActiveScenarioId);
+
+        if (scenarios.Count == 0 || !vm.HasScenario)
+        {
+            menu.Items.Add(new MenuItem { Header = "(No saved settings from other scenarios)", IsEnabled = false });
+            return;
+        }
+
+        foreach (var (scenarioId, displayName) in scenarios)
+        {
+            var id = scenarioId;
+            var item = new MenuItem { Header = displayName };
+            item.Click += (_, _) =>
+            {
+                vm.Ground.CopySettingsFrom(id);
+                vm.Radar.CopySettingsFrom(id);
+            };
             menu.Items.Add(item);
         }
     }

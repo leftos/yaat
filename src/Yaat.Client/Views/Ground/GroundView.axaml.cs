@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.Models;
@@ -11,6 +12,7 @@ namespace Yaat.Client.Views.Ground;
 
 public partial class GroundView : UserControl
 {
+    public static readonly FuncValueConverter<bool, string> BoolToLockLabel = new(v => v ? "LOCK" : "UNLK");
     private GroundCanvas? _canvas;
     private ContextMenu? _activeContextMenu;
     private Border? _taxiInputOverlay;
@@ -109,7 +111,7 @@ public partial class GroundView : UserControl
         if (DataContext is GroundViewModel vm)
         {
             vm.ShowRunwayLabels = !vm.ShowRunwayLabels;
-            SaveLabelFilters(vm);
+            vm.SaveLabelAndLockSettings();
         }
     }
 
@@ -118,7 +120,7 @@ public partial class GroundView : UserControl
         if (DataContext is GroundViewModel vm)
         {
             vm.ShowTaxiwayLabels = !vm.ShowTaxiwayLabels;
-            SaveLabelFilters(vm);
+            vm.SaveLabelAndLockSettings();
         }
     }
 
@@ -127,7 +129,7 @@ public partial class GroundView : UserControl
         if (DataContext is GroundViewModel vm)
         {
             vm.ShowHoldShortLabels = !vm.ShowHoldShortLabels;
-            SaveLabelFilters(vm);
+            vm.SaveLabelAndLockSettings();
         }
     }
 
@@ -136,13 +138,17 @@ public partial class GroundView : UserControl
         if (DataContext is GroundViewModel vm)
         {
             vm.ShowParkingLabels = !vm.ShowParkingLabels;
-            SaveLabelFilters(vm);
+            vm.SaveLabelAndLockSettings();
         }
     }
 
-    private static void SaveLabelFilters(GroundViewModel vm)
+    private void OnToggleLock(object? sender, RoutedEventArgs e)
     {
-        vm.Preferences?.SetGroundLabelFilters(vm.ShowRunwayLabels, vm.ShowTaxiwayLabels, vm.ShowHoldShortLabels, vm.ShowParkingLabels);
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.IsPanZoomLocked = !vm.IsPanZoomLocked;
+            vm.SaveLabelAndLockSettings();
+        }
     }
 
     private void OnAircraftLeftClicked(string callsign)

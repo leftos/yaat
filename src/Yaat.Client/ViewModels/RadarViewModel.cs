@@ -134,7 +134,7 @@ public partial class RadarViewModel : ObservableObject
     private IReadOnlyList<(string Name, double Lat, double Lon)>? _fixes;
 
     [ObservableProperty]
-    private bool _isPanZoomLocked = true;
+    private bool _isPanZoomLocked;
 
     [ObservableProperty]
     private double _rangeRingCenterLat;
@@ -784,6 +784,23 @@ public partial class RadarViewModel : ObservableObject
         _preferences.SetRadarSettings(_activeScenarioId, settings);
     }
 
+    public void CopySettingsFrom(string sourceScenarioId)
+    {
+        if (_preferences is null || _activeScenarioId is null)
+        {
+            return;
+        }
+
+        var saved = _preferences.GetRadarSettings(sourceScenarioId);
+        if (saved is null)
+        {
+            return;
+        }
+
+        ApplySettings(saved);
+        SaveSettings();
+    }
+
     private void RestoreSettings()
     {
         if (_preferences is null || _activeScenarioId is null)
@@ -797,6 +814,11 @@ public partial class RadarViewModel : ObservableObject
             return;
         }
 
+        ApplySettings(saved);
+    }
+
+    private void ApplySettings(SavedRadarSettings saved)
+    {
         _isRestoring = true;
 
         // Restore map toggles

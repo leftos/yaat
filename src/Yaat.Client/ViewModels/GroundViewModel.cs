@@ -68,6 +68,24 @@ public partial class GroundViewModel : ObservableObject
     [ObservableProperty]
     private bool _showParkingLabels = true;
 
+    [ObservableProperty]
+    private bool _isPanZoomLocked;
+
+    [ObservableProperty]
+    private double _viewCenterLat;
+
+    [ObservableProperty]
+    private double _viewCenterLon;
+
+    [ObservableProperty]
+    private double _viewZoom = 1.0;
+
+    [ObservableProperty]
+    private double _viewRotation;
+
+    private string? _activeScenarioId;
+    private bool _isRestoring;
+
     private AircraftModel? _drawAircraft;
     private List<int> _drawWaypointIds = [];
     private List<TaxiRoute> _drawSubRoutes = [];
@@ -92,6 +110,7 @@ public partial class GroundViewModel : ObservableObject
             ShowTaxiwayLabels = preferences.GroundShowTaxiwayLabels;
             ShowHoldShortLabels = preferences.GroundShowHoldShortLabels;
             ShowParkingLabels = preferences.GroundShowParkingLabels;
+            IsPanZoomLocked = preferences.GroundPanZoomLocked;
         }
     }
 
@@ -108,6 +127,21 @@ public partial class GroundViewModel : ObservableObject
         {
             CancelDrawRoute();
         }
+    }
+
+    partial void OnViewCenterLatChanged(double value) => SaveSettings();
+
+    partial void OnViewCenterLonChanged(double value) => SaveSettings();
+
+    partial void OnViewZoomChanged(double value) => SaveSettings();
+
+    partial void OnViewRotationChanged(double value) => SaveSettings();
+
+    public void SaveLabelAndLockSettings()
+    {
+        SaveSettings();
+        Preferences?.SetGroundLabelFilters(ShowRunwayLabels, ShowTaxiwayLabels, ShowHoldShortLabels, ShowParkingLabels);
+        Preferences?.SetGroundPanZoomLocked(IsPanZoomLocked);
     }
 
     public async Task LoadLayoutAsync(string airportId)
@@ -151,8 +185,18 @@ public partial class GroundViewModel : ObservableObject
         }
     }
 
+    public void SetScenarioId(string? scenarioId)
+    {
+        _activeScenarioId = scenarioId;
+        if (scenarioId is not null)
+        {
+            RestoreSettings();
+        }
+    }
+
     public void ClearLayout()
     {
+        _activeScenarioId = null;
         Layout = null;
         _domainLayout = null;
         ActiveRoute = null;
@@ -161,6 +205,84 @@ public partial class GroundViewModel : ObservableObject
         AirportCenterLon = 0;
         AirportElevation = 0;
         GroundAircraft.Clear();
+    }
+
+    public void CopySettingsFrom(string sourceScenarioId)
+    {
+        if (Preferences is null || _activeScenarioId is null)
+        {
+            return;
+        }
+
+        var saved = Preferences.GetGroundSettings(sourceScenarioId);
+        if (saved is null)
+        {
+            return;
+        }
+
+        ApplySettings(saved);
+        SaveSettings();
+    }
+
+    private void ApplySettings(SavedGroundSettings saved)
+    {
+        _isRestoring = true;
+
+        ViewCenterLat = saved.CenterLat;
+        ViewCenterLon = saved.CenterLon;
+        ViewZoom = saved.Zoom;
+        ViewRotation = saved.Rotation;
+        IsPanZoomLocked = saved.IsPanZoomLocked;
+        ShowRunwayLabels = saved.ShowRunwayLabels;
+        ShowTaxiwayLabels = saved.ShowTaxiwayLabels;
+        ShowHoldShortLabels = saved.ShowHoldShortLabels;
+        ShowParkingLabels = saved.ShowParkingLabels;
+
+        _isRestoring = false;
+    }
+
+    private void SaveSettings()
+    {
+        if (Preferences is null || _activeScenarioId is null || _isRestoring)
+        {
+            return;
+        }
+
+        if (ViewCenterLat == 0 && ViewCenterLon == 0)
+        {
+            return;
+        }
+
+        var settings = new SavedGroundSettings
+        {
+            CenterLat = ViewCenterLat,
+            CenterLon = ViewCenterLon,
+            Zoom = ViewZoom,
+            Rotation = ViewRotation,
+            IsPanZoomLocked = IsPanZoomLocked,
+            ShowRunwayLabels = ShowRunwayLabels,
+            ShowTaxiwayLabels = ShowTaxiwayLabels,
+            ShowHoldShortLabels = ShowHoldShortLabels,
+            ShowParkingLabels = ShowParkingLabels,
+        };
+
+        Preferences.SetGroundSettings(_activeScenarioId, settings);
+    }
+
+    private void RestoreSettings()
+    {
+        if (Preferences is null || _activeScenarioId is null)
+        {
+            return;
+        }
+
+        var saved = Preferences.GetGroundSettings(_activeScenarioId);
+        if (saved is null)
+        {
+            return;
+        }
+
+        ApplySettings(saved);
     }
 
     public void UpdateAircraftList(IEnumerable<AircraftModel> allAircraft)

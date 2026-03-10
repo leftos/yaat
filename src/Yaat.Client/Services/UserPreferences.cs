@@ -127,6 +127,7 @@ public sealed class UserPreferences
     public bool GroundShowTaxiwayLabels => _data.GroundShowTaxiwayLabels;
     public bool GroundShowHoldShortLabels => _data.GroundShowHoldShortLabels;
     public bool GroundShowParkingLabels => _data.GroundShowParkingLabels;
+    public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
     public bool AssignmentTintEnabled => _data.AssignmentTintEnabled;
     public string AssignmentTintColor => _data.AssignmentTintColor;
 
@@ -315,6 +316,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetGroundPanZoomLocked(bool locked)
+    {
+        _data.GroundPanZoomLocked = locked;
+        Save();
+    }
+
     public void SetHiddenTerminalKinds(HashSet<TerminalEntryKind> hidden)
     {
         HiddenTerminalKinds = hidden;
@@ -384,6 +391,51 @@ public sealed class UserPreferences
     {
         _data.RadarSettings[scenarioId] = settings;
         Save();
+    }
+
+    public SavedGroundSettings? GetGroundSettings(string scenarioId)
+    {
+        _data.GroundSettings.TryGetValue(scenarioId, out var settings);
+        return settings;
+    }
+
+    public void SetGroundSettings(string scenarioId, SavedGroundSettings settings)
+    {
+        _data.GroundSettings[scenarioId] = settings;
+        Save();
+    }
+
+    public List<(string ScenarioId, string DisplayName)> GetSavedViewScenarioIds()
+    {
+        var ids = new HashSet<string>();
+        foreach (var key in _data.RadarSettings.Keys)
+        {
+            ids.Add(key);
+        }
+
+        foreach (var key in _data.GroundSettings.Keys)
+        {
+            ids.Add(key);
+        }
+
+        var nameMap = new Dictionary<string, string>();
+        foreach (var recent in _data.RecentScenarios)
+        {
+            if (!nameMap.ContainsKey(recent.Key))
+            {
+                nameMap[recent.Key] = recent.Name;
+            }
+        }
+
+        var result = new List<(string, string)>();
+        foreach (var id in ids)
+        {
+            var display = nameMap.TryGetValue(id, out var name) ? name : id;
+            result.Add((id, display));
+        }
+
+        result.Sort((a, b) => string.Compare(a.Item2, b.Item2, StringComparison.OrdinalIgnoreCase));
+        return result;
     }
 
     private static SavedPrefs Load()
@@ -472,6 +524,7 @@ public sealed class UserPreferences
             IsGroundViewPoppedOut = GetFieldOr(obj, "isGroundViewPoppedOut", false),
             IsRadarViewPoppedOut = GetFieldOr(obj, "isRadarViewPoppedOut", false),
             RadarSettings = GetFieldOr<Dictionary<string, SavedRadarSettings>>(obj, "radarSettings", []),
+            GroundSettings = GetFieldOr<Dictionary<string, SavedGroundSettings>>(obj, "groundSettings", []),
             WindowGeometries = GetFieldOr<Dictionary<string, SavedWindowGeometry>>(obj, "windowGeometries", []),
             ShowOnlyActiveAircraft = GetFieldOr(obj, "showOnlyActiveAircraft", false),
             ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
@@ -494,6 +547,7 @@ public sealed class UserPreferences
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
             GroundShowHoldShortLabels = GetFieldOr(obj, "groundShowHoldShortLabels", true),
             GroundShowParkingLabels = GetFieldOr(obj, "groundShowParkingLabels", true),
+            GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
             AssignmentTintEnabled = GetFieldOr(obj, "assignmentTintEnabled", false),
             AssignmentTintColor = GetFieldOr(obj, "assignmentTintColor", "#00FF00"),
         };
@@ -630,6 +684,7 @@ public sealed class UserPreferences
         public bool IsGroundViewPoppedOut { get; set; }
         public bool IsRadarViewPoppedOut { get; set; }
         public Dictionary<string, SavedRadarSettings> RadarSettings { get; set; } = [];
+        public Dictionary<string, SavedGroundSettings> GroundSettings { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
         public bool ShowOnlyActiveAircraft { get; set; }
         public bool ShowTimelineBar { get; set; }
@@ -652,6 +707,7 @@ public sealed class UserPreferences
         public bool GroundShowTaxiwayLabels { get; set; } = true;
         public bool GroundShowHoldShortLabels { get; set; } = true;
         public bool GroundShowParkingLabels { get; set; } = true;
+        public bool GroundPanZoomLocked { get; set; }
         public bool AssignmentTintEnabled { get; set; }
         public string AssignmentTintColor { get; set; } = "#00FF00";
     }
@@ -731,10 +787,23 @@ public sealed class SavedRadarSettings
     public double RangeRingSizeNm { get; set; } = 5;
     public bool ShowRangeRings { get; set; } = true;
     public bool ShowFixes { get; set; }
-    public bool IsPanZoomLocked { get; set; } = true;
+    public bool IsPanZoomLocked { get; set; }
     public bool ShowTopDown { get; set; }
     public double PtlLengthMinutes { get; set; }
     public bool PtlOwn { get; set; }
     public bool PtlAll { get; set; }
     public Dictionary<string, int>? BrightnessValues { get; set; }
+}
+
+public sealed class SavedGroundSettings
+{
+    public double CenterLat { get; set; }
+    public double CenterLon { get; set; }
+    public double Zoom { get; set; } = 1.0;
+    public double Rotation { get; set; }
+    public bool IsPanZoomLocked { get; set; }
+    public bool ShowRunwayLabels { get; set; } = true;
+    public bool ShowTaxiwayLabels { get; set; } = true;
+    public bool ShowHoldShortLabels { get; set; } = true;
+    public bool ShowParkingLabels { get; set; } = true;
 }

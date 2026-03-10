@@ -142,7 +142,9 @@ public abstract class MapCanvasBase : Control
         }
 
         var pos = e.GetPosition(this);
-        var factor = e.Delta.Y > 0 ? 1.2 : 1.0 / 1.2;
+        bool fine = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        var step = fine ? 1.05 : 1.2;
+        var factor = e.Delta.Y > 0 ? step : 1.0 / step;
         _viewport.ZoomAt((float)pos.X, (float)pos.Y, factor);
         OnViewportChanged();
         InvalidateVisual();

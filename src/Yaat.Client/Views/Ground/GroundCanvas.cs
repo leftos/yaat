@@ -84,11 +84,22 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         defaultValue: true
     );
 
+    public static readonly StyledProperty<bool> IsPanZoomLockedProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(IsPanZoomLocked));
+
+    public static readonly StyledProperty<double> ViewCenterLatProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewCenterLat));
+    public static readonly StyledProperty<double> ViewCenterLonProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewCenterLon));
+    public static readonly StyledProperty<double> ViewZoomProperty = AvaloniaProperty.Register<GroundCanvas, double>(
+        nameof(ViewZoom),
+        defaultValue: 1.0
+    );
+    public static readonly StyledProperty<double> ViewRotationProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewRotation));
+
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
     private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = Services.PlatformHelper.MonospaceTypefaceBold };
     private int? _hoveredNodeId;
     private bool _hasFitBounds;
+    private bool _suppressViewSync;
     private bool _isDraggingDataBlock;
     private string? _dragCallsign;
     private SKPoint _dragStartOffset;
@@ -181,6 +192,36 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(ShowParkingLabelsProperty, value);
     }
 
+    public bool IsPanZoomLocked
+    {
+        get => GetValue(IsPanZoomLockedProperty);
+        set => SetValue(IsPanZoomLockedProperty, value);
+    }
+
+    public double ViewCenterLat
+    {
+        get => GetValue(ViewCenterLatProperty);
+        set => SetValue(ViewCenterLatProperty, value);
+    }
+
+    public double ViewCenterLon
+    {
+        get => GetValue(ViewCenterLonProperty);
+        set => SetValue(ViewCenterLonProperty, value);
+    }
+
+    public double ViewZoom
+    {
+        get => GetValue(ViewZoomProperty);
+        set => SetValue(ViewZoomProperty, value);
+    }
+
+    public double ViewRotation
+    {
+        get => GetValue(ViewRotationProperty);
+        set => SetValue(ViewRotationProperty, value);
+    }
+
     public TaxiRoute? DrawnRoutePreview
     {
         get => GetValue(DrawnRoutePreviewProperty);
@@ -265,6 +306,22 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         )
         {
             MarkDirty();
+        }
+        else if (change.Property == IsPanZoomLockedProperty)
+        {
+            IsPanZoomEnabled = !IsPanZoomLocked;
+        }
+        else if (
+            !_suppressViewSync
+            && (
+                change.Property == ViewCenterLatProperty
+                || change.Property == ViewCenterLonProperty
+                || change.Property == ViewZoomProperty
+                || change.Property == ViewRotationProperty
+            )
+        )
+        {
+            ApplyViewToViewport();
         }
         else if (change.Property == IsDrawingRouteProperty)
         {
@@ -652,6 +709,21 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    private void ApplyViewToViewport()
+    {
+        if (ViewCenterLat == 0 && ViewCenterLon == 0)
+        {
+            return;
+        }
+
+        Viewport.CenterLat = ViewCenterLat;
+        Viewport.CenterLon = ViewCenterLon;
+        Viewport.Zoom = ViewZoom;
+        Viewport.RotationDeg = ViewRotation;
+        _hasFitBounds = true;
+        InvalidateVisual();
+    }
+
     private void FitToLayout()
     {
         if (_hasFitBounds || Layout is null || Layout.Nodes.Count == 0)
@@ -679,6 +751,17 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
         Viewport.FitBounds(minLat, maxLat, minLon, maxLon);
         _hasFitBounds = true;
+        OnViewportChanged();
+    }
+
+    protected override void OnViewportChanged()
+    {
+        _suppressViewSync = true;
+        ViewCenterLat = Viewport.CenterLat;
+        ViewCenterLon = Viewport.CenterLon;
+        ViewZoom = Viewport.Zoom;
+        ViewRotation = Viewport.RotationDeg;
+        _suppressViewSync = false;
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)

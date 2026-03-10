@@ -61,10 +61,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         defaultValue: 5
     );
 
-    public static readonly StyledProperty<bool> IsPanZoomLockedProperty = AvaloniaProperty.Register<RadarCanvas, bool>(
-        nameof(IsPanZoomLocked),
-        defaultValue: true
-    );
+    public static readonly StyledProperty<bool> IsPanZoomLockedProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(IsPanZoomLocked));
 
     public static readonly StyledProperty<bool> IsPlacingRangeRingProperty = AvaloniaProperty.Register<RadarCanvas, bool>(nameof(IsPlacingRangeRing));
 
@@ -131,12 +128,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private readonly Dictionary<string, int> _dataBlockZOrder = new();
     private int _nextZOrder = 1;
 
-    public RadarCanvas()
-    {
-        // IsPanZoomLocked defaults to true, so match the base class state.
-        // OnPropertyChanged won't fire when binding sets true→true.
-        IsPanZoomEnabled = false;
-    }
+    public RadarCanvas() { }
 
     public IReadOnlyList<AircraftModel>? Aircraft
     {

@@ -279,6 +279,7 @@ public partial class MainViewModel
         _ = SendAutoClearedToLand();
         _ = SendAutoCrossRunway();
 
+        Ground.SetScenarioId(result.ScenarioId);
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {
             _ = Ground.LoadLayoutAsync(result.PrimaryAirportId);
@@ -308,6 +309,7 @@ public partial class MainViewModel
             SetRadarAirportPosition(dto.PrimaryAirportId);
             ApplySimState(dto.IsPaused, dto.SimRate);
 
+            Ground.SetScenarioId(dto.ScenarioId);
             if (!string.IsNullOrEmpty(dto.PrimaryAirportId))
             {
                 SetDistanceReference(dto.PrimaryAirportId);
