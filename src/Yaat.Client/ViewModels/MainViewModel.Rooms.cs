@@ -364,7 +364,7 @@ public partial class MainViewModel
             _commandInput.PrimaryAirportId = state.PrimaryAirportId;
             Radar.SetPrimaryAirportId(state.PrimaryAirportId);
             SetRadarAirportPosition(state.PrimaryAirportId);
-            ApplySimState(state.IsPaused, (int)state.SimRate);
+            ApplySimState(state.IsPaused, (int)state.SimRate, state.ElapsedSeconds, state.IsPlayback, state.TapeEnd);
 
             if (!string.IsNullOrEmpty(state.PrimaryAirportId))
             {

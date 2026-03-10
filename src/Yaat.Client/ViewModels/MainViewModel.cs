@@ -85,6 +85,8 @@ public partial class MainViewModel : ObservableObject
 
     public bool IsTimelineAvailable => ActiveScenarioName is not null && ShowTimelineBar;
 
+    public string PlayPauseIcon => IsPaused ? "▶" : "⏸";
+
     public string ElapsedTimeDisplay
     {
         get
@@ -1193,6 +1195,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ElapsedTimeDisplay));
         OnPropertyChanged(nameof(TapeEndDisplay));
         OnPropertyChanged(nameof(IsTimelineAvailable));
+        OnPropertyChanged(nameof(PlayPauseIcon));
     }
 
     private void AddHistory(string entry)

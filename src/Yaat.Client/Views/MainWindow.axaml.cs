@@ -125,12 +125,72 @@ public partial class MainWindow : Window
             OpenRadarViewWindow(vm);
         }
 
+        var slider = this.FindControl<Slider>("TimelineSlider");
+        if (slider is not null)
+        {
+            SetupTimelineSlider(slider, vm);
+        }
+
         ApplyKeybinds(vm.Preferences);
 
         if (App.AutoConnectTarget is { } target)
         {
             _ = AutoConnectAsync(vm, target);
         }
+    }
+
+    private static void SetupTimelineSlider(Slider slider, MainViewModel vm)
+    {
+        var isInteracting = false;
+
+        // Sync VM → slider when user is not interacting
+        slider.Value = vm.ScenarioElapsedSeconds;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.ScenarioElapsedSeconds) && !isInteracting)
+            {
+                slider.Value = vm.ScenarioElapsedSeconds;
+            }
+        };
+
+        // Tunnel to catch pointer before the slider/thumb handles it
+        slider.AddHandler(
+            InputElement.PointerPressedEvent,
+            (_, _) =>
+            {
+                isInteracting = true;
+            },
+            Avalonia.Interactivity.RoutingStrategies.Tunnel
+        );
+
+        slider.AddHandler(
+            InputElement.PointerReleasedEvent,
+            (_, _) =>
+            {
+                if (isInteracting)
+                {
+                    var target = slider.Value;
+                    isInteracting = false;
+                    _ = vm.RewindToSeconds(target);
+                }
+            },
+            Avalonia.Interactivity.RoutingStrategies.Tunnel
+        );
+
+        // Fallback: if pointer leaves the slider while pressed, capture is lost
+        slider.AddHandler(
+            InputElement.PointerCaptureLostEvent,
+            (_, _) =>
+            {
+                if (isInteracting)
+                {
+                    var target = slider.Value;
+                    isInteracting = false;
+                    _ = vm.RewindToSeconds(target);
+                }
+            },
+            Avalonia.Interactivity.RoutingStrategies.Tunnel
+        );
     }
 
     private static async Task AutoConnectAsync(MainViewModel vm, string target)

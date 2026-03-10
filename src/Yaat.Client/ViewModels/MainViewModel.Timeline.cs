@@ -1,6 +1,7 @@
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Services;
 
 namespace Yaat.Client.ViewModels;
 
@@ -22,6 +23,45 @@ public partial class MainViewModel
     private async Task RewindBack15()
     {
         await RewindToSeconds(Math.Max(0, ScenarioElapsedSeconds - 15));
+    }
+
+    [RelayCommand]
+    private async Task SkipForward15()
+    {
+        await RewindToSeconds(Math.Min(PlaybackTapeEnd, ScenarioElapsedSeconds + 15));
+    }
+
+    [RelayCommand]
+    private async Task SkipForward30()
+    {
+        await RewindToSeconds(Math.Min(PlaybackTapeEnd, ScenarioElapsedSeconds + 30));
+    }
+
+    [RelayCommand]
+    private async Task JumpToEnd()
+    {
+        await RewindToSeconds(PlaybackTapeEnd);
+    }
+
+    [RelayCommand]
+    private async Task TogglePlayback()
+    {
+        try
+        {
+            if (IsPaused)
+            {
+                await _connection.ResumeSimulationAsync();
+            }
+            else
+            {
+                await _connection.PauseSimulationAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Toggle playback failed");
+            StatusText = $"Playback error: {ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -170,16 +210,9 @@ public partial class MainViewModel
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                Aircraft.Clear();
-                if (result.Aircraft is not null)
-                {
-                    foreach (var dto in result.Aircraft)
-                    {
-                        Aircraft.Add(Models.AircraftModel.FromDto(dto, ComputeDistance));
-                    }
-                }
-
-                StatusText = "Recording loaded";
+                ApplyRecordingResult(result);
+                StatusText = $"Recording loaded: {result.ScenarioName}";
+                AddSystemEntry($"Recording loaded: {result.ScenarioName}");
             });
         }
         catch (Exception ex)
@@ -187,6 +220,45 @@ public partial class MainViewModel
             _log.LogError(ex, "Load recording failed");
             StatusText = $"Load recording error: {ex.Message}";
         }
+    }
+
+    private void ApplyRecordingResult(RewindResultDto result)
+    {
+        ActiveScenarioId = result.ScenarioId;
+        ActiveScenarioName = result.ScenarioName;
+        _commandInput.PrimaryAirportId = result.PrimaryAirportId;
+        Radar.SetPrimaryAirportId(result.PrimaryAirportId);
+        SetRadarAirportPosition(result.PrimaryAirportId);
+        ApplySimState(result.IsPaused, result.SimRate, result.ElapsedSeconds, result.IsPlayback, result.TapeEnd);
+
+        if (!string.IsNullOrEmpty(result.PrimaryAirportId))
+        {
+            SetDistanceReference(result.PrimaryAirportId);
+        }
+
+        Aircraft.Clear();
+        if (result.Aircraft is not null)
+        {
+            foreach (var dto in result.Aircraft)
+            {
+                Aircraft.Add(Models.AircraftModel.FromDto(dto, ComputeDistance));
+            }
+        }
+
+        _studentPositionType = result.StudentPositionType;
+
+        if (!string.IsNullOrEmpty(result.PrimaryAirportId))
+        {
+            _ = Ground.LoadLayoutAsync(result.PrimaryAirportId);
+        }
+
+        var artccId = result.ArtccId ?? _preferences.ArtccId;
+        if (!string.IsNullOrEmpty(artccId))
+        {
+            _ = Radar.LoadVideoMapsForArtccAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
+        }
+
+        ShowTimelineBar = true;
     }
 
     private static string FormatTime(double seconds)

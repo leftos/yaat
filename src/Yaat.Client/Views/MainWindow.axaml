@@ -113,16 +113,21 @@
                 BorderThickness="0,0,0,1"
                 Padding="8,3"
                 IsVisible="{Binding IsTimelineAvailable}">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,8,*,8,Auto,Auto">
-                <Button Grid.Column="0" Content="|◀" FontSize="11" Padding="4,2" Margin="0,0,4,0" Command="{Binding RewindToStartCommand}" />
-                <Button Grid.Column="1" Content="-30s" FontSize="11" Padding="4,2" Margin="0,0,4,0" Command="{Binding RewindBack30Command}" />
-                <Button Grid.Column="2" Content="-15s" FontSize="11" Padding="4,2" Margin="0,0,4,0" Command="{Binding RewindBack15Command}" />
-                <TextBlock Grid.Column="3" Text="{Binding ElapsedTimeDisplay}" VerticalAlignment="Center" FontSize="12" FontFamily="{StaticResource MonoFont}" Margin="4,0" />
-                <Slider Grid.Column="5" x:Name="TimelineSlider" Minimum="0" Maximum="{Binding PlaybackTapeEnd}" Value="{Binding ScenarioElapsedSeconds}" IsEnabled="False" VerticalAlignment="Center" />
-                <Border Grid.Column="7" Background="#553A8C" CornerRadius="3" Padding="6,1" IsVisible="{Binding IsPlaybackMode}" VerticalAlignment="Center">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,8,*,8,Auto,Auto,Auto">
+                <Button Grid.Column="0" Content="⏮" ToolTip.Tip="Jump to start" FontSize="11" Padding="4,2" Margin="0,0,2,0" Command="{Binding RewindToStartCommand}" />
+                <Button Grid.Column="1" Content="⏪30" ToolTip.Tip="Back 30s" FontSize="11" Padding="4,2" Margin="0,0,2,0" Command="{Binding RewindBack30Command}" />
+                <Button Grid.Column="2" Content="⏪15" ToolTip.Tip="Back 15s" FontSize="11" Padding="4,2" Margin="0,0,2,0" Command="{Binding RewindBack15Command}" />
+                <Button Grid.Column="3" Content="{Binding PlayPauseIcon}" ToolTip.Tip="Play / Pause" FontSize="11" Padding="6,2" Margin="0,0,2,0" Command="{Binding TogglePlaybackCommand}" />
+                <Button Grid.Column="4" Content="15⏩" ToolTip.Tip="Forward 15s" FontSize="11" Padding="4,2" Margin="0,0,2,0" Command="{Binding SkipForward15Command}" />
+                <Button Grid.Column="5" Content="30⏩" ToolTip.Tip="Forward 30s" FontSize="11" Padding="4,2" Margin="0,0,2,0" Command="{Binding SkipForward30Command}" />
+                <Button Grid.Column="6" Content="⏭" ToolTip.Tip="Jump to end" FontSize="11" Padding="4,2" Margin="0,0,4,0" Command="{Binding JumpToEndCommand}" />
+                <TextBlock Grid.Column="7" Text="{Binding ElapsedTimeDisplay}" VerticalAlignment="Center" FontSize="12" FontFamily="{StaticResource MonoFont}" Margin="4,0" />
+                <Slider Grid.Column="9" x:Name="TimelineSlider" Minimum="0" Maximum="{Binding PlaybackTapeEnd}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="11" Text="{Binding TapeEndDisplay}" VerticalAlignment="Center" FontSize="12" FontFamily="{StaticResource MonoFont}" Margin="0,0,4,0" IsVisible="{Binding IsPlaybackMode}" />
+                <Border Grid.Column="12" Background="#553A8C" CornerRadius="3" Padding="6,1" IsVisible="{Binding IsPlaybackMode}" VerticalAlignment="Center">
                     <TextBlock Text="PLAYBACK" FontSize="11" Foreground="White" />
                 </Border>
-                <Button Grid.Column="8" Content="Take Control" FontSize="11" Padding="6,2" Margin="4,0,0,0" Command="{Binding TakeControlCommand}" IsVisible="{Binding IsPlaybackMode}" />
+                <Button Grid.Column="13" Content="Take Control" FontSize="11" Padding="6,2" Margin="4,0,0,0" Command="{Binding TakeControlCommand}" IsVisible="{Binding IsPlaybackMode}" />
             </Grid>
         </Border>
 

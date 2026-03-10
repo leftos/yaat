@@ -536,7 +536,10 @@ public record RoomStateDto(
     double SimRate,
     string? PrimaryAirportId,
     List<AircraftDto> AllAircraft,
-    PositionDisplayConfigDto? PositionDisplayConfig = null
+    PositionDisplayConfigDto? PositionDisplayConfig = null,
+    double ElapsedSeconds = 0,
+    bool IsPlayback = false,
+    double TapeEnd = 0
 );
 
 public record ScenarioLoadedDto(
@@ -657,7 +660,21 @@ public record ApproachReportDto(
 
 public record TimelineInfoDto(double ElapsedSeconds, double TapeEnd, bool IsPlayback, bool IsAvailable);
 
-public record RewindResultDto(bool Success, string? Error, List<AircraftDto>? Aircraft = null);
+public record RewindResultDto(
+    bool Success,
+    string? Error,
+    List<AircraftDto>? Aircraft = null,
+    string? ScenarioId = null,
+    string? ScenarioName = null,
+    string? PrimaryAirportId = null,
+    string? ArtccId = null,
+    string? StudentPositionType = null,
+    bool IsPaused = true,
+    int SimRate = 1,
+    double ElapsedSeconds = 0,
+    bool IsPlayback = false,
+    double TapeEnd = 0
+);
 
 public record AssignableMemberDto(string ConnectionId, string Initials);
 
