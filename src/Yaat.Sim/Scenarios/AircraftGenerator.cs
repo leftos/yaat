@@ -260,7 +260,7 @@ public static class AircraftGenerator
         double gsAngle = Phases.GlideSlopeGeometry.AngleForCategory(category);
         double altFromDist = rwy.ElevationFt + (request.FinalDistanceNm * Phases.GlideSlopeGeometry.FeetPerNm(gsAngle));
 
-        var init = AircraftInitializer.InitializeOnFinal(rwy, category, altFromDist);
+        var init = AircraftInitializer.InitializeOnFinal(rwy, category, altFromDist, aircraftType: aircraftType);
 
         var state = new AircraftState
         {

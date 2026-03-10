@@ -76,7 +76,8 @@ public static class AircraftInitializer
         AircraftCategory category,
         double? requestedAltitude = null,
         double? requestedSpeed = null,
-        double? requestedDistanceNm = null
+        double? requestedDistanceNm = null,
+        string? aircraftType = null
     )
     {
         double gsAngle = GlideSlopeGeometry.AngleForCategory(category);
@@ -103,7 +104,7 @@ public static class AircraftInitializer
         }
         else
         {
-            double fas = CategoryPerformance.ApproachSpeed(category);
+            double fas = CategoryPerformance.ApproachSpeed(category, aircraftType);
             speed = distNm switch
             {
                 <= 5 => fas,

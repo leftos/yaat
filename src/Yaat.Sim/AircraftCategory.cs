@@ -474,9 +474,10 @@ public static class CategoryPerformance
         {
             AircraftCategory.Jet => altitude switch
             {
-                < 10000 => 250,
-                < 24000 => 290,
-                _ => 280,
+                < 10000 => 250, // 14 CFR 91.117
+                < 18000 => 280, // Transition through Class B/C
+                < 28000 => 290, // Standard climb
+                _ => 280, // High altitude (Mach transition region)
             },
             AircraftCategory.Turboprop => altitude switch
             {
@@ -496,6 +497,49 @@ public static class CategoryPerformance
             },
             _ => 250,
         };
+    }
+
+    /// <summary>Type-aware default speed: scales category speed by the aircraft's approach speed ratio.</summary>
+    public static double DefaultSpeed(AircraftCategory cat, double altitude, string? aircraftType)
+    {
+        return ScaleByApproachRatio(DefaultSpeed(cat, altitude), cat, aircraftType);
+    }
+
+    /// <summary>Type-aware approach speed: uses FAA ACD value if available, else category default.</summary>
+    public static double ApproachSpeed(AircraftCategory cat, string? aircraftType)
+    {
+        var typeSpeed = AircraftApproachSpeed.GetApproachSpeed(aircraftType);
+        return typeSpeed ?? ApproachSpeed(cat);
+    }
+
+    /// <summary>Type-aware touchdown speed, scaled proportionally to approach speed ratio.</summary>
+    public static double TouchdownSpeed(AircraftCategory cat, string? aircraftType)
+    {
+        return ScaleByApproachRatio(TouchdownSpeed(cat), cat, aircraftType);
+    }
+
+    /// <summary>Type-aware downwind speed, scaled proportionally to approach speed ratio.</summary>
+    public static double DownwindSpeed(AircraftCategory cat, string? aircraftType)
+    {
+        return ScaleByApproachRatio(DownwindSpeed(cat), cat, aircraftType);
+    }
+
+    /// <summary>Type-aware base speed, scaled proportionally to approach speed ratio.</summary>
+    public static double BaseSpeed(AircraftCategory cat, string? aircraftType)
+    {
+        return ScaleByApproachRatio(BaseSpeed(cat), cat, aircraftType);
+    }
+
+    private static double ScaleByApproachRatio(double categoryValue, AircraftCategory cat, string? aircraftType)
+    {
+        var typeSpeed = AircraftApproachSpeed.GetApproachSpeed(aircraftType);
+        if (typeSpeed is null)
+        {
+            return categoryValue;
+        }
+
+        double catSpeed = ApproachSpeed(cat);
+        return catSpeed > 0 ? categoryValue * (typeSpeed.Value / catSpeed) : categoryValue;
     }
 
     /// <summary>Air taxi speed (knots). §3-11-1.c: above 20 KIAS, below 100ft AGL. 40 KIAS nominal.</summary>

@@ -20,6 +20,7 @@ public static class CommandMetadata
         new(CanonicalCommandType.DescendMaintain, "Descend/Maintain", "50", false, "Altitude / Speed"),
         new(CanonicalCommandType.Speed, "Speed", "250", false, "Altitude / Speed"),
         new(CanonicalCommandType.ResumeNormalSpeed, "Resume Normal Speed", null, false, "Altitude / Speed"),
+        new(CanonicalCommandType.ReduceToFinalApproachSpeed, "Reduce to Final Approach Speed", null, false, "Altitude / Speed"),
         new(CanonicalCommandType.DeleteSpeedRestrictions, "Delete Speed Restrictions", null, false, "Altitude / Speed"),
         // Force (immediate override)
         new(CanonicalCommandType.ForceHeading, "Force Heading", "270", false, "Sim Control"),

@@ -31,6 +31,8 @@ public record SpeedCommand(int Speed, SpeedModifier Modifier = SpeedModifier.Non
 
 public record ResumeNormalSpeedCommand : ParsedCommand;
 
+public record ReduceToFinalApproachSpeedCommand : ParsedCommand;
+
 public record DeleteSpeedRestrictionsCommand : ParsedCommand;
 
 public record ForceHeadingCommand(int Heading) : ParsedCommand;

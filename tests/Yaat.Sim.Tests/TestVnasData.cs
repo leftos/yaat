@@ -4,9 +4,9 @@ using Yaat.Sim.Data.Vnas;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Loads AircraftSpecs.json and AircraftCwt.json from TestData/ and initializes
-/// <see cref="AircraftCategorization"/>, <see cref="WakeTurbulenceData"/>, and
-/// <see cref="CwtLookup"/>. Thread-safe; only initializes once per process.
+/// Loads AircraftSpecs.json, AircraftCwt.json, and FaaAcd.json from TestData/ and initializes
+/// <see cref="AircraftCategorization"/>, <see cref="WakeTurbulenceData"/>,
+/// <see cref="CwtLookup"/>, and <see cref="AircraftApproachSpeed"/>. Thread-safe; only initializes once per process.
 ///
 /// Call <see cref="EnsureInitialized"/> at the top of any test that needs
 /// accurate aircraft categorization. Safe to call multiple times.
@@ -33,6 +33,7 @@ internal static class TestVnasData
 
             LoadAircraftSpecs();
             LoadAircraftCwt();
+            LoadFaaAcd();
             _initialized = true;
         }
     }
@@ -115,5 +116,23 @@ internal static class TestVnasData
         }
 
         CwtLookup.Initialize(lookup);
+    }
+
+    private static void LoadFaaAcd()
+    {
+        var path = Path.Combine(TestDataDir, "FaaAcd.json");
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        var json = File.ReadAllText(path);
+        var lookup = JsonSerializer.Deserialize<Dictionary<string, int>>(json);
+        if (lookup is null)
+        {
+            return;
+        }
+
+        AircraftApproachSpeed.Initialize(lookup);
     }
 }

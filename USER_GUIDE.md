@@ -309,6 +309,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Speed floor | `SPD 210+` | — | — |
 | Speed ceiling | `SPD 210-` | — | — |
 | Resume normal speed | `RNS` | `NS` | — |
+| Reduce to final approach speed | `RFAS` | — | — |
 | Delete speed restrictions | `DSR` | — | — |
 
 #### Squawk / Transponder
@@ -778,6 +779,7 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 | `SPD 210+` | Speed floor: maintain 210 knots or greater |
 | `SPD 210-` | Speed ceiling: do not exceed 210 knots |
 | `RNS` / `NS` | Resume normal speed: clears speed/floor/ceiling, preserves SID/STAR via mode |
+| `RFAS` | Reduce to final approach speed: sets speed to per-type approach speed (e.g., B738→144 kts) |
 | `DSR` | Delete speed restrictions: clears all speed + suppresses via-mode speed at future waypoints |
 | `SPD 210; ATFN 10 SPD 180` | Maintain 210, then at 10nm final slow to 180 |
 | `SPD 210 UNTIL 10` | Shorthand: maintain 210 until 10nm final, then cancel |

@@ -257,12 +257,14 @@ public static class CommandDispatcher
                 aircraft.SidViaMode = false;
                 aircraft.SidViaCeiling = null;
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
+                aircraft.Targets.HasExplicitSpeedCommand = false;
                 return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
 
             case DescendMaintainCommand cmd:
                 aircraft.StarViaMode = false;
                 aircraft.StarViaFloor = null;
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
+                aircraft.Targets.HasExplicitSpeedCommand = false;
                 return Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
 
             case SpeedCommand cmd:
@@ -279,6 +281,8 @@ public static class CommandDispatcher
 
                 // Any SPD command clears DSR flag
                 aircraft.SpeedRestrictionsDeleted = false;
+
+                aircraft.Targets.HasExplicitSpeedCommand = true;
 
                 switch (cmd.Modifier)
                 {
@@ -319,7 +323,19 @@ public static class CommandDispatcher
                 aircraft.Targets.TargetSpeed = null;
                 aircraft.Targets.SpeedFloor = null;
                 aircraft.Targets.SpeedCeiling = null;
+                aircraft.Targets.HasExplicitSpeedCommand = false;
                 return Ok("Resume normal speed");
+            }
+
+            case ReduceToFinalApproachSpeedCommand:
+            {
+                var rfasCat = AircraftCategorization.Categorize(aircraft.AircraftType);
+                double approachSpeed = CategoryPerformance.ApproachSpeed(rfasCat, aircraft.AircraftType);
+                aircraft.Targets.TargetSpeed = approachSpeed;
+                aircraft.Targets.SpeedFloor = null;
+                aircraft.Targets.SpeedCeiling = null;
+                aircraft.Targets.HasExplicitSpeedCommand = true;
+                return Ok($"Reduce to final approach speed ({approachSpeed:F0} kts)");
             }
 
             case DeleteSpeedRestrictionsCommand:
@@ -360,6 +376,7 @@ public static class CommandDispatcher
                 aircraft.Targets.TargetSpeed = fsCmd.Speed;
                 aircraft.Targets.SpeedFloor = null;
                 aircraft.Targets.SpeedCeiling = null;
+                aircraft.Targets.HasExplicitSpeedCommand = true;
                 aircraft.SpeedRestrictionsDeleted = false;
                 return Ok($"Force speed {fsCmd.Speed}");
             }

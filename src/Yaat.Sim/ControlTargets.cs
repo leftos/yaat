@@ -46,6 +46,14 @@ public class ControlTargets
     public double? SpeedCeiling { get; set; }
 
     /// <summary>
+    /// True when the controller has issued an explicit SPD command.
+    /// Prevents altitude-based auto speed scheduling from overriding
+    /// the controller's instruction. Cleared on altitude commands
+    /// without an accompanying speed.
+    /// </summary>
+    public bool HasExplicitSpeedCommand { get; set; }
+
+    /// <summary>
     /// Waypoint queue for DCT (direct-to) navigation.
     /// The aircraft steers toward the first waypoint; when reached,
     /// it advances to the next. Cleared when all waypoints are visited.

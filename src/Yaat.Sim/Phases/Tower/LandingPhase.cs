@@ -75,7 +75,7 @@ public sealed class LandingPhase : Phase
             ctx.Targets.DesiredVerticalRate = null;
 
             // Set touchdown speed and begin deceleration
-            double tdSpeed = CategoryPerformance.TouchdownSpeed(ctx.Category);
+            double tdSpeed = CategoryPerformance.TouchdownSpeed(ctx.Category, ctx.Aircraft.AircraftType);
             if (ctx.Aircraft.GroundSpeed > tdSpeed)
             {
                 ctx.Aircraft.GroundSpeed = tdSpeed;

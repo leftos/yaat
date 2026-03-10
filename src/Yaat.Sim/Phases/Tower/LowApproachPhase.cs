@@ -39,7 +39,7 @@ public sealed class LowApproachPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
-        double approachSpeed = CategoryPerformance.ApproachSpeed(ctx.Category);
+        double approachSpeed = CategoryPerformance.ApproachSpeed(ctx.Category, ctx.Aircraft.AircraftType);
         ctx.Targets.TargetSpeed = approachSpeed;
 
         ctx.Logger.LogDebug(

@@ -47,7 +47,7 @@ public sealed class UpwindPhase : Phase
         ctx.Targets.DesiredVerticalRate = CategoryPerformance.InitialClimbRate(ctx.Category);
 
         // Accelerate toward downwind speed
-        ctx.Targets.TargetSpeed = CategoryPerformance.DownwindSpeed(ctx.Category);
+        ctx.Targets.TargetSpeed = CategoryPerformance.DownwindSpeed(ctx.Category, ctx.Aircraft.AircraftType);
 
         ctx.Logger.LogDebug(
             "[Upwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",

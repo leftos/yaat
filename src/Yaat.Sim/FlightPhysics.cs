@@ -321,6 +321,24 @@ public static class FlightPhysics
             }
         }
 
+        // Auto speed schedule: when no explicit speed target exists and aircraft is
+        // climbing or descending without an explicit SPD command, set speed based on
+        // current altitude band. This gives natural speed transitions through climb/descent.
+        if (
+            aircraft.Targets.TargetSpeed is null
+            && !aircraft.IsOnGround
+            && !aircraft.Targets.HasExplicitSpeedCommand
+            && aircraft.Targets.TargetAltitude is not null
+            && Math.Abs(aircraft.Altitude - aircraft.Targets.TargetAltitude.Value) > AltitudeSnapFt
+        )
+        {
+            double defaultSpeed = CategoryPerformance.DefaultSpeed(cat, aircraft.Altitude, aircraft.AircraftType);
+            if (Math.Abs(aircraft.IndicatedAirspeed - defaultSpeed) > SpeedSnapKts)
+            {
+                aircraft.Targets.TargetSpeed = defaultSpeed;
+            }
+        }
+
         var target = aircraft.Targets.TargetSpeed;
         if (target is null)
         {

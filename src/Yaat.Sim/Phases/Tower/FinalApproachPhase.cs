@@ -55,8 +55,8 @@ public sealed class FinalApproachPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
-        // Set approach speed
-        double approachSpeed = CategoryPerformance.ApproachSpeed(ctx.Category);
+        // Set approach speed (per-type if available)
+        double approachSpeed = CategoryPerformance.ApproachSpeed(ctx.Category, ctx.Aircraft.AircraftType);
         ctx.Targets.TargetSpeed = approachSpeed;
 
         double startDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);

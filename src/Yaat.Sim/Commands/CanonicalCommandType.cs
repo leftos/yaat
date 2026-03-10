@@ -147,6 +147,7 @@ public enum CanonicalCommandType
     ReportFieldInSight,
     ReportTrafficInSight,
     ResumeNormalSpeed,
+    ReduceToFinalApproachSpeed,
     DeleteSpeedRestrictions,
 
     // Force (immediate override) commands

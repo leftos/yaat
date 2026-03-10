@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Google.Protobuf;
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Proto;
 
 namespace Yaat.Sim.Data.Vnas;
@@ -65,6 +66,8 @@ public sealed class VnasDataService : IDisposable
         await LoadAircraftCwtAsync(config, manifest);
 
         InitializeAircraftCategorization();
+
+        await InitializeFaaAcdAsync();
 
         SaveManifest(config, manifest);
 
@@ -332,6 +335,19 @@ public sealed class VnasDataService : IDisposable
         CwtLookup.Initialize(cwtLookup);
 
         _logger?.LogInformation("CWT data initialized: " + "{Count} CWT mappings", cwtLookup.Count);
+    }
+
+    private async Task InitializeFaaAcdAsync()
+    {
+        try
+        {
+            using var faaService = new FaaAircraftDataService(_logger);
+            await faaService.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "FAA ACD initialization failed; category defaults will be used for approach speeds");
+        }
     }
 
     private void LogSummary()
