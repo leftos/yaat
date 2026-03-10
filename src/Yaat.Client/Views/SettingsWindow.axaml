@@ -133,13 +133,14 @@
                                FontWeight="SemiBold"
                                Margin="0,8,0,0" />
                     <StackPanel Spacing="4">
-                        <CheckBox Content="Auto-clear aircraft to land"
-                                  IsChecked="{Binding AutoClearedToLand}" />
-                        <TextBlock Text="Aircraft on final approach are automatically cleared to land without requiring a CTL command. Manual CTL still works when issued."
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource SubtleTextBrush}"
-                                   FontSize="11"
-                                   Margin="28,0,0,0" />
+                        <TextBlock Text="Auto-clear aircraft to land" FontWeight="SemiBold" Margin="0,0,0,2" />
+                        <TextBlock Text="Aircraft on final approach are automatically cleared to land without requiring a CTL command. Configure per position type." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Spacing="16" Margin="12,0,0,0">
+                            <CheckBox Content="GND" IsChecked="{Binding AutoClearedToLandGnd}" />
+                            <CheckBox Content="TWR" IsChecked="{Binding AutoClearedToLandTwr}" />
+                            <CheckBox Content="APP" IsChecked="{Binding AutoClearedToLandApp}" />
+                            <CheckBox Content="CTR" IsChecked="{Binding AutoClearedToLandCtr}" />
+                        </StackPanel>
                     </StackPanel>
                     <StackPanel Spacing="4">
                         <CheckBox Content="Aircraft cross runways automatically"

@@ -131,7 +131,16 @@ public partial class SettingsViewModel : ObservableObject
     private bool _validateDctFixes;
 
     [ObservableProperty]
-    private bool _autoClearedToLand;
+    private bool _autoClearedToLandGnd;
+
+    [ObservableProperty]
+    private bool _autoClearedToLandTwr;
+
+    [ObservableProperty]
+    private bool _autoClearedToLandApp;
+
+    [ObservableProperty]
+    private bool _autoClearedToLandCtr;
 
     [ObservableProperty]
     private bool _autoCrossRunway;
@@ -179,7 +188,10 @@ public partial class SettingsViewModel : ObservableObject
         _autoAcceptDelaySeconds = _preferences.AutoAcceptDelaySeconds;
         _selectedAutoDeleteIndex = AutoDeleteOverrideToIndex(_preferences.AutoDeleteOverride);
         _validateDctFixes = _preferences.ValidateDctFixes;
-        _autoClearedToLand = _preferences.AutoClearedToLand;
+        _autoClearedToLandGnd = _preferences.AutoClearedToLandGnd;
+        _autoClearedToLandTwr = _preferences.AutoClearedToLandTwr;
+        _autoClearedToLandApp = _preferences.AutoClearedToLandApp;
+        _autoClearedToLandCtr = _preferences.AutoClearedToLandCtr;
         _autoCrossRunway = _preferences.AutoCrossRunway;
         _aircraftSelectKeyName = _preferences.AircraftSelectKey;
         _aircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
@@ -220,7 +232,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAutoAcceptSettings(AutoAcceptEnabled, AutoAcceptDelaySeconds);
         _preferences.SetAutoDeleteOverride(IndexToAutoDeleteOverride(SelectedAutoDeleteIndex));
         _preferences.SetValidateDctFixes(ValidateDctFixes);
-        _preferences.SetSimulationShortcuts(AutoClearedToLand, AutoCrossRunway);
+        _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);

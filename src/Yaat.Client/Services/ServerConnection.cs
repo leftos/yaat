@@ -503,7 +503,10 @@ public record LoadScenarioResultDto(
     List<string> Warnings,
     List<AircraftDto> AllAircraft,
     string? WeatherName = null,
-    PositionDisplayConfigDto? PositionDisplayConfig = null
+    PositionDisplayConfigDto? PositionDisplayConfig = null,
+    bool AutoClearedToLand = false,
+    bool IsStudentTowerPosition = true,
+    string? StudentPositionType = null
 );
 
 public record PositionDisplayConfigDto(List<int?> MapGroupMapIds, List<string> MapGroupTcpCodes, List<string> UnderlyingAirports, string TcpCode);
@@ -543,7 +546,10 @@ public record ScenarioLoadedDto(
     bool IsPaused,
     int SimRate,
     List<AircraftDto> AllAircraft,
-    PositionDisplayConfigDto? PositionDisplayConfig = null
+    PositionDisplayConfigDto? PositionDisplayConfig = null,
+    bool AutoClearedToLand = false,
+    bool IsStudentTowerPosition = true,
+    string? StudentPositionType = null
 );
 
 public record RoomMemberDto(string Cid, string Initials, string ArtccId);

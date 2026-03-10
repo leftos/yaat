@@ -99,8 +99,24 @@ public sealed class UserPreferences
     public string? LastWeatherFolder => _data.LastWeatherFolder;
     public IReadOnlyList<MacroDefinition> Macros => _macros;
     public bool ValidateDctFixes => _data.ValidateDctFixes;
-    public bool AutoClearedToLand => _data.AutoClearedToLand;
+    public bool AutoClearedToLandGnd => _data.AutoClearedToLandGnd;
+    public bool AutoClearedToLandTwr => _data.AutoClearedToLandTwr;
+    public bool AutoClearedToLandApp => _data.AutoClearedToLandApp;
+    public bool AutoClearedToLandCtr => _data.AutoClearedToLandCtr;
     public bool AutoCrossRunway => _data.AutoCrossRunway;
+
+    public bool GetAutoClearedToLand(string? positionType)
+    {
+        return positionType?.ToUpperInvariant() switch
+        {
+            "GND" => AutoClearedToLandGnd,
+            "TWR" => AutoClearedToLandTwr,
+            "APP" => AutoClearedToLandApp,
+            "CTR" => AutoClearedToLandCtr,
+            _ => true,
+        };
+    }
+
     public IReadOnlyList<FavoriteCommand> FavoriteCommands => _data.FavoriteCommands;
     public IReadOnlyList<RecentScenario> RecentScenarios => _data.RecentScenarios;
     public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
@@ -248,9 +264,18 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetSimulationShortcuts(bool autoClearedToLand, bool autoCrossRunway)
+    public void SetSimulationShortcuts(
+        bool autoClearedToLandGnd,
+        bool autoClearedToLandTwr,
+        bool autoClearedToLandApp,
+        bool autoClearedToLandCtr,
+        bool autoCrossRunway
+    )
     {
-        _data.AutoClearedToLand = autoClearedToLand;
+        _data.AutoClearedToLandGnd = autoClearedToLandGnd;
+        _data.AutoClearedToLandTwr = autoClearedToLandTwr;
+        _data.AutoClearedToLandApp = autoClearedToLandApp;
+        _data.AutoClearedToLandCtr = autoClearedToLandCtr;
         _data.AutoCrossRunway = autoCrossRunway;
         Save();
     }
@@ -454,7 +479,10 @@ public sealed class UserPreferences
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
-            AutoClearedToLand = GetFieldOr(obj, "autoClearedToLand", false),
+            AutoClearedToLandGnd = GetFieldOr(obj, "autoClearedToLandGnd", true),
+            AutoClearedToLandTwr = GetFieldOr(obj, "autoClearedToLandTwr", false),
+            AutoClearedToLandApp = GetFieldOr(obj, "autoClearedToLandApp", true),
+            AutoClearedToLandCtr = GetFieldOr(obj, "autoClearedToLandCtr", true),
             AutoCrossRunway = GetFieldOr(obj, "autoCrossRunway", false),
             FavoriteCommands = GetFieldOr<List<FavoriteCommand>>(obj, "favoriteCommands", []),
             RecentScenarios = GetFieldOr<List<RecentScenario>>(obj, "recentScenarios", []),
@@ -609,7 +637,10 @@ public sealed class UserPreferences
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];
         public bool ValidateDctFixes { get; set; }
-        public bool AutoClearedToLand { get; set; }
+        public bool AutoClearedToLandGnd { get; set; } = true;
+        public bool AutoClearedToLandTwr { get; set; }
+        public bool AutoClearedToLandApp { get; set; } = true;
+        public bool AutoClearedToLandCtr { get; set; } = true;
         public bool AutoCrossRunway { get; set; }
         public List<FavoriteCommand> FavoriteCommands { get; set; } = [];
         public List<RecentScenario> RecentScenarios { get; set; } = [];

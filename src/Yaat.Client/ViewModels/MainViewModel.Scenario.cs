@@ -272,6 +272,7 @@ public partial class MainViewModel
             Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
         }
 
+        _studentPositionType = result.StudentPositionType;
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
         _ = SendValidateDctFixes();
@@ -329,6 +330,7 @@ public partial class MainViewModel
                 Radar.ApplyPositionDisplayConfig(dto.PositionDisplayConfig);
             }
 
+            _studentPositionType = dto.StudentPositionType;
             _ = SendAutoAcceptDelay();
             _ = SendAutoDeleteMode();
             _ = SendValidateDctFixes();
@@ -355,6 +357,7 @@ public partial class MainViewModel
     {
         ActiveScenarioId = null;
         ActiveScenarioName = null;
+        _studentPositionType = null;
         _commandInput.PrimaryAirportId = null;
         Radar.SetPrimaryAirportId(null);
         Aircraft.Clear();

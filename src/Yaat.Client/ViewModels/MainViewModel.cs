@@ -30,6 +30,7 @@ public partial class MainViewModel : ObservableObject
 
     private string _connectedServerUrl = "";
     private bool _isSyncingSelection;
+    private string? _studentPositionType;
 
     public GroundViewModel Ground { get; }
     public RadarViewModel Radar { get; }
@@ -123,6 +124,13 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string? _activeScenarioName;
+
+    /// <summary>
+    /// Whether the student's position is a tower (LC/TWR) position. When false, AutoClearedToLand is
+    /// forced on by the server and the setting is non-editable.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isStudentTowerPosition = true;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ClearWeatherCommand))]
@@ -1154,7 +1162,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            await _connection.SetAutoClearedToLandAsync(_preferences.AutoClearedToLand);
+            await _connection.SetAutoClearedToLandAsync(_preferences.GetAutoClearedToLand(_studentPositionType));
         }
         catch (Exception ex)
         {

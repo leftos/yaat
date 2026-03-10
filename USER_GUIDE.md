@@ -902,10 +902,10 @@ To exempt a specific aircraft from auto-delete, append `NODEL` to `CTL`, `TAXI`,
 
 Two optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simplify tower operations for trainees:
 
-- **Auto-clear aircraft to land** — Aircraft on final approach are automatically cleared to land without requiring a CTL command. Go-arounds due to missing landing clearance will not occur. Manual CTL commands still work when issued.
+- **Auto-clear aircraft to land** — Aircraft on final approach are automatically cleared to land without requiring a CTL command. Go-arounds due to missing landing clearance will not occur. Manual CTL commands still work when issued. Configured per position type (GND, TWR, APP, CTR). Defaults: GND on, TWR off, APP on, CTR on — so only tower controllers must issue explicit landing clearances by default.
 - **Aircraft cross runways automatically** — Taxiing aircraft cross inactive runways without stopping for a CROSS command. Explicit hold-short commands and destination runway hold-shorts still apply.
 
-Both settings default to off (standard behavior). They are synced to the server on scenario load and when settings are saved.
+The auto-clear setting is applied based on the student position type in the loaded scenario. Both settings are synced to the server on scenario load and when settings are saved.
 
 ### Consolidation
 
