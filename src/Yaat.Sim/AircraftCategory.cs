@@ -388,16 +388,16 @@ public static class CategoryPerformance
         };
     }
 
-    /// <summary>Taxi ground speed (knots). Helicopter: wheeled ground taxi at 15 kts.</summary>
+    /// <summary>Taxi ground speed on straight segments (knots). TaxiingPhase reduces for turns. Helicopter: wheeled ground taxi at 15 kts.</summary>
     public static double TaxiSpeed(AircraftCategory cat)
     {
         return cat switch
         {
-            AircraftCategory.Jet => 18,
-            AircraftCategory.Turboprop => 15,
-            AircraftCategory.Piston => 12,
+            AircraftCategory.Jet => 30,
+            AircraftCategory.Turboprop => 25,
+            AircraftCategory.Piston => 20,
             AircraftCategory.Helicopter => 15,
-            _ => 18,
+            _ => 30,
         };
     }
 
@@ -432,7 +432,7 @@ public static class CategoryPerformance
     public static double TaxiAccelRate(AircraftCategory cat)
     {
         _ = cat;
-        return 2;
+        return 3;
     }
 
     /// <summary>Taxi deceleration rate (kts/sec).</summary>
@@ -447,19 +447,25 @@ public static class CategoryPerformance
     {
         return cat switch
         {
-            AircraftCategory.Jet => 20,
-            AircraftCategory.Turboprop => 20,
-            AircraftCategory.Piston => 15,
+            AircraftCategory.Jet => 25,
+            AircraftCategory.Turboprop => 22,
+            AircraftCategory.Piston => 18,
             AircraftCategory.Helicopter => 15,
-            _ => 20,
+            _ => 25,
         };
     }
 
     /// <summary>Speed when crossing a runway (knots).</summary>
     public static double RunwayCrossingSpeed(AircraftCategory cat)
     {
-        _ = cat;
-        return 10;
+        return cat switch
+        {
+            AircraftCategory.Jet => 15,
+            AircraftCategory.Turboprop => 15,
+            AircraftCategory.Piston => 12,
+            AircraftCategory.Helicopter => 10,
+            _ => 15,
+        };
     }
 
     public static double DefaultSpeed(AircraftCategory cat, double altitude)
