@@ -8,6 +8,7 @@
 		}
 	],
 	"settings": {
-		"powershell.cwd": "yaat"
+		"powershell.cwd": ".",
+		"terminal.integrated.cwd": "."
 	}
 }
