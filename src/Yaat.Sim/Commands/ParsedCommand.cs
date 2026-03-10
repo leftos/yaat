@@ -134,6 +134,10 @@ public record EnterLeftDownwindCommand(string? RunwayId = null) : ParsedCommand;
 
 public record EnterRightDownwindCommand(string? RunwayId = null) : ParsedCommand;
 
+public record EnterLeftCrosswindCommand(string? RunwayId = null) : ParsedCommand;
+
+public record EnterRightCrosswindCommand(string? RunwayId = null) : ParsedCommand;
+
 public record EnterLeftBaseCommand(string? RunwayId = null, double? FinalDistanceNm = null) : ParsedCommand;
 
 public record EnterRightBaseCommand(string? RunwayId = null, double? FinalDistanceNm = null) : ParsedCommand;
@@ -161,6 +165,18 @@ public record MakeRight360Command : ParsedCommand;
 public record MakeLeft270Command : ParsedCommand;
 
 public record MakeRight270Command : ParsedCommand;
+
+public record PatternSizeCommand(double SizeNm) : ParsedCommand;
+
+public record MakeNormalApproachCommand : ParsedCommand;
+
+public record Cancel270Command : ParsedCommand;
+
+public record MakeLeftSTurnsCommand(int Count = 2) : ParsedCommand;
+
+public record MakeRightSTurnsCommand(int Count = 2) : ParsedCommand;
+
+public record Plan270Command : ParsedCommand;
 
 public record CircleAirportCommand : ParsedCommand;
 

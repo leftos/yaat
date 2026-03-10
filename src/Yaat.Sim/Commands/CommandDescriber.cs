@@ -52,6 +52,8 @@ public static class CommandDescriber
             GoAroundCommand => CanonicalCommandType.GoAround,
             EnterLeftDownwindCommand => CanonicalCommandType.EnterLeftDownwind,
             EnterRightDownwindCommand => CanonicalCommandType.EnterRightDownwind,
+            EnterLeftCrosswindCommand => CanonicalCommandType.EnterLeftCrosswind,
+            EnterRightCrosswindCommand => CanonicalCommandType.EnterRightCrosswind,
             EnterLeftBaseCommand => CanonicalCommandType.EnterLeftBase,
             EnterRightBaseCommand => CanonicalCommandType.EnterRightBase,
             EnterFinalCommand => CanonicalCommandType.EnterFinal,
@@ -66,6 +68,12 @@ public static class CommandDescriber
             MakeRight360Command => CanonicalCommandType.MakeRight360,
             MakeLeft270Command => CanonicalCommandType.MakeLeft270,
             MakeRight270Command => CanonicalCommandType.MakeRight270,
+            PatternSizeCommand => CanonicalCommandType.PatternSize,
+            MakeNormalApproachCommand => CanonicalCommandType.MakeNormalApproach,
+            Cancel270Command => CanonicalCommandType.Cancel270,
+            MakeLeftSTurnsCommand => CanonicalCommandType.MakeLeftSTurns,
+            MakeRightSTurnsCommand => CanonicalCommandType.MakeRightSTurns,
+            Plan270Command => CanonicalCommandType.Plan270,
             CircleAirportCommand => CanonicalCommandType.CircleAirport,
             SequenceCommand => CanonicalCommandType.Sequence,
             TouchAndGoCommand => CanonicalCommandType.TouchAndGo,
@@ -221,6 +229,8 @@ public static class CommandDescriber
             GoAroundCommand ga => FormatGaCanonical(ga),
             EnterLeftDownwindCommand eld => eld.RunwayId is not null ? $"ELD {eld.RunwayId}" : "ELD",
             EnterRightDownwindCommand erd => erd.RunwayId is not null ? $"ERD {erd.RunwayId}" : "ERD",
+            EnterLeftCrosswindCommand elc => elc.RunwayId is not null ? $"ELC {elc.RunwayId}" : "ELC",
+            EnterRightCrosswindCommand erc => erc.RunwayId is not null ? $"ERC {erc.RunwayId}" : "ERC",
             EnterLeftBaseCommand elb => DescribePatternBase("ELB", elb.RunwayId, elb.FinalDistanceNm),
             EnterRightBaseCommand erb => DescribePatternBase("ERB", erb.RunwayId, erb.FinalDistanceNm),
             EnterFinalCommand ef => ef.RunwayId is not null ? $"EF {ef.RunwayId}" : "EF",
@@ -235,6 +245,12 @@ public static class CommandDescriber
             MakeRight360Command => "R360",
             MakeLeft270Command => "L270",
             MakeRight270Command => "R270",
+            PatternSizeCommand ps => $"PS {ps.SizeNm:G}",
+            MakeNormalApproachCommand => "MNA",
+            Cancel270Command => "NO270",
+            MakeLeftSTurnsCommand mls => mls.Count != 2 ? $"MLS {mls.Count}" : "MLS",
+            MakeRightSTurnsCommand mrs => mrs.Count != 2 ? $"MRS {mrs.Count}" : "MRS",
+            Plan270Command => "P270",
             CircleAirportCommand => "CA",
             SequenceCommand seq => seq.FollowCallsign is not null ? $"SEQ {seq.Number} {seq.FollowCallsign}" : $"SEQ {seq.Number}",
             TouchAndGoCommand => "TG",
@@ -334,6 +350,8 @@ public static class CommandDescriber
             GoAroundCommand ga => DescribeGaNatural(ga),
             EnterLeftDownwindCommand eld => DescribePatternEntryNatural("left downwind", eld.RunwayId, null),
             EnterRightDownwindCommand erd => DescribePatternEntryNatural("right downwind", erd.RunwayId, null),
+            EnterLeftCrosswindCommand elc => DescribePatternEntryNatural("left crosswind", elc.RunwayId, null),
+            EnterRightCrosswindCommand erc => DescribePatternEntryNatural("right crosswind", erc.RunwayId, null),
             EnterLeftBaseCommand elb => DescribePatternEntryNatural("left base", elb.RunwayId, elb.FinalDistanceNm),
             EnterRightBaseCommand erb => DescribePatternEntryNatural("right base", erb.RunwayId, erb.FinalDistanceNm),
             EnterFinalCommand ef => DescribePatternEntryNatural("straight-in final", ef.RunwayId, null),
@@ -348,6 +366,12 @@ public static class CommandDescriber
             MakeRight360Command => "Make right 360",
             MakeLeft270Command => "Make left 270",
             MakeRight270Command => "Make right 270",
+            PatternSizeCommand ps => $"Pattern size {ps.SizeNm:G} NM",
+            MakeNormalApproachCommand => "Make normal approach",
+            Cancel270Command => "Cancel 270",
+            MakeLeftSTurnsCommand mls => $"S-turns, initial left, {mls.Count}",
+            MakeRightSTurnsCommand mrs => $"S-turns, initial right, {mrs.Count}",
+            Plan270Command => "Plan 270 at next turn",
             CircleAirportCommand => "Circle airport",
             SequenceCommand seq => seq.FollowCallsign is not null
                 ? $"Number {seq.Number}, follow {seq.FollowCallsign}"
@@ -418,6 +442,8 @@ public static class CommandDescriber
                 or GoAroundCommand
                 or EnterLeftDownwindCommand
                 or EnterRightDownwindCommand
+                or EnterLeftCrosswindCommand
+                or EnterRightCrosswindCommand
                 or EnterLeftBaseCommand
                 or EnterRightBaseCommand
                 or EnterFinalCommand
@@ -428,6 +454,12 @@ public static class CommandDescriber
                 or TurnBaseCommand
                 or ExtendDownwindCommand
                 or MakeShortApproachCommand
+                or MakeNormalApproachCommand
+                or Cancel270Command
+                or MakeLeftSTurnsCommand
+                or MakeRightSTurnsCommand
+                or Plan270Command
+                or PatternSizeCommand
                 or MakeLeft360Command
                 or MakeRight360Command
                 or MakeLeft270Command

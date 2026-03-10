@@ -197,15 +197,12 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
 | Enter base | `ELB`/`ERB` | `ELB`/`ERB` + optional runway + distance | YAAT adds final distance |
-| Enter crosswind | `ELC`/`ERC` | — | ATCTrainer-only |
 | Make traffic | `MLT`/`MRT` | `MLT`/`MRT` + optional runway | YAAT adds cross-runway pattern |
-| Make 270 | `M2`/`M270` | `L270`/`R270` | YAAT adds direction (left/right 270) |
+| Make 270 | — | `L270`/`R270` | YAAT adds direction (left/right 270) |
+| Plan 270 | `M2`/`M270` | `P270`/`PLAN270` | plans 270 at next pattern turn |
 | 360s | `ML3`/`MR3` (with count) | `L360`/`R360` | ATCTrainer supports count; YAAT single orbit |
-| S-turns | `MLS`/`MRS` (with count) | — | ATCTrainer-only |
-| Normal approach | `MNA` | — | ATCTrainer-only |
 | Short approach | `MSA` | `SA`/`MSA` | Same |
-| No 270 | `NO270` | — | ATCTrainer-only |
-| Pattern size | `PS`/`PATTSIZE`/`PSIZE` | — | ATCTrainer-only |
+| Pattern size | `PS`/`PATTSIZE`/`PSIZE` | `PS`/`PATTSIZE` | Same (YAAT uses NM, not multiplier) |
 | Circle airport | — | `CA`/`CIRCLE` | YAAT-only |
 
 ### Holding
@@ -412,11 +409,6 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 - `JAWY` (Join Airway)
 - `LAHSO` (Land and Hold Short)
 - `GO` (Start takeoff roll)
-- `ELC`/`ERC` (Enter crosswind)
-- `MLS`/`MRS` (S-turns)
-- `MNA` (Make Normal Approach)
-- `NO270` (Cancel 270 instruction)
-- `PS`/`PATTSIZE` (Pattern Size)
 - `TAXIALL` (Taxi All)
 - `BREAK` (Break ground conflict)
 - `STRIP` (Push flight strips)

@@ -31,27 +31,35 @@ All touch `FlightPhysics.UpdateSpeed`/`UpdateAltitude` and `ControlTargets`. One
 
 All touch `PatternBuilder`, `PatternGeometry`, or pattern phase classes. One pass through the pattern system covers all five.
 
-- [ ] **ELC / ERC** — Enter left/right crosswind *(high)*
+- [x] **ELC / ERC** — Enter left/right crosswind *(high)*
   - Completes the set of pattern entries (ELD/ERD/ELB/ERB/EF already exist)
   - Build crosswind leg geometry in `PatternBuilder`; new `CrosswindPhase` entry point
 
-- [ ] **PS / PATTSIZE** — Pattern size *(medium)*
-  - `PS {size}` — adjust pattern dimensions (0.5–20 NM)
-  - Store on `AircraftState`; pass to `PatternGeometry` calculations
-  - Useful for non-standard patterns (military, heavy aircraft)
+- [x] **PS / PATTSIZE** — Pattern size *(medium)*
+  - `PS {size}` — adjust pattern dimensions (0.25–10.0 NM)
+  - Store on `AircraftState.PatternSizeOverrideNm`; pass to `PatternGeometry` calculations
+  - Proportional scaling of crosswind extension and base extension
 
-- [ ] **MNA** — Make normal approach *(medium)*
+- [x] **MNA** — Make normal approach *(medium)*
   - Restores standard pattern geometry after `MSA` (short approach)
-  - Toggle flag that `MSA` sets
+  - Resets `BasePhase.FinalDistanceNm` to null on base leg; no-op on downwind
 
-- [ ] **NO270** — Cancel 270 instruction *(medium)*
+- [x] **NO270** — Cancel 270 instruction *(medium)*
   - Cancels an in-progress 270° turn in the pattern
-  - Check if aircraft is in a 270 phase and exit it
+  - Also cancels a planned (pending) 270 from P270 command
 
-- [ ] **MLS / MRS** — S-turns on final *(medium)*
+- [x] **MLS / MRS** — S-turns on final *(medium)*
   - `MLS [count]` / `MRS [count]` — initial left/right S-turns
-  - Adds lateral weaving on final approach for spacing
-  - New pattern phase or modifier on `FinalApproachPhase`
+  - New `STurnPhase`: alternating 30° deviations from final heading
+
+- [x] **P270 / PLAN270** — Plan 270 at next pattern turn *(new)*
+  - Inserts a 270° turn between current pattern leg and next leg
+  - Direction auto-determined from traffic pattern direction
+  - Aircraft continues current leg normally, executes 270 at the turn point
+
+- [x] **360 bug fix** — 360 on pattern leg now resumes same leg
+  - Previously, L360/R360 on downwind would skip to base after the turn
+  - Now clones the current pattern phase after the turn so the aircraft returns to it
 
 ## Pass 3 — Command Queue (CommandQueue + CommandDispatcher)
 

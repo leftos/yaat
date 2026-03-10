@@ -9,6 +9,7 @@ namespace Yaat.Sim.Phases;
 public enum PatternEntryLeg
 {
     Upwind,
+    Crosswind,
     Downwind,
     Base,
     Final,
@@ -30,16 +31,23 @@ public static class PatternBuilder
         PatternDirection direction,
         PatternEntryLeg entryLeg,
         bool touchAndGo,
-        double? finalDistanceNm = null
+        double? finalDistanceNm = null,
+        double? patternSizeNm = null
     )
     {
-        var waypoints = PatternGeometry.Compute(runway, category, direction);
+        var waypoints = PatternGeometry.Compute(runway, category, direction, patternSizeNm);
         var phases = new List<Phase>();
 
         switch (entryLeg)
         {
             case PatternEntryLeg.Upwind:
                 phases.Add(new UpwindPhase { Waypoints = waypoints });
+                phases.Add(new CrosswindPhase { Waypoints = waypoints });
+                phases.Add(new DownwindPhase { Waypoints = waypoints });
+                phases.Add(new BasePhase { Waypoints = waypoints });
+                break;
+
+            case PatternEntryLeg.Crosswind:
                 phases.Add(new CrosswindPhase { Waypoints = waypoints });
                 phases.Add(new DownwindPhase { Waypoints = waypoints });
                 phases.Add(new BasePhase { Waypoints = waypoints });
@@ -70,9 +78,9 @@ public static class PatternBuilder
     /// that is cycling in the pattern after a touch-and-go or similar.
     /// Always ends in TouchAndGoPhase since the aircraft is in pattern mode.
     /// </summary>
-    public static List<Phase> BuildNextCircuit(RunwayInfo runway, AircraftCategory category, PatternDirection direction)
+    public static List<Phase> BuildNextCircuit(RunwayInfo runway, AircraftCategory category, PatternDirection direction, double? patternSizeNm = null)
     {
-        return BuildCircuit(runway, category, direction, PatternEntryLeg.Upwind, true);
+        return BuildCircuit(runway, category, direction, PatternEntryLeg.Upwind, true, patternSizeNm: patternSizeNm);
     }
 
     /// <summary>

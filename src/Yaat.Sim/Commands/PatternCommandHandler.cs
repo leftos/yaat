@@ -71,7 +71,7 @@ internal static class PatternCommandHandler
 
             if (isOnWrongSide)
             {
-                waypoints = PatternGeometry.Compute(runway, category, direction);
+                waypoints = PatternGeometry.Compute(runway, category, direction, aircraft.PatternSizeOverrideNm);
             }
         }
 
@@ -105,9 +105,17 @@ internal static class PatternCommandHandler
         }
 
         // Compute waypoints for the entry point check
-        waypoints ??= PatternGeometry.Compute(runway, category, direction);
+        waypoints ??= PatternGeometry.Compute(runway, category, direction, aircraft.PatternSizeOverrideNm);
 
-        var circuitPhases = PatternBuilder.BuildCircuit(runway, category, direction, effectiveEntryLeg, touchAndGo, effectiveFinalDistanceNm);
+        var circuitPhases = PatternBuilder.BuildCircuit(
+            runway,
+            category,
+            direction,
+            effectiveEntryLeg,
+            touchAndGo,
+            effectiveFinalDistanceNm,
+            aircraft.PatternSizeOverrideNm
+        );
 
         var phases = new PhaseList { AssignedRunway = runway };
         phases.LandingClearance = aircraft.Phases.LandingClearance;
@@ -203,7 +211,7 @@ internal static class PatternCommandHandler
 
         var runway = aircraft.Phases.AssignedRunway;
         var category = AircraftCategorization.Categorize(aircraft.AircraftType);
-        var waypoints = PatternGeometry.Compute(runway, category, newDirection);
+        var waypoints = PatternGeometry.Compute(runway, category, newDirection, aircraft.PatternSizeOverrideNm);
 
         // Set traffic direction — aircraft is now in pattern mode
         aircraft.Phases.TrafficDirection = newDirection;
@@ -215,7 +223,14 @@ internal static class PatternCommandHandler
         // append a full pattern circuit after the current phase.
         if (!hasPatternPhases)
         {
-            var circuit = PatternBuilder.BuildCircuit(runway, category, newDirection, PatternEntryLeg.Upwind, true);
+            var circuit = PatternBuilder.BuildCircuit(
+                runway,
+                category,
+                newDirection,
+                PatternEntryLeg.Upwind,
+                true,
+                patternSizeNm: aircraft.PatternSizeOverrideNm
+            );
             aircraft.Phases.InsertAfterCurrent(circuit);
         }
         else
@@ -295,6 +310,118 @@ internal static class PatternCommandHandler
         return new CommandResult(false, "Make short approach requires downwind or base leg");
     }
 
+    internal static CommandResult TryMakeNormalApproach(AircraftState aircraft)
+    {
+        if (aircraft.Phases?.CurrentPhase is BasePhase bp)
+        {
+            bp.FinalDistanceNm = null;
+            return CommandDispatcher.Ok("Make normal approach");
+        }
+
+        if (aircraft.Phases?.CurrentPhase is DownwindPhase)
+        {
+            // On downwind, MNA is a no-op since MSA from downwind skips to base.
+            // If the aircraft is still on downwind, there's nothing to undo.
+            return CommandDispatcher.Ok("Make normal approach");
+        }
+
+        return new CommandResult(false, "Make normal approach requires downwind or base leg");
+    }
+
+    internal static CommandResult TryCancel270(AircraftState aircraft, ILogger logger)
+    {
+        // NO270 cancels a planned (pending) 270 from P270. An in-progress 270
+        // is cancelled by issuing any other command (FH, FPH, TB, etc.) since
+        // MakeTurnPhase.CanAcceptCommand returns ClearsPhase for all commands.
+        if (aircraft.Phases is not null)
+        {
+            int nextIdx = aircraft.Phases.CurrentIndex + 1;
+            if (
+                nextIdx < aircraft.Phases.Phases.Count
+                && aircraft.Phases.Phases[nextIdx] is MakeTurnPhase { TargetDegrees: >= 269 and <= 271, Status: PhaseStatus.Pending }
+            )
+            {
+                aircraft.Phases.Phases.RemoveAt(nextIdx);
+                return CommandDispatcher.Ok("Cancel planned 270");
+            }
+        }
+
+        return new CommandResult(false, "No planned 270 to cancel");
+    }
+
+    internal static CommandResult TryPlan270(AircraftState aircraft, ILogger logger)
+    {
+        if (aircraft.Phases is null || aircraft.Phases.IsComplete)
+        {
+            return new CommandResult(false, "No active pattern phase");
+        }
+
+        var current = aircraft.Phases.CurrentPhase;
+        if (current is not (DownwindPhase or BasePhase or CrosswindPhase or UpwindPhase))
+        {
+            return new CommandResult(false, "Plan 270 requires an active pattern leg");
+        }
+
+        var patternDir = aircraft.Phases.TrafficDirection;
+        if (patternDir is null)
+        {
+            return new CommandResult(false, "Plan 270 requires an active traffic pattern");
+        }
+
+        // Check if there's already a planned 270 in the next phase
+        int nextIdx = aircraft.Phases.CurrentIndex + 1;
+        if (nextIdx < aircraft.Phases.Phases.Count && aircraft.Phases.Phases[nextIdx] is MakeTurnPhase { TargetDegrees: >= 269 and <= 271 })
+        {
+            return new CommandResult(false, "270 already planned for next turn");
+        }
+
+        var turnDir = patternDir == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
+        var turnPhase = new MakeTurnPhase { Direction = turnDir, TargetDegrees = 270 };
+        aircraft.Phases.InsertAfterCurrent(turnPhase);
+
+        var dirStr = turnDir == TurnDirection.Left ? "left" : "right";
+        return CommandDispatcher.Ok($"Plan {dirStr} 270 at next turn");
+    }
+
+    internal static CommandResult TrySetPatternSize(AircraftState aircraft, double sizeNm)
+    {
+        if (sizeNm is < 0.25 or > 10.0)
+        {
+            return new CommandResult(false, "Pattern size must be between 0.25 and 10.0 NM");
+        }
+
+        aircraft.PatternSizeOverrideNm = sizeNm;
+
+        // Update waypoints on active pattern phases if in a pattern
+        if (aircraft.Phases?.AssignedRunway is { } runway)
+        {
+            var category = AircraftCategorization.Categorize(aircraft.AircraftType);
+            var direction = aircraft.Phases.TrafficDirection ?? PatternDirection.Left;
+            var waypoints = PatternGeometry.Compute(runway, category, direction, sizeNm);
+            PatternBuilder.UpdateWaypoints(aircraft.Phases, waypoints);
+        }
+
+        return CommandDispatcher.Ok($"Pattern size {sizeNm:G} NM");
+    }
+
+    internal static CommandResult TryMakeSTurns(AircraftState aircraft, TurnDirection initialDirection, int count, ILogger logger)
+    {
+        if (aircraft.Phases is null || aircraft.Phases.IsComplete)
+        {
+            return new CommandResult(false, "No active phase for S-turns");
+        }
+
+        // S-turns are inserted before FinalApproachPhase or during downwind/base
+        var sturnPhase = new STurnPhase { InitialDirection = initialDirection, Count = count };
+        aircraft.Phases.InsertAfterCurrent(sturnPhase);
+
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
+        aircraft.Phases.AdvanceToNext(ctx);
+
+        var dirStr = initialDirection == TurnDirection.Left ? "left" : "right";
+        return CommandDispatcher.Ok($"S-turns, initial {dirStr}, {count} turns");
+    }
+
     internal static CommandResult TryMakeTurn(AircraftState aircraft, TurnDirection direction, double degrees, ILogger logger)
     {
         if (aircraft.Phases is null || aircraft.Phases.IsComplete)
@@ -303,13 +430,44 @@ internal static class PatternCommandHandler
         }
 
         var turnPhase = new MakeTurnPhase { Direction = direction, TargetDegrees = degrees };
-        aircraft.Phases.InsertAfterCurrent(turnPhase);
+
+        // For 360s on pattern legs: re-insert a fresh copy of the current phase
+        // after the turn so the aircraft resumes the same leg instead of
+        // incorrectly skipping to the next one.
+        bool is360 = Math.Abs(degrees - 360) < 1;
+        Phase? resumePhase = is360 ? ClonePatternPhase(aircraft.Phases.CurrentPhase) : null;
+
+        if (resumePhase is not null)
+        {
+            aircraft.Phases.InsertAfterCurrent(new List<Phase> { turnPhase, resumePhase });
+        }
+        else
+        {
+            aircraft.Phases.InsertAfterCurrent(turnPhase);
+        }
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, logger);
         aircraft.Phases.AdvanceToNext(ctx);
 
         var dirStr = direction == TurnDirection.Left ? "left" : "right";
         return CommandDispatcher.Ok($"Make {dirStr} {degrees:F0}");
+    }
+
+    /// <summary>
+    /// Create a fresh copy of a pattern phase with the same configuration,
+    /// so the aircraft can resume the same leg after a 360° turn.
+    /// Returns null if the current phase is not a pattern leg.
+    /// </summary>
+    private static Phase? ClonePatternPhase(Phase? phase)
+    {
+        return phase switch
+        {
+            DownwindPhase dw => new DownwindPhase { Waypoints = dw.Waypoints, IsExtended = dw.IsExtended },
+            BasePhase bp => new BasePhase { Waypoints = bp.Waypoints, FinalDistanceNm = bp.FinalDistanceNm },
+            CrosswindPhase cw => new CrosswindPhase { Waypoints = cw.Waypoints },
+            UpwindPhase up => new UpwindPhase { Waypoints = up.Waypoints },
+            _ => null,
+        };
     }
 
     internal static CommandResult TrySetupTouchAndGo(AircraftState aircraft)
@@ -459,6 +617,7 @@ internal static class PatternCommandHandler
             // AIM 4-3-3: enter downwind at midfield (abeam the threshold), not at the departure end.
             // The standard 45° entry joins the downwind leg abeam the runway midpoint.
             PatternEntryLeg.Downwind => (wp.DownwindAbeamLat, wp.DownwindAbeamLon),
+            PatternEntryLeg.Crosswind => (wp.CrosswindTurnLat, wp.CrosswindTurnLon),
             PatternEntryLeg.Base => (wp.BaseTurnLat, wp.BaseTurnLon),
             PatternEntryLeg.Final => (wp.ThresholdLat, wp.ThresholdLon),
             PatternEntryLeg.Upwind => (wp.DepartureEndLat, wp.DepartureEndLon),

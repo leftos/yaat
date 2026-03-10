@@ -60,7 +60,7 @@ public sealed class PatternWaypoints
 /// </summary>
 public static class PatternGeometry
 {
-    public static PatternWaypoints Compute(RunwayInfo runway, AircraftCategory category, PatternDirection direction)
+    public static PatternWaypoints Compute(RunwayInfo runway, AircraftCategory category, PatternDirection direction, double? sizeOverrideNm = null)
     {
         double rwyHdg = runway.TrueHeading;
         double reciprocal = NormalizeHeading(rwyHdg + 180.0);
@@ -74,9 +74,12 @@ public static class PatternGeometry
         double baseHdg = NormalizeHeading(reciprocal + turnOffset);
         double finalHdg = rwyHdg;
 
-        double patternSize = CategoryPerformance.PatternSizeNm(category);
-        double crosswindExt = CategoryPerformance.CrosswindExtensionNm(category);
-        double baseExt = CategoryPerformance.BaseExtensionNm(category);
+        double defaultSize = CategoryPerformance.PatternSizeNm(category);
+        double patternSize = sizeOverrideNm ?? defaultSize;
+        // Scale crosswind extension and base extension proportionally when size is overridden
+        double sizeRatio = patternSize / defaultSize;
+        double crosswindExt = CategoryPerformance.CrosswindExtensionNm(category) * sizeRatio;
+        double baseExt = CategoryPerformance.BaseExtensionNm(category) * sizeRatio;
         double patternAltAgl = CategoryPerformance.PatternAltitudeAgl(category);
         double patternAlt = runway.ElevationFt + patternAltAgl;
 

@@ -632,13 +632,25 @@ The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments
 | `MLT 28R` / `MRT 28R` | Make left/right traffic for a specific runway (cross-runway pattern) |
 | `TC` / `TD` / `TB` | Turn crosswind / downwind / base (advance to next leg) |
 | `EXT` | Extend current pattern leg (upwind, crosswind, downwind, or base) |
+| `ELC` / `ERC` | Enter left/right crosswind |
+| `ELC 28R` / `ERC 28R` | Enter left/right crosswind, assign runway |
 | `SA` / `MSA` | Make short approach (cut base turn short) |
-| `L360` / `R360` | Left/right 360° orbit in the pattern |
-| `L270` / `R270` | Left/right 270° turn |
+| `MNA` | Make normal approach (cancel short approach) |
+| `L360` / `R360` | Left/right 360° orbit in the pattern (resumes same leg after) |
+| `L270` / `R270` | Left/right 270° turn (immediate) |
+| `P270` / `PLAN270` | Plan a 270° turn at the next pattern turn point |
+| `NO270` | Cancel a 270 in progress or a planned 270 |
+| `PS 1.5` / `PATTSIZE 1.5` | Set pattern size (0.25–10.0 NM downwind offset) |
+| `MLS` / `MRS` | S-turns on final, initial left/right (default 2 turns) |
+| `MLS 3` / `MRS 4` | S-turns with specified count |
 | `CA` / `CIRCLE` | Circle the airport |
 | `SEQ 2 UAL123` | Landing sequence: you are number 2, follow UAL123 |
 
-All pattern entry commands (ELB, ERB, ELD, ERD, EF) accept an optional runway argument that assigns or overrides the runway. ELB/ERB also accept an optional distance argument that controls how far from the threshold the final turn occurs (default is the standard pattern geometry).
+All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional runway argument that assigns or overrides the runway. ELB/ERB also accept an optional distance argument that controls how far from the threshold the final turn occurs (default is the standard pattern geometry).
+
+`P270` plans a 270° turn at the next pattern turn point without executing immediately. The turn direction is automatically determined from the traffic pattern direction (left 270 for left traffic, right 270 for right traffic). Use `NO270` to cancel a planned 270 before it executes. `NO270` also cancels an in-progress 270.
+
+`PS` sets the pattern downwind offset distance. The crosswind extension and base extension scale proportionally. The override persists across pattern circuits until cleared. Use the category default by setting `PS` to the standard value for the aircraft type.
 
 `SEQ` assigns a sequence number and optionally a traffic to follow. Use `SEQ 2 UAL123` to tell the aircraft "number 2, follow UAL123." The number-only form `SEQ 2` sets the sequence position without specifying traffic.
 

@@ -42,6 +42,8 @@ public enum CanonicalCommandType
     // Pattern commands
     EnterLeftDownwind,
     EnterRightDownwind,
+    EnterLeftCrosswind,
+    EnterRightCrosswind,
     EnterLeftBase,
     EnterRightBase,
     EnterFinal,
@@ -58,6 +60,12 @@ public enum CanonicalCommandType
     MakeRight270,
     CircleAirport,
     Sequence,
+    PatternSize,
+    MakeNormalApproach,
+    Cancel270,
+    MakeLeftSTurns,
+    MakeRightSTurns,
+    Plan270,
 
     // Hold commands
     HoldPresentPosition360Left,

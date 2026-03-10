@@ -77,7 +77,7 @@ public static class PhaseRunner
             if (phases.IsComplete && phases.TrafficDirection is { } dir && phases.AssignedRunway is not null)
             {
                 var runway = phases.PatternRunway ?? phases.AssignedRunway;
-                var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir);
+                var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir, ctx.Aircraft.PatternSizeOverrideNm);
                 phases.Phases.AddRange(nextCircuit);
 
                 // Clear landing clearance — RPO must re-clear each approach

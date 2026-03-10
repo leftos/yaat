@@ -94,6 +94,7 @@ AircraftState.cs               # Mutable entity: position, flight plan, identity
                                # BankAngle (degrees, +right/-left, computed by FlightPhysics.UpdateHeading from TAS + turn rate)
                                # ActiveSidId/ActiveStarId, SidViaMode/StarViaMode, SidViaCeiling/StarViaFloor
                                # HasReportedFieldInSight, HasReportedTrafficInSight, FollowingCallsign (visual approach)
+                               # PatternSizeOverrideNm (override for pattern downwind offset distance)
                                # IsExpediting (1.5x climb/descent rate multiplier, cleared at altitude snap or by NORM/CM/DM)
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
                                # NavigationTarget: optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
@@ -174,6 +175,8 @@ FinalApproachPhase.cs          # Glideslope; auto-go-around at 0.5nm; illegal in
 LandingPhase.cs                # Flare→touchdown→rollout to 20kts
 GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern alt for VFR/pattern traffic)
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
+MakeTurnPhase.cs               # 360/270 turn tracking (cumulative degrees, exit heading); clones pattern phase for 360s
+STurnPhase.cs                  # S-turn phase: alternating 30° deviations from final heading for spacing
 HoldAtFixPhase.cs / HoldPresentPositionPhase.cs
 
 # Phases/Approach/

@@ -832,6 +832,26 @@ public static class CommandDispatcher
                     runways: runways
                 );
 
+            case EnterLeftCrosswindCommand elc:
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft,
+                    PatternDirection.Left,
+                    PatternEntryLeg.Crosswind,
+                    logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+                    runwayId: elc.RunwayId,
+                    runways: runways
+                );
+
+            case EnterRightCrosswindCommand erc:
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft,
+                    PatternDirection.Right,
+                    PatternEntryLeg.Crosswind,
+                    logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+                    runwayId: erc.RunwayId,
+                    runways: runways
+                );
+
             case EnterLeftBaseCommand elb:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
@@ -864,6 +884,12 @@ public static class CommandDispatcher
                     runways: runways
                 );
 
+            case PatternSizeCommand ps:
+                return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm);
+
+            case Plan270Command:
+                return PatternCommandHandler.TryPlan270(aircraft, logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
@@ -878,6 +904,8 @@ public static class CommandDispatcher
         {
             EnterLeftDownwindCommand { RunwayId: not null } => true,
             EnterRightDownwindCommand { RunwayId: not null } => true,
+            EnterLeftCrosswindCommand { RunwayId: not null } => true,
+            EnterRightCrosswindCommand { RunwayId: not null } => true,
             EnterLeftBaseCommand { RunwayId: not null } => true,
             EnterRightBaseCommand { RunwayId: not null } => true,
             EnterFinalCommand { RunwayId: not null } => true,
@@ -1141,6 +1169,26 @@ public static class CommandDispatcher
                     runways: runways
                 );
 
+            case EnterLeftCrosswindCommand elc:
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft,
+                    PatternDirection.Left,
+                    PatternEntryLeg.Crosswind,
+                    logger,
+                    runwayId: elc.RunwayId,
+                    runways: runways
+                );
+
+            case EnterRightCrosswindCommand erc:
+                return PatternCommandHandler.TryEnterPattern(
+                    aircraft,
+                    PatternDirection.Right,
+                    PatternEntryLeg.Crosswind,
+                    logger,
+                    runwayId: erc.RunwayId,
+                    runways: runways
+                );
+
             case EnterLeftBaseCommand elb:
                 return PatternCommandHandler.TryEnterPattern(
                     aircraft,
@@ -1206,6 +1254,24 @@ public static class CommandDispatcher
 
             case CircleAirportCommand:
                 return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left);
+
+            case PatternSizeCommand ps:
+                return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm);
+
+            case MakeNormalApproachCommand:
+                return PatternCommandHandler.TryMakeNormalApproach(aircraft);
+
+            case Cancel270Command:
+                return PatternCommandHandler.TryCancel270(aircraft, logger);
+
+            case MakeLeftSTurnsCommand mls:
+                return PatternCommandHandler.TryMakeSTurns(aircraft, TurnDirection.Left, mls.Count, logger);
+
+            case MakeRightSTurnsCommand mrs:
+                return PatternCommandHandler.TryMakeSTurns(aircraft, TurnDirection.Right, mrs.Count, logger);
+
+            case Plan270Command:
+                return PatternCommandHandler.TryPlan270(aircraft, logger);
 
             case SequenceCommand seq:
                 aircraft.SequenceNumber = seq.Number;
