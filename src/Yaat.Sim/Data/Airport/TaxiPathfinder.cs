@@ -68,6 +68,30 @@ public static class TaxiPathfinder
         int currentNodeId = fromNodeId;
         int segmentCountBeforeLastTw = 0;
 
+        // Resolve destination hint for direction guidance when no next taxiway is available
+        GroundNode? destinationHint = null;
+        if (destinationRunway is not null)
+        {
+            var holdShortNodes = layout.GetRunwayHoldShortNodes(destinationRunway);
+            if (holdShortNodes.Count == 1)
+            {
+                destinationHint = holdShortNodes[0];
+            }
+            else if (holdShortNodes.Count > 1 && layout.Nodes.TryGetValue(fromNodeId, out var startNode))
+            {
+                double bestDist = double.MaxValue;
+                foreach (var hsn in holdShortNodes)
+                {
+                    double dist = GeoMath.DistanceNm(hsn.Latitude, hsn.Longitude, startNode.Latitude, startNode.Longitude);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        destinationHint = hsn;
+                    }
+                }
+            }
+        }
+
         for (int twIdx = 0; twIdx < taxiwayNames.Count; twIdx++)
         {
             string twName = taxiwayNames[twIdx];
@@ -113,7 +137,8 @@ public static class TaxiPathfinder
                 out int endNodeId,
                 nextTwName,
                 allowRampFallback: isFirstTw,
-                allowCurrentTaxiwayWalk: isFirstTw
+                allowCurrentTaxiwayWalk: isFirstTw,
+                destinationHint: nextTwName is null && taxiwayNames.Count == 1 ? destinationHint : null
             );
 
             if (!found)
@@ -367,7 +392,8 @@ public static class TaxiPathfinder
         out int endNodeId,
         string? nextTaxiwayName = null,
         bool allowRampFallback = true,
-        bool allowCurrentTaxiwayWalk = true
+        bool allowCurrentTaxiwayWalk = true,
+        GroundNode? destinationHint = null
     )
     {
         endNodeId = startNodeId;
@@ -391,7 +417,7 @@ public static class TaxiPathfinder
         {
             0 => null,
             1 => candidateEdges[0],
-            _ => PickBestStartEdge(layout, startNodeId, candidateEdges, nextTaxiwayName),
+            _ => PickBestStartEdge(layout, startNodeId, candidateEdges, nextTaxiwayName, destinationHint),
         };
 
         if (startEdge is null)
@@ -523,7 +549,7 @@ public static class TaxiPathfinder
             else
             {
                 // Multiple directions — prefer the one leading toward the next taxiway
-                (nextEdge, nextNodeId) = PickBestWalkEdge(layout, candidates, nextTaxiwayName);
+                (nextEdge, nextNodeId) = PickBestWalkEdge(layout, candidates, nextTaxiwayName, destinationHint);
             }
 
             if (nextEdge is null)
@@ -559,11 +585,44 @@ public static class TaxiPathfinder
     /// When the starting node has multiple edges on the same taxiway, pick the
     /// direction that leads toward the next taxiway. Falls back to first edge.
     /// </summary>
-    private static GroundEdge PickBestStartEdge(AirportGroundLayout layout, int startNodeId, List<GroundEdge> candidates, string? nextTaxiwayName)
+    private static GroundEdge PickBestStartEdge(
+        AirportGroundLayout layout,
+        int startNodeId,
+        List<GroundEdge> candidates,
+        string? nextTaxiwayName,
+        GroundNode? destinationHint = null
+    )
     {
-        if (nextTaxiwayName is null || candidates.Count == 0)
+        if (candidates.Count == 0)
         {
             return candidates[0];
+        }
+
+        // When no next taxiway, use destination hint (e.g., hold-short node for destination runway)
+        if (nextTaxiwayName is null)
+        {
+            if (destinationHint is null)
+            {
+                return candidates[0];
+            }
+
+            GroundEdge bestHint = candidates[0];
+            double bestHintDist = double.MaxValue;
+            foreach (var edge in candidates)
+            {
+                int destId = edge.FromNodeId == startNodeId ? edge.ToNodeId : edge.FromNodeId;
+                if (layout.Nodes.TryGetValue(destId, out var destNode))
+                {
+                    double dist = GeoMath.DistanceNm(destNode.Latitude, destNode.Longitude, destinationHint.Latitude, destinationHint.Longitude);
+                    if (dist < bestHintDist)
+                    {
+                        bestHintDist = dist;
+                        bestHint = edge;
+                    }
+                }
+            }
+
+            return bestHint;
         }
 
         // Find the nearest node that has an edge on the next taxiway (our goal)
@@ -604,12 +663,34 @@ public static class TaxiPathfinder
     private static (GroundEdge Edge, int NodeId) PickBestWalkEdge(
         AirportGroundLayout layout,
         List<(GroundEdge Edge, int NodeId)> candidates,
-        string? nextTaxiwayName
+        string? nextTaxiwayName,
+        GroundNode? destinationHint = null
     )
     {
         if (nextTaxiwayName is null)
         {
-            return candidates[0];
+            if (destinationHint is null)
+            {
+                return candidates[0];
+            }
+
+            // Pick the candidate closest to the destination hint
+            (GroundEdge Edge, int NodeId) bestHint = candidates[0];
+            double bestHintDist = double.MaxValue;
+            foreach (var (edge, nodeId) in candidates)
+            {
+                if (layout.Nodes.TryGetValue(nodeId, out var node))
+                {
+                    double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, destinationHint.Latitude, destinationHint.Longitude);
+                    if (dist < bestHintDist)
+                    {
+                        bestHintDist = dist;
+                        bestHint = (edge, nodeId);
+                    }
+                }
+            }
+
+            return bestHint;
         }
 
         // Check if any candidate directly connects to the next taxiway
