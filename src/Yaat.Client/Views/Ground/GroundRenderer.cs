@@ -676,12 +676,7 @@ public sealed class GroundRenderer : IDisposable
 
     private static SKColor GetAircraftColor(AircraftModel ac)
     {
-        return ac.CurrentPhase switch
-        {
-            "AtParking" or "Pushback" => AircraftParked,
-            "HoldingShort" or "HoldingAfterExit" => AircraftHolding,
-            _ => AircraftTaxiing,
-        };
+        return AircraftTaxiing;
     }
 
     private static void DrawTriangle(SKCanvas canvas, float cx, float cy, float headingDeg, float size, SKPaint paint)
