@@ -6,10 +6,10 @@ namespace Yaat.Sim.Tests;
 /// <summary>
 /// Loads AircraftSpecs.json, AircraftCwt.json, and FaaAcd.json from TestData/ and initializes
 /// <see cref="AircraftCategorization"/>, <see cref="WakeTurbulenceData"/>,
-/// <see cref="CwtLookup"/>, and <see cref="AircraftApproachSpeed"/>. Thread-safe; only initializes once per process.
+/// and <see cref="AircraftApproachSpeed"/>. Thread-safe; only initializes once per process.
 ///
 /// Call <see cref="EnsureInitialized"/> at the top of any test that needs
-/// accurate aircraft categorization. Safe to call multiple times.
+/// accurate aircraft data. Safe to call multiple times.
 /// </summary>
 internal static class TestVnasData
 {
@@ -54,7 +54,6 @@ internal static class TestVnasData
         }
 
         var catLookup = new Dictionary<string, AircraftCategory>(StringComparer.OrdinalIgnoreCase);
-        var wtgLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var spec in specs)
         {
@@ -80,15 +79,9 @@ internal static class TestVnasData
             }
 
             catLookup.TryAdd(spec.Designator, cat);
-
-            if (!string.IsNullOrEmpty(spec.Wtg))
-            {
-                wtgLookup.TryAdd(spec.Designator, spec.Wtg);
-            }
         }
 
         AircraftCategorization.Initialize(catLookup);
-        WakeTurbulenceData.Initialize(wtgLookup);
     }
 
     private static void LoadAircraftCwt()
@@ -115,7 +108,7 @@ internal static class TestVnasData
             }
         }
 
-        CwtLookup.Initialize(lookup);
+        WakeTurbulenceData.Initialize(lookup);
     }
 
     private static void LoadFaaAcd()

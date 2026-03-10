@@ -2,9 +2,13 @@ using Xunit;
 
 namespace Yaat.Sim.Tests;
 
-[Collection("WakeTurbulenceData")]
 public class BankAngleTests
 {
+    public BankAngleTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     [Fact]
     public void BankAngle_Jet250Kias_RightTurn_PositiveBank()
     {
@@ -23,11 +27,6 @@ public class BankAngleTests
     {
         var ac = MakeAircraft(heading: 90, ias: 90, altitude: 2000);
         ac.AircraftType = "C172";
-
-        // Initialize categorization with piston type
-        AircraftCategorization.Initialize(
-            new Dictionary<string, AircraftCategory>(StringComparer.OrdinalIgnoreCase) { ["C172"] = AircraftCategory.Piston }
-        );
 
         ac.Targets.TargetHeading = 180; // Right turn
 
@@ -86,11 +85,6 @@ public class BankAngleTests
 
     private static AircraftState MakeAircraft(double heading, double ias, double altitude)
     {
-        // Reset to default Jet categorization
-        AircraftCategorization.Initialize(
-            new Dictionary<string, AircraftCategory>(StringComparer.OrdinalIgnoreCase) { ["B738"] = AircraftCategory.Jet }
-        );
-
         return new AircraftState
         {
             Callsign = "TST100",

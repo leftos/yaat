@@ -291,29 +291,7 @@ public sealed class VnasDataService : IDisposable
 
         _logger?.LogInformation("Aircraft categorization initialized: " + "{Count} type mappings", lookup.Count);
 
-        InitializeWakeTurbulenceData();
         InitializeCwtData();
-    }
-
-    private void InitializeWakeTurbulenceData()
-    {
-        if (AircraftSpecs.Count == 0)
-        {
-            return;
-        }
-
-        var wtgLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var spec in AircraftSpecs)
-        {
-            if (!string.IsNullOrEmpty(spec.Designator) && !string.IsNullOrEmpty(spec.Wtg))
-            {
-                wtgLookup.TryAdd(spec.Designator, spec.Wtg);
-            }
-        }
-
-        WakeTurbulenceData.Initialize(wtgLookup);
-
-        _logger?.LogInformation("Wake turbulence data initialized: " + "{Count} WTG mappings", wtgLookup.Count);
     }
 
     private void InitializeCwtData()
@@ -332,9 +310,9 @@ public sealed class VnasDataService : IDisposable
             }
         }
 
-        CwtLookup.Initialize(cwtLookup);
+        WakeTurbulenceData.Initialize(cwtLookup);
 
-        _logger?.LogInformation("CWT data initialized: " + "{Count} CWT mappings", cwtLookup.Count);
+        _logger?.LogInformation("CWT/wake turbulence data initialized: " + "{Count} CWT mappings", cwtLookup.Count);
     }
 
     private async Task InitializeFaaAcdAsync()

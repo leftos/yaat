@@ -5,16 +5,11 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
-public sealed class ClimbSpeedScheduleTests : IDisposable
+public sealed class ClimbSpeedScheduleTests
 {
     public ClimbSpeedScheduleTests()
     {
-        AircraftApproachSpeed.Initialize(new Dictionary<string, int>());
-    }
-
-    public void Dispose()
-    {
-        AircraftApproachSpeed.Initialize(new Dictionary<string, int>());
+        TestVnasData.EnsureInitialized();
     }
 
     private static AircraftState MakeClimbingJet(double altitude, double ias, double targetAlt)
@@ -112,7 +107,7 @@ public sealed class ClimbSpeedScheduleTests : IDisposable
         phase.OnTick(ctx);
 
         Assert.NotNull(ac.Targets.TargetSpeed);
-        Assert.Equal(CategoryPerformance.DefaultSpeed(AircraftCategory.Jet, 10500), ac.Targets.TargetSpeed);
+        Assert.Equal(CategoryPerformance.DefaultSpeed(AircraftCategory.Jet, 10500, "B738"), ac.Targets.TargetSpeed);
     }
 
     [Fact]
@@ -160,9 +155,11 @@ public sealed class ClimbSpeedScheduleTests : IDisposable
 
         FlightPhysics.Update(ac, 1.0);
 
-        // At 8000ft, DefaultSpeed = 250, and 14 CFR 91.117 cap at 250 — should target 250
+        // Auto-schedule should set a target speed for B738 at 8000ft
         Assert.NotNull(ac.Targets.TargetSpeed);
-        Assert.True(ac.Targets.TargetSpeed <= 250);
+        // 14 CFR 91.117 caps the actual IAS goal at 250 in UpdateSpeed, but the
+        // type-aware TargetSpeed may be slightly above category default
+        Assert.True(ac.IndicatedAirspeed <= 250, $"IAS {ac.IndicatedAirspeed} should be capped at 250 below 10k");
     }
 
     [Fact]

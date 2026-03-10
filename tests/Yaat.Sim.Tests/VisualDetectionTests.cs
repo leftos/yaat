@@ -2,13 +2,17 @@ using Xunit;
 
 namespace Yaat.Sim.Tests;
 
-[Collection("WakeTurbulenceData")]
 public class VisualDetectionTests
 {
     // KOAK: 37.721, -122.221, elevation 9ft, Runway 28R heading ~284°
     private const double AptLat = 37.721;
     private const double AptLon = -122.221;
     private const double AptElev = 9.0;
+
+    public VisualDetectionTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
 
     // -------------------------------------------------------------------------
     // CanSeeAirport — basic cases
@@ -215,33 +219,31 @@ public class VisualDetectionTests
     }
 
     // -------------------------------------------------------------------------
-    // Aircraft size (WTG-based range)
+    // Aircraft size (CWT-based range)
     // -------------------------------------------------------------------------
 
     [Fact]
     public void CanSeeTraffic_SmallTarget_ShortRange()
     {
-        WakeTurbulenceData.Initialize(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["C172"] = "F" });
-
+        // C172 is CWT I → 2.5nm detection range
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        // Target ~2.4nm away (within 3nm WTG F range)
-        var tgt = MakeAircraft(37.71, -122.221, heading: 180, altitude: 3000);
+        // Target ~2nm away (within 2.5nm CWT I range)
+        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 3000);
         tgt.AircraftType = "C172";
         Assert.True(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, null));
 
-        // Target ~4nm away (beyond 3nm WTG F range)
+        // Target ~4nm away (beyond 2.5nm CWT I range)
         var tgtFar = MakeAircraft(37.68, -122.221, heading: 180, altitude: 3000);
         tgtFar.AircraftType = "C172";
         Assert.False(VisualDetection.CanSeeTraffic(own, tgtFar, null, AptElev, null));
     }
 
     [Fact]
-    public void CanSeeTraffic_LargeJet_LongerRange()
+    public void CanSeeTraffic_MediumJet_MidRange()
     {
-        WakeTurbulenceData.Initialize(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["B738"] = "D" });
-
+        // B738 is CWT F → 7.0nm detection range
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        // Target ~5nm away (within 8nm WTG D range)
+        // Target ~5nm away (within 7nm CWT F range)
         var tgt = MakeAircraft(37.67, -122.221, heading: 180, altitude: 3000);
         tgt.AircraftType = "B738";
         Assert.True(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, null));
@@ -250,10 +252,9 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeTraffic_HeavyWidebody_LongRange()
     {
-        WakeTurbulenceData.Initialize(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["B77W"] = "B" });
-
+        // B77W is CWT B → 12.0nm detection range
         var own = MakeAircraft(37.85, -122.221, heading: 180, altitude: 5000);
-        // Target ~9nm away (within 12nm WTG B range)
+        // Target ~9nm away (within 12nm CWT B range)
         var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 5000);
         tgt.AircraftType = "B77W";
         Assert.True(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, null));
@@ -262,14 +263,10 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeTraffic_UnknownType_FallsBackToCategory()
     {
-        WakeTurbulenceData.Initialize(new Dictionary<string, string>());
-        AircraftCategorization.Initialize(
-            new Dictionary<string, AircraftCategory>(StringComparer.OrdinalIgnoreCase) { ["ZZZZ"] = AircraftCategory.Piston }
-        );
-
+        // Unknown type categorizes as Jet (default) → 7.0nm fallback
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        // Target ~4nm away (beyond 3nm piston fallback range)
-        var tgt = MakeAircraft(37.68, -122.221, heading: 180, altitude: 3000);
+        // Target ~8nm away (beyond 7nm jet fallback range)
+        var tgt = MakeAircraft(37.62, -122.221, heading: 180, altitude: 3000);
         tgt.AircraftType = "ZZZZ";
         Assert.False(VisualDetection.CanSeeTraffic(own, tgt, null, AptElev, null));
     }
