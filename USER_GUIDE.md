@@ -89,7 +89,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
 dotnet run --project src/Yaat.Client
 ```
 
-**Auto-connect:** Pass `--autoconnect <target>` to connect automatically on startup. The target can be a saved server name (from Settings > Connection) or a full URL:
+**Auto-connect:** Pass `--autoconnect <target>` to connect automatically on startup. The target can be a full URL or just a hostname:
 
 ```bash
 dotnet run --project src/Yaat.Client -- --autoconnect Local
@@ -100,7 +100,6 @@ dotnet run --project src/Yaat.Client -- --autoconnect http://192.168.1.50:5000
 
 Before connecting, open **Settings** and configure:
 
-- **Connection** tab: Server URL (default `http://localhost:5000`)
 - **Identity** tab: VATSIM CID, 2-letter initials (required), and ARTCC ID
 
 Initials and ARTCC ID are required — you cannot connect without them.
@@ -293,10 +292,10 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Fly heading | `FH 270` | `H` | `FH270`, `H270` |
-| Turn left | `TL 180` | `L` | `TL180`, `L180` |
-| Turn right | `TR 090` | `R` | `TR090`, `R090` |
-| Relative left | `LT 30` | `T` | `T30L` |
-| Relative right | `RT 30` | `T` | `T30R` |
+| Turn left | `TL 180` | `L`, `LT` | `TL180`, `L180` |
+| Turn right | `TR 090` | `R`, `RT` | `TR090`, `R090` |
+| Relative left | `RELL 30` | — | `T30L` |
+| Relative right | `RELR 30` | — | `T30R` |
 | Fly present heading | `FPH` | `FCH`, `H` | — |
 
 #### Altitude / Speed
@@ -346,8 +345,31 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Resume taxi | `RES` | `RESUME` | — |
 | Cross runway | `CROSS 28L` | — | — |
 | Hold short | `HS B` | — | — |
+| Assign runway | `RWY 30` | — | — |
+| Exit left | `EL` | — | — |
+| Exit right | `ER` | — | — |
+| Exit taxiway | `EXIT A3` | — | — |
 | Follow | `FOLLOW SWA123` | `FOL` | — |
 | Give way | `GIVEWAY SWA123` | `BEHIND` | — |
+
+#### Helicopter
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
+| Takeoff present pos | `CTOPP` | — | — |
+| Air taxi | `ATXI H1` | — | — |
+| Land | `LAND H1` | — | — |
+
+#### Hold
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
+| Hold (360 left) | `HPPL` | — | — |
+| Hold (360 right) | `HPPR` | — | — |
+| Hold present pos | `HPP` | — | — |
+| Hold at fix (left) | `HFIXL SUNOL` | — | — |
+| Hold at fix (right) | `HFIXR SUNOL` | — | — |
+| Hold at fix | `HFIX SUNOL` | — | — |
 
 #### Approach / Procedures
 
@@ -395,6 +417,8 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 |---------|---------|---------|-------------|
 | Enter L downwind | `ELD` | — | — |
 | Enter R downwind | `ERD` | — | — |
+| Enter L crosswind | `ELC` | — | — |
+| Enter R crosswind | `ERC` | — | — |
 | Enter L base | `ELB` | — | — |
 | Enter R base | `ERB` | — | — |
 | Enter final | `EF` | — | — |
@@ -405,10 +429,16 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Turn base | `TB` | — | — |
 | Extend leg | `EXT` | — | — |
 | Short approach | `SA` | `MSA` | — |
+| Normal approach | `MNA` | — | — |
 | Left 360 | `L360` | — | — |
 | Right 360 | `R360` | — | — |
 | Left 270 | `L270` | — | — |
 | Right 270 | `R270` | — | — |
+| Cancel 270 | `NO270` | — | — |
+| Plan 270 | `P270` | `PLAN270` | — |
+| Pattern size | `PS 1.5` | `PATTSIZE` | — |
+| S-turns (init L) | `MLS` | — | — |
+| S-turns (init R) | `MRS` | — | — |
 | Circle airport | `CA` | `CIRCLE` | — |
 
 #### Track Operations
@@ -457,6 +487,16 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Delete queued commands | `DELAT` / `DELAT 2` | — | — |
 | Show queued commands | `SHOWAT` | — | — |
 | Say | `SAY text` | — | — |
+| Spawn now | `SPAWN` | — | — |
+| Spawn delay | `DELAY 120` | — | — |
+| Wait (seconds) | `WAIT 30` | — | — |
+| Wait (distance) | `WAITD 4` | — | — |
+| Add aircraft | `ADD IFR H J ...` | — | — |
+| Force heading | `FHN 270` | — | — |
+| Force altitude | `CMN 240` | — | — |
+| Force speed | `SPDN 250` | — | — |
+| Warp | `WARP FRD hdg alt spd` | — | — |
+| Warp ground | `WARPG location` | — | — |
 
 Aliases are fully editable in **Settings > Commands**.
 
@@ -1362,7 +1402,6 @@ Lists CRC clients not currently in any room. Each entry shows display name, ARTC
 
 Open **Settings** to configure:
 
-- **Connection** — Server URL for the yaat-server instance (default: `http://localhost:5000`)
 - **Identity** — VATSIM CID, user initials (required before connecting), and ARTCC ID
 - **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking), simulation shortcuts (auto-clear to land, auto-cross runways), and validate DCT fixes against route (rejects DCT to off-route fixes; use DCTF to override)
 - **Commands** — Alias editor for customizing command verbs. Each command shows its primary name, editable aliases, and an example. Use **Reset to Defaults** to restore the built-in aliases.

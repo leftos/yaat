@@ -13,8 +13,8 @@ public partial class VerbMappingRow : ObservableObject
     public required CanonicalCommandType CommandType { get; init; }
     public required string CommandName { get; init; }
     public required string Category { get; init; }
-    public required string Format { get; init; }
-    public required string? SampleArg { get; init; }
+    public required ArgMode ArgMode { get; init; }
+    public required string SampleArg { get; init; }
 
     [ObservableProperty]
     private string _aliases = "";
@@ -32,13 +32,12 @@ public partial class VerbMappingRow : ObservableObject
     private string BuildExample()
     {
         var primary = AliasesList.Count > 0 ? AliasesList[0] : "";
-        var result = Format.Replace("{verb}", primary);
-        if (SampleArg is not null)
+        return ArgMode switch
         {
-            result = result.Replace("{arg}", SampleArg);
-        }
-
-        return result.Trim();
+            ArgMode.Required => $"{primary} {SampleArg}",
+            ArgMode.Optional => $"{primary} [{SampleArg}]",
+            _ => primary,
+        };
     }
 }
 
@@ -90,8 +89,8 @@ public partial class SettingsViewModel : ObservableObject
 {
     private readonly UserPreferences _preferences;
 
-    private static readonly IReadOnlyList<CommandMetadata.CommandInfo> DisplayCommands = CommandMetadata
-        .AllCommands.Where(c => !c.IsGlobal && c.Type != CanonicalCommandType.DirectTo)
+    private static readonly IReadOnlyList<CommandDefinition> DisplayCommands = CommandRegistry
+        .All.Values.Where(c => !c.IsGlobal && c.Type != CanonicalCommandType.DirectTo)
         .ToArray();
 
     [ObservableProperty]
@@ -158,6 +157,9 @@ public partial class SettingsViewModel : ObservableObject
     private string _assignmentTintColor = "#00FF00";
 
     [ObservableProperty]
+    private int _selectedSignatureHelpPlacementIndex;
+
+    [ObservableProperty]
     private bool _isCapturingKey;
 
     private string _aircraftSelectKeyName = "Add";
@@ -165,6 +167,7 @@ public partial class SettingsViewModel : ObservableObject
     private string? _captureTarget;
 
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
+    public static IReadOnlyList<string> SignatureHelpPlacementOptions { get; } = ["Above", "Below"];
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
     public DataGridCollectionView GroupedVerbMappings { get; }
@@ -199,6 +202,7 @@ public partial class SettingsViewModel : ObservableObject
         _focusInputKeyDisplay = KeyNameToDisplay(_focusInputKeyName);
         _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
         _assignmentTintColor = _preferences.AssignmentTintColor;
+        _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
         LoadMacros();
     }
 
@@ -236,6 +240,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
+        _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
         SaveMacros();
         Saved = true;
     }
@@ -255,22 +260,22 @@ public partial class SettingsViewModel : ObservableObject
     {
         VerbMappings.Clear();
 
-        foreach (var cmd in DisplayCommands)
+        foreach (var def in DisplayCommands)
         {
-            if (!scheme.Patterns.TryGetValue(cmd.Type, out var pattern))
+            if (!scheme.Patterns.TryGetValue(def.Type, out var pattern))
             {
                 continue;
             }
 
             var row = new VerbMappingRow
             {
-                CommandType = cmd.Type,
-                CommandName = cmd.Label,
-                Category = cmd.Category,
-                Format = pattern.Format,
-                SampleArg = cmd.SampleArg,
+                CommandType = def.Type,
+                CommandName = def.Label,
+                Category = def.Category,
+                ArgMode = def.ArgMode,
+                SampleArg = def.SampleArg,
                 Aliases = string.Join(", ", pattern.Aliases),
-                Example = BuildExample(pattern, cmd.SampleArg),
+                Example = BuildExample(def, pattern),
             };
 
             VerbMappings.Add(row);
@@ -285,7 +290,7 @@ public partial class SettingsViewModel : ObservableObject
 
         foreach (var (type, pattern) in baseScheme.Patterns)
         {
-            patterns[type] = new CommandPattern { Aliases = [.. pattern.Aliases], Format = pattern.Format };
+            patterns[type] = new CommandPattern { Aliases = [.. pattern.Aliases] };
         }
 
         // Override aliases from edited rows
@@ -301,16 +306,15 @@ public partial class SettingsViewModel : ObservableObject
         return new CommandScheme { Patterns = patterns };
     }
 
-    private static string BuildExample(CommandPattern pattern, string? sampleArg)
+    private static string BuildExample(CommandDefinition def, CommandPattern pattern)
     {
-        var result = pattern.Format.Replace("{verb}", pattern.PrimaryVerb);
-
-        if (sampleArg is not null)
+        var primary = pattern.PrimaryVerb;
+        return def.ArgMode switch
         {
-            result = result.Replace("{arg}", sampleArg);
-        }
-
-        return result.Trim();
+            ArgMode.Required => $"{primary} {def.SampleArg}",
+            ArgMode.Optional => $"{primary} [{def.SampleArg}]",
+            _ => primary,
+        };
     }
 
     [RelayCommand]
@@ -477,15 +481,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private static string? LabelForType(CanonicalCommandType type)
     {
-        foreach (var cmd in CommandMetadata.AllCommands)
-        {
-            if (cmd.Type == type)
-            {
-                return cmd.Label;
-            }
-        }
-
-        return null;
+        return CommandRegistry.Get(type)?.Label;
     }
 
     private static int AutoDeleteOverrideToIndex(string value) =>

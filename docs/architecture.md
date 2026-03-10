@@ -20,10 +20,12 @@ Models/
 
 Services/
   ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs
-  CommandScheme.cs              # CanonicalCommandType → CommandPattern; Default() unified scheme
+  CommandScheme.cs              # CanonicalCommandType → CommandPattern (aliases only); Default() from registry
   CommandSchemeParser.cs        # Parse/ParseCompound (;/, syntax); concatenation fallback; ToCanonical()
-  CommandMetadata.cs            # Static CommandInfo registry per type
-  CommandInputController.cs     # Autocomplete (callsign/command/fix/macro), history nav, FixDb binary search
+  CommandRegistry.cs            # Single source of truth: CommandDefinition per type (label, category, aliases, overloads, modifiers)
+  CommandInputController.cs     # Autocomplete (callsign/command/fix/macro), history nav, signature help, FixDb binary search
+  CommandSignature.cs           # Records: CommandParameter, CommandSignature, CommandSignatureSet, SignaturePart; FromDefinition factory
+  SignatureHelpState.cs         # Observable state for signature help tooltip (overload nav, active param, dedup)
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional $1 or named $hdg)
   MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
   TrainingDataService.cs         # Fetches scenarios/weather from vNAS data API (data-api.vnas.vatsim.net)
@@ -47,7 +49,7 @@ ViewModels/
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
   SettingsViewModel.cs          # Alias editing; preset detection
-  *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor)
+  *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp)
 
 Views/
   MainWindow.axaml.cs           # Tab layout (DataGrid/Ground/Radar); room bar; pop-out management

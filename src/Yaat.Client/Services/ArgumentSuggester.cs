@@ -6,8 +6,9 @@ using Yaat.Sim.Data;
 namespace Yaat.Client.Services;
 
 /// <summary>
-/// Provides argument-level autocomplete suggestions for commands that accept
-/// enumerable options (CTO modifiers, runway designators, fix names, etc.).
+/// Provides argument-level autocomplete suggestions driven by CommandRegistry metadata.
+/// Literal overload parameters become selectable options; TypeHint-based parameters
+/// (runway, fix) get contextual suggestions from the loaded data.
 /// </summary>
 internal static class ArgumentSuggester
 {
@@ -32,8 +33,6 @@ internal static class ArgumentSuggester
             return false;
         }
 
-        // The verb may be at position 0 (no callsign) or position 1 (callsign prefix).
-        // Detect which position the verb is at by checking both against known commands.
         int verbIndex = FindVerbIndex(words, scheme);
         if (verbIndex < 0)
         {
@@ -50,178 +49,220 @@ internal static class ArgumentSuggester
             return false;
         }
 
-        var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
-        var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
-
-        // RWY {runway} [TAXI] {path} — first argument is a runway designator
+        // RWY is a special rewrite verb not in the registry
         if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase))
         {
             var argsAfterVerb = words.Length - verbIndex - 1;
             if (argsAfterVerb <= 1 || (!hasTrailingSpace && argsAfterVerb == 1))
             {
+                var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
+                var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
                 AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
             }
 
             return true;
         }
 
-        // CTO departure modifiers
-        if (MatchesVerb(verb, CanonicalCommandType.ClearedForTakeoff, scheme))
+        var def = FindCommandDefinition(verb, scheme);
+        if (def is null)
         {
-            AddCtoModifierSuggestions(partial, prefix, targetAircraft, suggestions, maxSuggestions);
-            return true;
+            return false;
         }
 
-        // Pattern entry commands with runway argument
-        if (
-            MatchesVerb(verb, CanonicalCommandType.EnterLeftDownwind, scheme)
-            || MatchesVerb(verb, CanonicalCommandType.EnterRightDownwind, scheme)
-            || MatchesVerb(verb, CanonicalCommandType.EnterFinal, scheme)
-        )
-        {
-            AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
-            return true;
-        }
-
-        // Pattern base entry: runway [distance]
-        if (MatchesVerb(verb, CanonicalCommandType.EnterLeftBase, scheme) || MatchesVerb(verb, CanonicalCommandType.EnterRightBase, scheme))
-        {
-            var argsAfterVerb = words.Length - verbIndex - 1;
-            if (argsAfterVerb <= 1 || (!hasTrailingSpace && argsAfterVerb == 1))
-            {
-                AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
-            }
-
-            return true;
-        }
-
-        // Cross runway
-        if (MatchesVerb(verb, CanonicalCommandType.CrossRunway, scheme))
-        {
-            AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
-            return true;
-        }
-
-        // Cleared to land (optional runway)
-        if (MatchesVerb(verb, CanonicalCommandType.ClearedToLand, scheme))
-        {
-            AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
-            return true;
-        }
-
-        // Cleared visual approach (runway)
-        if (MatchesVerb(verb, CanonicalCommandType.ClearedVisualApproach, scheme))
-        {
-            AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
-            return true;
-        }
-
-        // Go around (optional heading)
-        if (MatchesVerb(verb, CanonicalCommandType.GoAround, scheme))
-        {
-            AddGoAroundSuggestions(partial, prefix, suggestions, maxSuggestions);
-            return true;
-        }
-
-        // Fix-argument commands: HFIXL, HFIXR, HFIX, CFIX, DEPART, DCTF, ADCTF, JFAC
-        if (
-            MatchesVerb(verb, CanonicalCommandType.HoldAtFixLeft, scheme)
-            || MatchesVerb(verb, CanonicalCommandType.HoldAtFixRight, scheme)
-            || MatchesVerb(verb, CanonicalCommandType.HoldAtFixHover, scheme)
-            || MatchesVerb(verb, CanonicalCommandType.CrossFix, scheme)
-            || MatchesVerb(verb, CanonicalCommandType.DepartFix, scheme)
-            || MatchesVerb(verb, CanonicalCommandType.ForceDirectTo, scheme)
-            || MatchesVerb(verb, CanonicalCommandType.AppendForceDirectTo, scheme)
-            || MatchesVerb(verb, CanonicalCommandType.JoinFinalApproachCourse, scheme)
-        )
-        {
-            // Only suggest fixes for the first argument position
-            var argsAfterVerb = words.Length - verbIndex - 1;
-            if (argsAfterVerb <= 1 || (!hasTrailingSpace && argsAfterVerb == 1))
-            {
-                FixSuggester.AddFixSuggestions(partial, prefix, targetAircraft, suggestions, fixDb, maxSuggestions);
-            }
-
-            return true;
-        }
-
-        return false;
+        return AddRegistrySuggestions(
+            def,
+            words,
+            verbIndex,
+            hasTrailingSpace,
+            fullText,
+            targetAircraft,
+            suggestions,
+            fixDb,
+            primaryAirportId,
+            maxSuggestions
+        );
     }
 
-    private static void AddCtoModifierSuggestions(
+    private static bool AddRegistrySuggestions(
+        CommandDefinition def,
+        string[] words,
+        int verbIndex,
+        bool hasTrailingSpace,
+        string fullText,
+        AircraftModel? targetAircraft,
+        ObservableCollection<SuggestionItem> suggestions,
+        FixDatabase? fixDb,
+        string? primaryAirportId,
+        int maxSuggestions
+    )
+    {
+        var wordsAfterVerb = words.Length - verbIndex - 1;
+        // Parameter index: which positional arg the user is currently typing
+        // If trailing space, they've completed wordsAfterVerb args and are starting the next
+        int paramIndex = hasTrailingSpace ? wordsAfterVerb : Math.Max(0, wordsAfterVerb - 1);
+        var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
+        var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
+
+        // Collect what kinds of suggestions exist at this parameter position
+        bool hasLiterals = false;
+        bool hasRunway = false;
+        bool hasFix = false;
+
+        foreach (var overload in def.Overloads)
+        {
+            if (paramIndex >= overload.Parameters.Length)
+            {
+                continue;
+            }
+
+            // Check that any earlier literal params match what the user actually typed
+            if (!OverloadMatchesPrecedingArgs(overload, words, verbIndex, paramIndex))
+            {
+                continue;
+            }
+
+            var param = overload.Parameters[paramIndex];
+            if (param.IsLiteral)
+            {
+                hasLiterals = true;
+            }
+            else if (IsRunwayHint(param.TypeHint))
+            {
+                hasRunway = true;
+            }
+            else if (IsFixHint(param.TypeHint))
+            {
+                hasFix = true;
+            }
+        }
+
+        if (!hasLiterals && !hasRunway && !hasFix)
+        {
+            return false;
+        }
+
+        // Add literal options from overloads at this param position
+        if (hasLiterals)
+        {
+            AddOverloadLiteralSuggestions(def, words, verbIndex, paramIndex, partial, prefix, suggestions, maxSuggestions);
+        }
+
+        // Add contextual suggestions based on TypeHint
+        if (hasRunway)
+        {
+            AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
+        }
+
+        if (hasFix)
+        {
+            FixSuggester.AddFixSuggestions(partial, prefix, targetAircraft, suggestions, fixDb, maxSuggestions);
+        }
+
+        return true;
+    }
+
+    private static bool OverloadMatchesPrecedingArgs(CommandOverload overload, string[] words, int verbIndex, int paramIndex)
+    {
+        for (int i = 0; i < paramIndex && i < overload.Parameters.Length; i++)
+        {
+            var param = overload.Parameters[i];
+            if (!param.IsLiteral)
+            {
+                continue;
+            }
+
+            var wordIndex = verbIndex + 1 + i;
+            if (wordIndex >= words.Length)
+            {
+                return false;
+            }
+
+            if (!string.Equals(words[wordIndex], param.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void AddOverloadLiteralSuggestions(
+        CommandDefinition def,
+        string[] words,
+        int verbIndex,
+        int paramIndex,
         string partial,
         string prefix,
-        AircraftModel? targetAircraft,
         ObservableCollection<SuggestionItem> suggestions,
         int maxSuggestions
     )
     {
-        bool isVfr = targetAircraft is not null && string.Equals(targetAircraft.FlightRules, "VFR", StringComparison.OrdinalIgnoreCase);
+        // Track which literal values we've already added to avoid duplicates
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // IFR aircraft: only bare CTO or CTO with heading
-        if (!isVfr)
+        foreach (var overload in def.Overloads)
         {
-            AddOption("RH", "Fly runway heading", partial, prefix, suggestions, maxSuggestions);
-            AddCtoHeadingHints(partial, prefix, suggestions, maxSuggestions);
-            return;
-        }
+            if (suggestions.Count >= maxSuggestions)
+            {
+                break;
+            }
 
-        // VFR: pattern options first, then all modifiers
-        AddOption("MLT", "Make left traffic (closed pattern)", partial, prefix, suggestions, maxSuggestions);
-        AddOption("MRT", "Make right traffic (closed pattern)", partial, prefix, suggestions, maxSuggestions);
-        AddOption("RH", "Fly runway heading", partial, prefix, suggestions, maxSuggestions);
-        AddOption("OC", "On course (direct to destination)", partial, prefix, suggestions, maxSuggestions);
-        AddOption("MRC", "Right crosswind departure (90° right)", partial, prefix, suggestions, maxSuggestions);
-        AddOption("MRD", "Right downwind departure (180° right)", partial, prefix, suggestions, maxSuggestions);
-        AddOption("MR270", "Right 270° departure (270° right turn)", partial, prefix, suggestions, maxSuggestions);
-        AddOption("MLC", "Left crosswind departure (90° left)", partial, prefix, suggestions, maxSuggestions);
-        AddOption("MLD", "Left downwind departure (180° left)", partial, prefix, suggestions, maxSuggestions);
-        AddOption("ML270", "Left 270° departure (270° left turn)", partial, prefix, suggestions, maxSuggestions);
-        AddOption("DCT", "Direct to fix — CTO DCT {fix}", partial, prefix, suggestions, maxSuggestions);
-        AddCtoHeadingHints(partial, prefix, suggestions, maxSuggestions);
-    }
+            if (paramIndex >= overload.Parameters.Length)
+            {
+                continue;
+            }
 
-    private static void AddCtoHeadingHints(string partial, string prefix, ObservableCollection<SuggestionItem> suggestions, int maxSuggestions)
-    {
-        if (partial.Length == 0 || "H".StartsWith(partial, StringComparison.OrdinalIgnoreCase))
-        {
-            AddOption("H", "Fly heading — CTO H{hdg} (e.g. H270)", partial, prefix, suggestions, maxSuggestions);
-        }
+            if (!OverloadMatchesPrecedingArgs(overload, words, verbIndex, paramIndex))
+            {
+                continue;
+            }
 
-        if (
-            partial.Length == 0
-            || "RH".StartsWith(partial, StringComparison.OrdinalIgnoreCase)
-            || "RT".StartsWith(partial, StringComparison.OrdinalIgnoreCase)
-        )
-        {
-            AddOption("RH", "Right heading — CTO RH{hdg} (e.g. RH270)", partial, prefix, suggestions, maxSuggestions);
-        }
+            var param = overload.Parameters[paramIndex];
+            if (!param.IsLiteral)
+            {
+                continue;
+            }
 
-        if (
-            partial.Length == 0
-            || "LH".StartsWith(partial, StringComparison.OrdinalIgnoreCase)
-            || "LT".StartsWith(partial, StringComparison.OrdinalIgnoreCase)
-        )
-        {
-            AddOption("LH", "Left heading — CTO LH{hdg} (e.g. LH270)", partial, prefix, suggestions, maxSuggestions);
+            if (!seen.Add(param.Name))
+            {
+                continue;
+            }
+
+            var description = overload.UsageHint ?? overload.VariantLabel ?? "";
+            AddOption(param.Name, description, partial, prefix, suggestions, maxSuggestions);
         }
     }
 
-    private static void AddGoAroundSuggestions(string partial, string prefix, ObservableCollection<SuggestionItem> suggestions, int maxSuggestions)
+    private static bool IsRunwayHint(string typeHint)
     {
-        // GA accepts optional heading; just show a hint
-        if (suggestions.Count < maxSuggestions && (partial.Length == 0 || char.IsDigit(partial[0])))
+        return typeHint.Contains("runway", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFixHint(string typeHint)
+    {
+        return typeHint.Contains("fix name", StringComparison.OrdinalIgnoreCase)
+            || typeHint.Contains("approach ID", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static CommandDefinition? FindCommandDefinition(string verb, CommandScheme scheme)
+    {
+        foreach (var (type, def) in CommandRegistry.All)
         {
-            suggestions.Add(
-                new SuggestionItem
+            if (!scheme.Patterns.TryGetValue(type, out var pattern))
+            {
+                continue;
+            }
+
+            foreach (var alias in pattern.Aliases)
+            {
+                if (string.Equals(alias, verb, StringComparison.OrdinalIgnoreCase))
                 {
-                    Kind = SuggestionKind.Command,
-                    Text = "{heading}",
-                    Description = "Optional heading after go-around (e.g. GA 270)",
-                    InsertText = prefix,
+                    return def;
                 }
-            );
+            }
         }
+
+        return null;
     }
 
     private static void AddRunwaySuggestions(
@@ -298,37 +339,13 @@ internal static class ArgumentSuggester
         );
     }
 
-    private static readonly CanonicalCommandType[] VerbTypes =
-    [
-        CanonicalCommandType.ClearedForTakeoff,
-        CanonicalCommandType.EnterLeftDownwind,
-        CanonicalCommandType.EnterRightDownwind,
-        CanonicalCommandType.EnterFinal,
-        CanonicalCommandType.EnterLeftBase,
-        CanonicalCommandType.EnterRightBase,
-        CanonicalCommandType.CrossRunway,
-        CanonicalCommandType.ClearedToLand,
-        CanonicalCommandType.ClearedVisualApproach,
-        CanonicalCommandType.GoAround,
-        CanonicalCommandType.HoldAtFixLeft,
-        CanonicalCommandType.HoldAtFixRight,
-        CanonicalCommandType.HoldAtFixHover,
-        CanonicalCommandType.CrossFix,
-        CanonicalCommandType.DepartFix,
-        CanonicalCommandType.ForceDirectTo,
-        CanonicalCommandType.AppendForceDirectTo,
-        CanonicalCommandType.JoinFinalApproachCourse,
-    ];
-
     private static int FindVerbIndex(string[] words, CommandScheme scheme)
     {
-        // Check position 0 first (no callsign prefix)
         if (IsRecognizedVerb(words[0], scheme))
         {
             return 0;
         }
 
-        // Check position 1 (callsign prefix)
         if (words.Length >= 2 && IsRecognizedVerb(words[1], scheme))
         {
             return 1;
@@ -339,38 +356,13 @@ internal static class ArgumentSuggester
 
     private static bool IsRecognizedVerb(string token, CommandScheme scheme)
     {
-        // RWY is a special rewrite verb, not a CanonicalCommandType
+        // RWY is a special rewrite verb not in the registry
         if (string.Equals(token, "RWY", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        foreach (var type in VerbTypes)
-        {
-            if (MatchesVerb(token, type, scheme))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool MatchesVerb(string token, CanonicalCommandType type, CommandScheme scheme)
-    {
-        if (!scheme.Patterns.TryGetValue(type, out var pattern))
-        {
-            return false;
-        }
-
-        foreach (var alias in pattern.Aliases)
-        {
-            if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        // Any verb that maps to a registry command with arguments gets suggestions
+        return FindCommandDefinition(token, scheme) is { ArgMode: not ArgMode.None };
     }
 }

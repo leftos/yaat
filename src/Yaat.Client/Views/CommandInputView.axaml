@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yaat.Client.ViewModels"
+             xmlns:svc="using:Yaat.Client.Services"
              x:Class="Yaat.Client.Views.CommandInputView">
 
     <Grid Margin="0,8,0,0"
@@ -20,44 +21,118 @@
             <TextBox Text="{Binding CommandText}"
                      Watermark="Enter command (FH 270, CM 240...)"
                      x:Name="CommandInput" />
-            <Popup IsOpen="{Binding CommandInput.IsSuggestionsVisible}"
+            <!-- Combined popup for signature help + autocomplete -->
+            <Popup IsOpen="{Binding CommandInput.IsPopupVisible}"
                    PlacementTarget="{Binding #CommandInput}"
                    Placement="Top"
                    IsLightDismissEnabled="False"
-                   MaxHeight="240"
-                   Width="{Binding #CommandInput.Bounds.Width}">
-                <Border Background="#2D2D30"
-                        BorderBrush="#3F3F46"
-                        BorderThickness="1"
-                        CornerRadius="4">
-                    <ListBox ItemsSource="{Binding
-                                 CommandInput.Suggestions}"
-                             SelectedIndex="{Binding
-                                 CommandInput.SelectedSuggestionIndex}"
-                             Focusable="False"
-                             x:Name="SuggestionList"
-                             Background="Transparent"
-                             Padding="2">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid ColumnDefinitions="Auto,*">
-                                    <TextBlock Grid.Column="0"
-                                        Text="{Binding Text}"
-                                        Foreground="{Binding Kind,
-                                            Converter={x:Static
-                                            vm:SuggestionKindColorConverter.Instance}}"
-                                        FontWeight="Bold"
-                                        FontFamily="{StaticResource MonoFont}"
-                                        Margin="4,2" />
-                                    <TextBlock Grid.Column="1"
-                                        Text="{Binding Description}"
-                                        Foreground="{DynamicResource SubtleTextBrush}"
-                                        Margin="8,2,4,2" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Border>
+                   Width="{Binding #CommandInput.Bounds.Width}"
+                   x:Name="CommandPopup">
+                <StackPanel>
+                    <!-- Signature help section -->
+                    <Border Background="#1E1E1E"
+                            BorderBrush="#3F3F46"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="8,6"
+                            Margin="0,0,0,2"
+                            IsVisible="{Binding CommandInput.SignatureHelp.IsVisible}">
+                        <StackPanel Spacing="2">
+                            <!-- Overload selector (visible when count > 1) -->
+                            <Grid IsVisible="{Binding CommandInput.SignatureHelp.OverloadCount, Converter={x:Static vm:GreaterThanOneConverter.Instance}}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Button Content="▲" Padding="2,0" FontSize="10" x:Name="SigHelpPrev" Focusable="False" Background="Transparent" />
+                                    <TextBlock Foreground="#CCCCCC" FontSize="12">
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="{}{0} of {1}">
+                                                <Binding Path="CommandInput.SignatureHelp.SelectedOverloadIndex" Converter="{x:Static vm:PlusOneConverter.Instance}" />
+                                                <Binding Path="CommandInput.SignatureHelp.OverloadCount" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                    <Button Content="▼" Padding="2,0" FontSize="10" x:Name="SigHelpNext" Focusable="False" Background="Transparent" />
+                                </StackPanel>
+                                <TextBlock Text="Alt+Up/Down" Foreground="#888888" FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                            <!-- Signature line -->
+                            <ItemsControl ItemsSource="{Binding CommandInput.SignatureHelp.SignatureParts}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="svc:SignaturePart">
+                                        <TextBlock Text="{Binding Text}" FontFamily="{StaticResource MonoFont}" FontSize="13" Classes.sigActive="{Binding IsActive}" Classes.sigParam="{Binding IsParameter}">
+                                            <TextBlock.Styles>
+                                                <Style Selector="TextBlock">
+                                                    <Setter Property="Foreground" Value="#D4D4D4" />
+                                                </Style>
+                                                <Style Selector="TextBlock.sigParam">
+                                                    <Setter Property="Foreground" Value="#9CDCFE" />
+                                                </Style>
+                                                <Style Selector="TextBlock.sigActive">
+                                                    <Setter Property="Foreground" Value="#569CD6" />
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                </Style>
+                                            </TextBlock.Styles>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <!-- Parameter description (hidden when same as usage hint) -->
+                            <TextBlock Text="{Binding CommandInput.SignatureHelp.ActiveParameterDescription}" Foreground="#B0B0B0" FontStyle="Italic" FontSize="11" IsVisible="{Binding CommandInput.SignatureHelp.ShowParameterDescription}" />
+                            <!-- Usage hint from signature -->
+                            <TextBlock Text="{Binding CommandInput.SignatureHelp.CurrentSignature.UsageHint}" Foreground="#8FBF7F" FontSize="11" IsVisible="{Binding CommandInput.SignatureHelp.CurrentSignature.UsageHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                    </Border>
+                    <!-- Autocomplete section -->
+                    <Border Background="#2D2D30"
+                            BorderBrush="#3F3F46"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            MaxHeight="240"
+                            IsVisible="{Binding CommandInput.IsSuggestionsVisible}">
+                        <ListBox ItemsSource="{Binding CommandInput.Suggestions}"
+                                 SelectedIndex="{Binding CommandInput.SelectedSuggestionIndex}"
+                                 Focusable="False"
+                                 x:Name="SuggestionList"
+                                 Background="Transparent"
+                                 Padding="2">
+                            <ListBox.Styles>
+                                <Style Selector="ListBoxItem TextBlock.tabHint">
+                                    <Setter Property="IsVisible" Value="False" />
+                                </Style>
+                                <Style Selector="ListBoxItem:selected TextBlock.tabHint">
+                                    <Setter Property="IsVisible" Value="True" />
+                                </Style>
+                            </ListBox.Styles>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <TextBlock Grid.Column="0"
+                                            Text="{Binding Text}"
+                                            Foreground="{Binding Kind, Converter={x:Static vm:SuggestionKindColorConverter.Instance}}"
+                                            FontWeight="Bold"
+                                            FontFamily="{StaticResource MonoFont}"
+                                            Margin="4,2" />
+                                        <TextBlock Grid.Column="1"
+                                            Text="{Binding Description}"
+                                            Foreground="{DynamicResource SubtleTextBrush}"
+                                            Margin="8,2,4,2" />
+                                        <TextBlock Grid.Column="2"
+                                            Text="Tab to accept"
+                                            Foreground="#888888"
+                                            FontSize="10"
+                                            VerticalAlignment="Center"
+                                            Margin="4,0,4,0"
+                                            Classes="tabHint" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+                </StackPanel>
             </Popup>
         </Panel>
 

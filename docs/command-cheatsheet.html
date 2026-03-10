@@ -31,10 +31,10 @@
 <table>
 <tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
 <tr><td>Fly heading</td><td><code>FH 270</code></td><td><code>H</code></td></tr>
-<tr><td>Turn left</td><td><code>TL 180</code></td><td><code>L</code></td></tr>
-<tr><td>Turn right</td><td><code>TR 090</code></td><td><code>R</code></td></tr>
-<tr><td>Relative left</td><td><code>LT 30</code></td><td><code>T</code> (<code>T30L</code>)</td></tr>
-<tr><td>Relative right</td><td><code>RT 30</code></td><td><code>T</code> (<code>T30R</code>)</td></tr>
+<tr><td>Turn left</td><td><code>TL 180</code></td><td><code>L</code>, <code>LT</code></td></tr>
+<tr><td>Turn right</td><td><code>TR 090</code></td><td><code>R</code>, <code>RT</code></td></tr>
+<tr><td>Relative left</td><td><code>RELL 30</code></td><td><code>T30L</code></td></tr>
+<tr><td>Relative right</td><td><code>RELR 30</code></td><td><code>T30R</code></td></tr>
 <tr><td>Fly present heading</td><td><code>FPH</code></td><td><code>FCH</code>, <code>H</code></td></tr>
 </table>
 </div>
@@ -103,8 +103,8 @@
 <tr><td>Cross runway</td><td><code>CROSS 28L</code></td><td></td></tr>
 <tr><td>Hold short of twy</td><td><code>HS B</code></td><td></td></tr>
 <tr><td>Assign runway</td><td><code>RWY 30</code></td><td></td></tr>
-<tr><td>Exit left / right</td><td><code>EXL</code> / <code>EXR</code></td><td></td></tr>
-<tr><td>Exit to taxiway</td><td><code>EXT A3</code></td><td></td></tr>
+<tr><td>Exit left / right</td><td><code>EL</code> / <code>ER</code></td><td></td></tr>
+<tr><td>Exit to taxiway</td><td><code>EXIT A3</code></td><td></td></tr>
 <tr><td>Follow</td><td><code>FOLLOW SWA123</code></td><td><code>FOL</code></td></tr>
 <tr><td>Give way</td><td><code>GIVEWAY SWA123</code></td><td><code>BEHIND</code></td></tr>
 </table>
@@ -120,7 +120,7 @@
 <tr><td>Forced approach</td><td><code>CAPPF ILS28R</code></td><td><code>JAPPF</code></td></tr>
 <tr><td>PTAC</td><td><code>PTAC 280 025 ILS30</code></td><td></td></tr>
 <tr><td>Join final course</td><td><code>JFAC ILS28R</code></td><td><code>JLOC</code>, <code>JF</code></td></tr>
-<tr><td>Join arrival</td><td><code>JARR OAK.SALI2</code></td><td><code>ARR</code>, <code>STAR</code></td></tr>
+<tr><td>Join arrival</td><td><code>JARR OAK.SALI2</code></td><td><code>ARR</code>, <code>STAR</code>, <code>JSTAR</code></td></tr>
 <tr><td>JARR + entry fix</td><td><code>JARR SALI2 SUNOL</code></td><td></td></tr>
 <tr><td>Expect approach</td><td><code>EAPP I28R</code></td><td><code>EXPECT</code></td></tr>
 <tr><td>Visual approach</td><td><code>CVA 28R</code></td><td><code>VISUAL</code></td></tr>
@@ -146,7 +146,7 @@
 <tr><td>Cleared for option</td><td><code>COPT</code></td><td></td></tr>
 <tr><td>Landing sequence</td><td><code>SEQ 2 UAL123</code></td><td></td></tr>
 </table>
-<div class="note">Takeoff: <code>CTO RH</code> right hdg, <code>CTO OC</code> on course, <code>CTO MRC</code> maintain rwy hdg, <code>CTO 360</code> fly 360</div>
+<div class="note">Takeoff: <code>CTO RH</code> rwy hdg, <code>CTO OC</code> on course, <code>CTO LT 270</code> / <code>RT 090</code> directional, <code>CTO MRC</code> rt crosswind, <code>CTO 360</code> fly 360</div>
 </div>
 
 <div class="section">
@@ -154,6 +154,7 @@
 <table>
 <tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
 <tr><td>Enter L/R downwind</td><td><code>ELD 28R</code> / <code>ERD 28R</code></td><td></td></tr>
+<tr><td>Enter L/R crosswind</td><td><code>ELC 28R</code> / <code>ERC 28R</code></td><td></td></tr>
 <tr><td>Enter L/R base</td><td><code>ELB 28R 3</code> / <code>ERB</code></td><td></td></tr>
 <tr><td>Enter final</td><td><code>EF 28R</code></td><td></td></tr>
 <tr><td>Make L/R traffic</td><td><code>MLT</code> / <code>MRT</code></td><td></td></tr>
@@ -162,8 +163,12 @@
 <tr><td>Turn base</td><td><code>TB</code></td><td></td></tr>
 <tr><td>Extend leg</td><td><code>EXT</code></td><td></td></tr>
 <tr><td>Short approach</td><td><code>SA</code></td><td><code>MSA</code></td></tr>
+<tr><td>Normal approach</td><td><code>MNA</code></td><td></td></tr>
 <tr><td>Left/Right 360</td><td><code>L360</code> / <code>R360</code></td><td></td></tr>
 <tr><td>Left/Right 270</td><td><code>L270</code> / <code>R270</code></td><td></td></tr>
+<tr><td>Plan/Cancel 270</td><td><code>P270</code> / <code>NO270</code></td><td><code>PLAN270</code></td></tr>
+<tr><td>Pattern size</td><td><code>PS 1.5</code></td><td><code>PATTSIZE</code></td></tr>
+<tr><td>S-turns (L/R init)</td><td><code>MLS</code> / <code>MRS</code></td><td></td></tr>
 <tr><td>Circle airport</td><td><code>CA</code></td><td><code>CIRCLE</code></td></tr>
 </table>
 </div>
@@ -214,7 +219,7 @@
 <tr><td>Pause / Unpause</td><td><code>PAUSE</code> / <code>UNPAUSE</code></td><td><code>P</code> / <code>U</code>, <code>UN</code></td></tr>
 <tr><td>Sim rate</td><td><code>SIMRATE 2</code></td><td></td></tr>
 <tr><td>Squawk all</td><td><code>SQALL</code></td><td></td></tr>
-<tr><td>SQ normal / sby all</td><td><code>SQNORMALL</code> / <code>SQSBYALL</code></td><td></td></tr>
+<tr><td>SQ normal / sby all</td><td><code>SNALL</code> / <code>SSALL</code></td><td></td></tr>
 <tr><td>Accept all handoffs</td><td><code>ACCEPTALL</code></td><td></td></tr>
 <tr><td>Handoff all</td><td><code>HOALL 3Y</code></td><td></td></tr>
 <tr><td>Report field/traffic</td><td><code>RFIS</code> / <code>RTIS</code></td><td></td></tr>
@@ -229,8 +234,8 @@
 <tr><td>Say (broadcast)</td><td><code>SAY text</code></td><td></td></tr>
 <tr><td>Spawn now</td><td><code>SPAWN</code></td><td></td></tr>
 <tr><td>Spawn delay</td><td><code>DELAY 120</code></td><td></td></tr>
-<tr><td>Wait (seconds)</td><td><code>W 30</code></td><td><code>WAIT</code></td></tr>
-<tr><td>Wait (distance)</td><td><code>WD 4</code></td><td></td></tr>
+<tr><td>Wait (seconds)</td><td><code>WAIT 30</code></td><td></td></tr>
+<tr><td>Wait (distance)</td><td><code>WAITD 4</code></td><td></td></tr>
 </table>
 </div>
 

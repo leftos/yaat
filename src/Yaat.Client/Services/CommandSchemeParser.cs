@@ -400,25 +400,11 @@ public static class CommandSchemeParser
             }
         }
 
-        // Relative turns: T{digits}L / T{digits}R
-        if (scheme.Patterns.TryGetValue(CanonicalCommandType.RelativeLeft, out var relLeftPattern))
+        // Relative turns: T{digits}L / T{digits}R (hardcoded T prefix)
+        if (verb.Length >= 3 && verb.StartsWith('T') && char.IsDigit(verb[1]) && verb[^1] is 'L' or 'R' && int.TryParse(verb[1..^1], out _))
         {
-            foreach (var alias in relLeftPattern.Aliases)
-            {
-                if (verb.Length > alias.Length + 1 && verb.StartsWith(alias, StringComparison.OrdinalIgnoreCase) && char.IsDigit(verb[alias.Length]))
-                {
-                    var lastChar = verb[^1];
-                    if (lastChar is 'L' or 'R')
-                    {
-                        var deg = verb[alias.Length..^1];
-                        if (int.TryParse(deg, out _))
-                        {
-                            var type = lastChar == 'L' ? CanonicalCommandType.RelativeLeft : CanonicalCommandType.RelativeRight;
-                            return new ParsedInput(type, deg);
-                        }
-                    }
-                }
-            }
+            var type = verb[^1] == 'L' ? CanonicalCommandType.RelativeLeft : CanonicalCommandType.RelativeRight;
+            return new ParsedInput(type, verb[1..^1]);
         }
 
         string? verbMatchReason = null;
@@ -429,16 +415,15 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            bool hasOptionalArg = pattern.Format.Contains("{arg?}");
-            bool hasRequiredArg = !hasOptionalArg && pattern.Format.Contains("{arg}");
+            var argMode = CommandRegistry.Get(type)?.ArgMode ?? ArgMode.None;
 
-            if (hasRequiredArg && arg is null)
+            if (argMode == ArgMode.Required && arg is null)
             {
                 verbMatchReason = "requires an argument";
                 continue;
             }
 
-            if (!hasRequiredArg && !hasOptionalArg && arg is not null)
+            if (argMode == ArgMode.None && arg is not null)
             {
                 verbMatchReason = "does not accept arguments";
                 continue;
@@ -456,10 +441,11 @@ public static class CommandSchemeParser
         // Concatenation fallback: try prefix-matching aliases when verb+digits are
         // written without a space (e.g. FH270, CM240, H270, SQ1234).
         // Try longer aliases first to avoid matching "S" when "SQ" would work.
-        var candidates = new List<(string Alias, CanonicalCommandType Type, CommandPattern Pattern)>();
+        var candidates = new List<(string Alias, CanonicalCommandType Type)>();
         foreach (var (type, pattern) in scheme.Patterns)
         {
-            if (!pattern.Format.Contains("{arg"))
+            var concatArgMode = CommandRegistry.Get(type)?.ArgMode ?? ArgMode.None;
+            if (concatArgMode == ArgMode.None)
             {
                 continue;
             }
@@ -471,13 +457,13 @@ public static class CommandSchemeParser
 
             foreach (var alias in pattern.Aliases)
             {
-                candidates.Add((alias, type, pattern));
+                candidates.Add((alias, type));
             }
         }
 
         candidates.Sort((a, b) => b.Alias.Length.CompareTo(a.Alias.Length));
 
-        foreach (var (alias, type, _) in candidates)
+        foreach (var (alias, type) in candidates)
         {
             if (!input.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
             {

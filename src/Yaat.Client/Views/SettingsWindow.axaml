@@ -319,6 +319,21 @@
                                        FontSize="11" />
                         </StackPanel>
                         <Separator Margin="0,4" />
+                        <TextBlock Text="Command Input"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Signature Help Placement:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <ComboBox ItemsSource="{Binding SignatureHelpPlacementOptions}"
+                                      SelectedIndex="{Binding SelectedSignatureHelpPlacementIndex}"
+                                      Width="120"
+                                      HorizontalAlignment="Left" />
+                            <TextBlock Text="Controls whether the command signature help tooltip appears above or below the command input."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <Separator Margin="0,4" />
                         <TextBlock Text="Radar Display"
                                    FontWeight="SemiBold" />
                         <StackPanel Spacing="4">

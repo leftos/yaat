@@ -130,6 +130,7 @@ public sealed class UserPreferences
     public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
     public bool AssignmentTintEnabled => _data.AssignmentTintEnabled;
     public string AssignmentTintColor => _data.AssignmentTintColor;
+    public string SignatureHelpPlacement => _data.SignatureHelpPlacement;
 
     public void SetSavedServers(IEnumerable<SavedServer> servers, string lastUsedUrl)
     {
@@ -304,6 +305,12 @@ public sealed class UserPreferences
     {
         _data.AssignmentTintEnabled = enabled;
         _data.AssignmentTintColor = color;
+        Save();
+    }
+
+    public void SetSignatureHelpPlacement(string placement)
+    {
+        _data.SignatureHelpPlacement = placement;
         Save();
     }
 
@@ -550,6 +557,7 @@ public sealed class UserPreferences
             GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
             AssignmentTintEnabled = GetFieldOr(obj, "assignmentTintEnabled", false),
             AssignmentTintColor = GetFieldOr(obj, "assignmentTintColor", "#00FF00"),
+            SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
         };
 
         // Normalize empty server list on recovery
@@ -614,7 +622,7 @@ public sealed class UserPreferences
         var defaults = CommandScheme.Default();
         foreach (var (type, pattern) in defaults.Patterns)
         {
-            patterns[type] = new CommandPattern { Aliases = [.. pattern.Aliases], Format = pattern.Format };
+            patterns[type] = new CommandPattern { Aliases = [.. pattern.Aliases] };
         }
 
         foreach (var (key, sp) in s.Patterns)
@@ -654,7 +662,7 @@ public sealed class UserPreferences
                 continue;
             }
 
-            patterns[type.ToString()] = new SavedPattern { Aliases = pattern.Aliases, Format = pattern.Format };
+            patterns[type.ToString()] = new SavedPattern { Aliases = pattern.Aliases };
         }
 
         return new SavedCommandScheme { Patterns = patterns };
@@ -710,6 +718,7 @@ public sealed class UserPreferences
         public bool GroundPanZoomLocked { get; set; }
         public bool AssignmentTintEnabled { get; set; }
         public string AssignmentTintColor { get; set; } = "#00FF00";
+        public string SignatureHelpPlacement { get; set; } = "Above";
     }
 
     private sealed class SavedCommandScheme

@@ -9,6 +9,23 @@ public class CommandSchemeCompletenessTests
     private static readonly CanonicalCommandType[] AllCommandTypes = Enum.GetValues<CanonicalCommandType>();
 
     [Fact]
+    public void Registry_CoversAllCommandTypes()
+    {
+        foreach (var type in AllCommandTypes)
+        {
+            Assert.True(CommandRegistry.All.ContainsKey(type), $"CommandRegistry is missing CanonicalCommandType.{type}");
+        }
+    }
+
+    [Fact]
+    public void Registry_HasNoDuplicateTypes()
+    {
+        // Dictionary enforces uniqueness, but verify the build data doesn't silently overwrite
+        var count = CommandRegistry.All.Count;
+        Assert.Equal(AllCommandTypes.Length, count);
+    }
+
+    [Fact]
     public void DefaultScheme_CoversAllCommandTypes()
     {
         var scheme = CommandScheme.Default();
@@ -17,26 +34,6 @@ public class CommandSchemeCompletenessTests
         {
             Assert.True(scheme.Patterns.ContainsKey(type), $"Default scheme is missing CanonicalCommandType.{type}");
         }
-    }
-
-    [Fact]
-    public void CommandMetadata_CoversAllCommandTypes()
-    {
-        var metadataTypes = CommandMetadata.AllCommands.Select(c => c.Type).ToHashSet();
-
-        foreach (var type in AllCommandTypes)
-        {
-            Assert.True(metadataTypes.Contains(type), $"CommandMetadata.AllCommands is missing CanonicalCommandType.{type}");
-        }
-    }
-
-    [Fact]
-    public void CommandMetadata_HasNoDuplicateTypes()
-    {
-        var types = CommandMetadata.AllCommands.Select(c => c.Type).ToList();
-        var duplicates = types.GroupBy(t => t).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
-
-        Assert.True(duplicates.Count == 0, $"CommandMetadata has duplicate entries for: {string.Join(", ", duplicates)}");
     }
 
     [Fact]
@@ -75,10 +72,9 @@ public class CommandSchemeCompletenessTests
     public void DefaultSchemeAliases_AreUniqueAcrossCommands_ExceptKnownShared()
     {
         // Unified scheme intentionally shares:
-        // T for RelativeLeft/RelativeRight, H for FlyHeading/FlyPresentHeading
+        // H for FlyHeading/FlyPresentHeading
         var knownShared = new HashSet<(CanonicalCommandType, CanonicalCommandType)>
         {
-            (CanonicalCommandType.RelativeLeft, CanonicalCommandType.RelativeRight),
             (CanonicalCommandType.FlyHeading, CanonicalCommandType.FlyPresentHeading),
         };
 

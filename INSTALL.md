@@ -161,9 +161,8 @@ Once the client window opens:
    - **VATSIM CID** — your VATSIM ID number
    - **Initials** — any two letters (e.g., your initials)
    - **ARTCC ID** — the facility you want to train (e.g., `ZOA`)
-4. Go to the **Connection** tab and confirm the server URL is `http://localhost:5000`
-5. Close Settings
-6. **File > Connect** to connect to the server
+4. Close Settings
+5. **File > Connect** to connect to the server
 
 You're now ready to create a room and load a scenario. See the [User Guide](USER_GUIDE.md) for detailed usage instructions.
 
@@ -217,8 +216,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ### Client can't connect to server
 
 - Make sure the server is running and you see log output from it
-- Check that the server URL in Settings matches (default: `http://localhost:5000`)
-- If you changed the server port, update the client's Connection setting to match
+- The client connects to `http://localhost:5000` by default. If you changed the server port, pass the URL via `--autoconnect http://localhost:<port>` when launching the client
 
 ### Client crashes or shows no text on Linux
 

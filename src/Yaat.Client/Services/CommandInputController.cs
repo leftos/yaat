@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Models;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.Services;
@@ -10,12 +11,28 @@ public partial class CommandInputController : ObservableObject
     private const int MaxSuggestions = 10;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPopupVisible))]
     private bool _isSuggestionsVisible;
 
     [ObservableProperty]
     private int _selectedSuggestionIndex = -1;
 
+    public bool IsPopupVisible => IsSuggestionsVisible || SignatureHelp.IsVisible;
+
     public ObservableCollection<SuggestionItem> Suggestions { get; } = [];
+    public SignatureHelpState SignatureHelp { get; }
+
+    public CommandInputController()
+    {
+        SignatureHelp = new SignatureHelpState();
+        SignatureHelp.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SignatureHelpState.IsVisible))
+            {
+                OnPropertyChanged(nameof(IsPopupVisible));
+            }
+        };
+    }
 
     private int _historyIndex = -1;
     private string _savedInput = "";
@@ -197,6 +214,124 @@ public partial class CommandInputController : ObservableObject
         SelectedSuggestionIndex = -1;
     }
 
+    public void UpdateSignatureHelp(string text, CommandScheme scheme)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            SignatureHelp.Dismiss();
+            return;
+        }
+
+        var fragment = GetCurrentFragment(text);
+        if (string.IsNullOrWhiteSpace(fragment))
+        {
+            SignatureHelp.Dismiss();
+            return;
+        }
+
+        var stripped = StripConditionPrefix(fragment, out _);
+        if (string.IsNullOrWhiteSpace(stripped))
+        {
+            SignatureHelp.Dismiss();
+            return;
+        }
+
+        var parts = stripped.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            SignatureHelp.Dismiss();
+            return;
+        }
+
+        // Find the verb token — could be first or second (after callsign)
+        string? verb = null;
+        int argStartIndex = 1;
+
+        if (IsKnownVerb(parts[0], scheme))
+        {
+            verb = parts[0];
+            argStartIndex = 1;
+        }
+        else if (parts.Length >= 2 && IsKnownVerb(parts[1], scheme))
+        {
+            verb = parts[1];
+            argStartIndex = 2;
+        }
+
+        if (verb is null)
+        {
+            SignatureHelp.Dismiss();
+            return;
+        }
+
+        // Check if the user has typed past the verb (needs a space after verb)
+        bool hasSpaceAfterVerb = stripped.Length > verb.Length && stripped.TrimStart().Contains(' ');
+        if (parts.Length <= argStartIndex - 1)
+        {
+            SignatureHelp.Dismiss();
+            return;
+        }
+
+        // Resolve verb to command type
+        var commandType = ResolveVerbToType(verb, scheme);
+        if (commandType is null)
+        {
+            SignatureHelp.Dismiss();
+            return;
+        }
+
+        var def = CommandRegistry.Get(commandType.Value);
+        if (def is null)
+        {
+            SignatureHelp.Dismiss();
+            return;
+        }
+
+        IReadOnlyList<string> aliases = scheme.Patterns.TryGetValue(commandType.Value, out var pattern) ? pattern.Aliases : def.DefaultAliases;
+        var sigSet = CommandSignatureSet.FromDefinition(def, aliases);
+
+        // Calculate active parameter index: words after verb
+        var typedArgs = parts.Skip(argStartIndex).ToArray();
+        int paramIndex = typedArgs.Length;
+
+        // If there's a trailing space, user is starting next param
+        // If no trailing space and args exist, user is still typing current param
+        bool hasTrailingSpace = stripped.EndsWith(' ');
+        if (!hasTrailingSpace && paramIndex > 0)
+        {
+            paramIndex--;
+        }
+
+        // Only show signature help if user has typed past the verb
+        if (parts.Length == argStartIndex && !hasTrailingSpace)
+        {
+            // Verb typed but no space after it yet — only show if there's a trailing space
+            if (!hasSpaceAfterVerb)
+            {
+                SignatureHelp.Dismiss();
+                return;
+            }
+        }
+
+        SignatureHelp.Show(sigSet, paramIndex, typedArgs);
+    }
+
+    private static CanonicalCommandType? ResolveVerbToType(string verb, CommandScheme scheme)
+    {
+        foreach (var (type, pattern) in scheme.Patterns)
+        {
+            foreach (var alias in pattern.Aliases)
+            {
+                if (string.Equals(alias, verb, StringComparison.OrdinalIgnoreCase))
+                {
+                    return type;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public void MoveSelection(int delta)
     {
         if (Suggestions.Count == 0)
@@ -348,6 +483,12 @@ public partial class CommandInputController : ObservableObject
         }
 
         return false;
+    }
+
+    private static bool IsCompleteSyntaxPattern(string token)
+    {
+        // Matches T{digits}L or T{digits}R — a complete relative turn command
+        return token.Length >= 3 && token[0] is 'T' or 't' && char.IsDigit(token[1]) && token[^1] is 'L' or 'l' or 'R' or 'r';
     }
 
     private static string GetCurrentFragment(string text)
@@ -637,22 +778,22 @@ public partial class CommandInputController : ObservableObject
 
         // Collect candidates with match quality so exact alias matches sort first.
         // 0 = exact alias match, 1 = alias prefix match, 2 = label substring match
-        var candidates = new List<(int Rank, CommandMetadata.CommandInfo Cmd, CommandPattern Pattern)>();
+        var candidates = new List<(int Rank, CommandDefinition Def, CommandPattern Pattern)>();
 
-        foreach (var cmd in CommandMetadata.AllCommands)
+        foreach (var def in CommandRegistry.All.Values)
         {
             // For delayed/deferred aircraft, only show spawn-related commands
-            if (isDelayed && !DelayedOnlyCommands.Contains(cmd.Type))
+            if (isDelayed && !DelayedOnlyCommands.Contains(def.Type))
             {
                 continue;
             }
-            if (!scheme.Patterns.TryGetValue(cmd.Type, out var pattern))
+            if (!scheme.Patterns.TryGetValue(def.Type, out var schemePattern))
             {
                 continue;
             }
 
             int bestRank = int.MaxValue;
-            foreach (var alias in pattern.Aliases)
+            foreach (var alias in schemePattern.Aliases)
             {
                 if (string.Equals(alias, token, StringComparison.OrdinalIgnoreCase))
                 {
@@ -666,33 +807,49 @@ public partial class CommandInputController : ObservableObject
                 }
             }
 
-            if (bestRank == int.MaxValue && cmd.Label.Contains(token, StringComparison.OrdinalIgnoreCase))
+            // Also match syntax patterns (e.g. "T{n}L" matches when user types "T")
+            // Skip if the token already looks like a complete T{n}L/R command
+            if (bestRank > 1 && def.SyntaxPatterns is { Length: > 0 } && !IsCompleteSyntaxPattern(token))
+            {
+                foreach (var sp in def.SyntaxPatterns)
+                {
+                    var prefix = sp[..sp.IndexOf('{')];
+                    if (prefix.Length > 0 && token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        bestRank = Math.Min(bestRank, 1);
+                    }
+                }
+            }
+
+            if (bestRank == int.MaxValue && def.Label.Contains(token, StringComparison.OrdinalIgnoreCase))
             {
                 bestRank = 2;
             }
 
             if (bestRank < int.MaxValue)
             {
-                candidates.Add((bestRank, cmd, pattern));
+                candidates.Add((bestRank, def, schemePattern));
             }
         }
 
         candidates.Sort((a, b) => a.Rank.CompareTo(b.Rank));
 
         var count = Suggestions.Count;
-        foreach (var (_, cmd, pattern) in candidates)
+        foreach (var (_, def, schemePattern) in candidates)
         {
             if (count >= MaxSuggestions)
             {
                 break;
             }
 
-            var argHint = cmd.SampleArg is not null ? $" {{{cmd.SampleArg}}}" : "";
-            var desc = $"{cmd.Label}{argHint}";
-            var aliasText = string.Join(", ", pattern.Aliases);
-            var needsArg = pattern.Format.Contains("{arg}");
+            var sampleArg = def.SampleArg;
+            var argHint = sampleArg.Length > 0 ? $" {{{sampleArg}}}" : "";
+            var desc = $"{def.Label}{argHint}";
+            var allDisplayAliases = def.SyntaxPatterns is { Length: > 0 } ? schemePattern.Aliases.Concat(def.SyntaxPatterns) : schemePattern.Aliases;
+            var aliasText = string.Join(", ", allDisplayAliases);
+            var needsArg = def.ArgMode != ArgMode.None;
             var prefix = GetTextBeforeCurrentToken(fullText);
-            var insertText = prefix + pattern.PrimaryVerb + (needsArg ? " " : "");
+            var insertText = prefix + schemePattern.PrimaryVerb + (needsArg ? " " : "");
 
             Suggestions.Add(
                 new SuggestionItem

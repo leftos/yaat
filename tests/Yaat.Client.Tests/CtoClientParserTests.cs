@@ -207,7 +207,7 @@ public class CtoClientParserTests
     {
         var result = CommandSchemeParser.ParseCompound("T30L", _scheme);
         Assert.NotNull(result);
-        Assert.Equal("LT 30", result.CanonicalString);
+        Assert.Equal("RELL 30", result.CanonicalString);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class CtoClientParserTests
     {
         var result = CommandSchemeParser.ParseCompound("T30R", _scheme);
         Assert.NotNull(result);
-        Assert.Equal("RT 30", result.CanonicalString);
+        Assert.Equal("RELR 30", result.CanonicalString);
     }
 
     [Fact]

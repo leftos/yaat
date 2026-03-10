@@ -548,6 +548,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnCommandTextChanged(string value)
     {
         _commandInput.UpdateSuggestions(value, Aircraft, _preferences.CommandScheme, SelectedAircraft);
+        _commandInput.UpdateSignatureHelp(value, _preferences.CommandScheme);
     }
 
     // --- Commands ---

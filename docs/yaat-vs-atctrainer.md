@@ -100,8 +100,8 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
 | Fly heading | `FH {hdg}` | `FH {hdg}`, `H {hdg}`, `H270` | YAAT adds `H` alias + concatenation |
-| Turn left/right | `TL`/`TR` | `TL`/`TR`, `L`/`R`, `L180` | YAAT adds short aliases + concatenation |
-| Relative turn | `LT`/`RT` | `LT`/`RT`, `T30L`/`T30R` | YAAT adds combined `T` format |
+| Turn left/right | `TL`/`TR` | `TL`/`TR`, `L`/`R`, `LT`/`RT`, `L180` | YAAT adds short aliases + concatenation |
+| Relative turn | `LT`/`RT` | `RELL`/`RELR`, `T30L`/`T30R` | YAAT uses `RELL`/`RELR` + combined `T` format |
 | Present heading | `FPH`/`FCH` | `FPH`/`FCH`, `H` (no arg) | Same + bare `H` alias |
 
 ### Altitude
