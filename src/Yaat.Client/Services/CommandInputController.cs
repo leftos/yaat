@@ -669,7 +669,8 @@ public partial class CommandInputController : ObservableObject
                 break;
             }
 
-            if (!macro.Name.StartsWith(namePrefix, StringComparison.OrdinalIgnoreCase))
+            var baseName = macro.BaseName;
+            if (!baseName.StartsWith(namePrefix, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -681,9 +682,9 @@ public partial class CommandInputController : ObservableObject
                 new SuggestionItem
                 {
                     Kind = SuggestionKind.Macro,
-                    Text = $"!{macro.Name}{paramHint}",
+                    Text = $"!{baseName}{paramHint}",
                     Description = BuildMacroDescription(macro),
-                    InsertText = prefix + "!" + macro.Name + " ",
+                    InsertText = prefix + "!" + baseName + " ",
                 }
             );
         }

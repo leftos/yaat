@@ -79,9 +79,12 @@ public partial class MacroRow : ObservableObject
         }
 
         var def = new MacroDefinition { Name = Name, Expansion = Expansion };
+        var baseName = def.BaseName;
+        var validationError = def.Validate();
         var paramNames = def.ParameterNames;
         var paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"${n}")) : "";
-        Preview = $"#{Name}{paramHint} → {Expansion}";
+        var warning = validationError is not null ? $" ⚠ {validationError}" : "";
+        Preview = $"#{baseName}{paramHint} → {Expansion}{warning}";
     }
 }
 
@@ -331,14 +334,18 @@ public partial class SettingsViewModel : ObservableObject
 
     public void ImportMacros(IEnumerable<SavedMacro> macros)
     {
-        var existingNames = new HashSet<string>(MacroRows.Select(r => r.Name), StringComparer.OrdinalIgnoreCase);
+        var existingBaseNames = new HashSet<string>(MacroRows.Select(r => MacroDefinition.ExtractBaseName(r.Name)), StringComparer.OrdinalIgnoreCase);
 
         foreach (var m in macros)
         {
-            if (existingNames.Contains(m.Name))
+            var importBaseName = MacroDefinition.ExtractBaseName(m.Name);
+            if (existingBaseNames.Contains(importBaseName))
             {
-                // Overwrite existing
-                var existing = MacroRows.First(r => string.Equals(r.Name, m.Name, StringComparison.OrdinalIgnoreCase));
+                // Overwrite existing (match on base name so "HC $a $b" overwrites "HC" or "HC $x $y")
+                var existing = MacroRows.First(r =>
+                    string.Equals(MacroDefinition.ExtractBaseName(r.Name), importBaseName, StringComparison.OrdinalIgnoreCase)
+                );
+                existing.Name = m.Name;
                 existing.Expansion = m.Expansion;
             }
             else
@@ -351,6 +358,7 @@ public partial class SettingsViewModel : ObservableObject
                         RemoveAction = r => MacroRows.Remove(r),
                     }
                 );
+                existingBaseNames.Add(importBaseName);
             }
         }
     }

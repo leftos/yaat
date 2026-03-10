@@ -75,6 +75,16 @@ public static partial class MacroExpander
                     return null;
                 }
 
+                if (macro.HasExplicitParameters)
+                {
+                    var validationError = macro.Validate();
+                    if (validationError is not null)
+                    {
+                        error = $"Macro \"!{macro.BaseName}\": {validationError}";
+                        return null;
+                    }
+                }
+
                 var paramNames = macro.ParameterNames;
                 var args = new List<string>(paramNames.Count);
                 var pos = nameEnd;
@@ -89,7 +99,7 @@ public static partial class MacroExpander
                     if (pos >= commandText.Length || commandText[pos] is ';' or ',')
                     {
                         var hint = paramNames.Count > 0 ? $" ({string.Join(", ", paramNames.Select(n => $"${n}"))})" : "";
-                        error = $"Macro \"!{macro.Name}\" expects {paramNames.Count} parameter(s), got {p}{hint}";
+                        error = $"Macro \"!{macro.BaseName}\" expects {paramNames.Count} parameter(s), got {p}{hint}";
                         return null;
                     }
 
@@ -137,7 +147,7 @@ public static partial class MacroExpander
     {
         for (var i = 0; i < macros.Count; i++)
         {
-            if (string.Equals(macros[i].Name, name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(macros[i].BaseName, name, StringComparison.OrdinalIgnoreCase))
             {
                 return macros[i];
             }
