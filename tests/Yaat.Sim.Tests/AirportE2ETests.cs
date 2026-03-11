@@ -1230,4 +1230,45 @@ public class AirportE2ETests
         Assert.NotNull(destHs.TargetName);
         Assert.Contains("28L", destHs.TargetName);
     }
+
+    // -------------------------------------------------------------------------
+    // SFO E2E: Push to named spot
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void SFO_PushbackToSpot_RoutesAndSetsPhase()
+    {
+        // PUSH @A9 from parking A4: should resolve a route and set PushbackToSpotPhase.
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var a4 = FindParking(layout, "A4");
+        var a9 = FindParking(layout, "A9");
+        Assert.NotNull(a4);
+        Assert.NotNull(a9);
+
+        var ac = MakeGroundAircraft("SFO", a4.Latitude, a4.Longitude);
+        ac.Heading = a4.Heading ?? 104;
+
+        var cmd = new PushbackCommand(DestinationParking: "A9");
+        var result = GroundCommandHandler.TryPushback(ac, cmd, layout);
+
+        Assert.True(result.Success, $"PUSH @A9 should succeed: {result.Message}");
+        Assert.Contains("A9", result.Message!);
+        Assert.IsType<PushbackToSpotPhase>(ac.Phases!.CurrentPhase);
+        Assert.Equal("A9", ac.ParkingSpot);
+
+        // Route should have at least 1 segment
+        Assert.NotNull(ac.AssignedTaxiRoute);
+        Assert.True(ac.AssignedTaxiRoute.Segments.Count > 0, "Route should have segments");
+
+        // Final node should be near A9
+        var lastSeg = ac.AssignedTaxiRoute.Segments[^1];
+        var lastNode = layout.Nodes[lastSeg.ToNodeId];
+        double distToA9 = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, a9.Latitude, a9.Longitude);
+        Assert.True(distToA9 < 0.02, $"Route should end near A9: dist={distToA9:F4}nm");
+    }
 }

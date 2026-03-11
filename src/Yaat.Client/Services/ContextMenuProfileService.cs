@@ -172,6 +172,7 @@ public static class ContextMenuProfileService
         return phase
                 is "At Parking"
                     or "Pushback"
+                    or "Pushback to Spot"
                     or "Holding After Pushback"
                     or "Taxiing"
                     or "Holding In Position"

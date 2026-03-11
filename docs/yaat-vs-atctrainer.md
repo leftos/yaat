@@ -208,7 +208,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
-| Pushback | `PUSH [twy/spot]` | `PUSH`, `PUSH 270`, `PUSH A`, `PUSH TE 180`, `PUSH TE T` | YAAT adds heading, taxiway+heading, taxiway+toward-taxiway forms |
+| Pushback | `PUSH [twy/spot]` | `PUSH`, `PUSH 270`, `PUSH A`, `PUSH TE 180`, `PUSH TE T`, `PUSH @4A`, `PUSH @4A A`, `PUSH @4A 180` | YAAT adds heading, taxiway+heading, taxiway+toward-taxiway, and `@spot` (A* pathfinding to named parking) forms |
 | Taxi | `TAXI {path} [hs-list]` / `RWY {rwy} TAXI {path}` | Same + `TAXI !42 !18` (node IDs), `TAXI A !42 B` (mixed) | YAAT adds node ID references for precise routing |
 | Follow | — | `FOLLOW`/`FOL` | YAAT-only |
 | Give way | `GIVEWAY`/`GW`/`PB` (standalone) | `GIVEWAY`/`BEHIND` (condition prefix) | ATCTrainer: standalone. YAAT: condition prefix in compound chains |

@@ -528,6 +528,21 @@ public static class CommandDescriber
 
     private static string FormatPushCanonical(PushbackCommand push)
     {
+        if (push.DestinationParking is not null)
+        {
+            var result = $"PUSH @{push.DestinationParking}";
+            if (push.FacingTaxiway is not null)
+            {
+                result += $" {push.FacingTaxiway}";
+            }
+            else if (push.Heading is not null)
+            {
+                result += $" {push.Heading:000}";
+            }
+
+            return result;
+        }
+
         if (push.Taxiway is not null && push.Heading is not null)
         {
             return $"PUSH {push.Taxiway} {push.Heading:000}";
@@ -548,18 +563,33 @@ public static class CommandDescriber
 
     private static string FormatPushNatural(PushbackCommand push)
     {
-        var msg = "Pushback";
+        if (push.DestinationParking is not null)
+        {
+            var msg = $"Push to {push.DestinationParking}";
+            if (push.FacingTaxiway is not null)
+            {
+                msg += $" facing {push.FacingTaxiway}";
+            }
+            else if (push.Heading is not null)
+            {
+                msg += $", heading {push.Heading:000}";
+            }
+
+            return msg;
+        }
+
+        var result = "Pushback";
         if (push.Taxiway is not null)
         {
-            msg += $" onto {push.Taxiway}";
+            result += $" onto {push.Taxiway}";
         }
 
         if (push.Heading is not null)
         {
-            msg += $", face heading {push.Heading:000}";
+            result += $", face heading {push.Heading:000}";
         }
 
-        return msg;
+        return result;
     }
 
     private static string FormatCtoCanonical(ClearedForTakeoffCommand cto)

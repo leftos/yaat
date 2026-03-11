@@ -544,6 +544,9 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 | `PUSH A` | Push back onto taxiway A |
 | `PUSH TE 180` | Push back onto taxiway TE, facing heading 180 |
 | `PUSH TE T` | Push back onto taxiway TE, facing toward taxiway T |
+| `PUSH @4A` | Push back to spot 4A (A* pathfinding, use parking heading) |
+| `PUSH @4A A` | Push back to spot 4A, face toward taxiway A |
+| `PUSH @4A 180` | Push back to spot 4A, face heading 180 |
 | `TAXI S T U W W1` | Taxi via taxiways S, T, U, W, W1 |
 | `TAXI T U W 30` | Taxi via T, U, W to runway 30 |
 | `TAXI T U W RWY 30` | Same as above (explicit RWY keyword) |

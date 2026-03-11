@@ -212,6 +212,12 @@ public partial class GroundView : UserControl
                 menu.Items.Add(CreateMenuItem($"Hold short {node.RunwayId}", () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
             }
 
+            if (node.Type is "Parking" or "Spot" && node.Name is not null && vm.SelectedAircraft.CurrentPhase == "At Parking")
+            {
+                var spot = node.Name;
+                menu.Items.Add(CreateMenuItem($"Push to {spot}", () => vm.SendRawCommandAsync(callsign, initials, $"PUSH @{spot}")));
+            }
+
             var nid = nodeId;
             menu.Items.Add(
                 CreateMenuItem(
@@ -291,7 +297,7 @@ public partial class GroundView : UserControl
             }
         }
 
-        if (phase is "Pushback" or "Taxiing")
+        if (phase is "Pushback" or "Pushback to Spot" or "Taxiing")
         {
             menu.Items.Add(CreateMenuItem("Hold position", () => vm.HoldPositionAsync(callsign, initials)));
         }
@@ -361,7 +367,7 @@ public partial class GroundView : UserControl
         }
 
         if (
-            phase is "At Parking" or "Pushback" or "Taxiing" or "Holding After Exit" or "Holding After Pushback"
+            phase is "At Parking" or "Pushback" or "Pushback to Spot" or "Taxiing" or "Holding After Exit" or "Holding After Pushback"
             || phase.StartsWith("Holding Short", StringComparison.Ordinal)
         )
         {

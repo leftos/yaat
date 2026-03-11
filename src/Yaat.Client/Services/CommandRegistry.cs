@@ -427,7 +427,8 @@ public static class CommandRegistry
                 "Ground",
                 false,
                 ["PUSH"],
-                [O(null, [], "Pushback (auto heading)"), O("Heading", [R("heading", "0-360")], "Pushback facing heading")]
+                [O(null, [], "Pushback (auto heading)"), O("Heading", [R("heading", "0-360")], "Pushback facing heading")],
+                [Mod("@", "spot", false)]
             ),
             Cmd(
                 Taxi,

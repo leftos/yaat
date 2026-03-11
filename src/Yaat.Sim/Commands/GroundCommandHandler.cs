@@ -262,6 +262,11 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Pushback requires aircraft to be at parking");
         }
 
+        if (push.DestinationParking is not null)
+        {
+            return TryPushbackToSpot(aircraft, push, groundLayout);
+        }
+
         double? targetLat = null;
         double? targetLon = null;
         int? resolvedHeading = push.Heading;
@@ -365,6 +370,80 @@ internal static class GroundCommandHandler
         else if (resolvedHeading is not null)
         {
             msg += $", face heading {resolvedHeading:000}";
+        }
+
+        return CommandDispatcher.Ok(msg);
+    }
+
+    private static CommandResult TryPushbackToSpot(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout)
+    {
+        if (groundLayout is null)
+        {
+            return new CommandResult(false, "No airport ground layout available");
+        }
+
+        var destNode = groundLayout.FindSpotByName(push.DestinationParking!);
+        if (destNode is null)
+        {
+            return new CommandResult(false, $"Cannot find parking spot '{push.DestinationParking}'");
+        }
+
+        var startNode = groundLayout.FindNearestNode(aircraft.Latitude, aircraft.Longitude);
+        if (startNode is null)
+        {
+            return new CommandResult(false, "Cannot find position on taxiway graph");
+        }
+
+        var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, destNode.Id);
+        if (route is null)
+        {
+            return new CommandResult(false, $"No route to parking spot '{push.DestinationParking}'");
+        }
+
+        // Resolve final heading: explicit heading, facing taxiway, or parking node's heading
+        int? resolvedHeading = push.Heading;
+        if (resolvedHeading is null && push.FacingTaxiway is not null)
+        {
+            var facingNode = groundLayout.FindExitByTaxiway(destNode.Latitude, destNode.Longitude, push.FacingTaxiway);
+            if (facingNode is not null)
+            {
+                double bearingToFacing = GeoMath.BearingTo(destNode.Latitude, destNode.Longitude, facingNode.Latitude, facingNode.Longitude);
+                double? edgeHeading = groundLayout.GetEdgeHeadingForTaxiway(destNode, push.FacingTaxiway, bearingToFacing);
+                resolvedHeading = edgeHeading is not null
+                    ? FlightPhysics.NormalizeHeadingInt(edgeHeading.Value)
+                    : FlightPhysics.NormalizeHeadingInt(bearingToFacing);
+            }
+        }
+
+        resolvedHeading ??= destNode.Heading is not null ? FlightPhysics.NormalizeHeadingInt(destNode.Heading.Value) : null;
+
+        Log.LogDebug(
+            "[Pushback] {Callsign}: push to spot {Spot} via {SegCount} segments, finalHdg={Hdg}",
+            aircraft.Callsign,
+            push.DestinationParking,
+            route.Segments.Count,
+            resolvedHeading?.ToString() ?? "none"
+        );
+
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+        aircraft.Phases!.Clear(ctx);
+
+        var phase = new PushbackToSpotPhase(route, resolvedHeading);
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new AtParkingPhase());
+        aircraft.Phases.Start(ctx);
+
+        aircraft.ParkingSpot = push.DestinationParking!.ToUpperInvariant();
+
+        var msg = $"Pushing back to {push.DestinationParking}";
+        if (push.FacingTaxiway is not null)
+        {
+            msg += $" facing {push.FacingTaxiway}";
+        }
+        else if (push.Heading is not null)
+        {
+            msg += $", heading {push.Heading:000}";
         }
 
         return CommandDispatcher.Ok(msg);

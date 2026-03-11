@@ -197,7 +197,7 @@ ApproachClearance.cs           # Record on PhaseList storing active approach sta
 UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase
 
 # Phases/Ground/
-AtParkingPhase / PushbackPhase / TaxiingPhase / HoldingShortPhase
+AtParkingPhase / PushbackPhase / PushbackToSpotPhase / TaxiingPhase / HoldingShortPhase
 CrossingRunwayPhase / RunwayExitPhase / HoldingAfterExitPhase / FollowingPhase
 
 # Data/

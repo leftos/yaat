@@ -14,6 +14,29 @@ internal static class GroundCommandParser
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        // @spot syntax: PUSH @4A, PUSH @4A A, PUSH @4A 180
+        if (tokens.Length >= 1 && tokens[0].StartsWith('@') && tokens[0].Length > 1)
+        {
+            string spotName = tokens[0][1..].ToUpperInvariant();
+            if (tokens.Length == 1)
+            {
+                return new PushbackCommand(DestinationParking: spotName);
+            }
+
+            if (tokens.Length == 2)
+            {
+                if (int.TryParse(tokens[1], out var hdg) && hdg >= 1 && hdg <= 360)
+                {
+                    return new PushbackCommand(Heading: hdg, DestinationParking: spotName);
+                }
+
+                return new PushbackCommand(FacingTaxiway: tokens[1].ToUpperInvariant(), DestinationParking: spotName);
+            }
+
+            return new PushbackCommand(DestinationParking: spotName);
+        }
+
         if (tokens.Length == 1)
         {
             if (int.TryParse(tokens[0], out var heading) && heading >= 1 && heading <= 360)

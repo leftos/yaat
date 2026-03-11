@@ -4,6 +4,8 @@
 
 YAAT (Yet Another ATC Trainer) — instructor/RPO desktop client for ATC training. Connects to [yaat-server](https://github.com/leftos/yaat-server) via SignalR; server feeds CRC via SignalR+MessagePack.
 
+YAAT uses ATCTrainer scenarios directly — all vNAS data-api resources (scenarios, weather profiles, airport data) are compatible. Scenarios fetched from `https://data-api.vnas.vatsim.net/api/training/scenarios/{id}` are the same ATCTrainer JSON format that `ScenarioLoader.Load()` parses. Do not treat ATCTrainer and YAAT scenarios as different formats.
+
 ## Build & Run
 
 ```bash
