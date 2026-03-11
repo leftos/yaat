@@ -93,7 +93,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly UserPreferences _preferences;
 
     private static readonly IReadOnlyList<CommandDefinition> DisplayCommands = CommandRegistry
-        .All.Values.Where(c => !c.IsGlobal && c.Type != CanonicalCommandType.DirectTo)
+        .All.Values.Where(c => c.Type != CanonicalCommandType.DirectTo)
         .ToArray();
 
     [ObservableProperty]
