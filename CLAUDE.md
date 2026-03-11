@@ -154,11 +154,11 @@ Re-running a slash command in an already-linked thread triggers an immediate com
 **Do not guess aviation details.** Use FAA 7110.65, AIM, ICAO Doc 4444 as authorities.
 
 **Local FAA references — DO NOT web-search:**
-- **7110.65**: `C:\Users\Leftos\.claude\reference\faa\7110.65/` (index: `INDEX.md`)
-- **AIM**: `C:\Users\Leftos\.claude\reference\faa\aim/` (index: `INDEX.md`)
+- **7110.65**: `.claude/reference/faa/7110.65/` (index: `INDEX.md`)
+- **AIM**: `.claude/reference/faa/aim/` (index: `INDEX.md`)
 
 When invoking aviation-sim-expert, always include:
-> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files. Read them directly via Read/Grep/Glob at `C:\Users\Leftos\.claude\reference\faa\7110.65/` and `C:\Users\Leftos\.claude\reference\faa\aim/`. Do NOT use web search tools to look up 7110.65 or AIM content."
+> "IMPORTANT: The FAA 7110.65 and AIM are available as local markdown files in the repo. Read them directly via Read/Grep/Glob at `.claude/reference/faa/7110.65/` and `.claude/reference/faa/aim/`. Do NOT use web search tools to look up 7110.65 or AIM content."
 
 ## Recommended Agents
 
