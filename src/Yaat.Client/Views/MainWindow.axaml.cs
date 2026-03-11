@@ -1290,8 +1290,8 @@ public partial class MainWindow : Window
             var dialog = new Window
             {
                 Title = "Confirm Exit",
-                Width = 360,
-                Height = 150,
+                Width = 420,
+                SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 CanResize = false,
                 ShowInTaskbar = false,
