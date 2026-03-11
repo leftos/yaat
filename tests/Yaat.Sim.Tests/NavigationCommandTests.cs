@@ -19,7 +19,6 @@ public class NavigationCommandTests
             AircraftType = "B738",
             Heading = heading,
             Altitude = altitude,
-            GroundSpeed = 250,
             Latitude = lat,
             Longitude = lon,
         };

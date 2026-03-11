@@ -200,7 +200,6 @@ public static class ScenarioLoader
         state.Heading = heading;
         state.Track = heading;
         state.Altitude = alt;
-        state.GroundSpeed = speed;
         state.IndicatedAirspeed = speed;
         var code = SimulationWorld.GenerateBeaconCode(rng);
         state.AssignedBeaconCode = code;
@@ -272,7 +271,6 @@ public static class ScenarioLoader
         state.Heading = init.Heading;
         state.Track = init.Heading;
         state.Altitude = init.Altitude;
-        state.GroundSpeed = init.Speed;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
         var rwyCode = SimulationWorld.GenerateBeaconCode(rng);
@@ -338,7 +336,6 @@ public static class ScenarioLoader
         state.Heading = init.Heading;
         state.Track = init.Heading;
         state.Altitude = init.Altitude;
-        state.GroundSpeed = init.Speed;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
         var finalCode = SimulationWorld.GenerateBeaconCode(rng);
@@ -415,7 +412,6 @@ public static class ScenarioLoader
         state.Heading = init.Heading;
         state.Track = init.Heading;
         state.Altitude = init.Altitude;
-        state.GroundSpeed = init.Speed;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
         var parkCode = SimulationWorld.GenerateBeaconCode(rng);

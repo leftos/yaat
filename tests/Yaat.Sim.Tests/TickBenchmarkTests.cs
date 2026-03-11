@@ -96,7 +96,6 @@ public class TickBenchmarkTests(ITestOutputHelper output)
             Longitude = -122.2 + index * 0.01,
             Heading = 280,
             Altitude = 5000 + index * 100,
-            GroundSpeed = 250,
             IndicatedAirspeed = 250,
             IsOnGround = false,
         };

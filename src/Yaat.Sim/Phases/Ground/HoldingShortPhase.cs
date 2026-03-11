@@ -25,7 +25,7 @@ public sealed class HoldingShortPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        ctx.Aircraft.GroundSpeed = 0;
+        ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
 
         ctx.Logger.LogDebug(
@@ -45,7 +45,7 @@ public sealed class HoldingShortPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        ctx.Aircraft.GroundSpeed = 0;
+        ctx.Aircraft.IndicatedAirspeed = 0;
 
         // Check if clearance has been satisfied
         foreach (var req in Requirements)

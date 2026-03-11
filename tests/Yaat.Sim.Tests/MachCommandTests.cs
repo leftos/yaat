@@ -20,7 +20,6 @@ public class MachCommandTests
             Heading = 360,
             Track = 360,
             Altitude = altitude,
-            GroundSpeed = 480,
             IndicatedAirspeed = ias,
         };
     }

@@ -47,7 +47,6 @@ public class FinalApproachLateralTests
             Longitude = startPos.Lon,
             Heading = startHeading,
             Altitude = startAltitude,
-            GroundSpeed = startSpeed,
             IndicatedAirspeed = startSpeed,
             IsOnGround = false,
             Departure = "KTEST",

@@ -18,7 +18,6 @@ public class CommandQueueTests
             Longitude = lon,
             Heading = heading,
             Altitude = altitude,
-            GroundSpeed = 250,
             IndicatedAirspeed = 250,
             IsOnGround = false,
         };
@@ -221,7 +220,6 @@ public class CommandQueueTests
         // GS=0 so aircraft does not move during the update, keeping the target within 0.1nm.
         var ac = MakeAircraft(lat: 37.7, lon: -122.2);
         ac.Heading = 090;
-        ac.GroundSpeed = 0;
         ac.IndicatedAirspeed = 0;
         ac.IsOnGround = true;
 
@@ -248,7 +246,6 @@ public class CommandQueueTests
         // GS=0 so aircraft does not move during the update, keeping the target within 0.1nm.
         var ac = MakeAircraft(lat: 37.7, lon: -122.2);
         ac.Heading = 090;
-        ac.GroundSpeed = 0;
         ac.IndicatedAirspeed = 0;
         ac.IsOnGround = true;
 
@@ -353,7 +350,6 @@ public class CommandQueueTests
         // Tick 2: 3.0 - 1.0 = 2.0 → incomplete. Tick 3: 1.0 → incomplete. Tick 4: 0.0 → complete.
         var ac = MakeAircraft();
         ac.IsOnGround = true;
-        ac.GroundSpeed = 3600;
         ac.IndicatedAirspeed = 3600;
 
         var cmd = new TrackedCommand { Type = TrackedCommandType.Wait };

@@ -20,7 +20,6 @@ public class WindPhysicsTests
             Heading = heading,
             Track = heading,
             Altitude = altitude,
-            GroundSpeed = speed,
             IndicatedAirspeed = onGround ? 0 : speed,
             IsOnGround = onGround,
         };
@@ -153,7 +152,6 @@ public class WindPhysicsTests
     public void GroundAircraft_WindHasNoEffect()
     {
         var ac = MakeAircraft(20, 090, 0, onGround: true);
-        ac.GroundSpeed = 20;
         ac.IndicatedAirspeed = 20;
         ac.IsOnGround = true;
 
@@ -189,27 +187,6 @@ public class WindPhysicsTests
         var ac = MakeAircraft(200, 135, 10_000);
         FlightPhysics.Update(ac, 1.0, null, null);
         Assert.Equal(ac.Heading, ac.Track, Tolerance);
-    }
-
-    [Fact]
-    public void NullWeather_BackwardCompat_IasAutoInitFromGs()
-    {
-        // Existing code sets GroundSpeed but not IndicatedAirspeed. Should auto-init.
-        var ac = new AircraftState
-        {
-            Callsign = "OLD01",
-            AircraftType = "B738",
-            Heading = 090,
-            Altitude = 5_000,
-            GroundSpeed = 250,
-            IndicatedAirspeed = 0, // not initialized
-            IsOnGround = false,
-        };
-
-        FlightPhysics.Update(ac, 1.0, null, null);
-
-        // IAS should have been auto-initialized from GS
-        Assert.True(ac.IndicatedAirspeed > 0, "Expected IAS to be initialized from GS");
     }
 
     // -------------------------------------------------------------------------

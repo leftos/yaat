@@ -82,20 +82,19 @@ public sealed class TakeoffPhase : Phase
         double accelRate = CategoryPerformance.GroundAccelRate(ctx.Category);
 
         // Accelerate toward Vr using ground acceleration rate
-        double targetSpeed = ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds;
+        double targetSpeed = ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds;
         if (targetSpeed >= vr)
         {
             targetSpeed = vr;
         }
-        ctx.Aircraft.GroundSpeed = targetSpeed;
+        ctx.Aircraft.IndicatedAirspeed = targetSpeed;
         ctx.Targets.TargetSpeed = null;
 
         // Liftoff at Vr
-        if (ctx.Aircraft.GroundSpeed >= vr)
+        if (ctx.Aircraft.IndicatedAirspeed >= vr)
         {
             _airborne = true;
             ctx.Aircraft.IsOnGround = false;
-            ctx.Aircraft.IndicatedAirspeed = ctx.Aircraft.GroundSpeed;
             ctx.Logger.LogDebug("[Takeoff] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
             // Set climb targets

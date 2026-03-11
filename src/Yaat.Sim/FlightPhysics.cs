@@ -516,11 +516,6 @@ public static class FlightPhysics
         if (Math.Abs(diff) < SpeedSnapKts)
         {
             aircraft.IndicatedAirspeed = goal;
-            if (aircraft.IsOnGround)
-            {
-                aircraft.GroundSpeed = goal;
-            }
-
             aircraft.Targets.TargetSpeed = null;
             return;
         }
@@ -532,12 +527,6 @@ public static class FlightPhysics
         double change = Math.Min(Math.Abs(diff), maxChange);
 
         aircraft.IndicatedAirspeed += accelerating ? change : -change;
-
-        // On the ground, GS tracks IAS directly (no wind effect on ground).
-        if (aircraft.IsOnGround)
-        {
-            aircraft.GroundSpeed = aircraft.IndicatedAirspeed;
-        }
     }
 
     private static void UpdatePosition(AircraftState aircraft, double deltaSeconds, WeatherProfile? weather)
@@ -547,20 +536,19 @@ public static class FlightPhysics
         if (aircraft.IsOnGround)
         {
             // Enforce ground conflict speed limit before computing displacement.
-            if (aircraft.GroundSpeedLimit is { } limit && aircraft.GroundSpeed > limit)
+            if (aircraft.GroundSpeedLimit is { } limit && aircraft.IndicatedAirspeed > limit)
             {
-                aircraft.GroundSpeed = limit;
+                aircraft.IndicatedAirspeed = limit;
             }
 
-            double speedNmPerSec = aircraft.GroundSpeed / 3600.0;
+            double speedNmPerSec = aircraft.IndicatedAirspeed / 3600.0;
             double moveHeading = aircraft.PushbackHeading ?? aircraft.Heading;
             double headingRad = moveHeading * DegToRad;
 
             aircraft.Latitude += speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / NmPerDegLat;
             aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
 
-            // On the ground: IAS and Track follow GS/Heading directly.
-            aircraft.IndicatedAirspeed = aircraft.GroundSpeed;
+            // On the ground: Track follows Heading directly (GS is derived from IAS).
             aircraft.Track = aircraft.Heading;
         }
         else
@@ -570,18 +558,19 @@ public static class FlightPhysics
             double headingRad = aircraft.Heading * DegToRad;
             var (windNKts, windEKts) = WindInterpolator.GetWindComponents(weather, aircraft.Altitude);
 
+            // Cache wind so AircraftState.GroundSpeed can derive the correct value without weather context.
+            aircraft.WindComponents = (windNKts, windEKts);
+
             // Ground speed vector (knots, N/E components).
             double gsNKts = tasKts * Math.Cos(headingRad) + windNKts;
             double gsEKts = tasKts * Math.Sin(headingRad) + windEKts;
 
-            double gsKts = Math.Sqrt(gsNKts * gsNKts + gsEKts * gsEKts);
             double trackDeg = Math.Atan2(gsEKts, gsNKts) * (180.0 / Math.PI);
             if (trackDeg < 0)
             {
                 trackDeg += 360.0;
             }
 
-            aircraft.GroundSpeed = gsKts;
             aircraft.Track = trackDeg;
 
             // Displace using the full ground speed vector.

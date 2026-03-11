@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -25,6 +24,8 @@ public sealed class TaxiingPhase : Phase
     private bool _initialized;
     private double _timeSinceLastLog;
     private double _prevDistToTarget = double.MaxValue;
+    private double _pathDistToHoldShortNm; // path distance from _targetNodeId to next uncleared hold-short
+    private bool _hasHoldShortAhead;
 
     public override string Name => "Taxiing";
 
@@ -142,10 +143,18 @@ public sealed class TaxiingPhase : Phase
         double brakingLimit = Math.Sqrt(requiredArrivalSpeed * requiredArrivalSpeed + 2.0 * decelRate * dist * 3600.0);
         targetSpeed = Math.Min(targetSpeed, brakingLimit);
 
+        // If there's a hold-short ahead in future segments, also brake for that.
+        if (!isHoldShortNode && _hasHoldShortAhead)
+        {
+            double totalDist = dist + _pathDistToHoldShortNm;
+            double holdShortBrakingLimit = Math.Sqrt(2.0 * decelRate * totalDist * 3600.0);
+            targetSpeed = Math.Min(targetSpeed, holdShortBrakingLimit);
+        }
+
         // Safety backstop: cap speed so we can't overshoot the target node in one tick.
         if (ctx.DeltaSeconds > 0 && dist > 0)
         {
-            double maxSpeedForDist = (dist * 0.8) / ctx.DeltaSeconds * 3600.0;
+            double maxSpeedForDist = dist * 0.8 / ctx.DeltaSeconds * 3600.0;
             targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
         }
 
@@ -188,7 +197,7 @@ public sealed class TaxiingPhase : Phase
 
         if (endStatus == PhaseStatus.Completed)
         {
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
         }
     }
@@ -237,6 +246,32 @@ public sealed class TaxiingPhase : Phase
                 if (ctx.GroundLayout.Nodes.TryGetValue(nextToNodeId, out var nextNode))
                 {
                     _nextSegmentBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, nextNode.Latitude, nextNode.Longitude);
+                }
+            }
+
+            // Walk remaining segments to find total path distance to next uncleared hold-short.
+            _pathDistToHoldShortNm = 0;
+            _hasHoldShortAhead = false;
+            int prevId = _targetNodeId;
+            for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
+            {
+                var futureSeg = route.Segments[i];
+                if (
+                    ctx.GroundLayout.Nodes.TryGetValue(prevId, out var fromFuture)
+                    && ctx.GroundLayout.Nodes.TryGetValue(futureSeg.ToNodeId, out var toFuture)
+                )
+                {
+                    _pathDistToHoldShortNm += GeoMath.DistanceNm(fromFuture.Latitude, fromFuture.Longitude, toFuture.Latitude, toFuture.Longitude);
+                    prevId = futureSeg.ToNodeId;
+                    if (route.GetHoldShortAt(futureSeg.ToNodeId) is { IsCleared: false })
+                    {
+                        _hasHoldShortAhead = true;
+                        break;
+                    }
+                }
+                else
+                {
+                    break;
                 }
             }
         }
@@ -289,7 +324,7 @@ public sealed class TaxiingPhase : Phase
                 ctx.Aircraft.Longitude = hsNode.Longitude;
             }
 
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
             var holdPhase = new HoldingShortPhase(holdShort);
@@ -414,8 +449,7 @@ public sealed class TaxiingPhase : Phase
             )
             {
                 // Mark exit hold-short as cleared if it exists in the route's hold-short list
-                var exitHs = route.GetHoldShortAt(seg.ToNodeId);
-                if (exitHs is not null)
+                if (route.GetHoldShortAt(seg.ToNodeId) is { } exitHs)
                 {
                     exitHs.IsCleared = true;
                 }
@@ -447,16 +481,16 @@ public sealed class TaxiingPhase : Phase
             targetSpeed = Math.Min(targetSpeed, limit);
         }
 
-        double current = ctx.Aircraft.GroundSpeed;
+        double current = ctx.Aircraft.IndicatedAirspeed;
         if (current < targetSpeed)
         {
             double rate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Min(targetSpeed, current + rate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Min(targetSpeed, current + rate * ctx.DeltaSeconds);
         }
         else if (current > targetSpeed)
         {
             double rate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Max(targetSpeed, current - rate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Max(targetSpeed, current - rate * ctx.DeltaSeconds);
         }
     }
 
@@ -490,7 +524,7 @@ public sealed class TaxiingPhase : Phase
         bool isClosedTraffic = dep.Departure is ClosedTrafficDeparture;
         if (isClosedTraffic)
         {
-            phases.InsertAfterCurrent(new Phase[] { lineup, luaw, takeoffPhase });
+            phases.InsertAfterCurrent([lineup, luaw, takeoffPhase]);
         }
         else
         {
@@ -503,7 +537,7 @@ public sealed class TaxiingPhase : Phase
                 IsVfr = ctx.Aircraft.IsVfr,
                 CruiseAltitude = ctx.Aircraft.CruiseAltitude,
             };
-            phases.InsertAfterCurrent(new Phase[] { lineup, luaw, takeoffPhase, climb });
+            phases.InsertAfterCurrent([lineup, luaw, takeoffPhase, climb]);
         }
 
         if (dep.Type == ClearanceType.ClearedForTakeoff)

@@ -16,7 +16,6 @@ public class ProcedureConstraintTests
             Heading = 360,
             Track = 360,
             Altitude = altitude,
-            GroundSpeed = 250,
             IndicatedAirspeed = ias,
         };
     }
@@ -225,7 +224,6 @@ public class ProcedureConstraintTests
     {
         var aircraft = CreateAircraft(altitude: 100, ias: 30);
         aircraft.IsOnGround = true;
-        aircraft.GroundSpeed = 30;
         aircraft.Targets.TargetSpeed = 300;
 
         FlightPhysics.Update(aircraft, 1.0);

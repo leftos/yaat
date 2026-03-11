@@ -29,7 +29,6 @@ public class PatternCircuitE2ETests
             Heading = heading,
             Track = heading,
             Altitude = altitude,
-            GroundSpeed = ias,
             IndicatedAirspeed = ias,
             IsOnGround = false,
             Departure = "TEST",

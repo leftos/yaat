@@ -27,7 +27,6 @@ public class ApproachClearanceTests
             AircraftType = "B738",
             Heading = heading,
             Altitude = altitude,
-            GroundSpeed = 180,
             Latitude = lat,
             Longitude = lon,
             Destination = destination,

@@ -23,7 +23,6 @@ public class TurnAnticipationTests
             Heading = heading,
             Track = heading,
             Altitude = altitude,
-            GroundSpeed = groundSpeed,
             IndicatedAirspeed = groundSpeed,
         };
     }

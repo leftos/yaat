@@ -95,7 +95,6 @@ public class BankAngleTests
             Track = heading,
             Altitude = altitude,
             IndicatedAirspeed = ias,
-            GroundSpeed = ias,
         };
     }
 }

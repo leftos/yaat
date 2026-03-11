@@ -47,7 +47,6 @@ public class InitialClimbAltitudeTests
             AircraftType = "B738",
             Heading = 280,
             Altitude = FieldElevation + 400,
-            GroundSpeed = 180,
             Phases = phaseList,
         };
         var targets = aircraft.Targets;
@@ -182,7 +181,6 @@ public class InitialClimbAltitudeTests
             AircraftType = "B738",
             Heading = 280,
             Altitude = FieldElevation + 400,
-            GroundSpeed = 180,
             Phases = phaseList,
         };
         var targets = aircraft.Targets;
@@ -223,7 +221,6 @@ public class InitialClimbAltitudeTests
             AircraftType = "B738",
             Heading = 280,
             Altitude = FieldElevation + 400,
-            GroundSpeed = 180,
             Phases = phaseList,
         };
         var targets = aircraft.Targets;

@@ -39,7 +39,6 @@ public class PatternPhaseTests
             Longitude = lon,
             Heading = heading,
             Altitude = altitude,
-            GroundSpeed = groundSpeed,
             IndicatedAirspeed = ias,
             IsOnGround = onGround,
             Departure = "TEST",

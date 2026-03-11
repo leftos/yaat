@@ -34,7 +34,6 @@ public class TowerPhaseTests
             Longitude = lon,
             Heading = heading,
             Altitude = altitude,
-            GroundSpeed = groundSpeed,
             IndicatedAirspeed = ias,
             IsOnGround = onGround,
             Departure = "TEST",

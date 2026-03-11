@@ -438,11 +438,9 @@ public class GroundPhaseTests
         var layout = BuildCrossingLayout();
         var target = MakeGroundAircraft(37.623, -122.380, heading: 0);
         target.Callsign = "LEAD01";
-        target.GroundSpeed = 10;
 
         // Place follower just before the hold-short node (heading toward it)
         var aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 0);
-        aircraft.GroundSpeed = 10;
         aircraft.Phases = new PhaseList();
         var followPhase = new FollowingPhase("LEAD01");
         aircraft.Phases.Add(followPhase);
@@ -475,11 +473,9 @@ public class GroundPhaseTests
         var layout = BuildCrossingLayout();
         var target = MakeGroundAircraft(37.619, -122.380, heading: 180);
         target.Callsign = "LEAD01";
-        target.GroundSpeed = 10;
 
         // Place follower near node 1 but heading AWAY from it (south)
         var aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 180);
-        aircraft.GroundSpeed = 10;
         aircraft.Phases = new PhaseList();
         var followPhase = new FollowingPhase("LEAD01");
         aircraft.Phases.Add(followPhase);
@@ -499,10 +495,8 @@ public class GroundPhaseTests
     {
         var target = MakeGroundAircraft(37.623, -122.380, heading: 0);
         target.Callsign = "LEAD01";
-        target.GroundSpeed = 10;
 
         var aircraft = MakeGroundAircraft(37.6208, -122.380, heading: 0);
-        aircraft.GroundSpeed = 10;
         aircraft.Phases = new PhaseList();
         var followPhase = new FollowingPhase("LEAD01");
         aircraft.Phases.Add(followPhase);

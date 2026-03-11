@@ -76,12 +76,10 @@ public sealed class LandingPhase : Phase
 
             // Set touchdown speed and begin deceleration
             double tdSpeed = CategoryPerformance.TouchdownSpeed(ctx.Category, ctx.Aircraft.AircraftType);
-            if (ctx.Aircraft.GroundSpeed > tdSpeed)
+            if (ctx.Aircraft.IndicatedAirspeed > tdSpeed)
             {
-                ctx.Aircraft.GroundSpeed = tdSpeed;
+                ctx.Aircraft.IndicatedAirspeed = tdSpeed;
             }
-
-            ctx.Aircraft.IndicatedAirspeed = ctx.Aircraft.GroundSpeed;
 
             ctx.Logger.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
         }
@@ -104,18 +102,18 @@ public sealed class LandingPhase : Phase
 
         // Decelerate on the ground
         double decelRate = CategoryPerformance.RolloutDecelRate(ctx.Category);
-        double newSpeed = ctx.Aircraft.GroundSpeed - decelRate * ctx.DeltaSeconds;
+        double newSpeed = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
         if (newSpeed < 0)
         {
             newSpeed = 0;
         }
-        ctx.Aircraft.GroundSpeed = newSpeed;
+        ctx.Aircraft.IndicatedAirspeed = newSpeed;
         ctx.Targets.TargetSpeed = null;
 
         var cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
-        _canGoAround = ctx.Aircraft.GroundSpeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
+        _canGoAround = ctx.Aircraft.IndicatedAirspeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
 
-        if (ctx.Aircraft.GroundSpeed <= RolloutCompleteSpeed)
+        if (ctx.Aircraft.IndicatedAirspeed <= RolloutCompleteSpeed)
         {
             ctx.Logger.LogDebug("[Landing] {Callsign}: rollout complete, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
             return true;

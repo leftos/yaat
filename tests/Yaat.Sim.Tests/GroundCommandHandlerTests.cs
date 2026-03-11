@@ -27,7 +27,6 @@ public class GroundCommandHandlerTests
             Longitude = lon,
             Heading = 280,
             Altitude = 6,
-            GroundSpeed = 0,
             IndicatedAirspeed = 0,
             IsOnGround = true,
             Departure = "OAK",

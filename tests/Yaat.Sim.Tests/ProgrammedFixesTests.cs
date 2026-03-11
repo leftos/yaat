@@ -23,7 +23,6 @@ public class ProgrammedFixesTests
             Longitude = -122.38,
             Heading = 280,
             Altitude = 10000,
-            GroundSpeed = 250,
             Route = route,
             Destination = destination ?? "",
             ExpectedApproach = expectedApproach,

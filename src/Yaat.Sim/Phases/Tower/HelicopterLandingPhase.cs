@@ -49,7 +49,7 @@ public sealed class HelicopterLandingPhase : Phase
             ctx.Aircraft.IsOnGround = true;
             ctx.Aircraft.Altitude = _fieldElevation;
             ctx.Aircraft.VerticalSpeed = 0;
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetAltitude = null;
             ctx.Targets.DesiredVerticalRate = null;
             ctx.Targets.TargetSpeed = null;

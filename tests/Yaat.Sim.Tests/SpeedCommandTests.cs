@@ -22,7 +22,6 @@ public class SpeedCommandTests
             Heading = 360,
             Track = 360,
             Altitude = altitude,
-            GroundSpeed = 250,
             IndicatedAirspeed = ias,
         };
     }
@@ -264,7 +263,6 @@ public class SpeedPhysicsTests
             Heading = 360,
             Track = 360,
             Altitude = altitude,
-            GroundSpeed = ias,
             IndicatedAirspeed = ias,
         };
     }

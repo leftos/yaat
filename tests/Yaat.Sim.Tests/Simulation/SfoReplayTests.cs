@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Xunit;
+using Xunit.Abstractions;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -11,8 +13,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Covers issues #51 (departure wrong direction) and #53 (AAL2839 taxi overshoot).
 /// Silently skip if NavData.dat or sfo.geojson is not present in TestData/.
 /// </summary>
-public class SfoReplayTests
+public class SfoReplayTests(ITestOutputHelper output)
 {
+    private readonly ITestOutputHelper _output = output;
     private const string RecordingPath = "TestData/sfo-crossing-runways-recording.json";
 
     private static SessionRecording? LoadRecording()
@@ -218,6 +221,168 @@ public class SfoReplayTests
                 + $"Taxiways: [{string.Join(", ", route.Segments.Select(s => s.TaxiwayName).Distinct())}]. "
                 + $"Issue #53: pathfinder overshoot sends aircraft to M1/M2 ramp junction before returning to runway 1L."
         );
+    }
+
+    // --- Issue #54: Aircraft holding short are positioned on or past the runway edge ---
+
+    /// <summary>
+    /// DAL819 (TAXI M1 1L) and UAL859 (TAXI A1 1R) should hold short before the runway edge.
+    /// The aircraft center (lat/lon) must have a cross-track distance from the runway centerline
+    /// that is at least the runway half-width, meaning it is not on the runway surface.
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_DAL819_UAL859_HoldShortBeforeRunwayEdge()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        var layout = engine.World.GroundLayout ?? new TestAirportGroundData().GetLayout("SFO");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Both aircraft have preset taxi at t=0; replay to 90s so they've settled at hold-short
+        engine.Replay(recording, 90.0);
+
+        foreach (string callsign in new[] { "DAL819", "UAL859" })
+        {
+            var ac = engine.FindAircraft(callsign);
+            if (ac is null || !ac.IsOnGround)
+            {
+                continue;
+            }
+
+            // Find the hold-short node this aircraft is at (nearest RunwayHoldShort)
+            var hsNode = layout
+                .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort)
+                .OrderBy(n => GeoMath.DistanceNm(ac.Latitude, ac.Longitude, n.Latitude, n.Longitude))
+                .FirstOrDefault();
+            if (hsNode is null)
+            {
+                continue;
+            }
+
+            double distToHsNm = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, hsNode.Latitude, hsNode.Longitude);
+            double distToHsFt = distToHsNm * GeoMath.FeetPerNm;
+
+            // Log closest few hold-short nodes for diagnosis
+            var nearest5 = layout
+                .Nodes.Values.Where(n => n.Type == GroundNodeType.RunwayHoldShort)
+                .OrderBy(n => GeoMath.DistanceNm(ac.Latitude, ac.Longitude, n.Latitude, n.Longitude))
+                .Take(5)
+                .Select(n =>
+                    $"  node {n.Id} runwayId={n.RunwayId} ({n.Latitude:F6},{n.Longitude:F6}) dist={GeoMath.DistanceNm(ac.Latitude, ac.Longitude, n.Latitude, n.Longitude) * GeoMath.FeetPerNm:F0}ft edges=[{string.Join(",", n.Edges.Select(e => e.TaxiwayName))}]"
+                )
+                .ToList();
+
+            // Log the aircraft's assigned route hold-short points
+            var routeHs =
+                ac.AssignedTaxiRoute?.HoldShortPoints.Select(h =>
+                        $"  hs node={h.NodeId} target={h.TargetName} reason={h.Reason} cleared={h.IsCleared}"
+                    )
+                    .ToList()
+                ?? [];
+
+            string diag =
+                $"\n{callsign} pos=({ac.Latitude:F6},{ac.Longitude:F6}) gs={ac.GroundSpeed:F1}kts\nNearest hold-short nodes:\n{string.Join("\n", nearest5)}\nRoute hold-short points:\n{string.Join("\n", routeHs.Count > 0 ? routeHs : ["  (none)"])}";
+
+            // The aircraft center should be within 200ft of its nearest hold-short node
+            // (confirming it is actually at hold-short, not still taxiing or somewhere else)
+            Assert.True(
+                distToHsFt <= 200.0,
+                $"{callsign} is {distToHsFt:F0}ft from its nearest hold-short node {hsNode.Id} (runwayId={hsNode.RunwayId}). Expected ≤200ft — aircraft may not have reached hold-short.{diag}"
+            );
+
+            // Find runway geometry for this hold-short's runway
+            if (hsNode.RunwayId is not { } rwyId)
+            {
+                continue;
+            }
+
+            var runway = layout.Runways.FirstOrDefault(r =>
+            {
+                var rid = RunwayIdentifier.Parse(r.Name);
+                return rid.Contains(rwyId.End1) || rid.Contains(rwyId.End2);
+            });
+            if (runway is null)
+            {
+                continue;
+            }
+
+            var c0 = runway.Coordinates[0];
+            var cN = runway.Coordinates[^1];
+            double rwyHeading = GeoMath.BearingTo(c0.Lat, c0.Lon, cN.Lat, cN.Lon);
+            double halfWidthNm = runway.WidthFt / 2.0 / GeoMath.FeetPerNm;
+            double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Latitude, ac.Longitude, c0.Lat, c0.Lon, rwyHeading));
+            double crossTrackFt = crossTrack * GeoMath.FeetPerNm;
+            double halfWidthFt = runway.WidthFt / 2.0;
+
+            Assert.True(
+                crossTrack >= halfWidthNm,
+                $"{callsign} center is {crossTrackFt:F0}ft from runway {rwyId} centerline but runway half-width is {halfWidthFt:F0}ft — aircraft center is on the runway surface. "
+                    + $"Issue #54: hold-short node is placed inside or at the runway boundary.{diag}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// Tick-by-tick trace of DAL819 approaching and stopping at the runway 1L hold-short.
+    /// Used to diagnose issue #54: aircraft ends up on the runway instead of at hold-short node.
+    /// </summary>
+    [Fact]
+    public void Diag_Sfo_DAL819_HoldShortApproach_TickByTick()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        var layout = engine.World.GroundLayout ?? new TestAirportGroundData().GetLayout("SFO");
+
+        // Node 882 is the 1L hold-short on M1 at (37.608220, -122.383308)
+        const double HsLat = 37.608220;
+        const double HsLon = -122.383308;
+        const int HsNodeId = 882;
+
+        var lines = new List<string>();
+        lines.Add($"=== DAL819 tick-by-tick trace toward hold-short node {HsNodeId} ({HsLat:F6},{HsLon:F6}) ===");
+
+        for (double t = 0.0; t <= 90.0; t += 1.0)
+        {
+            engine.Replay(recording, t);
+            var ac = engine.FindAircraft("DAL819");
+            if (ac is null)
+            {
+                continue;
+            }
+
+            double distToHs = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, HsLat, HsLon) * GeoMath.FeetPerNm;
+
+            // Find which node the aircraft is closest to overall
+            GroundNode? nearestNode = layout
+                ?.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ac.Latitude, ac.Longitude, n.Latitude, n.Longitude))
+                .FirstOrDefault();
+            string nodeInfo = nearestNode is null
+                ? ""
+                : $" nearestNode={nearestNode.Id}({nearestNode.Type},{nearestNode.RunwayId}) dist={GeoMath.DistanceNm(ac.Latitude, ac.Longitude, nearestNode.Latitude, nearestNode.Longitude) * GeoMath.FeetPerNm:F0}ft";
+
+            string phase = ac.Phases?.CurrentPhase?.Name ?? "?";
+            lines.Add(
+                $"t={t:F0}s pos=({ac.Latitude:F6},{ac.Longitude:F6}) gs={ac.GroundSpeed:F1}kts hdg={ac.Heading:F0} distToHs={distToHs:F0}ft phase={phase}{nodeInfo}"
+            );
+        }
+
+        foreach (var line in lines)
+        {
+            _output.WriteLine(line);
+        }
     }
 
     /// <summary>

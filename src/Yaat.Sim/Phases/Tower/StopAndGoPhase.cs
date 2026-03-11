@@ -71,10 +71,10 @@ public sealed class StopAndGoPhase : Phase
 
         if (!_stopped)
         {
-            if (ctx.Aircraft.GroundSpeed < 3)
+            if (ctx.Aircraft.IndicatedAirspeed < 3)
             {
                 _stopped = true;
-                ctx.Aircraft.GroundSpeed = 0;
+                ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
                 ctx.Logger.LogDebug("[StopAndGo] {Callsign}: full stop, pausing {Pause:F1}s", ctx.Aircraft.Callsign, _pauseDuration);
             }
@@ -97,15 +97,15 @@ public sealed class StopAndGoPhase : Phase
             double vr = CategoryPerformance.RotationSpeed(ctx.Category);
             double accelRate = CategoryPerformance.GroundAccelRate(ctx.Category);
 
-            double targetSpeed = ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds;
+            double targetSpeed = ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds;
             if (targetSpeed >= vr)
             {
                 targetSpeed = vr;
             }
-            ctx.Aircraft.GroundSpeed = targetSpeed;
+            ctx.Aircraft.IndicatedAirspeed = targetSpeed;
             ctx.Targets.TargetSpeed = null;
 
-            if (ctx.Aircraft.GroundSpeed >= vr)
+            if (ctx.Aircraft.IndicatedAirspeed >= vr)
             {
                 _airborne = true;
                 ctx.Aircraft.IsOnGround = false;

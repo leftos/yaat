@@ -93,7 +93,6 @@ public class ProcedureLoadingTests
             Heading = 280,
             Track = 280,
             Altitude = 0,
-            GroundSpeed = 0,
             IndicatedAirspeed = 0,
             Route = route,
             Departure = departure,

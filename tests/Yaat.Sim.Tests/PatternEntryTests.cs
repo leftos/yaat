@@ -59,7 +59,6 @@ public class PatternEntryTests
             Altitude = alt,
             Heading = heading,
             IndicatedAirspeed = 120,
-            GroundSpeed = 120,
             IsOnGround = false,
             Phases = new PhaseList(),
         };
@@ -659,7 +658,6 @@ public class PatternEntryTests
         var runway = MakeOak28R();
         var aircraft = MakeAircraft(runway.ThresholdLatitude, runway.ThresholdLongitude, 9, 292);
         aircraft.IsOnGround = true;
-        aircraft.GroundSpeed = 0;
         aircraft.IndicatedAirspeed = 0;
 
         var phases = new PhaseList { AssignedRunway = runway };

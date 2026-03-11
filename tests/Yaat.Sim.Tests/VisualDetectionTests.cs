@@ -287,7 +287,6 @@ public class VisualDetectionTests
             Track = heading,
             Altitude = altitude,
             IndicatedAirspeed = 250,
-            GroundSpeed = 250,
         };
     }
 }

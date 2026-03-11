@@ -55,7 +55,7 @@ public sealed class CrossingRunwayPhase : Phase
 
         if (ctx.Aircraft.IsHeld)
         {
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             return false;
         }
 
@@ -63,9 +63,9 @@ public sealed class CrossingRunwayPhase : Phase
 
         // Accelerate to crossing speed
         double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-        if (ctx.Aircraft.GroundSpeed < crossSpeed)
+        if (ctx.Aircraft.IndicatedAirspeed < crossSpeed)
         {
-            ctx.Aircraft.GroundSpeed = Math.Min(crossSpeed, ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Min(crossSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
         }
 
         // Turn toward target
@@ -98,7 +98,7 @@ public sealed class CrossingRunwayPhase : Phase
 
         if (endStatus == PhaseStatus.Completed)
         {
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
         }
     }

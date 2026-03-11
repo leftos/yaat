@@ -32,8 +32,8 @@ public class GroundConflictDetectorTests
             Latitude = lat,
             Longitude = lon,
             Heading = heading,
-            GroundSpeed = gs,
             IsOnGround = true,
+            IndicatedAirspeed = gs,
             PushbackHeading = pushbackHeading,
             AssignedTaxiRoute = taxiRoute,
         };

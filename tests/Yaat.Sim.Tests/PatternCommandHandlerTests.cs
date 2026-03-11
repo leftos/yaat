@@ -30,7 +30,6 @@ public class PatternCommandHandlerTests
             Longitude = lon,
             Heading = 280,
             Altitude = altitude,
-            GroundSpeed = groundSpeed,
             IndicatedAirspeed = groundSpeed,
             IsOnGround = onGround,
             Departure = "TEST",

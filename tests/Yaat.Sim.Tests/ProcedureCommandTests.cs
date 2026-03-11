@@ -20,7 +20,6 @@ public class ProcedureCommandTests
             Heading = 360,
             Track = 360,
             Altitude = altitude,
-            GroundSpeed = 250,
             IndicatedAirspeed = 250,
         };
     }

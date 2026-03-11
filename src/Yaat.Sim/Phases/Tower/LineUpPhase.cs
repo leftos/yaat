@@ -127,7 +127,7 @@ public sealed class LineUpPhase : Phase
 
         // Aligned — snap heading and stop
         ctx.Aircraft.Heading = _runwayHeading;
-        ctx.Aircraft.GroundSpeed = 0;
+        ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
 
         ctx.Logger.LogDebug("[LineUp] {Callsign}: aligned on runway, heading {Hdg:F0}", ctx.Aircraft.Callsign, _runwayHeading);
@@ -308,16 +308,16 @@ public sealed class LineUpPhase : Phase
 
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
     {
-        double current = ctx.Aircraft.GroundSpeed;
+        double current = ctx.Aircraft.IndicatedAirspeed;
         if (current < targetSpeed)
         {
             double rate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Min(targetSpeed, current + rate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Min(targetSpeed, current + rate * ctx.DeltaSeconds);
         }
         else if (current > targetSpeed)
         {
             double rate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Max(targetSpeed, current - rate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Max(targetSpeed, current - rate * ctx.DeltaSeconds);
         }
     }
 }

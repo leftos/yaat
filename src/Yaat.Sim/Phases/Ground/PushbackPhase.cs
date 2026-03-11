@@ -98,7 +98,7 @@ public sealed class PushbackPhase : Phase
     {
         if (ctx.Aircraft.IsHeld)
         {
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
             return false;
         }
@@ -134,7 +134,7 @@ public sealed class PushbackPhase : Phase
         if (_reachedTarget)
         {
             ctx.Targets.TargetSpeed = 0;
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Aircraft.PushbackHeading = null;
         }
         else
@@ -182,7 +182,7 @@ public sealed class PushbackPhase : Phase
             {
                 ctx.Aircraft.Latitude = TargetLatitude!.Value;
                 ctx.Aircraft.Longitude = TargetLongitude!.Value;
-                ctx.Aircraft.GroundSpeed = 0;
+                ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
                 _reachedTarget = true;
                 ctx.Logger.LogDebug("[Push] {Callsign}: reached target position, rotating to heading", ctx.Aircraft.Callsign);
@@ -288,7 +288,7 @@ public sealed class PushbackPhase : Phase
             ctx.Aircraft.Heading
         );
 
-        ctx.Aircraft.GroundSpeed = 0;
+        ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
         ctx.Aircraft.PushbackHeading = null;
     }

@@ -21,7 +21,6 @@ public class WaitCommandDispatchTests
             Longitude = -122.380,
             Heading = 180,
             Altitude = 13,
-            GroundSpeed = 0,
             IndicatedAirspeed = 0,
             IsOnGround = true,
             Departure = "KSFO",
@@ -38,7 +37,6 @@ public class WaitCommandDispatchTests
             Longitude = -122.2,
             Heading = 090,
             Altitude = 3000,
-            GroundSpeed = 200,
             IndicatedAirspeed = 200,
             IsOnGround = false,
         };

@@ -42,7 +42,7 @@ public sealed class FollowingPhase : Phase
         if (ctx.Aircraft.IsHeld)
         {
             double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Max(0, ctx.Aircraft.GroundSpeed - decelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Max(0, ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds);
             ctx.Targets.TargetSpeed = 0;
             return false;
         }
@@ -61,7 +61,7 @@ public sealed class FollowingPhase : Phase
                 _targetCallsign,
                 target is null ? "not found" : "no longer on ground"
             );
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
             // Insert idle ground phase so the aircraft remains in a state that accepts commands
@@ -82,30 +82,30 @@ public sealed class FollowingPhase : Phase
 
         if (dist <= StopDistanceNm)
         {
-            ctx.Aircraft.GroundSpeed = Math.Max(0, ctx.Aircraft.GroundSpeed - decelRate2 * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Max(0, ctx.Aircraft.IndicatedAirspeed - decelRate2 * ctx.DeltaSeconds);
         }
         else if (dist <= FollowDistanceNm)
         {
             double targetSpeed = target.GroundSpeed;
-            if (ctx.Aircraft.GroundSpeed > targetSpeed)
+            if (ctx.Aircraft.IndicatedAirspeed > targetSpeed)
             {
-                ctx.Aircraft.GroundSpeed = Math.Max(targetSpeed, ctx.Aircraft.GroundSpeed - decelRate2 * ctx.DeltaSeconds);
+                ctx.Aircraft.IndicatedAirspeed = Math.Max(targetSpeed, ctx.Aircraft.IndicatedAirspeed - decelRate2 * ctx.DeltaSeconds);
             }
-            else if (ctx.Aircraft.GroundSpeed < targetSpeed)
+            else if (ctx.Aircraft.IndicatedAirspeed < targetSpeed)
             {
-                ctx.Aircraft.GroundSpeed = Math.Min(targetSpeed, ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
+                ctx.Aircraft.IndicatedAirspeed = Math.Min(targetSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
             }
         }
         else
         {
             double taxiSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
-            if (ctx.Aircraft.GroundSpeed < taxiSpeed)
+            if (ctx.Aircraft.IndicatedAirspeed < taxiSpeed)
             {
-                ctx.Aircraft.GroundSpeed = Math.Min(taxiSpeed, ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
+                ctx.Aircraft.IndicatedAirspeed = Math.Min(taxiSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
             }
         }
 
-        ctx.Targets.TargetSpeed = ctx.Aircraft.GroundSpeed;
+        ctx.Targets.TargetSpeed = ctx.Aircraft.IndicatedAirspeed;
 
         _timeSinceLastLog += ctx.DeltaSeconds;
         if (_timeSinceLastLog >= LogIntervalSeconds)
@@ -173,7 +173,7 @@ public sealed class FollowingPhase : Phase
 
             // Approaching a runway hold-short — stop and insert phases
             ctx.Logger.LogDebug("[Follow] {Callsign}: hold short triggered at runway node {NodeId}", ctx.Aircraft.Callsign, node.Id);
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
             var holdShort = new HoldShortPoint

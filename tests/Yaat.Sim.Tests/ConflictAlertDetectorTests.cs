@@ -29,7 +29,6 @@ public class ConflictAlertDetectorTests
             Altitude = altitude,
             Heading = heading,
             Track = heading,
-            GroundSpeed = groundSpeed,
             IndicatedAirspeed = groundSpeed,
             VerticalSpeed = verticalSpeed,
             TransponderMode = transponderMode,

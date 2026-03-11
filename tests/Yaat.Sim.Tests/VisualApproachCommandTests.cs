@@ -43,7 +43,6 @@ public class VisualApproachCommandTests
             Heading = heading,
             Track = heading,
             Altitude = altitude,
-            GroundSpeed = 180,
             IndicatedAirspeed = 180,
             Latitude = lat,
             Longitude = lon,

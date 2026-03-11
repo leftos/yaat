@@ -125,7 +125,6 @@ public class InterceptDetectionTests
             Longitude = lon,
             Heading = heading,
             Altitude = 2000,
-            GroundSpeed = 140,
             Phases = phaseList,
         };
 

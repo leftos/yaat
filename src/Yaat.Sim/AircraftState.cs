@@ -36,7 +36,34 @@ public class AircraftState
     public double Track { get; set; }
 
     public double Altitude { get; set; }
-    public double GroundSpeed { get; set; }
+
+    /// <summary>
+    /// Most recently observed wind components in knots (North, East).
+    /// Updated by FlightPhysics each tick from the WeatherProfile at the aircraft's altitude.
+    /// Zero when no weather is loaded or aircraft is on the ground.
+    /// </summary>
+    public (double N, double E) WindComponents { get; internal set; }
+
+    /// <summary>
+    /// Ground speed in knots. On the ground: equals IndicatedAirspeed.
+    /// Airborne: derived from IAS → TAS (altitude correction) plus cached wind vector.
+    /// </summary>
+    public double GroundSpeed
+    {
+        get
+        {
+            if (IsOnGround)
+            {
+                return IndicatedAirspeed;
+            }
+
+            double tasKts = WindInterpolator.IasToTas(IndicatedAirspeed, Altitude);
+            double hdgRad = Heading * (Math.PI / 180.0);
+            double gsN = tasKts * Math.Cos(hdgRad) + WindComponents.N;
+            double gsE = tasKts * Math.Sin(hdgRad) + WindComponents.E;
+            return Math.Sqrt(gsN * gsN + gsE * gsE);
+        }
+    }
 
     /// <summary>
     /// Indicated airspeed in knots. What the pilot flies and ATC commands.

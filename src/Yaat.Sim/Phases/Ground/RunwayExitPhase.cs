@@ -60,22 +60,22 @@ public sealed class RunwayExitPhase : Phase
         if (_exitNode is null)
         {
             // No ground layout or no exit found — just stop
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             return true;
         }
 
         double exitSpeed = CategoryPerformance.RunwayExitSpeed(ctx.Category);
 
         // Decelerate to exit speed if faster
-        if (ctx.Aircraft.GroundSpeed > exitSpeed)
+        if (ctx.Aircraft.IndicatedAirspeed > exitSpeed)
         {
             double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Max(exitSpeed, ctx.Aircraft.GroundSpeed - decelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Max(exitSpeed, ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds);
         }
-        else if (ctx.Aircraft.GroundSpeed < exitSpeed)
+        else if (ctx.Aircraft.IndicatedAirspeed < exitSpeed)
         {
             double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-            ctx.Aircraft.GroundSpeed = Math.Min(exitSpeed, ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Min(exitSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
         }
 
         ctx.Targets.TargetSpeed = exitSpeed;
@@ -137,7 +137,7 @@ public sealed class RunwayExitPhase : Phase
 
         if (endStatus == PhaseStatus.Completed)
         {
-            ctx.Aircraft.GroundSpeed = 0;
+            ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
 
             // Align heading along the taxiway so the aircraft faces a sensible direction

@@ -25,7 +25,6 @@ public class ApproachScoreTests
         double heading = 280,
         double altitude = 3000,
         double distFromThresholdNm = 8.0,
-        double groundSpeed = 170,
         double ias = 160
     )
     {
@@ -41,7 +40,6 @@ public class ApproachScoreTests
             AircraftType = "B738",
             Heading = heading,
             Altitude = altitude,
-            GroundSpeed = groundSpeed,
             IndicatedAirspeed = ias,
             Latitude = lat,
             Longitude = lon,
@@ -214,29 +212,6 @@ public class ApproachScoreTests
 
         var score = aircraft.PendingApproachScores[0];
         Assert.InRange(score.GlideSlopeDeviationFt, -400, -200);
-    }
-
-    [Fact]
-    public void ScoreCreatedAtEstablishment_FallsBackToGroundSpeed_WhenNoIas()
-    {
-        var aircraft = MakeEstablishedAircraft(groundSpeed: 190, ias: 0);
-        aircraft.Phases = new PhaseList();
-        aircraft.Phases.ActiveApproach = new ApproachClearance
-        {
-            ApproachId = "I28R",
-            AirportCode = "OAK",
-            RunwayId = "28R",
-            FinalApproachCourse = 280,
-        };
-
-        var phase = new FinalApproachPhase();
-        var ctx = MakeContext(aircraft);
-
-        phase.OnStart(ctx);
-        phase.OnTick(ctx);
-
-        var score = aircraft.PendingApproachScores[0];
-        Assert.Equal(190, score.SpeedAtInterceptKts);
     }
 
     [Fact]
@@ -427,8 +402,7 @@ public class ApproachScoreTests
         aircraft.ActiveApproachScore = score;
 
         // Set up a landing phase that completes immediately
-        aircraft.Altitude = 9; // At field elevation
-        aircraft.GroundSpeed = 15; // Below taxi speed threshold
+        aircraft.Altitude = 9; // At field elevation // Below taxi speed threshold
         aircraft.IndicatedAirspeed = 15;
 
         var runway = MakeRunway();
@@ -476,7 +450,6 @@ public class ApproachScoreTests
         aircraft.Longitude = runway.ThresholdLongitude;
         aircraft.Heading = runway.TrueHeading;
         aircraft.Altitude = 9;
-        aircraft.GroundSpeed = 15;
         aircraft.IndicatedAirspeed = 15;
 
         var landingPhase = new LandingPhase();
@@ -513,7 +486,6 @@ public class ApproachScoreTests
             AircraftType = "B738",
             Heading = 280,
             Altitude = 3000,
-            GroundSpeed = 170,
             Latitude = 37.75,
             Longitude = -122.35,
         };
@@ -523,7 +495,6 @@ public class ApproachScoreTests
             AircraftType = "A320",
             Heading = 280,
             Altitude = 3000,
-            GroundSpeed = 170,
             Latitude = 37.76,
             Longitude = -122.36,
         };
@@ -569,7 +540,6 @@ public class ApproachScoreTests
             AircraftType = "B738",
             Heading = 280,
             Altitude = 3000,
-            GroundSpeed = 170,
             Latitude = 37.75,
             Longitude = -122.35,
         };

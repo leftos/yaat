@@ -42,7 +42,6 @@ public class AirportE2ETests
             Longitude = lon,
             Heading = 280,
             Altitude = 6,
-            GroundSpeed = 0,
             IndicatedAirspeed = 0,
             IsOnGround = true,
             Departure = departure,
@@ -1007,7 +1006,6 @@ public class AirportE2ETests
         ac.AssignedTaxiRoute.CurrentSegmentIndex = ac.AssignedTaxiRoute.Segments.Count - 1;
         ac.Latitude = lastNode.Latitude;
         ac.Longitude = lastNode.Longitude;
-        ac.GroundSpeed = 5;
 
         var ctx = new PhaseContext
         {

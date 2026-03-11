@@ -30,7 +30,6 @@ public class DepartureClearanceHandlerTests
             Longitude = -122.218,
             Heading = 280,
             Altitude = 6,
-            GroundSpeed = 0,
             IndicatedAirspeed = 0,
             IsOnGround = true,
             Departure = departure,

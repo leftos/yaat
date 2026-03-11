@@ -17,7 +17,7 @@ public sealed class AtParkingPhase : Phase
         ctx.Targets.TargetSpeed = 0;
         ctx.Targets.TargetHeading = null;
         ctx.Targets.TargetAltitude = null;
-        ctx.Aircraft.GroundSpeed = 0;
+        ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
 
         ctx.Logger.LogDebug("[Parking] {Callsign}: at parking, spot={Spot}", ctx.Aircraft.Callsign, ctx.Aircraft.ParkingSpot ?? "unknown");
@@ -25,7 +25,7 @@ public sealed class AtParkingPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        ctx.Aircraft.GroundSpeed = 0;
+        ctx.Aircraft.IndicatedAirspeed = 0;
         return false;
     }
 

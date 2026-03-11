@@ -539,7 +539,6 @@ internal static class FlightCommandHandler
 
         aircraft.Latitude = node.Latitude;
         aircraft.Longitude = node.Longitude;
-        aircraft.GroundSpeed = 0;
         aircraft.IndicatedAirspeed = 0;
         aircraft.Targets.TargetSpeed = null;
         return CommandDispatcher.Ok($"Warped to {description}");

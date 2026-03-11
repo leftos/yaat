@@ -86,19 +86,18 @@ public sealed class TouchAndGoPhase : Phase
             double vr = CategoryPerformance.RotationSpeed(ctx.Category);
             double accelRate = CategoryPerformance.GroundAccelRate(ctx.Category);
 
-            double targetSpeed = ctx.Aircraft.GroundSpeed + accelRate * ctx.DeltaSeconds;
+            double targetSpeed = ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds;
             if (targetSpeed >= vr)
             {
                 targetSpeed = vr;
             }
-            ctx.Aircraft.GroundSpeed = targetSpeed;
+            ctx.Aircraft.IndicatedAirspeed = targetSpeed;
             ctx.Targets.TargetSpeed = null;
 
-            if (ctx.Aircraft.GroundSpeed >= vr)
+            if (ctx.Aircraft.IndicatedAirspeed >= vr)
             {
                 _airborne = true;
                 ctx.Aircraft.IsOnGround = false;
-                ctx.Aircraft.IndicatedAirspeed = ctx.Aircraft.GroundSpeed;
                 ctx.Logger.LogDebug("[TouchAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
                 double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);

@@ -20,7 +20,6 @@ public class ExpectApproachTests
             AircraftType = "B738",
             Heading = 280,
             Altitude = 5000,
-            GroundSpeed = 250,
             Latitude = 37.75,
             Longitude = -122.35,
             Destination = destination,

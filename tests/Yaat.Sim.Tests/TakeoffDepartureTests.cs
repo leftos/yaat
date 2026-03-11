@@ -40,7 +40,6 @@ public class TakeoffDepartureTests
             Longitude = runway.ThresholdLongitude,
             Heading = runwayHeading,
             Altitude = FieldElevation,
-            GroundSpeed = 0,
             Phases = phaseList,
         };
         var targets = aircraft.Targets;
