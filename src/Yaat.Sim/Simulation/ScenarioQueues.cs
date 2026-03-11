@@ -3,6 +3,13 @@ using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Simulation;
 
+public sealed class DelayedHandoff
+{
+    public required string Callsign { get; init; }
+    public required TrackOwner Target { get; init; }
+    public required int FireAtSeconds { get; init; }
+}
+
 public sealed class DelayedSpawn
 {
     public required LoadedAircraft Aircraft { get; init; }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Scenarios;
 
@@ -20,7 +21,12 @@ public sealed class SimulationEngine
     private readonly ILogger _logger;
 
     public SimulationWorld World { get; } = new();
-    public SimScenarioState? Scenario { get; private set; }
+    public SimScenarioState? Scenario { get; set; }
+    public ConsolidationState ConsolidationState { get; } = new();
+    public ApproachEvaluator ApproachEvaluator { get; } = new();
+    public BeaconCodePool BeaconCodePool { get; } = new();
+    public TowerListTracker TowerListTracker { get; } = new();
+    public ConflictAlertState ConflictAlerts { get; } = new();
 
     public SimulationEngine(
         IFixLookup fixes,
@@ -572,35 +578,9 @@ public sealed class SimulationEngine
         );
     }
 
-    private static bool IsTrackCommand(ParsedCommand cmd)
-    {
-        return cmd
-            is TrackAircraftCommand
-                or DropTrackCommand
-                or InitiateHandoffCommand
-                or ForceHandoffCommand
-                or AcceptHandoffCommand
-                or CancelHandoffCommand
-                or PointOutCommand
-                or AcknowledgeCommand
-                or AnnotateCommand
-                or Scratchpad1Command
-                or Scratchpad2Command
-                or TemporaryAltitudeCommand
-                or CruiseCommand
-                or OnHandoffCommand
-                or SetActivePositionCommand;
-    }
+    private static bool IsTrackCommand(ParsedCommand cmd) => TrackEngine.IsTrackCommand(cmd);
 
-    private static bool IsCoordinationCommand(ParsedCommand cmd)
-    {
-        return cmd
-            is CoordinationReleaseCommand
-                or CoordinationHoldCommand
-                or CoordinationRecallCommand
-                or CoordinationAcknowledgeCommand
-                or CoordinationAutoAckCommand;
-    }
+    private static bool IsCoordinationCommand(ParsedCommand cmd) => TrackEngine.IsCoordinationCommand(cmd);
 
     private void ReplaySpawn(string args)
     {
