@@ -63,7 +63,7 @@ public sealed class SimulationWorld
                 return null;
             }
 
-            GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout);
+            GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout, deltaSeconds);
 
             var weather = Weather;
             foreach (var ac in _aircraft)

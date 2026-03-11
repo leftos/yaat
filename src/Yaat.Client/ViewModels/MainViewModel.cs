@@ -840,6 +840,27 @@ public partial class MainViewModel : ObservableObject
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
         }
+        if (parsed.Type == CanonicalCommandType.TaxiAll)
+        {
+            var canonical = string.IsNullOrEmpty(parsed.Argument) ? "TAXIALL" : $"TAXIALL {parsed.Argument}";
+            try
+            {
+                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                AddHistory(canonical);
+                if (!string.IsNullOrEmpty(result.Message))
+                {
+                    StatusText = result.Message;
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "TAXIALL failed");
+                StatusText = $"TAXIALL error: {ex.Message}";
+            }
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+        }
     }
 
     private static bool IsGlobalCommand(CanonicalCommandType type)
@@ -858,7 +879,8 @@ public partial class MainViewModel : ObservableObject
                 or CanonicalCommandType.SetActivePosition
                 or CanonicalCommandType.AcceptAllHandoffs
                 or CanonicalCommandType.InitiateHandoffAll
-                or CanonicalCommandType.CoordinationAutoAck;
+                or CanonicalCommandType.CoordinationAutoAck
+                or CanonicalCommandType.TaxiAll;
     }
 
     /// <summary>

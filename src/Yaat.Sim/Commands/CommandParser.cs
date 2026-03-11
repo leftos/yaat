@@ -371,6 +371,9 @@ public static class CommandParser
             "HS" => GroundCommandParser.ParseHoldShort(arg),
             "FOLLOW" or "FOL" => GroundCommandParser.ParseFollow(arg),
             "GIVEWAY" or "BEHIND" => GroundCommandParser.ParseGiveWay(arg),
+            "TAXIALL" => GroundCommandParser.ParseTaxiAll(arg),
+            "BREAK" when arg is null => new BreakConflictCommand(),
+            "GO" when arg is null => new GoCommand(),
             // Approach commands
             "EAPP" or "EXPECT" => ParseExpectApproach(arg),
             "CAPP" => ApproachCommandParser.ParseCapp(arg, fixes, false),

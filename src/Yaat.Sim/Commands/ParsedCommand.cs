@@ -241,6 +241,12 @@ public record FollowCommand(string TargetCallsign) : ParsedCommand;
 
 public record GiveWayCommand(string TargetCallsign) : ParsedCommand;
 
+public record TaxiAllCommand(string? DestinationRunway = null, string? DestinationParking = null) : ParsedCommand;
+
+public record BreakConflictCommand : ParsedCommand;
+
+public record GoCommand : ParsedCommand;
+
 // Exit commands
 public record ExitLeftCommand(bool NoDelete = false) : ParsedCommand;
 

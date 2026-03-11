@@ -6,6 +6,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
@@ -694,6 +695,112 @@ public class GroundCommandHandlerTests
         }
 
         public IReadOnlyList<RunwayInfo> GetRunways(string airportCode) => airportCode == airportId ? [_runway] : [];
+    }
+
+    // -------------------------------------------------------------------------
+    // TryBreakConflict
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryBreakConflict_OnGround_SetsTimer()
+    {
+        var ac = MakeGroundAircraft();
+
+        var result = GroundCommandHandler.TryBreakConflict(ac);
+
+        Assert.True(result.Success);
+        Assert.Equal(15.0, ac.ConflictBreakRemainingSeconds, precision: 9);
+    }
+
+    [Fact]
+    public void TryBreakConflict_Airborne_Fails()
+    {
+        var ac = MakeGroundAircraft();
+        ac.IsOnGround = false;
+
+        var result = GroundCommandHandler.TryBreakConflict(ac);
+
+        Assert.False(result.Success);
+        Assert.Equal(0.0, ac.ConflictBreakRemainingSeconds);
+    }
+
+    // -------------------------------------------------------------------------
+    // TryGo
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryGo_InStopAndGoPhase_Succeeds()
+    {
+        var ac = MakeGroundAircraft();
+        ac.Phases = new PhaseList();
+        var stopAndGo = new StopAndGoPhase();
+        ac.Phases.Add(stopAndGo);
+        var ctx = new PhaseContext
+        {
+            Aircraft = ac,
+            Targets = ac.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 0,
+            Logger = NullLogger.Instance,
+        };
+        ac.Phases.Start(ctx);
+
+        var result = GroundCommandHandler.TryGo(ac);
+
+        Assert.True(result.Success);
+    }
+
+    [Fact]
+    public void TryGo_NotInStopAndGoPhase_Fails()
+    {
+        var ac = MakeGroundAircraft();
+        // No StopAndGoPhase — just a plain ground aircraft with TaxiingPhase
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new TaxiingPhase());
+        ac.Phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 0,
+                Logger = NullLogger.Instance,
+            }
+        );
+
+        var result = GroundCommandHandler.TryGo(ac);
+
+        Assert.False(result.Success);
+        Assert.Contains("stop-and-go", result.Message!);
+    }
+
+    // -------------------------------------------------------------------------
+    // Parser: BREAK, GO, TAXIALL
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Parse_Break_ReturnsBreakConflictCommand()
+    {
+        var cmd = CommandParser.Parse("BREAK");
+
+        Assert.IsType<BreakConflictCommand>(cmd);
+    }
+
+    [Fact]
+    public void Parse_Go_ReturnsGoCommand()
+    {
+        var cmd = CommandParser.Parse("GO");
+
+        Assert.IsType<GoCommand>(cmd);
+    }
+
+    [Fact]
+    public void Parse_TaxiAll_ReturnsCommandWithDestinationRunway()
+    {
+        var cmd = CommandParser.Parse("TAXIALL 30");
+
+        var taxiAll = Assert.IsType<TaxiAllCommand>(cmd);
+        Assert.Equal("30", taxiAll.DestinationRunway);
     }
 
     // -------------------------------------------------------------------------

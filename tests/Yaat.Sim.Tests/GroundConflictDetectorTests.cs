@@ -382,4 +382,68 @@ public class GroundConflictDetectorTests
 
         Assert.False(GroundConflictDetector.IsClearOf(a, b, null));
     }
+
+    // -------------------------------------------------------------------------
+    // BREAK command integration
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Break_AircraftExempt_NotSpeedLimited_WhenConflictWouldApply()
+    {
+        // A heading north at 15kts, B is 150ft ahead also heading north at 10kts.
+        // Without BREAK, A would get a trailing speed limit. With BREAK, A is exempt.
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+
+        var routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
+
+        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft("B", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 10, taxiRoute: routeB, phase: new TaxiingPhase());
+
+        // Give A an active BREAK timer
+        a.ConflictBreakRemainingSeconds = 15.0;
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout, deltaSeconds: 0);
+
+        // A has BREAK — must not receive a speed limit
+        Assert.Null(a.GroundSpeedLimit);
+    }
+
+    [Fact]
+    public void Break_TimerDecrements_EachTick()
+    {
+        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15);
+        a.ConflictBreakRemainingSeconds = 15.0;
+
+        var aircraft = new List<AircraftState> { a };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, null, deltaSeconds: 1.0);
+
+        Assert.Equal(14.0, a.ConflictBreakRemainingSeconds, precision: 9);
+    }
+
+    [Fact]
+    public void Break_TimerExpired_ConflictsResume()
+    {
+        // Same setup as Break_AircraftExempt test, but timer is at zero.
+        var (layout, _, _, _) = BuildSimpleLayout();
+        var edge01 = layout.Edges[0];
+
+        var routeA = MakeRoute(MakeSeg(0, 1, "A", edge01));
+        var routeB = MakeRoute(MakeSeg(0, 1, "A", edge01));
+
+        var a = MakeAircraft("A", BaseLat, BaseLon, heading: 0, gs: 15, taxiRoute: routeA, phase: new TaxiingPhase());
+        var b = MakeAircraft("B", BaseLat + 1.5 * OffsetLatPer100Ft, BaseLon, heading: 0, gs: 10, taxiRoute: routeB, phase: new TaxiingPhase());
+
+        // BREAK has expired
+        a.ConflictBreakRemainingSeconds = 0;
+
+        var aircraft = new List<AircraftState> { a, b };
+        GroundConflictDetector.ApplySpeedLimits(aircraft, layout, deltaSeconds: 0);
+
+        // Timer is zero — conflict detection re-engages; trailer should be limited
+        bool anyLimited = a.GroundSpeedLimit is not null || b.GroundSpeedLimit is not null;
+        Assert.True(anyLimited, "Expected conflict detection to resume after BREAK expires");
+    }
 }

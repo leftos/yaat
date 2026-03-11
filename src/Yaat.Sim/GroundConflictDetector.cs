@@ -39,13 +39,19 @@ public static class GroundConflictDetector
     /// <summary>
     /// Detect ground conflicts and set GroundSpeedLimit on affected aircraft.
     /// Clears all limits first, then classifies movement state, then checks pairs.
+    /// Aircraft with an active BREAK override are exempt from all conflict limits.
     /// </summary>
-    public static void ApplySpeedLimits(List<AircraftState> aircraft, AirportGroundLayout? layout)
+    public static void ApplySpeedLimits(List<AircraftState> aircraft, AirportGroundLayout? layout, double deltaSeconds = 0)
     {
-        // Clear previous limits
+        // Clear previous limits and tick down BREAK timers
         for (int i = 0; i < aircraft.Count; i++)
         {
             aircraft[i].GroundSpeedLimit = null;
+
+            if (aircraft[i].ConflictBreakRemainingSeconds > 0)
+            {
+                aircraft[i].ConflictBreakRemainingSeconds = Math.Max(0, aircraft[i].ConflictBreakRemainingSeconds - deltaSeconds);
+            }
         }
 
         // Build classification array for ground aircraft only
@@ -72,11 +78,23 @@ public static class GroundConflictDetector
                 continue;
             }
 
+            // BREAK: aircraft ignoring conflicts
+            if (a.ConflictBreakRemainingSeconds > 0)
+            {
+                continue;
+            }
+
             for (int j = i + 1; j < entries.Count; j++)
             {
                 var (b, stateB, dirB) = entries[j];
 
                 if (stateB == MovementState.Following)
+                {
+                    continue;
+                }
+
+                // BREAK: aircraft ignoring conflicts
+                if (b.ConflictBreakRemainingSeconds > 0)
                 {
                     continue;
                 }

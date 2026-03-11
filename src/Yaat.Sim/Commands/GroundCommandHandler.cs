@@ -3,6 +3,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Commands;
 
@@ -170,6 +171,12 @@ internal static class GroundCommandHandler
         out string? failReason
     )
     {
+        // Empty path + destination runway → A* to nearest hold-short node
+        if (taxi.Path.Count == 0 && taxi.DestinationRunway is not null)
+        {
+            return ResolveRunwayRouteByAStar(groundLayout, startNode, taxi.DestinationRunway, out failReason);
+        }
+
         return TaxiPathfinder.ResolveExplicitPath(
             groundLayout,
             startNode.Id,
@@ -180,6 +187,44 @@ internal static class GroundCommandHandler
             runways,
             groundLayout.AirportId
         );
+    }
+
+    private static TaxiRoute? ResolveRunwayRouteByAStar(
+        AirportGroundLayout groundLayout,
+        GroundNode startNode,
+        string runwayId,
+        out string? failReason
+    )
+    {
+        failReason = null;
+        var holdShortNodes = groundLayout.GetRunwayHoldShortNodes(runwayId);
+        if (holdShortNodes.Count == 0)
+        {
+            failReason = $"No hold-short nodes for runway {runwayId}";
+            return null;
+        }
+
+        // Pick the nearest hold-short node
+        GroundNode? bestNode = null;
+        double bestDist = double.MaxValue;
+        foreach (var node in holdShortNodes)
+        {
+            double dist = GeoMath.DistanceNm(startNode.Latitude, startNode.Longitude, node.Latitude, node.Longitude);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestNode = node;
+            }
+        }
+
+        var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, bestNode!.Id);
+        if (route is null)
+        {
+            failReason = $"No route to runway {runwayId} hold-short";
+            return null;
+        }
+
+        return route;
     }
 
     private static TaxiRoute? ResolveParkingRoute(
@@ -784,6 +829,33 @@ internal static class GroundCommandHandler
         double dist2 = GeoMath.DistanceNm(nodeLat, nodeLon, info.Lat2, info.Lon2);
         string closerDesignator = dist1 <= dist2 ? info.Id.End1 : info.Id.End2;
         return info.ForApproach(closerDesignator);
+    }
+
+    private const double BreakDurationSeconds = 15.0;
+
+    internal static CommandResult TryBreakConflict(AircraftState aircraft)
+    {
+        if (!aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "Break requires aircraft on the ground");
+        }
+
+        aircraft.ConflictBreakRemainingSeconds = BreakDurationSeconds;
+        aircraft.GroundSpeedLimit = null;
+        Log.LogInformation("[Break] {Callsign}: ignoring ground conflicts for {Duration}s", aircraft.Callsign, BreakDurationSeconds);
+        return CommandDispatcher.Ok("Break conflict");
+    }
+
+    internal static CommandResult TryGo(AircraftState aircraft)
+    {
+        if (aircraft.Phases?.CurrentPhase is not StopAndGoPhase stopAndGo)
+        {
+            return new CommandResult(false, "GO requires aircraft in a stop-and-go");
+        }
+
+        stopAndGo.TriggerGo();
+        Log.LogInformation("[Go] {Callsign}: manual takeoff roll triggered", aircraft.Callsign);
+        return CommandDispatcher.Ok("Begin takeoff roll");
     }
 
     internal static CommandResult TryExitCommand(AircraftState aircraft, ExitPreference preference, bool noDelete)

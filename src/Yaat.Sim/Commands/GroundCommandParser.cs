@@ -234,6 +234,31 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
+    /// Parses TAXIALL {runway|@spot}.
+    /// Each parked aircraft gets A* pathfinding to the destination.
+    /// </summary>
+    internal static ParsedCommand? ParseTaxiAll(string? arg)
+    {
+        if (arg is null)
+        {
+            return null;
+        }
+
+        var token = arg.Trim();
+        if (token.Length == 0)
+        {
+            return null;
+        }
+
+        if (token.StartsWith('@') && token.Length > 1)
+        {
+            return new TaxiAllCommand(DestinationParking: token[1..].ToUpperInvariant());
+        }
+
+        return new TaxiAllCommand(DestinationRunway: token.ToUpperInvariant());
+    }
+
+    /// <summary>
     /// Parses CROSS runway.
     /// </summary>
     internal static ParsedCommand? ParseCross(string? arg)

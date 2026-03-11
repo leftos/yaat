@@ -407,6 +407,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Go around | `GA` | — | — |
 | Touch and go | `TG` | — | — |
 | Stop and go | `SG` | — | — |
+| Begin takeoff roll during stop-and-go | `GO` | — | — |
 | Low approach | `LA` | — | — |
 | Cleared for option | `COPT` | — | — |
 | Landing sequence | `SEQ 2 UAL123` | — | — |
@@ -564,6 +565,8 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 | `RWY 30` | Assign runway 30 (override runway assignment without taxi) |
 | `FOLLOW SWA123` | Follow another aircraft on the ground |
 | `GIVEWAY SWA123` | Wait for SWA123 to pass before executing the next command (see [Conditional Blocks](#conditional-blocks)) |
+| `TAXIALL 30` | Taxi all parked aircraft to runway 30 via A* pathfinding (global command, no callsign needed) |
+| `BREAK` | Ignore ground conflicts for 15 seconds |
 
 Aircraft automatically hold short at all runway crossings along the taxi route. Use `CROSS` to clear a hold-short — either while already holding short, or in advance to pre-clear it before the aircraft arrives. `CROSS` works for both runway and taxiway hold-shorts.
 
@@ -571,7 +574,7 @@ Aircraft automatically hold short at all runway crossings along the taxi route. 
 
 When you taxi to a hold-short point (via context menu or command), the runway is automatically assigned based on the closest threshold. Override with `RWY {id}` if needed.
 
-Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop.
+Ground aircraft automatically detect and avoid collisions — trailing aircraft slow down or stop to maintain safe separation. Head-on conflicts cause both aircraft to stop. Use `BREAK` to temporarily override conflict avoidance for 15 seconds.
 
 ### Helicopter Commands
 
@@ -706,6 +709,7 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 |---------|--------|
 | `TG` | Touch-and-go (establishes pattern mode if not already) |
 | `SG` | Stop-and-go (full stop then re-takeoff, establishes pattern mode) |
+| `GO` | Begin takeoff roll immediately during a stop-and-go (bypasses auto-pause) |
 | `LA` | Low approach (fly-through without touchdown, establishes pattern mode) |
 | `COPT` | Cleared for the option |
 

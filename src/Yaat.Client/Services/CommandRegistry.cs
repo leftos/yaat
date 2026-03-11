@@ -487,6 +487,16 @@ public static class CommandRegistry
                 [O(null, [R("taxiway", "taxiway name")], "Exit onto taxiway")],
                 [Mod("NODEL", null, false)]
             ),
+            Cmd(
+                TaxiAll,
+                "Taxi All",
+                "Ground",
+                true,
+                ["TAXIALL"],
+                [O(null, [R("destination", "runway or @spot")], "Taxi all parked aircraft to destination (A* pathfinding)")]
+            ),
+            Bare(BreakConflict, "Break Conflict", "Ground", false, ["BREAK"]),
+            Bare(Go, "Begin Takeoff Roll", "Tower", false, ["GO"]),
         ];
 
     private static CommandDefinition[] SimControlCommands() =>

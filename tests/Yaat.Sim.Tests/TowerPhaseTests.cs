@@ -326,6 +326,40 @@ public class TowerPhaseTests
         Assert.Equal(CommandAcceptance.Rejected, phase.CanAcceptCommand(CanonicalCommandType.Speed));
     }
 
+    [Fact]
+    public void StopAndGo_AcceptsGo()
+    {
+        var phase = new StopAndGoPhase();
+
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.Go));
+    }
+
+    [Fact]
+    public void StopAndGo_TriggerGo_BypassesPauseTimer()
+    {
+        var rwy = DefaultRunway(100);
+        var ac = MakeAircraft(altitude: 100, groundSpeed: 2, onGround: true, ias: 2);
+        var phase = new StopAndGoPhase();
+        var ctx = Ctx(ac, rwy, dt: 1.0);
+
+        phase.OnStart(ctx);
+
+        // GS < 3 → detect full stop on the next tick
+        phase.OnTick(ctx);
+        Assert.Equal(0.0, ac.GroundSpeed);
+
+        // Trigger GO before the pause timer expires
+        phase.TriggerGo();
+
+        // First tick after TriggerGo: sets _reaccelerating = true and returns (pause block exits)
+        phase.OnTick(ctx);
+        // Second tick: enters the reacceleration block and increases IAS
+        phase.OnTick(ctx);
+
+        // IAS should be increasing and TargetSpeed cleared (managed manually in reacceleration)
+        Assert.True(ac.IndicatedAirspeed > 0, "Expected IAS to increase once reacceleration begins after TriggerGo");
+    }
+
     // -------------------------------------------------------------------------
     // LowApproachPhase
     // -------------------------------------------------------------------------

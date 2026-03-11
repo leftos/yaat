@@ -24,6 +24,7 @@ public sealed class StopAndGoPhase : Phase
     private bool _stopped;
     private bool _reaccelerating;
     private bool _airborne;
+    private bool _goTriggered;
 
     public override string Name => "StopAndGo";
 
@@ -84,7 +85,7 @@ public sealed class StopAndGoPhase : Phase
         if (!_reaccelerating)
         {
             _pauseElapsed += ctx.DeltaSeconds;
-            if (_pauseElapsed >= _pauseDuration)
+            if (_pauseElapsed >= _pauseDuration || _goTriggered)
             {
                 _reaccelerating = true;
                 ctx.Logger.LogDebug("[StopAndGo] {Callsign}: pause complete, reaccelerating", ctx.Aircraft.Callsign);
@@ -131,9 +132,15 @@ public sealed class StopAndGoPhase : Phase
         return cmd switch
         {
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+            CanonicalCommandType.Go => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };
+    }
+
+    internal void TriggerGo()
+    {
+        _goTriggered = true;
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

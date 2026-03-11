@@ -752,6 +752,15 @@ public static class CommandDispatcher
             case ExitTaxiwayCommand et:
                 return GroundCommandHandler.TryExitCommand(aircraft, new ExitPreference { Taxiway = et.Taxiway }, et.NoDelete);
 
+            case BreakConflictCommand:
+                return GroundCommandHandler.TryBreakConflict(aircraft);
+            case GoCommand:
+                return GroundCommandHandler.TryGo(aircraft);
+
+            // TAXIALL is dispatched at the engine level, not per-aircraft
+            case TaxiAllCommand:
+                return new CommandResult(false, "TAXIALL must be dispatched at the engine level");
+
             default:
                 return null;
         }

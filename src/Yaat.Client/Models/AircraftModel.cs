@@ -125,11 +125,13 @@ public partial class AircraftModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ClearanceDisplay))]
+    [NotifyPropertyChangedFor(nameof(ClearanceShorthand))]
     [NotifyPropertyChangedFor(nameof(HasClearance))]
     private string _landingClearance = "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ClearanceDisplay))]
+    [NotifyPropertyChangedFor(nameof(ClearanceShorthand))]
     private string _clearedRunway = "";
 
     [ObservableProperty]
@@ -220,6 +222,31 @@ public partial class AircraftModel : ObservableObject
                 return $"{humanized} Rwy {ClearedRunway}";
             }
             return humanized;
+        }
+    }
+
+    public string ClearanceShorthand
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(LandingClearance))
+            {
+                return "";
+            }
+
+            var shorthand = LandingClearance switch
+            {
+                "ClearedToLand" => "CTL",
+                "ClearedForOption" => "COPT",
+                "ClearedTouchAndGo" => "TG",
+                "ClearedStopAndGo" => "SG",
+                "ClearedLowApproach" => "LA",
+                "LineUpAndWait" => "LUAW",
+                "ClearedForTakeoff" => "CTO",
+                _ => LandingClearance,
+            };
+
+            return !string.IsNullOrEmpty(ClearedRunway) ? $"{shorthand} {ClearedRunway}" : shorthand;
         }
     }
 

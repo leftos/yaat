@@ -88,6 +88,9 @@ public enum CanonicalCommandType
     ExitLeft,
     ExitRight,
     ExitTaxiway,
+    TaxiAll,
+    BreakConflict,
+    Go,
 
     // Helicopter commands
     AirTaxi,

@@ -110,6 +110,13 @@ public class AircraftState
     public bool AutoDeleteExempt { get; set; }
 
     /// <summary>
+    /// Remaining seconds of BREAK conflict override. While positive, the aircraft
+    /// ignores ground conflict speed limits imposed by GroundConflictDetector.
+    /// Decremented each tick in ApplySpeedLimits.
+    /// </summary>
+    public double ConflictBreakRemainingSeconds { get; set; }
+
+    /// <summary>
     /// Max ground speed (kts) imposed by GroundConflictDetector.
     /// Null = no limit. Reset each tick before conflict detection runs.
     /// </summary>

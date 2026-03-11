@@ -77,23 +77,18 @@ Both touch `CommandQueue` internals and command display. Tiny pass.
 
 All touch ground phase logic, `AircraftState` ground flags, or `GroundConflictDetector`.
 
-- [ ] **TAXIALL** — Taxi all parked aircraft *(medium)*
-  - `TAXIALL {path} [hs-list]` — applies taxi to all aircraft at parking
+- [x] **TAXIALL** — Taxi all parked aircraft *(medium)*
+  - `TAXIALL {runway|@spot}` — A* pathfinds each parked aircraft to the destination
   - Convenience for mass departure scenarios
-  - Loop through all aircraft in `AtParkingPhase` and dispatch taxi command
+  - Global command sent to server, which iterates all parked aircraft
 
-- [ ] **BREAK** — Break ground conflict *(medium)*
+- [x] **BREAK** — Break ground conflict *(medium)*
   - Forces aircraft to ignore ground conflicts for 15 seconds
-  - Add `ConflictIgnoreUntil` timestamp to `AircraftState`; check in `GroundConflictDetector`
+  - `ConflictBreakRemainingSeconds` on `AircraftState`; checked in `GroundConflictDetector`
 
-- [ ] **GO** — Start takeoff roll *(medium)*
+- [x] **GO** — Start takeoff roll *(medium)*
   - Begins the takeoff roll during a stop-and-go
-  - Currently stop-and-go auto-continues; `GO` would add manual control
-  - Useful for realistic sequencing (hold on runway after full stop, then GO)
-
-- [ ] **CLRD** — Aircraft has clearance *(medium)*
-  - Sets a "clearance delivered" state on the aircraft
-  - Mostly cosmetic/status tracking for ground operations
+  - Triggers immediate reacceleration, bypassing the category-dependent pause
 
 ## Pass 5 — Aircraft State / Flight Plan (AircraftState + Destination)
 
@@ -141,3 +136,4 @@ YAAT handles these differently or they aren't needed.
 - **STRIP** — CRC handles strip management
 - **SHOWPATH / HIDEPATH** — Implement as a radar view feature, not a command
 - **T {deg} {dir}** — Already fully covered by `LT`/`RT` and `T30L`/`T30R`
+- **CLRD** — Replaced by `Clnc` column in DataGrid showing clearance shorthand (CTL, CTO, LUAW, etc.)

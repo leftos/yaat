@@ -147,7 +147,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |
 | Cleared for option | — | `COPT` | **YAAT-only** |
 | LAHSO | `LAHSO {rwy}` | — | ATCTrainer-only |
-| GO (begin takeoff roll during stop-and-go) | `GO` | — | ATCTrainer-only |
+| GO (begin takeoff roll during stop-and-go) | `GO` | `GO` | Parity |
 | NODEL flag | — | `CTL NODEL`, `EL NODEL`, etc. | YAAT-only — exempts from auto-delete |
 
 #### CTO Modifiers (YAAT-only richness)
@@ -212,8 +212,8 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Taxi | `TAXI {path} [hs-list]` / `RWY {rwy} TAXI {path}` | Same + `TAXI !42 !18` (node IDs), `TAXI A !42 B` (mixed) | YAAT adds node ID references for precise routing |
 | Follow | — | `FOLLOW`/`FOL` | YAAT-only |
 | Give way | `GIVEWAY`/`GW`/`PB` (standalone) | `GIVEWAY`/`BEHIND` (condition prefix) | ATCTrainer: standalone. YAAT: condition prefix in compound chains |
-| Taxi all | `TAXIALL` | — | ATCTrainer-only |
-| Break | `BREAK` | — | ATCTrainer-only (15s collision ignore) |
+| Taxi all | `TAXIALL` | `TAXIALL` | Parity |
+| Break | `BREAK` | `BREAK` | Parity (15s collision ignore) |
 | NODEL for taxi | — | `TAXI S T U @B12 NODEL` | YAAT-only, overrides "at parking" deletion |
 | Taxi variant resolution | — | Automatic | YAAT auto-extends taxiway variants (e.g., `TAXI W` → `W1`) when a numbered variant reaches the destination runway hold-short; picks closest variant to threshold when ambiguous |
 | RWY (standalone) | Part of `RWY {rwy} TAXI` | `RWY 30` (assign runway without taxi) | YAAT adds standalone runway assignment |
@@ -297,7 +297,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | Flight plan | `FP {type} {alt} {route}` | — (use Flight Plan Editor) | Different approach |
 | VFR flight plan | `VP {type} {alt} {route}` | — | ATCTrainer-only |
 | Remarks | `REMARKS {text}` | — (use Flight Plan Editor) | Different approach |
-| Cleared | `CLRD` | — | ATCTrainer-only |
+| Cleared | `CLRD` | — | ATCTrainer-only (YAAT uses clearance column instead) |
 | Delete at | `DELAT` | `DELAT` / `DELAT {n}` | Parity; YAAT adds per-block delete by number |
 | Open chat | `OPENCHAT {controller}` | — | ATCTrainer-only |
 | Operations/Stats | `OPS`/`STATS` | — | ATCTrainer-only |
@@ -399,13 +399,9 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 ### Commands Not in YAAT
 - `JAWY` (Join Airway)
 - `LAHSO` (Land and Hold Short)
-- `GO` (Start takeoff roll)
-- `TAXIALL` (Taxi All)
-- `BREAK` (Break ground conflict)
 - `STRIP` (Push flight strips)
 - `FP`/`VP` (Create flight plan via command)
 - `REMARKS` (Alter flight plan remarks via command)
-- `CLRD` (Aircraft has clearance)
 - `OPENCHAT` (Open PM window)
 - `OPS`/`STATS` (Operations statistics)
 - `SAYF` (Frequency message)

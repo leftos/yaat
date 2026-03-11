@@ -102,6 +102,9 @@ public static class CommandDescriber
             ExitLeftCommand => CanonicalCommandType.ExitLeft,
             ExitRightCommand => CanonicalCommandType.ExitRight,
             ExitTaxiwayCommand => CanonicalCommandType.ExitTaxiway,
+            TaxiAllCommand => CanonicalCommandType.TaxiAll,
+            BreakConflictCommand => CanonicalCommandType.BreakConflict,
+            GoCommand => CanonicalCommandType.Go,
             SayCommand => CanonicalCommandType.Say,
             SaySpeedCommand => CanonicalCommandType.SaySpeed,
             ClearedApproachCommand cmd => cmd.Force ? CanonicalCommandType.ClearedApproachForce : CanonicalCommandType.ClearedApproach,
@@ -282,6 +285,9 @@ public static class CommandDescriber
             ExitLeftCommand => "EL",
             ExitRightCommand => "ER",
             ExitTaxiwayCommand et => $"EXIT {et.Taxiway}",
+            TaxiAllCommand taxiAll => FormatTaxiAllCanonical(taxiAll),
+            BreakConflictCommand => "BREAK",
+            GoCommand => "GO",
             SayCommand say => $"SAY {say.Text}",
             SaySpeedCommand => "SSPD",
             ClearedApproachCommand cmd => FormatCappCanonical(cmd),
@@ -410,6 +416,9 @@ public static class CommandDescriber
             ExitLeftCommand => "Exit left",
             ExitRightCommand => "Exit right",
             ExitTaxiwayCommand et => $"Exit at {et.Taxiway}",
+            TaxiAllCommand taxiAll => FormatTaxiAllNatural(taxiAll),
+            BreakConflictCommand => "Break conflict",
+            GoCommand => "Begin takeoff roll",
             SayCommand say => say.Text,
             SaySpeedCommand => "Say speed",
             UnsupportedCommand cmd => cmd.RawText,
@@ -498,12 +507,14 @@ public static class CommandDescriber
         return command
             is PushbackCommand
                 or TaxiCommand
+                or TaxiAllCommand
                 or HoldPositionCommand
                 or ResumeCommand
                 or CrossRunwayCommand
                 or HoldShortCommand
                 or FollowCommand
-                or GiveWayCommand;
+                or GiveWayCommand
+                or BreakConflictCommand;
     }
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)
@@ -847,6 +858,26 @@ public static class CommandDescriber
         }
 
         return displayPath.Count > 0 ? $"Taxi via {string.Join(" ", displayPath)}" : "Taxi";
+    }
+
+    private static string FormatTaxiAllCanonical(TaxiAllCommand taxiAll)
+    {
+        if (taxiAll.DestinationParking is not null)
+        {
+            return $"TAXIALL @{taxiAll.DestinationParking}";
+        }
+
+        return taxiAll.DestinationRunway is not null ? $"TAXIALL {taxiAll.DestinationRunway}" : "TAXIALL";
+    }
+
+    private static string FormatTaxiAllNatural(TaxiAllCommand taxiAll)
+    {
+        if (taxiAll.DestinationParking is not null)
+        {
+            return $"Taxi all to spot {taxiAll.DestinationParking}";
+        }
+
+        return taxiAll.DestinationRunway is not null ? $"Taxi all to runway {taxiAll.DestinationRunway}" : "Taxi all";
     }
 
     private static string FormatCvaCanonical(ClearedVisualApproachCommand cmd)
