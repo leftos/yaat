@@ -137,6 +137,14 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, $"Cannot resolve runway {runwayId}");
         }
 
+        // If the controller previously assigned a specific runway end (via RWY command) and it refers
+        // to the same physical runway as the hold-short, respect that assignment. This preserves the
+        // controller's explicit direction (e.g., RWY 01R at SFO when hold-short TargetName is "1R").
+        if (aircraft.Phases?.AssignedRunway is { } existingRunway && runway.Id.Overlaps(existingRunway.Id))
+        {
+            runway = existingRunway;
+        }
+
         // Satisfy the runway crossing clearance so HoldingShortPhase completes
         holding.SatisfyClearance(ClearanceType.RunwayCrossing);
 
