@@ -119,20 +119,10 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
 | Speed | `SPD {kts}` (aliases: DS, IS, SLOW, SL, SPEED) | `SPD {kts}`, `S`, `SLOW`, `SL`, `SPEED`, `S250` | YAAT drops DS/IS aliases (directional implication); adds `S` + concatenation |
-| Speed floor/ceiling | — | `SPD 210+` / `SPD 210-` | YAAT-only (unless ATCTrainer has it) |
+| Speed floor/ceiling | — | `SPD 210+` / `SPD 210-` | YAAT-only |
 | Delete speed restrictions | — | `DSR` | YAAT-only — suppresses SID/STAR via-mode speed |
 | SPD UNTIL shorthand | `SPD 250 FIX` (requires waypoint) | `SPD 210 UNTIL 10` → staged reductions | YAAT-only |
-
-### Transponder
-
-Both have equivalent commands. YAAT adds clearer aliases:
-
-| Command | ATCTrainer | YAAT addition |
-|---------|-----------|---------------|
-| Squawk VFR | `SQV` | `SQVFR` alias |
-| Squawk normal | `SN` | `SQNORM` alias |
-| Squawk standby | `SS` | `SQSBY` alias |
-| Ident | `ID` | `IDENT` alias |
+| Say speed | — | `SSPD` | YAAT-only |
 
 ### Navigation
 

@@ -413,7 +413,7 @@ public static class CommandParser
             "ONHO" or "ONH" when arg is null => new OnHandoffCommand(),
             "SAY" when arg is not null => new SayCommand(arg),
             "SSPD" when arg is null => new SaySpeedCommand(),
-            "SS" when arg is null => new SaySpeedCommand(),
+            "SS" when arg is null => new SquawkStandbyCommand(),
             "DELAT" when arg is null => new DeleteQueuedCommand(),
             "DELAT" => int.TryParse(arg, out var delAtBlock) ? new DeleteQueuedCommand(delAtBlock) : null,
             "SHOWAT" when arg is null => new ShowQueuedCommand(),

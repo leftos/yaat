@@ -487,6 +487,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Delete queued commands | `DELAT` / `DELAT 2` | — | — |
 | Show queued commands | `SHOWAT` | — | — |
 | Say | `SAY text` | — | — |
+| Say speed | `SSPD` | — | Aircraft reports current speed |
 | Spawn now | `SPAWN` | — | — |
 | Spawn delay | `DELAY 120` | — | — |
 | Wait (seconds) | `WAIT 30` | — | — |
@@ -1172,6 +1173,16 @@ Make an aircraft broadcast a message (simulating pilot readback or request):
 | `SAY UNABLE` | Aircraft broadcasts "UNABLE" |
 
 The message text is broadcast verbatim as a radio transmission from the aircraft. Aliases: `SAY`.
+
+### Say Speed
+
+Make an aircraft report its current indicated airspeed:
+
+| Command | Effect |
+|---------|--------|
+| `SSPD` | Aircraft broadcasts its current speed |
+
+Aliases: `SSPD`.
 
 ## Simulation Controls
 
