@@ -415,15 +415,32 @@ public static class CategoryPerformance
         return 5;
     }
 
-    /// <summary>Ground turn rate while taxiing (deg/sec). Helicopter: 30 (pedal turn).</summary>
+    /// <summary>
+    /// Ground turn rate while taxiing (deg/sec).
+    /// Calibrated at 15 kt corner speed: jet → 22 m radius (B737/A320 outer main gear sweep),
+    /// turboprop → 18 m (ATR-72/CRJ-700), piston → 13 m (C172).
+    /// </summary>
     public static double GroundTurnRate(AircraftCategory cat)
     {
         return cat switch
         {
-            AircraftCategory.Jet => 15,
-            AircraftCategory.Turboprop => 20,
-            AircraftCategory.Piston => 20,
+            AircraftCategory.Jet => 20,
+            AircraftCategory.Turboprop => 25,
+            AircraftCategory.Piston => 35,
             AircraftCategory.Helicopter => 30,
+            _ => 20,
+        };
+    }
+
+    /// <summary>Target speed (kts) when executing a taxiway turn of 90° or more.</summary>
+    public static double TaxiCornerSpeed(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 15,
+            AircraftCategory.Turboprop => 15,
+            AircraftCategory.Piston => 20,
+            AircraftCategory.Helicopter => 10,
             _ => 15,
         };
     }
@@ -435,11 +452,12 @@ public static class CategoryPerformance
         return 3;
     }
 
-    /// <summary>Taxi deceleration rate (kts/sec).</summary>
+    /// <summary>Taxi deceleration rate (kts/sec). Raised from 3 to match new taxi speeds: stopping
+    /// distance from 30 kts = 30²/(2×5×3600) ≈ 0.025 nm, within look-ahead braking range.</summary>
     public static double TaxiDecelRate(AircraftCategory cat)
     {
         _ = cat;
-        return 3;
+        return 5;
     }
 
     /// <summary>Speed when exiting runway onto taxiway (knots).</summary>

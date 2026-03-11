@@ -21,6 +21,7 @@ public sealed class TaxiingPhase : Phase
     private int _targetNodeId;
     private double _targetLat;
     private double _targetLon;
+    private double _nextSegmentBearing = double.NaN; // bearing from _targetNode toward the node after it
     private bool _initialized;
     private double _timeSinceLastLog;
     private double _prevDistToTarget = double.MaxValue;
@@ -106,14 +107,42 @@ public sealed class TaxiingPhase : Phase
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
         TurnToward(ctx, bearing);
 
-        // Speed scales with turn sharpness: straight = full, sharp turn = crawl
+        // Speed scales with current heading error: straight = full, turning = crawl
         double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - ctx.Aircraft.Heading));
         double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
         double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.15, 1.0);
         double targetSpeed = maxSpeed * speedFraction;
 
-        // Cap speed so we can't overshoot the target node in one tick.
-        // Allow moving at most 80% of the remaining distance per tick.
+        // Look-ahead braking: slow to the required arrival speed before reaching the target node.
+        // Required arrival speed is 0 for hold-short nodes, or the corner speed for turn nodes.
+        var nextHoldShort = route.GetHoldShortAt(_targetNodeId);
+        bool isHoldShortNode = nextHoldShort is not null && !nextHoldShort.IsCleared;
+
+        double requiredArrivalSpeed;
+        if (isHoldShortNode)
+        {
+            requiredArrivalSpeed = 0;
+        }
+        else if (!double.IsNaN(_nextSegmentBearing))
+        {
+            // Scale corner speed by turn sharpness: no reduction below 30°, full reduction at 90°+
+            double upcomingTurnAngle = Math.Abs(FlightPhysics.NormalizeAngle(_nextSegmentBearing - bearing));
+            double cornerFraction = Math.Clamp((upcomingTurnAngle - 30.0) / 60.0, 0.0, 1.0);
+            double cornerSpeed = CategoryPerformance.TaxiCornerSpeed(ctx.Category);
+            requiredArrivalSpeed = maxSpeed - (maxSpeed - cornerSpeed) * cornerFraction;
+        }
+        else
+        {
+            requiredArrivalSpeed = maxSpeed; // last segment: no slowdown needed
+        }
+
+        // Physics-correct braking ramp: max speed at current distance to reach requiredArrivalSpeed.
+        // Derived from v² = v_final² + 2·a·d  →  v_max = sqrt(v_final² + 2·a·d·3600)
+        double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+        double brakingLimit = Math.Sqrt(requiredArrivalSpeed * requiredArrivalSpeed + 2.0 * decelRate * dist * 3600.0);
+        targetSpeed = Math.Min(targetSpeed, brakingLimit);
+
+        // Safety backstop: cap speed so we can't overshoot the target node in one tick.
         if (ctx.DeltaSeconds > 0 && dist > 0)
         {
             double maxSpeedForDist = (dist * 0.8) / ctx.DeltaSeconds * 3600.0;
@@ -193,11 +222,23 @@ public sealed class TaxiingPhase : Phase
 
         var seg = route.CurrentSegment;
         _targetNodeId = seg.ToNodeId;
+        _nextSegmentBearing = double.NaN;
 
         if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var targetNode))
         {
             _targetLat = targetNode.Latitude;
             _targetLon = targetNode.Longitude;
+
+            // Look one segment ahead to know the upcoming turn angle at this node.
+            int nextIdx = route.CurrentSegmentIndex + 1;
+            if (nextIdx < route.Segments.Count)
+            {
+                int nextToNodeId = route.Segments[nextIdx].ToNodeId;
+                if (ctx.GroundLayout.Nodes.TryGetValue(nextToNodeId, out var nextNode))
+                {
+                    _nextSegmentBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, nextNode.Latitude, nextNode.Longitude);
+                }
+            }
         }
         else
         {
@@ -240,6 +281,13 @@ public sealed class TaxiingPhase : Phase
                 holdShort.TargetName,
                 holdShort.Reason
             );
+
+            // Snap to exact hold-short node position to prevent runway encroachment.
+            if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var hsNode))
+            {
+                ctx.Aircraft.Latitude = hsNode.Latitude;
+                ctx.Aircraft.Longitude = hsNode.Longitude;
+            }
 
             ctx.Aircraft.GroundSpeed = 0;
             ctx.Targets.TargetSpeed = 0;
