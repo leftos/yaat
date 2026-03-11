@@ -183,7 +183,7 @@ When invoking aviation-sim-expert, always include:
 - **Comparison doc**: Update `docs/yaat-vs-atctrainer.md` before committing changes that add, remove, or change commands, features, or behavioral differences vs ATCTrainer.
 - **No newlines in text strings**: Never split literal text across lines in `.axaml` or `.cs` files. The indentation whitespace becomes visible at runtime (huge gaps in UI text). Keep `Text="..."`, `Content="..."`, and interpolated strings on one line, even if long.
 - **Window geometry**: Every window must persist its position/size via `WindowGeometryHelper(window, preferences, "Name", defaultW, defaultH).Restore()`. New window names automatically use the `WindowGeometries` dictionary in `UserPreferences` — no need to add named properties.
-- **Error Handling**: Never swallow exceptions. Log with `AppLog` (client) or `ILogger` (Sim).
+- **Error Handling**: Never swallow exceptions. Log with `AppLog` (client) or `ILogger` (Sim). In Yaat.Sim static classes, use a static `private static readonly ILogger Log = SimLog.CreateLogger("ClassName");` — never make loggers optional parameters.
 - **Line width**: 150 characters, not 80 or 120. CSharpier is configured accordingly.
 - **Warnings are errors**: CI builds with `/warnaserror`. Always build with `dotnet build -p:TreatWarningsAsErrors=true` locally before committing to catch issues CI will reject.
 - **Pre-commit formatting**: Run `dotnet format style`, `dotnet format analyzers`, then `dotnet csharpier format .` before each commit, followed by a final `dotnet build -p:TreatWarningsAsErrors=true` to verify nothing broke. Do NOT run bare `dotnet format` (its whitespace rules fight with CSharpier).

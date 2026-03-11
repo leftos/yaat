@@ -840,7 +840,20 @@ public static class CommandDispatcher
         // Hold-short runway IDs can be combined (e.g., "28R/10L").
         // Try each end until one resolves.
         var parsed = RunwayIdentifier.Parse(runwayId);
-        return runways.GetRunway(airportId, parsed.End1) ?? runways.GetRunway(airportId, parsed.End2);
+        var result = runways.GetRunway(airportId, parsed.End1) ?? runways.GetRunway(airportId, parsed.End2);
+        if (result is null)
+        {
+            Log.LogWarning(
+                "Runway lookup failed for {Aircraft}: runway '{RunwayId}' not found at {Airport} (tried '{End1}' and '{End2}')",
+                aircraft.Callsign,
+                runwayId,
+                airportId,
+                parsed.End1,
+                parsed.End2
+            );
+        }
+
+        return result;
     }
 
     internal static string RunwayLabel(AircraftState aircraft)
