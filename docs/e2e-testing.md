@@ -55,7 +55,7 @@ var junction = FindIntersectionNode(layout, "T", "D"); // helper in test class
 | Airport | Subdir | Good for |
 |---------|--------|----------|
 | OAK | `oak` | Taxiway variants (W/W1-W7), parking ramp transitions, runway crossings (15/33) |
-| SFO | `sfo` | Complex hold-short patterns, multiple runways |
+| SFO | `sfo` | Complex hold-short patterns, multiple runways, dual parallel pairs (01/19, 28/10) |
 
 ## Test Patterns
 
@@ -94,6 +94,49 @@ In `TaxiPathfinderTests.cs`:
 - `OAK_TaxiBW_ToRunway30_E2E` — multi-taxiway route to runway
 - `OAK_TaxiDF_CrossesRunway15_33` — runway crossing detection
 - `OAK_TaxiDHoldShortD_FromParking_*` — taxiway hold-short from parking
+
+## Recording-Based Replay Tests
+
+In addition to direct pathfinder unit tests, you can replay saved scenario recordings through `SimulationEngine.Replay()` to reproduce exact user sessions and assert on resulting aircraft state.
+
+### Recording Format
+
+Recordings are `SessionRecording` JSON files containing `ScenarioJson`, `RngSeed`, `WeatherJson`, `Actions` (list of user commands and setting changes with elapsed-second timestamps), and `TotalElapsedSeconds`.
+
+### Loading a Recording
+
+```csharp
+// In SimulationEngineReplayTests.cs or SfoReplayTests.cs
+var json = File.ReadAllText("TestData/my-recording.json");
+var recording = JsonSerializer.Deserialize<SessionRecording>(json,
+    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+var engine = new SimulationEngine(fixes, fixes, groundData);
+engine.Replay(recording, targetSeconds); // replay up to targetSeconds
+var aircraft = engine.FindAircraft("UAL859");
+```
+
+### Replay Tips
+
+- Recording files go in `tests/Yaat.Sim.Tests/TestData/` with a descriptive name (e.g., `sfo-crossing-runways-recording.json`)
+- Silently skip (early return) if `NavData.dat`, the GeoJSON, or the recording file is absent — keeps CI green on machines without navdata
+- You can replay to an intermediate time (not just `TotalElapsedSeconds`) to capture state mid-scenario
+- Preset commands in the scenario JSON fire at their `timeOffset` during replay
+- `engine.FindAircraft(callsign)` returns the live `AircraftState` after replay; inspect `.Phases.AssignedRunway`, `.AssignedTaxiRoute.Segments`, `.Heading`, `.Latitude`, etc.
+
+### Available Recordings
+
+| File | Scenario | Airport | Good for testing |
+|------|----------|---------|-----------------|
+| `oak-taxi-recording.json` | OAK taxi session | OAK | Taxi routing, variant inference |
+| `sfo-crossing-runways-recording.json` | S2-SFO-1 | SFO | CTO runway resolution (#51), AAL2839 taxi detour (#53) |
+
+### How to Add a New Recording
+
+1. Reproduce the issue in YAAT client
+2. Save a recording via the session recording feature
+3. Copy the `.yaat-recording.json` to `tests/Yaat.Sim.Tests/TestData/` with a short, descriptive name
+4. Write a replay test that fails with the bug and passes after the fix
 
 ### Key OAK Reference Points
 
