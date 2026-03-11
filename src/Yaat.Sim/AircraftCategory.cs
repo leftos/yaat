@@ -208,16 +208,20 @@ public static class CategoryPerformance
         };
     }
 
-    /// <summary>Ground braking deceleration during rollout (kts/sec). Helicopter: 0 (no rollout).</summary>
+    /// <summary>
+    /// Ground braking deceleration during rollout (kts/sec). Models normal commercial operations
+    /// (autobrake 2 + moderate reverse thrust) on a long runway — not emergency maximum braking.
+    /// Helicopter: 0 (no rollout).
+    /// </summary>
     public static double RolloutDecelRate(AircraftCategory cat)
     {
         return cat switch
         {
-            AircraftCategory.Jet => 5.0,
-            AircraftCategory.Turboprop => 3.5,
-            AircraftCategory.Piston => 2.5,
+            AircraftCategory.Jet => 2.5,
+            AircraftCategory.Turboprop => 2.0,
+            AircraftCategory.Piston => 1.5,
             AircraftCategory.Helicopter => 0,
-            _ => 5.0,
+            _ => 2.5,
         };
     }
 
