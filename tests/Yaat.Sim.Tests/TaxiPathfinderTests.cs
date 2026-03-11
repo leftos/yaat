@@ -1651,6 +1651,47 @@ public class TaxiPathfinderTests
         Assert.Equal(HoldShortReason.RunwayCrossing, hs1533[0].Reason);
     }
 
+    /// <summary>
+    /// Regression test for issue #53: AAL2839 "TAXI B M1 1L" at SFO produced a 47-segment route
+    /// due to WalkTaxiway picking the wrong direction on M1 at the B/M1 junction. The walk should
+    /// stop at the 1L hold-short on M1 in a small number of segments, not overshoot to the dead end
+    /// and require TaxiVariantResolver to stitch a return path.
+    /// </summary>
+    [Fact]
+    public void SFO_TaxiBM1_To1L_ProducesShortRoute()
+    {
+        var layout = LoadAirportLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Start near AAL2839's position on taxiway B close to the B/M1 junction
+        const double StartLat = 37.609046;
+        const double StartLon = -122.383669;
+        var startNode = layout
+            .Nodes.Values.Where(n => n.Edges.Any(e => string.Equals(e.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(n => Math.Abs(n.Latitude - StartLat) + Math.Abs(n.Longitude - StartLon))
+            .First();
+
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, startNode.Id, ["B", "M1"], out string? failReason, destinationRunway: "1L");
+
+        Assert.NotNull(route);
+        Assert.Null(failReason);
+
+        // Should end at the 1L hold-short node
+        var endNode = layout.Nodes[route.Segments[^1].ToNodeId];
+        Assert.Equal(GroundNodeType.RunwayHoldShort, endNode.Type);
+        Assert.NotNull(endNode.RunwayId);
+        Assert.True(endNode.RunwayId!.Value.Contains("1L"), $"Expected end at 1L hold-short, got runwayId={endNode.RunwayId}");
+
+        // Should be a compact route — previously produced 47 segments; correct is ~3-6
+        Assert.True(
+            route.Segments.Count <= 10,
+            $"Route too long: {route.Segments.Count} segments (expected ≤10). Taxiways: [{string.Join(",", route.Segments.Select(s => s.TaxiwayName).Distinct())}]"
+        );
+    }
+
     [Fact]
     public void SFO_LayoutLoads_WithHoldShorts()
     {

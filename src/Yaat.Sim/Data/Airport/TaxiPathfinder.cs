@@ -52,7 +52,8 @@ public static class TaxiPathfinder
         List<string>? explicitHoldShorts = null,
         string? destinationRunway = null,
         IRunwayLookup? runways = null,
-        string? airportId = null
+        string? airportId = null,
+        Action<string>? diagnosticLog = null
     )
     {
         failReason = null;
@@ -73,6 +74,7 @@ public static class TaxiPathfinder
         if (destinationRunway is not null)
         {
             var holdShortNodes = layout.GetRunwayHoldShortNodes(destinationRunway);
+            diagnosticLog?.Invoke($"[Pathfinder] destinationRunway={destinationRunway}, holdShortNodes.Count={holdShortNodes.Count}");
             if (holdShortNodes.Count == 1)
             {
                 destinationHint = holdShortNodes[0];
@@ -83,6 +85,9 @@ public static class TaxiPathfinder
                 foreach (var hsn in holdShortNodes)
                 {
                     double dist = GeoMath.DistanceNm(hsn.Latitude, hsn.Longitude, startNode.Latitude, startNode.Longitude);
+                    diagnosticLog?.Invoke(
+                        $"[Pathfinder]   holdShort candidate id={hsn.Id} lat={hsn.Latitude:F6} lon={hsn.Longitude:F6} dist={dist:F4}nm edges=[{string.Join(",", hsn.Edges.Select(e => e.TaxiwayName))}]"
+                    );
                     if (dist < bestDist)
                     {
                         bestDist = dist;
@@ -90,6 +95,10 @@ public static class TaxiPathfinder
                     }
                 }
             }
+
+            diagnosticLog?.Invoke(
+                $"[Pathfinder] destinationHint={destinationHint?.Id.ToString() ?? "null"} lat={destinationHint?.Latitude:F6} lon={destinationHint?.Longitude:F6} edges=[{string.Join(",", destinationHint?.Edges.Select(e => e.TaxiwayName) ?? [])}]"
+            );
         }
 
         for (int twIdx = 0; twIdx < taxiwayNames.Count; twIdx++)
@@ -129,6 +138,18 @@ public static class TaxiPathfinder
             // (parking→taxiway). Between explicitly listed taxiways: only BFS
             // (short hop) and runway centerline bridging are allowed.
             bool isFirstTw = twIdx == 0;
+            var passedHint = nextTwName is null ? destinationHint : null;
+            var passedStopId = nextTwName is null ? destinationRunway : null;
+
+            if (layout.Nodes.TryGetValue(currentNodeId, out var curNode))
+            {
+                diagnosticLog?.Invoke(
+                    $"[Pathfinder] Walk[{twIdx}] taxiway={twName} nextTw={nextTwName ?? "null"} from node={currentNodeId} lat={curNode.Latitude:F6} lon={curNode.Longitude:F6} "
+                        + $"edges=[{string.Join(",", curNode.Edges.Select(e => e.TaxiwayName))}] "
+                        + $"hint={(passedHint is null ? "null" : passedHint.Id.ToString())} stopAtRunwayId={passedStopId ?? "null"}"
+                );
+            }
+
             bool found = WalkTaxiway(
                 layout,
                 currentNodeId,
@@ -138,8 +159,13 @@ public static class TaxiPathfinder
                 nextTwName,
                 allowRampFallback: isFirstTw,
                 allowCurrentTaxiwayWalk: isFirstTw,
-                destinationHint: nextTwName is null && taxiwayNames.Count == 1 ? destinationHint : null
+                destinationHint: passedHint,
+                stopAtRunwayId: passedStopId,
+                diagnosticLog: diagnosticLog
             );
+
+            int addedSegments = segments.Count - segCountBefore;
+            diagnosticLog?.Invoke($"[Pathfinder] Walk[{twIdx}] {twName} done: found={found} addedSegments={addedSegments} endNode={endNodeId}");
 
             if (!found)
             {
@@ -393,7 +419,9 @@ public static class TaxiPathfinder
         string? nextTaxiwayName = null,
         bool allowRampFallback = true,
         bool allowCurrentTaxiwayWalk = true,
-        GroundNode? destinationHint = null
+        GroundNode? destinationHint = null,
+        string? stopAtRunwayId = null,
+        Action<string>? diagnosticLog = null
     )
     {
         endNodeId = startNodeId;
@@ -413,20 +441,78 @@ public static class TaxiPathfinder
             }
         }
 
+        diagnosticLog?.Invoke(
+            $"[WalkTaxiway] {taxiwayName}: startNode={startNodeId} candidateEdges={candidateEdges.Count} nextTw={nextTaxiwayName ?? "null"} stopAtRunwayId={stopAtRunwayId ?? "null"}"
+        );
+
+        // When stopAtRunwayId is set, compute effectiveHint from the nearest hold-short that is
+        // directly on this taxiway (not a variant). This steers PickBestStartEdge/PickBestWalkEdge
+        // in the correct direction when the walk has two choices.
+        // If no hold-short is found directly on this taxiway, use null — the passed destinationHint
+        // was computed relative to the original aircraft position and is unreliable for later taxiways.
+        // Example: SFO M1 — node 882 (1L hold-short) is on M1 → walk steers south and stops there.
+        // Example: OAK W — runway 30 hold-shorts are on W1/W2, not W → null → candidates[0] (south).
+        GroundNode? effectiveHint = destinationHint;
+        if (stopAtRunwayId is not null && layout.Nodes.TryGetValue(startNodeId, out var startHintRef))
+        {
+            double nearestDist = double.MaxValue;
+            GroundNode? taxiwayHoldShort = null;
+            foreach (var node in layout.Nodes.Values)
+            {
+                if (node.Type != GroundNodeType.RunwayHoldShort || node.RunwayId is not { } rId || !rId.Contains(stopAtRunwayId))
+                {
+                    continue;
+                }
+
+                if (!node.Edges.Any(e => string.Equals(e.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, startHintRef.Latitude, startHintRef.Longitude);
+                if (dist < nearestDist)
+                {
+                    nearestDist = dist;
+                    taxiwayHoldShort = node;
+                }
+            }
+            effectiveHint = taxiwayHoldShort;
+            if (effectiveHint is not null)
+            {
+                diagnosticLog?.Invoke(
+                    $"[WalkTaxiway] {taxiwayName}: computed effectiveHint from hold-short node={effectiveHint.Id} lat={effectiveHint.Latitude:F6} RunwayId={effectiveHint.RunwayId}"
+                );
+            }
+            else if (destinationHint is not null)
+            {
+                diagnosticLog?.Invoke(
+                    $"[WalkTaxiway] {taxiwayName}: no hold-short on taxiway for stopAtRunwayId={stopAtRunwayId} — effectiveHint cleared (passed hint was node={destinationHint.Id})"
+                );
+            }
+        }
+
         GroundEdge? startEdge = candidateEdges.Count switch
         {
             0 => null,
             1 => candidateEdges[0],
-            _ => PickBestStartEdge(layout, startNodeId, candidateEdges, nextTaxiwayName, destinationHint),
+            _ => PickBestStartEdge(layout, startNodeId, candidateEdges, nextTaxiwayName, effectiveHint),
         };
+
+        if (startEdge is not null)
+        {
+            int firstDest = startEdge.FromNodeId == startNodeId ? startEdge.ToNodeId : startEdge.FromNodeId;
+            diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: startEdge → node={firstDest}");
+        }
 
         if (startEdge is null)
         {
+            diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: no direct edge from node={startNodeId}, trying BFS");
             // Try short BFS first (handles normal taxiway-to-taxiway transitions)
             (int foundId, GroundEdge? foundEdge) = BfsToTaxiway(layout, startNodeId, taxiwayName, segments);
 
             if (foundId != -1)
             {
+                diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: BFS found node={foundId}");
                 startNodeId = foundId;
                 startEdge = foundEdge;
             }
@@ -441,6 +527,7 @@ public static class TaxiPathfinder
                     // the target. Handles cases like W5→W, B→D, etc. without the
                     // user having to include the current taxiway in instructions.
                     (variantEndId, variantEdge) = WalkCurrentTaxiwayToTarget(layout, startNodeId, taxiwayName, segments);
+                    diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: WalkCurrentTaxiway → node={variantEndId}");
                 }
 
                 if (variantEndId != -1)
@@ -504,6 +591,7 @@ public static class TaxiPathfinder
         // it needs to be to transition to the next taxiway.
         if (nextTaxiwayName is not null && NodeHasEdgeTo(layout, startNodeId, nextTaxiwayName))
         {
+            diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: startNode={startNodeId} already connects to {nextTaxiwayName} — skipping walk");
             endNodeId = startNodeId;
             return segments.Count > 0;
         }
@@ -511,6 +599,7 @@ public static class TaxiPathfinder
         // Walk along the taxiway to the end
         int currentId = startNodeId;
         var visited = new HashSet<int> { currentId };
+        diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: starting walk from node={startNodeId}");
 
         while (true)
         {
@@ -549,12 +638,22 @@ public static class TaxiPathfinder
             else
             {
                 // Multiple directions — prefer the one leading toward the next taxiway
-                (nextEdge, nextNodeId) = PickBestWalkEdge(layout, candidates, nextTaxiwayName, destinationHint);
+                (nextEdge, nextNodeId) = PickBestWalkEdge(layout, candidates, nextTaxiwayName, effectiveHint);
             }
 
             if (nextEdge is null)
             {
+                diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: dead end at node={currentId}");
                 break;
+            }
+
+            if (layout.Nodes.TryGetValue(nextNodeId, out var nextNodeInfo))
+            {
+                string nodeType =
+                    nextNodeInfo.Type == GroundNodeType.RunwayHoldShort ? $"RunwayHoldShort({nextNodeInfo.RunwayId})" : nextNodeInfo.Type.ToString();
+                diagnosticLog?.Invoke(
+                    $"[WalkTaxiway] {taxiwayName}: step {currentId}→{nextNodeId} ({nodeType}) lat={nextNodeInfo.Latitude:F6} edges=[{string.Join(",", nextNodeInfo.Edges.Select(e => e.TaxiwayName))}]"
+                );
             }
 
             segments.Add(
@@ -573,6 +672,7 @@ public static class TaxiPathfinder
             // Stop early if this node connects to the next taxiway in the path
             if (nextTaxiwayName is not null && NodeHasEdgeTo(layout, currentId, nextTaxiwayName))
             {
+                diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: stopping at node={currentId} — connects to {nextTaxiwayName}");
                 break;
             }
 
@@ -580,13 +680,16 @@ public static class TaxiPathfinder
             // Without this, WalkTaxiway walks past the correct hold-short to the taxiway dead-end,
             // potentially crossing unrelated runways.
             if (
-                destinationHint is not null
+                stopAtRunwayId is not null
                 && layout.Nodes.TryGetValue(currentId, out var arrNode)
                 && arrNode.Type == GroundNodeType.RunwayHoldShort
-                && arrNode.RunwayId is not null
-                && arrNode.RunwayId == destinationHint.RunwayId
+                && arrNode.RunwayId is { } arrRwyId
+                && arrRwyId.Contains(stopAtRunwayId)
             )
             {
+                diagnosticLog?.Invoke(
+                    $"[WalkTaxiway] {taxiwayName}: stopping at runway hold-short node={currentId} RunwayId={arrRwyId} matches stopAtRunwayId={stopAtRunwayId}"
+                );
                 break;
             }
         }
