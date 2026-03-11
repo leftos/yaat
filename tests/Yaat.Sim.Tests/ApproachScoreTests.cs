@@ -306,9 +306,8 @@ public class ApproachScoreTests
         phase.OnTick(ctx);
 
         var score = aircraft.PendingApproachScores[0];
-        // Close to gate — max angle should be 20° or 30° depending on exact distance-to-gate
-        // The important thing is the score captures the limit
-        Assert.True(score.MaxAllowedAngleDeg is 20 or 30);
+        // At 6nm, default minIntercept=7nm, approachGate=5nm, distToGate=1nm < 2nm → 20°
+        Assert.Equal(20, score.MaxAllowedAngleDeg);
     }
 
     [Fact]

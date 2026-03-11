@@ -25,6 +25,7 @@ public sealed class FinalApproachPhase : Phase
     private double _thresholdLon;
     private double _thresholdElevation;
     private double _runwayHeading;
+    private double _gsAngleDeg;
     private bool _goAroundTriggered;
     private bool _noClearanceWarningIssued;
     private bool _interceptChecked;
@@ -49,6 +50,7 @@ public sealed class FinalApproachPhase : Phase
         _thresholdLon = ctx.Runway.ThresholdLongitude;
         _thresholdElevation = ctx.Runway.ElevationFt;
         _runwayHeading = ctx.Runway.TrueHeading;
+        _gsAngleDeg = GlideSlopeGeometry.AngleForCategory(ctx.Category);
         _isPatternTraffic = ctx.Aircraft.Phases?.TrafficDirection is not null;
 
         ctx.Targets.TargetHeading = _runwayHeading;
@@ -123,20 +125,18 @@ public sealed class FinalApproachPhase : Phase
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, aimPoint.Lat, aimPoint.Lon);
         ctx.Targets.TargetHeading = bearing;
 
-        // Target: threshold elevation (descend all the way to the runway)
-        ctx.Targets.TargetAltitude = _thresholdElevation;
+        // Target: glideslope altitude at current distance (true 3°/6° path)
+        double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation, _gsAngleDeg);
+        ctx.Targets.TargetAltitude = gsAltitude;
 
-        // Compute descent rate proportionally: lose all remaining altitude
-        // over the remaining distance. This naturally handles above/below
-        // glideslope — steeper when high, shallower when low.
-        double timeToThresholdSec = ctx.Aircraft.GroundSpeed > 1 ? distNm / (ctx.Aircraft.GroundSpeed / 3600.0) : 1.0;
-        double altToLose = ctx.Aircraft.Altitude - _thresholdElevation;
-        double requiredFpm = timeToThresholdSec > 1 ? (altToLose / timeToThresholdSec) * 60.0 : altToLose * 60.0;
-
-        // Clamp to reasonable range (don't dive or climb on approach)
+        // Descent rate: standard GS rate, scaled by deviation to converge
+        double standardFpm = GlideSlopeGeometry.RequiredDescentRate(ctx.Aircraft.GroundSpeed, _gsAngleDeg);
+        double deviation = ctx.Aircraft.Altitude - gsAltitude;
+        // Scale: 1.0 on path, up to 1.5× when 500ft+ high, down to 0.5× when 500ft+ low
+        double scale = Math.Clamp(1.0 + deviation / 1000.0, 0.5, 1.5);
+        double fpm = standardFpm * scale;
         double maxFpm = distNm > 2.0 ? 2500 : 1500;
-        double clampedFpm = Math.Clamp(requiredFpm, 200, maxFpm);
-        ctx.Targets.DesiredVerticalRate = -clampedFpm;
+        ctx.Targets.DesiredVerticalRate = -Math.Clamp(fpm, 200, maxFpm);
 
         // Check landing clearance from PhaseList (set earlier by CTL command)
         bool hasLandingClearance = HasLandingClearance(ctx);
@@ -221,7 +221,9 @@ public sealed class FinalApproachPhase : Phase
         }
 
         // TBL 5-9-1: max intercept angle depends on distance to approach gate
-        double distToGate = distNm - minIntercept;
+        // Approach gate = minIntercept - 2nm (the 2nm padding is from gate to min intercept)
+        double approachGate = minIntercept - 2.0;
+        double distToGate = distNm - approachGate;
         double maxAngle = distToGate < 2.0 ? 20.0 : 30.0;
         bool isAngleLegal = isVisualApproach || interceptAngle <= maxAngle;
 

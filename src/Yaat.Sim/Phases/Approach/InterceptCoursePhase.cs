@@ -11,7 +11,7 @@ namespace Yaat.Sim.Phases.Approach;
 public sealed class InterceptCoursePhase : Phase
 {
     private const double CrossTrackThresholdNm = 0.15;
-    private const double HeadingAlignmentDeg = 20.0;
+    private const double HeadingAlignmentDeg = 15.0;
 
     /// <summary>Final approach course heading (true).</summary>
     public required double FinalApproachCourse { get; init; }
