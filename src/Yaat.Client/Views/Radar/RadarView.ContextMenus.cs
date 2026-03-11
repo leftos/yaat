@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 using Yaat.Sim.Data;
@@ -88,28 +89,25 @@ public partial class RadarView
         AddCommandTextBox(menu, cmd => vm.SendRawCommandAsync(callsign, initials, cmd));
         menu.Items.Add(new Separator());
 
-        menu.Items.Add(BuildHeadingSubmenu(vm, callsign, initials, ac));
-        menu.Items.Add(BuildAltitudeSubmenu(vm, callsign, initials, ac));
-        menu.Items.Add(BuildSpeedSubmenu(vm, callsign, initials, ac));
-        menu.Items.Add(BuildNavigationSubmenu(vm, callsign, initials, ac));
-        menu.Items.Add(
-            CreateMenuItem(
-                "Draw route",
-                () =>
-                {
-                    vm.EnterDrawRoute(callsign);
-                    return Task.CompletedTask;
-                }
-            )
-        );
-        menu.Items.Add(BuildHoldSubmenu(vm, callsign, initials));
-        menu.Items.Add(BuildApproachSubmenu(vm, callsign, initials, ac));
-        menu.Items.Add(BuildProceduresSubmenu(vm, callsign, initials));
+        var profile = ContextMenuProfileService.GetProfile(ac?.CurrentPhase, ac?.IsOnGround ?? false);
 
-        menu.Items.Add(BuildTowerSubmenu(vm, callsign, initials));
+        foreach (var group in profile.PrimaryGroups)
+        {
+            AddMenuGroup(menu, group, vm, callsign, initials, ac);
+        }
 
+        if (profile.PrimaryGroups.Count > 0 && profile.SecondaryGroups.Count > 0)
+        {
+            menu.Items.Add(new Separator());
+        }
+
+        foreach (var group in profile.SecondaryGroups)
+        {
+            AddMenuGroup(menu, group, vm, callsign, initials, ac);
+        }
+
+        // Always-visible groups
         AddTrackItems(menu, vm, callsign, initials);
-
         menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
@@ -516,6 +514,71 @@ public partial class RadarView
         menu.Items.Add(CreateMenuItem("Low approach", () => vm.LowApproachAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Go around", () => vm.GoAroundAsync(cs, init)));
         menu.Items.Add(new Separator());
+        menu.Items.Add(
+            CreateInputMenuItem("Enter left downwind...", "Runway (optional)", input => vm.EnterLeftDownwindAsync(cs, init, NullIfEmpty(input)))
+        );
+        menu.Items.Add(
+            CreateInputMenuItem("Enter right downwind...", "Runway (optional)", input => vm.EnterRightDownwindAsync(cs, init, NullIfEmpty(input)))
+        );
+        menu.Items.Add(CreateInputMenuItem("Enter left base...", "Runway (optional)", input => vm.EnterLeftBaseAsync(cs, init, NullIfEmpty(input))));
+        menu.Items.Add(
+            CreateInputMenuItem("Enter right base...", "Runway (optional)", input => vm.EnterRightBaseAsync(cs, init, NullIfEmpty(input)))
+        );
+        menu.Items.Add(
+            CreateInputMenuItem("Enter straight-in final...", "Runway (optional)", input => vm.EnterFinalAsync(cs, init, NullIfEmpty(input)))
+        );
+        return menu;
+    }
+
+    private void AddMenuGroup(ContextMenu menu, MenuGroup group, RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    {
+        switch (group)
+        {
+            case MenuGroup.Heading:
+                menu.Items.Add(BuildHeadingSubmenu(vm, cs, init, ac));
+                break;
+            case MenuGroup.Altitude:
+                menu.Items.Add(BuildAltitudeSubmenu(vm, cs, init, ac));
+                break;
+            case MenuGroup.Speed:
+                menu.Items.Add(BuildSpeedSubmenu(vm, cs, init, ac));
+                break;
+            case MenuGroup.Navigation:
+                menu.Items.Add(BuildNavigationSubmenu(vm, cs, init, ac));
+                break;
+            case MenuGroup.DrawRoute:
+                menu.Items.Add(
+                    CreateMenuItem(
+                        "Draw route",
+                        () =>
+                        {
+                            vm.EnterDrawRoute(cs);
+                            return Task.CompletedTask;
+                        }
+                    )
+                );
+                break;
+            case MenuGroup.Hold:
+                menu.Items.Add(BuildHoldSubmenu(vm, cs, init));
+                break;
+            case MenuGroup.Approach:
+                menu.Items.Add(BuildApproachSubmenu(vm, cs, init, ac));
+                break;
+            case MenuGroup.Procedures:
+                menu.Items.Add(BuildProceduresSubmenu(vm, cs, init));
+                break;
+            case MenuGroup.Tower:
+                menu.Items.Add(BuildTowerSubmenu(vm, cs, init));
+                break;
+            case MenuGroup.Pattern:
+                menu.Items.Add(BuildPatternSubmenu(vm, cs, init));
+                break;
+        }
+    }
+
+    private MenuItem BuildPatternSubmenu(RadarViewModel vm, string cs, string init)
+    {
+        var menu = new MenuItem { Header = "Pattern" };
         menu.Items.Add(
             CreateInputMenuItem("Enter left downwind...", "Runway (optional)", input => vm.EnterLeftDownwindAsync(cs, init, NullIfEmpty(input)))
         );

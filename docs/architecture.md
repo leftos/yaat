@@ -38,6 +38,9 @@ Services/
   ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached)
   FdRegionMapping.cs            # Static ARTCC → FD region code mapping
   UserPreferences.cs            # JSON to %LOCALAPPDATA%/yaat/preferences.json (incl. SavedMacro list)
+  MenuGroup.cs                  # Enum of context menu groups (Heading, Altitude, Speed, Tower, etc.)
+  ContextMenuProfile.cs         # Record: Primary/Secondary/Hidden menu groups for a phase
+  ContextMenuProfileService.cs  # Static: maps phase name + isOnGround → ContextMenuProfile
 
 ViewModels/
   MainViewModel.cs              # Root VM; SendCommandAsync pipeline; nav data init
