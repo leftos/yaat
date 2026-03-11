@@ -648,8 +648,11 @@ public sealed class GroundRenderer : IDisposable
     /// <summary>Minimum triangle half-length in pixels (ensures visibility when zoomed out).</summary>
     private const float MinAircraftPx = 8f;
 
-    /// <summary>Selected aircraft gets a slight scale-up for visual emphasis.</summary>
-    private const float SelectedScaleFactor = 1.2f;
+    /// <summary>
+    /// The user-selected aircraft can have a slight scale-up for visual emphasis.
+    /// Disabled for now.
+    /// </summary>
+    private const float SelectedScaleFactor = 1.0f;
 
     /// <summary>Fallback dimensions when FAA ACD data is unavailable (small GA aircraft).</summary>
     private const float FallbackLengthFt = 60f;
