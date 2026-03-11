@@ -402,6 +402,70 @@ public class SfoReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Replays DAL819 and UAL859 and asserts that speed never drops by more than
+    /// TaxiDecelRate + 0.5 kts between consecutive 1-second samples (no snap-to-zero).
+    /// Also verifies aircraft reach HoldingShortPhase within the expected window.
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_HoldShort_MaxDeceleration()
+    {
+        var recording = LoadRecording();
+        if (recording is null)
+        {
+            return;
+        }
+
+        double maxAllowedDrop = CategoryPerformance.TaxiDecelRate(AircraftCategory.Jet) + 0.5;
+
+        foreach (string callsign in new[] { "DAL819", "UAL859" })
+        {
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            double prevSpeed = 0;
+            bool reachedHoldShort = false;
+            double worstDrop = 0;
+            double worstDropTime = 0;
+
+            for (double t = 1.0; t <= 90.0; t += 1.0)
+            {
+                engine.Replay(recording, t);
+                var ac = engine.FindAircraft(callsign);
+                if (ac is null || !ac.IsOnGround)
+                {
+                    continue;
+                }
+
+                if (ac.Phases?.CurrentPhase is HoldingShortPhase)
+                {
+                    reachedHoldShort = true;
+                    break;
+                }
+
+                double speed = ac.GroundSpeed;
+                double drop = prevSpeed - speed;
+                if (drop > worstDrop)
+                {
+                    worstDrop = drop;
+                    worstDropTime = t;
+                }
+
+                prevSpeed = speed;
+            }
+
+            Assert.True(reachedHoldShort, $"{callsign} never reached HoldingShortPhase within 90s");
+
+            Assert.True(
+                worstDrop <= maxAllowedDrop,
+                $"{callsign} speed dropped {worstDrop:F2} kts in one tick at t={worstDropTime:F0}s. Max allowed: {maxAllowedDrop:F1} kts/s."
+            );
+        }
+    }
+
+    /// <summary>
     /// AAL2839 starts at lat ~37.609 and should hold short of runway 1L at lat ~37.608.
     /// The M1/M2 cargo ramp intersection that the bug visits is at lat ~37.607 (further south).
     /// At t=60s, AAL2839 should have already passed through the hold short and be stationary

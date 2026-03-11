@@ -20,12 +20,11 @@ public sealed class TaxiingPhase : Phase
     private int _targetNodeId;
     private double _targetLat;
     private double _targetLon;
-    private double _nextSegmentBearing = double.NaN; // bearing from _targetNode toward the node after it
     private bool _initialized;
     private double _timeSinceLastLog;
     private double _prevDistToTarget = double.MaxValue;
-    private double _pathDistToHoldShortNm; // path distance from _targetNodeId to next uncleared hold-short
-    private bool _hasHoldShortAhead;
+    private double _currentNodeRequiredSpeed;
+    private List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
 
     public override string Name => "Taxiing";
 
@@ -114,47 +113,33 @@ public sealed class TaxiingPhase : Phase
         double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.15, 1.0);
         double targetSpeed = maxSpeed * speedFraction;
 
-        // Look-ahead braking: slow to the required arrival speed before reaching the target node.
-        // Required arrival speed is 0 for hold-short nodes, or the corner speed for turn nodes.
-        var nextHoldShort = route.GetHoldShortAt(_targetNodeId);
-        bool isHoldShortNode = nextHoldShort is not null && !nextHoldShort.IsCleared;
-
-        double requiredArrivalSpeed;
-        if (isHoldShortNode)
-        {
-            requiredArrivalSpeed = 0;
-        }
-        else if (!double.IsNaN(_nextSegmentBearing))
-        {
-            // Scale corner speed by turn sharpness: no reduction below 30°, full reduction at 90°+
-            double upcomingTurnAngle = Math.Abs(FlightPhysics.NormalizeAngle(_nextSegmentBearing - bearing));
-            double cornerFraction = Math.Clamp((upcomingTurnAngle - 30.0) / 60.0, 0.0, 1.0);
-            double cornerSpeed = CategoryPerformance.TaxiCornerSpeed(ctx.Category);
-            requiredArrivalSpeed = maxSpeed - (maxSpeed - cornerSpeed) * cornerFraction;
-        }
-        else
-        {
-            requiredArrivalSpeed = maxSpeed; // last segment: no slowdown needed
-        }
-
-        // Physics-correct braking ramp: max speed at current distance to reach requiredArrivalSpeed.
-        // Derived from v² = v_final² + 2·a·d  →  v_max = sqrt(v_final² + 2·a·d·3600)
+        // Multi-segment braking: use precomputed speed profile from SetupCurrentSegment.
+        // Effective distance accounts for arrival threshold snap (aircraft "arrives" at NodeArrivalThresholdNm).
+        double effectiveDist = Math.Max(0, dist - NodeArrivalThresholdNm);
         double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-        double brakingLimit = Math.Sqrt(requiredArrivalSpeed * requiredArrivalSpeed + 2.0 * decelRate * dist * 3600.0);
+
+        // Brake for current target node
+        double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * effectiveDist * 3600.0);
         targetSpeed = Math.Min(targetSpeed, brakingLimit);
 
-        // If there's a hold-short ahead in future segments, also brake for that.
-        if (!isHoldShortNode && _hasHoldShortAhead)
+        // Brake for all future constraints
+        foreach (var (pathDist, reqSpeed, nodeId) in _speedConstraints)
         {
-            double totalDist = dist + _pathDistToHoldShortNm;
-            double holdShortBrakingLimit = Math.Sqrt(2.0 * decelRate * totalDist * 3600.0);
-            targetSpeed = Math.Min(targetSpeed, holdShortBrakingLimit);
+            if (reqSpeed == 0 && route.GetHoldShortAt(nodeId) is null or { IsCleared: true })
+            {
+                continue;
+            }
+
+            double totalDist = effectiveDist + pathDist;
+            double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
+            brakingLimit = Math.Min(brakingLimit, limit);
         }
+        targetSpeed = Math.Min(targetSpeed, brakingLimit);
 
         // Safety backstop: cap speed so we can't overshoot the target node in one tick.
-        if (ctx.DeltaSeconds > 0 && dist > 0)
+        if (ctx.DeltaSeconds > 0 && effectiveDist > 0)
         {
-            double maxSpeedForDist = dist * 0.8 / ctx.DeltaSeconds * 3600.0;
+            double maxSpeedForDist = effectiveDist * 0.8 / ctx.DeltaSeconds * 3600.0;
             targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
         }
 
@@ -231,47 +216,132 @@ public sealed class TaxiingPhase : Phase
 
         var seg = route.CurrentSegment;
         _targetNodeId = seg.ToNodeId;
-        _nextSegmentBearing = double.NaN;
 
         if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var targetNode))
         {
             _targetLat = targetNode.Latitude;
             _targetLon = targetNode.Longitude;
 
-            // Look one segment ahead to know the upcoming turn angle at this node.
-            int nextIdx = route.CurrentSegmentIndex + 1;
-            if (nextIdx < route.Segments.Count)
-            {
-                int nextToNodeId = route.Segments[nextIdx].ToNodeId;
-                if (ctx.GroundLayout.Nodes.TryGetValue(nextToNodeId, out var nextNode))
-                {
-                    _nextSegmentBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, nextNode.Latitude, nextNode.Longitude);
-                }
-            }
+            double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
+            double cornerSpeed = CategoryPerformance.TaxiCornerSpeed(ctx.Category);
 
-            // Walk remaining segments to find total path distance to next uncleared hold-short.
-            _pathDistToHoldShortNm = 0;
-            _hasHoldShortAhead = false;
-            int prevId = _targetNodeId;
-            for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
+            // A. Compute _currentNodeRequiredSpeed for the immediate target node
+            var nextHoldShort = route.GetHoldShortAt(_targetNodeId);
+            if (nextHoldShort is not null && !nextHoldShort.IsCleared)
             {
-                var futureSeg = route.Segments[i];
-                if (
-                    ctx.GroundLayout.Nodes.TryGetValue(prevId, out var fromFuture)
-                    && ctx.GroundLayout.Nodes.TryGetValue(futureSeg.ToNodeId, out var toFuture)
-                )
+                _currentNodeRequiredSpeed = 0;
+            }
+            else
+            {
+                int nextIdx = route.CurrentSegmentIndex + 1;
+                if (nextIdx < route.Segments.Count)
                 {
-                    _pathDistToHoldShortNm += GeoMath.DistanceNm(fromFuture.Latitude, fromFuture.Longitude, toFuture.Latitude, toFuture.Longitude);
-                    prevId = futureSeg.ToNodeId;
-                    if (route.GetHoldShortAt(futureSeg.ToNodeId) is { IsCleared: false })
+                    int nextToNodeId = route.Segments[nextIdx].ToNodeId;
+                    if (ctx.GroundLayout.Nodes.TryGetValue(nextToNodeId, out var nextNode))
                     {
-                        _hasHoldShortAhead = true;
-                        break;
+                        double segBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, nextNode.Latitude, nextNode.Longitude);
+                        double inboundBearing = GeoMath.BearingTo(
+                            ctx.Aircraft.Latitude,
+                            ctx.Aircraft.Longitude,
+                            targetNode.Latitude,
+                            targetNode.Longitude
+                        );
+                        double turnAngle = Math.Abs(FlightPhysics.NormalizeAngle(segBearing - inboundBearing));
+                        double frac = Math.Clamp((turnAngle - 30.0) / 60.0, 0.0, 1.0);
+                        _currentNodeRequiredSpeed = maxSpeed - (maxSpeed - cornerSpeed) * frac;
+                    }
+                    else
+                    {
+                        _currentNodeRequiredSpeed = maxSpeed;
                     }
                 }
                 else
                 {
+                    // Last segment — route ends at this node, stop
+                    _currentNodeRequiredSpeed = 0;
+                }
+            }
+
+            // B. Forward walk: collect speed constraints at future nodes
+            _speedConstraints = [];
+            double cumulativeDistNm = 0;
+            int prevNodeId = _targetNodeId;
+            for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
+            {
+                var futureSeg = route.Segments[i];
+                if (
+                    !ctx.GroundLayout.Nodes.TryGetValue(prevNodeId, out var fromNode)
+                    || !ctx.GroundLayout.Nodes.TryGetValue(futureSeg.ToNodeId, out var toNode)
+                )
+                {
                     break;
+                }
+
+                cumulativeDistNm += GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
+                prevNodeId = futureSeg.ToNodeId;
+
+                // Determine required speed at this node
+                double reqSpeed;
+                var hs = route.GetHoldShortAt(futureSeg.ToNodeId);
+                if (hs is not null && !hs.IsCleared)
+                {
+                    reqSpeed = 0;
+                    _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId));
+                    break; // No need to look past an uncleared hold-short
+                }
+
+                // Check turn angle to the next-next segment
+                int nextNextIdx = i + 1;
+                if (nextNextIdx < route.Segments.Count)
+                {
+                    int nextNextNodeId = route.Segments[nextNextIdx].ToNodeId;
+                    if (ctx.GroundLayout.Nodes.TryGetValue(nextNextNodeId, out var nextNextNode))
+                    {
+                        double inBearing = GeoMath.BearingTo(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
+                        double outBearing = GeoMath.BearingTo(toNode.Latitude, toNode.Longitude, nextNextNode.Latitude, nextNextNode.Longitude);
+                        double turnAngle = Math.Abs(FlightPhysics.NormalizeAngle(outBearing - inBearing));
+                        double frac = Math.Clamp((turnAngle - 30.0) / 60.0, 0.0, 1.0);
+                        reqSpeed = maxSpeed - (maxSpeed - cornerSpeed) * frac;
+                    }
+                    else
+                    {
+                        reqSpeed = maxSpeed;
+                    }
+                }
+                else
+                {
+                    // Last segment — route ends, stop
+                    reqSpeed = 0;
+                }
+
+                if (reqSpeed < maxSpeed)
+                {
+                    _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId));
+                }
+            }
+
+            // C. Backward pass: back-propagate constraints using v = sqrt(v_next² + 2·a·d·3600)
+            double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+            for (int i = _speedConstraints.Count - 2; i >= 0; i--)
+            {
+                var (dist, speed, nodeId) = _speedConstraints[i];
+                var (nextDist, nextSpeed, _) = _speedConstraints[i + 1];
+                double legDist = nextDist - dist;
+                double backPropSpeed = Math.Sqrt(nextSpeed * nextSpeed + 2.0 * decelRate * legDist * 3600.0);
+                if (backPropSpeed < speed)
+                {
+                    _speedConstraints[i] = (dist, backPropSpeed, nodeId);
+                }
+            }
+
+            // D. Back-propagate first constraint into _currentNodeRequiredSpeed
+            if (_speedConstraints.Count > 0)
+            {
+                var (firstDist, firstSpeed, _) = _speedConstraints[0];
+                double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * firstDist * 3600.0);
+                if (backProp < _currentNodeRequiredSpeed)
+                {
+                    _currentNodeRequiredSpeed = backProp;
                 }
             }
         }
