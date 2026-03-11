@@ -22,13 +22,14 @@ public static class TrackEngine
                 or CancelHandoffCommand
                 or PointOutCommand
                 or AcknowledgeCommand
-                or AnnotateCommand
                 or Scratchpad1Command
                 or Scratchpad2Command
                 or TemporaryAltitudeCommand
                 or CruiseCommand
                 or OnHandoffCommand
                 or SetActivePositionCommand;
+
+    public static bool IsStripCommand(ParsedCommand? cmd) => cmd is StripPushCommand or StripAnnotateCommand;
 
     public static bool IsCoordinationCommand(ParsedCommand? cmd) =>
         cmd
@@ -115,13 +116,6 @@ public static class TrackEngine
 
         ac.Pointout.Status = StarsPointoutStatus.Accepted;
         return new CommandResult(true, $"Acknowledged {ac.Callsign}");
-    }
-
-    public static CommandResult HandleAnnotate(AircraftState ac)
-    {
-        ac.IsAnnotated = !ac.IsAnnotated;
-        var state = ac.IsAnnotated ? "on" : "off";
-        return new CommandResult(true, $"Annotation {state} for {ac.Callsign}");
     }
 
     public static CommandResult HandleScratchpad1(AircraftState ac, string text)

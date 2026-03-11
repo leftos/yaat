@@ -459,11 +459,17 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Pointout | `PO 3Y` | — | — |
 | Acknowledge | `OK` | — | — |
 
+#### Strip Operations
+
+| Command | Primary | Aliases | Concatenated |
+|---------|---------|---------|-------------|
+| Annotate strip box | `AN 3 RV` | `ANNOTATE`, `BOX` | — |
+| Push strip to bay | `STRIP Ground` | — | — |
+
 #### Data Operations
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
-| Annotate | `ANNOTATE` | `AN`, `BOX` | — |
 | Scratchpad 1 | `SP1 OAK` | — | — |
 | Scratchpad 2 | `SP2 I8R` | — | — |
 | Temp altitude | `TEMPALT 120` | `TA`, `TEMP`, `QQ` | — |
@@ -943,7 +949,9 @@ Changing your active position also updates the radar display:
 | `HOALL 3Y` | Handoff all your aircraft to TCP 3Y (global — no callsign needed) |
 | `PO 3Y` | Point out to TCP 3Y |
 | `OK` | Acknowledge a pending pointout |
-| `ANNOTATE` / `AN` / `BOX` | Toggle annotation flag |
+| `AN 3 RV` / `BOX 3 RV` | Write "RV" in strip annotation box 3 (boxes 1-9) |
+| `AN 3` | Clear strip annotation box 3 |
+| `STRIP Ground` | Push flight strip to "Ground" bay in vStrips |
 | `SP1 OAK` | Set scratchpad 1 |
 | `SP2 I8R` | Set scratchpad 2 |
 | `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |

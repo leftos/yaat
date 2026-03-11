@@ -188,4 +188,7 @@ public enum CanonicalCommandType
     CreateFlightPlan,
     CreateVfrFlightPlan,
     SetRemarks,
+
+    // Strip operations
+    StripPush,
 }

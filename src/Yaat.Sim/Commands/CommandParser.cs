@@ -410,7 +410,8 @@ public static class CommandParser
             "HOALL" => ParseTcpArg(arg, tcp => new InitiateHandoffAllCommand(tcp)),
             "PO" => ParseTcpArg(arg, tcp => new PointOutCommand(tcp)),
             "OK" when arg is null => new AcknowledgeCommand(),
-            "ANNOTATE" or "AN" or "BOX" when arg is null => new AnnotateCommand(),
+            "ANNOTATE" or "AN" or "BOX" when arg is not null => ParseStripAnnotate(arg),
+            "STRIP" when arg is not null => new StripPushCommand(arg.Trim().ToUpperInvariant()),
             "SP1" when arg is not null => new Scratchpad1Command(arg.Trim().ToUpperInvariant()),
             "SP2" when arg is not null => new Scratchpad2Command(arg.Trim().ToUpperInvariant()),
             "TEMPALT" or "TA" or "TEMP" or "QQ" => ParseAltitudeHundreds(arg, h => new TemporaryAltitudeCommand(h)),
@@ -1127,6 +1128,29 @@ public static class CommandParser
 
         var route = string.Join(" ", parts.Skip(2).Select(p => p.ToUpperInvariant()));
         return new CreateFlightPlanCommand(flightRules, aircraftType, cruiseAltitude, route);
+    }
+
+    private static ParsedCommand? ParseStripAnnotate(string arg)
+    {
+        var parts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0 || !int.TryParse(parts[0], out var box))
+        {
+            return null;
+        }
+
+        // Accept 1-9 directly, or 10-18 as aliases for 1-9
+        if (box >= 10 && box <= 18)
+        {
+            box -= 9;
+        }
+
+        if (box < 1 || box > 9)
+        {
+            return null;
+        }
+
+        var text = parts.Length > 1 ? parts[1].Trim() : null;
+        return new StripAnnotateCommand(box, text);
     }
 
     private static ParsedCommand? ParseSquawkOrReset(string? arg)

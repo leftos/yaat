@@ -301,7 +301,9 @@ public record PointOutCommand(string TcpCode) : ParsedCommand;
 
 public record AcknowledgeCommand : ParsedCommand;
 
-public record AnnotateCommand : ParsedCommand;
+public record StripAnnotateCommand(int Box, string? Text) : ParsedCommand;
+
+public record StripPushCommand(string BayName) : ParsedCommand;
 
 public record Scratchpad1Command(string Text) : ParsedCommand;
 

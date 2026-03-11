@@ -43,6 +43,9 @@ public class FacilityConfig
 
     [JsonPropertyName("asdexConfiguration")]
     public AsdexConfig? AsdexConfiguration { get; set; }
+
+    [JsonPropertyName("flightStripsConfiguration")]
+    public FlightStripsConfig? FlightStripsConfiguration { get; set; }
 }
 
 public class PositionConfig
@@ -672,4 +675,22 @@ public class RpcRunwayConfig
 
     [JsonPropertyName("secondaryScratchpadPatterns")]
     public List<string> SecondaryScratchpadPatterns { get; set; } = [];
+}
+
+public class FlightStripsConfig
+{
+    [JsonPropertyName("stripBays")]
+    public List<StripBayConfig> StripBays { get; set; } = [];
+}
+
+public class StripBayConfig
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("numberOfRacks")]
+    public int NumberOfRacks { get; set; } = 3;
 }

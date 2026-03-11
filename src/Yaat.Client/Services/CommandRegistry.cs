@@ -600,7 +600,15 @@ public static class CommandRegistry
 
     private static CommandDefinition[] DataCommands() =>
         [
-            Bare(Annotate, "Annotate", "Data Operations", false, ["ANNOTATE", "AN", "BOX"]),
+            Cmd(
+                Annotate,
+                "Annotate Strip Box",
+                "Strip Operations",
+                false,
+                ["ANNOTATE", "AN", "BOX"],
+                [O(null, [R("box", "1-9"), R("text", "annotation text")], "Write text in strip annotation box")]
+            ),
+            Cmd(StripPush, "Push Strip to Bay", "Strip Operations", false, ["STRIP"], [O(null, [R("bay", "bay name")], "Push flight strip to bay")]),
             Cmd(Scratchpad1, "Scratchpad 1", "Data Operations", false, ["SP1"], [O(null, [R("text", "up to 3 chars")], "Set scratchpad 1")]),
             Cmd(Scratchpad2, "Scratchpad 2", "Data Operations", false, ["SP2"], [O(null, [R("text", "up to 3 chars")], "Set scratchpad 2")]),
             Cmd(
