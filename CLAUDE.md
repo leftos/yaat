@@ -55,6 +55,15 @@ Three projects across two repos. **Yaat.Sim** is shared by both Yaat.Client and 
 - Match existing ATCTrainer/VICE names where applicable. See `docs/command-aliases/reference.md` for the full comparison (🟢 marks YAAT-only commands). Source JSON extracts and the build script that produces them are in the same directory.
 - **Completeness (MANDATORY):** Every `CanonicalCommandType` must exist in: `CommandScheme.Default()`, `CommandMetadata.AllCommands`. Tests in `tests/Yaat.Client.Tests/CommandSchemeCompletenessTests.cs` enforce this.
 
+### Command Input UX
+
+Two systems assist the user while typing commands — keep them in sync:
+
+- **Autocomplete** (dropdown suggestions): `ArgumentSuggester` — suggests values for the current argument position (runway designators, fix names, literal keywords like `TAXI`).
+- **Signature help** (inline parameter hint, a.k.a. "intellisense"): `SignatureHelpState` + `CommandSignatureSet` — shows the command's parameter signature with the active parameter highlighted and a description below.
+
+Both are driven from `CommandInputController`: `UpdateSuggestions()` for autocomplete, `UpdateSignatureHelp()` for signature help. Registry-based commands (`CommandRegistry`) get both automatically via `CommandDefinition` overloads. **Special rewrite verbs** (e.g. `RWY`) are not in the registry, so both systems handle them with dedicated code paths — when adding or changing a rewrite verb, update both `ArgumentSuggester` and `UpdateSignatureHelp`.
+
 ### Communication Flow
 
 ```

@@ -272,23 +272,31 @@ public partial class CommandInputController : ObservableObject
             return;
         }
 
-        // Resolve verb to command type
-        var commandType = ResolveVerbToType(verb, scheme);
-        if (commandType is null)
+        // RWY is a special rewrite verb — build signature set directly
+        CommandSignatureSet sigSet;
+        if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase))
         {
-            SignatureHelp.Dismiss();
-            return;
+            sigSet = BuildRwySignatureSet();
         }
-
-        var def = CommandRegistry.Get(commandType.Value);
-        if (def is null)
+        else
         {
-            SignatureHelp.Dismiss();
-            return;
-        }
+            var commandType = ResolveVerbToType(verb, scheme);
+            if (commandType is null)
+            {
+                SignatureHelp.Dismiss();
+                return;
+            }
 
-        IReadOnlyList<string> aliases = scheme.Patterns.TryGetValue(commandType.Value, out var pattern) ? pattern.Aliases : def.DefaultAliases;
-        var sigSet = CommandSignatureSet.FromDefinition(def, aliases);
+            var def = CommandRegistry.Get(commandType.Value);
+            if (def is null)
+            {
+                SignatureHelp.Dismiss();
+                return;
+            }
+
+            IReadOnlyList<string> aliases = scheme.Patterns.TryGetValue(commandType.Value, out var pattern) ? pattern.Aliases : def.DefaultAliases;
+            sigSet = CommandSignatureSet.FromDefinition(def, aliases);
+        }
 
         // Calculate active parameter index: words after verb
         var typedArgs = parts.Skip(argStartIndex).ToArray();
@@ -330,6 +338,30 @@ public partial class CommandInputController : ObservableObject
         }
 
         return null;
+    }
+
+    private static CommandSignatureSet BuildRwySignatureSet()
+    {
+        var aliases = (IReadOnlyList<string>)["RWY"];
+        CommandSignature assignSig = new(
+            CanonicalCommandType.AssignRunway,
+            "Assign Runway",
+            aliases,
+            [new CommandParameter("runway", "runway designator", false)],
+            "Assign runway"
+        );
+        CommandSignature taxiSig = new(
+            CanonicalCommandType.Taxi,
+            "Taxi to Runway",
+            aliases,
+            [
+                new CommandParameter("runway", "runway designator", false),
+                new CommandParameter("TAXI", "", false, IsLiteral: true),
+                new CommandParameter("route", "taxiway names", false),
+            ],
+            "Taxi via route to runway"
+        );
+        return new CommandSignatureSet([assignSig, taxiSig]);
     }
 
     public void MoveSelection(int delta)

@@ -50,14 +50,25 @@ internal static class ArgumentSuggester
         }
 
         // RWY is a special rewrite verb not in the registry
+        // Supports: RWY {runway} and RWY {runway} [TAXI] {taxiway...}
         if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase))
         {
             var argsAfterVerb = words.Length - verbIndex - 1;
-            if (argsAfterVerb <= 1 || (!hasTrailingSpace && argsAfterVerb == 1))
+            var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
+            var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
+
+            // Effective param position (0-based): which arg slot the cursor is on
+            int paramPos = hasTrailingSpace ? argsAfterVerb : argsAfterVerb - 1;
+
+            if (paramPos == 0)
             {
-                var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
-                var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
+                // First arg: suggest runway designators
                 AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
+            }
+            else if (paramPos == 1)
+            {
+                // Second arg (after runway): suggest TAXI keyword
+                AddOption("TAXI", "Taxi via route", partial, prefix, suggestions, maxSuggestions);
             }
 
             return true;
