@@ -384,6 +384,35 @@ public partial class GroundView : UserControl
             );
         }
 
+        // Show/hide routes
+        var mainVm2 = FindMainViewModel();
+        if (mainVm2 is not null)
+        {
+            var isFlightPathShown = mainVm2.Radar.IsPathShown(callsign);
+            menu.Items.Add(
+                CreateMenuItem(
+                    isFlightPathShown ? "Hide flight path" : "Show flight path",
+                    () =>
+                    {
+                        mainVm2.Radar.ToggleShowPath(callsign);
+                        return Task.CompletedTask;
+                    }
+                )
+            );
+        }
+
+        var isRouteShown = vm.IsPathShown(callsign);
+        menu.Items.Add(
+            CreateMenuItem(
+                isRouteShown ? "Hide taxi route" : "Show taxi route",
+                () =>
+                {
+                    vm.ToggleShowTaxiRoute(callsign);
+                    return Task.CompletedTask;
+                }
+            )
+        );
+
         menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 

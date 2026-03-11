@@ -58,6 +58,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         nameof(DrawHoverPreview)
     );
 
+    public static readonly StyledProperty<IReadOnlyList<ShownTaxiRouteEntry>?> ShownTaxiRoutesProperty = AvaloniaProperty.Register<
+        GroundCanvas,
+        IReadOnlyList<ShownTaxiRouteEntry>?
+    >(nameof(ShownTaxiRoutes));
+
     public static readonly StyledProperty<bool> ShowDebugInfoProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(ShowDebugInfo));
 
     public static readonly StyledProperty<WeatherDisplayInfo?> WeatherInfoProperty = AvaloniaProperty.Register<GroundCanvas, WeatherDisplayInfo?>(
@@ -246,6 +251,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(DrawHoverPreviewProperty, value);
     }
 
+    public IReadOnlyList<ShownTaxiRouteEntry>? ShownTaxiRoutes
+    {
+        get => GetValue(ShownTaxiRoutesProperty);
+        set => SetValue(ShownTaxiRoutesProperty, value);
+    }
+
     public int? HoveredNodeId => _hoveredNodeId;
 
     /// <summary>Surfaces the datablock for the given callsign to the top of the Z-order.</summary>
@@ -298,6 +309,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == DrawnRoutePreviewProperty
             || change.Property == DrawHoverPreviewProperty
             || change.Property == DrawWaypointsProperty
+            || change.Property == ShownTaxiRoutesProperty
             || change.Property == ShowDebugInfoProperty
             || change.Property == ShowRunwayLabelsProperty
             || change.Property == ShowTaxiwayLabelsProperty
@@ -350,7 +362,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         bool ShowRunwayLabels,
         bool ShowTaxiwayLabels,
         bool ShowHoldShortLabels,
-        bool ShowParkingLabels
+        bool ShowParkingLabels,
+        IReadOnlyList<ShownTaxiRouteEntry>? ShownTaxiRoutes
     );
 
     protected override object? CreateRenderSnapshot()
@@ -375,7 +388,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ShowRunwayLabels,
             ShowTaxiwayLabels,
             ShowHoldShortLabels,
-            ShowParkingLabels
+            ShowParkingLabels,
+            ShownTaxiRoutes
         );
     }
 
@@ -407,7 +421,8 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.ShowRunwayLabels,
             s.ShowTaxiwayLabels,
             s.ShowHoldShortLabels,
-            s.ShowParkingLabels
+            s.ShowParkingLabels,
+            s.ShownTaxiRoutes
         );
     }
 

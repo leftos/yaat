@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using SkiaSharp;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -82,6 +83,27 @@ public partial class GroundViewModel : ObservableObject
 
     [ObservableProperty]
     private double _viewRotation;
+
+    private static readonly SKColor[] TaxiRouteColors =
+    [
+        SKColor.Parse("#FF6B6B"),
+        SKColor.Parse("#4ECDC4"),
+        SKColor.Parse("#FFE66D"),
+        SKColor.Parse("#A8E6CF"),
+        SKColor.Parse("#FF8B94"),
+        SKColor.Parse("#B088F9"),
+        SKColor.Parse("#F8B500"),
+        SKColor.Parse("#45B7D1"),
+    ];
+
+    private readonly HashSet<string> _shownTaxiRouteCallsigns = new();
+    private readonly Dictionary<string, int> _taxiColorIndices = new();
+    private readonly Stack<int> _freeColorIndices = new();
+
+    [ObservableProperty]
+    private IReadOnlyList<ShownTaxiRouteEntry>? _shownTaxiRoutes;
+
+    private Func<string, AircraftModel?>? _findAircraft;
 
     private string? _activeScenarioId;
     private bool _isRestoring;
@@ -205,6 +227,7 @@ public partial class GroundViewModel : ObservableObject
         AirportCenterLon = 0;
         AirportElevation = 0;
         GroundAircraft.Clear();
+        ClearShownTaxiRoutes();
     }
 
     public void CopySettingsFrom(string sourceScenarioId)
@@ -891,6 +914,88 @@ public partial class GroundViewModel : ObservableObject
         return result;
     }
 
+    // --- Shown taxi routes ---
+
+    public void SetAircraftLookup(Func<string, AircraftModel?> lookup)
+    {
+        _findAircraft = lookup;
+    }
+
+    public bool IsPathShown(string callsign)
+    {
+        return _shownTaxiRouteCallsigns.Contains(callsign);
+    }
+
+    public void ToggleShowTaxiRoute(string callsign)
+    {
+        if (_shownTaxiRouteCallsigns.Remove(callsign))
+        {
+            if (_taxiColorIndices.Remove(callsign, out var freedIdx))
+            {
+                _freeColorIndices.Push(freedIdx);
+            }
+        }
+        else
+        {
+            _shownTaxiRouteCallsigns.Add(callsign);
+            int colorIdx = _freeColorIndices.Count > 0 ? _freeColorIndices.Pop() : _taxiColorIndices.Count % TaxiRouteColors.Length;
+            _taxiColorIndices[callsign] = colorIdx;
+        }
+
+        RefreshShownTaxiRoutes();
+    }
+
+    public void RefreshShownTaxiRoutes()
+    {
+        if (_shownTaxiRouteCallsigns.Count == 0)
+        {
+            ShownTaxiRoutes = null;
+            return;
+        }
+
+        var entries = new List<ShownTaxiRouteEntry>();
+        foreach (var callsign in _shownTaxiRouteCallsigns)
+        {
+            var ac = _findAircraft?.Invoke(callsign);
+            if (ac is null)
+            {
+                continue;
+            }
+
+            var route = ResolveRemainingRoute(ac);
+            if (route is null || route.Segments.Count == 0)
+            {
+                continue;
+            }
+
+            var colorIdx = _taxiColorIndices.GetValueOrDefault(callsign, 0);
+            entries.Add(new ShownTaxiRouteEntry(callsign, route, TaxiRouteColors[colorIdx % TaxiRouteColors.Length]));
+        }
+
+        ShownTaxiRoutes = entries.Count > 0 ? entries : null;
+    }
+
+    public void RemoveShownTaxiRoute(string callsign)
+    {
+        if (_shownTaxiRouteCallsigns.Remove(callsign))
+        {
+            if (_taxiColorIndices.Remove(callsign, out var freedIdx))
+            {
+                _freeColorIndices.Push(freedIdx);
+            }
+
+            RefreshShownTaxiRoutes();
+        }
+    }
+
+    public void ClearShownTaxiRoutes()
+    {
+        _shownTaxiRouteCallsigns.Clear();
+        _taxiColorIndices.Clear();
+        _freeColorIndices.Clear();
+        ShownTaxiRoutes = null;
+    }
+
     // --- Draw route mode ---
 
     public void StartDrawRoute(AircraftModel aircraft)
@@ -1074,3 +1179,5 @@ public partial class GroundViewModel : ObservableObject
         return layout;
     }
 }
+
+public record ShownTaxiRouteEntry(string Callsign, TaxiRoute Route, SKColor Color);

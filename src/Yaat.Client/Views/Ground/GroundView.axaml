@@ -60,6 +60,7 @@
                              ShowTaxiwayLabels="{Binding ShowTaxiwayLabels}"
                              ShowHoldShortLabels="{Binding ShowHoldShortLabels}"
                              ShowParkingLabels="{Binding ShowParkingLabels}"
+                             ShownTaxiRoutes="{Binding ShownTaxiRoutes}"
                              IsPanZoomLocked="{Binding IsPanZoomLocked}"
                              ViewCenterLat="{Binding ViewCenterLat, Mode=TwoWay}"
                              ViewCenterLon="{Binding ViewCenterLon, Mode=TwoWay}"

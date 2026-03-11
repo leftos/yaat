@@ -500,7 +500,7 @@ public static class ApproachCommandHandler
         return null;
     }
 
-    internal static IReadOnlyList<string> GetApproachFixNames(CifpApproachProcedure procedure)
+    public static IReadOnlyList<string> GetApproachFixNames(CifpApproachProcedure procedure)
     {
         var names = new List<string>();
         foreach (var leg in procedure.CommonLegs)

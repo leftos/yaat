@@ -442,7 +442,8 @@
                                IsDrawingRoute="{Binding IsDrawingRoute}"
                                DrawnWaypoints="{Binding DrawnWaypoints}"
                                WaypointConditions="{Binding WaypointConditionsSnapshot}"
-                               WeatherInfo="{Binding WeatherInfo}" />
+                               WeatherInfo="{Binding WeatherInfo}"
+                               ShownPaths="{Binding ShownPaths}" />
 
             <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
             <Popup x:Name="MapPopup"

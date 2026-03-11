@@ -362,6 +362,8 @@ public partial class MainViewModel
         _studentPositionType = null;
         _commandInput.PrimaryAirportId = null;
         Radar.SetPrimaryAirportId(null);
+        Radar.ClearShownPaths();
+        Ground.ClearShownTaxiRoutes();
         Aircraft.Clear();
         Ground.ClearLayout();
         Radar.ClearVideoMaps();

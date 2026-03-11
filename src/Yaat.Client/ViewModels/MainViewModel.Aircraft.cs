@@ -84,6 +84,9 @@ public partial class MainViewModel
             {
                 Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
             }
+
+            Radar.RefreshShownPaths();
+            Ground.RefreshShownTaxiRoutes();
         });
     }
 
@@ -92,6 +95,8 @@ public partial class MainViewModel
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             FlightPlanEditorManager.Close();
+            Radar.RemoveShownPath(callsign);
+            Ground.RemoveShownTaxiRoute(callsign);
             var ac = FindAircraft(callsign);
             if (ac is not null)
             {

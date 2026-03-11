@@ -267,7 +267,37 @@ public sealed class GroundRenderer : IDisposable
         Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
+    private readonly SKPaint[] _shownTaxiRoutePaints;
+
     private readonly List<LabelCandidate> _labelCandidates = new(256);
+
+    public GroundRenderer()
+    {
+        _shownTaxiRoutePaints = new SKPaint[TaxiRouteColorValues.Length];
+        for (int i = 0; i < TaxiRouteColorValues.Length; i++)
+        {
+            _shownTaxiRoutePaints[i] = new SKPaint
+            {
+                Color = TaxiRouteColorValues[i],
+                StrokeWidth = 3,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+                StrokeCap = SKStrokeCap.Round,
+            };
+        }
+    }
+
+    private static readonly SKColor[] TaxiRouteColorValues =
+    [
+        SKColor.Parse("#FF6B6B"),
+        SKColor.Parse("#4ECDC4"),
+        SKColor.Parse("#FFE66D"),
+        SKColor.Parse("#A8E6CF"),
+        SKColor.Parse("#FF8B94"),
+        SKColor.Parse("#B088F9"),
+        SKColor.Parse("#F8B500"),
+        SKColor.Parse("#45B7D1"),
+    ];
 
     public void Render(
         SKCanvas canvas,
@@ -290,7 +320,8 @@ public sealed class GroundRenderer : IDisposable
         bool showRunwayLabels = true,
         bool showTaxiwayLabels = true,
         bool showHoldShortLabels = true,
-        bool showParkingLabels = true
+        bool showParkingLabels = true,
+        IReadOnlyList<ShownTaxiRouteEntry>? shownTaxiRoutes = null
     )
     {
         canvas.Clear(BackgroundColor);
@@ -306,6 +337,7 @@ public sealed class GroundRenderer : IDisposable
         DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels, hoveredNodeId);
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
+        DrawShownTaxiRoutes(canvas, vp, layout, shownTaxiRoutes);
         DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
         DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
         DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShortLabels, showParkingLabels);
@@ -504,6 +536,25 @@ public sealed class GroundRenderer : IDisposable
     private void DrawPreviewRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
     {
         DrawRoute(canvas, vp, layout, route, _previewRoutePaint);
+    }
+
+    private void DrawShownTaxiRoutes(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, IReadOnlyList<ShownTaxiRouteEntry>? entries)
+    {
+        if (entries is null)
+        {
+            return;
+        }
+
+        foreach (var entry in entries)
+        {
+            int colorIdx = Array.IndexOf(TaxiRouteColorValues, entry.Color);
+            if (colorIdx < 0)
+            {
+                colorIdx = 0;
+            }
+
+            DrawRoute(canvas, vp, layout, entry.Route, _shownTaxiRoutePaints[colorIdx]);
+        }
     }
 
     private void DrawDrawHoverPreview(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? hoverRoute)
@@ -891,6 +942,11 @@ public sealed class GroundRenderer : IDisposable
 
     public void Dispose()
     {
+        foreach (var paint in _shownTaxiRoutePaints)
+        {
+            paint.Dispose();
+        }
+
         _runwayFillPaint.Dispose();
         _runwayOutlinePaint.Dispose();
         _runwayLabelPaint.Dispose();

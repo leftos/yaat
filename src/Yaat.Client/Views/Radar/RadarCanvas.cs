@@ -104,6 +104,11 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyList<WeatherDisplayInfo>?
     >(nameof(WeatherInfo));
 
+    public static readonly StyledProperty<IReadOnlyList<ShownPathEntry>?> ShownPathsProperty = AvaloniaProperty.Register<
+        RadarCanvas,
+        IReadOnlyList<ShownPathEntry>?
+    >(nameof(ShownPaths));
+
     private static readonly SKPoint DefaultDataBlockOffset = new(28, -28);
     private const float DataBlockPad = 3f;
     private const double DragThresholdSq = 25.0; // 5px threshold for click vs drag
@@ -280,6 +285,12 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         set => SetValue(WeatherInfoProperty, value);
     }
 
+    public IReadOnlyList<ShownPathEntry>? ShownPaths
+    {
+        get => GetValue(ShownPathsProperty);
+        set => SetValue(ShownPathsProperty, value);
+    }
+
     public float BrightnessA
     {
         get => _renderer.BrightnessA;
@@ -419,6 +430,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             || change.Property == IsDrawingRouteProperty
             || change.Property == DrawnWaypointsProperty
             || change.Property == WaypointConditionsProperty
+            || change.Property == ShownPathsProperty
         )
         {
             MarkDirty();
@@ -489,7 +501,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         IReadOnlyDictionary<int, WaypointCondition>? WaypointConditions,
         IReadOnlySet<string> MinifiedCallsigns,
         bool ShowTopDown,
-        IReadOnlyList<WeatherDisplayInfo>? WeatherInfo
+        IReadOnlyList<WeatherDisplayInfo>? WeatherInfo,
+        IReadOnlyList<ShownPathEntry>? ShownPaths
     );
 
     protected override object? CreateRenderSnapshot()
@@ -551,7 +564,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             IsDrawingRoute ? WaypointConditions : null,
             new HashSet<string>(_minifiedCallsigns),
             ShowTopDown,
-            WeatherInfo
+            WeatherInfo,
+            ShownPaths
         );
     }
 
@@ -613,7 +627,8 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.WaypointConditions,
             s.MinifiedCallsigns,
             s.ShowTopDown,
-            s.WeatherInfo
+            s.WeatherInfo,
+            s.ShownPaths
         );
     }
 

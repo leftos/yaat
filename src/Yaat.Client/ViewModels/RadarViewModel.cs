@@ -2,10 +2,12 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using SkiaSharp;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 
 namespace Yaat.Client.ViewModels;
@@ -53,6 +55,7 @@ public partial class RadarViewModel : ObservableObject
     private UserPreferences? _preferences;
     private bool _isRestoring;
     private Func<string, double?>? _getAirportElevation;
+    private Func<string, AircraftModel?>? _findAircraft;
     private FixDatabase? _fixDb;
     private ApproachDatabase? _approachDb;
 
@@ -188,9 +191,30 @@ public partial class RadarViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyDictionary<int, WaypointCondition>? _waypointConditionsSnapshot;
 
+    [ObservableProperty]
+    private IReadOnlyList<ShownPathEntry>? _shownPaths;
+
     private string? _drawRouteCallsign;
     private readonly List<DrawnWaypoint> _drawnWaypointsMutable = [];
     private readonly Dictionary<int, WaypointCondition> _waypointConditions = new();
+
+    // --- Show flight path state ---
+    private static readonly SKColor[] PathColors =
+    [
+        SKColor.Parse("#FF6B6B"),
+        SKColor.Parse("#4ECDC4"),
+        SKColor.Parse("#FFE66D"),
+        SKColor.Parse("#A8E6CF"),
+        SKColor.Parse("#FF8B94"),
+        SKColor.Parse("#B088F9"),
+        SKColor.Parse("#F8B500"),
+        SKColor.Parse("#45B7D1"),
+    ];
+
+    private readonly HashSet<string> _shownPathCallsigns = new();
+    private readonly Dictionary<string, (IReadOnlyList<DrawnWaypoint> Waypoints, string Fingerprint)> _pathCache = new();
+    private readonly Dictionary<string, int> _pathColorIndices = new();
+    private readonly Stack<int> _freeColorIndices = new();
 
     public ObservableCollection<VideoMapToggleItem> MapToggles { get; } = [];
 
@@ -217,6 +241,11 @@ public partial class RadarViewModel : ObservableObject
     public void SetPreferences(UserPreferences prefs)
     {
         _preferences = prefs;
+    }
+
+    public void SetAircraftLookup(Func<string, AircraftModel?> lookup)
+    {
+        _findAircraft = lookup;
     }
 
     public void SetElevationLookup(Func<string, double?> lookup)
@@ -1412,12 +1441,152 @@ public partial class RadarViewModel : ObservableObject
 
         return string.Join(";", parts);
     }
+
+    // --- Show flight path ---
+
+    public bool IsPathShown(string callsign) => _shownPathCallsigns.Contains(callsign);
+
+    public void ToggleShowPath(string callsign)
+    {
+        if (_shownPathCallsigns.Remove(callsign))
+        {
+            _pathCache.Remove(callsign);
+            if (_pathColorIndices.Remove(callsign, out var freedIdx))
+            {
+                _freeColorIndices.Push(freedIdx);
+            }
+        }
+        else
+        {
+            _shownPathCallsigns.Add(callsign);
+            int colorIdx = _freeColorIndices.Count > 0 ? _freeColorIndices.Pop() : _pathColorIndices.Count % PathColors.Length;
+            _pathColorIndices[callsign] = colorIdx;
+        }
+
+        RefreshShownPaths();
+    }
+
+    public void RefreshShownPaths()
+    {
+        if (_shownPathCallsigns.Count == 0)
+        {
+            ShownPaths = null;
+            return;
+        }
+
+        var entries = new List<ShownPathEntry>(_shownPathCallsigns.Count);
+        foreach (var callsign in _shownPathCallsigns)
+        {
+            var ac = FindAircraftByCallsign(callsign);
+            if (ac is null)
+            {
+                continue;
+            }
+
+            var fingerprint = $"{ac.Route}|{ac.ActiveSidId}|{ac.ActiveStarId}|{ac.ActiveApproachId}|{ac.ExpectedApproach}";
+            if (_pathCache.TryGetValue(callsign, out var cached) && cached.Fingerprint == fingerprint)
+            {
+                entries.Add(new ShownPathEntry(callsign, cached.Waypoints, PathColors[_pathColorIndices[callsign]], ac.Latitude, ac.Longitude));
+                continue;
+            }
+
+            var waypoints = ResolveFlightPathWaypoints(ac);
+            if (waypoints.Count == 0)
+            {
+                continue;
+            }
+
+            _pathCache[callsign] = (waypoints, fingerprint);
+            entries.Add(new ShownPathEntry(callsign, waypoints, PathColors[_pathColorIndices[callsign]], ac.Latitude, ac.Longitude));
+        }
+
+        ShownPaths = entries.Count > 0 ? entries : null;
+    }
+
+    private IReadOnlyList<DrawnWaypoint> ResolveFlightPathWaypoints(AircraftModel ac)
+    {
+        if (_fixDb is null)
+        {
+            return [];
+        }
+
+        var fixNames = _fixDb.ExpandRoute(ac.Route);
+        var result = new List<DrawnWaypoint>(fixNames.Count + 10);
+
+        foreach (var name in fixNames)
+        {
+            var pos = _fixDb.GetFixPosition(name);
+            if (pos.HasValue)
+            {
+                result.Add(new DrawnWaypoint(name, pos.Value.Lat, pos.Value.Lon));
+            }
+        }
+
+        // Append approach fixes if an approach is active
+        if (_approachDb is not null && !string.IsNullOrEmpty(ac.ActiveApproachId) && !string.IsNullOrEmpty(ac.Destination))
+        {
+            var procedure = _approachDb.GetApproach(ac.Destination, ac.ActiveApproachId);
+            if (procedure is not null)
+            {
+                var approachFixNames = ApproachCommandHandler.GetApproachFixNames(procedure);
+                var seen = new HashSet<string>(result.Select(w => w.ResolvedName), StringComparer.OrdinalIgnoreCase);
+                foreach (var name in approachFixNames)
+                {
+                    if (!seen.Add(name))
+                    {
+                        continue;
+                    }
+
+                    var pos = _fixDb.GetFixPosition(name);
+                    if (pos.HasValue)
+                    {
+                        result.Add(new DrawnWaypoint(name, pos.Value.Lat, pos.Value.Lon));
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    public void ClearShownPaths()
+    {
+        _shownPathCallsigns.Clear();
+        _pathCache.Clear();
+        _pathColorIndices.Clear();
+        _freeColorIndices.Clear();
+        ShownPaths = null;
+    }
+
+    public void RemoveShownPath(string callsign)
+    {
+        if (_shownPathCallsigns.Remove(callsign))
+        {
+            _pathCache.Remove(callsign);
+            if (_pathColorIndices.Remove(callsign, out var freedIdx))
+            {
+                _freeColorIndices.Push(freedIdx);
+            }
+
+            RefreshShownPaths();
+        }
+    }
+
+    private AircraftModel? FindAircraftByCallsign(string callsign)
+    {
+        return _findAircraft?.Invoke(callsign);
+    }
 }
 
 /// <summary>
 /// A drawn waypoint in route drawing mode.
 /// </summary>
 public record DrawnWaypoint(string ResolvedName, double Lat, double Lon);
+
+/// <summary>
+/// A flight path to render on the radar for a specific aircraft.
+/// </summary>
+public record ShownPathEntry(string Callsign, IReadOnlyList<DrawnWaypoint> Waypoints, SKColor Color, double AircraftLat, double AircraftLon);
 
 /// <summary>
 /// Condition applied to a drawn route waypoint (crossing altitude and/or AT commands).

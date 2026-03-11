@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Yaat.Client.Models;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim.Data;
@@ -108,6 +109,66 @@ public sealed class RadarRenderer : IDisposable
         Typeface = Services.PlatformHelper.MonospaceTypeface,
     };
 
+    // Pre-allocated paints for shown flight paths (one set per palette color)
+    private readonly SKPaint[] _pathLinePaints;
+    private readonly SKPaint[] _pathWaypointPaints;
+    private readonly SKPaint[] _pathLabelPaints;
+    private readonly SKPaint[] _pathLeaderPaints;
+
+    public RadarRenderer()
+    {
+        var colors = new[]
+        {
+            SKColor.Parse("#FF6B6B"),
+            SKColor.Parse("#4ECDC4"),
+            SKColor.Parse("#FFE66D"),
+            SKColor.Parse("#A8E6CF"),
+            SKColor.Parse("#FF8B94"),
+            SKColor.Parse("#B088F9"),
+            SKColor.Parse("#F8B500"),
+            SKColor.Parse("#45B7D1"),
+        };
+
+        _pathLinePaints = new SKPaint[colors.Length];
+        _pathWaypointPaints = new SKPaint[colors.Length];
+        _pathLabelPaints = new SKPaint[colors.Length];
+        _pathLeaderPaints = new SKPaint[colors.Length];
+
+        for (int i = 0; i < colors.Length; i++)
+        {
+            _pathLinePaints[i] = new SKPaint
+            {
+                Color = colors[i],
+                StrokeWidth = 2,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            _pathWaypointPaints[i] = new SKPaint
+            {
+                Color = colors[i],
+                StrokeWidth = 2,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+            };
+            _pathLabelPaints[i] = new SKPaint
+            {
+                Color = colors[i],
+                TextSize = 12,
+                IsAntialias = true,
+                SubpixelText = true,
+                Typeface = PlatformHelper.MonospaceTypeface,
+            };
+            _pathLeaderPaints[i] = new SKPaint
+            {
+                Color = colors[i].WithAlpha(150),
+                StrokeWidth = 1,
+                Style = SKPaintStyle.Stroke,
+                IsAntialias = true,
+                PathEffect = SKPathEffect.CreateDash([6, 4], 0),
+            };
+        }
+    }
+
     public float BrightnessA
     {
         get => _videoMapRenderer.BrightnessA;
@@ -171,7 +232,8 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlyDictionary<int, WaypointCondition>? waypointConditions = null,
         IReadOnlySet<string>? minifiedCallsigns = null,
         bool showTopDown = false,
-        IReadOnlyList<WeatherDisplayInfo>? weatherInfo = null
+        IReadOnlyList<WeatherDisplayInfo>? weatherInfo = null,
+        IReadOnlyList<ShownPathEntry>? shownPaths = null
     )
     {
         canvas.Clear(BackgroundColor);
@@ -192,6 +254,12 @@ public sealed class RadarRenderer : IDisposable
         if (showFixes && fixes is not null)
         {
             DrawFixes(canvas, vp, fixes, hoveredFixName, programmedFixNames);
+        }
+
+        // Shown flight paths (behind aircraft)
+        if (shownPaths is { Count: > 0 })
+        {
+            DrawShownPaths(canvas, vp, shownPaths);
         }
 
         // Aircraft targets
@@ -222,6 +290,59 @@ public sealed class RadarRenderer : IDisposable
         if (weatherInfo is { Count: > 0 })
         {
             DrawWeatherOverlay(canvas, weatherInfo);
+        }
+    }
+
+    private void DrawShownPaths(SKCanvas canvas, MapViewport vp, IReadOnlyList<ShownPathEntry> entries)
+    {
+        const float diamondSize = 5f;
+
+        foreach (var entry in entries)
+        {
+            if (entry.Waypoints.Count == 0)
+            {
+                continue;
+            }
+
+            // Find paint set index by matching color
+            int paintIdx = 0;
+            for (int i = 0; i < _pathLinePaints.Length; i++)
+            {
+                if (_pathLinePaints[i].Color == entry.Color)
+                {
+                    paintIdx = i;
+                    break;
+                }
+            }
+
+            var linePaint = _pathLinePaints[paintIdx];
+            var wpPaint = _pathWaypointPaints[paintIdx];
+            var labelPaint = _pathLabelPaints[paintIdx];
+            var leaderPaint = _pathLeaderPaints[paintIdx];
+
+            // Dashed leader from aircraft to first waypoint
+            var (ax, ay) = vp.LatLonToScreen(entry.AircraftLat, entry.AircraftLon);
+            var (fx, fy) = vp.LatLonToScreen(entry.Waypoints[0].Lat, entry.Waypoints[0].Lon);
+            canvas.DrawLine(ax, ay, fx, fy, leaderPaint);
+
+            // Solid polyline connecting waypoints
+            for (int i = 1; i < entry.Waypoints.Count; i++)
+            {
+                var (x1, y1) = vp.LatLonToScreen(entry.Waypoints[i - 1].Lat, entry.Waypoints[i - 1].Lon);
+                var (x2, y2) = vp.LatLonToScreen(entry.Waypoints[i].Lat, entry.Waypoints[i].Lon);
+                canvas.DrawLine(x1, y1, x2, y2, linePaint);
+            }
+
+            // Diamond markers + fix name labels
+            foreach (var wp in entry.Waypoints)
+            {
+                var (wx, wy) = vp.LatLonToScreen(wp.Lat, wp.Lon);
+                canvas.DrawLine(wx, wy - diamondSize, wx + diamondSize, wy, wpPaint);
+                canvas.DrawLine(wx + diamondSize, wy, wx, wy + diamondSize, wpPaint);
+                canvas.DrawLine(wx, wy + diamondSize, wx - diamondSize, wy, wpPaint);
+                canvas.DrawLine(wx - diamondSize, wy, wx, wy - diamondSize, wpPaint);
+                canvas.DrawText(wp.ResolvedName, wx + 8, wy - 4, labelPaint);
+            }
         }
     }
 
@@ -412,5 +533,13 @@ public sealed class RadarRenderer : IDisposable
         _routeWaypointPaint.Dispose();
         _routeLabelPaint.Dispose();
         _routeConditionLabelPaint.Dispose();
+
+        for (int i = 0; i < _pathLinePaints.Length; i++)
+        {
+            _pathLinePaints[i].Dispose();
+            _pathWaypointPaints[i].Dispose();
+            _pathLabelPaints[i].Dispose();
+            _pathLeaderPaints[i].Dispose();
+        }
     }
 }
