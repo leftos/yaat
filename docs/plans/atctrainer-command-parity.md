@@ -94,19 +94,18 @@ All touch ground phase logic, `AircraftState` ground flags, or `GroundConflictDe
 
 Touch `AircraftState` identity/destination fields and potentially approach/procedure database reloads.
 
-- [ ] **APT / DEST** — Change primary airport / destination *(high)*
-  - Changes the aircraft's destination airport
-  - Useful for diversions, VFR transitions, practice approaches at non-destination airports
-  - Updates `AircraftState.DestinationAirport`; may need to reload approach/procedure databases
+- [x] **APT / DEST** — Change destination airport
+  - `APT KSFO` / `DEST KLAX` changes the aircraft's destination
+  - Uses AmendFlightPlan pipeline (ground layout recalc, CRC push, rewind recording)
 
-- [ ] **FP / VP** — Create flight plan via command *(low)*
-  - YAAT has the Flight Plan Editor UI instead
-  - Could add as CLI shortcut: `FP I 350 SUNOL OAK` creates IFR plan
-  - Low value since FPE is more capable
+- [x] **FP / VP** — Create flight plan via command
+  - `FP B738 220 KBOS SSOXS6 BUZRD KJFK` creates IFR flight plan (altitude in hundreds)
+  - `VP C172 5500 KOAK DCT KJFK` creates VFR flight plan (altitude absolute)
+  - Sets aircraft type, cruise altitude, flight rules, departure, destination, route
 
-- [ ] **REMARKS** — Alter flight plan remarks via command *(low)*
-  - YAAT has FPE for this
-  - Could add as convenience: `REMARKS /V/ TCAS EQUIPPED`
+- [x] **REMARKS** — Set flight plan remarks
+  - `REMARKS /V/ STUDENT PILOT` sets remarks field
+  - Alias: `REM`
 
 ## Pass 6 — Landing / Approach (LandingPhase + RunwayInfo)
 

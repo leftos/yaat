@@ -131,7 +131,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Append direct to | — | `ADCT {fix}`, `ADCTF {fix}` | YAAT-only |
 | Join airway | `JAWY` | — | ATCTrainer-only |
 | Join radial out/in | — | `JRADO`/`JRADI` (`JRAD`/`JICRS`) | YAAT-only |
-| Airport/Destination | `APT`/`DEST` | Via FPE | ATCTrainer-only in CLI |
+| Airport/Destination | `APT`/`DEST` | `APT`/`DEST` | Parity |
 | FRD navigation | — | `DCT JFK090020` | YAAT supports FRD in DCT args and AT conditions |
 | DCT route validation | — | Optional setting: rejects off-route DCT; `DCTF` overrides | YAAT-only |
 
@@ -294,9 +294,9 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
-| Flight plan | `FP {type} {alt} {route}` | — (use Flight Plan Editor) | Different approach |
-| VFR flight plan | `VP {type} {alt} {route}` | — | ATCTrainer-only |
-| Remarks | `REMARKS {text}` | — (use Flight Plan Editor) | Different approach |
+| Flight plan | `FP {type} {alt} {route}` | `FP {type} {alt} {route}` | Parity; also available via FPE |
+| VFR flight plan | `VP {type} {alt} {route}` | `VP {type} {alt} {route}` | Parity; also available via FPE |
+| Remarks | `REMARKS {text}` | `REMARKS {text}` (`REM`) | Parity; also available via FPE |
 | Cleared | `CLRD` | — | ATCTrainer-only (YAAT uses clearance column instead) |
 | Delete at | `DELAT` | `DELAT` / `DELAT {n}` | Parity; YAAT adds per-block delete by number |
 | Open chat | `OPENCHAT {controller}` | — | ATCTrainer-only |
@@ -400,10 +400,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 - `JAWY` (Join Airway)
 - `LAHSO` (Land and Hold Short)
 - `STRIP` (Push flight strips)
-- `FP`/`VP` (Create flight plan via command)
-- `REMARKS` (Alter flight plan remarks via command)
 - `OPENCHAT` (Open PM window)
 - `OPS`/`STATS` (Operations statistics)
 - `SAYF` (Frequency message)
-- `APT`/`DEST` (Change primary airport)
 - `SHOWPATH`/`HIDEPATH` (Debug path display)

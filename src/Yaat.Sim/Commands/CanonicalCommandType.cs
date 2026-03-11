@@ -180,4 +180,10 @@ public enum CanonicalCommandType
     Consolidate,
     ConsolidateFull,
     Deconsolidate,
+
+    // Flight plan amendments
+    ChangeDestination,
+    CreateFlightPlan,
+    CreateVfrFlightPlan,
+    SetRemarks,
 }

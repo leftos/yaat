@@ -78,6 +78,7 @@ public static class CommandRegistry
             .. ApproachCommands(),
             .. QueueCommands(),
             .. ConsolidationCommands(),
+            .. FlightPlanCommands(),
         ];
         return defs.ToDictionary(d => d.Type);
     }
@@ -846,6 +847,54 @@ public static class CommandRegistry
                 [O(null, [], "Delete all queued commands"), O("Index", [R("index", "1-based index")], "Delete specific queued command")]
             ),
             Bare(ShowQueuedCommands, "Show Queued Commands", "Queue", false, ["SHOWAT"]),
+        ];
+
+    private static CommandDefinition[] FlightPlanCommands() =>
+        [
+            Cmd(
+                ChangeDestination,
+                "Change Destination",
+                "Flight Plan",
+                false,
+                ["APT", "DEST"],
+                [O(null, [R("airport", "airport ID")], "Change destination airport")]
+            ),
+            Cmd(
+                CreateFlightPlan,
+                "Create Flight Plan (IFR)",
+                "Flight Plan",
+                false,
+                ["FP"],
+                [
+                    O(
+                        null,
+                        [R("type", "aircraft type"), R("altitude", "cruise altitude"), R("route", "departure route destination")],
+                        "Create IFR flight plan"
+                    ),
+                ]
+            ),
+            Cmd(
+                CreateVfrFlightPlan,
+                "Create Flight Plan (VFR)",
+                "Flight Plan",
+                false,
+                ["VP"],
+                [
+                    O(
+                        null,
+                        [R("type", "aircraft type"), R("altitude", "cruise altitude"), R("route", "departure route destination")],
+                        "Create VFR flight plan"
+                    ),
+                ]
+            ),
+            Cmd(
+                SetRemarks,
+                "Set Remarks",
+                "Flight Plan",
+                false,
+                ["REMARKS", "REM"],
+                [O(null, [R("text", "remarks text")], "Set flight plan remarks")]
+            ),
         ];
 
     private static CommandDefinition[] ConsolidationCommands() =>

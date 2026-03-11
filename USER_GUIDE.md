@@ -468,6 +468,15 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Cruise | `CRUISE 240` | `QZ` | — |
 | On-handoff | `ONHO` | `ONH` | — |
 
+#### Flight Plan
+
+| Command | Primary | Aliases | Notes |
+|---------|---------|---------|-------|
+| Change destination | `APT KSFO` | `DEST` | Changes aircraft destination airport |
+| Create IFR flight plan | `FP B738 220 KBOS DCT KJFK` | — | Altitude in hundreds (220 = FL220) |
+| Create VFR flight plan | `VP C172 5500 KOAK DCT KJFK` | — | Altitude absolute (5500 = 5,500 ft) |
+| Set remarks | `REMARKS /V/ STUDENT` | `REM` | Sets flight plan remarks field |
+
 #### Consolidation
 
 | Command | Primary | Aliases | Concatenated |

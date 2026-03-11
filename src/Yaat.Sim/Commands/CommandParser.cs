@@ -430,6 +430,11 @@ public static class CommandParser
             "CON" => ParseConsolidate(arg, false),
             "CON+" => ParseConsolidate(arg, true),
             "DECON" => ParseDeconsolidate(arg),
+            // Flight plan amendments
+            "APT" or "DEST" => ParseChangeDestination(arg),
+            "FP" => ParseCreateFlightPlan(arg, "IFR"),
+            "VP" => ParseCreateFlightPlan(arg, "VFR"),
+            "REMARKS" or "REM" when arg is not null => new SetRemarksCommand(arg),
             _ => null,
         };
     }
@@ -1083,6 +1088,43 @@ public static class CommandParser
         }
 
         return new DeconsolidateCommand(arg.Trim().ToUpperInvariant());
+    }
+
+    private static ParsedCommand? ParseChangeDestination(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return null;
+        }
+
+        return new ChangeDestinationCommand(arg.Trim().ToUpperInvariant());
+    }
+
+    private static ParsedCommand? ParseCreateFlightPlan(string? arg, string flightRules)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return null;
+        }
+
+        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3)
+        {
+            return null;
+        }
+
+        var aircraftType = parts[0].ToUpperInvariant();
+
+        if (!int.TryParse(parts[1], out var altRaw))
+        {
+            return null;
+        }
+
+        // IFR altitude in hundreds (≤999 → multiply by 100), VFR is absolute
+        int cruiseAltitude = flightRules == "IFR" && altRaw <= 999 ? altRaw * 100 : altRaw;
+
+        var route = string.Join(" ", parts.Skip(2).Select(p => p.ToUpperInvariant()));
+        return new CreateFlightPlanCommand(flightRules, aircraftType, cruiseAltitude, route);
     }
 
     private static ParsedCommand? ParseSquawkOrReset(string? arg)

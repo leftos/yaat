@@ -401,3 +401,10 @@ public record ReportTrafficInSightCommand(string? TargetCallsign) : ParsedComman
 public record DeleteQueuedCommand(int? BlockNumber = null) : ParsedCommand;
 
 public record ShowQueuedCommand : ParsedCommand;
+
+// Flight plan amendment commands
+public record ChangeDestinationCommand(string Airport) : ParsedCommand;
+
+public record CreateFlightPlanCommand(string FlightRules, string AircraftType, int CruiseAltitude, string Route) : ParsedCommand;
+
+public record SetRemarksCommand(string Text) : ParsedCommand;

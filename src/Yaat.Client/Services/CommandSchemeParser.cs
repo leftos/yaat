@@ -259,6 +259,9 @@ public static class CommandSchemeParser
         CanonicalCommandType.AppendDirectTo,
         CanonicalCommandType.ClearedForTakeoff,
         CanonicalCommandType.Say,
+        CanonicalCommandType.CreateFlightPlan,
+        CanonicalCommandType.CreateVfrFlightPlan,
+        CanonicalCommandType.SetRemarks,
     ];
 
     private static ParsedInput? ParseTextArgCommand(string input, CommandScheme scheme)
