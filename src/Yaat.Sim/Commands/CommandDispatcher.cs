@@ -823,7 +823,13 @@ public static class CommandDispatcher
             return null;
         }
 
-        var airportId = aircraft.Departure ?? aircraft.Destination;
+        // Treat empty strings (VFR local traffic with no flight plan) the same as null.
+        // Fall back to the ground layout airport ID so CTO works for aircraft with no departure/destination.
+        var airportId =
+            !string.IsNullOrEmpty(aircraft.Departure) ? aircraft.Departure
+            : !string.IsNullOrEmpty(aircraft.Destination) ? aircraft.Destination
+            : aircraft.GroundLayout?.AirportId;
+
         if (airportId is null)
         {
             return null;
@@ -832,13 +838,7 @@ public static class CommandDispatcher
         // Hold-short runway IDs can be combined (e.g., "28R/10L").
         // Try each end until one resolves.
         var parsed = RunwayIdentifier.Parse(runwayId);
-        var info = runways.GetRunway(airportId, parsed.End1);
-        if (info is not null)
-        {
-            return info;
-        }
-
-        return runways.GetRunway(airportId, parsed.End2);
+        return runways.GetRunway(airportId, parsed.End1) ?? runways.GetRunway(airportId, parsed.End2);
     }
 
     internal static string RunwayLabel(AircraftState aircraft)
