@@ -1,22 +1,53 @@
 using System.Text.Json;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Proto;
 
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Loads AircraftSpecs.json, AircraftCwt.json, and FaaAcd.json from TestData/ and initializes
-/// <see cref="AircraftCategorization"/>, <see cref="WakeTurbulenceData"/>,
-/// and <see cref="AircraftApproachSpeed"/>. Thread-safe; only initializes once per process.
+/// Loads AircraftSpecs.json, AircraftCwt.json, FaaAcd.json, and NavData.dat from TestData/ and
+/// initializes <see cref="AircraftCategorization"/>, <see cref="WakeTurbulenceData"/>,
+/// <see cref="AircraftApproachSpeed"/>, and <see cref="FixDatabase"/>. Thread-safe; only initializes once per process.
 ///
 /// Call <see cref="EnsureInitialized"/> at the top of any test that needs
 /// accurate aircraft data. Safe to call multiple times.
+/// Use <see cref="FixDatabase"/> for tests that require real nav data (fixes, runways).
 /// </summary>
 internal static class TestVnasData
 {
     private const string TestDataDir = "TestData";
     private static bool _initialized;
     private static readonly object _lock = new();
+
+    private static FixDatabase? _fixDatabase;
+
+    /// <summary>
+    /// Returns a <see cref="FixDatabase"/> loaded from NavData.dat, or null if the file is not present.
+    /// Loads lazily and caches for the process lifetime.
+    /// </summary>
+    internal static FixDatabase? FixDatabase
+    {
+        get
+        {
+            if (_fixDatabase is not null)
+            {
+                return _fixDatabase;
+            }
+
+            var path = Path.Combine(TestDataDir, "NavData.dat");
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            var bytes = File.ReadAllBytes(path);
+            var navData = NavDataSet.Parser.ParseFrom(bytes);
+            _fixDatabase = new FixDatabase(navData);
+            return _fixDatabase;
+        }
+    }
 
     internal static void EnsureInitialized()
     {

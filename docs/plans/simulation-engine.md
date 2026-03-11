@@ -48,44 +48,66 @@ SimulationEngine (Yaat.Sim)          Server TickProcessor
 - [x] Move `ScratchpadRuleEngine.cs` → `src/Yaat.Sim/Simulation/ScratchpadRuleEngine.cs`
 - [x] Update all server imports
 
+### Step 5b: Move remaining server→Sim candidates
+- [x] `AtpaProcessor.cs` / `AtpaVolumeGeometry.cs` → `src/Yaat.Sim/Data/Vnas/`
+- [x] `BeaconCodePool.cs` → `src/Yaat.Sim/Data/Vnas/BeaconCodePool.cs`
+- [x] `TowerListTracker.cs` → `src/Yaat.Sim/TowerListTracker.cs`
+- [x] `ConflictAlertState.cs` → `src/Yaat.Sim/ConflictAlertState.cs`
+- [x] `ApproachEvaluator.cs` → `src/Yaat.Sim/Phases/ApproachEvaluator.cs`
+- [x] `ScenarioLoader.cs`, `AircraftGenerator.cs`, `AircraftInitializer.cs` → `src/Yaat.Sim/Scenarios/`
+
 ### Step 6: Create TestAirportGroundData helper
-- [ ] Create `tests/Yaat.Sim.Tests/Helpers/TestAirportGroundData.cs`
+- [x] Create `tests/Yaat.Sim.Tests/Helpers/TestAirportGroundData.cs`
+- [x] Implements `IAirportGroundData`; loads layouts from `TestData/{id}.geojson` (lowercased)
+- [x] Returns `null` for unknown airports (silently skips, like `AirportE2ETests`)
+- [x] Normalises "KOAK" → "OAK" (strips leading K for standard 4-letter ICAO codes)
 
 ### Step 7: Add NavData loading to TestVnasData
-- [ ] Extend `tests/Yaat.Sim.Tests/TestVnasData.cs` with FixDatabase property
+- [x] Extend `tests/Yaat.Sim.Tests/TestVnasData.cs` with `FixDatabase` property
+- [x] Loads `TestData/NavData.dat` via `NavDataSet.Parser.ParseFrom`, builds real `FixDatabase`
+- [x] Returns `null` if file absent (tests silently skip)
 
 ### Step 8: Create E2E replay tests
-- [ ] Create `tests/Yaat.Sim.Tests/Simulation/SimulationEngineReplayTests.cs`
-- [ ] Replay_OakTaxi_NKS2904_HasTaxiRoute
-- [ ] Replay_OakTaxi_NKS2904_TaxiRouteFollowsExpectedPath
-- [ ] Replay_OakTaxi_NKS2904_MovedFromParking
+- [x] Create `tests/Yaat.Sim.Tests/Simulation/SimulationEngineReplayTests.cs`
+- [x] `Replay_OakTaxi_NKS2904_HasTaxiRoute` — after replay, NKS2904.AssignedTaxiRoute is not null
+- [x] `Replay_OakTaxi_NKS2904_TaxiRouteFollowsExpectedPath` — route passes through S, T, U, W, W1
+- [x] `Replay_OakTaxi_NKS2904_MovedFromParking` — after 96s, aircraft moved from parking 11 position
 
 ### Step 9: Verify
 - [x] `dotnet build` both repos with TreatWarningsAsErrors — 0W 0E
-- [x] `dotnet test` — Sim: 1158, Client: 209, Server: 216
-- [ ] New E2E replay tests pass
+- [x] `dotnet test` — Sim: 1161, Client: 209
+- [x] New E2E replay tests pass (3/3)
 - [x] Format: `dotnet format style && dotnet format analyzers && dotnet csharpier format .`
 
-## Files created in Yaat.Sim
+## Files in Yaat.Sim (current state)
+
+### Created by this plan
 - `src/Yaat.Sim/Simulation/SimulationEngine.cs`
 - `src/Yaat.Sim/Simulation/SimScenarioState.cs`
 - `src/Yaat.Sim/Simulation/ScenarioQueues.cs`
 - `src/Yaat.Sim/Simulation/ConsolidationState.cs`
 - `src/Yaat.Sim/Simulation/ScratchpadRuleEngine.cs`
+- `src/Yaat.Sim/Simulation/SessionRecording.cs`
+- `src/Yaat.Sim/Simulation/RecordedAction.cs`
 - `src/Yaat.Sim/Scenarios/SpawnParser.cs` (moved from server)
+- `src/Yaat.Sim/Scenarios/ScenarioLoader.cs` (moved from server)
+- `src/Yaat.Sim/Scenarios/AircraftGenerator.cs` (moved from server)
+- `src/Yaat.Sim/Scenarios/AircraftInitializer.cs` (moved from server)
 - `src/Yaat.Sim/Data/Vnas/ArtccConfig.cs` (moved from server)
+- `src/Yaat.Sim/Data/Vnas/BeaconCodePool.cs` (moved from server)
+- `src/Yaat.Sim/Data/Vnas/AtpaProcessor.cs` (moved from server)
+- `src/Yaat.Sim/Data/Vnas/AtpaVolumeGeometry.cs` (moved from server)
+- `src/Yaat.Sim/TowerListTracker.cs` (moved from server)
+- `src/Yaat.Sim/ConflictAlertState.cs` (moved from server)
+- `src/Yaat.Sim/Phases/ApproachEvaluator.cs` (moved from server)
 
-## Files deleted from server
-- `src/Yaat.Server/Spawn/SpawnParser.cs`
-- `src/Yaat.Server/Data/ArtccConfig.cs`
-- `src/Yaat.Server/Simulation/ConsolidationState.cs`
-- `src/Yaat.Server/Simulation/ScratchpadRuleEngine.cs`
+### Test data (already present)
+- `tests/Yaat.Sim.Tests/TestData/oak-taxi-recording.json` — 2-action NKS2904 taxi recording, 96s
+- `tests/Yaat.Sim.Tests/TestData/oak.geojson` — OAK airport ground layout
+- `tests/Yaat.Sim.Tests/TestData/sfo.geojson` — SFO airport ground layout
 
-## Next: More server→Sim migration candidates
-Potential files to move from yaat-server's Simulation folder:
-- `AtpaProcessor.cs` / `AtpaVolumeGeometry.cs` — ATPA logic, depends on config types (now in Sim)
-- `BeaconCodePool.cs` — beacon code assignment, depends on config types (now in Sim)
-- `TowerListTracker.cs` — tower list logic
-- `ConflictAlertState.cs` — conflict detection state
-- `DtoConverter.cs` — partial move (non-DTO parts)
-- More analysis needed to identify clean boundaries
+## Remaining work summary
+
+Steps 6 and 7 unblock Step 8. All three are small — the `TestAirportGroundData` helper wraps GeoJSON loading already done in `AirportE2ETests`; `TestOakFixLookup` follows the `StubRunwayLookup` pattern already in `GroundCommandHandlerTests`.
+
+The recording has only 2 actions (both at t=0 for NKS2904) and runs for 96 seconds, making the replay test fast and deterministic.
