@@ -79,12 +79,13 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor NodeHoldShort = new(220, 60, 60);
     private static readonly SKColor ActiveRouteColor = new(60, 220, 60);
     private static readonly SKColor PreviewRouteColor = new(80, 180, 255, 180);
-    private static readonly SKColor AircraftTaxiing = new(0, 200, 255);
-    private static readonly SKColor AircraftHolding = new(255, 200, 0);
+    private static readonly SKColor AircraftTaxiing = new(255, 255, 255);
+    private static readonly SKColor AircraftHolding = new(255, 255, 255);
     private static readonly SKColor AircraftParked = new(100, 100, 100);
     private static readonly SKColor AircraftSelected = new(255, 255, 255);
     private static readonly SKColor AircraftDimmed = new(80, 80, 100);
-    private static readonly SKColor AircraftAirborne = new(0, 200, 255);
+    private static readonly SKColor AircraftAirborne = new(255, 255, 255);
+    private static readonly SKColor TerminalGreen = new(0, 230, 0);
     private static readonly SKColor DrawnRouteColor = new(0, 200, 255);
     private static readonly SKColor DrawHoverPreviewColor = new(255, 180, 50);
     private static readonly SKColor WaypointMarkerColor = new(255, 200, 0);
@@ -95,6 +96,7 @@ public sealed class GroundRenderer : IDisposable
 
     private enum LabelPriority
     {
+        Hovered,
         Runway,
         HoldShort,
         Taxiway,
@@ -203,6 +205,7 @@ public sealed class GroundRenderer : IDisposable
     };
 
     private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(0, 0, 0, 160), Style = SKPaintStyle.Fill };
+    private readonly SKPaint _labelBgPaint = new() { Color = new SKColor(0, 0, 0, 220), Style = SKPaintStyle.Fill };
 
     private readonly SKPaint _drawnRoutePaint = new()
     {
@@ -341,9 +344,10 @@ public sealed class GroundRenderer : IDisposable
         DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
         DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
         DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShortLabels, showParkingLabels);
-        DrawLabels(canvas);
+        DrawLabels(canvas, hoveredOnly: false);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
         DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
+        DrawLabels(canvas, hoveredOnly: true);
 
         if (weatherInfo is not null)
         {
@@ -500,7 +504,9 @@ public sealed class GroundRenderer : IDisposable
                     }
 
                     positions.Add((mx, my));
-                    _labelCandidates.Add(new LabelCandidate(edge.TaxiwayName, mx + 3, my - 3, LabelPriority.Taxiway, _taxiLabelPaint, null));
+                    var priority = isNearHover ? LabelPriority.Hovered : LabelPriority.Taxiway;
+                    SKColor? color = isNearHover ? new SKColor(255, 255, 255) : null;
+                    _labelCandidates.Add(new LabelCandidate(edge.TaxiwayName, mx + 3, my - 3, priority, _taxiLabelPaint, color));
                 }
             }
         }
@@ -676,16 +682,22 @@ public sealed class GroundRenderer : IDisposable
             }
             else if (node.Name is not null && node.Type is "Parking" or "Helipad" or "Spot")
             {
-                if (showParkingLabels || hoveredNodeId == node.Id)
+                bool isHovered = hoveredNodeId == node.Id;
+                if (showParkingLabels || isHovered)
                 {
-                    _labelCandidates.Add(new LabelCandidate(node.Name, sx + 5, sy - 3, LabelPriority.ParkingSpot, _nodeLabelPaint, null));
+                    var priority = isHovered ? LabelPriority.Hovered : LabelPriority.ParkingSpot;
+                    SKColor? color = isHovered ? new SKColor(255, 255, 255) : null;
+                    _labelCandidates.Add(new LabelCandidate(node.Name, sx + 5, sy - 3, priority, _nodeLabelPaint, color));
                 }
             }
             else if (node.RunwayId is not null && node.Type == "RunwayHoldShort")
             {
-                if (showHoldShortLabels || hoveredNodeId == node.Id)
+                bool isHovered = hoveredNodeId == node.Id;
+                if (showHoldShortLabels || isHovered)
                 {
-                    _labelCandidates.Add(new LabelCandidate($"HS {node.RunwayId}", sx + 5, sy - 3, LabelPriority.HoldShort, _nodeLabelPaint, null));
+                    var priority = isHovered ? LabelPriority.Hovered : LabelPriority.HoldShort;
+                    SKColor? color = isHovered ? new SKColor(255, 255, 255) : null;
+                    _labelCandidates.Add(new LabelCandidate($"HS {node.RunwayId}", sx + 5, sy - 3, priority, _nodeLabelPaint, color));
                 }
             }
 
@@ -748,12 +760,23 @@ public sealed class GroundRenderer : IDisposable
                 widthPx *= SelectedScaleFactor;
             }
 
-            DrawTriangle(canvas, sx, sy, (float)(ac.Heading - vp.RotationDeg), lengthPx, widthPx, _aircraftPaint);
+            bool isHeli = AircraftCategorization.Categorize(ac.AircraftType ?? "") == AircraftCategory.Helicopter;
+            float headingDeg = (float)(ac.Heading - vp.RotationDeg);
+
+            if (isHeli)
+            {
+                float rotorPx = ComputeRotorPixelRadius(ac.AircraftType, pxPerFt);
+                DrawHelicopterSilhouette(canvas, sx, sy, headingDeg, lengthPx, widthPx, rotorPx, _aircraftPaint);
+            }
+            else
+            {
+                DrawFixedWingSilhouette(canvas, sx, sy, headingDeg, lengthPx, widthPx, _aircraftPaint);
+            }
         }
     }
 
     /// <summary>
-    /// Returns (halfLengthPx, halfWidthPx) for the aircraft triangle.
+    /// Returns (halfLengthPx, halfWidthPx) for the aircraft silhouette.
     /// Uses FAA ACD dimensions when available, otherwise category fallbacks.
     /// Clamps to <see cref="MinAircraftPx"/> so aircraft remain visible when zoomed out.
     /// </summary>
@@ -781,41 +804,214 @@ public sealed class GroundRenderer : IDisposable
         return (halfLenPx, halfWsPx);
     }
 
+    /// <summary>Fallback rotor diameter when FAA ACD data is unavailable (medium helicopter).</summary>
+    private const float FallbackRotorDiameterFt = 40f;
+
+    private static float ComputeRotorPixelRadius(string? aircraftType, float pxPerFt)
+    {
+        float diameterFt = FallbackRotorDiameterFt;
+        var record = FaaAircraftDatabase.Get(aircraftType);
+        if (record?.RotorDiameterFt is { } rd)
+        {
+            diameterFt = (float)rd;
+        }
+
+        return MathF.Max(diameterFt * 0.5f * pxPerFt, MinAircraftPx);
+    }
+
     private static SKColor GetAircraftColor(AircraftModel ac)
     {
         return AircraftTaxiing;
     }
 
     /// <summary>
-    /// Draws an arrowhead triangle centered at (cx, cy) pointing along headingDeg.
-    /// <paramref name="halfLength"/> is nose-to-center distance along heading.
-    /// <paramref name="halfWidth"/> is half-wingspan perpendicular to heading.
+    /// Draws a top-down fixed-wing aircraft silhouette centered at (cx, cy).
+    /// The silhouette spans exactly nose-to-tail = 2 * halfLength and wingtip-to-wingtip = 2 * halfWidth.
+    /// Fuselage, swept wings, and horizontal stabilizer are drawn as a single filled path.
     /// </summary>
-    private static void DrawTriangle(SKCanvas canvas, float cx, float cy, float headingDeg, float halfLength, float halfWidth, SKPaint paint)
+    private static void DrawFixedWingSilhouette(
+        SKCanvas canvas,
+        float cx,
+        float cy,
+        float headingDeg,
+        float halfLength,
+        float halfWidth,
+        SKPaint paint
+    )
     {
-        var rad = (headingDeg - 90) * MathF.PI / 180f;
-        var cosH = MathF.Cos(rad);
-        var sinH = MathF.Sin(rad);
+        // All coordinates in normalized space: X = along heading (-1 = tail, +1 = nose), Y = lateral (-1 = left, +1 = right).
+        // Scaled by halfLength (X) and halfWidth (Y), then rotated and translated.
 
-        // Perpendicular direction (90° clockwise from heading in screen coords)
-        var cosP = MathF.Cos(rad + MathF.PI / 2f);
-        var sinP = MathF.Sin(rad + MathF.PI / 2f);
+        // Fuselage width as fraction of wingspan
+        float fuseW = 0.08f;
 
-        // Tip: forward from center by halfLength
-        var tip = new SKPoint(cx + cosH * halfLength, cy + sinH * halfLength);
+        // --- Build the silhouette path in normalized coords ---
+        // We trace clockwise starting from the nose.
+        // Nose tip
+        SKPoint[] pts =
+        [
+            // Nose cone
+            new(1.0f, 0f),
+            // Fuselage widens
+            new(0.7f, fuseW),
+            // Wing leading edge root
+            new(0.25f, fuseW),
+            // Wing tip leading edge (swept back)
+            new(0.05f, 1.0f),
+            // Wing tip trailing edge
+            new(-0.15f, 0.85f),
+            // Wing trailing edge root
+            new(-0.15f, fuseW),
+            // Fuselage continues aft
+            new(-0.6f, fuseW),
+            // Horizontal stabilizer tip leading edge
+            new(-0.7f, 0.4f),
+            // Horizontal stabilizer tip trailing edge
+            new(-0.9f, 0.35f),
+            // Tail tip
+            new(-0.95f, fuseW),
+            // Tail end center
+            new(-1.0f, 0f),
+            // Mirror: tail tip (left side)
+            new(-0.95f, -fuseW),
+            // Horizontal stabilizer tip trailing edge (left)
+            new(-0.9f, -0.35f),
+            // Horizontal stabilizer tip leading edge (left)
+            new(-0.7f, -0.4f),
+            // Fuselage continues aft (left)
+            new(-0.6f, -fuseW),
+            // Wing trailing edge root (left)
+            new(-0.15f, -fuseW),
+            // Wing tip trailing edge (left)
+            new(-0.15f, -0.85f),
+            // Wing tip leading edge (left)
+            new(0.05f, -1.0f),
+            // Wing leading edge root (left)
+            new(0.25f, -fuseW),
+            // Fuselage narrows toward nose (left)
+            new(0.7f, -fuseW),
+        ];
 
-        // Tail corners: backward by halfLength * 0.6, spread by halfWidth
-        float tailBack = halfLength * 0.6f;
-        float tailCx = cx - cosH * tailBack;
-        float tailCy = cy - sinH * tailBack;
+        DrawRotatedSilhouette(canvas, cx, cy, headingDeg, halfLength, halfWidth, pts, paint);
+    }
 
-        var left = new SKPoint(tailCx + cosP * halfWidth, tailCy + sinP * halfWidth);
-        var right = new SKPoint(tailCx - cosP * halfWidth, tailCy - sinP * halfWidth);
+    /// <summary>
+    /// Draws a top-down helicopter silhouette centered at (cx, cy).
+    /// Shows fuselage (oval body), tail boom, tail rotor disc, and main rotor disc.
+    /// HalfLength/halfWidth define the fuselage; rotorRadius defines the main rotor disc.
+    /// </summary>
+    private static void DrawHelicopterSilhouette(
+        SKCanvas canvas,
+        float cx,
+        float cy,
+        float headingDeg,
+        float halfLength,
+        float halfWidth,
+        float rotorRadius,
+        SKPaint paint
+    )
+    {
+        float rad = (headingDeg - 90) * MathF.PI / 180f;
+        float cosH = MathF.Cos(rad);
+        float sinH = MathF.Sin(rad);
+        float cosP = MathF.Cos(rad + MathF.PI / 2f);
+        float sinP = MathF.Sin(rad + MathF.PI / 2f);
+
+        // --- Fuselage body (teardrop shape) ---
+        // Wider at front, tapers to tail boom
+        float fuseW = 0.25f;
+        SKPoint[] bodyPts =
+        [
+            new(0.5f, 0f),
+            new(0.3f, fuseW),
+            new(-0.1f, fuseW),
+            new(-0.3f, 0.08f),
+            // Tail boom
+            new(-0.9f, 0.03f),
+            new(-1.0f, 0f),
+            new(-0.9f, -0.03f),
+            // Back to body
+            new(-0.3f, -0.08f),
+            new(-0.1f, -fuseW),
+            new(0.3f, -fuseW),
+        ];
+
+        DrawRotatedSilhouette(canvas, cx, cy, headingDeg, halfLength, halfWidth, bodyPts, paint);
+
+        // --- Main rotor disc (circle centered slightly forward of body center) ---
+        float rotorCenterOffset = halfLength * 0.1f;
+        float rotorCx = cx + cosH * rotorCenterOffset;
+        float rotorCy = cy + sinH * rotorCenterOffset;
+        float effectiveRotorR = MathF.Max(rotorRadius, MinAircraftPx);
+
+        using var rotorPaint = paint.Clone();
+        rotorPaint.Style = SKPaintStyle.Stroke;
+        rotorPaint.StrokeWidth = MathF.Max(1f, halfLength * 0.03f);
+        canvas.DrawCircle(rotorCx, rotorCy, effectiveRotorR, rotorPaint);
+
+        // Rotor cross lines
+        canvas.DrawLine(
+            rotorCx + cosH * effectiveRotorR,
+            rotorCy + sinH * effectiveRotorR,
+            rotorCx - cosH * effectiveRotorR,
+            rotorCy - sinH * effectiveRotorR,
+            rotorPaint
+        );
+        canvas.DrawLine(
+            rotorCx + cosP * effectiveRotorR,
+            rotorCy + sinP * effectiveRotorR,
+            rotorCx - cosP * effectiveRotorR,
+            rotorCy - sinP * effectiveRotorR,
+            rotorPaint
+        );
+
+        // --- Tail rotor disc (small circle at tail boom end) ---
+        float tailRotorOffset = halfLength * 0.95f;
+        float tailRotorCx = cx - cosH * tailRotorOffset;
+        float tailRotorCy = cy - sinH * tailRotorOffset;
+        float tailRotorR = MathF.Max(halfLength * 0.12f, 2f);
+        canvas.DrawCircle(tailRotorCx, tailRotorCy, tailRotorR, rotorPaint);
+    }
+
+    /// <summary>
+    /// Transforms normalized silhouette points (X along heading, Y lateral) to screen space
+    /// and draws them as a filled polygon.
+    /// </summary>
+    private static void DrawRotatedSilhouette(
+        SKCanvas canvas,
+        float cx,
+        float cy,
+        float headingDeg,
+        float halfLength,
+        float halfWidth,
+        SKPoint[] normalizedPts,
+        SKPaint paint
+    )
+    {
+        float rad = (headingDeg - 90) * MathF.PI / 180f;
+        float cosH = MathF.Cos(rad);
+        float sinH = MathF.Sin(rad);
+        float cosP = MathF.Cos(rad + MathF.PI / 2f);
+        float sinP = MathF.Sin(rad + MathF.PI / 2f);
 
         using var path = new SKPath();
-        path.MoveTo(tip);
-        path.LineTo(left);
-        path.LineTo(right);
+        for (int i = 0; i < normalizedPts.Length; i++)
+        {
+            float ax = normalizedPts[i].X * halfLength;
+            float ay = normalizedPts[i].Y * halfWidth;
+            float screenX = cx + cosH * ax + cosP * ay;
+            float screenY = cy + sinH * ax + sinP * ay;
+
+            if (i == 0)
+            {
+                path.MoveTo(screenX, screenY);
+            }
+            else
+            {
+                path.LineTo(screenX, screenY);
+            }
+        }
+
         path.Close();
         canvas.DrawPath(path, paint);
     }
@@ -850,12 +1046,9 @@ public sealed class GroundRenderer : IDisposable
             var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _dataBlockTextPaint, isAirborne);
 
             bool isSelected = ac == selectedAircraft;
-            var color =
-                isSelected ? AircraftSelected
-                : isAirborne ? AircraftAirborne
-                : GetAircraftColor(ac);
+            var dbColor = isSelected ? AircraftSelected : TerminalGreen;
 
-            _dataBlockTextPaint.Color = color;
+            _dataBlockTextPaint.Color = dbColor;
             canvas.DrawRect(layout.Rect, _dataBlockBgPaint);
 
             if (isSelected)
@@ -865,7 +1058,7 @@ public sealed class GroundRenderer : IDisposable
             }
 
             var leaderEnd = ClampToBlockEdge(sx, sy, layout.Rect);
-            _dataBlockLeaderPaint.Color = color;
+            _dataBlockLeaderPaint.Color = dbColor;
             canvas.DrawLine(sx, sy, leaderEnd.X, leaderEnd.Y, _dataBlockLeaderPaint);
 
             canvas.DrawText(layout.Line1, layout.TextX, layout.TextY, _dataBlockTextPaint);
@@ -899,7 +1092,7 @@ public sealed class GroundRenderer : IDisposable
         return new SKPoint(Math.Clamp(pointX, rect.Left, rect.Right), Math.Clamp(pointY, rect.Top, rect.Bottom));
     }
 
-    private void DrawLabels(SKCanvas canvas)
+    private void DrawLabels(SKCanvas canvas, bool hoveredOnly)
     {
         _labelCandidates.Sort((a, b) => a.Priority.CompareTo(b.Priority));
 
@@ -907,6 +1100,12 @@ public sealed class GroundRenderer : IDisposable
 
         foreach (var label in _labelCandidates)
         {
+            bool isHovered = label.Priority == LabelPriority.Hovered;
+            if (hoveredOnly != isHovered)
+            {
+                continue;
+            }
+
             var paint = label.Paint;
             float textWidth = paint.MeasureText(label.Text);
             float textHeight = paint.TextSize;
@@ -930,6 +1129,8 @@ public sealed class GroundRenderer : IDisposable
             }
 
             placedRects.Add(rect);
+
+            canvas.DrawRect(rect, _labelBgPaint);
 
             if (label.ColorOverride is { } color)
             {
@@ -966,6 +1167,7 @@ public sealed class GroundRenderer : IDisposable
         _dataBlockLeaderPaint.Dispose();
         _dataBlockTextPaint.Dispose();
         _dataBlockBgPaint.Dispose();
+        _labelBgPaint.Dispose();
         _bgPaint.Dispose();
         _debugLabelPaint.Dispose();
         _debugEdgeLabelPaint.Dispose();
