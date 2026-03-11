@@ -30,4 +30,9 @@ public interface IFixLookup
     /// Returns null if the STAR is unknown.
     /// </summary>
     IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId);
+
+    /// <summary>
+    /// Returns the ordered fix names for an airway, or null if unknown.
+    /// </summary>
+    IReadOnlyList<string>? GetAirwayFixes(string airwayId) => null;
 }

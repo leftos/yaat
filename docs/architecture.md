@@ -150,7 +150,7 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
                                     # TryApplyTowerCommand, queue infrastructure, condition conversion, shared utilities
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands
 Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depart/cross fix, JARR STAR resolution,
-                                    # CVIA/DVIA (DVIA SPD fix), JFAC, holding pattern, RFIS/RTIS, list approaches
+                                    # JAWY airway intercept, CVIA/DVIA (DVIA SPD fix), JFAC, holding pattern, RFIS/RTIS, list approaches
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes

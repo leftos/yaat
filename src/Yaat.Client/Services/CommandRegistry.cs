@@ -733,6 +733,7 @@ public static class CommandRegistry
                 ["JARR", "ARR", "STAR", "JSTAR"],
                 [O(null, [R("STAR", "STAR name"), R("entry_fix", "entry fix")], "Join STAR at entry fix")]
             ),
+            Cmd(JoinAirway, "Join Airway", "Approach", false, ["JAWY"], [O(null, [R("airway", "airway ID")], "Intercept and join airway")]),
             Cmd(
                 JoinRadialOutbound,
                 "Join Radial Outbound",

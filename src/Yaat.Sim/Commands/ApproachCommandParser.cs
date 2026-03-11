@@ -188,6 +188,16 @@ internal static class ApproachCommandParser
         return new JoinStarCommand(starId, transition);
     }
 
+    internal static ParsedCommand? ParseJawy(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return null;
+        }
+
+        return new JoinAirwayCommand(arg.Trim().ToUpperInvariant());
+    }
+
     /// <summary>
     /// Parses JRADO fixRadial — a single token where the last 3 digits are the radial
     /// and the rest is the fix name (e.g., "OAK090" → fix=OAK, radial=090).

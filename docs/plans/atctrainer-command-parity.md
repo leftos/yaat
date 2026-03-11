@@ -116,14 +116,11 @@ Standalone — requires runway intersection geometry not shared with other group
   - Requires runway intersection geometry (available from ground layout data)
   - Adds a hold-short point during landing rollout
 
-## Pass 7 — Navigation / Route (FixDatabase + ControlTargets.NavigationRoute)
+## Pass 7 — Navigation / Route (FixDatabase + ControlTargets.NavigationRoute) ✅
 
-Requires airway database loading — standalone exploration of NavData route structures.
-
-- [ ] **JAWY** — Join airway *(medium)*
-  - Airways are named fix sequences; `JAWY {airway}` joins aircraft to airway route
-  - Requires airway database (not currently loaded — needs NavData protobuf extension or separate source)
-  - More relevant for enroute; useful once YAAT supports center-level scenarios
+- [x] **JAWY** — Join airway *(medium)*
+  - `JAWY {airway}` — intercepts nearest airway segment and follows fix sequence in direction of travel
+  - Uses existing FixDatabase.GetAirwayFixes(); InterceptRadial trigger for segment intercept
 
 ## Won't Implement / Not Applicable
 

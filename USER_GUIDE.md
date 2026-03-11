@@ -382,6 +382,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Pos/Turn/Alt/Clr | `PTAC 280 025 ILS30` | — | — |
 | Join final | `JFAC ILS28R` | `JLOC`, `JF` | — |
 | Join arrival | `JARR OAK.SALI2` | `ARR`, `STAR`, `JSTAR` | — |
+| Join airway | `JAWY V25` | — | — |
 | Join radial out | `JRADO SJC 150` | `JRAD` | — |
 | Join radial in | `JRADI SJC 150` | `JICRS` | — |
 | Cross fix | `CFIX SUNOL A034` | — | — |
@@ -826,6 +827,7 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 | `JARR SALI2` | Join STAR by name (airport inferred from destination) |
 | `JARR SALI2 KENNO` | Join STAR via specific entry fix KENNO |
 | `JARR OAK.SALI2 KENNO` | Join STAR with both airport qualifier and entry fix |
+| `JAWY V25` | Join airway: intercept and join airway V25, following fixes in the direction of travel |
 | `JRADO SJC 150` | Join radial outbound: fly to SJC VOR, then outbound on the 150° radial |
 | `JRADI SJC 150` | Join radial inbound: intercept and fly inbound on the 150° radial to SJC |
 | `CFIX A034` | Cross next fix at or above 3,400 ft |
@@ -838,6 +840,8 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 | `DEPART SUNOL 270` | Depart fix SUNOL on heading 270 |
 
 `JARR` also accepts aliases `ARR`, `STAR`, and `JSTAR`. `JRADO` also accepts `JRAD`. `JRADI` also accepts `JICRS`. `DEPART` also accepts `DEP`.
+
+`JAWY` intercepts and joins a named airway (e.g., V25, J80). The aircraft flies its present heading until it intercepts the airway segment between the nearest fix behind and ahead, then turns onto the airway course and follows the fix sequence in the direction of travel. This ensures the aircraft is on the airway centerline (for MEA coverage and radio navigation) rather than cutting corners direct to a fix.
 
 JARR supports CIFP altitude/speed constraints when available. The airport prefix (`OAK.`) is optional — when omitted, the aircraft's destination airport is used. The entry fix specifies where to join the STAR; when omitted, the nearest fix ahead of the aircraft is used.
 

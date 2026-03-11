@@ -488,6 +488,251 @@ internal static class NavigationCommandHandler
         return bodyFixes.Skip(bestIdx).ToList();
     }
 
+    internal static CommandResult DispatchJawy(JoinAirwayCommand cmd, AircraftState aircraft, IFixLookup? fixes)
+    {
+        if (fixes is null)
+        {
+            return new CommandResult(false, "Fix database not available");
+        }
+
+        var airwayFixes = fixes.GetAirwayFixes(cmd.AirwayId);
+        if (airwayFixes is null || airwayFixes.Count == 0)
+        {
+            return new CommandResult(false, $"Unknown airway: {cmd.AirwayId}");
+        }
+
+        // Find the bracketing segment: the fix behind and fix ahead of the aircraft
+        var (behindIdx, aheadIdx) = FindBracketingSegment(aircraft, airwayFixes, fixes);
+        if (aheadIdx < 0)
+        {
+            return new CommandResult(false, $"No navigable segment found on {cmd.AirwayId}");
+        }
+
+        // Resolve ahead fix position (guaranteed non-null since FindBracketingSegment validated it)
+        var aheadPos = fixes.GetFixPosition(airwayFixes[aheadIdx])!.Value;
+
+        // Determine the segment course to intercept
+        double segmentCourse;
+        double interceptFixLat;
+        double interceptFixLon;
+        string interceptFixName;
+
+        if (behindIdx >= 0)
+        {
+            var behindPos = fixes.GetFixPosition(airwayFixes[behindIdx])!.Value;
+            segmentCourse = GeoMath.BearingTo(behindPos.Lat, behindPos.Lon, aheadPos.Lat, aheadPos.Lon);
+            // Use behind fix as the radial origin — aircraft intercepts the radial FROM behind fix TO ahead fix
+            interceptFixLat = behindPos.Lat;
+            interceptFixLon = behindPos.Lon;
+            interceptFixName = airwayFixes[behindIdx];
+        }
+        else
+        {
+            // No fix behind — aircraft is before the first fix. Direct to first fix.
+            segmentCourse = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, aheadPos.Lat, aheadPos.Lon);
+            interceptFixLat = aheadPos.Lat;
+            interceptFixLon = aheadPos.Lon;
+            interceptFixName = airwayFixes[aheadIdx];
+        }
+
+        int segmentRadial = (int)Math.Round(segmentCourse) % 360;
+
+        // Determine direction of travel along the airway (forward or reverse)
+        bool reversed = behindIdx >= 0 && behindIdx > aheadIdx;
+
+        // Build remaining fix list from ahead fix onward (in the direction of travel)
+        var remainingFixes = new List<string>();
+        if (!reversed)
+        {
+            for (int i = aheadIdx; i < airwayFixes.Count; i++)
+            {
+                remainingFixes.Add(airwayFixes[i]);
+            }
+        }
+        else
+        {
+            for (int i = aheadIdx; i >= 0; i--)
+            {
+                remainingFixes.Add(airwayFixes[i]);
+            }
+        }
+
+        // Build NavigationTargets for the remaining fixes
+        var navTargets = new List<NavigationTarget>();
+        foreach (var fixName in remainingFixes)
+        {
+            var pos = fixes.GetFixPosition(fixName);
+            if (pos is not null)
+            {
+                navTargets.Add(
+                    new NavigationTarget
+                    {
+                        Name = fixName,
+                        Latitude = pos.Value.Lat,
+                        Longitude = pos.Value.Lon,
+                    }
+                );
+            }
+        }
+
+        if (navTargets.Count == 0)
+        {
+            return new CommandResult(false, $"Could not resolve fixes on {cmd.AirwayId}");
+        }
+
+        // Block 0 (immediate): fly present heading (to allow intercept)
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
+        aircraft.Targets.PreferredTurnDirection = null;
+
+        // Block 1: on segment intercept, navigate the airway fix sequence
+        var interceptBlock = new CommandBlock
+        {
+            Trigger = new BlockTrigger
+            {
+                Type = BlockTriggerType.InterceptRadial,
+                FixName = interceptFixName,
+                FixLat = interceptFixLat,
+                FixLon = interceptFixLon,
+                Radial = segmentRadial,
+            },
+            ApplyAction = ac =>
+            {
+                ac.Targets.NavigationRoute.Clear();
+                foreach (var target in navTargets)
+                {
+                    ac.Targets.NavigationRoute.Add(target);
+                }
+            },
+            Description = $"intercept {cmd.AirwayId}: DCT {string.Join(" ", remainingFixes)}",
+            NaturalDescription = $"On {cmd.AirwayId}: proceed via {string.Join(" ", remainingFixes)}",
+        };
+        interceptBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Navigation });
+        aircraft.Queue.Blocks.Add(interceptBlock);
+
+        var fixListStr = string.Join(" ", remainingFixes);
+        return CommandDispatcher.Ok($"Fly present heading, intercept {cmd.AirwayId}: {fixListStr}");
+    }
+
+    /// <summary>
+    /// Finds the bracketing segment on an airway — the fix behind and fix ahead of the aircraft.
+    /// Returns (behindIdx, aheadIdx). behindIdx may be -1 if the aircraft is before the first fix.
+    /// aheadIdx will be -1 if no valid segment is found.
+    /// The method considers both forward and reverse traversal of the airway to determine the
+    /// direction of travel that best matches the aircraft's heading.
+    /// </summary>
+    private static (int BehindIdx, int AheadIdx) FindBracketingSegment(AircraftState aircraft, IReadOnlyList<string> airwayFixes, IFixLookup fixes)
+    {
+        // Resolve positions for all fixes
+        var positions = new (double Lat, double Lon)?[airwayFixes.Count];
+        for (int i = 0; i < airwayFixes.Count; i++)
+        {
+            positions[i] = fixes.GetFixPosition(airwayFixes[i]);
+        }
+
+        // Find the closest fix ahead (within ±90° of heading) and closest fix behind
+        int bestAheadIdx = -1;
+        double bestAheadDist = double.MaxValue;
+        int bestBehindIdx = -1;
+        double bestBehindDist = double.MaxValue;
+
+        for (int i = 0; i < airwayFixes.Count; i++)
+        {
+            if (positions[i] is null)
+            {
+                continue;
+            }
+
+            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, positions[i]!.Value.Lat, positions[i]!.Value.Lon);
+            double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+            if (angleDiff > 180)
+            {
+                angleDiff = 360 - angleDiff;
+            }
+
+            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, positions[i]!.Value.Lat, positions[i]!.Value.Lon);
+
+            if (angleDiff <= 90)
+            {
+                if (dist < bestAheadDist)
+                {
+                    bestAheadDist = dist;
+                    bestAheadIdx = i;
+                }
+            }
+            else
+            {
+                if (dist < bestBehindDist)
+                {
+                    bestBehindDist = dist;
+                    bestBehindIdx = i;
+                }
+            }
+        }
+
+        if (bestAheadIdx < 0)
+        {
+            return (-1, -1);
+        }
+
+        // Verify the behind and ahead fixes form an adjacent segment on the airway
+        // (they should be consecutive in forward or reverse order)
+        if (bestBehindIdx >= 0)
+        {
+            int diff = bestAheadIdx - bestBehindIdx;
+            if (diff != 1 && diff != -1)
+            {
+                // Not adjacent — use the fix adjacent to the ahead fix in the correct direction
+                int candidateBefore = bestAheadIdx - 1;
+                int candidateAfter = bestAheadIdx + 1;
+
+                // Pick the adjacent fix that is behind the aircraft
+                bestBehindIdx = -1;
+                if (candidateBefore >= 0 && positions[candidateBefore] is not null)
+                {
+                    double bearing = GeoMath.BearingTo(
+                        aircraft.Latitude,
+                        aircraft.Longitude,
+                        positions[candidateBefore]!.Value.Lat,
+                        positions[candidateBefore]!.Value.Lon
+                    );
+                    double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+                    if (angleDiff > 180)
+                    {
+                        angleDiff = 360 - angleDiff;
+                    }
+
+                    if (angleDiff > 90)
+                    {
+                        bestBehindIdx = candidateBefore;
+                    }
+                }
+
+                if (bestBehindIdx < 0 && candidateAfter < airwayFixes.Count && positions[candidateAfter] is not null)
+                {
+                    double bearing = GeoMath.BearingTo(
+                        aircraft.Latitude,
+                        aircraft.Longitude,
+                        positions[candidateAfter]!.Value.Lat,
+                        positions[candidateAfter]!.Value.Lon
+                    );
+                    double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+                    if (angleDiff > 180)
+                    {
+                        angleDiff = 360 - angleDiff;
+                    }
+
+                    if (angleDiff > 90)
+                    {
+                        bestBehindIdx = candidateAfter;
+                    }
+                }
+            }
+        }
+
+        return (bestBehindIdx, bestAheadIdx);
+    }
+
     internal static CommandResult DispatchHoldingPattern(HoldingPatternCommand cmd, AircraftState aircraft)
     {
         var phase = new HoldingPatternPhase

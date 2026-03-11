@@ -310,6 +310,8 @@ public static class CommandDispatcher
                 return NavigationCommandHandler.DispatchListApproaches(cmd, aircraft, approachLookup);
             case JoinStarCommand cmd:
                 return NavigationCommandHandler.DispatchJarr(cmd, aircraft, fixes, procedureLookup);
+            case JoinAirwayCommand cmd:
+                return NavigationCommandHandler.DispatchJawy(cmd, aircraft, fixes);
             case HoldingPatternCommand cmd:
                 return NavigationCommandHandler.DispatchHoldingPattern(cmd, aircraft);
             case JoinFinalApproachCourseCommand cmd:

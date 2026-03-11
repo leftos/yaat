@@ -129,7 +129,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
 | Append direct to | — | `ADCT {fix}`, `ADCTF {fix}` | YAAT-only |
-| Join airway | `JAWY` | — | ATCTrainer-only |
+| Join airway | `JAWY` | `JAWY` | Parity (YAAT intercepts airway segment, then follows fix sequence) |
 | Join radial out/in | — | `JRADO`/`JRADI` (`JRAD`/`JICRS`) | YAAT-only |
 | Airport/Destination | `APT`/`DEST` | `APT`/`DEST` | Parity |
 | FRD navigation | — | `DCT JFK090020` | YAAT supports FRD in DCT args and AT conditions |
@@ -397,7 +397,6 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 - Copy View Settings From... to reuse across scenarios
 
 ### Commands Not in YAAT
-- `JAWY` (Join Airway)
 - `LAHSO` (Land and Hold Short)
 - `STRIP` (Push flight strips)
 - `OPENCHAT` (Open PM window)

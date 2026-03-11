@@ -596,6 +596,139 @@ public class NavigationCommandTests
         Assert.False(result.Success);
     }
 
+    // --- JAWY ---
+
+    private static TestFixLookup MakeAirwayFixLookup()
+    {
+        // V25: west-to-east airway — SUNOL → TRACY → MODEN → CEDES
+        // Roughly along latitude 37.7, spaced ~0.3° apart in longitude
+        return new TestFixLookup(
+            fixPositions: new()
+            {
+                ["SUNOL"] = (37.70, -121.90),
+                ["TRACY"] = (37.70, -121.60),
+                ["MODEN"] = (37.70, -121.30),
+                ["CEDES"] = (37.70, -121.00),
+            },
+            airways: new() { ["V25"] = ["SUNOL", "TRACY", "MODEN", "CEDES"] }
+        );
+    }
+
+    [Fact]
+    public void Jawy_UnknownAirway_ReturnsError()
+    {
+        var fixes = MakeAirwayFixLookup();
+        var aircraft = MakeAircraft(heading: 090);
+        var cmd = new JoinAirwayCommand("V999");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared);
+
+        Assert.False(result.Success);
+        Assert.Contains("Unknown airway", result.Message);
+    }
+
+    [Fact]
+    public void Jawy_NoFixDatabase_ReturnsError()
+    {
+        var aircraft = MakeAircraft(heading: 090);
+        var cmd = new JoinAirwayCommand("V25");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared);
+
+        Assert.False(result.Success);
+        Assert.Contains("not available", result.Message);
+    }
+
+    [Fact]
+    public void Jawy_EastboundOnV25_InterceptsSegmentAndFollowsFixes()
+    {
+        var fixes = MakeAirwayFixLookup();
+        // Aircraft between SUNOL and TRACY, heading east
+        var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
+        var cmd = new JoinAirwayCommand("V25");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared);
+
+        Assert.True(result.Success);
+        Assert.Contains("V25", result.Message);
+        // Should set present heading and create intercept block
+        Assert.Equal(090, aircraft.Targets.TargetHeading);
+        Assert.Single(aircraft.Queue.Blocks);
+        Assert.Equal(BlockTriggerType.InterceptRadial, aircraft.Queue.Blocks[0].Trigger!.Type);
+
+        // Simulate intercept: apply the block action
+        aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
+
+        // After intercept, should have TRACY → MODEN → CEDES in nav route
+        Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
+        Assert.Equal("TRACY", aircraft.Targets.NavigationRoute[0].Name);
+        Assert.Equal("MODEN", aircraft.Targets.NavigationRoute[1].Name);
+        Assert.Equal("CEDES", aircraft.Targets.NavigationRoute[2].Name);
+    }
+
+    [Fact]
+    public void Jawy_WestboundOnV25_FollowsFixesInReverse()
+    {
+        var fixes = MakeAirwayFixLookup();
+        // Aircraft between TRACY and MODEN, heading west
+        var aircraft = MakeAircraft(heading: 270, lat: 37.72, lon: -121.45);
+        var cmd = new JoinAirwayCommand("V25");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared);
+
+        Assert.True(result.Success);
+
+        // Simulate intercept
+        aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
+
+        // After intercept, should follow TRACY → SUNOL (westbound)
+        Assert.Equal(2, aircraft.Targets.NavigationRoute.Count);
+        Assert.Equal("TRACY", aircraft.Targets.NavigationRoute[0].Name);
+        Assert.Equal("SUNOL", aircraft.Targets.NavigationRoute[1].Name);
+    }
+
+    [Fact]
+    public void Jawy_AircraftBeforeFirstFix_NavigatesFromFirstFix()
+    {
+        var fixes = MakeAirwayFixLookup();
+        // Aircraft west of SUNOL, heading east — no fix behind on this airway
+        var aircraft = MakeAircraft(heading: 090, lat: 37.70, lon: -122.10);
+        var cmd = new JoinAirwayCommand("V25");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared);
+
+        Assert.True(result.Success);
+
+        // Simulate intercept
+        aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
+
+        // Should navigate from SUNOL onward
+        Assert.True(aircraft.Targets.NavigationRoute.Count >= 1);
+        Assert.Equal("SUNOL", aircraft.Targets.NavigationRoute[0].Name);
+    }
+
+    [Fact]
+    public void Jawy_ClearsExistingNavRoute()
+    {
+        var fixes = MakeAirwayFixLookup();
+        var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "OLDFIX",
+                Latitude = 37.0,
+                Longitude = -122.0,
+            }
+        );
+        var cmd = new JoinAirwayCommand("V25");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared);
+
+        Assert.True(result.Success);
+        // Existing nav route should be cleared
+        Assert.Empty(aircraft.Targets.NavigationRoute);
+    }
+
     // --- Test helpers ---
 
     private class TestFixLookup : IFixLookup
@@ -603,16 +736,19 @@ public class NavigationCommandTests
         private readonly Dictionary<string, (double Lat, double Lon)> _fixPositions;
         private readonly Dictionary<string, List<string>> _starBodies;
         private readonly Dictionary<string, List<(string Name, List<string> Fixes)>> _starTransitions;
+        private readonly Dictionary<string, List<string>> _airways;
 
         public TestFixLookup(
             Dictionary<string, List<string>>? starBodies = null,
             Dictionary<string, List<(string Name, List<string> Fixes)>>? starTransitions = null,
-            Dictionary<string, (double Lat, double Lon)>? fixPositions = null
+            Dictionary<string, (double Lat, double Lon)>? fixPositions = null,
+            Dictionary<string, List<string>>? airways = null
         )
         {
             _starBodies = starBodies ?? [];
             _starTransitions = starTransitions ?? [];
             _fixPositions = fixPositions ?? [];
+            _airways = airways ?? [];
         }
 
         public (double Lat, double Lon)? GetFixPosition(string name)
@@ -639,6 +775,11 @@ public class NavigationCommandTests
             }
 
             return transitions.Select(t => (t.Name, (IReadOnlyList<string>)t.Fixes)).ToList();
+        }
+
+        public IReadOnlyList<string>? GetAirwayFixes(string airwayId)
+        {
+            return _airways.TryGetValue(airwayId, out var fixes) ? fixes : null;
         }
     }
 }

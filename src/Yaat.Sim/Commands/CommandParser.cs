@@ -384,6 +384,7 @@ public static class CommandParser
             "JAPPSI" => ApproachCommandParser.ParseJappSi(arg, fixes),
             "JFAC" or "JLOC" or "JF" => ApproachCommandParser.ParseJfac(arg),
             "JARR" or "ARR" or "JSTAR" or "STAR" => ApproachCommandParser.ParseJarr(arg),
+            "JAWY" => ApproachCommandParser.ParseJawy(arg),
             "JRADO" or "JRAD" => ApproachCommandParser.ParseJrado(arg, fixes),
             "JRADI" or "JICRS" => ApproachCommandParser.ParseJradi(arg, fixes),
             "HOLDP" => ApproachCommandParser.ParseHold(arg, fixes),

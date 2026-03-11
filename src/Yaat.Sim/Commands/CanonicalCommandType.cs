@@ -146,6 +146,7 @@ public enum CanonicalCommandType
     JoinApproachForce,
     JoinFinalApproachCourse,
     JoinStar,
+    JoinAirway,
     JoinRadialOutbound,
     JoinRadialInbound,
     HoldingPattern,

@@ -362,6 +362,8 @@ public record JoinFinalApproachCourseCommand(string ApproachId) : ParsedCommand;
 
 public record JoinStarCommand(string StarId, string? Transition) : ParsedCommand;
 
+public record JoinAirwayCommand(string AirwayId) : ParsedCommand;
+
 public record JoinRadialOutboundCommand(string FixName, double FixLat, double FixLon, int Radial) : ParsedCommand;
 
 public record JoinRadialInboundCommand(string FixName, double FixLat, double FixLon, int Radial) : ParsedCommand;
