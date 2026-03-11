@@ -384,23 +384,6 @@ public partial class GroundView : UserControl
             );
         }
 
-        // Show/hide routes
-        var mainVm2 = FindMainViewModel();
-        if (mainVm2 is not null)
-        {
-            var isFlightPathShown = mainVm2.Radar.IsPathShown(callsign);
-            menu.Items.Add(
-                CreateMenuItem(
-                    isFlightPathShown ? "Hide flight path" : "Show flight path",
-                    () =>
-                    {
-                        mainVm2.Radar.ToggleShowPath(callsign);
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-        }
-
         var isRouteShown = vm.IsPathShown(callsign);
         menu.Items.Add(
             CreateMenuItem(
