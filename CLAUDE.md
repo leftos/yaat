@@ -194,3 +194,4 @@ When invoking aviation-sim-expert, always include:
 - **Milestone Roadmap**: See `docs/plans/main-plan.md`. M0/M1 complete; M2 (tower ops) next.
 - **Issue triage plans**: When running parallel agents to explore/plan all open GitHub issues, each agent must write its plan as a markdown file in `docs/plans/open-issues/` (e.g., `issue-23-wait-command.md`). This makes plans persistent and actionable across sessions.
 - **Issue completion**: After implementing an issue fix, delete its plan file from `docs/plans/open-issues/` and create a PR linked to the GitHub issue (`Closes #N`).
+- **Cross-repo completeness**: Features that span both Yaat.Client/Yaat.Sim and yaat-server must be implemented in both repos in the same task. Do not implement the client half and leave the server half as a note — do all the work together so the feature is functional end-to-end.
