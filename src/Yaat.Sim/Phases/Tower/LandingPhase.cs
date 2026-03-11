@@ -20,6 +20,10 @@ public sealed class LandingPhase : Phase
     private double _thresholdLon;
     private bool _touchedDown;
     private bool _canGoAround;
+    private double _lahsoHoldShortDistNm;
+    private bool _hasLahso;
+
+    public bool StoppedForLahso { get; private set; }
 
     public override string Name => "Landing";
 
@@ -30,14 +34,22 @@ public sealed class LandingPhase : Phase
         _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Latitude;
         _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Longitude;
 
+        // Capture LAHSO target if set
+        if (ctx.Aircraft.Phases?.LahsoHoldShort is { } lahso)
+        {
+            _hasLahso = true;
+            _lahsoHoldShortDistNm = lahso.DistFromThresholdNm;
+        }
+
         // Continue approach descent toward field elevation
         ctx.Targets.TargetAltitude = _fieldElevation;
 
         ctx.Logger.LogDebug(
-            "[Landing] {Callsign}: started, fieldElev={Elev:F0}ft, gs={Gs:F1}kts",
+            "[Landing] {Callsign}: started, fieldElev={Elev:F0}ft, gs={Gs:F1}kts{Lahso}",
             ctx.Aircraft.Callsign,
             _fieldElevation,
-            ctx.Aircraft.GroundSpeed
+            ctx.Aircraft.GroundSpeed,
+            _hasLahso ? $", LAHSO hold-short at {_lahsoHoldShortDistNm:F2}nm" : ""
         );
     }
 
@@ -100,8 +112,37 @@ public sealed class LandingPhase : Phase
         double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
         ctx.Targets.TargetHeading = FlightPhysics.NormalizeHeading(_runwayHeading - correction);
 
-        // Decelerate on the ground
+        // LAHSO: compute distance to hold-short point and increase deceleration if needed
         double decelRate = CategoryPerformance.RolloutDecelRate(ctx.Category);
+        if (_hasLahso)
+        {
+            double distFromThreshold = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+            double distToHoldShort = _lahsoHoldShortDistNm - distFromThreshold;
+
+            if (distToHoldShort > 0 && ctx.Aircraft.IndicatedAirspeed > 1.0)
+            {
+                // v² = 2 * a * d → a = v² / (2d)
+                double speedFps = ctx.Aircraft.GroundSpeed * 6076.12 / 3600.0;
+                double distFt = distToHoldShort * 6076.12;
+                double requiredDecelFps2 = (speedFps * speedFps) / (2.0 * distFt);
+                double requiredDecelKtsPerSec = requiredDecelFps2 * 3600.0 / 6076.12;
+
+                if (requiredDecelKtsPerSec > decelRate)
+                {
+                    decelRate = requiredDecelKtsPerSec;
+                }
+            }
+            else if (distToHoldShort <= 0)
+            {
+                // Past the hold-short point — stop immediately
+                ctx.Aircraft.IndicatedAirspeed = 0;
+                StoppedForLahso = true;
+                ctx.Logger.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
+                return true;
+            }
+        }
+
+        // Decelerate on the ground
         double newSpeed = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
         if (newSpeed < 0)
         {
@@ -113,7 +154,15 @@ public sealed class LandingPhase : Phase
         var cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
         _canGoAround = ctx.Aircraft.IndicatedAirspeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
 
-        if (ctx.Aircraft.IndicatedAirspeed <= RolloutCompleteSpeed)
+        // LAHSO: complete when stopped (speed ≤ 0)
+        if (_hasLahso && ctx.Aircraft.IndicatedAirspeed <= 0)
+        {
+            StoppedForLahso = true;
+            ctx.Logger.LogDebug("[Landing] {Callsign}: LAHSO rollout complete, stopped", ctx.Aircraft.Callsign);
+            return true;
+        }
+
+        if (!_hasLahso && ctx.Aircraft.IndicatedAirspeed <= RolloutCompleteSpeed)
         {
             ctx.Logger.LogDebug("[Landing] {Callsign}: rollout complete, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
             return true;

@@ -148,6 +148,7 @@ public sealed class DownwindPhase : Phase
         return cmd switch
         {
             CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
+            CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,

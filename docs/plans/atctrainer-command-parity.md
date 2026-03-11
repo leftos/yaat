@@ -107,14 +107,16 @@ Touch `AircraftState` identity/destination fields and potentially approach/proce
   - `REMARKS /V/ STUDENT PILOT` sets remarks field
   - Alias: `REM`
 
-## Pass 6 — Landing / Approach (LandingPhase + RunwayInfo)
+## Pass 6 — Landing / Approach (LandingPhase + RunwayInfo) ✅
 
 Standalone — requires runway intersection geometry not shared with other groups.
 
-- [ ] **LAHSO** — Land and hold short of operations *(high)*
+- [x] **LAHSO** — Land and hold short of operations *(high)*
   - `LAHSO {rwy}` — cleared to land, hold short of intersecting runway
-  - Requires runway intersection geometry (available from ground layout data)
-  - Adds a hold-short point during landing rollout
+  - RunwayIntersectionCalculator computes centerline intersection + hold-short setback
+  - LandingPhase uses kinematic decel to stop before hold-short point
+  - RunwayHoldingPhase holds aircraft at 0 kts, clearance-gated via RunwayCrossing
+  - LAHSO includes landing clearance per 7110.65 §3-10-5.b
 
 ## Pass 7 — Navigation / Route (FixDatabase + ControlTargets.NavigationRoute) ✅
 

@@ -49,6 +49,7 @@ public static class CommandDescriber
             ClearedForTakeoffCommand => CanonicalCommandType.ClearedForTakeoff,
             CancelTakeoffClearanceCommand => CanonicalCommandType.CancelTakeoffClearance,
             ClearedToLandCommand => CanonicalCommandType.ClearedToLand,
+            LandAndHoldShortCommand => CanonicalCommandType.LandAndHoldShort,
             GoAroundCommand => CanonicalCommandType.GoAround,
             EnterLeftDownwindCommand => CanonicalCommandType.EnterLeftDownwind,
             EnterRightDownwindCommand => CanonicalCommandType.EnterRightDownwind,
@@ -235,6 +236,7 @@ public static class CommandDescriber
             ClearedForTakeoffCommand cto => FormatCtoCanonical(cto),
             CancelTakeoffClearanceCommand => "CTOC",
             ClearedToLandCommand => "CTL",
+            LandAndHoldShortCommand cmd => $"LAHSO {cmd.CrossingRunwayId}",
             CancelLandingClearanceCommand => "CLC",
             GoAroundCommand ga => FormatGaCanonical(ga),
             EnterLeftDownwindCommand eld => eld.RunwayId is not null ? $"ELD {eld.RunwayId}" : "ELD",
@@ -363,6 +365,7 @@ public static class CommandDescriber
             ClearedForTakeoffCommand cto => DescribeCtoNatural(cto),
             CancelTakeoffClearanceCommand => "Cancel takeoff clearance",
             ClearedToLandCommand => "Cleared to land",
+            LandAndHoldShortCommand cmd => $"Cleared to land, hold short runway {cmd.CrossingRunwayId}",
             CancelLandingClearanceCommand => "Cancel landing clearance",
             GoAroundCommand ga => DescribeGaNatural(ga),
             EnterLeftDownwindCommand eld => DescribePatternEntryNatural("left downwind", eld.RunwayId, null),
@@ -462,6 +465,7 @@ public static class CommandDescriber
                 or CancelTakeoffClearanceCommand
                 or LineUpAndWaitCommand
                 or ClearedToLandCommand
+                or LandAndHoldShortCommand
                 or CancelLandingClearanceCommand
                 or GoAroundCommand
                 or EnterLeftDownwindCommand

@@ -577,6 +577,9 @@ public static class CommandDispatcher
             case ClearedToLandCommand ctl:
                 return PatternCommandHandler.TryClearedToLand(ctl, aircraft);
 
+            case LandAndHoldShortCommand lahso:
+                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, groundLayout);
+
             case CancelLandingClearanceCommand:
                 return PatternCommandHandler.TryCancelLandingClearance(aircraft);
 

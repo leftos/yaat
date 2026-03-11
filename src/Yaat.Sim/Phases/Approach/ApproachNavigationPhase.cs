@@ -173,6 +173,7 @@ public sealed class ApproachNavigationPhase : Phase
         {
             // Approach-related commands pass through
             CanonicalCommandType.ClearedToLand => CommandAcceptance.Allowed,
+            CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,

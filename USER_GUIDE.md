@@ -404,6 +404,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Cleared for takeoff | `CTO` | — | — |
 | Cancel takeoff | `CTOC` | — | — |
 | Cleared to land | `CTL` | `FS` | — |
+| Land and hold short | `LAHSO` | — | — |
 | Cancel landing | `CLC` | `CTLC` | — |
 | Go around | `GA` | — | — |
 | Touch and go | `TG` | — | — |
@@ -629,6 +630,7 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTOC` | Cancel takeoff clearance |
 | `CTL` / `FS` | Cleared to land (full stop) |
 | `CTL NODEL` | Cleared to land (exempt from auto-delete after landing) |
+| `LAHSO 33` | Cleared to land, hold short of runway 33 (LAHSO). Includes landing clearance. Aircraft stops before the intersecting runway and waits for a taxi/cross command. |
 | `CLC` / `CTLC` | Cancel landing clearance |
 | `GA` | Go around (instrument: fly published missed approach; otherwise: runway heading, 2,000 AGL) |
 | `GA MRT` | Go around, make right traffic |
@@ -1453,7 +1455,7 @@ As you type in the command bar, a popup appears with matching suggestions:
 - **Callsigns** — aircraft whose callsign matches what you've typed, showing type and route
 - **Command arguments** — after typing a verb + space, context-specific options appear:
   - **CTO modifiers** — departure instructions vary by flight rules. IFR: `RH` and heading prefixes (`H`, `RH`, `LH`). VFR: all modifiers including `OC`, `MRC`, `MRD`, `MR270`, `MLC`, `MLD`, `ML270`, `MLT`, `MRT`, `DCT`.
-  - **Runway designators** — for `ELD`, `ERD`, `EF`, `ELB`, `ERB`, `CROSS`, `CTL`, `CVA`: shows runways from the primary airport
+  - **Runway designators** — for `ELD`, `ERD`, `EF`, `ELB`, `ERB`, `CROSS`, `CTL`, `LAHSO`, `CVA`: shows runways from the primary airport
   - **Fix names** — for `DCT`, `DCTF`, `ADCTF`, `HFIXL`, `HFIXR`, `HFIX`, `CFIX`, `DEPART`, `JFAC`, and `AT` conditions: route fixes + navdata fixes
 - **Macros** (yellow) — when typing `!`, matching macro names with parameter hints (e.g., `!HC $1 $2` or `!FC $hdg $alt`)
 - After accepting a callsign, the popup immediately shows all available command verbs

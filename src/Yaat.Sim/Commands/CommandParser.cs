@@ -314,6 +314,7 @@ public static class CommandParser
             "GAMRT" when arg is null => new GoAroundCommand(TrafficPattern: PatternDirection.Right),
             "GAMLT" when arg is null => new GoAroundCommand(TrafficPattern: PatternDirection.Left),
             "CTL" when arg is null or "NODEL" => new ClearedToLandCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true),
+            "LAHSO" when arg is not null => new LandAndHoldShortCommand(arg.Trim().ToUpperInvariant()),
             "EL" when arg is null or "NODEL" => new ExitLeftCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true),
             "ER" when arg is null or "NODEL" => new ExitRightCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true),
             "EXIT" when arg is not null => GroundCommandParser.ParseExitTaxiway(arg),

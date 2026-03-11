@@ -1,4 +1,5 @@
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Pattern;
@@ -729,6 +730,134 @@ internal static class PatternCommandHandler
             aircraft.AutoDeleteExempt = true;
         }
         return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}");
+    }
+
+    internal static CommandResult TryLandAndHoldShort(LandAndHoldShortCommand lahso, AircraftState aircraft, AirportGroundLayout? groundLayout)
+    {
+        if (aircraft.Phases is null)
+        {
+            return new CommandResult(false, "Aircraft has no active phase sequence");
+        }
+
+        if (aircraft.Phases.AssignedRunway is null)
+        {
+            return new CommandResult(false, "No assigned runway");
+        }
+
+        if (groundLayout is null)
+        {
+            return new CommandResult(false, "No ground layout available for LAHSO intersection calculation");
+        }
+
+        var runway = aircraft.Phases.AssignedRunway;
+
+        // Find the landing runway in the ground layout
+        var landingGround = FindGroundRunway(groundLayout, runway.Id);
+        if (landingGround is null)
+        {
+            return new CommandResult(false, $"Landing runway {runway.Designator} not found in ground layout");
+        }
+
+        // Find the crossing runway in the ground layout
+        var crossingGround = FindGroundRunwayByDesignator(groundLayout, lahso.CrossingRunwayId);
+        if (crossingGround is null)
+        {
+            return new CommandResult(false, $"Crossing runway {lahso.CrossingRunwayId} not found in ground layout");
+        }
+
+        // Compute the intersection point
+        var intersection = RunwayIntersectionCalculator.FindIntersection(landingGround, crossingGround);
+        if (intersection is null)
+        {
+            return new CommandResult(false, $"Runway {runway.Designator} does not intersect runway {lahso.CrossingRunwayId}");
+        }
+
+        // Compute hold-short distance from threshold
+        double holdShortDistNm = RunwayIntersectionCalculator.ComputeHoldShortDistanceNm(
+            intersection.Value.DistFromStartNm,
+            runway.Designator,
+            landingGround,
+            crossingGround.WidthFt
+        );
+
+        if (holdShortDistNm < 0.1)
+        {
+            return new CommandResult(false, $"Hold-short point too close to threshold for runway {lahso.CrossingRunwayId}");
+        }
+
+        // Compute the hold-short lat/lon on the landing runway centerline
+        var holdShortPoint = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, runway.TrueHeading, holdShortDistNm);
+
+        // Set LAHSO target
+        aircraft.Phases.LahsoHoldShort = new LahsoTarget
+        {
+            Lat = holdShortPoint.Lat,
+            Lon = holdShortPoint.Lon,
+            DistFromThresholdNm = holdShortDistNm,
+            CrossingRunwayId = lahso.CrossingRunwayId,
+        };
+
+        // LAHSO includes landing clearance per 7110.65 §3-10-5.b
+        aircraft.Phases.LandingClearance = ClearanceType.ClearedToLand;
+        aircraft.Phases.ClearedRunwayId = runway.Designator;
+        aircraft.Phases.TrafficDirection = null;
+        CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LandingPhase());
+
+        return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, hold short runway {lahso.CrossingRunwayId}");
+    }
+
+    /// <summary>
+    /// Finds a GroundRunway matching a RunwayIdentifier (either end).
+    /// GroundRunway.Name format: "10R/28L".
+    /// </summary>
+    private static GroundRunway? FindGroundRunway(AirportGroundLayout layout, RunwayIdentifier id)
+    {
+        foreach (var rwy in layout.Runways)
+        {
+            int slash = rwy.Name.IndexOf('/');
+            if (slash < 0)
+            {
+                continue;
+            }
+
+            string end1 = rwy.Name[..slash];
+            string end2 = rwy.Name[(slash + 1)..];
+            if (end1.Equals(id.End1, StringComparison.OrdinalIgnoreCase) && end2.Equals(id.End2, StringComparison.OrdinalIgnoreCase))
+            {
+                return rwy;
+            }
+
+            if (end1.Equals(id.End2, StringComparison.OrdinalIgnoreCase) && end2.Equals(id.End1, StringComparison.OrdinalIgnoreCase))
+            {
+                return rwy;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Finds a GroundRunway where either end matches the given designator.
+    /// </summary>
+    private static GroundRunway? FindGroundRunwayByDesignator(AirportGroundLayout layout, string designator)
+    {
+        foreach (var rwy in layout.Runways)
+        {
+            int slash = rwy.Name.IndexOf('/');
+            if (slash < 0)
+            {
+                continue;
+            }
+
+            string end1 = rwy.Name[..slash];
+            string end2 = rwy.Name[(slash + 1)..];
+            if (end1.Equals(designator, StringComparison.OrdinalIgnoreCase) || end2.Equals(designator, StringComparison.OrdinalIgnoreCase))
+            {
+                return rwy;
+            }
+        }
+
+        return null;
     }
 
     internal static CommandResult TryCancelLandingClearance(AircraftState aircraft)

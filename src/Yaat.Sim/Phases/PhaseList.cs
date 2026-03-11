@@ -4,6 +4,18 @@ using Yaat.Sim.Data.Airport;
 namespace Yaat.Sim.Phases;
 
 /// <summary>
+/// LAHSO hold-short point data: the location where the aircraft must stop
+/// before the intersecting runway, and the ID of that runway.
+/// </summary>
+public sealed class LahsoTarget
+{
+    public required double Lat { get; init; }
+    public required double Lon { get; init; }
+    public required double DistFromThresholdNm { get; init; }
+    public required string CrossingRunwayId { get; init; }
+}
+
+/// <summary>
 /// Pre-issued departure clearance (LUAW or CTO) stored during taxi.
 /// Consumed when aircraft reaches the departure runway hold-short.
 /// </summary>
@@ -86,6 +98,12 @@ public sealed class PhaseList
     /// Used by FinalApproachPhase and approach navigation phases.
     /// </summary>
     public ApproachClearance? ActiveApproach { get; set; }
+
+    /// <summary>
+    /// LAHSO hold-short target. Set by LAHSO command, consumed by LandingPhase
+    /// to stop before the intersecting runway. Cleared after aircraft is released.
+    /// </summary>
+    public LahsoTarget? LahsoHoldShort { get; set; }
 
     public int CurrentIndex { get; private set; }
 

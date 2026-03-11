@@ -129,6 +129,8 @@ public record GoAroundCommand(int? AssignedHeading = null, int? TargetAltitude =
 
 public record ClearedToLandCommand(bool NoDelete = false) : ParsedCommand;
 
+public record LandAndHoldShortCommand(string CrossingRunwayId) : ParsedCommand;
+
 public record CancelLandingClearanceCommand : ParsedCommand;
 
 // Pattern commands

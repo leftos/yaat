@@ -284,6 +284,14 @@ public static class CommandRegistry
                 [O(null, [], "Cleared to land current runway"), O("Runway", [R("runway", "runway designator")], "Cleared to land runway")],
                 [Mod("NODEL", null, false)]
             ),
+            Cmd(
+                LandAndHoldShort,
+                "Land and Hold Short",
+                "Tower",
+                false,
+                ["LAHSO"],
+                [O(null, [R("runway", "hold short runway")], "Cleared to land, hold short of runway")]
+            ),
             Bare(CancelLandingClearance, "Cancel Landing Clearance", "Tower", false, ["CLC", "CTLC"]),
             Bare(TouchAndGo, "Touch and Go", "Tower", false, ["TG"]),
             Bare(StopAndGo, "Stop and Go", "Tower", false, ["SG"]),

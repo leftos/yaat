@@ -47,6 +47,24 @@ public static class PhaseRunner
 
             phases.AdvanceToNext(ctx);
 
+            // After a LAHSO landing, hold on the runway instead of exiting
+            bool wasLahso = current is LandingPhase { StoppedForLahso: true };
+            if (wasLahso && phases.LahsoHoldShort is { } lahsoTarget)
+            {
+                phases.Phases.Add(new RunwayHoldingPhase(lahsoTarget.CrossingRunwayId));
+                phases.Phases.Add(new RunwayExitPhase());
+                phases.Phases.Add(new HoldingAfterExitPhase());
+
+                if (phases.CurrentPhase is { Status: PhaseStatus.Pending } lahsoNext)
+                {
+                    lahsoNext.Status = PhaseStatus.Active;
+                    lahsoNext.OnStart(ctx);
+                }
+
+                phases.LahsoHoldShort = null;
+                return;
+            }
+
             // After a full-stop landing (not pattern mode), auto-exit the runway.
             // RunwayExitPhase handles the case where GroundLayout is null (stops immediately).
             if (wasLanding && phases.IsComplete && phases.TrafficDirection is null)

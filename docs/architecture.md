@@ -180,7 +180,8 @@ LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
 InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode when DepartureSidId set
 FinalApproachPhase.cs          # Glideslope; auto-go-around at 0.5nm; illegal intercept check (§5-9-1)
-LandingPhase.cs                # Flare→touchdown→rollout to 20kts
+LandingPhase.cs                # Flare→touchdown→rollout to 20kts; LAHSO-aware (kinematic stop before hold-short)
+RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)
 GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern alt for VFR/pattern traffic)
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
 MakeTurnPhase.cs               # 360/270 turn tracking (cumulative degrees, exit heading); clones pattern phase for 360s
@@ -226,6 +227,7 @@ TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
 GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode
 CoordinateIndex.cs             # Spatial index for coordinate-based lookups
 RunwayCrossingDetector.cs      # Detect taxiway/runway intersections
+RunwayIntersectionCalculator.cs # LAHSO: runway centerline intersection + hold-short distance
 HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes
 
 # Data/Faa/

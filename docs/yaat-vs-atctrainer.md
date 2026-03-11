@@ -146,7 +146,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CTL`/`FS` | **YAAT-only** optional explicit landing clearance |
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |
 | Cleared for option | — | `COPT` | **YAAT-only** |
-| LAHSO | `LAHSO {rwy}` | — | ATCTrainer-only |
+| LAHSO | `LAHSO {rwy}` | `LAHSO {rwy}` | Parity |
 | GO (begin takeoff roll during stop-and-go) | `GO` | `GO` | Parity |
 | NODEL flag | — | `CTL NODEL`, `EL NODEL`, etc. | YAAT-only — exempts from auto-delete |
 
@@ -397,7 +397,6 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 - Copy View Settings From... to reuse across scenarios
 
 ### Commands Not in YAAT
-- `LAHSO` (Land and Hold Short)
 - `STRIP` (Push flight strips)
 - `OPENCHAT` (Open PM window)
 - `OPS`/`STATS` (Operations statistics)
