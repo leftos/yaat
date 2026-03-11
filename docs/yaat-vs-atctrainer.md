@@ -225,6 +225,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Taxi all | `TAXIALL` | — | ATCTrainer-only |
 | Break | `BREAK` | — | ATCTrainer-only (15s collision ignore) |
 | NODEL for taxi | — | `TAXI S T U @B12 NODEL` | YAAT-only, overrides "at parking" deletion |
+| Taxi variant resolution | — | Automatic | YAAT auto-extends taxiway variants (e.g., `TAXI W` → `W1`) when a numbered variant reaches the destination runway hold-short; picks closest variant to threshold when ambiguous |
 | RWY (standalone) | Part of `RWY {rwy} TAXI` | `RWY 30` (assign runway without taxi) | YAAT adds standalone runway assignment |
 | Air taxi (helicopter) | — | `ATXI H1` | YAAT-only |
 
