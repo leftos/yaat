@@ -305,13 +305,29 @@ public sealed class FinalApproachPhase : Phase
 
         bool isPattern = ctx.Aircraft.Phases.TrafficDirection is not null;
 
-        var goAround = new GoAroundPhase
+        // For instrument approaches with MAP data, use MAP altitude and queue MAP phases
+        var mapPhases = isPattern ? [] : ApproachCommandHandler.BuildMissedApproachPhases(ctx.Aircraft);
+        int? targetAlt;
+        if (mapPhases.Count > 0)
         {
-            TargetAltitude = isPattern ? (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category)) : null,
-            ReenterPattern = isPattern,
-        };
+            var mapFixes = ctx.Aircraft.Phases.ActiveApproach!.MissedApproachFixes;
+            targetAlt = ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
+        }
+        else if (isPattern)
+        {
+            targetAlt = (int?)(ctx.Runway?.ElevationFt + CategoryPerformance.PatternAltitudeAgl(ctx.Category));
+        }
+        else
+        {
+            targetAlt = null;
+        }
 
-        ctx.Aircraft.Phases.ReplaceUpcoming([goAround]);
+        var goAround = new GoAroundPhase { TargetAltitude = targetAlt, ReenterPattern = isPattern };
+
+        var phases = new List<Phase> { goAround };
+        phases.AddRange(mapPhases);
+
+        ctx.Aircraft.Phases.ReplaceUpcoming(phases);
         ctx.Aircraft.Phases.AdvanceToNext(ctx);
     }
 

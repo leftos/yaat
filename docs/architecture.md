@@ -191,7 +191,7 @@ HoldAtFixPhase.cs / HoldPresentPositionPhase.cs
 ApproachNavigationPhase.cs     # Navigate through CIFP fix sequence (IAF→IF→FAF) with alt/speed restrictions
 InterceptCoursePhase.cs        # Fly current heading until intercepting final approach course
 HoldingPatternPhase.cs         # AIM 5-3-8 holding with entry determination; MaxCircuits for hold-in-lieu
-ApproachClearance.cs           # Record on PhaseList storing active approach state
+ApproachClearance.cs           # Record on PhaseList storing active approach state + pre-built MAP fixes
 
 # Phases/Pattern/
 UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase

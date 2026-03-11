@@ -661,8 +661,17 @@ internal static class PatternCommandHandler
         bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
         var gaCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         int? gaTargetAlt = ga.TargetAltitude;
+        bool hasAtcOverride = ga.AssignedHeading is not null || ga.TargetAltitude is not null;
 
-        if (gaTargetAlt is null && isGaPattern)
+        // Build MAP phases for instrument approaches without ATC override
+        var mapPhases = (!isGaPattern && !hasAtcOverride) ? ApproachCommandHandler.BuildMissedApproachPhases(aircraft) : [];
+
+        if (gaTargetAlt is null && mapPhases.Count > 0)
+        {
+            var mapFixes = aircraft.Phases.ActiveApproach!.MissedApproachFixes;
+            gaTargetAlt = ApproachCommandHandler.GetMissedApproachAltitude(mapFixes);
+        }
+        else if (gaTargetAlt is null && isGaPattern)
         {
             double fieldElev = gaCtx.Runway?.ElevationFt ?? 0;
             double patAgl = CategoryPerformance.PatternAltitudeAgl(gaCtx.Category);
@@ -675,7 +684,11 @@ internal static class PatternCommandHandler
             TargetAltitude = gaTargetAlt,
             ReenterPattern = isGaPattern,
         };
-        aircraft.Phases.ReplaceUpcoming([goAround]);
+
+        var phases = new List<Phase> { goAround };
+        phases.AddRange(mapPhases);
+
+        aircraft.Phases.ReplaceUpcoming(phases);
         aircraft.Phases.AdvanceToNext(gaCtx);
 
         var gaMsg = "Go around";

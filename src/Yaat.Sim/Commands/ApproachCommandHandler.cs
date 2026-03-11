@@ -55,6 +55,8 @@ public static class ApproachCommandHandler
             RunwayId = procedure.Runway!,
             FinalApproachCourse = finalCourse,
             Procedure = procedure,
+            MissedApproachFixes = BuildMissedApproachFixes(procedure, fixes),
+            MapHold = ExtractMissedApproachHold(procedure, fixes),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -144,6 +146,8 @@ public static class ApproachCommandHandler
             FinalApproachCourse = finalCourse,
             StraightIn = straightIn,
             Procedure = procedure,
+            MissedApproachFixes = BuildMissedApproachFixes(procedure, fixes),
+            MapHold = ExtractMissedApproachHold(procedure, fixes),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -191,7 +195,8 @@ public static class ApproachCommandHandler
         PositionTurnAltitudeClearanceCommand cmd,
         AircraftState aircraft,
         IApproachLookup? approachLookup,
-        IRunwayLookup? runways
+        IRunwayLookup? runways,
+        IFixLookup? fixes
     )
     {
         var resolved = ResolveApproach(cmd.ApproachId, null, aircraft, approachLookup, runways);
@@ -223,6 +228,8 @@ public static class ApproachCommandHandler
             RunwayId = procedure.Runway!,
             FinalApproachCourse = finalCourse,
             Procedure = procedure,
+            MissedApproachFixes = BuildMissedApproachFixes(procedure, fixes),
+            MapHold = ExtractMissedApproachHold(procedure, fixes),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -509,6 +516,172 @@ public static class ApproachCommandHandler
             names.Add(leg.FixIdentifier);
         }
         return names;
+    }
+
+    internal static List<ApproachFix> BuildMissedApproachFixes(CifpApproachProcedure procedure, IFixLookup? fixes)
+    {
+        var result = new List<ApproachFix>();
+        (double Lat, double Lon)? previousFixPos = null;
+
+        foreach (var leg in procedure.MissedApproachLegs)
+        {
+            if (string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                continue;
+            }
+
+            if (leg.PathTerminator == CifpPathTerminator.PI)
+            {
+                continue;
+            }
+
+            var pos = fixes?.GetFixPosition(leg.FixIdentifier);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            if (
+                leg.PathTerminator == CifpPathTerminator.RF
+                && leg.ArcCenterLat is not null
+                && leg.ArcCenterLon is not null
+                && leg.ArcRadiusNm is not null
+                && previousFixPos is not null
+            )
+            {
+                ExpandApproachArcFixes(
+                    result,
+                    leg.ArcCenterLat.Value,
+                    leg.ArcCenterLon.Value,
+                    leg.ArcRadiusNm.Value,
+                    previousFixPos.Value,
+                    pos.Value,
+                    leg.TurnDirection == 'R'
+                );
+            }
+
+            if (
+                leg.PathTerminator == CifpPathTerminator.AF
+                && leg.RecommendedNavaidId is not null
+                && leg.Rho is not null
+                && previousFixPos is not null
+            )
+            {
+                var navaidPos = fixes?.GetFixPosition(leg.RecommendedNavaidId);
+                if (navaidPos is not null)
+                {
+                    ExpandApproachArcFixes(
+                        result,
+                        navaidPos.Value.Lat,
+                        navaidPos.Value.Lon,
+                        leg.Rho.Value,
+                        previousFixPos.Value,
+                        pos.Value,
+                        leg.TurnDirection != 'L'
+                    );
+                }
+            }
+
+            result.Add(
+                new ApproachFix(leg.FixIdentifier, pos.Value.Lat, pos.Value.Lon, leg.Altitude, leg.Speed?.SpeedKts, leg.FixRole, leg.IsFlyOver)
+            );
+            previousFixPos = (pos.Value.Lat, pos.Value.Lon);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Build MAP navigation phases from pre-built missed approach fixes on the active approach clearance.
+    /// Returns empty if no instrument approach, no procedure, or no MAP fixes.
+    /// </summary>
+    internal static List<Phase> BuildMissedApproachPhases(AircraftState aircraft)
+    {
+        var clearance = aircraft.Phases?.ActiveApproach;
+        if (clearance?.Procedure is null || clearance.MissedApproachFixes.Count == 0)
+        {
+            return [];
+        }
+
+        // Visual approaches have no MAP
+        if (clearance.ApproachId.StartsWith("VIS", StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        var phases = new List<Phase> { new ApproachNavigationPhase { Fixes = clearance.MissedApproachFixes } };
+
+        if (clearance.MapHold is { } hold)
+        {
+            phases.Add(
+                new HoldingPatternPhase
+                {
+                    FixName = hold.FixName,
+                    FixLat = hold.FixLat,
+                    FixLon = hold.FixLon,
+                    InboundCourse = hold.InboundCourse,
+                    LegLength = hold.LegLength,
+                    IsMinuteBased = hold.IsMinuteBased,
+                    Direction = hold.Direction,
+                    MaxCircuits = null,
+                }
+            );
+        }
+
+        return phases;
+    }
+
+    /// <summary>
+    /// Extract the target altitude for GoAroundPhase from the first MAP fix altitude restriction.
+    /// Returns null if no altitude restriction found (caller falls back to default).
+    /// </summary>
+    internal static int? GetMissedApproachAltitude(IReadOnlyList<ApproachFix> mapFixes)
+    {
+        foreach (var fix in mapFixes)
+        {
+            if (fix.Altitude is { } alt)
+            {
+                return alt.Altitude1Ft;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extract holding pattern data from the MAP legs (HA/HF/HM terminator on the last fix).
+    /// Returns null if no hold leg exists or the fix position can't be resolved.
+    /// </summary>
+    internal static MissedApproachHold? ExtractMissedApproachHold(CifpApproachProcedure procedure, IFixLookup? fixes)
+    {
+        for (int i = procedure.MissedApproachLegs.Count - 1; i >= 0; i--)
+        {
+            var leg = procedure.MissedApproachLegs[i];
+            if (leg.PathTerminator is not (CifpPathTerminator.HA or CifpPathTerminator.HF or CifpPathTerminator.HM))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                continue;
+            }
+
+            var pos = fixes?.GetFixPosition(leg.FixIdentifier);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            int inboundCourse = leg.OutboundCourse.HasValue ? (int)((leg.OutboundCourse.Value + 180) % 360) : 0;
+            double legLength = leg.LegDistanceNm ?? 1.0;
+            bool isMinuteBased = leg.LegDistanceNm is null;
+            var direction = leg.TurnDirection == 'L' ? TurnDirection.Left : TurnDirection.Right;
+
+            return new MissedApproachHold(leg.FixIdentifier, pos.Value.Lat, pos.Value.Lon, inboundCourse, legLength, isMinuteBased, direction);
+        }
+
+        return null;
     }
 
     private static List<ApproachFix> BuildApproachFixes(CifpApproachProcedure procedure, IFixLookup? fixes)

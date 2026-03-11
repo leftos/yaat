@@ -352,7 +352,7 @@ public static class CommandDispatcher
                     fixes
                 );
             case PositionTurnAltitudeClearanceCommand cmd:
-                return ApproachCommandHandler.TryPtac(cmd, aircraft, approachLookup, runways);
+                return ApproachCommandHandler.TryPtac(cmd, aircraft, approachLookup, runways, fixes);
             case ClearedVisualApproachCommand cmd:
                 return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, runways);
             case ReportFieldInSightCommand:
