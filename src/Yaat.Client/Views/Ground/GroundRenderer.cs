@@ -697,7 +697,7 @@ public sealed class GroundRenderer : IDisposable
                 widthPx *= SelectedScaleFactor;
             }
 
-            DrawTriangle(canvas, sx, sy, (float)ac.Heading, lengthPx, widthPx, _aircraftPaint);
+            DrawTriangle(canvas, sx, sy, (float)(ac.Heading - vp.RotationDeg), lengthPx, widthPx, _aircraftPaint);
         }
     }
 
