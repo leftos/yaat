@@ -5,6 +5,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Client.Views.Ground;
 
@@ -644,6 +645,19 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
+    /// <summary>Minimum triangle half-length in pixels (ensures visibility when zoomed out).</summary>
+    private const float MinAircraftPx = 8f;
+
+    /// <summary>Selected aircraft gets a slight scale-up for visual emphasis.</summary>
+    private const float SelectedScaleFactor = 1.2f;
+
+    /// <summary>Fallback dimensions when FAA ACD data is unavailable (small GA aircraft).</summary>
+    private const float FallbackLengthFt = 60f;
+    private const float FallbackWingspanFt = 50f;
+
+    /// <summary>Feet per degree of latitude (constant).</summary>
+    private const double FeetPerDegLat = 364_567.2;
+
     private void DrawAircraft(
         SKCanvas canvas,
         MapViewport vp,
@@ -654,6 +668,9 @@ public sealed class GroundRenderer : IDisposable
         double airportElevation
     )
     {
+        // Pixels per foot at current zoom (latitude direction, no cosine correction needed for small areas)
+        var pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
+
         foreach (var ac in aircraft)
         {
             if (!ac.IsOnGround && !IsAirborneVisible(ac, airportCenterLat, airportCenterLon, airportElevation))
@@ -670,8 +687,44 @@ public sealed class GroundRenderer : IDisposable
                 : isAirborne ? AircraftAirborne
                 : GetAircraftColor(ac);
 
-            DrawTriangle(canvas, sx, sy, (float)ac.Heading, isSelected ? 19f : 16f, _aircraftPaint);
+            var (lengthPx, widthPx) = ComputeAircraftPixelSize(ac.AircraftType, pxPerFt);
+            if (isSelected)
+            {
+                lengthPx *= SelectedScaleFactor;
+                widthPx *= SelectedScaleFactor;
+            }
+
+            DrawTriangle(canvas, sx, sy, (float)ac.Heading, lengthPx, widthPx, _aircraftPaint);
         }
+    }
+
+    /// <summary>
+    /// Returns (halfLengthPx, halfWidthPx) for the aircraft triangle.
+    /// Uses FAA ACD dimensions when available, otherwise category fallbacks.
+    /// Clamps to <see cref="MinAircraftPx"/> so aircraft remain visible when zoomed out.
+    /// </summary>
+    private static (float HalfLengthPx, float HalfWidthPx) ComputeAircraftPixelSize(string? aircraftType, float pxPerFt)
+    {
+        float lengthFt = FallbackLengthFt;
+        float wingspanFt = FallbackWingspanFt;
+
+        var record = FaaAircraftDatabase.Get(aircraftType);
+        if (record is not null)
+        {
+            if (record.LengthFt is { } len)
+            {
+                lengthFt = (float)len;
+            }
+
+            if (record.WingspanFt is { } ws)
+            {
+                wingspanFt = (float)ws;
+            }
+        }
+
+        float halfLenPx = MathF.Max(lengthFt * 0.5f * pxPerFt, MinAircraftPx);
+        float halfWsPx = MathF.Max(wingspanFt * 0.5f * pxPerFt, MinAircraftPx * (wingspanFt / lengthFt));
+        return (halfLenPx, halfWsPx);
     }
 
     private static SKColor GetAircraftColor(AircraftModel ac)
@@ -679,15 +732,31 @@ public sealed class GroundRenderer : IDisposable
         return AircraftTaxiing;
     }
 
-    private static void DrawTriangle(SKCanvas canvas, float cx, float cy, float headingDeg, float size, SKPaint paint)
+    /// <summary>
+    /// Draws an arrowhead triangle centered at (cx, cy) pointing along headingDeg.
+    /// <paramref name="halfLength"/> is nose-to-center distance along heading.
+    /// <paramref name="halfWidth"/> is half-wingspan perpendicular to heading.
+    /// </summary>
+    private static void DrawTriangle(SKCanvas canvas, float cx, float cy, float headingDeg, float halfLength, float halfWidth, SKPaint paint)
     {
         var rad = (headingDeg - 90) * MathF.PI / 180f;
-        var cos = MathF.Cos(rad);
-        var sin = MathF.Sin(rad);
+        var cosH = MathF.Cos(rad);
+        var sinH = MathF.Sin(rad);
 
-        var tip = new SKPoint(cx + cos * size, cy + sin * size);
-        var left = new SKPoint(cx + MathF.Cos(rad + 2.5f) * size * 0.6f, cy + MathF.Sin(rad + 2.5f) * size * 0.6f);
-        var right = new SKPoint(cx + MathF.Cos(rad - 2.5f) * size * 0.6f, cy + MathF.Sin(rad - 2.5f) * size * 0.6f);
+        // Perpendicular direction (90° clockwise from heading in screen coords)
+        var cosP = MathF.Cos(rad + MathF.PI / 2f);
+        var sinP = MathF.Sin(rad + MathF.PI / 2f);
+
+        // Tip: forward from center by halfLength
+        var tip = new SKPoint(cx + cosH * halfLength, cy + sinH * halfLength);
+
+        // Tail corners: backward by halfLength * 0.6, spread by halfWidth
+        float tailBack = halfLength * 0.6f;
+        float tailCx = cx - cosH * tailBack;
+        float tailCy = cy - sinH * tailBack;
+
+        var left = new SKPoint(tailCx + cosP * halfWidth, tailCy + sinP * halfWidth);
+        var right = new SKPoint(tailCx - cosP * halfWidth, tailCy - sinP * halfWidth);
 
         using var path = new SKPath();
         path.MoveTo(tip);
