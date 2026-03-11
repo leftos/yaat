@@ -277,6 +277,8 @@ public static class CommandDispatcher
                 return Ok($"Wait {cmd.DistanceNm} nm");
             case SayCommand:
                 return Ok(""); // SAY is a broadcast; handled before dispatch
+            case SaySpeedCommand:
+                return Ok(""); // SSPD is a broadcast; handled before dispatch
 
             // --- Navigation commands ---
             case JoinRadialOutboundCommand cmd:

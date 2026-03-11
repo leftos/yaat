@@ -85,6 +85,8 @@ public record ResolvedFix(string Name, double Lat, double Lon);
 
 public record SayCommand(string Text) : ParsedCommand;
 
+public record SaySpeedCommand : ParsedCommand;
+
 public record UnsupportedCommand(string RawText) : ParsedCommand;
 
 // Departure instruction hierarchy for CTO commands

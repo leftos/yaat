@@ -200,7 +200,7 @@ public static class CommandRegistry
             ),
             Bare(SquawkVfr, "Squawk VFR", "Transponder", false, ["SQVFR", "SQV"]),
             Bare(SquawkNormal, "Squawk Normal", "Transponder", false, ["SQNORM", "SN", "SQA", "SQON"]),
-            Bare(SquawkStandby, "Squawk Standby", "Transponder", false, ["SQSBY", "SS", "SQS"]),
+            Bare(SquawkStandby, "Squawk Standby", "Transponder", false, ["SQSBY", "SQS"]),
             Bare(Ident, "Ident", "Transponder", false, ["IDENT", "ID", "SQI", "SQID"]),
             Bare(RandomSquawk, "Random Squawk", "Transponder", false, ["RANDSQ"]),
             Bare(SquawkAll, "Squawk All", "Transponder", true, ["SQALL"]),
@@ -656,7 +656,10 @@ public static class CommandRegistry
         ];
 
     private static CommandDefinition[] BroadcastCommands() =>
-        [Cmd(Say, "Say", "Broadcast", false, ["SAY"], [O(null, [R("message", "free text")], "Broadcast pilot message")])];
+        [
+            Cmd(Say, "Say", "Broadcast", false, ["SAY"], [O(null, [R("message", "free text")], "Broadcast pilot message")]),
+            Bare(SaySpeed, "Say Speed", "Broadcast", false, ["SSPD", "SS"]),
+        ];
 
     private static CommandDefinition[] ApproachCommands() =>
         [
