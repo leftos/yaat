@@ -88,7 +88,7 @@ public sealed class FaaAircraftDataService : IDisposable
     {
         FaaAircraftDatabase.Initialize(records);
 
-        // Also populate legacy approach speed lookup for backward compatibility
+        // Also populate approach speed lookup used by approach phase logic
         var approachSpeeds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var (icao, record) in records)
         {
@@ -101,28 +101,22 @@ public sealed class FaaAircraftDataService : IDisposable
         AircraftApproachSpeed.Initialize(approachSpeeds);
     }
 
-    private bool TryLoadFromJson(string path)
+    private static bool TryLoadFromJson(string path)
     {
         try
         {
             var json = File.ReadAllText(path);
-
-            // Try new format (full records) first
             var records = JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(json, JsonOptions);
             if (records is { Count: > 0 })
             {
                 ApplyRecords(records);
                 return true;
             }
-
-            // Fall back to legacy format (approach speeds only)
-            var legacy = JsonSerializer.Deserialize<Dictionary<string, int>>(json, JsonOptions);
-            if (legacy is { Count: > 0 })
-            {
-                AircraftApproachSpeed.Initialize(legacy);
-                Log.LogInformation("Loaded legacy FAA ACD cache (approach speeds only); will upgrade on next download");
-                return true;
-            }
+        }
+        catch (JsonException)
+        {
+            Log.LogInformation("Deleting legacy-format FAA ACD cache at {Path}", path);
+            File.Delete(path);
         }
         catch (Exception ex)
         {
