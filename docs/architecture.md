@@ -247,8 +247,11 @@ CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSi
                                # CifpLeg: ArcRadiusNm, ArcCenterLat/Lon (RF), RecommendedNavaidId, Theta, Rho (AF)
 
 # Scenarios/
+ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting conditions, nav routes, beacon codes
+ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand, etc.
+                               # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
-AircraftGenerator.cs           # SpawnRequest → AircraftState
+AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator)
 SpawnRequest.cs                # Spawn descriptor
 
 Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
@@ -299,10 +302,6 @@ src/Yaat.Server/
     DepartureCommandParser.cs  # Departure-specific command parsing
     GroundCommandParser.cs     # Ground operation command parsing
     ServerCommands.cs          # Server-only records (DEL, PAUSE, etc.)
-
-  Scenarios/
-    ScenarioLoader.cs          # JSON→aircraft (5 position types + Parking); ground detection; generators passthrough
-    ScenarioModels.cs          # Deserialization models
 
   Spawn/SpawnParser.cs         # ADD command → SpawnRequest
   Protocol/                    # CRC binary: VarintCodec, MessageFraming, SignalRMessageParser, SignalRMessageBuilder
