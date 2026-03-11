@@ -12,8 +12,8 @@ public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
 
     public RunwayIdentifier(string end1, string end2)
     {
-        End1 = end1;
-        End2 = end2;
+        End1 = Normalize(end1);
+        End2 = Normalize(end2);
     }
 
     /// <summary>
@@ -22,8 +22,9 @@ public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     /// </summary>
     public RunwayIdentifier(string designator)
     {
-        End1 = designator;
-        End2 = ComputeOpposite(designator);
+        var norm = Normalize(designator);
+        End1 = norm;
+        End2 = ComputeOpposite(norm);
     }
 
     /// <summary>
@@ -99,12 +100,12 @@ public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
 
     /// <summary>
     /// Returns true if <paramref name="designator"/> matches either end
-    /// (case-insensitive).
+    /// (case-insensitive). Single-digit designators are normalized (e.g., "1R" matches "01R").
     /// </summary>
     public bool Contains(string designator)
     {
-        return string.Equals(End1, designator, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(End2, designator, StringComparison.OrdinalIgnoreCase);
+        var norm = Normalize(designator);
+        return string.Equals(End1, norm, StringComparison.OrdinalIgnoreCase) || string.Equals(End2, norm, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -151,6 +152,26 @@ public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     public static bool operator !=(RunwayIdentifier left, RunwayIdentifier right)
     {
         return !left.Equals(right);
+    }
+
+    /// <summary>
+    /// Pads a single-digit runway number to two digits (e.g., "1R" → "01R", "9" → "09").
+    /// Two-digit and non-numeric designators are returned unchanged.
+    /// </summary>
+    private static string Normalize(string designator)
+    {
+        int numLen = 0;
+        while (numLen < designator.Length && char.IsAsciiDigit(designator[numLen]))
+        {
+            numLen++;
+        }
+
+        if (numLen == 1)
+        {
+            return "0" + designator;
+        }
+
+        return designator;
     }
 
     private static bool Eq(string a, string b)

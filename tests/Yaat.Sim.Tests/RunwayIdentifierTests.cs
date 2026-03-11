@@ -6,33 +6,33 @@ namespace Yaat.Sim.Tests;
 public class RunwayIdentifierTests
 {
     [Theory]
-    [InlineData("28R", "10L")]
-    [InlineData("10L", "28R")]
-    [InlineData("36", "18")]
-    [InlineData("9", "27")]
-    [InlineData("1C", "19C")]
-    public void TwoEndConstructor_StoresBothEnds(string end1, string end2)
+    [InlineData("28R", "10L", "28R", "10L")]
+    [InlineData("10L", "28R", "10L", "28R")]
+    [InlineData("36", "18", "36", "18")]
+    [InlineData("9", "27", "09", "27")]
+    [InlineData("1C", "19C", "01C", "19C")]
+    public void TwoEndConstructor_StoresBothEnds(string end1, string end2, string expectedEnd1, string expectedEnd2)
     {
         var id = new RunwayIdentifier(end1, end2);
 
-        Assert.Equal(end1, id.End1);
-        Assert.Equal(end2, id.End2);
+        Assert.Equal(expectedEnd1, id.End1);
+        Assert.Equal(expectedEnd2, id.End2);
     }
 
     [Theory]
-    [InlineData("10L", "28R")]
-    [InlineData("28R", "10L")]
-    [InlineData("36", "18")]
-    [InlineData("18", "36")]
-    [InlineData("9", "27")]
-    [InlineData("1", "19")]
-    [InlineData("10C", "28C")]
-    [InlineData("12R", "30L")]
-    public void SingleEndConstructor_InfersOpposite(string designator, string expectedOpposite)
+    [InlineData("10L", "10L", "28R")]
+    [InlineData("28R", "28R", "10L")]
+    [InlineData("36", "36", "18")]
+    [InlineData("18", "18", "36")]
+    [InlineData("9", "09", "27")]
+    [InlineData("1", "01", "19")]
+    [InlineData("10C", "10C", "28C")]
+    [InlineData("12R", "12R", "30L")]
+    public void SingleEndConstructor_InfersOpposite(string designator, string expectedEnd1, string expectedOpposite)
     {
         var id = new RunwayIdentifier(designator);
 
-        Assert.Equal(designator, id.End1);
+        Assert.Equal(expectedEnd1, id.End1);
         Assert.Equal(expectedOpposite, id.End2);
     }
 
@@ -41,6 +41,8 @@ public class RunwayIdentifierTests
     [InlineData("36 - 18", "36", "18")]
     [InlineData("28R", "28R", "10L")]
     [InlineData(" 10L / 28R ", "10L", "28R")]
+    [InlineData("1R/19L", "01R", "19L")]
+    [InlineData("1R", "01R", "19L")]
     public void Parse_VariousFormats(string input, string expectedEnd1, string expectedEnd2)
     {
         var id = RunwayIdentifier.Parse(input);
@@ -126,6 +128,32 @@ public class RunwayIdentifierTests
         var id = new RunwayIdentifier("28R", "28R");
 
         Assert.Equal("28R", id.ToString());
+    }
+
+    // --- Normalization tests (issue #51: single-digit vs two-digit runway designators) ---
+
+    [Fact]
+    public void Parse_SingleDigit_NormalizesToTwoDigit()
+    {
+        var id = RunwayIdentifier.Parse("1R");
+
+        Assert.Equal("01R", id.End1);
+    }
+
+    [Fact]
+    public void Contains_SingleDigit_MatchesTwoDigit()
+    {
+        var id = new RunwayIdentifier("01R", "19L");
+
+        Assert.True(id.Contains("1R"));
+    }
+
+    [Fact]
+    public void Contains_TwoDigit_StillWorks()
+    {
+        var id = new RunwayIdentifier("01R", "19L");
+
+        Assert.True(id.Contains("01R"));
     }
 
     [Theory]
