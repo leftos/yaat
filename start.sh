@@ -22,6 +22,19 @@ done
 CLIENT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$(dirname "$CLIENT_DIR")/yaat-server"
 
+find_free_port() {
+    local port=${1:-5000}
+    while lsof -iTCP:"$port" -sTCP:LISTEN -t >/dev/null 2>&1; do
+        port=$((port + 1))
+    done
+    echo "$port"
+}
+
+SERVER_PORT=$(find_free_port 5000)
+if [ "$SERVER_PORT" -ne 5000 ]; then
+    echo "Port 5000 in use, using port $SERVER_PORT"
+fi
+
 if $PULL; then
     if ! $SERVER_ONLY; then
         echo "Pulling yaat-client..."
@@ -69,10 +82,10 @@ trap cleanup EXIT INT TERM
 if ! $CLIENT_ONLY; then
     echo "Starting yaat-server..."
     if $DOCKER; then
-        docker run --rm --name yaat-server-local -p 5000:5000 yaat-server:local &
+        docker run --rm --name yaat-server-local -p "$SERVER_PORT:$SERVER_PORT" -e ASPNETCORE_URLS="http://0.0.0.0:$SERVER_PORT" yaat-server:local &
         PIDS+=($!)
     else
-        dotnet run --no-build --project "$SERVER_DIR/src/Yaat.Server" &
+        dotnet run --no-build --project "$SERVER_DIR/src/Yaat.Server" -- --urls "http://0.0.0.0:$SERVER_PORT" &
         PIDS+=($!)
     fi
 fi
@@ -82,7 +95,7 @@ if ! $SERVER_ONLY; then
     if $CLIENT_ONLY; then
         dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" &
     else
-        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" -- --autoconnect http://localhost:5000 &
+        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" -- --autoconnect "http://localhost:$SERVER_PORT" &
     fi
     PIDS+=($!)
 fi

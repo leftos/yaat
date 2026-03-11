@@ -218,7 +218,26 @@ public partial class MainWindow : Window
             return;
         }
 
-        await vm.AttemptConnectAsync(url, CancellationToken.None);
+        const int maxAttempts = 30;
+        const int delayMs = 2000;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            if (await vm.AttemptConnectAsync(url, CancellationToken.None))
+            {
+                return;
+            }
+
+            if (!vm.StatusText.StartsWith("Error:"))
+            {
+                return;
+            }
+
+            if (attempt < maxAttempts)
+            {
+                vm.StatusText = $"--autoconnect: waiting for server... ({attempt}/{maxAttempts})";
+                await Task.Delay(delayMs);
+            }
+        }
     }
 
     private void SetupDataGrid(DataGrid dataGrid, MainViewModel vm)

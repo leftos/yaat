@@ -13,6 +13,22 @@ param(
 $ClientDir = $PSScriptRoot
 $ServerDir = Join-Path (Split-Path $ClientDir) "yaat-server"
 
+function Find-FreePort {
+    param([int]$Start = 5000)
+    for ($port = $Start; $port -lt $Start + 100; $port++) {
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
+        try {
+            $listener.Start()
+            $listener.Stop()
+            return $port
+        } catch { }
+    }
+    throw "No free port found in range $Start..$($Start + 99)"
+}
+
+$ServerPort = Find-FreePort 5000
+if ($ServerPort -ne 5000) { Write-Host "Port 5000 in use, using port $ServerPort" }
+
 if ($Pull) {
     if (-not $ServerOnly) {
         Write-Host "Pulling yaat-client..."
@@ -55,9 +71,9 @@ $procs = @()
 if (-not $ClientOnly) {
     Write-Host "Starting yaat-server..."
     if ($Docker) {
-        $procs += Start-Process -PassThru -NoNewWindow docker "run --rm --name yaat-server-local -p 5000:5000 yaat-server:local"
+        $procs += Start-Process -PassThru -NoNewWindow docker "run --rm --name yaat-server-local -p ${ServerPort}:${ServerPort} -e ASPNETCORE_URLS=http://0.0.0.0:${ServerPort} yaat-server:local"
     } else {
-        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ServerDir\src\Yaat.Server`""
+        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ServerDir\src\Yaat.Server`" -- --urls http://0.0.0.0:${ServerPort}"
     }
 }
 
@@ -66,7 +82,7 @@ if (-not $ServerOnly) {
     if ($ClientOnly) {
         $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ClientDir\src\Yaat.Client`""
     } else {
-        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ClientDir\src\Yaat.Client`" -- --autoconnect http://localhost:5000"
+        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ClientDir\src\Yaat.Client`" -- --autoconnect http://localhost:${ServerPort}"
     }
 }
 
