@@ -8,14 +8,14 @@ namespace Yaat.Sim.Data.Faa;
 
 /// <summary>
 /// Downloads and caches FAA Aircraft Characteristics Database (ACD) data.
-/// Extracts per-type approach speeds from the xlsx file, caches as JSON
-/// per AIRAC cycle. Falls back to previous cycle cache on download failure.
+/// Extracts all columns from the xlsx file, caches as JSON per AIRAC cycle.
+/// Falls back to previous cycle cache on download failure.
 /// </summary>
 public sealed class FaaAircraftDataService : IDisposable
 {
     private const string AcdUrl = "https://www.faa.gov/airports/engineering/aircraft_char_database/aircraft_data";
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true, WriteIndented = false };
 
     private static readonly ILogger Log = SimLog.CreateLogger<FaaAircraftDataService>();
 
@@ -51,15 +51,15 @@ public sealed class FaaAircraftDataService : IDisposable
             Log.LogInformation("Downloading FAA ACD data from {Url}", AcdUrl);
 
             var bytes = await _http.GetByteArrayAsync(AcdUrl);
-            var lookup = ParseXlsx(bytes);
+            var records = ParseXlsx(bytes);
 
-            if (lookup.Count > 0)
+            if (records.Count > 0)
             {
-                var json = JsonSerializer.Serialize(lookup);
+                var json = JsonSerializer.Serialize(records, JsonOptions);
                 await File.WriteAllTextAsync(cachePath, json);
 
-                AircraftApproachSpeed.Initialize(lookup);
-                Log.LogInformation("FAA ACD data cached for cycle {Cycle}: {Count} approach speeds", cycleId, lookup.Count);
+                ApplyRecords(records);
+                Log.LogInformation("FAA ACD data cached for cycle {Cycle}: {Count} aircraft types", cycleId, records.Count);
                 return;
             }
 
@@ -84,15 +84,43 @@ public sealed class FaaAircraftDataService : IDisposable
         _http.Dispose();
     }
 
+    private static void ApplyRecords(Dictionary<string, FaaAircraftRecord> records)
+    {
+        FaaAircraftDatabase.Initialize(records);
+
+        // Also populate legacy approach speed lookup for backward compatibility
+        var approachSpeeds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (icao, record) in records)
+        {
+            if (record.ApproachSpeedKnot is { } speed)
+            {
+                approachSpeeds[icao] = speed;
+            }
+        }
+
+        AircraftApproachSpeed.Initialize(approachSpeeds);
+    }
+
     private bool TryLoadFromJson(string path)
     {
         try
         {
             var json = File.ReadAllText(path);
-            var lookup = JsonSerializer.Deserialize<Dictionary<string, int>>(json, JsonOptions);
-            if (lookup is { Count: > 0 })
+
+            // Try new format (full records) first
+            var records = JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(json, JsonOptions);
+            if (records is { Count: > 0 })
             {
-                AircraftApproachSpeed.Initialize(lookup);
+                ApplyRecords(records);
+                return true;
+            }
+
+            // Fall back to legacy format (approach speeds only)
+            var legacy = JsonSerializer.Deserialize<Dictionary<string, int>>(json, JsonOptions);
+            if (legacy is { Count: > 0 })
+            {
+                AircraftApproachSpeed.Initialize(legacy);
+                Log.LogInformation("Loaded legacy FAA ACD cache (approach speeds only); will upgrade on next download");
                 return true;
             }
         }
@@ -130,19 +158,17 @@ public sealed class FaaAircraftDataService : IDisposable
         return false;
     }
 
-    private Dictionary<string, int> ParseXlsx(byte[] xlsxBytes)
+    private static Dictionary<string, FaaAircraftRecord> ParseXlsx(byte[] xlsxBytes)
     {
-        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, FaaAircraftRecord>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
             using var stream = new MemoryStream(xlsxBytes);
             using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
-            // Read shared strings table
             var sharedStrings = ReadSharedStrings(archive);
 
-            // Read sheet1 data
             var sheetEntry = archive.GetEntry("xl/worksheets/sheet1.xml");
             if (sheetEntry is null)
             {
@@ -160,30 +186,32 @@ public sealed class FaaAircraftDataService : IDisposable
                 return result;
             }
 
-            // Find column indices from header row
+            // Build column name → index mapping from header row
             var headerRow = rows[0];
-            int icaoCol = -1;
-            int approachSpeedCol = -1;
-
+            var colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             int colIdx = 0;
             foreach (var cell in headerRow.Elements(ns + "c"))
             {
                 string cellValue = GetCellValue(cell, sharedStrings, ns);
-                if (cellValue.Equals("ICAO_Code", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(cellValue))
                 {
-                    icaoCol = colIdx;
-                }
-                else if (cellValue.Equals("Approach_Speed_knot", StringComparison.OrdinalIgnoreCase))
-                {
-                    approachSpeedCol = colIdx;
+                    // Normalize TMFS_Operations_FY24 (year changes each release)
+                    if (cellValue.StartsWith("TMFS_Operations_FY", StringComparison.OrdinalIgnoreCase))
+                    {
+                        colMap["TMFS_Operations_FY"] = colIdx;
+                    }
+                    else
+                    {
+                        colMap[cellValue] = colIdx;
+                    }
                 }
 
                 colIdx++;
             }
 
-            if (icaoCol < 0 || approachSpeedCol < 0)
+            if (!colMap.ContainsKey("ICAO_Code"))
             {
-                Log.LogWarning("FAA ACD xlsx missing expected columns (ICAO_Code={Icao}, Approach_Speed_knot={Spd})", icaoCol, approachSpeedCol);
+                Log.LogWarning("FAA ACD xlsx missing ICAO_Code column");
                 return result;
             }
 
@@ -192,13 +220,60 @@ public sealed class FaaAircraftDataService : IDisposable
             {
                 var cells = rows[i].Elements(ns + "c").ToList();
 
-                string icaoCode = icaoCol < cells.Count ? GetCellValue(cells[icaoCol], sharedStrings, ns) : "";
-                string speedStr = approachSpeedCol < cells.Count ? GetCellValue(cells[approachSpeedCol], sharedStrings, ns) : "";
-
-                if (!string.IsNullOrWhiteSpace(icaoCode) && double.TryParse(speedStr, out double speedVal) && speedVal > 0)
+                string icaoCode = GetCol(cells, colMap, "ICAO_Code", sharedStrings, ns);
+                if (string.IsNullOrWhiteSpace(icaoCode))
                 {
-                    result.TryAdd(icaoCode.Trim(), (int)Math.Round(speedVal));
+                    continue;
                 }
+
+                icaoCode = icaoCode.Trim();
+
+                var record = new FaaAircraftRecord
+                {
+                    IcaoCode = icaoCode,
+                    FaaDesignator = GetColOrNull(cells, colMap, "FAA_Designator", sharedStrings, ns),
+                    Manufacturer = GetColOrNull(cells, colMap, "Manufacturer", sharedStrings, ns),
+                    ModelFaa = GetColOrNull(cells, colMap, "Model_FAA", sharedStrings, ns),
+                    ModelBada = GetColOrNull(cells, colMap, "Model_BADA", sharedStrings, ns),
+                    PhysicalClassEngine = GetColOrNull(cells, colMap, "Physical_Class_Engine", sharedStrings, ns),
+                    NumEngines = GetIntOrNull(cells, colMap, "Num_Engines", sharedStrings, ns),
+                    Aac = GetColOrNull(cells, colMap, "AAC", sharedStrings, ns),
+                    AacMinimum = GetColOrNull(cells, colMap, "AAC_minimum", sharedStrings, ns),
+                    AacMaximum = GetColOrNull(cells, colMap, "AAC_maximum", sharedStrings, ns),
+                    Adg = GetColOrNull(cells, colMap, "ADG", sharedStrings, ns),
+                    Tdg = GetColOrNull(cells, colMap, "TDG", sharedStrings, ns),
+                    ApproachSpeedKnot = GetIntOrNull(cells, colMap, "Approach_Speed_knot", sharedStrings, ns),
+                    ApproachSpeedMinimumKnot = GetIntOrNull(cells, colMap, "Approach_Speed_minimum_knot", sharedStrings, ns),
+                    ApproachSpeedMaximumKnot = GetIntOrNull(cells, colMap, "Approach_Speed_maximum_knot", sharedStrings, ns),
+                    WingspanFtWithoutWinglets = GetDoubleOrNull(cells, colMap, "Wingspan_ft_without_winglets_sharklets", sharedStrings, ns),
+                    WingspanFtWithWinglets = GetDoubleOrNull(cells, colMap, "Wingspan_ft_with_winglets_sharklets", sharedStrings, ns),
+                    LengthFt = GetDoubleOrNull(cells, colMap, "Length_ft", sharedStrings, ns),
+                    TailHeightAtOewFt = GetDoubleOrNull(cells, colMap, "Tail_Height_at_OEW_ft", sharedStrings, ns),
+                    WheelbaseFt = GetDoubleOrNull(cells, colMap, "Wheelbase_ft", sharedStrings, ns),
+                    CockpitToMainGearFt = GetDoubleOrNull(cells, colMap, "Cockpit_to_Main_Gear_ft", sharedStrings, ns),
+                    MainGearWidthFt = GetDoubleOrNull(cells, colMap, "Main_Gear_Width_ft", sharedStrings, ns),
+                    MtowLb = GetDoubleOrNull(cells, colMap, "MTOW_lb", sharedStrings, ns),
+                    MalwLb = GetDoubleOrNull(cells, colMap, "MALW_lb", sharedStrings, ns),
+                    MainGearConfig = GetColOrNull(cells, colMap, "Main_Gear_Config", sharedStrings, ns),
+                    IcaoWtc = GetColOrNull(cells, colMap, "ICAO_WTC", sharedStrings, ns),
+                    ParkingAreaFt2 = GetDoubleOrNull(cells, colMap, "Parking_Area_ft2", sharedStrings, ns),
+                    Class = GetColOrNull(cells, colMap, "Class", sharedStrings, ns),
+                    FaaWeight = GetColOrNull(cells, colMap, "FAA_Weight", sharedStrings, ns),
+                    Cwt = GetColOrNull(cells, colMap, "CWT", sharedStrings, ns),
+                    OneHalfWakeCategory = GetColOrNull(cells, colMap, "One_Half_Wake_Category", sharedStrings, ns),
+                    TwoWakeCategoryAppxA = GetColOrNull(cells, colMap, "Two_Wake_Category_Appx_A", sharedStrings, ns),
+                    TwoWakeCategoryAppxB = GetColOrNull(cells, colMap, "Two_Wake_Category_Appx_B", sharedStrings, ns),
+                    RotorDiameterFt = GetDoubleOrNull(cells, colMap, "Rotor_Diameter_ft", sharedStrings, ns),
+                    Srs = GetColOrNull(cells, colMap, "SRS", sharedStrings, ns),
+                    Lahso = GetColOrNull(cells, colMap, "LAHSO", sharedStrings, ns),
+                    FaaRegistry = GetColOrNull(cells, colMap, "FAA_Registry", sharedStrings, ns),
+                    RegistrationCount = GetIntOrNull(cells, colMap, "Registration_Count", sharedStrings, ns),
+                    TmfsOperationsFy = GetIntOrNull(cells, colMap, "TMFS_Operations_FY", sharedStrings, ns),
+                    Remarks = GetColOrNull(cells, colMap, "Remarks", sharedStrings, ns),
+                    LastUpdate = GetColOrNull(cells, colMap, "LastUpdate", sharedStrings, ns),
+                };
+
+                result.TryAdd(icaoCode, record);
             }
         }
         catch (Exception ex)
@@ -207,6 +282,51 @@ public sealed class FaaAircraftDataService : IDisposable
         }
 
         return result;
+    }
+
+    private static string GetCol(List<XElement> cells, Dictionary<string, int> colMap, string colName, List<string> sharedStrings, XNamespace ns)
+    {
+        if (!colMap.TryGetValue(colName, out int idx) || idx >= cells.Count)
+        {
+            return "";
+        }
+
+        return GetCellValue(cells[idx], sharedStrings, ns);
+    }
+
+    private static string? GetColOrNull(
+        List<XElement> cells,
+        Dictionary<string, int> colMap,
+        string colName,
+        List<string> sharedStrings,
+        XNamespace ns
+    )
+    {
+        var val = GetCol(cells, colMap, colName, sharedStrings, ns);
+        if (string.IsNullOrWhiteSpace(val) || val.Equals("N/A", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return val.Trim();
+    }
+
+    private static int? GetIntOrNull(List<XElement> cells, Dictionary<string, int> colMap, string colName, List<string> sharedStrings, XNamespace ns)
+    {
+        var val = GetCol(cells, colMap, colName, sharedStrings, ns);
+        return double.TryParse(val, out double d) && d > 0 ? (int)Math.Round(d) : null;
+    }
+
+    private static double? GetDoubleOrNull(
+        List<XElement> cells,
+        Dictionary<string, int> colMap,
+        string colName,
+        List<string> sharedStrings,
+        XNamespace ns
+    )
+    {
+        var val = GetCol(cells, colMap, colName, sharedStrings, ns);
+        return double.TryParse(val, out double d) && d > 0 ? Math.Round(d, 1) : null;
     }
 
     private static List<string> ReadSharedStrings(ZipArchive archive)

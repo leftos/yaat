@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Tests;
@@ -120,12 +121,34 @@ internal static class TestVnasData
         }
 
         var json = File.ReadAllText(path);
-        var lookup = JsonSerializer.Deserialize<Dictionary<string, int>>(json);
-        if (lookup is null)
+
+        // New format: full records keyed by ICAO code
+        var records = JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+        );
+        if (records is { Count: > 0 })
         {
+            FaaAircraftDatabase.Initialize(records);
+
+            var approachSpeeds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (icao, record) in records)
+            {
+                if (record.ApproachSpeedKnot is { } speed)
+                {
+                    approachSpeeds[icao] = speed;
+                }
+            }
+
+            AircraftApproachSpeed.Initialize(approachSpeeds);
             return;
         }
 
-        AircraftApproachSpeed.Initialize(lookup);
+        // Legacy format: flat approach speed lookup
+        var legacy = JsonSerializer.Deserialize<Dictionary<string, int>>(json);
+        if (legacy is not null)
+        {
+            AircraftApproachSpeed.Initialize(legacy);
+        }
     }
 }

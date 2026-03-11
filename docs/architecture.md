@@ -228,6 +228,11 @@ CoordinateIndex.cs             # Spatial index for coordinate-based lookups
 RunwayCrossingDetector.cs      # Detect taxiway/runway intersections
 HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes
 
+# Data/Faa/
+FaaAircraftRecord.cs           # Full FAA ACD row: wingspan, length, tail height, gear geometry, MTOW, speeds, classifications
+FaaAircraftDatabase.cs         # Static lookup: Get(aircraftType) → FaaAircraftRecord?; strips type prefixes
+FaaAircraftDataService.cs      # Downloads FAA ACD xlsx, parses all columns, caches per AIRAC cycle
+
 # Data/Vnas/
 VnasDataService.cs             # Downloads NavData protobuf + specs; serial-based cache
 AiracCycle.cs                  # AIRAC cycle calculator (epoch Jan 23 2025, 28-day)
