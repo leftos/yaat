@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private RadarViewWindow? _radarViewWindow;
     private WeatherEditorWindow? _weatherEditorWindow;
     private bool _restoringGrid;
+    private bool _isConfirmedClose;
     private string? _sortColumnKey;
     private ListSortDirection? _sortDirection;
 
@@ -1263,7 +1264,7 @@ public partial class MainWindow : Window
 
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
-        if (DataContext is MainViewModel vm && vm.IsConnected && vm.IsInRoom && vm.HasScenario)
+        if (!_isConfirmedClose && DataContext is MainViewModel vm && vm.IsConnected && vm.IsInRoom && vm.HasScenario)
         {
             e.Cancel = true;
 
@@ -1323,6 +1324,7 @@ public partial class MainWindow : Window
 
             if (confirmed)
             {
+                _isConfirmedClose = true;
                 Close();
             }
         }
