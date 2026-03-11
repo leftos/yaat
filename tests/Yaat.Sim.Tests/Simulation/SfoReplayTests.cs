@@ -2,6 +2,7 @@ using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -331,57 +332,72 @@ public class SfoReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Tick-by-tick trace of DAL819 approaching and stopping at the runway 1L hold-short.
-    /// Used to diagnose issue #54: aircraft ends up on the runway instead of at hold-short node.
+    /// Speed trace for DAL819 and UAL859 approaching their respective hold-shorts.
+    /// Confirms braking behavior: each aircraft accelerates to taxi speed then decelerates
+    /// before stopping at its own hold-short node. One second resolution.
     /// </summary>
     [Fact]
-    public void Diag_Sfo_DAL819_HoldShortApproach_TickByTick()
+    public void Diag_Sfo_HoldShortApproach_BrakingTrace()
     {
         var recording = LoadRecording();
-        var engine = BuildEngine();
-        if (recording is null || engine is null)
+        if (recording is null)
         {
             return;
         }
 
-        var layout = engine.World.GroundLayout ?? new TestAirportGroundData().GetLayout("SFO");
-
-        // Node 882 is the 1L hold-short on M1 at (37.608220, -122.383308)
-        const double HsLat = 37.608220;
-        const double HsLon = -122.383308;
-        const int HsNodeId = 882;
-
-        var lines = new List<string>();
-        lines.Add($"=== DAL819 tick-by-tick trace toward hold-short node {HsNodeId} ({HsLat:F6},{HsLon:F6}) ===");
-
-        for (double t = 0.0; t <= 90.0; t += 1.0)
+        foreach (string callsign in new[] { "DAL819", "UAL859" })
         {
-            engine.Replay(recording, t);
-            var ac = engine.FindAircraft("DAL819");
-            if (ac is null)
+            var engine = BuildEngine();
+            if (engine is null)
             {
+                return;
+            }
+
+            // First pass: find when the aircraft first enters HoldingShortPhase
+            // and record which HS node it stopped at.
+            double stopTime = 0;
+            double hsLat = 0,
+                hsLon = 0;
+            string hsName = "?";
+            for (double t = 1.0; t <= 90.0; t += 1.0)
+            {
+                engine.Replay(recording, t);
+                var ac = engine.FindAircraft(callsign);
+                if (ac?.Phases?.CurrentPhase is HoldingShortPhase hs)
+                {
+                    stopTime = t;
+                    hsLat = ac.Latitude;
+                    hsLon = ac.Longitude;
+                    hsName = hs.Name;
+                    break;
+                }
+            }
+
+            if (stopTime == 0)
+            {
+                _output.WriteLine($"{callsign}: never reached HoldingShortPhase within 90s");
                 continue;
             }
 
-            double distToHs = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, HsLat, HsLon) * GeoMath.FeetPerNm;
+            _output.WriteLine($"=== {callsign}: approached {hsName} at ({hsLat:F6},{hsLon:F6}), stopped at t={stopTime:F0}s ===");
+            _output.WriteLine($"{"t(s)", 5}  {"gs(kts)", 8}  {"dist(ft)", 9}  {"phase", -24}");
 
-            // Find which node the aircraft is closest to overall
-            GroundNode? nearestNode = layout
-                ?.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(ac.Latitude, ac.Longitude, n.Latitude, n.Longitude))
-                .FirstOrDefault();
-            string nodeInfo = nearestNode is null
-                ? ""
-                : $" nearestNode={nearestNode.Id}({nearestNode.Type},{nearestNode.RunwayId}) dist={GeoMath.DistanceNm(ac.Latitude, ac.Longitude, nearestNode.Latitude, nearestNode.Longitude) * GeoMath.FeetPerNm:F0}ft";
+            double traceStart = Math.Max(0.0, stopTime - 10.0);
+            for (double t = traceStart; t <= stopTime + 2.0; t += 1.0)
+            {
+                engine.Replay(recording, t);
+                var ac = engine.FindAircraft(callsign);
+                if (ac is null || !ac.IsOnGround)
+                {
+                    continue;
+                }
 
-            string phase = ac.Phases?.CurrentPhase?.Name ?? "?";
-            lines.Add(
-                $"t={t:F0}s pos=({ac.Latitude:F6},{ac.Longitude:F6}) gs={ac.GroundSpeed:F1}kts hdg={ac.Heading:F0} distToHs={distToHs:F0}ft phase={phase}{nodeInfo}"
-            );
-        }
+                double distFt = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, hsLat, hsLon) * GeoMath.FeetPerNm;
+                string phase = ac.Phases?.CurrentPhase?.Name ?? "?";
+                _output.WriteLine($"{t, 5:F0}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {phase, -24}");
+            }
 
-        foreach (var line in lines)
-        {
-            _output.WriteLine(line);
+            _output.WriteLine("");
         }
     }
 
