@@ -89,6 +89,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         defaultValue: true
     );
 
+    public static readonly StyledProperty<bool> ShowSpotLabelsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
+        nameof(ShowSpotLabels),
+        defaultValue: true
+    );
+
     public static readonly StyledProperty<bool> IsPanZoomLockedProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(IsPanZoomLocked));
 
     public static readonly StyledProperty<double> ViewCenterLatProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewCenterLat));
@@ -195,6 +200,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(ShowParkingLabelsProperty);
         set => SetValue(ShowParkingLabelsProperty, value);
+    }
+
+    public bool ShowSpotLabels
+    {
+        get => GetValue(ShowSpotLabelsProperty);
+        set => SetValue(ShowSpotLabelsProperty, value);
     }
 
     public bool IsPanZoomLocked
@@ -315,6 +326,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == ShowTaxiwayLabelsProperty
             || change.Property == ShowHoldShortLabelsProperty
             || change.Property == ShowParkingLabelsProperty
+            || change.Property == ShowSpotLabelsProperty
         )
         {
             MarkDirty();
@@ -363,6 +375,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         bool ShowTaxiwayLabels,
         bool ShowHoldShortLabels,
         bool ShowParkingLabels,
+        bool ShowSpotLabels,
         IReadOnlyList<ShownTaxiRouteEntry>? ShownTaxiRoutes
     );
 
@@ -389,6 +402,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ShowTaxiwayLabels,
             ShowHoldShortLabels,
             ShowParkingLabels,
+            ShowSpotLabels,
             ShownTaxiRoutes
         );
     }
@@ -422,6 +436,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.ShowTaxiwayLabels,
             s.ShowHoldShortLabels,
             s.ShowParkingLabels,
+            s.ShowSpotLabels,
             s.ShownTaxiRoutes
         );
     }

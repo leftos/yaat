@@ -142,6 +142,15 @@ public partial class GroundView : UserControl
         }
     }
 
+    private void OnToggleSpotLabels(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.ShowSpotLabels = !vm.ShowSpotLabels;
+            vm.SaveLabelAndLockSettings();
+        }
+    }
+
     private void OnToggleLock(object? sender, RoutedEventArgs e)
     {
         if (DataContext is GroundViewModel vm)

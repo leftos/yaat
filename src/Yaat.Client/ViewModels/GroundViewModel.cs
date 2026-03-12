@@ -70,6 +70,9 @@ public partial class GroundViewModel : ObservableObject
     private bool _showParkingLabels = true;
 
     [ObservableProperty]
+    private bool _showSpotLabels = true;
+
+    [ObservableProperty]
     private bool _isPanZoomLocked;
 
     [ObservableProperty]
@@ -132,6 +135,7 @@ public partial class GroundViewModel : ObservableObject
             ShowTaxiwayLabels = preferences.GroundShowTaxiwayLabels;
             ShowHoldShortLabels = preferences.GroundShowHoldShortLabels;
             ShowParkingLabels = preferences.GroundShowParkingLabels;
+            ShowSpotLabels = preferences.GroundShowSpotLabels;
             IsPanZoomLocked = preferences.GroundPanZoomLocked;
         }
     }
@@ -162,7 +166,7 @@ public partial class GroundViewModel : ObservableObject
     public void SaveLabelAndLockSettings()
     {
         SaveSettings();
-        Preferences?.SetGroundLabelFilters(ShowRunwayLabels, ShowTaxiwayLabels, ShowHoldShortLabels, ShowParkingLabels);
+        Preferences?.SetGroundLabelFilters(ShowRunwayLabels, ShowTaxiwayLabels, ShowHoldShortLabels, ShowParkingLabels, ShowSpotLabels);
         Preferences?.SetGroundPanZoomLocked(IsPanZoomLocked);
     }
 
@@ -260,6 +264,7 @@ public partial class GroundViewModel : ObservableObject
         ShowTaxiwayLabels = saved.ShowTaxiwayLabels;
         ShowHoldShortLabels = saved.ShowHoldShortLabels;
         ShowParkingLabels = saved.ShowParkingLabels;
+        ShowSpotLabels = saved.ShowSpotLabels;
 
         _isRestoring = false;
     }
@@ -287,6 +292,7 @@ public partial class GroundViewModel : ObservableObject
             ShowTaxiwayLabels = ShowTaxiwayLabels,
             ShowHoldShortLabels = ShowHoldShortLabels,
             ShowParkingLabels = ShowParkingLabels,
+            ShowSpotLabels = ShowSpotLabels,
         };
 
         Preferences.SetGroundSettings(_activeScenarioId, settings);

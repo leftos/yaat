@@ -60,6 +60,7 @@
                              ShowTaxiwayLabels="{Binding ShowTaxiwayLabels}"
                              ShowHoldShortLabels="{Binding ShowHoldShortLabels}"
                              ShowParkingLabels="{Binding ShowParkingLabels}"
+                             ShowSpotLabels="{Binding ShowSpotLabels}"
                              ShownTaxiRoutes="{Binding ShownTaxiRoutes}"
                              IsPanZoomLocked="{Binding IsPanZoomLocked}"
                              ViewCenterLat="{Binding ViewCenterLat, Mode=TwoWay}"
@@ -78,6 +79,7 @@
             <Button Classes="gnd-filter" Classes.active="{Binding ShowTaxiwayLabels}" Content="TWY" Click="OnToggleTaxiwayLabels" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowHoldShortLabels}" Content="HS" Click="OnToggleHoldShortLabels" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowParkingLabels}" Content="PARK" Click="OnToggleParkingLabels" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowSpotLabels}" Content="SPOT" Click="OnToggleSpotLabels" />
             <Border Width="1" Background="#555" Margin="4,2" />
             <Button Classes="gnd-filter" Classes.active="{Binding IsPanZoomLocked}" Content="{Binding IsPanZoomLocked, Converter={x:Static ground:GroundView.BoolToLockLabel}}" Click="OnToggleLock" />
         </StackPanel>

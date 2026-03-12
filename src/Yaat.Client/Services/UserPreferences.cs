@@ -127,6 +127,7 @@ public sealed class UserPreferences
     public bool GroundShowTaxiwayLabels => _data.GroundShowTaxiwayLabels;
     public bool GroundShowHoldShortLabels => _data.GroundShowHoldShortLabels;
     public bool GroundShowParkingLabels => _data.GroundShowParkingLabels;
+    public bool GroundShowSpotLabels => _data.GroundShowSpotLabels;
     public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
     public bool AssignmentTintEnabled => _data.AssignmentTintEnabled;
     public string AssignmentTintColor => _data.AssignmentTintColor;
@@ -314,12 +315,13 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetGroundLabelFilters(bool runways, bool taxiways, bool holdShorts, bool parking)
+    public void SetGroundLabelFilters(bool runways, bool taxiways, bool holdShorts, bool parking, bool spots)
     {
         _data.GroundShowRunwayLabels = runways;
         _data.GroundShowTaxiwayLabels = taxiways;
         _data.GroundShowHoldShortLabels = holdShorts;
         _data.GroundShowParkingLabels = parking;
+        _data.GroundShowSpotLabels = spots;
         Save();
     }
 
@@ -554,6 +556,7 @@ public sealed class UserPreferences
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
             GroundShowHoldShortLabels = GetFieldOr(obj, "groundShowHoldShortLabels", true),
             GroundShowParkingLabels = GetFieldOr(obj, "groundShowParkingLabels", true),
+            GroundShowSpotLabels = GetFieldOr(obj, "groundShowSpotLabels", true),
             GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
             AssignmentTintEnabled = GetFieldOr(obj, "assignmentTintEnabled", false),
             AssignmentTintColor = GetFieldOr(obj, "assignmentTintColor", "#00FF00"),
@@ -715,6 +718,7 @@ public sealed class UserPreferences
         public bool GroundShowTaxiwayLabels { get; set; } = true;
         public bool GroundShowHoldShortLabels { get; set; } = true;
         public bool GroundShowParkingLabels { get; set; } = true;
+        public bool GroundShowSpotLabels { get; set; } = true;
         public bool GroundPanZoomLocked { get; set; }
         public bool AssignmentTintEnabled { get; set; }
         public string AssignmentTintColor { get; set; } = "#00FF00";
@@ -816,4 +820,5 @@ public sealed class SavedGroundSettings
     public bool ShowTaxiwayLabels { get; set; } = true;
     public bool ShowHoldShortLabels { get; set; } = true;
     public bool ShowParkingLabels { get; set; } = true;
+    public bool ShowSpotLabels { get; set; } = true;
 }

@@ -324,6 +324,7 @@ public sealed class GroundRenderer : IDisposable
         bool showTaxiwayLabels = true,
         bool showHoldShortLabels = true,
         bool showParkingLabels = true,
+        bool showSpotLabels = true,
         IReadOnlyList<ShownTaxiRouteEntry>? shownTaxiRoutes = null
     )
     {
@@ -343,7 +344,7 @@ public sealed class GroundRenderer : IDisposable
         DrawShownTaxiRoutes(canvas, vp, layout, shownTaxiRoutes);
         DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
         DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
-        DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShortLabels, showParkingLabels);
+        DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShortLabels, showParkingLabels, showSpotLabels);
         DrawLabels(canvas, hoveredOnly: false);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
         DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
@@ -669,7 +670,8 @@ public sealed class GroundRenderer : IDisposable
         int? hoveredNodeId,
         bool showDebugInfo,
         bool showHoldShortLabels,
-        bool showParkingLabels
+        bool showParkingLabels,
+        bool showSpotLabels
     )
     {
         foreach (var node in layout.Nodes)
@@ -705,7 +707,8 @@ public sealed class GroundRenderer : IDisposable
             if (!showDebugInfo && node.Name is not null && node.Type is "Parking" or "Helipad" or "Spot")
             {
                 bool isHovered = hoveredNodeId == node.Id;
-                if (showParkingLabels || isHovered)
+                bool showLabel = node.Type == "Spot" ? showSpotLabels : showParkingLabels;
+                if (showLabel || isHovered)
                 {
                     var priority = isHovered ? LabelPriority.Hovered : LabelPriority.ParkingSpot;
                     SKColor? color = isHovered ? new SKColor(255, 255, 255) : null;
