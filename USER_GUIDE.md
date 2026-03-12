@@ -881,12 +881,14 @@ CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for
 | `SPD 210; ATFN 10 SPD 180` | Maintain 210, then at 10nm final slow to 180 |
 | `SPD 210 UNTIL 10` | Shorthand: maintain 210 until 10nm final, then cancel |
 | `SPD 210 UNTIL 10; SPD 180 UNTIL 5` | Chained: maintain 210, at 10nm final slow to 180, at 5nm final cancel |
+| `SPD 180 UNTIL AXMUL` | Fix-based: maintain 180 until reaching AXMUL, then resume normal speed |
+| `SPD 180 AXMUL` | ATCTrainer alias for `SPD 180 UNTIL AXMUL` |
 
 **Floor and ceiling** — `SPD 210+` sets a minimum speed; the aircraft accelerates only if below 210 but maintains its current speed if already faster. `SPD 210-` sets a maximum; the aircraft decelerates only if above 210. Both are enforced continuously and respect the 250-knot limit below 10,000 ft. An exact speed command (`SPD 210`) clears any active floor or ceiling.
 
 **ATFN (at final)** — `ATFN {distance}` is a compound-block condition that fires when the aircraft is within the specified distance (in NM) of the assigned runway threshold. Use it to set up staged speed reductions on approach: `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.
 
-**SPD UNTIL shorthand** — `SPD 210 UNTIL 10` expands to `SPD 210; ATFN 10 RNS`. When chained, intermediate blocks are generated automatically: `SPD 210 UNTIL 10; SPD 180 UNTIL 5` becomes `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`.
+**SPD UNTIL shorthand** — `SPD 210 UNTIL 10` expands to `SPD 210; ATFN 10 RNS`. When chained, intermediate blocks are generated automatically: `SPD 210 UNTIL 10; SPD 180 UNTIL 5` becomes `SPD 210; ATFN 10 SPD 180; ATFN 5 RNS`. Fix-based UNTIL is also supported: `SPD 180 UNTIL AXMUL` expands to `SPD 180; AT AXMUL RNS`, cancelling the speed restriction when the aircraft reaches the named fix. The ATCTrainer shorthand `SPD 180 AXMUL` (without UNTIL) is equivalent.
 
 **Auto-cancel at 5nm final** — Per 7110.65 §5-7-1, ATC speed assignments (target, floor, ceiling) are automatically cancelled when the aircraft is within 5nm of the runway threshold. New speed commands are rejected inside this boundary.
 

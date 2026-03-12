@@ -1,6 +1,4 @@
-using Yaat.Sim.Commands;
-
-namespace Yaat.Client.Services;
+namespace Yaat.Sim.Commands;
 
 public class CommandPattern
 {

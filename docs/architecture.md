@@ -20,11 +20,8 @@ Models/
 
 Services/
   ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs
-  CommandScheme.cs              # CanonicalCommandType → CommandPattern (aliases only); Default() from registry
-  CommandSchemeParser.cs        # Parse/ParseCompound (;/, syntax); concatenation fallback; ToCanonical()
-  CommandRegistry.cs            # Single source of truth: CommandDefinition per type (label, category, aliases, overloads, modifiers)
   CommandInputController.cs     # Autocomplete (callsign/command/fix/macro), history nav, signature help, FixDb binary search
-  CommandSignature.cs           # Records: CommandParameter, CommandSignature, CommandSignatureSet, SignaturePart; FromDefinition factory
+  CommandSignature.cs           # SignaturePart record (AXAML DataType dependency)
   SignatureHelpState.cs         # Observable state for signature help tooltip (overload nav, active param, dedup)
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional $1 or named $hdg)
   MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
@@ -146,6 +143,11 @@ StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→
 # Commands/
 Commands/CanonicalCommandType.cs    # Enum of every command type
 Commands/ParsedCommand.cs           # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition
+Commands/CommandDefinition.cs       # ArgMode enum, CommandDefinition/CommandOverload/CompoundModifier records
+Commands/CommandRegistry.cs         # Single source of truth: CommandDefinition per type (label, category, aliases, overloads, modifiers)
+Commands/CommandScheme.cs           # CanonicalCommandType → CommandPattern (aliases only); Default() from registry
+Commands/CommandSchemeParser.cs     # Parse/ParseCompound (;/, syntax); ExpandSpeedUntil; concatenation fallback; ToCanonical()
+Commands/CommandSignature.cs        # Records: CommandParameter, CommandSignature, CommandSignatureSet; FromDefinition factory
 Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interaction), ApplyCommand (thin routing switch),
                                     # TryApplyTowerCommand, queue infrastructure, condition conversion, shared utilities
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands

@@ -344,22 +344,30 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            var parsed = CommandParser.Parse(preset.Command);
-            if (parsed is null or SayCommand)
+            var compound = CommandParser.ParseCompound(preset.Command, _fixes, aircraft.Route);
+            if (compound is null)
+            {
+                continue;
+            }
+
+            // Skip SAY-only compounds
+            if (compound.Blocks.Count == 1 && compound.Blocks[0].Commands.Count == 1 && compound.Blocks[0].Commands[0] is SayCommand)
             {
                 continue;
             }
 
             var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-            CommandDispatcher.Dispatch(
-                parsed,
+            CommandDispatcher.DispatchCompound(
+                compound,
                 aircraft,
                 _runways,
                 groundLayout,
                 _fixes,
                 World.Rng,
                 _approachLookup,
-                autoCrossRunway: scenario.AutoCrossRunway
+                _procedureLookup,
+                scenario.ValidateDctFixes,
+                scenario.AutoCrossRunway
             );
         }
     }
@@ -414,6 +422,13 @@ public sealed class SimulationEngine
     private void DispatchPresetCommands(LoadedAircraft loaded)
     {
         var scenario = Scenario!;
+
+        // Ensure destination is set from scenario primary airport for arrivals
+        if (string.IsNullOrWhiteSpace(loaded.State.Destination) && !string.IsNullOrWhiteSpace(scenario.PrimaryAirportId))
+        {
+            loaded.State.Destination = scenario.PrimaryAirportId;
+        }
+
         foreach (var preset in loaded.PresetCommands)
         {
             if (preset.TimeOffset > 0)
@@ -429,22 +444,30 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            var parsed = CommandParser.Parse(preset.Command);
-            if (parsed is null or SayCommand)
+            var compound = CommandParser.ParseCompound(preset.Command, _fixes, loaded.State.Route);
+            if (compound is null)
+            {
+                continue;
+            }
+
+            // Skip SAY-only compounds
+            if (compound.Blocks.Count == 1 && compound.Blocks[0].Commands.Count == 1 && compound.Blocks[0].Commands[0] is SayCommand)
             {
                 continue;
             }
 
             var groundLayout = loaded.State.GroundLayout ?? ResolveGroundLayout(loaded.State);
-            CommandDispatcher.Dispatch(
-                parsed,
+            CommandDispatcher.DispatchCompound(
+                compound,
                 loaded.State,
                 _runways,
                 groundLayout,
                 _fixes,
                 World.Rng,
                 _approachLookup,
-                autoCrossRunway: scenario.AutoCrossRunway
+                _procedureLookup,
+                scenario.ValidateDctFixes,
+                scenario.AutoCrossRunway
             );
         }
     }

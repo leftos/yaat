@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;
 

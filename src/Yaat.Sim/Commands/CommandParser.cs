@@ -14,7 +14,7 @@ public static class CommandParser
     /// </summary>
     public static CompoundCommand? ParseCompound(string input, IFixLookup fixes, string? aircraftRoute = null)
     {
-        var trimmed = input.Trim();
+        var trimmed = CommandSchemeParser.ExpandSpeedUntil(input.Trim());
         if (string.IsNullOrEmpty(trimmed))
         {
             return null;
@@ -54,13 +54,13 @@ public static class CommandParser
 
         foreach (var blockStr in blockStrings)
         {
-            var block = ParseBlock(blockStr.Trim(), fixes, aircraftRoute);
-            if (block is null)
+            var parsed = ParseBlock(blockStr.Trim(), fixes, aircraftRoute);
+            if (parsed is null)
             {
                 return null;
             }
 
-            blocks.Add(block);
+            blocks.AddRange(parsed);
         }
 
         if (blocks.Count == 0)
@@ -71,7 +71,7 @@ public static class CommandParser
         return new CompoundCommand(blocks);
     }
 
-    private static ParsedBlock? ParseBlock(string blockStr, IFixLookup fixes, string? aircraftRoute)
+    private static List<ParsedBlock>? ParseBlock(string blockStr, IFixLookup fixes, string? aircraftRoute)
     {
         if (string.IsNullOrWhiteSpace(blockStr))
         {
@@ -133,8 +133,64 @@ public static class CommandParser
             return null;
         }
 
+        // After condition extraction, apply ExpandSpeedUntil to the remainder
+        var expanded = CommandSchemeParser.ExpandSpeedUntil(remaining);
+        if (expanded.Contains(';'))
+        {
+            // Expansion produced additional blocks — first gets this block's condition,
+            // subsequent become standalone blocks
+            var subBlocks = expanded.Split(';');
+            var results = new List<ParsedBlock>();
+
+            for (int i = 0; i < subBlocks.Length; i++)
+            {
+                var sub = subBlocks[i].Trim();
+                if (string.IsNullOrEmpty(sub))
+                {
+                    continue;
+                }
+
+                if (i == 0)
+                {
+                    var cmds = ParseCommandList(sub, fixes, aircraftRoute);
+                    if (cmds is null)
+                    {
+                        return null;
+                    }
+
+                    results.Add(new ParsedBlock(condition, cmds));
+                }
+                else
+                {
+                    // Recursive call for subsequent blocks (they may have their own conditions)
+                    var subParsed = ParseBlock(sub, fixes, aircraftRoute);
+                    if (subParsed is null)
+                    {
+                        return null;
+                    }
+
+                    results.AddRange(subParsed);
+                }
+            }
+
+            return results.Count > 0 ? results : null;
+        }
+
+        remaining = expanded;
+
         // Split remaining by ',' for parallel commands
-        var commandStrings = remaining.Split(',');
+        var commands = ParseCommandList(remaining, fixes, aircraftRoute);
+        if (commands is null)
+        {
+            return null;
+        }
+
+        return [new ParsedBlock(condition, commands)];
+    }
+
+    private static List<ParsedCommand>? ParseCommandList(string input, IFixLookup fixes, string? aircraftRoute)
+    {
+        var commandStrings = input.Split(',');
         var commands = new List<ParsedCommand>();
 
         foreach (var cmdStr in commandStrings)
@@ -148,12 +204,7 @@ public static class CommandParser
             commands.Add(cmd);
         }
 
-        if (commands.Count == 0)
-        {
-            return null;
-        }
-
-        return new ParsedBlock(condition, commands);
+        return commands.Count > 0 ? commands : null;
     }
 
     private static (BlockCondition Condition, string Remainder)? ParseLvCondition(string input, IFixLookup fixes)

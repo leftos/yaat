@@ -950,4 +950,65 @@ public class SfoReplayTests(ITestOutputHelper output)
             $"AMX669 route should end at 1L hold-short but ends at node {endNode.Id} type={endNode.Type} runwayId={endNode.RunwayId}."
         );
     }
+
+    // --- Issue #57: S1-SFO-2 arrivals turn north instead of landing ---
+
+    private const string Issue57RecordingPath = "TestData/sfo-issue57-recording.json";
+
+    private static SessionRecording? LoadIssue57Recording()
+    {
+        if (!File.Exists(Issue57RecordingPath))
+        {
+            return null;
+        }
+
+        var json = File.ReadAllText(Issue57RecordingPath);
+        return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+
+    /// <summary>
+    /// In S1-SFO-2, arrival aircraft have preset compound commands (e.g. "DM 70; AT CEPIN SPD 180 AXMUL")
+    /// that were being dispatched via single Parse() instead of ParseCompound(), causing the conditional
+    /// blocks to be lost. After the fix, arrivals should have approach phases and be descending toward SFO.
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_Issue57_ArrivalsGetApproachPhases()
+    {
+        var recording = LoadIssue57Recording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // Replay 120 seconds — enough for preset commands to fire and aircraft to begin approach
+        engine.Replay(recording, 120.0);
+
+        var snapshot = engine.World.GetSnapshot();
+
+        // Find airborne arrivals (aircraft with destination SFO that are not on ground)
+        var arrivals = snapshot.Where(a => !a.IsOnGround && string.Equals(a.Destination, "SFO", StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (arrivals.Count == 0)
+        {
+            return; // Recording may not have the expected scenario
+        }
+
+        // At least one arrival should be descending (altitude decreasing means approach is working)
+        bool anyDescending = arrivals.Any(a => a.VerticalSpeed < -100);
+
+        _output.WriteLine($"Found {arrivals.Count} SFO arrivals at t=120s:");
+        foreach (var a in arrivals)
+        {
+            _output.WriteLine(
+                $"  {a.Callsign}: alt={a.Altitude:F0} vs={a.VerticalSpeed:F0} hdg={a.Heading:F0} phase={a.Phases?.CurrentPhase?.Name ?? "(null)"} queue={a.Queue.Blocks.Count} dest={a.Destination}"
+            );
+        }
+
+        Assert.True(
+            anyDescending,
+            $"No SFO arrivals are descending at t=120s. Issue #57: preset commands not dispatched as compound, "
+                + $"so conditional blocks (AT/ATFN) are lost and aircraft fly straight through."
+        );
+    }
 }

@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Client.Services;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Tests;
@@ -110,6 +109,67 @@ public class SpeedParserTests
 
         Assert.NotNull(result);
         Assert.Equal("SPD 210+; ATFN 10 RNS", result.CanonicalString);
+    }
+
+    // --- SPD X UNTIL <fix> ---
+
+    [Fact]
+    public void SpeedUntilFix_ExpandedToAtBlock()
+    {
+        var result = CommandSchemeParser.ParseCompound("SPD 180 UNTIL AXMUL", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("SPD 180; AT AXMUL RNS", result.CanonicalString);
+    }
+
+    [Fact]
+    public void SpeedFixAlias_ExpandedToAtBlock()
+    {
+        var result = CommandSchemeParser.ParseCompound("SPD 180 AXMUL", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("SPD 180; AT AXMUL RNS", result.CanonicalString);
+    }
+
+    [Fact]
+    public void SpeedUntilDistance_StillUsesAtfn()
+    {
+        var result = CommandSchemeParser.ParseCompound("SPD 210 UNTIL 10", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("SPD 210; ATFN 10 RNS", result.CanonicalString);
+    }
+
+    [Fact]
+    public void ExpandSpeedUntil_FixBased()
+    {
+        var expanded = CommandSchemeParser.ExpandSpeedUntil("SPD 180 UNTIL AXMUL");
+        Assert.Equal("SPD 180; AT AXMUL RNS", expanded);
+    }
+
+    [Fact]
+    public void ExpandSpeedUntil_FixAlias()
+    {
+        var expanded = CommandSchemeParser.ExpandSpeedUntil("SPD 180 AXMUL");
+        Assert.Equal("SPD 180; AT AXMUL RNS", expanded);
+    }
+
+    [Fact]
+    public void ExpandSpeedUntil_DistanceBased_Preserved()
+    {
+        var expanded = CommandSchemeParser.ExpandSpeedUntil("SPD 210 UNTIL 10");
+        Assert.Equal("SPD 210; ATFN 10 RNS", expanded);
+    }
+
+    // --- AT block with SPD UNTIL fix remainder ---
+
+    [Fact]
+    public void AtCondition_SpeedFixAlias_ParsesAsCompound()
+    {
+        var result = CommandSchemeParser.ParseCompound("AT CEPIN SPD 180 AXMUL", Scheme);
+
+        Assert.NotNull(result);
+        Assert.Equal("AT CEPIN SPD 180; AT AXMUL RNS", result.CanonicalString);
     }
 
     // --- Canonical output ---

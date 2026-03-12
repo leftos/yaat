@@ -121,7 +121,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Speed | `SPD {kts}` (aliases: DS, IS, SLOW, SL, SPEED) | `SPD {kts}`, `S`, `SLOW`, `SL`, `SPEED`, `S250` | YAAT drops DS/IS aliases (directional implication); adds `S` + concatenation |
 | Speed floor/ceiling | — | `SPD 210+` / `SPD 210-` | YAAT-only |
 | Delete speed restrictions | — | `DSR` | YAAT-only — suppresses SID/STAR via-mode speed |
-| SPD UNTIL shorthand | `SPD 250 FIX` (requires waypoint) | `SPD 210 UNTIL 10` → staged reductions | YAAT-only |
+| SPD UNTIL shorthand | `SPD 250 FIX` (requires waypoint) | `SPD 210 UNTIL 10`, `SPD 180 UNTIL AXMUL`, `SPD 180 AXMUL` | YAAT supports both distance-based and fix-based UNTIL; ATCTrainer alias `SPD X FIX` also supported |
 | Say speed | — | `SSPD` | YAAT-only |
 
 ### Navigation

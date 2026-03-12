@@ -1,28 +1,17 @@
-using Yaat.Sim.Commands;
+using System.Text.RegularExpressions;
 
-namespace Yaat.Client.Services;
+namespace Yaat.Sim.Commands;
 
 public record ParsedInput(CanonicalCommandType Type, string? Argument);
 
-/// <summary>
-/// Result of parsing a compound input string with ';' and ',' separators.
-/// Contains the full canonical string to send to the server.
-/// </summary>
 public record CompoundParseResult(string CanonicalString);
 
-/// <summary>
-/// Describes why a parse attempt failed. Null means no matching verb was found at all.
-/// </summary>
 public record ParseFailure(string Verb, string Reason);
 
 public static class CommandSchemeParser
 {
     private static readonly HashSet<string> PassthroughVerbs = new(StringComparer.OrdinalIgnoreCase) { "LV", "AT", "ATFN" };
 
-    /// <summary>
-    /// Returns true if the argument is a valid altitude: numeric (e.g., "050", "5000")
-    /// or AGL format with '+' separator (e.g., "KOAK+010").
-    /// </summary>
     private static bool IsAltitudeArg(string arg)
     {
         if (int.TryParse(arg, out _))
@@ -40,10 +29,6 @@ public static class CommandSchemeParser
         return int.TryParse(arg[(plusIndex + 1)..], out _);
     }
 
-    /// <summary>
-    /// Parses a compound input string (may contain ';' and ',' separators).
-    /// Returns the canonical string to send to the server, or null if any part fails.
-    /// </summary>
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme)
     {
         return ParseCompound(input, scheme, out _);
@@ -175,6 +160,74 @@ public static class CommandSchemeParser
             remaining = tokens[2];
         }
 
+        // Apply ExpandSpeedUntil to the remainder after condition extraction
+        var expandedRemainder = ExpandSpeedUntil(remaining);
+        if (expandedRemainder.Contains(';'))
+        {
+            // Expansion produced additional blocks — split and handle each
+            var subBlocks = expandedRemainder.Split(';');
+            var allCanonicalCommands = new List<string>();
+
+            for (int i = 0; i < subBlocks.Length; i++)
+            {
+                var subBlock = subBlocks[i].Trim();
+                if (string.IsNullOrEmpty(subBlock))
+                {
+                    continue;
+                }
+
+                if (i == 0)
+                {
+                    // First sub-block gets the condition prefix
+                    var cmds = ParseCommandList(subBlock, scheme);
+                    if (cmds is null)
+                    {
+                        return null;
+                    }
+
+                    if (parts.Count > 0)
+                    {
+                        allCanonicalCommands.Add($"{string.Join(" ", parts)} {cmds}");
+                    }
+                    else
+                    {
+                        allCanonicalCommands.Add(cmds);
+                    }
+                }
+                else
+                {
+                    // Subsequent sub-blocks from expansion are standalone
+                    var canonicalBlock = ParseBlockToCanonical(subBlock, scheme);
+                    if (canonicalBlock is null)
+                    {
+                        return null;
+                    }
+
+                    allCanonicalCommands.Add(canonicalBlock);
+                }
+            }
+
+            return string.Join("; ", allCanonicalCommands);
+        }
+
+        remaining = expandedRemainder;
+
+        var commandResult = ParseCommandList(remaining, scheme);
+        if (commandResult is null)
+        {
+            return null;
+        }
+
+        if (parts.Count > 0)
+        {
+            return $"{string.Join(" ", parts)} {commandResult}";
+        }
+
+        return commandResult;
+    }
+
+    private static string? ParseCommandList(string remaining, CommandScheme scheme)
+    {
         // Split remaining by ',' for parallel commands
         var commandStrings = remaining.Split(',');
         var canonicalCommands = new List<string>();
@@ -199,11 +252,6 @@ public static class CommandSchemeParser
         if (canonicalCommands.Count == 0)
         {
             return null;
-        }
-
-        if (parts.Count > 0)
-        {
-            return $"{string.Join(" ", parts)} {string.Join(", ", canonicalCommands)}";
         }
 
         return string.Join(", ", canonicalCommands);
@@ -352,10 +400,6 @@ public static class CommandSchemeParser
         return false;
     }
 
-    /// <summary>
-    /// Commands that should NOT be matched by the concatenation fallback
-    /// because they are text-arg, always space-separated, or have special handling.
-    /// </summary>
     private static bool IsConcatenationExcluded(CanonicalCommandType type)
     {
         return type
@@ -496,11 +540,7 @@ public static class CommandSchemeParser
         return null;
     }
 
-    /// <summary>
-    /// Rewrites "30 [TAXI] T U W [HS ...]" → "T U W RWY 30 [HS ...]"
-    /// so the canonical form uses TAXI verb with RWY keyword.
-    /// </summary>
-    private static string? RewriteRwyToTaxiArg(string arg)
+    internal static string? RewriteRwyToTaxiArg(string arg)
     {
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length < 2)
@@ -529,10 +569,11 @@ public static class CommandSchemeParser
     }
 
     /// <summary>
-    /// Expands "SPD X UNTIL Y" shorthand to "SPD X; ATFN Y RNS" within each semicolon-separated block.
-    /// Handles chained UNTIL: "SPD 210 UNTIL 10; SPD 180 UNTIL 5" → "SPD 210; ATFN 10 SPD 180; ATFN 5 RNS".
+    /// Expands "SPD X UNTIL Y" shorthand within each semicolon-separated block.
+    /// Supports distance-based UNTIL (numeric Y → ATFN), fix-based UNTIL (alpha Y → AT),
+    /// and ATCTrainer alias (SPD X FIXNAME → AT).
     /// </summary>
-    internal static string ExpandSpeedUntil(string input)
+    public static string ExpandSpeedUntil(string input)
     {
         // Split by semicolons to process blocks independently
         var blocks = input.Split(';');
@@ -543,41 +584,59 @@ public static class CommandSchemeParser
             var block = blocks[i].Trim();
             var upper = block.ToUpperInvariant();
 
-            // Match "SPD X UNTIL Y" pattern (with optional +/- modifier on X)
-            var match = System.Text.RegularExpressions.Regex.Match(upper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+(\d+(?:\.\d+)?)$");
-            if (!match.Success)
+            // Match "SPD X UNTIL Y" where Y is numeric (distance)
+            var distMatch = Regex.Match(upper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+(\d+(?:\.\d+)?)$");
+            if (distMatch.Success)
             {
-                result.Add(block);
+                var spdPart = block[..distMatch.Groups[1].Length].Trim();
+                var distPart = distMatch.Groups[2].Value;
+
+                // Look at the next block for chaining
+                if (i + 1 < blocks.Length)
+                {
+                    var nextBlock = blocks[i + 1].Trim();
+                    var nextUpper = nextBlock.ToUpperInvariant();
+                    var nextMatch = Regex.Match(nextUpper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+(\d+(?:\.\d+)?)$");
+                    if (nextMatch.Success)
+                    {
+                        var nextSpdPart = blocks[i + 1].Trim()[..nextMatch.Groups[1].Length].Trim();
+                        var nextDistPart = nextMatch.Groups[2].Value;
+                        result.Add(spdPart);
+                        result.Add($"ATFN {distPart} {nextSpdPart}");
+                        result.Add($"ATFN {nextDistPart} RNS");
+                        i++;
+                        continue;
+                    }
+                }
+
+                result.Add(spdPart);
+                result.Add($"ATFN {distPart} RNS");
                 continue;
             }
 
-            var spdPart = block[..match.Groups[1].Length].Trim();
-            var distPart = match.Groups[2].Value;
-
-            // Look at the next block to determine what happens at the ATFN distance
-            string atfnCommand;
-            if (i + 1 < blocks.Length)
+            // Match "SPD X UNTIL FIXNAME" where FIXNAME is 2-5 alpha chars (fix-based)
+            var fixUntilMatch = Regex.Match(upper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+([A-Z]{2,5})$");
+            if (fixUntilMatch.Success)
             {
-                var nextBlock = blocks[i + 1].Trim();
-                var nextUpper = nextBlock.ToUpperInvariant();
-                var nextMatch = System.Text.RegularExpressions.Regex.Match(nextUpper, @"^(SPD\s+\d+[+\-]?)\s+UNTIL\s+(\d+(?:\.\d+)?)$");
-                if (nextMatch.Success)
-                {
-                    // Chain: "SPD 210 UNTIL 10; SPD 180 UNTIL 5" → "SPD 210; ATFN 10 SPD 180; ATFN 5 RNS"
-                    var nextSpdPart = blocks[i + 1].Trim()[..nextMatch.Groups[1].Length].Trim();
-                    var nextDistPart = nextMatch.Groups[2].Value;
-                    result.Add(spdPart);
-                    result.Add($"ATFN {distPart} {nextSpdPart}");
-                    result.Add($"ATFN {nextDistPart} RNS");
-                    i++; // skip the next block, we consumed it
-                    continue;
-                }
+                var spdPart = block[..fixUntilMatch.Groups[1].Length].Trim();
+                var fixName = fixUntilMatch.Groups[2].Value;
+                result.Add(spdPart);
+                result.Add($"AT {fixName} RNS");
+                continue;
             }
 
-            // Single UNTIL: "SPD 210 UNTIL 10" → "SPD 210; ATFN 10 RNS"
-            atfnCommand = "RNS";
-            result.Add(spdPart);
-            result.Add($"ATFN {distPart} {atfnCommand}");
+            // Match "SPD X FIXNAME" (ATCTrainer alias for SPD X UNTIL FIXNAME)
+            var fixAliasMatch = Regex.Match(upper, @"^(SPD\s+\d+[+\-]?)\s+([A-Z]{2,5})$");
+            if (fixAliasMatch.Success)
+            {
+                var spdPart = block[..fixAliasMatch.Groups[1].Length].Trim();
+                var fixName = fixAliasMatch.Groups[2].Value;
+                result.Add(spdPart);
+                result.Add($"AT {fixName} RNS");
+                continue;
+            }
+
+            result.Add(block);
         }
 
         return string.Join("; ", result);
