@@ -189,7 +189,7 @@ public class ApproachClearanceTests
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -207,7 +207,7 @@ public class ApproachClearanceTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
+        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -224,7 +224,7 @@ public class ApproachClearanceTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
+        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
 
         Assert.NotNull(aircraft.Phases?.AssignedRunway);
         Assert.Equal("28R", aircraft.Phases.AssignedRunway.Designator);
@@ -238,7 +238,7 @@ public class ApproachClearanceTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
+        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
 
         Assert.NotNull(aircraft.Phases?.CurrentPhase);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases.CurrentPhase);
@@ -253,7 +253,7 @@ public class ApproachClearanceTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new JoinFinalApproachCourseCommand("VOR99");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -266,7 +266,7 @@ public class ApproachClearanceTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, null, null, true);
 
         Assert.False(result.Success);
         Assert.Contains("not available", result.Message);
@@ -280,7 +280,7 @@ public class ApproachClearanceTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
 
         Assert.False(result.Success);
         Assert.Contains("Cannot determine airport", result.Message);
@@ -309,7 +309,7 @@ public class ApproachClearanceTests
         );
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
 
         Assert.True(result.Success);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases!.CurrentPhase);
@@ -324,7 +324,7 @@ public class ApproachClearanceTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
 
         Assert.True(result.Success);
         Assert.Contains("I28R", result.Message);
@@ -338,7 +338,7 @@ public class ApproachClearanceTests
         var runwayLookup = new StubRunwayLookup(MakeRunway());
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
 
         Assert.True(result.Success);
     }

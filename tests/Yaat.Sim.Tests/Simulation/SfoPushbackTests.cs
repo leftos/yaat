@@ -36,7 +36,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
             return null;
         }
 
-        return new SimulationEngine(fixes, fixes, groundData);
+        return new SimulationEngine(fixes, fixes, groundData, null, null);
     }
 
     /// <summary>

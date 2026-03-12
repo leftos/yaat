@@ -26,7 +26,7 @@ public class AirportE2ETests
         string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
         if (File.Exists(path))
         {
-            return GeoJsonParser.Parse(airportId, File.ReadAllText(path));
+            return GeoJsonParser.Parse(airportId, File.ReadAllText(path), null, null);
         }
 
         return null;
@@ -248,7 +248,7 @@ public class AirportE2ETests
         }
 
         var runwayLookup = new AllWidthRunwayLookup(widthFt);
-        return GeoJsonParser.Parse(airportId, File.ReadAllText(path), runwayLookup: runwayLookup, runwayAirportCode: airportId);
+        return GeoJsonParser.Parse(airportId, File.ReadAllText(path), runwayLookup, airportId);
     }
 
     private class AllWidthRunwayLookup(int widthFt) : IRunwayLookup

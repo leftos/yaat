@@ -493,7 +493,7 @@ public class GroundCommandHandlerTests
         Assert.IsType<HoldingShortPhase>(ac.Phases.CurrentPhase);
 
         var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand()])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42));
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42), null, null, true);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
     }
@@ -523,7 +523,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand()])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42));
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42), null, null, true);
 
         Assert.False(result.Success);
     }
@@ -816,7 +816,7 @@ public class GroundCommandHandlerTests
         // Compound: TAXI A, CROSS 28R — one block, two parallel commands
         var compound = new CompoundCommand([new ParsedBlock(null, [new TaxiCommand(["A"], []), new CrossRunwayCommand("28R")])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, layout, null, new Random(42));
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, layout, null, new Random(42), null, null, true);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.NotNull(ac.AssignedTaxiRoute);

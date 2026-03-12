@@ -46,8 +46,8 @@ public sealed class SimulationEngine
         IFixLookup fixes,
         IRunwayLookup runways,
         IAirportGroundData groundData,
-        IApproachLookup? approachLookup = null,
-        IProcedureLookup? procedureLookup = null,
+        IApproachLookup? approachLookup,
+        IProcedureLookup? procedureLookup,
         ILogger? logger = null
     )
     {

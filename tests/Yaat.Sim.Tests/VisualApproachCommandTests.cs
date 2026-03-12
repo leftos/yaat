@@ -209,7 +209,7 @@ public class VisualApproachCommandTests
         var aircraft = MakeAircraft();
         aircraft.HasReportedFieldInSight = true;
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, null, null, null, Random.Shared);
+        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, null, null, null, Random.Shared, null, null, true);
         Assert.True(result.Success);
         Assert.Single(aircraft.PendingNotifications);
         Assert.Contains("field in sight", aircraft.PendingNotifications[0]);
@@ -221,7 +221,7 @@ public class VisualApproachCommandTests
         var aircraft = MakeAircraft();
         aircraft.HasReportedFieldInSight = false;
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, null, null, null, Random.Shared);
+        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, null, null, null, Random.Shared, null, null, true);
         Assert.False(result.Success);
     }
 
@@ -231,7 +231,17 @@ public class VisualApproachCommandTests
         var aircraft = MakeAircraft();
         aircraft.HasReportedTrafficInSight = true;
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("UAL456"), aircraft, null, null, null, Random.Shared);
+        var result = CommandDispatcher.Dispatch(
+            new ReportTrafficInSightCommand("UAL456"),
+            aircraft,
+            null,
+            null,
+            null,
+            Random.Shared,
+            null,
+            null,
+            true
+        );
         Assert.True(result.Success);
         Assert.Single(aircraft.PendingNotifications);
         Assert.Contains("traffic in sight", aircraft.PendingNotifications[0]);
@@ -243,7 +253,7 @@ public class VisualApproachCommandTests
         var aircraft = MakeAircraft();
         aircraft.HasReportedTrafficInSight = false;
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), aircraft, null, null, null, Random.Shared);
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), aircraft, null, null, null, Random.Shared, null, null, true);
         Assert.False(result.Success);
     }
 

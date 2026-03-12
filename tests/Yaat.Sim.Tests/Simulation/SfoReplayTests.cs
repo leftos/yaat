@@ -46,7 +46,7 @@ public class SfoReplayTests(ITestOutputHelper output)
         }
 
         var procedures = withProcedures ? TestVnasData.ProcedureDatabase : null;
-        return new SimulationEngine(fixes, fixes, groundData, procedureLookup: procedures);
+        return new SimulationEngine(fixes, fixes, groundData, null, procedures);
     }
 
     // --- Issue #51: CTO uses wrong runway end (departs opposite direction) ---

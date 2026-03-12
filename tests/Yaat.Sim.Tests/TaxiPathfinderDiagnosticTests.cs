@@ -16,7 +16,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
     private AirportGroundLayout? LoadLayout(string airportId, string subdir)
     {
         string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
-        return File.Exists(path) ? GeoJsonParser.Parse(airportId, File.ReadAllText(path)) : null;
+        return File.Exists(path) ? GeoJsonParser.Parse(airportId, File.ReadAllText(path), null, null) : null;
     }
 
     /// <summary>

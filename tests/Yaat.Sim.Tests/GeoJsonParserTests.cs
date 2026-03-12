@@ -59,7 +59,7 @@ public class GeoJsonParserTests
     [Fact]
     public void Parse_MinimalGeoJson_CreatesParkingNodes()
     {
-        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson);
+        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, null);
 
         var spot25 = layout.FindParkingByName("25");
         Assert.NotNull(spot25);
@@ -76,7 +76,7 @@ public class GeoJsonParserTests
     [Fact]
     public void Parse_MinimalGeoJson_CreatesSpotNode()
     {
-        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson);
+        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, null);
 
         bool foundSpot = false;
         foreach (var node in layout.Nodes.Values)
@@ -94,7 +94,7 @@ public class GeoJsonParserTests
     [Fact]
     public void Parse_MinimalGeoJson_CreatesTaxiwayEdges()
     {
-        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson);
+        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, null);
 
         // Should have edges for taxiway T and TC
         bool hasT = false;
@@ -119,7 +119,7 @@ public class GeoJsonParserTests
     [Fact]
     public void Parse_MinimalGeoJson_DetectsSharedEndpoint()
     {
-        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson);
+        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, null);
 
         // T and TC share an endpoint at [-122.215874, 37.708816]
         // That node should have edges from both taxiways
@@ -154,7 +154,7 @@ public class GeoJsonParserTests
     [Fact]
     public void Parse_MinimalGeoJson_ConnectsParkingToNearbyTaxiway()
     {
-        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson);
+        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, null);
 
         var spot32 = layout.FindParkingByName("32");
         Assert.NotNull(spot32);
@@ -166,7 +166,7 @@ public class GeoJsonParserTests
     [Fact]
     public void Parse_SwapsLonLatToLatLon()
     {
-        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson);
+        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, null);
 
         var spot25 = layout.FindParkingByName("25");
         Assert.NotNull(spot25);
@@ -210,7 +210,7 @@ public class GeoJsonParserTests
             }
             """;
 
-        var layout = GeoJsonParser.Parse("TEST", json);
+        var layout = GeoJsonParser.Parse("TEST", json, null, null);
 
         // The taxiway B doesn't cross this runway geometrically in this test data
         // (they're at different positions) so this is a basic structural test
@@ -254,7 +254,7 @@ public class GeoJsonParserTests
             }
             """;
 
-        var layout = GeoJsonParser.Parse("TEST", json);
+        var layout = GeoJsonParser.Parse("TEST", json, null, null);
 
         // Should have hold-short nodes on both sides of the runway
         var hsNodes = new List<GroundNode>();
@@ -280,7 +280,7 @@ public class GeoJsonParserTests
     [Fact]
     public void FindNearestNode_ReturnsClosestNode()
     {
-        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson);
+        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, null);
 
         // Query near parking 25's position
         var nearest = layout.FindNearestNode(37.7105, -122.2120);
@@ -290,7 +290,7 @@ public class GeoJsonParserTests
     [Fact]
     public void FindParkingByName_CaseInsensitive()
     {
-        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson);
+        var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, null);
 
         Assert.NotNull(layout.FindParkingByName("25"));
         Assert.Null(layout.FindParkingByName("NONEXISTENT"));
@@ -310,7 +310,7 @@ public class GeoJsonParserTests
         }
 
         string content = File.ReadAllText(geoJsonPath);
-        var layout = GeoJsonParser.Parse("oak", content);
+        var layout = GeoJsonParser.Parse("oak", content, null, null);
 
         // Collect hold-short nodes for each runway that are connected to taxiway B
         var bHs28R = new List<GroundNode>();
@@ -375,7 +375,7 @@ public class GeoJsonParserTests
         }
 
         string content = File.ReadAllText(geoJsonPath);
-        var layout = GeoJsonParser.Parse("oak", content);
+        var layout = GeoJsonParser.Parse("oak", content, null, null);
 
         var nodes = new List<object>();
         foreach (var (id, node) in layout.Nodes)

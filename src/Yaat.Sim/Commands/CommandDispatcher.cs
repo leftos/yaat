@@ -23,9 +23,9 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         Random rng,
-        IApproachLookup? approachLookup = null,
-        IProcedureLookup? procedureLookup = null,
-        bool validateDctFixes = true,
+        IApproachLookup? approachLookup,
+        IProcedureLookup? procedureLookup,
+        bool validateDctFixes,
         bool autoCrossRunway = false
     )
     {
@@ -170,9 +170,9 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         Random rng,
-        IApproachLookup? approachLookup = null,
-        IProcedureLookup? procedureLookup = null,
-        bool validateDctFixes = true,
+        IApproachLookup? approachLookup,
+        IProcedureLookup? procedureLookup,
+        bool validateDctFixes,
         bool autoCrossRunway = false
     )
     {
@@ -189,7 +189,8 @@ public static class CommandDispatcher
                 rng,
                 approachLookup,
                 procedureLookup,
-                autoCrossRunway: autoCrossRunway
+                validateDctFixes,
+                autoCrossRunway
             );
         }
 
@@ -207,11 +208,11 @@ public static class CommandDispatcher
         ParsedCommand command,
         AircraftState aircraft,
         Random rng,
-        IFixLookup? fixes = null,
-        IApproachLookup? approachLookup = null,
-        IRunwayLookup? runways = null,
-        IProcedureLookup? procedureLookup = null,
-        bool validateDctFixes = true
+        IFixLookup? fixes,
+        IApproachLookup? approachLookup,
+        IRunwayLookup? runways,
+        IProcedureLookup? procedureLookup,
+        bool validateDctFixes
     )
     {
         switch (command)
@@ -588,7 +589,7 @@ public static class CommandDispatcher
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
         Random rng,
-        IProcedureLookup? procedureLookup = null,
+        IProcedureLookup? procedureLookup,
         bool autoCrossRunway = false
     )
     {
@@ -651,7 +652,7 @@ public static class CommandDispatcher
         IRunwayLookup? runways,
         AirportGroundLayout? groundLayout,
         IFixLookup? fixes,
-        IProcedureLookup? procedureLookup = null,
+        IProcedureLookup? procedureLookup,
         bool autoCrossRunway = false
     )
     {
@@ -1064,11 +1065,11 @@ public static class CommandDispatcher
         List<ParsedCommand> commands,
         AircraftState aircraft,
         Random rng,
-        IFixLookup? fixes = null,
-        IApproachLookup? approachLookup = null,
-        IRunwayLookup? runways = null,
-        IProcedureLookup? procedureLookup = null,
-        bool validateDctFixes = true
+        IFixLookup? fixes,
+        IApproachLookup? approachLookup,
+        IRunwayLookup? runways,
+        IProcedureLookup? procedureLookup,
+        bool validateDctFixes
     )
     {
         // Capture the parsed commands; they'll be applied when the block activates

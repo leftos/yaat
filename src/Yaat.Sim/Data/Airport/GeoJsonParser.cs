@@ -20,7 +20,7 @@ public static class GeoJsonParser
     /// <summary>Max distance to connect a parking spot to a taxiway (nm).</summary>
     private const double ParkingConnectMaxNm = 0.15;
 
-    public static AirportGroundLayout Parse(string airportId, string geoJson, IRunwayLookup? runwayLookup = null, string? runwayAirportCode = null)
+    public static AirportGroundLayout Parse(string airportId, string geoJson, IRunwayLookup? runwayLookup, string? runwayAirportCode)
     {
         var doc = JsonDocument.Parse(geoJson);
         var root = doc.RootElement;
@@ -80,8 +80,8 @@ public static class GeoJsonParser
     public static AirportGroundLayout ParseMultiple(
         string airportId,
         IEnumerable<string> geoJsonFiles,
-        IRunwayLookup? runwayLookup = null,
-        string? runwayAirportCode = null
+        IRunwayLookup? runwayLookup,
+        string? runwayAirportCode
     )
     {
         var merged = geoJsonFiles.ToList();
@@ -117,8 +117,8 @@ public static class GeoJsonParser
         List<SpotFeature> spots,
         List<TaxiwayFeature> taxiways,
         List<RunwayFeature> runways,
-        IRunwayLookup? runwayLookup = null,
-        string? runwayAirportCode = null
+        IRunwayLookup? runwayLookup,
+        string? runwayAirportCode
     )
     {
         var layout = new AirportGroundLayout { AirportId = airportId };

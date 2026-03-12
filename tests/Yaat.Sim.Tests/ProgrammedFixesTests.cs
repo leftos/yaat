@@ -171,7 +171,7 @@ public class ProgrammedFixesTests
         var fixes = new StubFixLookup(("SUNOL", 37.5, -121.8));
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
 
         Assert.True(result.Success);
     }
@@ -183,7 +183,7 @@ public class ProgrammedFixesTests
         var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
 
         Assert.False(result.Success);
         Assert.Contains("not programmed", result.Message);
@@ -198,7 +198,7 @@ public class ProgrammedFixesTests
         var fixes = new StubFixLookup(("GROVE", 37.78, -122.35));
         var cmd = new DirectToCommand([new ResolvedFix("GROVE", 37.78, -122.35)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, approachLookup, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, approachLookup, null, validateDctFixes: true);
 
         Assert.True(result.Success);
     }
@@ -210,7 +210,7 @@ public class ProgrammedFixesTests
         var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
         var cmd = new ForceDirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
 
         Assert.True(result.Success);
     }
@@ -222,7 +222,7 @@ public class ProgrammedFixesTests
         var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
         var cmd = new AppendDirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
 
         Assert.False(result.Success);
         Assert.Contains("not programmed", result.Message);
@@ -236,7 +236,7 @@ public class ProgrammedFixesTests
         var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
 
         Assert.True(result.Success);
     }
@@ -248,7 +248,7 @@ public class ProgrammedFixesTests
         var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, validateDctFixes: false);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: false);
 
         Assert.True(result.Success);
     }
@@ -260,7 +260,7 @@ public class ProgrammedFixesTests
         var fixes = new StubFixLookup(("SUNOL", 37.5, -121.8), ("RANDOM", 37.0, -121.0));
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8), new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
 
         Assert.False(result.Success);
         Assert.Contains("RANDOM", result.Message);

@@ -581,7 +581,7 @@ public static class FlightPhysics
         }
     }
 
-    private static void UpdateCommandQueue(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup = null)
+    private static void UpdateCommandQueue(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
         if (aircraft.Phases?.CurrentPhase is not null)
         {

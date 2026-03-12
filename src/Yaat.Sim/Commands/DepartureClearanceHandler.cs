@@ -18,8 +18,8 @@ internal static class DepartureClearanceHandler
         AircraftState aircraft,
         LinedUpAndWaitingPhase luaw,
         IFixLookup? fixes,
-        IProcedureLookup? procedures = null,
-        IRunwayLookup? runways = null
+        IProcedureLookup? procedures,
+        IRunwayLookup? runways
     )
     {
         if (aircraft.Phases?.AssignedRunway is null)

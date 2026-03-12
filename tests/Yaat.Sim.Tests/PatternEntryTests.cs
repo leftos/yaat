@@ -669,7 +669,7 @@ public class PatternEntryTests
         var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right));
 
         var luaw = (LinedUpAndWaitingPhase)phases.Phases[0];
-        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, null);
+        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, null, null, null);
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);

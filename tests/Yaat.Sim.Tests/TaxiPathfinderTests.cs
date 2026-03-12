@@ -1167,7 +1167,7 @@ public class TaxiPathfinderTests
         string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
         if (File.Exists(path))
         {
-            return GeoJsonParser.Parse(airportId, File.ReadAllText(path));
+            return GeoJsonParser.Parse(airportId, File.ReadAllText(path), null, null);
         }
 
         return null;

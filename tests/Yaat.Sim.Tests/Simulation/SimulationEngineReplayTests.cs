@@ -42,7 +42,7 @@ public class SimulationEngineReplayTests
             return null;
         }
 
-        return new SimulationEngine(fixes, fixes, groundData);
+        return new SimulationEngine(fixes, fixes, groundData, null, null);
     }
 
     [Fact]

@@ -268,7 +268,7 @@ public class ProcedureLoadingTests
         procedures.AddStar(CreateTestStar());
 
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, procedureLookup: procedures);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, procedures, true);
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
@@ -301,7 +301,7 @@ public class ProcedureLoadingTests
         procedures.AddStar(CreateTestStar());
 
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, procedureLookup: procedures);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, procedures, true);
 
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
         Assert.False(aircraft.StarViaMode);
@@ -321,7 +321,7 @@ public class ProcedureLoadingTests
         // No procedure lookup — forces NavData fallback
 
         var cmd = new JoinStarCommand("BDEGA3", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
@@ -942,7 +942,7 @@ public class ProcedureLoadingTests
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28L") };
 
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, procedureLookup: procedures);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, procedures, true);
 
         Assert.True(result.Success);
         var brixx = aircraft.Targets.NavigationRoute.FirstOrDefault(t => t.Name == "BRIXX");
