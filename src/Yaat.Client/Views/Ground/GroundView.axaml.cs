@@ -204,12 +204,8 @@ public partial class GroundView : UserControl
             if (fromNodeId is not null)
             {
                 string? spotName = node.Type is "Spot" or "Parking" or "Helipad" ? node.Name : null;
-                AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, nodeId, spotName);
-            }
-
-            if (node.Type == "RunwayHoldShort" && node.RunwayId is not null)
-            {
-                menu.Items.Add(CreateMenuItem($"Hold short {node.RunwayId}", () => vm.TaxiToNodeAsync(callsign, initials, nodeId)));
+                string? destRunway = node.Type == "RunwayHoldShort" && node.RunwayId is not null ? RunwayIdentifier.Parse(node.RunwayId).End1 : null;
+                AddTaxiRouteItems(menu, vm, callsign, initials, fromNodeId.Value, nodeId, spotName, destRunway);
             }
 
             if (node.Type is "Parking" or "Spot" && node.Name is not null && vm.SelectedAircraft.CurrentPhase == "At Parking")
@@ -524,7 +520,8 @@ public partial class GroundView : UserControl
         string initials,
         int fromNodeId,
         int toNodeId,
-        string? spotName = null
+        string? spotName = null,
+        string? destRunway = null
     )
     {
         var routes = vm.FindRoutesToNode(fromNodeId, toNodeId);
@@ -538,14 +535,14 @@ public partial class GroundView : UserControl
 
         if (routes.Count == 1)
         {
-            AddSingleRouteItems(menu, vm, callsign, initials, routes[0], spotName);
+            AddSingleRouteItems(menu, vm, callsign, initials, routes[0], spotName, destRunway);
         }
         else
         {
             var parent = new MenuItem { Header = "Taxi here" };
             foreach (var route in routes)
             {
-                AddSingleRouteItems(parent, vm, callsign, initials, route, spotName);
+                AddSingleRouteItems(parent, vm, callsign, initials, route, spotName, destRunway);
             }
 
             menu.Items.Add(parent);
@@ -558,11 +555,51 @@ public partial class GroundView : UserControl
         string callsign,
         string initials,
         TaxiRoute route,
-        string? spotName = null
+        string? spotName = null,
+        string? destRunway = null
     )
     {
         var displayName = spotName is not null ? $"to {spotName} {vm.GetTaxiwayDisplayName(route)}" : vm.GetTaxiwayDisplayName(route);
         var variants = vm.BuildTaxiCrossingVariants(route, spotName);
+
+        // When destination is a runway hold-short, offer RWY and non-RWY variants
+        // with progressive crossing options for each.
+        if (destRunway is not null)
+        {
+            var destVariants = vm.BuildTaxiDestVariants(route, destRunway, spotName);
+            if (destVariants.Count == 0)
+            {
+                return;
+            }
+
+            var sub = new MenuItem { Header = $"Taxi {displayName}" };
+            AttachPreviewHover(sub, vm, route);
+
+            foreach (var entry in destVariants)
+            {
+                if (entry is null)
+                {
+                    sub.Items.Add(new Separator());
+                    continue;
+                }
+
+                var (label, command) = entry.Value;
+                var cmd = command;
+                sub.Items.Add(
+                    CreateMenuItem(
+                        label,
+                        () =>
+                        {
+                            vm.ActiveRoute = route;
+                            return vm.SendRawCommandAsync(callsign, initials, cmd);
+                        }
+                    )
+                );
+            }
+
+            parent.Items.Add(sub);
+            return;
+        }
 
         if (variants.Count <= 1)
         {
@@ -580,13 +617,13 @@ public partial class GroundView : UserControl
             return;
         }
 
-        var sub = new MenuItem { Header = $"Taxi {displayName}" };
-        AttachPreviewHover(sub, vm, route);
+        var defaultSub = new MenuItem { Header = $"Taxi {displayName}" };
+        AttachPreviewHover(defaultSub, vm, route);
 
         foreach (var (label, command) in variants)
         {
             var cmd = command;
-            sub.Items.Add(
+            defaultSub.Items.Add(
                 CreateMenuItem(
                     label,
                     () =>
@@ -598,7 +635,7 @@ public partial class GroundView : UserControl
             );
         }
 
-        parent.Items.Add(sub);
+        parent.Items.Add(defaultSub);
     }
 
     private static void AttachPreviewHover(MenuItem item, GroundViewModel vm, TaxiRoute route)

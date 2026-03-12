@@ -130,6 +130,8 @@ var aircraft = engine.FindAircraft("UAL859");
 |------|----------|---------|-----------------|
 | `oak-taxi-recording.json` | OAK taxi session | OAK | Taxi routing, variant inference |
 | `sfo-crossing-runways-recording.json` | S2-SFO-1 | SFO | CTO runway resolution (#51), AAL2839 taxi detour (#53) |
+| `sfo-issue53-yhbm1-recording.json` | S2-SFO-1 | SFO | SWA7348 TAXI Y H B M1 HS 01L wrong direction (#53) |
+| `sfo-issue53-n346g-recording.json` | S1-SFO-2 | SFO | N346G TAXI T41W C E HS 10L, AMX669 TAXI M2 B M1 HS 01L (#53) |
 
 ### How to Add a New Recording
 

@@ -194,4 +194,116 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
             );
         }
     }
+
+    /// <summary>
+    /// Diagnostic trace for issue #53 comment: SWA7348 "TAXI Y H B M1 HS 01L" at SFO.
+    /// Starting from node 158 (B/M1 junction), M1 walk should go toward hold-short 882 (1L)
+    /// but instead walks the opposite direction all the way down M1.
+    /// </summary>
+    [Fact]
+    public void Diag_SFO_TaxiM1From158_To1L_VerboseTrace()
+    {
+        var layout = LoadLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            output.WriteLine("sfo.geojson not found — skipping");
+            return;
+        }
+
+        // Start from node 158 (B/M1 junction) — the point where B walk ends
+        // and M1 walk begins in the TAXI Y H B M1 command
+        int startId = 158;
+        if (!layout.Nodes.ContainsKey(startId))
+        {
+            output.WriteLine("Node 158 not found — skipping");
+            return;
+        }
+
+        var startNode = layout.Nodes[startId];
+        output.WriteLine(
+            $"Start node {startId}: lat={startNode.Latitude:F6} lon={startNode.Longitude:F6} edges=[{string.Join(",", startNode.Edges.Select(e => e.TaxiwayName))}]"
+        );
+
+        // Dump M1 nodes for reference
+        var m1Nodes = layout
+            .Nodes.Values.Where(n => n.Edges.Any(e => string.Equals(e.TaxiwayName, "M1", StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(n => n.Latitude)
+            .ToList();
+        output.WriteLine($"\n=== SFO M1 nodes ({m1Nodes.Count}): ===");
+        foreach (var mn in m1Nodes)
+        {
+            output.WriteLine(
+                $"  node={mn.Id} lat={mn.Latitude:F6} lon={mn.Longitude:F6} type={mn.Type} runwayId={mn.RunwayId} edges=[{string.Join(",", mn.Edges.Select(e => e.TaxiwayName))}]"
+            );
+        }
+
+        // Route just M1 from node 158, with destination runway 1L
+        output.WriteLine($"\n--- Routing M1 from node {startId} with dest=1L ---");
+        var log = new List<string>();
+        var route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            startId,
+            ["M1"],
+            out string? failReason,
+            destinationRunway: "1L",
+            diagnosticLog: msg => log.Add(msg)
+        );
+
+        foreach (var line in log)
+        {
+            output.WriteLine(line);
+        }
+
+        if (route is null)
+        {
+            output.WriteLine($"  RESULT: null (failReason={failReason ?? "null"})");
+        }
+        else
+        {
+            output.WriteLine($"  RESULT: {route.Segments.Count} segments");
+            foreach (var seg in route.Segments)
+            {
+                var fromNode = layout.Nodes.GetValueOrDefault(seg.FromNodeId);
+                var toNode = layout.Nodes.GetValueOrDefault(seg.ToNodeId);
+                output.WriteLine(
+                    $"    {seg.TaxiwayName}: {seg.FromNodeId}({fromNode?.Latitude:F6},{fromNode?.Longitude:F6}) → {seg.ToNodeId}({toNode?.Latitude:F6},{toNode?.Longitude:F6})"
+                );
+            }
+        }
+
+        // Now route as part of the full Y H B M1 path from a parking node (node 954)
+        output.WriteLine($"\n--- Full TAXI Y H B M1 from parking node 954 with dest=1L ---");
+        log.Clear();
+        route = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            954,
+            ["Y", "H", "B", "M1"],
+            out failReason,
+            explicitHoldShorts: ["1L"],
+            destinationRunway: "1L",
+            diagnosticLog: msg => log.Add(msg)
+        );
+
+        foreach (var line in log)
+        {
+            output.WriteLine(line);
+        }
+
+        if (route is null)
+        {
+            output.WriteLine($"  RESULT: null (failReason={failReason ?? "null"})");
+        }
+        else
+        {
+            output.WriteLine($"  RESULT: {route.Segments.Count} segments");
+            foreach (var seg in route.Segments)
+            {
+                var fromNode = layout.Nodes.GetValueOrDefault(seg.FromNodeId);
+                var toNode = layout.Nodes.GetValueOrDefault(seg.ToNodeId);
+                output.WriteLine(
+                    $"    {seg.TaxiwayName}: {seg.FromNodeId}({fromNode?.Latitude:F6},{fromNode?.Longitude:F6}) → {seg.ToNodeId}({toNode?.Latitude:F6},{toNode?.Longitude:F6})"
+                );
+            }
+        }
+    }
 }

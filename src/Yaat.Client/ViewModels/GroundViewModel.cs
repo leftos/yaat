@@ -680,6 +680,94 @@ public partial class GroundViewModel : ObservableObject
         return results;
     }
 
+    /// <summary>
+    /// Returns all taxi variants for a route ending at a runway hold-short.
+    /// Two groups separated by a null entry: RWY variants (with runway assignment),
+    /// then non-RWY variants (without). Each group has N+1 entries for N crossings.
+    /// Example with crossings [28R, 28L] and dest 30:
+    ///   RWY 30 HS 28R  |  RWY 30 CROSS 28R HS 28L  |  RWY 30 CROSS 28R 28L
+    ///   (separator)
+    ///   HS 28R  |  CROSS 28R HS 28L  |  CROSS 28R 28L HS 30
+    /// </summary>
+    public List<(string Label, string Command)?> BuildTaxiDestVariants(TaxiRoute route, string destRunway, string? spotName = null)
+    {
+        var taxiways = BuildTaxiCommand(route);
+        var spotSuffix = spotName is not null ? $" @{spotName}" : "";
+
+        if (string.IsNullOrEmpty(taxiways))
+        {
+            return [];
+        }
+
+        var crossings = new List<string>();
+        foreach (var hs in route.HoldShortPoints)
+        {
+            if (hs.Reason == HoldShortReason.RunwayCrossing && hs.TargetName is not null)
+            {
+                var rwyName = RunwayIdentifier.Parse(hs.TargetName).End1;
+                if (!string.Equals(rwyName, destRunway, StringComparison.OrdinalIgnoreCase))
+                {
+                    crossings.Add(rwyName);
+                }
+            }
+        }
+
+        var results = new List<(string Label, string Command)?>();
+
+        if (crossings.Count == 0)
+        {
+            results.Add(($"RWY {destRunway}", $"TAXI {taxiways} {destRunway}{spotSuffix}"));
+            results.Add(null); // separator
+            results.Add(($"HS {destRunway}", $"TAXI {taxiways} HS {destRunway}{spotSuffix}"));
+            return results;
+        }
+
+        // --- RWY variants: progressive crossings with runway assignment ---
+
+        // Hold short of first crossing
+        results.Add(($"RWY {destRunway} HS {crossings[0]}", $"TAXI {taxiways} HS {crossings[0]} RWY {destRunway}{spotSuffix}"));
+
+        // Cross some, hold short of next
+        for (int i = 0; i < crossings.Count - 1; i++)
+        {
+            var crossParts = crossings.Take(i + 1).Select(r => $"CROSS {r}");
+            var holdAt = crossings[i + 1];
+            var label = $"RWY {destRunway} CROSS {string.Join(" ", crossings.Take(i + 1))} HS {holdAt}";
+            var cmd = $"TAXI {taxiways} HS {holdAt} RWY {destRunway}{spotSuffix}, {string.Join(", ", crossParts)}";
+            results.Add((label, cmd));
+        }
+
+        // Cross all, arrive at destination with RWY assignment
+        var allCross = crossings.Select(r => $"CROSS {r}");
+        results.Add(
+            ($"RWY {destRunway} CROSS {string.Join(" ", crossings)}", $"TAXI {taxiways} {destRunway}{spotSuffix}, {string.Join(", ", allCross)}")
+        );
+
+        results.Add(null); // separator
+
+        // --- Non-RWY variants: progressive crossings without runway assignment ---
+
+        // Hold short of first crossing (no dest mention)
+        results.Add(($"HS {crossings[0]}", $"TAXI {taxiways} HS {crossings[0]}{spotSuffix}"));
+
+        // Cross some, hold short of next
+        for (int i = 0; i < crossings.Count - 1; i++)
+        {
+            var crossParts = crossings.Take(i + 1).Select(r => $"CROSS {r}");
+            var holdAt = crossings[i + 1];
+            var label = $"CROSS {string.Join(" ", crossings.Take(i + 1))} HS {holdAt}";
+            var cmd = $"TAXI {taxiways} HS {holdAt}{spotSuffix}, {string.Join(", ", crossParts)}";
+            results.Add((label, cmd));
+        }
+
+        // Cross all, hold short at destination (no RWY assignment)
+        results.Add(
+            ($"CROSS {string.Join(" ", crossings)} HS {destRunway}", $"TAXI {taxiways} HS {destRunway}{spotSuffix}, {string.Join(", ", allCross)}")
+        );
+
+        return results;
+    }
+
     public string GetTaxiwayDisplayName(TaxiRoute route)
     {
         var names = new List<string>();

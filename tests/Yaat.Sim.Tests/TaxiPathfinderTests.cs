@@ -1692,6 +1692,67 @@ public class TaxiPathfinderTests
         );
     }
 
+    /// <summary>
+    /// Issue #53 follow-up: "TAXI Y H B M1 HS 01L" (explicit hold-short, no destination runway)
+    /// must produce the same compact route as "TAXI Y H B M1 1L" (destination runway).
+    /// Without the fix, M1 walk has no direction guidance and walks the wrong way.
+    /// </summary>
+    [Fact]
+    public void SFO_TaxiYHBM1_WithExplicitHS_ProducesShortRoute()
+    {
+        var layout = LoadAirportLayout("SFO", "sfo");
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Start from a parking node connected to Y (SWA7348 is at parking B12 → node on Y)
+        var parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
+            n.Type == GroundNodeType.Parking
+            && n.Edges.Any(e => string.Equals(e.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase))
+            && layout.Nodes.Values.Any(adj =>
+                adj.Edges.Any(ae => string.Equals(ae.TaxiwayName, "Y", StringComparison.OrdinalIgnoreCase))
+                && n.Edges.Any(pe => pe.FromNodeId == adj.Id || pe.ToNodeId == adj.Id)
+            )
+        );
+        if (parkingNode is null)
+        {
+            return;
+        }
+
+        // With explicit hold-short (HS keyword), no destination runway
+        var routeHs = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            parkingNode.Id,
+            ["Y", "H", "B", "M1"],
+            out string? failReasonHs,
+            explicitHoldShorts: ["1L"]
+        );
+
+        // With destination runway (trailing runway)
+        var routeRwy = TaxiPathfinder.ResolveExplicitPath(
+            layout,
+            parkingNode.Id,
+            ["Y", "H", "B", "M1"],
+            out string? failReasonRwy,
+            destinationRunway: "1L"
+        );
+
+        Assert.NotNull(routeHs);
+        Assert.Null(failReasonHs);
+        Assert.NotNull(routeRwy);
+        Assert.Null(failReasonRwy);
+
+        // Both routes should have similar segment counts (HS route may differ by hold-short annotations,
+        // but the underlying path segments must be the same)
+        Assert.Equal(routeRwy!.Segments.Count, routeHs!.Segments.Count);
+
+        // HS route must stop at the 1L hold-short, not walk the entire M1 taxiway
+        var endNode = layout.Nodes[routeHs.Segments[^1].ToNodeId];
+        Assert.Equal(GroundNodeType.RunwayHoldShort, endNode.Type);
+        Assert.True(endNode.RunwayId!.Value.Contains("1L"), $"Expected end at 1L hold-short, got runwayId={endNode.RunwayId}");
+    }
+
     [Fact]
     public void SFO_LayoutLoads_WithHoldShorts()
     {

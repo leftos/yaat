@@ -465,6 +465,86 @@ public class SfoReplayTests(ITestOutputHelper output)
         }
     }
 
+    // --- Issue #53 (follow-up): SWA7348 "TAXI Y H B M1 HS 01L" goes into RAMP ---
+
+    private const string Issue53RecordingPath = "TestData/sfo-issue53-yhbm1-recording.json";
+
+    private static SessionRecording? LoadIssue53Recording()
+    {
+        if (!File.Exists(Issue53RecordingPath))
+        {
+            return null;
+        }
+
+        var json = File.ReadAllText(Issue53RecordingPath);
+        return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+
+    /// <summary>
+    /// SWA7348 gets "TAXI Y H B M1 HS 01L" at t=0. The route should go Y→H→B→M1 to hold
+    /// short of runway 1L. The bug: pathfinder sends it into the RAMP area first.
+    /// Assert: the taxi route contains no RAMP segments (aircraft should already be on taxiway Y).
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_SWA7348_TaxiYHBM1_NoRampDetour()
+    {
+        var recording = LoadIssue53Recording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        engine.Replay(recording, 5.0);
+
+        var swa = engine.FindAircraft("SWA7348");
+        if (swa is null)
+        {
+            return;
+        }
+
+        var route = swa.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return;
+        }
+
+        // Log route for diagnosis
+        _output.WriteLine($"SWA7348 pos=({swa.Latitude:F6},{swa.Longitude:F6}) gs={swa.GroundSpeed:F1}kts heading={swa.Heading:F1}");
+        _output.WriteLine($"SWA7348 route: {route.Segments.Count} segments, currentIdx={route.CurrentSegmentIndex}");
+        var layout = new TestAirportGroundData().GetLayout("SFO");
+        foreach (var seg in route.Segments)
+        {
+            var fromN = layout?.Nodes.GetValueOrDefault(seg.FromNodeId);
+            var toN = layout?.Nodes.GetValueOrDefault(seg.ToNodeId);
+            _output.WriteLine(
+                $"  {seg.TaxiwayName}: {seg.FromNodeId}({fromN?.Latitude:F6},{fromN?.Longitude:F6}) → {seg.ToNodeId}({toN?.Latitude:F6},{toN?.Longitude:F6}) {toN?.Type}{(toN?.RunwayId is { } rid ? $" rwy={rid}" : "")}"
+            );
+        }
+
+        // The route should follow Y→H→B→M1. The "Taxiing via RAMP to reach Y" warning
+        // from the bug report indicates RAMP segments are being inserted at the start.
+        bool hasRampSegments = route.Segments.Any(s => string.Equals(s.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase));
+
+        // RAMP is acceptable only as the very first segment (parking → first taxiway).
+        // If there are RAMP segments beyond that, the pathfinder is taking a detour.
+        int rampCount = route.Segments.Count(s => string.Equals(s.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase));
+        Assert.True(
+            rampCount <= 1,
+            $"SWA7348 taxi route has {rampCount} RAMP segments — expected at most 1 (parking→taxiway). "
+                + $"Taxiways: [{string.Join(", ", route.Segments.Select(s => s.TaxiwayName))}]. "
+                + $"Issue #53: pathfinder goes into RAMP area instead of following Y→H→B→M1."
+        );
+
+        // Route should not be excessively long — Y→H→B→M1 is at most ~12 segments
+        Assert.True(
+            route.Segments.Count <= 15,
+            $"SWA7348 taxi route has {route.Segments.Count} segments — expected ≤15. "
+                + $"Taxiways: [{string.Join(", ", route.Segments.Select(s => s.TaxiwayName).Distinct())}]. "
+                + $"Issue #53: pathfinder takes an indirect route."
+        );
+    }
+
     /// <summary>
     /// AAL2839 starts at lat ~37.609 and should hold short of runway 1L at lat ~37.608.
     /// The M1/M2 cargo ramp intersection that the bug visits is at lat ~37.607 (further south).
@@ -506,6 +586,139 @@ public class SfoReplayTests(ITestOutputHelper output)
             overshotPastRamp,
             $"AAL2839 went south past the M1/M2 junction (lat < {M1M2JunctionLat}). "
                 + $"Issue #53: pathfinder detour takes aircraft to the cargo ramp before returning to runway 1L hold short."
+        );
+    }
+
+    // --- Issue #53 (N346G): TAXI T41W C E HS 10L goes wrong direction on E ---
+
+    private const string Issue53N346gRecordingPath = "TestData/sfo-issue53-n346g-recording.json";
+
+    private static SessionRecording? LoadN346gRecording()
+    {
+        if (!File.Exists(Issue53N346gRecordingPath))
+        {
+            return null;
+        }
+
+        var json = File.ReadAllText(Issue53N346gRecordingPath);
+        return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+
+    /// <summary>
+    /// N346G gets "TAXI T41W C E HS 10L" at t=0. The route should go T41W→C→E toward
+    /// runway 10L (eastward on E). The bug: E walk goes north (wrong direction) because
+    /// HS 10L doesn't provide direction guidance without a destination runway.
+    /// Assert: the last E segment ends at or near a 10L hold-short node.
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_N346G_TaxiT41WCE_WalksToward10L()
+    {
+        var recording = LoadN346gRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        engine.Replay(recording, 5.0);
+
+        var ac = engine.FindAircraft("N346G");
+        if (ac is null)
+        {
+            return;
+        }
+
+        var route = ac.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return;
+        }
+
+        var layout = new TestAirportGroundData().GetLayout("SFO");
+        Assert.NotNull(layout);
+
+        _output.WriteLine($"N346G route: {route.Segments.Count} segments");
+        foreach (var seg in route.Segments)
+        {
+            var fromN = layout.Nodes.GetValueOrDefault(seg.FromNodeId);
+            var toN = layout.Nodes.GetValueOrDefault(seg.ToNodeId);
+            _output.WriteLine(
+                $"  {seg.TaxiwayName}: {seg.FromNodeId}({fromN?.Latitude:F6},{fromN?.Longitude:F6}) → {seg.ToNodeId}({toN?.Latitude:F6},{toN?.Longitude:F6}) {toN?.Type}{(toN?.RunwayId is { } rid ? $" rwy={rid}" : "")}"
+            );
+        }
+
+        // The route should end at or near a 10L hold-short on taxiway E.
+        // Runway 10L/28R runs roughly east-west; 10L hold-shorts on E are east of the C/E junction.
+        var lastSeg = route.Segments[^1];
+        var endNode = layout.Nodes[lastSeg.ToNodeId];
+
+        // The route should contain E segments that reach a 10L hold-short
+        bool reachesHoldShort =
+            endNode.Type == GroundNodeType.RunwayHoldShort && endNode.RunwayId is { } endRwy && (endRwy.Contains("10L") || endRwy.Contains("28R"));
+
+        Assert.True(
+            reachesHoldShort,
+            $"N346G route should end at a 10L/28R hold-short but ends at node {endNode.Id} type={endNode.Type} runwayId={endNode.RunwayId}. "
+                + $"Taxiways: [{string.Join(", ", route.Segments.Select(s => s.TaxiwayName).Distinct())}]. "
+                + $"Issue #53: E walk goes wrong direction without HS-based direction guidance."
+        );
+    }
+
+    /// <summary>
+    /// AMX669 gets "TAXI M2 B M1 HS 01L" at t=61. Same pattern as SWA7348 — explicit hold-short
+    /// without destination runway. M1 walk should go toward the 1L hold-short (2-3 segments).
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_AMX669_TaxiM2BM1_StopsAt1LHoldShort()
+    {
+        var recording = LoadN346gRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // AMX669's TAXI command fires at t=61
+        engine.Replay(recording, 70.0);
+
+        var ac = engine.FindAircraft("AMX669");
+        if (ac is null)
+        {
+            return;
+        }
+
+        var route = ac.AssignedTaxiRoute;
+        if (route is null)
+        {
+            return;
+        }
+
+        var layout = new TestAirportGroundData().GetLayout("SFO");
+        Assert.NotNull(layout);
+
+        _output.WriteLine($"AMX669 route: {route.Segments.Count} segments");
+        foreach (var seg in route.Segments)
+        {
+            var fromN = layout.Nodes.GetValueOrDefault(seg.FromNodeId);
+            var toN = layout.Nodes.GetValueOrDefault(seg.ToNodeId);
+            _output.WriteLine(
+                $"  {seg.TaxiwayName}: {seg.FromNodeId}({fromN?.Latitude:F6},{fromN?.Longitude:F6}) → {seg.ToNodeId}({toN?.Latitude:F6},{toN?.Longitude:F6}) {toN?.Type}{(toN?.RunwayId is { } rid ? $" rwy={rid}" : "")}"
+            );
+        }
+
+        // M1 portion should be compact — the 1L hold-short is close to the B/M1 junction
+        var m1Segments = route.Segments.Where(s => string.Equals(s.TaxiwayName, "M1", StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.True(
+            m1Segments.Count <= 5,
+            $"AMX669 has {m1Segments.Count} M1 segments — expected ≤5 for the direct path to 1L hold-short. "
+                + $"Issue #53: M1 walk goes wrong direction without HS-based direction guidance."
+        );
+
+        // Route should end at a 1L hold-short
+        var endNode = layout.Nodes[route.Segments[^1].ToNodeId];
+        Assert.True(
+            endNode.Type == GroundNodeType.RunwayHoldShort && endNode.RunwayId is { } rwy && rwy.Contains("1L"),
+            $"AMX669 route should end at 1L hold-short but ends at node {endNode.Id} type={endNode.Type} runwayId={endNode.RunwayId}."
         );
     }
 }
