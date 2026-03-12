@@ -118,26 +118,34 @@ var aircraft = engine.FindAircraft("UAL859");
 
 ### Replay Tips
 
-- Recording files go in `tests/Yaat.Sim.Tests/TestData/` with a descriptive name (e.g., `sfo-crossing-runways-recording.json`)
+- Recording files go in `tests/Yaat.Sim.Tests/TestData/` with a descriptive name (e.g., `oak-taxi-recording.json`)
 - Silently skip (early return) if `NavData.dat`, the GeoJSON, or the recording file is absent — keeps CI green on machines without navdata
 - You can replay to an intermediate time (not just `TotalElapsedSeconds`) to capture state mid-scenario
 - Preset commands in the scenario JSON fire at their `timeOffset` during replay
 - `engine.FindAircraft(callsign)` returns the live `AircraftState` after replay; inspect `.Phases.AssignedRunway`, `.AssignedTaxiRoute.Segments`, `.Heading`, `.Latitude`, etc.
+- **Initialize SimLog in tests** — wire `SimLog.Initialize(loggerFactory)` in your engine builder so Yaat.Sim logs route to xunit output. Use `MartinCostello.Logging.XUnit`.
+
+### Pitfall: Recordings with WAIT Presets
+
+Scenario aircraft often have preset commands like `WAIT 30 TAXI M2 $2`. These create `DeferredDispatch` entries that fire after the WAIT timer expires. If WAIT/deferred dispatch behavior changes, **all recordings made before the fix will have wrong expectations** — the aircraft state at any given time `t` depends on the exact dispatch pipeline.
+
+When writing replay tests for aircraft with WAIT presets:
+- Check the scenario's `presetCommands` for the aircraft under test (key: `aircraftId` in the `ScenarioJson`)
+- If the aircraft has WAIT presets, the test is sensitive to WAIT dispatch timing
+- Prefer testing aircraft without WAIT presets, or re-record after WAIT behavior stabilizes
+- `DispatchCompound` clears both `Queue.Blocks` and `DeferredDispatches` — a later command fully replaces earlier state
 
 ### Available Recordings
 
 | File | Scenario | Airport | Good for testing |
 |------|----------|---------|-----------------|
 | `oak-taxi-recording.json` | OAK taxi session | OAK | Taxi routing, variant inference |
-| `sfo-crossing-runways-recording.json` | S2-SFO-1 | SFO | CTO runway resolution (#51), AAL2839 taxi detour (#53) |
-| `sfo-issue53-yhbm1-recording.json` | S2-SFO-1 | SFO | SWA7348 TAXI Y H B M1 HS 01L wrong direction (#53) |
-| `sfo-issue53-n346g-recording.json` | S1-SFO-2 | SFO | N346G TAXI T41W C E HS 10L, AMX669 TAXI M2 B M1 HS 01L (#53) |
 
 ### How to Add a New Recording
 
 1. Reproduce the issue in YAAT client
 2. Save a recording via the session recording feature
-3. Copy the `.yaat-recording.json` to `tests/Yaat.Sim.Tests/TestData/` with a short, descriptive name
+3. Copy the `.yaat-recording.json` to `tests/Yaat.Sim.Tests/TestData/` with a short, descriptive name. If the recording is for a GitHub issue, include the issue number in the filename (e.g., `sfo-issue53-taxi-overshoot-recording.json`) so the issue thread is easy to find later.
 4. Write a replay test that fails with the bug and passes after the fix
 
 ### Key OAK Reference Points

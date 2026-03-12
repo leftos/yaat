@@ -141,7 +141,7 @@ public static class TaxiPathfinder
             // (parking→taxiway). Between explicitly listed taxiways: only BFS
             // (short hop) and runway centerline bridging are allowed.
             bool isFirstTw = twIdx == 0;
-            var passedHint = nextTwName is null ? destinationHint : null;
+            var passedHint = destinationHint;
             var passedStopId = nextTwName is null ? effectiveDestRunway : null;
 
             if (layout.Nodes.TryGetValue(currentNodeId, out var curNode))

@@ -78,9 +78,10 @@ public static class CommandDispatcher
             }
         }
 
-        // Clear any existing queue
+        // Clear any existing queue and pending deferred dispatches
         aircraft.Queue.Blocks.Clear();
         aircraft.Queue.CurrentBlockIndex = 0;
+        aircraft.DeferredDispatches.Clear();
 
         var messages = new List<string>();
 
