@@ -679,11 +679,13 @@ public partial class GroundViewModel : ObservableObject
 
         // Variation N: cross all
         var allCrossParts = crossingHoldShorts.Select(c => $"CROSS {c.RwyName}");
-        results.Add((
-            $"CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))}",
-            $"TAXI {taxiways}{spotSuffix}, {string.Join(", ", allCrossParts)}",
-            route
-        ));
+        results.Add(
+            (
+                $"CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))}",
+                $"TAXI {taxiways}{spotSuffix}, {string.Join(", ", allCrossParts)}",
+                route
+            )
+        );
 
         return results;
     }
@@ -697,11 +699,7 @@ public partial class GroundViewModel : ObservableObject
     ///   (separator)
     ///   HS 28R  |  CROSS 28R HS 28L  |  CROSS 28R 28L HS 30
     /// </summary>
-    public List<(string Label, string Command, TaxiRoute Preview)?> BuildTaxiDestVariants(
-        TaxiRoute route,
-        string destRunway,
-        string? spotName = null
-    )
+    public List<(string Label, string Command, TaxiRoute Preview)?> BuildTaxiDestVariants(TaxiRoute route, string destRunway, string? spotName = null)
     {
         var taxiways = BuildTaxiCommand(route);
         var spotSuffix = spotName is not null ? $" @{spotName}" : "";
@@ -741,11 +739,13 @@ public partial class GroundViewModel : ObservableObject
 
         // Hold short of first crossing
         var firstHs = crossingHoldShorts[0];
-        results.Add((
-            $"RWY {destRunway} HS {firstHs.RwyName}",
-            $"TAXI {taxiways} HS {firstHs.RwyName} RWY {destRunway}{spotSuffix}",
-            route.TruncateAt(firstHs.Hs.NodeId)
-        ));
+        results.Add(
+            (
+                $"RWY {destRunway} HS {firstHs.RwyName}",
+                $"TAXI {taxiways} HS {firstHs.RwyName} RWY {destRunway}{spotSuffix}",
+                route.TruncateAt(firstHs.Hs.NodeId)
+            )
+        );
 
         // Cross some, hold short of next
         for (int i = 0; i < crossingHoldShorts.Count - 1; i++)
@@ -759,22 +759,20 @@ public partial class GroundViewModel : ObservableObject
 
         // Cross all, arrive at destination with RWY assignment
         var allCross = crossingHoldShorts.Select(c => $"CROSS {c.RwyName}");
-        results.Add((
-            $"RWY {destRunway} CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))}",
-            $"TAXI {taxiways} {destRunway}{spotSuffix}, {string.Join(", ", allCross)}",
-            route
-        ));
+        results.Add(
+            (
+                $"RWY {destRunway} CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))}",
+                $"TAXI {taxiways} {destRunway}{spotSuffix}, {string.Join(", ", allCross)}",
+                route
+            )
+        );
 
         results.Add(null); // separator
 
         // --- Non-RWY variants: progressive crossings without runway assignment ---
 
         // Hold short of first crossing
-        results.Add((
-            $"HS {firstHs.RwyName}",
-            $"TAXI {taxiways} HS {firstHs.RwyName}{spotSuffix}",
-            route.TruncateAt(firstHs.Hs.NodeId)
-        ));
+        results.Add(($"HS {firstHs.RwyName}", $"TAXI {taxiways} HS {firstHs.RwyName}{spotSuffix}", route.TruncateAt(firstHs.Hs.NodeId)));
 
         // Cross some, hold short of next
         for (int i = 0; i < crossingHoldShorts.Count - 1; i++)
@@ -787,11 +785,13 @@ public partial class GroundViewModel : ObservableObject
         }
 
         // Cross all, hold short at destination (no RWY assignment)
-        results.Add((
-            $"CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))} HS {destRunway}",
-            $"TAXI {taxiways} HS {destRunway}{spotSuffix}, {string.Join(", ", allCross)}",
-            route.TruncateAt(destHsNodeId)
-        ));
+        results.Add(
+            (
+                $"CROSS {string.Join(" ", crossingHoldShorts.Select(c => c.RwyName))} HS {destRunway}",
+                $"TAXI {taxiways} HS {destRunway}{spotSuffix}, {string.Join(", ", allCross)}",
+                route.TruncateAt(destHsNodeId)
+            )
+        );
 
         return results;
     }

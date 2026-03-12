@@ -585,10 +585,7 @@ public partial class GroundView : UserControl
         {
             var command = variants.Count == 1 ? variants[0].Command : "";
             var preview = variants.Count == 1 ? variants[0].Preview : route;
-            var item = CreateMenuItem(
-                $"Taxi {displayName}",
-                () => vm.SendRawCommandAsync(callsign, initials, command)
-            );
+            var item = CreateMenuItem($"Taxi {displayName}", () => vm.SendRawCommandAsync(callsign, initials, command));
             AttachPreviewHover(item, vm, preview);
             parent.Items.Add(item);
             return;
