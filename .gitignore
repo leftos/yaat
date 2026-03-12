@@ -22,6 +22,9 @@ Thumbs.db
 ## Generated
 tools/oak_layout_dump.json
 
+## Local scenario snapshots (downloaded via tools/refresh-scenarios.py)
+tests/Yaat.Sim.Tests/TestData/Scenarios/
+
 ## Environment variables
 .env
 

@@ -124,13 +124,13 @@ public static class CommandSchemeParser
         else if (upper.StartsWith("AT "))
         {
             var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length < 3)
+            if (tokens.Length < 2)
             {
                 return null;
             }
 
             parts.Add($"AT {tokens[1].ToUpperInvariant()}");
-            remaining = tokens[2];
+            remaining = tokens.Length >= 3 ? tokens[2] : "";
         }
         else if (upper.StartsWith("ATFN "))
         {
@@ -211,6 +211,12 @@ public static class CommandSchemeParser
         }
 
         remaining = expandedRemainder;
+
+        // Bare condition with no following command (e.g., "AT BRIXX")
+        if (string.IsNullOrWhiteSpace(remaining) && parts.Count > 0)
+        {
+            return string.Join(" ", parts);
+        }
 
         var commandResult = ParseCommandList(remaining, scheme);
         if (commandResult is null)
@@ -605,7 +611,7 @@ public static class CommandSchemeParser
     /// Heading/altitude verbs that take exactly one token as argument.
     /// Used by ExpandMultiCommand to split e.g. "FH 270 CM 5000" → "FH 270, CM 5000".
     /// </summary>
-    private static readonly HashSet<string> HeadingAltVerbs = new(StringComparer.OrdinalIgnoreCase) { "FH", "TL", "TR", "CM", "DM" };
+    private static readonly HashSet<string> HeadingAltVerbs = new(StringComparer.OrdinalIgnoreCase) { "FH", "TL", "TR", "CM", "DM", "SPD" };
 
     /// <summary>
     /// Splits concatenated heading/altitude commands within a single command string.
@@ -755,9 +761,17 @@ public static class CommandSchemeParser
         }
 
         // Need at least WAIT N
-        if (tokens.Length < 2 || !int.TryParse(tokens[1], out _))
+        if (tokens.Length < 2)
         {
             result.Add(block);
+            return;
+        }
+
+        // WAIT FIXNAME ... → AT FIXNAME ... (fix name instead of numeric delay)
+        if (!int.TryParse(tokens[1], out _))
+        {
+            var rewritten = "AT " + string.Join(" ", tokens[1..]);
+            ExpandWaitBlock(rewritten, result);
             return;
         }
 

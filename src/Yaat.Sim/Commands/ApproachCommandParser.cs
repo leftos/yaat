@@ -216,8 +216,12 @@ internal static class ApproachCommandParser
     }
 
     /// <summary>
-    /// Parses HOLDP fixName inboundCourse legLength[M] direction [entry].
-    /// Example: "HOLDP SUNOL 090 3 R" or "HOLDP SUNOL 090 1M L D"
+    /// Parses HOLDP fixName inboundCourse [legLength[M]] [direction] [entry].
+    /// Flexible token counts:
+    ///   3 tokens: fix course direction OR fix course leg (defaults direction=Right)
+    ///   4 tokens: fix course leg direction (standard) OR fix course leg numericLeg (defaults direction=Right)
+    ///   5 tokens: fix course leg direction entry
+    /// Default direction is Right per 7110.65. Default leg is 1M.
     /// </summary>
     internal static ParsedCommand? ParseHold(string? arg, IFixLookup? fixes)
     {
@@ -227,9 +231,7 @@ internal static class ApproachCommandParser
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        // Minimum: fixName inboundCourse legLength direction = 4 tokens
-        if (tokens.Length < 4)
+        if (tokens.Length < 3)
         {
             return null;
         }
@@ -246,39 +248,96 @@ internal static class ApproachCommandParser
             return null;
         }
 
-        var legToken = tokens[2].ToUpperInvariant();
-        bool isMinuteBased = legToken.EndsWith('M');
-        var legValueStr = isMinuteBased ? legToken[..^1] : legToken;
-        if (!double.TryParse(legValueStr, out var legLength) || legLength <= 0)
-        {
-            return null;
-        }
-
-        var dirToken = tokens[3].ToUpperInvariant();
-        TurnDirection direction = dirToken switch
-        {
-            "R" or "RIGHT" => TurnDirection.Right,
-            "L" or "LEFT" => TurnDirection.Left,
-            _ => (TurnDirection)(-1),
-        };
-        if ((int)direction == -1)
-        {
-            return null;
-        }
-
+        // Defaults
+        TurnDirection direction = TurnDirection.Right;
+        double legLength = 1;
+        bool isMinuteBased = true;
         HoldingEntry? entry = null;
-        if (tokens.Length >= 5)
+
+        if (tokens.Length == 3)
         {
-            entry = tokens[4].ToUpperInvariant() switch
+            // 3 tokens: fix course (direction | leg)
+            if (TryParseDirection(tokens[2], out var dir3))
             {
-                "D" => HoldingEntry.Direct,
-                "T" => HoldingEntry.Teardrop,
-                "P" => HoldingEntry.Parallel,
-                _ => null,
-            };
+                direction = dir3;
+            }
+            else if (TryParseLeg(tokens[2], out var leg3, out var min3))
+            {
+                legLength = leg3;
+                isMinuteBased = min3;
+            }
+            else
+            {
+                return null;
+            }
+        }
+        else if (tokens.Length >= 4)
+        {
+            // Token[2] is always leg
+            if (!TryParseLeg(tokens[2], out legLength, out isMinuteBased))
+            {
+                return null;
+            }
+
+            // Token[3] is direction (or numeric → default direction Right)
+            if (TryParseDirection(tokens[3], out var dir4))
+            {
+                direction = dir4;
+            }
+
+            // Token[4] is entry if present
+            if (tokens.Length >= 5)
+            {
+                entry = ParseEntry(tokens[4]);
+            }
         }
 
         return new HoldingPatternCommand(fixName, pos.Value.Lat, pos.Value.Lon, inboundCourse, legLength, isMinuteBased, direction, entry);
+    }
+
+    private static bool TryParseDirection(string token, out TurnDirection direction)
+    {
+        var upper = token.ToUpperInvariant();
+        if (upper is "R" or "RIGHT")
+        {
+            direction = TurnDirection.Right;
+            return true;
+        }
+
+        if (upper is "L" or "LEFT")
+        {
+            direction = TurnDirection.Left;
+            return true;
+        }
+
+        direction = default;
+        return false;
+    }
+
+    private static bool TryParseLeg(string token, out double legLength, out bool isMinuteBased)
+    {
+        var upper = token.ToUpperInvariant();
+        isMinuteBased = upper.EndsWith('M');
+        var valueStr = isMinuteBased ? upper[..^1] : upper;
+        if (double.TryParse(valueStr, out legLength) && legLength > 0)
+        {
+            return true;
+        }
+
+        legLength = 0;
+        isMinuteBased = false;
+        return false;
+    }
+
+    private static HoldingEntry? ParseEntry(string token)
+    {
+        return token.ToUpperInvariant() switch
+        {
+            "D" => HoldingEntry.Direct,
+            "T" => HoldingEntry.Teardrop,
+            "P" => HoldingEntry.Parallel,
+            _ => null,
+        };
     }
 
     /// <summary>

@@ -253,7 +253,14 @@ public static class CommandRegistry
                 [O(null, [R("runway", "hold short runway")], "Cleared to land, hold short of runway")]
             ),
             Bare(CancelLandingClearance, "Cancel Landing Clearance", "Tower", false, ["CLC", "CTLC"]),
-            Bare(TouchAndGo, "Touch and Go", "Tower", false, ["TG"]),
+            Cmd(
+                TouchAndGo,
+                "Touch and Go",
+                "Tower",
+                false,
+                ["TG"],
+                [O(null, [], "Touch and go"), O("Runway", [R("runway", "runway designator")], "Touch and go runway")]
+            ),
             Bare(StopAndGo, "Stop and Go", "Tower", false, ["SG"]),
             Bare(LowApproach, "Low Approach", "Tower", false, ["LA"]),
             Bare(ClearedForOption, "Cleared for the Option", "Tower", false, ["COPT"]),
@@ -539,7 +546,14 @@ public static class CommandRegistry
                 ["AS"],
                 [O(null, [R("position", "position ID")], "Set active radar position")]
             ),
-            Bare(TrackAircraft, "Track", "Track Operations", false, ["TRACK"]),
+            Cmd(
+                TrackAircraft,
+                "Track",
+                "Track Operations",
+                false,
+                ["TRACK"],
+                [O(null, [], "Track aircraft"), O("Position", [R("position", "position ID")], "Track with position")]
+            ),
             Bare(DropTrack, "Drop Track", "Track Operations", false, ["DROP"]),
             Cmd(
                 InitiateHandoff,
@@ -557,7 +571,14 @@ public static class CommandRegistry
                 ["HOF"],
                 [O(null, [R("position", "position ID")], "Force handoff to position")]
             ),
-            Bare(AcceptHandoff, "Accept Handoff", "Track Operations", false, ["ACCEPT", "A"]),
+            Cmd(
+                AcceptHandoff,
+                "Accept Handoff",
+                "Track Operations",
+                false,
+                ["ACCEPT", "A"],
+                [O(null, [], "Accept handoff"), O("Callsign", [R("callsign", "aircraft callsign")], "Accept specific callsign")]
+            ),
             Bare(CancelHandoff, "Cancel Handoff", "Track Operations", false, ["CANCEL"]),
             Bare(AcceptAllHandoffs, "Accept All Handoffs", "Track Operations", true, ["ACCEPTALL"]),
             Cmd(
@@ -568,7 +589,14 @@ public static class CommandRegistry
                 ["HOALL"],
                 [O(null, [R("position", "position ID")], "Handoff all tracked aircraft")]
             ),
-            Cmd(PointOut, "Point Out", "Track Operations", false, ["PO"], [O(null, [R("position", "position ID")], "Point out to position")]),
+            Cmd(
+                PointOut,
+                "Point Out",
+                "Track Operations",
+                false,
+                ["PO"],
+                [O(null, [], "Point out"), O("Position", [R("position", "position ID")], "Point out to position")]
+            ),
             Bare(Acknowledge, "Acknowledge", "Track Operations", false, ["OK"]),
         ];
 
@@ -588,7 +616,7 @@ public static class CommandRegistry
                 "Scratchpad 1",
                 "Data Operations",
                 false,
-                ["SP1", "SCRATCHPAD"],
+                ["SP1", "SP", "SCRATCHPAD"],
                 [O(null, [R("text", "up to 3 chars")], "Set scratchpad 1")]
             ),
             Cmd(Scratchpad2, "Scratchpad 2", "Data Operations", false, ["SP2"], [O(null, [R("text", "up to 3 chars")], "Set scratchpad 2")]),

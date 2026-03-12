@@ -1,6 +1,4 @@
-using System.Net.Http;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -10,53 +8,73 @@ using Yaat.Sim.Scenarios;
 namespace Yaat.Sim.Tests.Scenarios;
 
 /// <summary>
-/// Fetches all ZOA training scenarios from the vNAS data API and verifies that every
-/// preset command can be parsed by CommandParser.ParseCompound. Skipped in CI (requires network).
+/// Loads ARTCC training scenarios from local TestData snapshots and verifies that every
+/// preset command can be parsed by CommandParser.ParseCompound.
+/// Scenarios are NOT committed to the repo — download them locally with tools/refresh-scenarios.py.
+/// Tests are skipped when the snapshot directory is empty or missing.
 /// </summary>
 public class VnasScenarioParseTests(ITestOutputHelper output)
 {
-    private const string SummaryUrl = "https://data-api.vnas.vatsim.net/api/training/scenario-summaries/by-artcc/ZOA";
-    private const string ScenarioUrl = "https://data-api.vnas.vatsim.net/api/training/scenarios/";
+    private static readonly string ScenariosRoot = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "TestData", "Scenarios")
+    );
+
+    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+
+    /// <summary>
+    /// Known typos in scenario data that we can't fix (owned by ARTCC training staff).
+    /// CI should not fail on these. If a command is fixed upstream, remove it from this list.
+    /// </summary>
+    private static readonly HashSet<string> KnownTypos =
+    [
+        "SPAWNED AT OAR, REQUEST IFR CLEARANCE", // Not a command (text description)
+        "WAI T6 DVIA", // Typo: space in WAIT
+        "CFIXX STINS AT 200", // Typo: CFIXX instead of CFIX
+        "CFIX SCTRR AT 360", // Typo: SCTRR is not a real fix
+        "WAIT10 TRACK Q2B", // Typo: missing space in WAIT10
+    ];
 
     private readonly ITestOutputHelper _output = output;
 
-    [Fact(Skip = "Requires network — run manually")]
-    public async Task AllZoaScenarios_PresetCommandsParse()
+    [Theory]
+    [InlineData("ZOA")]
+    public void AllScenarios_PresetCommandsParse(string artccId)
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-
-        // Fetch scenario summaries
-        var summariesJson = await http.GetStringAsync(SummaryUrl);
-        var summaries = JsonSerializer.Deserialize<List<ScenarioSummaryDto>>(summariesJson, JsonOpts);
-        Assert.NotNull(summaries);
-        Assert.NotEmpty(summaries);
-
-        _output.WriteLine($"Found {summaries.Count} ZOA scenarios");
-
-        var failures = new List<string>();
-        var fixes = new PermissiveFixLookup();
-
-        foreach (var summary in summaries)
+        var dir = Path.Combine(ScenariosRoot, artccId);
+        if (!Directory.Exists(dir))
         {
-            string scenarioJson;
-            try
-            {
-                scenarioJson = await http.GetStringAsync(ScenarioUrl + summary.Id);
-            }
-            catch (HttpRequestException ex)
-            {
-                _output.WriteLine($"  SKIP {summary.Id} ({summary.Name}): {ex.Message}");
-                continue;
-            }
+            _output.WriteLine($"No local scenarios for {artccId} — run: python tools/refresh-scenarios.py {artccId}");
+            return;
+        }
+
+        var files = Directory.GetFiles(dir, "*.json").Where(f => !Path.GetFileName(f).StartsWith("_")).OrderBy(f => f).ToList();
+
+        if (files.Count == 0)
+        {
+            _output.WriteLine($"No scenario files in {dir} — run: python tools/refresh-scenarios.py {artccId}");
+            return;
+        }
+
+        _output.WriteLine($"Found {files.Count} {artccId} scenario files");
+
+        var knownTypoHits = new List<string>();
+        var newFailures = new List<string>();
+        var fixes = new PermissiveFixLookup();
+        var totalPresets = 0;
+
+        foreach (var file in files)
+        {
+            var json = File.ReadAllText(file);
+            var fileName = Path.GetFileNameWithoutExtension(file);
 
             Scenario? scenario;
             try
             {
-                scenario = JsonSerializer.Deserialize<Scenario>(scenarioJson, JsonOpts);
+                scenario = JsonSerializer.Deserialize<Scenario>(json, JsonOpts);
             }
             catch (JsonException ex)
             {
-                failures.Add($"[{summary.Name}] JSON deserialize failed: {ex.Message}");
+                newFailures.Add($"[{fileName}] JSON deserialize failed: {ex.Message}");
                 continue;
             }
 
@@ -65,7 +83,8 @@ public class VnasScenarioParseTests(ITestOutputHelper output)
                 continue;
             }
 
-            _output.WriteLine($"  {summary.Name} ({scenario.Aircraft.Count} aircraft)");
+            var label = string.IsNullOrWhiteSpace(scenario.Name) ? fileName : scenario.Name;
+            _output.WriteLine($"  {label} ({scenario.Aircraft.Count} aircraft)");
 
             foreach (var ac in scenario.Aircraft)
             {
@@ -76,36 +95,49 @@ public class VnasScenarioParseTests(ITestOutputHelper output)
                         continue;
                     }
 
+                    totalPresets++;
                     var compound = CommandParser.ParseCompound(preset.Command, fixes, ac.FlightPlan?.Route);
                     if (compound is null)
                     {
-                        failures.Add($"[{summary.Name}] {ac.AircraftId}: \"{preset.Command}\" → parse failed");
+                        var entry = $"[{label}] {ac.AircraftId}: \"{preset.Command}\" → parse failed";
+                        if (KnownTypos.Contains(preset.Command))
+                        {
+                            knownTypoHits.Add(entry);
+                        }
+                        else
+                        {
+                            newFailures.Add(entry);
+                        }
                     }
                 }
             }
         }
 
-        if (failures.Count > 0)
+        _output.WriteLine($"\n{totalPresets} total preset commands");
+
+        if (knownTypoHits.Count > 0)
         {
-            _output.WriteLine($"\n=== {failures.Count} PARSE FAILURES ===");
-            foreach (var f in failures)
+            _output.WriteLine($"\n--- {knownTypoHits.Count} known typos (expected) ---");
+            foreach (var f in knownTypoHits)
             {
                 _output.WriteLine(f);
             }
         }
 
-        Assert.True(failures.Count == 0, $"{failures.Count} preset commands failed to parse:\n{string.Join("\n", failures)}");
-    }
+        if (newFailures.Count > 0)
+        {
+            _output.WriteLine($"\n=== {newFailures.Count} NEW PARSE FAILURES ===");
+            foreach (var f in newFailures)
+            {
+                _output.WriteLine(f);
+            }
+        }
 
-    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
-
-    private class ScenarioSummaryDto
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; set; } = "";
-
-        [JsonPropertyName("name")]
-        public string Name { get; set; } = "";
+        Assert.True(
+            newFailures.Count == 0,
+            $"{newFailures.Count} new preset commands failed to parse "
+                + $"({knownTypoHits.Count} known typos excluded):\n{string.Join("\n", newFailures)}"
+        );
     }
 
     /// <summary>

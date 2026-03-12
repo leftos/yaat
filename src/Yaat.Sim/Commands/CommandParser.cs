@@ -128,6 +128,12 @@ public static class CommandParser
             remaining = condResult.Value.Remainder;
         }
 
+        // Bare condition with no following command (e.g., "AT BRIXX")
+        if (string.IsNullOrWhiteSpace(remaining) && condition is not null)
+        {
+            return [new ParsedBlock(condition, [])];
+        }
+
         if (string.IsNullOrWhiteSpace(remaining))
         {
             return null;
@@ -256,14 +262,15 @@ public static class CommandParser
     private static (BlockCondition Condition, string Remainder)? ParseAtCondition(string input, IFixLookup fixes)
     {
         // "AT SUNOL FH 090" → condition=AtFixCondition(SUNOL, lat, lon), remainder="FH 090"
+        // "AT BRIXX" → condition=AtFixCondition(BRIXX, lat, lon), remainder=""
         var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 3)
+        if (parts.Length < 2)
         {
             return null;
         }
 
         var token = parts[1].ToUpperInvariant();
-        var remainder = string.Join(' ', parts.Skip(2));
+        var remainder = parts.Length >= 3 ? string.Join(' ', parts.Skip(2)) : "";
 
         // Try direct fix lookup first
         var pos = fixes.GetFixPosition(token);
@@ -425,7 +432,7 @@ public static class CommandParser
             "CA" or "CIRCLE" when arg is null => new CircleAirportCommand(),
             "SEQ" => ParseSequence(arg),
             // Option approach / special ops commands
-            "TG" when arg is null => new TouchAndGoCommand(),
+            "TG" => new TouchAndGoCommand(arg?.Trim().ToUpperInvariant()),
             "SG" when arg is null => new StopAndGoCommand(),
             "LA" when arg is null => new LowApproachCommand(),
             "COPT" when arg is null => new ClearedForOptionCommand(),
@@ -479,19 +486,19 @@ public static class CommandParser
             "RTIS" => new ReportTrafficInSightCommand(arg?.Trim().ToUpperInvariant()),
             // Track commands
             "AS" => ParseTcpArg(arg, tcp => new SetActivePositionCommand(tcp)),
-            "TRACK" when arg is null => new TrackAircraftCommand(),
+            "TRACK" => new TrackAircraftCommand(arg?.Trim().ToUpperInvariant()),
             "DROP" when arg is null => new DropTrackCommand(),
             "HO" => ParseTcpArg(arg, tcp => new InitiateHandoffCommand(tcp)),
             "HOF" => ParseTcpArg(arg, tcp => new ForceHandoffCommand(tcp)),
-            "ACCEPT" or "A" when arg is null => new AcceptHandoffCommand(),
+            "ACCEPT" or "A" => new AcceptHandoffCommand(arg?.Trim().ToUpperInvariant()),
             "CANCEL" when arg is null => new CancelHandoffCommand(),
             "ACCEPTALL" when arg is null => new AcceptAllHandoffsCommand(),
             "HOALL" => ParseTcpArg(arg, tcp => new InitiateHandoffAllCommand(tcp)),
-            "PO" => ParseTcpArg(arg, tcp => new PointOutCommand(tcp)),
+            "PO" => new PointOutCommand(arg?.Trim().ToUpperInvariant()),
             "OK" when arg is null => new AcknowledgeCommand(),
             "ANNOTATE" or "AN" or "BOX" when arg is not null => ParseStripAnnotate(arg),
             "STRIP" when arg is not null => new StripPushCommand(arg.Trim().ToUpperInvariant()),
-            "SP1" or "SCRATCHPAD" when arg is not null => new Scratchpad1Command(arg.Trim().ToUpperInvariant()),
+            "SP" or "SP1" or "SCRATCHPAD" when arg is not null => new Scratchpad1Command(arg.Trim().ToUpperInvariant()),
             "SP2" when arg is not null => new Scratchpad2Command(arg.Trim().ToUpperInvariant()),
             "TEMPALT" or "TA" or "TEMP" or "QQ" => ParseAltitudeHundreds(arg, h => new TemporaryAltitudeCommand(h)),
             "CRUISE" or "QZ" => ParseAltitudeHundreds(arg, h => new CruiseCommand(h)),

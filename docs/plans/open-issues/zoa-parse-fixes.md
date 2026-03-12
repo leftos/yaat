@@ -53,50 +53,44 @@ Down to 438 failures (67 unique patterns) after the first round of fixes.
 - [x] Broadcast to clients in yaat-server TickProcessor (both immediate and timed presets)
 - [x] Upgraded TickProcessor from `Parse`/`Dispatch` to `ParseCompound`/`DispatchCompound`
 
-## Remaining (438 failures, 67 unique patterns)
+## Round 2 — Completed (was 438 failures, 67 unique patterns)
 
-### WAIT N TRACK tcp (~300 failures — largest category)
-- [ ] `WAIT 5 TRACK OAK_41_CTR` → ExpandWait splits to `WAIT 5; TRACK OAK_41_CTR`
-- [ ] But `TRACK OAK_41_CTR` fails: `Parse` treats TRACK as zero-arg (`"TRACK" when arg is null`)
-- [ ] TRACK with a TCP arg means "initiate track and assign to position" — server-side concept
-- [ ] Need `TRACK` to accept optional TCP arg in CommandParser
+### TRACK with optional TCP arg (~300 failures)
+- [x] `TRACK` accepts optional TCP code: `TrackAircraftCommand(TcpCode: "OAK_41_CTR")`
+- [x] CommandRegistry changed from Bare to Cmd with optional position overload
 
-### WAIT N SP val (~40 failures)
-- [ ] `WAIT 15 SP OA1` — SP is shorthand for SP1 (scratchpad)
-- [ ] `SP` is not in the parser switch; only `SP1` and `SP2` are
-- [ ] Add `SP` as alias for `SP1`
+### SP alias for SP1 (~40 failures)
+- [x] Added `SP` alias to SP1 in CommandParser and CommandRegistry
 
-### AT fix TRACK/ACCEPT/PO/SP (~30 failures)
-- [ ] `AT BESSA PO`, `AT OAK TRACK OAK_41_CTR`, `AT INYOE ACCEPT JBU33`
-- [ ] Track/coordination commands inside AT conditional blocks
-- [ ] These bypass CommandDispatcher at runtime — need special handling in preset dispatch
-- [ ] `AT ARCHI SP +RGT`, `AT EDDYY SP +LFT` — scratchpad in AT condition
+### AT + track/scratchpad commands (~30 failures)
+- [x] Fixed by TRACK/ACCEPT/SP changes — AT condition extraction + normal parse
 
-### WAIT N TG rwy (~30 failures)
-- [ ] `WAIT 10 TG 31` — Touch-and-go with runway number
-- [ ] `TG` is currently zero-arg (`"TG" when arg is null`)
-- [ ] Need TG to accept optional runway arg
+### ACCEPT with optional callsign
+- [x] `ACCEPT` accepts optional callsign: `AcceptHandoffCommand(Callsign: "JBU33")`
+- [x] CommandRegistry changed from Bare to Cmd with optional callsign overload
 
-### AT fix (bare, no command) (1 failure)
-- [ ] `AT BRIXX` — condition with no following command
-- [ ] Unclear what this means in ATCTrainer; may be a scenario error
+### TG with optional runway (~30 failures)
+- [x] `TG` accepts optional runway: `TouchAndGoCommand(RunwayId: "31")`
+- [x] CommandRegistry changed from Bare to Cmd with optional runway overload
 
-### SPD + altitude multi-command (1 failure)
-- [ ] `AT PIECH SPD 210 DM 040` — needs SPD in ExpandMultiCommand
-- [ ] Currently only FH/TL/TR/CM/DM are in the expansion set
+### SPD in ExpandMultiCommand (1 failure)
+- [x] Added `SPD` to `HeadingAltVerbs` set
 
-### HOLD without direction (2 failures)
-- [ ] `HOLD VPBCK 080 10` — 3-token hold (fix, course, leg) with no direction
-- [ ] Parser requires 4 tokens (fix, course, leg, direction)
-- [ ] Could default to right turns per standard holding
+### HOLD without direction / without leg (3 failures)
+- [x] Rewrote `ParseHold` for flexible 3-5 token forms
+- [x] 3 tokens: fix course direction (default leg 1M) OR fix course leg (default Right)
+- [x] 4 tokens: fix course leg direction (standard) OR fix course leg (default Right)
+- [x] Default direction is Right per 7110.65
 
 ### WAIT with fix name (1 failure)
-- [ ] `WAIT OAK WAIT 100 DM 5000` — fix-based WAIT (not numeric)
-- [ ] Currently WAIT only accepts numeric seconds
+- [x] `WAIT FIXNAME ...` → `AT FIXNAME ...` rewrite in ExpandWaitBlock
+
+### AT bare / no command (1 failure)
+- [x] `AT BRIXX` → condition with empty command list
+- [x] Fixed in both CommandParser.ParseAtCondition and CommandSchemeParser.ParseBlockToCanonical
 
 ### WAIT 150 HOLD (1 failure)
-- [ ] `WAIT 150 HOLD RBL 341 RIGHT` — HOLD after WAIT in compound
-- [ ] ExpandWait should handle this but HOLD with fix+course+leg+dir might need `HOLDP` verb
+- [x] Fixed by HOLD 3-token flexibility + WAIT expansion
 
 ### Skip (not implementing)
 - `WAI T6 DVIA` — typo
@@ -104,7 +98,14 @@ Down to 438 failures (67 unique patterns) after the first round of fixes.
 - `CFIXX` / `CFIX SCTRR AT 360` — typos in scenario **YW-DN |14_35 [16Z]**
 - `SPAWNED AT OAR...` — not a command (text description)
 
+### PO bare (1 failure from scenario test)
+- [x] `PO` without TCP arg returns `PointOutCommand(TcpCode: null)` — resolves to student position at dispatch
+- [x] CommandRegistry changed from single required-arg overload to bare + position overload
+
 ## Test plan
-- [x] Unit tests for all completed patterns (`ZoaParseFixTests.cs`, 41 tests)
-- [ ] Re-run `VnasScenarioParseTests` after remaining fixes
-- [ ] Target: <10 remaining failures (typos and true unknowns only)
+- [x] Unit tests for all completed patterns (`ZoaParseFixTests.cs`, 59 tests)
+- [x] `VnasScenarioParseTests` runs against local snapshots — 0 new failures (6 known typos excluded)
+- [x] Target: <10 remaining failures (typos and true unknowns only) — achieved: 6 known typos
+- [x] Local scenario snapshots gitignored, test skips gracefully when absent
+- [x] `tools/refresh-scenarios.py` for downloading ARTCC scenarios
+- [x] `docs/scenario-validation.md` documenting the workflow

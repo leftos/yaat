@@ -120,6 +120,10 @@ YAAT Client ──SignalR JSON──> yaat-server <──SignalR+MessagePack─�
 - `docs/crc/` — CRC (Consolidated Radar Client) controller manual pages scraped from vNAS docs. Covers overview, STARS terminal radar, Tower Cab mode, and vStrips. Use as reference for understanding CRC display behavior and terminology when implementing CRC protocol features.
 - `docs/vnas-artcc-config-examples/` — Real vNAS ARTCC configuration JSON files (e.g., `zoa.json`). Contains facility hierarchy, positions, TCPs, STARS lists with coordination channels, ASDEX/TowerCab configs. Use as reference for parsing ARTCC API responses and understanding coordination channel adaptation.
 
+## Scenario Validation
+
+See [`docs/scenario-validation.md`](docs/scenario-validation.md) for how to validate ARTCC training scenario preset commands against the parser. Scenarios are downloaded locally (gitignored) via `tools/refresh-scenarios.py` and tested by `VnasScenarioParseTests`. When modifying command parsing, download and test against real scenarios to catch regressions.
+
 ## Discord Integration
 
 ### GitHub Actions Workflows (`.github/workflows/`)

@@ -187,7 +187,7 @@ public record CircleAirportCommand : ParsedCommand;
 public record SequenceCommand(int Number, string? FollowCallsign) : ParsedCommand;
 
 // Option approach / special ops commands
-public record TouchAndGoCommand : ParsedCommand;
+public record TouchAndGoCommand(string? RunwayId = null) : ParsedCommand;
 
 public record StopAndGoCommand : ParsedCommand;
 
@@ -281,7 +281,7 @@ public record DistanceFinalCondition(double DistanceNm) : BlockCondition;
 // Track operations commands
 public record SetActivePositionCommand(string TcpCode) : ParsedCommand;
 
-public record TrackAircraftCommand : ParsedCommand;
+public record TrackAircraftCommand(string? TcpCode = null) : ParsedCommand;
 
 public record DropTrackCommand : ParsedCommand;
 
@@ -289,7 +289,7 @@ public record InitiateHandoffCommand(string TcpCode) : ParsedCommand;
 
 public record ForceHandoffCommand(string TcpCode) : ParsedCommand;
 
-public record AcceptHandoffCommand : ParsedCommand;
+public record AcceptHandoffCommand(string? Callsign = null) : ParsedCommand;
 
 public record CancelHandoffCommand : ParsedCommand;
 
@@ -297,7 +297,7 @@ public record AcceptAllHandoffsCommand : ParsedCommand;
 
 public record InitiateHandoffAllCommand(string TcpCode) : ParsedCommand;
 
-public record PointOutCommand(string TcpCode) : ParsedCommand;
+public record PointOutCommand(string? TcpCode = null) : ParsedCommand;
 
 public record AcknowledgeCommand : ParsedCommand;
 
