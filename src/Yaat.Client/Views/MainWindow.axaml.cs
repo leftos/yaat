@@ -12,6 +12,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.Views;
 
@@ -63,6 +64,12 @@ public partial class MainWindow : Window
         if (approachReportItem is not null)
         {
             approachReportItem.Click += OnApproachReportClick;
+        }
+
+        var validateScenariosItem = this.FindControl<MenuItem>("ValidateScenariosMenuItem");
+        if (validateScenariosItem is not null)
+        {
+            validateScenariosItem.Click += OnValidateScenariosClick;
         }
 
         var newWeatherItem = this.FindControl<MenuItem>("NewWeatherMenuItem");
@@ -1169,6 +1176,62 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             vm.StatusText = $"Approach report error: {ex.Message}";
+        }
+    }
+
+    private async void OnValidateScenariosClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var artccId = vm.Preferences.ArtccId;
+        if (string.IsNullOrWhiteSpace(artccId))
+        {
+            vm.StatusText = "No ARTCC configured — set one in Settings first";
+            return;
+        }
+
+        try
+        {
+            var trainingData = new TrainingDataService();
+            vm.StatusText = $"Fetching scenario list for {artccId}...";
+            var summaries = await trainingData.GetScenarioSummariesAsync(artccId);
+
+            if (summaries.Count == 0)
+            {
+                vm.StatusText = $"No scenarios found for {artccId}";
+                return;
+            }
+
+            var results = new List<ScenarioValidationResult>();
+            for (int i = 0; i < summaries.Count; i++)
+            {
+                vm.StatusText = $"Validating scenario {i + 1}/{summaries.Count}...";
+                var json = await trainingData.GetScenarioJsonAsync(summaries[i].Id);
+                if (json is null)
+                {
+                    continue;
+                }
+
+                var result = ScenarioValidator.Validate(json);
+                if (result is not null)
+                {
+                    results.Add(result);
+                }
+            }
+
+            vm.StatusText = $"Validated {results.Count} scenarios";
+
+            var window = new ScenarioValidationWindow();
+            new WindowGeometryHelper(window, vm.Preferences, "ScenarioValidation", 950, 600).Restore();
+            window.LoadReport(artccId, results);
+            await window.ShowDialog(this);
+        }
+        catch (Exception ex)
+        {
+            vm.StatusText = $"Scenario validation error: {ex.Message}";
         }
     }
 

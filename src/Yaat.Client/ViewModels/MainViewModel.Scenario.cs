@@ -1,7 +1,9 @@
+using System.Text.Json;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.ViewModels;
 
@@ -193,6 +195,41 @@ public partial class MainViewModel
         {
             _log.LogWarning("Scenario: {Warning}", w);
             AddWarningEntry($"[WARN] {w}");
+        }
+
+        ValidatePresetCommands(json);
+    }
+
+    private void ValidatePresetCommands(string json)
+    {
+        try
+        {
+            var validation = ScenarioValidator.Validate(json);
+            if (validation is null || validation.Failures.Count == 0)
+            {
+                return;
+            }
+
+            var newFailures = validation.Failures.Where(f => !f.IsKnownTypo).ToList();
+            var typos = validation.Failures.Where(f => f.IsKnownTypo).ToList();
+
+            if (newFailures.Count > 0)
+            {
+                AddWarningEntry($"[WARN] {newFailures.Count} preset command{(newFailures.Count != 1 ? "s" : "")} failed to parse");
+                foreach (var f in newFailures)
+                {
+                    AddWarningEntry($"  {f.AircraftId}: \"{f.Command}\"");
+                }
+            }
+
+            if (typos.Count > 0)
+            {
+                AddSystemEntry($"{typos.Count} known typo{(typos.Count != 1 ? "s" : "")} in scenario data (ignored)");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Preset command validation failed");
         }
     }
 

@@ -62,6 +62,7 @@ Views/
   SettingsWindow.axaml.cs       # Modal settings (Identity/Scenarios/Macros tabs)
   MacroImportWindow.axaml.cs    # Macro import selection dialog
   LoadWeatherWindow.axaml.cs    # Weather profile picker modal (folder scan, name + layer count)
+  ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)
   WindowGeometryHelper.cs       # Save/restore window position+size
 
 Views/Map/
@@ -254,11 +255,22 @@ CifpModels.cs                  # CIFP data models: CifpApproachProcedure, CifpSi
 ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting conditions, nav routes, beacon codes
 ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand, etc.
                                # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
+ScenarioValidator.cs           # Validates preset commands via CommandParser.ParseCompound; shared by CLI tool + client
+                               # ScenarioValidationResult, PresetParseFailure records; KnownTypos set; PermissiveFixLookup
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
 AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator)
 SpawnRequest.cs                # Spawn descriptor
 
 Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
+```
+
+## Yaat.ScenarioValidator — CLI tool (`tools/Yaat.ScenarioValidator/`)
+
+Standalone console app for validating ARTCC scenario preset commands. Downloads from vNAS API or reads local files.
+
+```
+Program.cs                     # CLI entry: --artcc, --file, --dir, --json flags; text/JSON output
+VnasClient.cs                  # HttpClient wrapper for vNAS data API scenario fetches
 ```
 
 ## yaat-server — ASP.NET Core server (`..\yaat-server\`)
