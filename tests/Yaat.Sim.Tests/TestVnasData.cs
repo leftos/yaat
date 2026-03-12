@@ -22,6 +22,8 @@ internal static class TestVnasData
     private static readonly object _lock = new();
 
     private static FixDatabase? _fixDatabase;
+    private static ProcedureDatabase? _procedureDatabase;
+    private static bool _procedureDbAttempted;
 
     /// <summary>
     /// Returns a <see cref="FixDatabase"/> loaded from NavData.dat, or null if the file is not present.
@@ -46,6 +48,45 @@ internal static class TestVnasData
             var navData = NavDataSet.Parser.ParseFrom(bytes);
             _fixDatabase = new FixDatabase(navData);
             return _fixDatabase;
+        }
+    }
+
+    /// <summary>
+    /// Returns a <see cref="ProcedureDatabase"/> backed by the system CIFP cache
+    /// (%LOCALAPPDATA%/yaat/cache/cifp/), or null if no CIFP file is cached.
+    /// Loads lazily and caches for the process lifetime.
+    /// </summary>
+    internal static ProcedureDatabase? ProcedureDatabase
+    {
+        get
+        {
+            if (_procedureDatabase is not null)
+            {
+                return _procedureDatabase;
+            }
+
+            if (_procedureDbAttempted)
+            {
+                return null;
+            }
+
+            _procedureDbAttempted = true;
+
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var cacheDir = Path.Combine(localAppData, "yaat", "cache", "cifp");
+            if (!Directory.Exists(cacheDir))
+            {
+                return null;
+            }
+
+            var cifpFile = Directory.EnumerateFiles(cacheDir, "FAACIFP18-*").OrderDescending().FirstOrDefault();
+            if (cifpFile is null)
+            {
+                return null;
+            }
+
+            _procedureDatabase = new ProcedureDatabase(cifpFile);
+            return _procedureDatabase;
         }
     }
 

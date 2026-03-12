@@ -670,7 +670,8 @@ public static class CommandDispatcher
                     cto.AssignedAltitude,
                     runways,
                     fixes,
-                    Log
+                    Log,
+                    procedureLookup
                 );
 
             case CancelTakeoffClearanceCommand:
@@ -685,7 +686,8 @@ public static class CommandDispatcher
                     null,
                     runways,
                     fixes,
-                    Log
+                    Log,
+                    procedureLookup
                 );
 
             case ClearedToLandCommand ctl:

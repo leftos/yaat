@@ -78,7 +78,8 @@ public class DepartureClearanceHandlerTests
             null,
             runways,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -105,7 +106,8 @@ public class DepartureClearanceHandlerTests
             null,
             runways,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -151,7 +153,8 @@ public class DepartureClearanceHandlerTests
             5000,
             runways,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -176,7 +179,8 @@ public class DepartureClearanceHandlerTests
             null,
             null,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.False(result.Success);
@@ -213,7 +217,8 @@ public class DepartureClearanceHandlerTests
             null,
             null,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -236,7 +241,8 @@ public class DepartureClearanceHandlerTests
             null,
             null,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.False(result.Success);
@@ -267,7 +273,8 @@ public class DepartureClearanceHandlerTests
             5000,
             runways,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -307,7 +314,8 @@ public class DepartureClearanceHandlerTests
             null,
             runways,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -336,7 +344,8 @@ public class DepartureClearanceHandlerTests
             null,
             null,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.False(result.Success);
@@ -367,7 +376,8 @@ public class DepartureClearanceHandlerTests
             null,
             runways,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -531,7 +541,8 @@ public class DepartureClearanceHandlerTests
             null,
             runways,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -567,7 +578,8 @@ public class DepartureClearanceHandlerTests
             null,
             runways,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -594,7 +606,8 @@ public class DepartureClearanceHandlerTests
             null,
             runways,
             null,
-            Logger
+            Logger,
+            null
         );
 
         Assert.True(result.Success);
@@ -677,6 +690,7 @@ public class DepartureClearanceHandlerTests
             new ClosedTrafficDeparture(PatternDirection.Right, "28R"),
             null,
             runways,
+            null,
             null
         );
 

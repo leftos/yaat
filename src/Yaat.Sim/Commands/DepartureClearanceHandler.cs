@@ -87,29 +87,30 @@ internal static class DepartureClearanceHandler
         int? assignedAltitude,
         IRunwayLookup? runways,
         IFixLookup? fixes,
-        ILogger logger
+        ILogger logger,
+        IProcedureLookup? procedureLookup
     )
     {
         if (currentPhase is HoldingShortPhase holding)
         {
-            return LineUpFromHoldShort(aircraft, holding, clearanceType, departure, assignedAltitude, runways, fixes, logger);
+            return LineUpFromHoldShort(aircraft, holding, clearanceType, departure, assignedAltitude, runways, fixes, logger, procedureLookup);
         }
 
         if (currentPhase is TaxiingPhase)
         {
-            return StoreDepartureClearanceDuringTaxi(aircraft, clearanceType, departure, assignedAltitude, runways, fixes);
+            return StoreDepartureClearanceDuringTaxi(aircraft, clearanceType, departure, assignedAltitude, runways, fixes, procedureLookup);
         }
 
         // Aircraft is lining up — CTO can pre-satisfy the upcoming LUAW phase
         if (currentPhase is LineUpPhase && clearanceType == ClearanceType.ClearedForTakeoff)
         {
-            return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, fixes, logger, runways);
+            return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, fixes, logger, runways, procedureLookup);
         }
 
         // Aircraft holding in position (e.g. after WARPG) — allow LUAW/CTO with assigned runway
         if (currentPhase is HoldingInPositionPhase)
         {
-            return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, runways, fixes, logger);
+            return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, runways, fixes, logger, procedureLookup);
         }
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
@@ -128,7 +129,8 @@ internal static class DepartureClearanceHandler
         int? assignedAltitude,
         IRunwayLookup? runways,
         IFixLookup? fixes,
-        ILogger logger
+        ILogger logger,
+        IProcedureLookup? procedureLookup
     )
     {
         var runwayId = holding.HoldShort.TargetName;
@@ -157,7 +159,18 @@ internal static class DepartureClearanceHandler
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.DepartureRunway = runway.Designator;
-        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, holding.HoldShort.NodeId, logger, runways);
+        InsertTowerPhasesAfterCurrent(
+            aircraft,
+            clearanceType,
+            departure,
+            assignedAltitude,
+            runway,
+            fixes,
+            holding.HoldShort.NodeId,
+            logger,
+            runways,
+            procedureLookup
+        );
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
     }
@@ -169,7 +182,8 @@ internal static class DepartureClearanceHandler
         int? assignedAltitude,
         IRunwayLookup? runways,
         IFixLookup? fixes,
-        ILogger logger
+        ILogger logger,
+        IProcedureLookup? procedureLookup
     )
     {
         if (aircraft.Phases?.AssignedRunway is not { } runway)
@@ -183,7 +197,7 @@ internal static class DepartureClearanceHandler
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.DepartureRunway = runway.Designator;
-        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, null, logger, runways);
+        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, null, logger, runways, procedureLookup);
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
@@ -195,7 +209,8 @@ internal static class DepartureClearanceHandler
         DepartureInstruction departure,
         int? assignedAltitude,
         IRunwayLookup? runways,
-        IFixLookup? fixes
+        IFixLookup? fixes,
+        IProcedureLookup? procedureLookup
     )
     {
         var route = aircraft.AssignedTaxiRoute;
@@ -242,7 +257,7 @@ internal static class DepartureClearanceHandler
         }
 
         // Pre-resolve navigation targets for route-based departures
-        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes);
+        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes, procedureLookup);
 
         // Pre-resolve pattern runway for cross-runway closed traffic
         RunwayInfo? patternRunway = null;
@@ -276,10 +291,11 @@ internal static class DepartureClearanceHandler
         IFixLookup? fixes,
         int? holdShortNodeId,
         ILogger logger,
-        IRunwayLookup? runways = null
+        IRunwayLookup? runways,
+        IProcedureLookup? procedureLookup
     )
     {
-        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes);
+        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes, procedureLookup);
 
         var lineup = new LineUpPhase(holdShortNodeId);
         var luawPhase = new LinedUpAndWaitingPhase();
@@ -351,7 +367,8 @@ internal static class DepartureClearanceHandler
         int? assignedAltitude,
         IFixLookup? fixes,
         ILogger logger,
-        IRunwayLookup? runways = null
+        IRunwayLookup? runways,
+        IProcedureLookup? procedureLookup
     )
     {
         var phases = aircraft.Phases;
@@ -390,7 +407,7 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, "Aircraft is not lined up and waiting");
         }
 
-        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes);
+        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes, procedureLookup);
 
         luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
         luaw.Departure = departure;
@@ -492,7 +509,7 @@ internal static class DepartureClearanceHandler
         DepartureInstruction departure,
         AircraftState aircraft,
         IFixLookup? fixes,
-        IProcedureLookup? procedures = null
+        IProcedureLookup? procedures
     )
     {
         if (fixes is null)
@@ -627,7 +644,14 @@ internal static class DepartureClearanceHandler
         if (aircraft.Phases?.AssignedRunway is { } rwy)
         {
             var rwKey = "RW" + rwy.Designator;
-            if (sid.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+            if (!sid.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+            {
+                // CIFP "B" suffix means both L/R share the same transition (e.g. "RW01B")
+                var bothKey = "RW" + rwy.Designator.TrimEnd('L', 'R', 'C') + "B";
+                sid.RunwayTransitions.TryGetValue(bothKey, out rwTransition);
+            }
+
+            if (rwTransition is not null)
             {
                 orderedLegs.AddRange(rwTransition.Legs);
             }

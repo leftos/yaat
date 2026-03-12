@@ -31,7 +31,7 @@ public class SfoReplayTests(ITestOutputHelper output)
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
     }
 
-    private static SimulationEngine? BuildEngine()
+    private static SimulationEngine? BuildEngine(bool withProcedures = false)
     {
         var fixes = TestVnasData.FixDatabase;
         if (fixes is null)
@@ -45,7 +45,8 @@ public class SfoReplayTests(ITestOutputHelper output)
             return null;
         }
 
-        return new SimulationEngine(fixes, fixes, groundData);
+        var procedures = withProcedures ? TestVnasData.ProcedureDatabase : null;
+        return new SimulationEngine(fixes, fixes, groundData, procedureLookup: procedures);
     }
 
     // --- Issue #51: CTO uses wrong runway end (departs opposite direction) ---
@@ -1038,6 +1039,91 @@ public class SfoReplayTests(ITestOutputHelper output)
             anyDescending,
             $"No SFO arrivals are descending at t=120s. Issue #57: preset commands not dispatched as compound, "
                 + $"so conditional blocks (AT/ATFN) are lost and aircraft fly straight through."
+        );
+    }
+
+    // --- CIFP "B" suffix: SSTIK5 SID runway transition matching ---
+
+    /// <summary>
+    /// DAL819 departs KSFO on SSTIK5 SUSEY EBAYE from runway 01R. The CIFP data uses "RW01B"
+    /// for the runway transition (shared by 01L and 01R). Without the "B" suffix fallback,
+    /// the lookup for "RW01R" fails silently — SSTIK is never loaded into the nav route,
+    /// and the aircraft turns left toward PORTE instead of flying over SSTIK first.
+    ///
+    /// Asserts: once airborne, DAL819's navigation route contains SSTIK, and the aircraft
+    /// passes within 1nm of SSTIK before heading toward PORTE.
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_DAL819_SSTIK5_NavigationIncludesSstik()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine(withProcedures: true);
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // SSTIK fix position from NavData (N37°40'42", W122°21'42")
+        var fixes = TestVnasData.FixDatabase;
+        var sstikPos = fixes?.GetFixPosition("SSTIK");
+        if (sstikPos is null)
+        {
+            _output.WriteLine("SSTIK fix not found in NavData — skipping");
+            return;
+        }
+
+        // CTO 01R fires at t=161. Allow time for lineup, takeoff, and initial climb.
+        // Sample every 5s from t=200 to t=400 to find the airborne trajectory.
+        double minDistToSstikNm = double.MaxValue;
+        double minDistTime = 0;
+        bool routeContainsSstik = false;
+
+        for (double t = 200.0; t <= 500.0; t += 5.0)
+        {
+            engine.Replay(recording, t);
+            var dal = engine.FindAircraft("DAL819");
+            if (dal is null || dal.IsOnGround)
+            {
+                continue;
+            }
+
+            // Check if nav route includes SSTIK (only need to detect once)
+            if (!routeContainsSstik)
+            {
+                routeContainsSstik = dal.Targets.NavigationRoute.Any(tgt => string.Equals(tgt.Name, "SSTIK", StringComparison.OrdinalIgnoreCase));
+            }
+
+            double dist = GeoMath.DistanceNm(dal.Latitude, dal.Longitude, sstikPos.Value.Lat, sstikPos.Value.Lon);
+            if (dist < minDistToSstikNm)
+            {
+                minDistToSstikNm = dist;
+                minDistTime = t;
+            }
+
+            // Log trajectory for diagnosis
+            if (t <= 350.0 || t % 25.0 == 0)
+            {
+                string navFirst = dal.Targets.NavigationRoute.Count > 0 ? dal.Targets.NavigationRoute[0].Name : "(none)";
+                _output.WriteLine(
+                    $"t={t:F0} DAL819 alt={dal.Altitude:F0} hdg={dal.Heading:F0} lat={dal.Latitude:F4} lon={dal.Longitude:F4} distSSTIK={dist:F1}nm nav[0]={navFirst} navCount={dal.Targets.NavigationRoute.Count}"
+                );
+            }
+        }
+
+        _output.WriteLine($"Closest approach to SSTIK: {minDistToSstikNm:F2}nm at t={minDistTime:F0}s");
+
+        Assert.True(
+            routeContainsSstik,
+            "DAL819 navigation route never contained SSTIK. The RW01B runway transition was not resolved — "
+                + "CIFP 'B' suffix fallback may not be working."
+        );
+
+        // Aircraft should pass within 1nm of SSTIK (fly-over waypoint)
+        Assert.True(
+            minDistToSstikNm < 1.0,
+            $"DAL819 closest approach to SSTIK was {minDistToSstikNm:F2}nm at t={minDistTime:F0}s. "
+                + "Expected < 1nm (fly-over). Without the RW01B fallback, SSTIK is skipped and "
+                + "the aircraft turns directly toward PORTE."
         );
     }
 }

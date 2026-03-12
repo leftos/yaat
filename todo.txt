@@ -1,5 +1,0 @@
-- radar view drawn route is incorrect, is choosing the wrong transition on the SID even though the aircraft flies the correct transition
-- Overfly fixes should be overflown, see SSTIK5 SUSEY where SSTIK is an overfly fix
-
-
-- Popoutedness of tabs such as Ground View is not persisted across application sessions, and when you pop out the tab again, the size has been persisted, but not the complete geometry (i.e. the position / translation relative to top-left of the monitor has not persisted), also geometry persistence should include monitor number, but on restore, should check that that monitor index still exists, and that restored windows don't draw out of bounds, by moving them back within bounds, and clamping their size if a simple move isn't enough.

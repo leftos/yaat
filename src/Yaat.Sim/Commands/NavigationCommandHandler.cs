@@ -380,7 +380,14 @@ internal static class NavigationCommandHandler
         if (aircraft.Phases?.AssignedRunway is { } rwy)
         {
             var rwKey = "RW" + rwy.Designator;
-            if (star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+            if (!star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+            {
+                // CIFP "B" suffix means both L/R share the same transition (e.g. "RW01B")
+                var bothKey = "RW" + rwy.Designator.TrimEnd('L', 'R', 'C') + "B";
+                star.RunwayTransitions.TryGetValue(bothKey, out rwTransition);
+            }
+
+            if (rwTransition is not null)
             {
                 orderedLegs.AddRange(rwTransition.Legs);
             }

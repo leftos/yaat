@@ -794,6 +794,161 @@ public class ProcedureLoadingTests
         Assert.Equal("OAK", targets[1].Name);
     }
 
+    // --- "B" (both) suffix fallback ---
+
+    [Fact]
+    public void TryResolveSidFromCifp_BothSuffix_MatchesLeftRunway()
+    {
+        var sid = new CifpSidProcedure(
+            Airport: "KSFO",
+            ProcedureId: "SSTIK5",
+            CommonLegs: [new CifpLeg("PORTE", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 20, null, null, null)],
+            RunwayTransitions: new Dictionary<string, CifpTransition>
+            {
+                ["RW01B"] = new(
+                    "RW01B",
+                    [new CifpLeg("SSTIK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null, IsFlyOver: true)]
+                ),
+            },
+            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+        );
+
+        var fixes = new TestFixLookup(
+            fixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
+        );
+
+        var procedures = new TestProcedureLookup();
+        procedures.AddSid(sid);
+
+        var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") };
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+
+        Assert.NotNull(result);
+        Assert.Equal("SSTIK", result!.Targets[0].Name);
+        Assert.True(result.Targets[0].IsFlyOver);
+        Assert.Equal("PORTE", result.Targets[1].Name);
+    }
+
+    [Fact]
+    public void TryResolveSidFromCifp_BothSuffix_MatchesRightRunway()
+    {
+        var sid = new CifpSidProcedure(
+            Airport: "KSFO",
+            ProcedureId: "SSTIK5",
+            CommonLegs: [new CifpLeg("PORTE", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 20, null, null, null)],
+            RunwayTransitions: new Dictionary<string, CifpTransition>
+            {
+                ["RW01B"] = new(
+                    "RW01B",
+                    [new CifpLeg("SSTIK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null, IsFlyOver: true)]
+                ),
+            },
+            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+        );
+
+        var fixes = new TestFixLookup(
+            fixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
+        );
+
+        var procedures = new TestProcedureLookup();
+        procedures.AddSid(sid);
+
+        var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01R") };
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+
+        Assert.NotNull(result);
+        Assert.Equal("SSTIK", result!.Targets[0].Name);
+    }
+
+    [Fact]
+    public void TryResolveSidFromCifp_BothSuffix_ExactMatchTakesPrecedence()
+    {
+        var sid = new CifpSidProcedure(
+            Airport: "KSFO",
+            ProcedureId: "SSTIK5",
+            CommonLegs: [new CifpLeg("PORTE", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 20, null, null, null)],
+            RunwayTransitions: new Dictionary<string, CifpTransition>
+            {
+                ["RW01L"] = new("RW01L", [new CifpLeg("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null)]),
+                ["RW01B"] = new(
+                    "RW01B",
+                    [new CifpLeg("SSTIK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null, IsFlyOver: true)]
+                ),
+            },
+            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+        );
+
+        var fixes = new TestFixLookup(
+            fixes: new Dictionary<string, (double Lat, double Lon)>
+            {
+                ["MOLEN"] = (37.63, -122.35),
+                ["SSTIK"] = (37.50, -122.40),
+                ["PORTE"] = (37.65, -122.30),
+            }
+        );
+
+        var procedures = new TestProcedureLookup();
+        procedures.AddSid(sid);
+
+        var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") };
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+
+        Assert.NotNull(result);
+        // Exact match RW01L (MOLEN) should win over RW01B (SSTIK)
+        Assert.Equal("MOLEN", result!.Targets[0].Name);
+    }
+
+    [Fact]
+    public void Jarr_BothSuffix_MatchesRunwayTransition()
+    {
+        var star = new CifpStarProcedure(
+            Airport: "KSFO",
+            ProcedureId: "BDEGA3",
+            CommonLegs: [new CifpLeg("CEDES", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 20, null, null, null)],
+            EnrouteTransitions: new Dictionary<string, CifpTransition>
+            {
+                ["BDEGA"] = new("BDEGA", [new CifpLeg("BDEGA", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null)]),
+            },
+            RunwayTransitions: new Dictionary<string, CifpTransition>
+            {
+                ["RW28B"] = new("RW28B", [new CifpLeg("BRIXX", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null)]),
+            }
+        );
+
+        var fixes = new TestFixLookup(
+            fixes: new Dictionary<string, (double Lat, double Lon)>
+            {
+                ["BDEGA"] = (38.31, -123.06),
+                ["CEDES"] = (37.55, -122.30),
+                ["BRIXX"] = (37.40, -122.40),
+            }
+        );
+
+        var procedures = new TestProcedureLookup();
+        procedures.AddStar(star);
+
+        var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
+        aircraft.Latitude = 38.5;
+        aircraft.Longitude = -123.5;
+        aircraft.Altitude = 20000;
+        aircraft.Heading = 150;
+        aircraft.Track = 150;
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28L") };
+
+        var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, procedureLookup: procedures);
+
+        Assert.True(result.Success);
+        var brixx = aircraft.Targets.NavigationRoute.FirstOrDefault(t => t.Name == "BRIXX");
+        Assert.NotNull(brixx);
+    }
+
     // --- Helper ---
 
     private static RunwayInfo MakeRunway(string designator) =>
