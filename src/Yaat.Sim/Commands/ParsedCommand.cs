@@ -343,7 +343,7 @@ public enum HoldingEntry
 }
 
 public record ClearedApproachCommand(
-    string ApproachId,
+    string? ApproachId,
     string? AirportCode,
     bool Force,
     string? AtFix,
@@ -362,7 +362,7 @@ public record ClearedApproachStraightInCommand(string ApproachId, string? Airpor
 
 public record JoinApproachStraightInCommand(string ApproachId, string? AirportCode) : ParsedCommand;
 
-public record JoinFinalApproachCourseCommand(string ApproachId) : ParsedCommand;
+public record JoinFinalApproachCourseCommand(string? ApproachId) : ParsedCommand;
 
 public record JoinStarCommand(string StarId, string? Transition) : ParsedCommand;
 

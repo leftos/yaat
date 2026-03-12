@@ -16,7 +16,7 @@ internal static class ApproachCommandParser
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return null;
+            return new ClearedApproachCommand(null, null, force, null, null, null, null, null, null, null, null);
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -161,7 +161,7 @@ internal static class ApproachCommandParser
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return null;
+            return new JoinFinalApproachCourseCommand(null);
         }
 
         return new JoinFinalApproachCourseCommand(arg.Trim().ToUpperInvariant());
@@ -257,8 +257,8 @@ internal static class ApproachCommandParser
         var dirToken = tokens[3].ToUpperInvariant();
         TurnDirection direction = dirToken switch
         {
-            "R" => TurnDirection.Right,
-            "L" => TurnDirection.Left,
+            "R" or "RIGHT" => TurnDirection.Right,
+            "L" or "LEFT" => TurnDirection.Left,
             _ => (TurnDirection)(-1),
         };
         if ((int)direction == -1)

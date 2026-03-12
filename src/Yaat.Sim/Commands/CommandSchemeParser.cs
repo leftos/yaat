@@ -37,7 +37,7 @@ public static class CommandSchemeParser
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme, out ParseFailure? failure)
     {
         failure = null;
-        var trimmed = ExpandSpeedUntil(input.Trim());
+        var trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(input.Trim())));
         if (string.IsNullOrEmpty(trimmed))
         {
             return null;
@@ -49,8 +49,8 @@ public static class CommandSchemeParser
         {
             isCompound = upper.StartsWith("LV ") || upper.StartsWith("AT ") || upper.StartsWith("ATFN ");
 
-            // GIVEWAY/BEHIND are compound only if they have 3+ tokens (condition form)
-            if (!isCompound && (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ")))
+            // GIVEWAY/BEHIND/GW are compound only if they have 3+ tokens (condition form)
+            if (!isCompound && (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW ")))
             {
                 var tokens = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 isCompound = tokens.Length >= 3;
@@ -148,7 +148,7 @@ public static class CommandSchemeParser
             parts.Add($"ATFN {tokens[1]}");
             remaining = tokens[2];
         }
-        else if (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND "))
+        else if (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW "))
         {
             var tokens = remaining.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
             if (tokens.Length < 3)
@@ -160,8 +160,8 @@ public static class CommandSchemeParser
             remaining = tokens[2];
         }
 
-        // Apply ExpandSpeedUntil to the remainder after condition extraction
-        var expandedRemainder = ExpandSpeedUntil(remaining);
+        // Apply ExpandWait and ExpandSpeedUntil to the remainder after condition extraction
+        var expandedRemainder = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(remaining)));
         if (expandedRemainder.Contains(';'))
         {
             // Expansion produced additional blocks — split and handle each
@@ -228,6 +228,14 @@ public static class CommandSchemeParser
 
     private static string? ParseCommandList(string remaining, CommandScheme scheme)
     {
+        // SAY/APREQ consume entire remainder as literal text — don't split on comma
+        var upperCheck = remaining.TrimStart().ToUpperInvariant();
+        if (upperCheck.StartsWith("SAY ") || upperCheck.StartsWith("APREQ"))
+        {
+            var parsed = Parse(remaining.Trim(), scheme);
+            return parsed is not null ? ToCanonical(parsed.Type, parsed.Argument) : null;
+        }
+
         // Split remaining by ',' for parallel commands
         var commandStrings = remaining.Split(',');
         var canonicalCommands = new List<string>();
@@ -241,12 +249,29 @@ public static class CommandSchemeParser
             }
 
             var parsed = Parse(cmd, scheme);
-            if (parsed is null)
+            if (parsed is not null)
+            {
+                canonicalCommands.Add(ToCanonical(parsed.Type, parsed.Argument));
+                continue;
+            }
+
+            // Try expanding concatenated commands: "FH 270 CM 5000" → "FH 270, CM 5000"
+            var expanded = ExpandMultiCommand(cmd);
+            if (expanded == cmd)
             {
                 return null;
             }
 
-            canonicalCommands.Add(ToCanonical(parsed.Type, parsed.Argument));
+            foreach (var subCmd in expanded.Split(','))
+            {
+                var subParsed = Parse(subCmd.Trim(), scheme);
+                if (subParsed is null)
+                {
+                    return null;
+                }
+
+                canonicalCommands.Add(ToCanonical(subParsed.Type, subParsed.Argument));
+            }
         }
 
         if (canonicalCommands.Count == 0)
@@ -326,6 +351,14 @@ public static class CommandSchemeParser
             var suffix = input.Length > 7 ? " " + input[7..].Trim() : "";
             var arg = "MLT" + suffix;
             return new ParsedInput(CanonicalCommandType.ClearedForTakeoff, arg.Trim());
+        }
+
+        // APREQ [text] → SAY APREQ [text]
+        if (input.StartsWith("APREQ", StringComparison.OrdinalIgnoreCase) && (input.Length == 5 || input[5] == ' '))
+        {
+            var remainder = input.Length > 6 ? input[6..].Trim() : "";
+            var sayArg = remainder.Length > 0 ? "APREQ " + remainder : "APREQ";
+            return new ParsedInput(CanonicalCommandType.Say, sayArg);
         }
 
         // Build (alias, type) pairs from the scheme, longest alias first so
@@ -569,6 +602,40 @@ public static class CommandSchemeParser
     }
 
     /// <summary>
+    /// Heading/altitude verbs that take exactly one token as argument.
+    /// Used by ExpandMultiCommand to split e.g. "FH 270 CM 5000" → "FH 270, CM 5000".
+    /// </summary>
+    private static readonly HashSet<string> HeadingAltVerbs = new(StringComparer.OrdinalIgnoreCase) { "FH", "TL", "TR", "CM", "DM" };
+
+    /// <summary>
+    /// Splits concatenated heading/altitude commands within a single command string.
+    /// "FH 270 CM 5000" → "FH 270, CM 5000". Returns original string if not splittable.
+    /// </summary>
+    public static string ExpandMultiCommand(string input)
+    {
+        if (input.Contains(',') || input.Contains(';'))
+        {
+            return input;
+        }
+
+        var tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length != 4)
+        {
+            return input;
+        }
+
+        var verb1 = tokens[0].ToUpperInvariant();
+        var verb2 = tokens[2].ToUpperInvariant();
+
+        if (HeadingAltVerbs.Contains(verb1) && HeadingAltVerbs.Contains(verb2))
+        {
+            return $"{tokens[0]} {tokens[1]}, {tokens[2]} {tokens[3]}";
+        }
+
+        return input;
+    }
+
+    /// <summary>
     /// Expands "SPD X UNTIL Y" shorthand within each semicolon-separated block.
     /// Supports distance-based UNTIL (numeric Y → ATFN), fix-based UNTIL (alpha Y → AT),
     /// and ATCTrainer alias (SPD X FIXNAME → AT).
@@ -640,6 +707,73 @@ public static class CommandSchemeParser
         }
 
         return string.Join("; ", result);
+    }
+
+    /// <summary>
+    /// Expands "WAIT N cmd" and "DELAY N cmd" patterns into "WAIT N; cmd".
+    /// Handles chaining: "WAIT 5 WAIT 10 FH 270" → "WAIT 5; WAIT 10; FH 270".
+    /// Also normalizes standalone DELAY N to WAIT N.
+    /// </summary>
+    public static string ExpandWait(string input)
+    {
+        var blocks = input.Split(';');
+        var result = new List<string>();
+
+        foreach (var rawBlock in blocks)
+        {
+            var block = rawBlock.Trim();
+            if (string.IsNullOrEmpty(block))
+            {
+                continue;
+            }
+
+            ExpandWaitBlock(block, result);
+        }
+
+        return string.Join("; ", result);
+    }
+
+    private static void ExpandWaitBlock(string block, List<string> result)
+    {
+        var tokens = block.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return;
+        }
+
+        var upper0 = tokens[0].ToUpperInvariant();
+
+        // Not a WAIT/DELAY block — pass through as-is
+        if (upper0 is not ("WAIT" or "DELAY"))
+        {
+            // Scan interior tokens for WAIT/DELAY boundaries within a condition remainder
+            // e.g., "AT PIECH WAIT 5 SPD 210" is handled at the block level by ParseBlock,
+            // but "FH 270 WAIT 5 CM 2000" needs splitting here.
+            // This is handled by Phase 4 (auto-split at verb boundaries), not here.
+            result.Add(block);
+            return;
+        }
+
+        // Need at least WAIT N
+        if (tokens.Length < 2 || !int.TryParse(tokens[1], out _))
+        {
+            result.Add(block);
+            return;
+        }
+
+        // WAIT N (standalone) — normalize DELAY to WAIT
+        if (tokens.Length == 2)
+        {
+            result.Add($"WAIT {tokens[1]}");
+            return;
+        }
+
+        // WAIT N followed by more tokens — split at boundary
+        result.Add($"WAIT {tokens[1]}");
+
+        // Remainder after WAIT N — may itself start with WAIT/DELAY
+        var remainder = string.Join(" ", tokens[2..]);
+        ExpandWaitBlock(remainder, result);
     }
 
     private static string? NormalizeDelayArg(string? arg)

@@ -5,6 +5,7 @@ using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
@@ -694,11 +695,34 @@ public class SfoReplayTests(ITestOutputHelper output)
             return;
         }
 
-        // AAL1766 taxi command fires at t=744. Replay far enough for it to reach hold-short.
+        // The scenario has preset "WAIT 100 TAXI Y M A A1 1R" for AAL1766.
+        // With ExpandWait this now works (previously failed silently), routing AAL to 1R.
+        // Recording's manual TAXI at t=744 overrides with a different route.
+        // Replay far enough for hold-short.
         engine.Replay(recording, 850.0);
 
         var aal = engine.FindAircraft("AAL1766");
         Assert.NotNull(aal);
+        _output.WriteLine($"AAL1766 at t=850: route={aal.AssignedTaxiRoute is not null}, phases={aal.Phases?.CurrentPhase?.GetType().Name ?? "null"}, lat={aal.Latitude:F6}, lon={aal.Longitude:F6}, gs={aal.GroundSpeed:F1}");
+        _output.WriteLine($"  queue blocks={aal.Queue.Blocks.Count}, departure={aal.Departure}, departureRunway={aal.DepartureRunway}");
+        _output.WriteLine($"  groundLayout={aal.GroundLayout is not null}");
+
+        // Try parsing the recording's TAXI command directly to confirm it works
+        var testParse = CommandParser.ParseCompound("TAXI Y M1 HS A RWY 01L", TestVnasData.FixDatabase!);
+        _output.WriteLine($"  Parse 'TAXI Y M1 HS A RWY 01L': {testParse is not null}, blocks={testParse?.Blocks.Count}, cmds={testParse?.Blocks[0].Commands.Count}, type={testParse?.Blocks[0].Commands[0].GetType().Name}");
+
+        // Also check the expanded preset
+        var expanded = CommandSchemeParser.ExpandWait("WAIT 100 TAXI Y M A A1 1R");
+        _output.WriteLine($"  ExpandWait('WAIT 100 TAXI Y M A A1 1R') = '{expanded}'");
+        var presetParse = CommandParser.ParseCompound(expanded, TestVnasData.FixDatabase!);
+        _output.WriteLine($"  Parse expanded: {presetParse is not null}, blocks={presetParse?.Blocks.Count}");
+        if (presetParse is not null)
+        {
+            foreach (var b in presetParse.Blocks)
+            {
+                _output.WriteLine($"    Block: cmds=[{string.Join(", ", b.Commands.Select(c => c.GetType().Name))}]");
+            }
+        }
 
         var route = aal.AssignedTaxiRoute;
         Assert.NotNull(route);

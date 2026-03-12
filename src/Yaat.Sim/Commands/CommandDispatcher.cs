@@ -472,14 +472,16 @@ public static class CommandDispatcher
         var firstCmd = compound.Blocks[0].Commands[0];
         var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
 
-        // WAIT is a delayed execution wrapper — always accepted, clears phases so the queue can tick
+        // WAIT is a delayed execution wrapper — queue it without clearing phases.
+        // The command queue pauses while phases are active (UpdateCommandQueue returns early),
+        // so the WAIT will start ticking after the current phase completes naturally.
         if (cmdType is CanonicalCommandType.Wait or CanonicalCommandType.WaitDistance)
         {
-            var ctx = BuildMinimalContext(aircraft);
-            aircraft.Phases?.Clear(ctx);
-            aircraft.Phases = null;
-            aircraft.Targets.TurnRateOverride = null;
-            return null;
+            // Fall through to normal dispatch (which clears the queue and builds blocks),
+            // but skip the phase-clearing that returning null would trigger.
+            // We need to bypass the tower/ground command checks below since WAIT
+            // blocks may contain ground commands that should be queued, not rejected.
+            return QueueCompound(compound, aircraft, fixes, runways, rng, approachLookup, procedureLookup);
         }
 
         // Try tower/ground-specific handling first (phase-interactive commands)

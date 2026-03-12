@@ -124,7 +124,7 @@ public static class CommandRegistry
                 ["CMN"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Instantly set altitude")]
             ),
-            Cmd(ForceSpeed, "Force Speed", "Sim Control", false, ["SPDN"], [O(null, [R("speed", "knots IAS")], "Instantly set speed")]),
+            Cmd(ForceSpeed, "Force Speed", "Sim Control", false, ["SPDN", "SLN"], [O(null, [R("speed", "knots IAS")], "Instantly set speed")]),
             Cmd(
                 Warp,
                 "Warp to Position",
@@ -428,7 +428,14 @@ public static class CommandRegistry
                 [Mod("TAXI", null, false)]
             ),
             Cmd(Follow, "Follow", "Ground", false, ["FOLLOW", "FOL"], [O(null, [R("callsign", "traffic callsign")], "Follow traffic")]),
-            Cmd(GiveWay, "Give Way", "Ground", false, ["GIVEWAY", "BEHIND"], [O(null, [R("callsign", "traffic callsign")], "Give way to traffic")]),
+            Cmd(
+                GiveWay,
+                "Give Way",
+                "Ground",
+                false,
+                ["GIVEWAY", "BEHIND", "GW"],
+                [O(null, [R("callsign", "traffic callsign")], "Give way to traffic")]
+            ),
             Cmd(
                 ExitLeft,
                 "Exit Left",
@@ -474,7 +481,14 @@ public static class CommandRegistry
             Bare(Pause, "Pause", "Sim Control", true, ["PAUSE", "P"]),
             Bare(Unpause, "Unpause", "Sim Control", true, ["UNPAUSE", "U", "UN", "UNP", "UP"]),
             Cmd(SimRate, "Sim Rate", "Sim Control", true, ["SIMRATE"], [O(null, [R("rate", "1-8")], "Set simulation speed")]),
-            Cmd(Wait, "Wait (seconds)", "Sim Control", false, ["WAIT"], [O(null, [R("seconds", "delay in seconds")], "Wait before next command")]),
+            Cmd(
+                Wait,
+                "Wait (seconds)",
+                "Sim Control",
+                false,
+                ["WAIT", "DELAY"],
+                [O(null, [R("seconds", "delay in seconds")], "Wait before next command")]
+            ),
             Cmd(
                 WaitDistance,
                 "Wait (distance)",
@@ -510,7 +524,7 @@ public static class CommandRegistry
                 "Set Spawn Delay",
                 "Sim Control",
                 false,
-                ["DELAY"],
+                ["SPAWNDELAY"],
                 [O(null, [R("seconds", "delay in seconds")], "Set deferred spawn delay")]
             ),
         ];
@@ -569,7 +583,14 @@ public static class CommandRegistry
                 [O(null, [R("box", "1-9"), R("text", "annotation text")], "Write text in strip annotation box")]
             ),
             Cmd(StripPush, "Push Strip to Bay", "Strip Operations", false, ["STRIP"], [O(null, [R("bay", "bay name")], "Push flight strip to bay")]),
-            Cmd(Scratchpad1, "Scratchpad 1", "Data Operations", false, ["SP1"], [O(null, [R("text", "up to 3 chars")], "Set scratchpad 1")]),
+            Cmd(
+                Scratchpad1,
+                "Scratchpad 1",
+                "Data Operations",
+                false,
+                ["SP1", "SCRATCHPAD"],
+                [O(null, [R("text", "up to 3 chars")], "Set scratchpad 1")]
+            ),
             Cmd(Scratchpad2, "Scratchpad 2", "Data Operations", false, ["SP2"], [O(null, [R("text", "up to 3 chars")], "Set scratchpad 2")]),
             Cmd(
                 TemporaryAltitude,
@@ -659,7 +680,14 @@ public static class CommandRegistry
                 ["EAPP", "EXPECT"],
                 [O(null, [R("approach", "approach ID")], "Advise expected approach")]
             ),
-            Cmd(ClearedApproach, "Cleared Approach", "Approach", false, ["CAPP"], [O(null, [R("approach", "approach ID")], "Clear for approach")]),
+            Cmd(
+                ClearedApproach,
+                "Cleared Approach",
+                "Approach",
+                false,
+                ["CAPP"],
+                [O(null, [], "Auto-resolve approach"), O("Approach", [R("approach", "approach ID")], "Clear for approach")]
+            ),
             Cmd(JoinApproach, "Join Approach", "Approach", false, ["JAPP"], [O(null, [R("approach", "approach ID")], "Join approach course")]),
             Cmd(
                 ClearedApproachStraightIn,
@@ -699,7 +727,7 @@ public static class CommandRegistry
                 "Approach",
                 false,
                 ["JFAC", "JLOC", "JF"],
-                [O(null, [R("approach", "approach ID")], "Join final approach course")]
+                [O(null, [], "Auto-resolve approach"), O("Approach", [R("approach", "approach ID")], "Join final approach course")]
             ),
             Cmd(
                 JoinStar,
@@ -775,7 +803,7 @@ public static class CommandRegistry
                 "Cross Fix",
                 "Approach",
                 false,
-                ["CFIX"],
+                ["CFIX", "CF"],
                 [O(null, [R("fix", "fix name"), R("constraint", "A/B + altitude")], "Cross fix at altitude constraint")]
             ),
             Cmd(

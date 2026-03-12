@@ -298,7 +298,7 @@ public static class CommandDescriber
             JoinApproachCommand cmd => $"JAPP {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
             ClearedApproachStraightInCommand cmd => $"CAPPSI {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
             JoinApproachStraightInCommand cmd => $"JAPPSI {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
-            JoinFinalApproachCourseCommand cmd => $"JFAC {cmd.ApproachId}",
+            JoinFinalApproachCourseCommand cmd => cmd.ApproachId is not null ? $"JFAC {cmd.ApproachId}" : "JFAC",
             JoinStarCommand cmd => cmd.Transition is not null ? $"JARR {cmd.StarId} {cmd.Transition}" : $"JARR {cmd.StarId}",
             JoinAirwayCommand cmd => $"JAWY {cmd.AirwayId}",
             JoinRadialOutboundCommand cmd => $"JRADO {cmd.FixName}{cmd.Radial:000}",
@@ -432,7 +432,9 @@ public static class CommandDescriber
             JoinApproachCommand cmd => $"Join {cmd.ApproachId} approach{(cmd.AirportCode is not null ? $" at {cmd.AirportCode}" : "")}",
             ClearedApproachStraightInCommand cmd => $"Cleared straight-in {cmd.ApproachId} approach",
             JoinApproachStraightInCommand cmd => $"Join straight-in {cmd.ApproachId} approach",
-            JoinFinalApproachCourseCommand cmd => $"Join final approach course, {cmd.ApproachId}",
+            JoinFinalApproachCourseCommand cmd => cmd.ApproachId is not null
+                ? $"Join final approach course, {cmd.ApproachId}"
+                : "Join final approach course",
             JoinStarCommand cmd => cmd.Transition is not null ? $"Join {cmd.StarId} arrival via {cmd.Transition}" : $"Join {cmd.StarId} arrival",
             JoinAirwayCommand cmd => $"Join airway {cmd.AirwayId}",
             JoinRadialOutboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial outbound",
@@ -757,7 +759,10 @@ public static class CommandDescriber
             };
             parts.Add($"CFIX {prefix}{cmd.CrossFixAltitude / 100:000}");
         }
-        parts.Add(cmd.ApproachId);
+        if (cmd.ApproachId is not null)
+        {
+            parts.Add(cmd.ApproachId);
+        }
         return string.Join(' ', parts);
     }
 

@@ -15,8 +15,8 @@ internal static class GroundCommandParser
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        // @spot syntax: PUSH @4A, PUSH @4A A, PUSH @4A 180
-        if (tokens.Length >= 1 && tokens[0].StartsWith('@') && tokens[0].Length > 1)
+        // @spot or $spot syntax: PUSH @4A, PUSH @4A A, PUSH @4A 180
+        if (tokens.Length >= 1 && (tokens[0].StartsWith('@') || tokens[0].StartsWith('$')) && tokens[0].Length > 1)
         {
             string spotName = tokens[0][1..].ToUpperInvariant();
             if (tokens.Length == 1)
@@ -189,8 +189,8 @@ internal static class GroundCommandParser
                 continue;
             }
 
-            // @token = parking destination (strip @)
-            if (token.StartsWith('@') && token.Length > 1)
+            // @token or $token = parking destination (strip prefix)
+            if ((token.StartsWith('@') || token.StartsWith('$')) && token.Length > 1)
             {
                 destParking = token[1..].ToUpperInvariant();
                 continue;
@@ -250,7 +250,7 @@ internal static class GroundCommandParser
             return null;
         }
 
-        if (token.StartsWith('@') && token.Length > 1)
+        if ((token.StartsWith('@') || token.StartsWith('$')) && token.Length > 1)
         {
             return new TaxiAllCommand(DestinationParking: token[1..].ToUpperInvariant());
         }

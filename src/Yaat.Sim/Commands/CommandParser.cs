@@ -14,7 +14,7 @@ public static class CommandParser
     /// </summary>
     public static CompoundCommand? ParseCompound(string input, IFixLookup fixes, string? aircraftRoute = null)
     {
-        var trimmed = CommandSchemeParser.ExpandSpeedUntil(input.Trim());
+        var trimmed = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(input.Trim())));
         if (string.IsNullOrEmpty(trimmed))
         {
             return null;
@@ -29,8 +29,8 @@ public static class CommandParser
             var upperCheck = trimmed.ToUpperInvariant();
             isCompound = upperCheck.StartsWith("LV ") || upperCheck.StartsWith("AT ") || upperCheck.StartsWith("ATFN ");
 
-            // GIVEWAY/BEHIND are compound only if they have 3+ tokens (condition form)
-            if (!isCompound && (upperCheck.StartsWith("GIVEWAY ") || upperCheck.StartsWith("BEHIND ")))
+            // GIVEWAY/BEHIND/GW are compound only if they have 3+ tokens (condition form)
+            if (!isCompound && (upperCheck.StartsWith("GIVEWAY ") || upperCheck.StartsWith("BEHIND ") || upperCheck.StartsWith("GW ")))
             {
                 var tokens = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 isCompound = tokens.Length >= 3;
@@ -116,7 +116,7 @@ public static class CommandParser
             condition = condResult.Value.Condition;
             remaining = condResult.Value.Remainder;
         }
-        else if (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND "))
+        else if (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW "))
         {
             var condResult = ParseGiveWayCondition(remaining);
             if (condResult is null)
@@ -133,8 +133,8 @@ public static class CommandParser
             return null;
         }
 
-        // After condition extraction, apply ExpandSpeedUntil to the remainder
-        var expanded = CommandSchemeParser.ExpandSpeedUntil(remaining);
+        // After condition extraction, apply expansions to the remainder
+        var expanded = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(remaining)));
         if (expanded.Contains(';'))
         {
             // Expansion produced additional blocks — first gets this block's condition,
@@ -190,18 +190,44 @@ public static class CommandParser
 
     private static List<ParsedCommand>? ParseCommandList(string input, IFixLookup fixes, string? aircraftRoute)
     {
+        // SAY/APREQ consume entire remainder as literal text — don't split on comma
+        var upperCheck = input.TrimStart().ToUpperInvariant();
+        if (upperCheck.StartsWith("SAY ") || upperCheck.StartsWith("APREQ"))
+        {
+            var cmd = Parse(input.Trim(), fixes, aircraftRoute);
+            return cmd is not null ? [cmd] : null;
+        }
+
         var commandStrings = input.Split(',');
         var commands = new List<ParsedCommand>();
 
         foreach (var cmdStr in commandStrings)
         {
-            var cmd = Parse(cmdStr.Trim(), fixes, aircraftRoute);
-            if (cmd is null)
+            var trimmedCmd = cmdStr.Trim();
+            var cmd = Parse(trimmedCmd, fixes, aircraftRoute);
+            if (cmd is not null)
+            {
+                commands.Add(cmd);
+                continue;
+            }
+
+            // Try expanding concatenated commands: "FH 270 CM 5000" → "FH 270, CM 5000"
+            var expanded = CommandSchemeParser.ExpandMultiCommand(trimmedCmd);
+            if (expanded == trimmedCmd)
             {
                 return null;
             }
 
-            commands.Add(cmd);
+            foreach (var subCmd in expanded.Split(','))
+            {
+                var parsed = Parse(subCmd.Trim(), fixes, aircraftRoute);
+                if (parsed is null)
+                {
+                    return null;
+                }
+
+                commands.Add(parsed);
+            }
         }
 
         return commands.Count > 0 ? commands : null;
@@ -336,14 +362,14 @@ public static class CommandParser
             "MACH" or "M" when arg is not null => ParseMach(arg),
             "FHN" => ParseHeading(arg, h => new ForceHeadingCommand(h)),
             "CMN" => ParseAltitude(arg, fixes, a => new ForceAltitudeCommand(a)),
-            "SPDN" => ParseForceSpeed(arg),
+            "SPDN" or "SLN" => ParseForceSpeed(arg),
             "WARP" => ParseWarp(arg, fixes),
             "WARPG" when arg is not null => ParseWarpGround(arg),
-            "SQ" => ParseSquawkOrReset(arg),
-            "SQVFR" when arg is null => new SquawkVfrCommand(),
-            "SQNORM" when arg is null => new SquawkNormalCommand(),
-            "SQSBY" when arg is null => new SquawkStandbyCommand(),
-            "SQI" or "SQID" when arg is null => new IdentCommand(),
+            "SQ" or "SQUAWK" => ParseSquawkOrReset(arg),
+            "SQVFR" or "SQV" when arg is null => new SquawkVfrCommand(),
+            "SQNORM" or "SN" or "SQA" or "SQON" when arg is null => new SquawkNormalCommand(),
+            "SQSBY" or "SQS" when arg is null => new SquawkStandbyCommand(),
+            "SQI" or "SQID" or "ID" when arg is null => new IdentCommand(),
             "IDENT" when arg is null => new IdentCommand(),
             "RANDSQ" when arg is null => new RandomSquawkCommand(),
             "SQALL" when arg is null => new SquawkAllCommand(),
@@ -354,12 +380,14 @@ public static class CommandParser
             "UNPAUSE" when arg is null => new UnpauseCommand(),
             "SIMRATE" => ParseInt(arg, r => new SimRateCommand(r)),
             "SPAWN" when arg is null => new SpawnNowCommand(),
-            "DELAY" => ParseInt(arg, s => new SpawnDelayCommand(s)),
-            "WAIT" => ParseWaitSeconds(arg),
+            "SPAWNDELAY" => ParseInt(arg, s => new SpawnDelayCommand(s)),
+            "DELAY" or "WAIT" => ParseWaitSeconds(arg),
             "WAITD" => ParseWaitDistance(arg),
             // Tower commands
-            "LUAW" when arg is null => new LineUpAndWaitCommand(),
+            "LUAW" or "POS" or "LU" or "PH" when arg is null => new LineUpAndWaitCommand(),
             "CTO" => DepartureCommandParser.ParseCtoArg(arg, fixes),
+            "CTOMRT" => DepartureCommandParser.ParseCtoArg("MRT" + (arg is not null ? " " + arg : ""), fixes),
+            "CTOMLT" => DepartureCommandParser.ParseCtoArg("MLT" + (arg is not null ? " " + arg : ""), fixes),
             "CTOC" when arg is null => new CancelTakeoffClearanceCommand(),
             "GA" => ParseGoAround(arg, fixes),
             "GAMRT" when arg is null => new GoAroundCommand(TrafficPattern: PatternDirection.Right),
@@ -422,7 +450,7 @@ public static class CommandParser
             "CROSS" => GroundCommandParser.ParseCross(arg),
             "HS" => GroundCommandParser.ParseHoldShort(arg),
             "FOLLOW" or "FOL" => GroundCommandParser.ParseFollow(arg),
-            "GIVEWAY" or "BEHIND" => GroundCommandParser.ParseGiveWay(arg),
+            "GIVEWAY" or "BEHIND" or "GW" => GroundCommandParser.ParseGiveWay(arg),
             "TAXIALL" => GroundCommandParser.ParseTaxiAll(arg),
             "BREAK" when arg is null => new BreakConflictCommand(),
             "GO" when arg is null => new GoCommand(),
@@ -443,7 +471,7 @@ public static class CommandParser
             "PTAC" => ApproachCommandParser.ParsePtac(arg, fixes),
             "CVIA" => ApproachCommandParser.ParseCvia(arg),
             "DVIA" => ApproachCommandParser.ParseDvia(arg, fixes),
-            "CFIX" => ApproachCommandParser.ParseCfix(arg, fixes),
+            "CFIX" or "CF" => ApproachCommandParser.ParseCfix(arg, fixes),
             "DEPART" or "DEP" => ApproachCommandParser.ParseDepart(arg, fixes),
             "APPS" => ApproachCommandParser.ParseApps(arg),
             "CVA" or "VISUAL" => ApproachCommandParser.ParseCva(arg),
@@ -463,12 +491,13 @@ public static class CommandParser
             "OK" when arg is null => new AcknowledgeCommand(),
             "ANNOTATE" or "AN" or "BOX" when arg is not null => ParseStripAnnotate(arg),
             "STRIP" when arg is not null => new StripPushCommand(arg.Trim().ToUpperInvariant()),
-            "SP1" when arg is not null => new Scratchpad1Command(arg.Trim().ToUpperInvariant()),
+            "SP1" or "SCRATCHPAD" when arg is not null => new Scratchpad1Command(arg.Trim().ToUpperInvariant()),
             "SP2" when arg is not null => new Scratchpad2Command(arg.Trim().ToUpperInvariant()),
             "TEMPALT" or "TA" or "TEMP" or "QQ" => ParseAltitudeHundreds(arg, h => new TemporaryAltitudeCommand(h)),
             "CRUISE" or "QZ" => ParseAltitudeHundreds(arg, h => new CruiseCommand(h)),
             "ONHO" or "ONH" when arg is null => new OnHandoffCommand(),
             "SAY" when arg is not null => new SayCommand(arg),
+            "APREQ" => new SayCommand("APREQ" + (arg is not null ? " " + arg : "")),
             "SSPD" when arg is null => new SaySpeedCommand(),
             "SS" when arg is null => new SquawkStandbyCommand(),
             "DELAT" when arg is null => new DeleteQueuedCommand(),

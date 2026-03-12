@@ -783,10 +783,23 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, "Cannot determine airport for approach");
         }
 
-        string? resolvedId = approachLookup.ResolveApproachId(airport, cmd.ApproachId);
+        // Auto-resolve: when no approach ID given, derive from assigned runway
+        var approachId = cmd.ApproachId;
+        if (approachId is null)
+        {
+            var rwy = aircraft.DestinationRunway ?? aircraft.DepartureRunway;
+            if (rwy is null)
+            {
+                return new CommandResult(false, "No approach ID and no runway assigned — cannot auto-resolve");
+            }
+
+            approachId = rwy;
+        }
+
+        string? resolvedId = approachLookup.ResolveApproachId(airport, approachId);
         if (resolvedId is null)
         {
-            return new CommandResult(false, $"Unknown approach: {cmd.ApproachId} at {airport}");
+            return new CommandResult(false, $"Unknown approach: {approachId} at {airport}");
         }
 
         var procedure = approachLookup.GetApproach(airport, resolvedId);

@@ -377,7 +377,7 @@ public static class ApproachCommandHandler
     // --- Shared helpers ---
 
     internal static ResolvedApproach ResolveApproach(
-        string approachId,
+        string? approachId,
         string? airportCode,
         AircraftState aircraft,
         IApproachLookup? approachLookup,
@@ -393,6 +393,18 @@ public static class ApproachCommandHandler
         if (string.IsNullOrEmpty(airport))
         {
             return ResolvedApproach.Fail("Cannot determine airport for approach");
+        }
+
+        // Auto-resolve: when no approach ID given, derive from assigned runway
+        if (approachId is null)
+        {
+            var rwy = aircraft.DestinationRunway ?? aircraft.DepartureRunway;
+            if (rwy is null)
+            {
+                return ResolvedApproach.Fail("No approach ID and no runway assigned — cannot auto-resolve");
+            }
+
+            approachId = rwy;
         }
 
         string? resolvedId = approachLookup.ResolveApproachId(airport, approachId);
