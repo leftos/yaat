@@ -35,8 +35,8 @@ When a scenario loads in the client, preset commands are validated automatically
 **Scenario > Validate Scenarios** fetches all scenarios for the configured ARTCC from the vNAS data API, validates each one, and displays a report window with:
 
 - Summary: ARTCC name, total scenarios/presets/failure counts
-- DataGrid: scenario name, aircraft, command, status (Parse Failed / Known Typo)
-- Copy Report button: copies a text report to clipboard for sharing with ARTCC staff
+- DataGrid: scenario name, aircraft, command
+- Copy Report button: copies a structured text report (grouped by scenario > aircraft) to clipboard for sharing with ARTCC staff
 
 ## Test Integration
 
@@ -53,8 +53,8 @@ Both the test and CLI tool use the shared `ScenarioValidator` class in `Yaat.Sim
 ## How It Works
 
 1. `ScenarioValidator.Validate()` deserializes the scenario JSON and runs `CommandParser.ParseCompound()` on every preset command.
-2. Failures are checked against `ScenarioValidator.KnownTypos` — a set of known scenario data typos that ARTCC staff need to fix upstream.
-3. Results are returned as `ScenarioValidationResult` with per-command `PresetParseFailure` records.
+2. Results are returned as `ScenarioValidationResult` with per-command `PresetParseFailure` records.
+3. All failures are reported — there is no suppression of known typos. Reports are grouped by scenario and aircraft for readability.
 
 ## Adding Your ARTCC
 

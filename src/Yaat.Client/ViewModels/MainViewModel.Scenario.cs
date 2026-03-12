@@ -210,21 +210,10 @@ public partial class MainViewModel
                 return;
             }
 
-            var newFailures = validation.Failures.Where(f => !f.IsKnownTypo).ToList();
-            var typos = validation.Failures.Where(f => f.IsKnownTypo).ToList();
-
-            if (newFailures.Count > 0)
+            AddWarningEntry($"[WARN] {validation.Failures.Count} preset command{(validation.Failures.Count != 1 ? "s" : "")} failed to parse");
+            foreach (var f in validation.Failures)
             {
-                AddWarningEntry($"[WARN] {newFailures.Count} preset command{(newFailures.Count != 1 ? "s" : "")} failed to parse");
-                foreach (var f in newFailures)
-                {
-                    AddWarningEntry($"  {f.AircraftId}: \"{f.Command}\"");
-                }
-            }
-
-            if (typos.Count > 0)
-            {
-                AddSystemEntry($"{typos.Count} known typo{(typos.Count != 1 ? "s" : "")} in scenario data (ignored)");
+                AddWarningEntry($"  {f.AircraftId}: \"{f.Command}\"");
             }
         }
         catch (Exception ex)

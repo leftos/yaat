@@ -8,18 +8,6 @@ public static class ScenarioValidator
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-    /// <summary>
-    /// Known typos in scenario data that we can't fix (owned by ARTCC training staff).
-    /// </summary>
-    public static readonly HashSet<string> KnownTypos =
-    [
-        "SPAWNED AT OAR, REQUEST IFR CLEARANCE", // Not a command (text description)
-        "WAI T6 DVIA", // Typo: space in WAIT
-        "CFIXX STINS AT 200", // Typo: CFIXX instead of CFIX
-        "CFIX SCTRR AT 360", // Typo: SCTRR is not a real fix
-        "WAIT10 TRACK Q2B", // Typo: missing space in WAIT10
-    ];
-
     public static ScenarioValidationResult Validate(Scenario scenario, IFixLookup fixes)
     {
         var failures = new List<PresetParseFailure>();
@@ -39,7 +27,7 @@ public static class ScenarioValidator
                 var compound = CommandParser.ParseCompound(preset.Command, fixes, ac.FlightPlan?.Route);
                 if (compound is null)
                 {
-                    failures.Add(new PresetParseFailure(ac.AircraftId, preset.Command, KnownTypos.Contains(preset.Command)));
+                    failures.Add(new PresetParseFailure(ac.AircraftId, preset.Command));
                 }
                 else
                 {
@@ -106,4 +94,4 @@ public record ScenarioValidationResult(
     List<PresetParseFailure> Failures
 );
 
-public record PresetParseFailure(string AircraftId, string Command, bool IsKnownTypo);
+public record PresetParseFailure(string AircraftId, string Command);

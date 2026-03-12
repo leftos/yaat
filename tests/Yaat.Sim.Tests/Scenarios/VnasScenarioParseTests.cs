@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Scenarios;
@@ -16,8 +15,6 @@ public class VnasScenarioParseTests(ITestOutputHelper output)
     private static readonly string ScenariosRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "TestData", "Scenarios")
     );
-
-    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
     private readonly ITestOutputHelper _output = output;
 
@@ -42,8 +39,7 @@ public class VnasScenarioParseTests(ITestOutputHelper output)
 
         _output.WriteLine($"Found {files.Count} {artccId} scenario files");
 
-        var knownTypoHits = new List<string>();
-        var newFailures = new List<string>();
+        var failures = new List<string>();
         var totalPresets = 0;
 
         foreach (var file in files)
@@ -54,7 +50,7 @@ public class VnasScenarioParseTests(ITestOutputHelper output)
             var result = ScenarioValidator.Validate(json);
             if (result is null)
             {
-                newFailures.Add($"[{fileName}] JSON deserialize failed");
+                failures.Add($"[{fileName}] JSON deserialize failed");
                 continue;
             }
 
@@ -65,42 +61,21 @@ public class VnasScenarioParseTests(ITestOutputHelper output)
 
             foreach (var f in result.Failures)
             {
-                var entry = $"[{label}] {f.AircraftId}: \"{f.Command}\" — parse failed";
-                if (f.IsKnownTypo)
-                {
-                    knownTypoHits.Add(entry);
-                }
-                else
-                {
-                    newFailures.Add(entry);
-                }
+                failures.Add($"[{label}] {f.AircraftId}: \"{f.Command}\" — parse failed");
             }
         }
 
         _output.WriteLine($"\n{totalPresets} total preset commands");
 
-        if (knownTypoHits.Count > 0)
+        if (failures.Count > 0)
         {
-            _output.WriteLine($"\n--- {knownTypoHits.Count} known typos (expected) ---");
-            foreach (var f in knownTypoHits)
+            _output.WriteLine($"\n=== {failures.Count} PARSE FAILURES ===");
+            foreach (var f in failures)
             {
                 _output.WriteLine(f);
             }
         }
 
-        if (newFailures.Count > 0)
-        {
-            _output.WriteLine($"\n=== {newFailures.Count} NEW PARSE FAILURES ===");
-            foreach (var f in newFailures)
-            {
-                _output.WriteLine(f);
-            }
-        }
-
-        Assert.True(
-            newFailures.Count == 0,
-            $"{newFailures.Count} new preset commands failed to parse "
-                + $"({knownTypoHits.Count} known typos excluded):\n{string.Join("\n", newFailures)}"
-        );
+        Assert.True(failures.Count == 0, $"{failures.Count} preset commands failed to parse:\n{string.Join("\n", failures)}");
     }
 }

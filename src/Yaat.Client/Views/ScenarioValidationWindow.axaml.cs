@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.Views;
@@ -35,8 +34,6 @@ public partial class ScenarioValidationWindow : Window
         int totalScenarios = results.Count;
         int totalPresets = results.Sum(r => r.TotalPresets);
         int totalFailures = results.Sum(r => r.Failures.Count);
-        int knownTypos = results.Sum(r => r.Failures.Count(f => f.IsKnownTypo));
-        int newFailures = totalFailures - knownTypos;
 
         if (summaryText is not null)
         {
@@ -45,18 +42,17 @@ public partial class ScenarioValidationWindow : Window
 
         if (statsText is not null)
         {
-            statsText.Text = $"{totalScenarios} scenarios, {totalPresets} presets, {totalFailures} failures ({knownTypos} known typos)";
+            statsText.Text = $"{totalScenarios} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}";
         }
 
-        var rows = results
-            .SelectMany(r =>
-                r.Failures.Select(f => new ValidationRow(r.ScenarioName, f.AircraftId, f.Command, f.IsKnownTypo ? "Known Typo" : "Parse Failed"))
-            )
-            .ToList();
+        var rows = results.SelectMany(r => r.Failures.Select(f => new ValidationRow(r.ScenarioName, f.AircraftId, f.Command))).ToList();
 
         if (failuresHeader is not null)
         {
-            failuresHeader.Text = rows.Count > 0 ? $"{rows.Count} Failures ({newFailures} new, {knownTypos} known typos)" : "No failures found";
+            failuresHeader.Text =
+                rows.Count > 0
+                    ? $"{rows.Count} Failure{(rows.Count != 1 ? "s" : "")} across {results.Count(r => r.Failures.Count > 0)} scenario{(results.Count(r => r.Failures.Count > 0) != 1 ? "s" : "")}"
+                    : "No failures found";
         }
 
         if (failuresGrid is not null)
@@ -64,40 +60,40 @@ public partial class ScenarioValidationWindow : Window
             failuresGrid.ItemsSource = rows;
         }
 
-        _reportText = BuildReportText(artccId, results, rows);
+        _reportText = BuildReportText(artccId, results);
     }
 
-    private static string BuildReportText(string artccId, List<ScenarioValidationResult> results, List<ValidationRow> rows)
+    private static string BuildReportText(string artccId, List<ScenarioValidationResult> results)
     {
+        int totalPresets = results.Sum(r => r.TotalPresets);
+        int totalFailures = results.Sum(r => r.Failures.Count);
+
         var lines = new List<string>
         {
             $"{artccId} Scenario Validation Report",
-            $"{results.Count} scenarios, {results.Sum(r => r.TotalPresets)} presets",
+            $"{results.Count} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}",
             "",
         };
 
-        var newFailures = rows.Where(r => r.Status == "Parse Failed").ToList();
-        if (newFailures.Count > 0)
+        var failedScenarios = results.Where(r => r.Failures.Count > 0).ToList();
+        if (failedScenarios.Count > 0)
         {
-            lines.Add($"NEW FAILURES ({newFailures.Count}):");
-            foreach (var f in newFailures)
+            foreach (var scenario in failedScenarios)
             {
-                lines.Add($"  [{f.ScenarioName}] {f.AircraftId}: \"{f.Command}\"");
-            }
-            lines.Add("");
-        }
-
-        var typos = rows.Where(r => r.Status == "Known Typo").ToList();
-        if (typos.Count > 0)
-        {
-            lines.Add($"KNOWN TYPOS ({typos.Count}):");
-            foreach (var f in typos)
-            {
-                lines.Add($"  [{f.ScenarioName}] {f.AircraftId}: \"{f.Command}\"");
+                lines.Add($"{scenario.ScenarioName}");
+                var byAircraft = scenario.Failures.GroupBy(f => f.AircraftId);
+                foreach (var group in byAircraft)
+                {
+                    lines.Add($"  {group.Key}:");
+                    foreach (var f in group)
+                    {
+                        lines.Add($"    \"{f.Command}\"");
+                    }
+                }
+                lines.Add("");
             }
         }
-
-        if (newFailures.Count == 0 && typos.Count == 0)
+        else
         {
             lines.Add("All preset commands parsed successfully.");
         }
@@ -115,4 +111,4 @@ public partial class ScenarioValidationWindow : Window
     }
 }
 
-public record ValidationRow(string ScenarioName, string AircraftId, string Command, string Status);
+public record ValidationRow(string ScenarioName, string AircraftId, string Command);

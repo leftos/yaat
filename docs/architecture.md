@@ -256,7 +256,7 @@ ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting 
 ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand, etc.
                                # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
 ScenarioValidator.cs           # Validates preset commands via CommandParser.ParseCompound; shared by CLI tool + client
-                               # ScenarioValidationResult, PresetParseFailure records; KnownTypos set; PermissiveFixLookup
+                               # ScenarioValidationResult, PresetParseFailure records; PermissiveFixLookup
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
 AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator)
 SpawnRequest.cs                # Spawn descriptor

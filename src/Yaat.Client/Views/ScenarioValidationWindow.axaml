@@ -54,10 +54,9 @@
                       SelectionMode="Single"
                       HeadersVisibility="Column">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Scenario" Binding="{Binding ScenarioName}" Width="250" IsReadOnly="True" />
+                    <DataGridTextColumn Header="Scenario" Binding="{Binding ScenarioName}" Width="300" IsReadOnly="True" />
                     <DataGridTextColumn Header="Aircraft" Binding="{Binding AircraftId}" Width="100" IsReadOnly="True" />
-                    <DataGridTextColumn Header="Command" Binding="{Binding Command}" Width="300" IsReadOnly="True" />
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120" IsReadOnly="True" />
+                    <DataGridTextColumn Header="Command" Binding="{Binding Command}" Width="*" IsReadOnly="True" />
                 </DataGrid.Columns>
             </DataGrid>
         </DockPanel>

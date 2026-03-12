@@ -61,7 +61,7 @@ public static class Program
         if (jsonOutput)
         {
             Console.WriteLine(JsonSerializer.Serialize(results, JsonOutputOpts));
-            return results.Any(r => r.Failures.Any(f => !f.IsKnownTypo)) ? 1 : 0;
+            return results.Any(r => r.Failures.Count > 0) ? 1 : 0;
         }
 
         return PrintTextReport(results);
@@ -188,35 +188,31 @@ public static class Program
 
         int totalPresets = results.Sum(r => r.TotalPresets);
         int totalFailures = results.Sum(r => r.Failures.Count);
-        int knownTypos = results.Sum(r => r.Failures.Count(f => f.IsKnownTypo));
-        int newFailures = totalFailures - knownTypos;
 
         Console.WriteLine($"\n=== RESULTS ===");
-        Console.WriteLine($"{results.Count} scenarios, {totalPresets} presets, {totalFailures} failures ({knownTypos} known typos)");
+        Console.WriteLine($"{results.Count} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}");
 
-        var newFailureList = results.SelectMany(r => r.Failures.Where(f => !f.IsKnownTypo).Select(f => (r.ScenarioName, f))).ToList();
-
-        if (newFailureList.Count > 0)
+        var failedScenarios = results.Where(r => r.Failures.Count > 0).ToList();
+        if (failedScenarios.Count > 0)
         {
-            Console.WriteLine($"\nNEW FAILURES (report to ARTCC):");
-            foreach (var (scenarioName, f) in newFailureList)
+            Console.WriteLine($"\n=== FAILURES ===\n");
+            foreach (var scenario in failedScenarios)
             {
-                Console.WriteLine($"  [{scenarioName}] {f.AircraftId}: \"{f.Command}\"");
+                Console.WriteLine($"  {scenario.ScenarioName}");
+                var byAircraft = scenario.Failures.GroupBy(f => f.AircraftId);
+                foreach (var group in byAircraft)
+                {
+                    Console.WriteLine($"    {group.Key}:");
+                    foreach (var f in group)
+                    {
+                        Console.WriteLine($"      \"{f.Command}\"");
+                    }
+                }
+                Console.WriteLine();
             }
         }
 
-        var knownTypoList = results.SelectMany(r => r.Failures.Where(f => f.IsKnownTypo).Select(f => (r.ScenarioName, f))).ToList();
-
-        if (knownTypoList.Count > 0)
-        {
-            Console.WriteLine($"\nKNOWN TYPOS:");
-            foreach (var (scenarioName, f) in knownTypoList)
-            {
-                Console.WriteLine($"  [{scenarioName}] {f.AircraftId}: \"{f.Command}\"");
-            }
-        }
-
-        return newFailures > 0 ? 1 : 0;
+        return totalFailures > 0 ? 1 : 0;
     }
 
     private static void PrintUsage()
