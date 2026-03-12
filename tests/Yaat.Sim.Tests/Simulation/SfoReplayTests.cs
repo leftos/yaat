@@ -822,7 +822,8 @@ public class SfoReplayTests(ITestOutputHelper output)
             $"AAL2839 phases: {aal.Phases?.CurrentPhase?.Name ?? "(null)"}, route: {(aal.AssignedTaxiRoute is null ? "null" : "present")}"
         );
 
-        Assert.Null(aal.Phases);
+        Assert.NotNull(aal.Phases);
+        Assert.IsType<HoldingInPositionPhase>(aal.Phases.CurrentPhase);
         Assert.Null(aal.AssignedTaxiRoute);
     }
 
