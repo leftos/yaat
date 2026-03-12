@@ -439,8 +439,9 @@ internal static class ApproachCommandParser
     }
 
     /// <summary>
-    /// Parses CFIX fixName [A|B]altitudeHundreds [speed].
-    /// Example: "CFIX SUNOL A040" or "CFIX SUNOL 040 250"
+    /// Parses CFIX fixName [A|B|AT]altitudeHundreds [speed].
+    /// Accepts: "CFIX SUNOL A040", "CFIX SUNOL 040 250", "CFIX SUNOL AT 360"
+    /// The "AT" keyword form splits altitude into a separate token.
     /// </summary>
     internal static ParsedCommand? ParseCfix(string? arg, IFixLookup? fixes)
     {
@@ -462,14 +463,33 @@ internal static class ApproachCommandParser
             return null;
         }
 
-        var (altitude, altType) = ParseCfixAltitudeToken(tokens[1]);
-        if (altitude is null)
+        int altTokenIndex = 1;
+        int? altitude;
+        CrossFixAltitudeType altType;
+
+        // "CFIX SCTRR AT 360" — explicit AT keyword separates fix from altitude
+        if (tokens[1].Equals("AT", StringComparison.OrdinalIgnoreCase) && tokens.Length >= 3)
         {
-            return null;
+            altTokenIndex = 2;
+            (altitude, altType) = ParseCfixAltitudeToken(tokens[2]);
+            if (altitude is null)
+            {
+                return null;
+            }
+
+            altType = CrossFixAltitudeType.At;
+        }
+        else
+        {
+            (altitude, altType) = ParseCfixAltitudeToken(tokens[1]);
+            if (altitude is null)
+            {
+                return null;
+            }
         }
 
         int? speed = null;
-        if (tokens.Length >= 3 && int.TryParse(tokens[2], out var parsedSpeed) && parsedSpeed > 0)
+        if (tokens.Length > altTokenIndex + 1 && int.TryParse(tokens[altTokenIndex + 1], out var parsedSpeed) && parsedSpeed > 0)
         {
             speed = parsedSpeed;
         }
