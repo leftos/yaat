@@ -96,6 +96,7 @@ public class AircraftState
     public ControlTargets Targets { get; } = new();
     public CommandQueue Queue { get; set; } = new();
     public PhaseList? Phases { get; set; }
+    public List<DeferredDispatch> DeferredDispatches { get; } = [];
     public List<string> PendingWarnings { get; } = [];
     public List<string> PendingNotifications { get; } = [];
     public List<ApproachScore> PendingApproachScores { get; } = [];

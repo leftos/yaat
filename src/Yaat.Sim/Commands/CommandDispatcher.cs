@@ -29,6 +29,26 @@ public static class CommandDispatcher
         bool autoCrossRunway = false
     )
     {
+        // Leading WAIT → deferred dispatch: extract the timer and store the remaining
+        // blocks as a deferred payload. The payload dispatches fresh when the timer expires,
+        // without touching phases or the command queue.
+        var deferredResult = TryDeferLeadingWait(
+            compound,
+            aircraft,
+            runways,
+            groundLayout,
+            fixes,
+            rng,
+            approachLookup,
+            procedureLookup,
+            validateDctFixes,
+            autoCrossRunway
+        );
+        if (deferredResult is not null)
+        {
+            return deferredResult;
+        }
+
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
@@ -452,6 +472,110 @@ public static class CommandDispatcher
     }
 
     /// <summary>
+    /// If the first block is a bare (unconditioned) WAIT, extract it as a deferred dispatch.
+    /// The remaining blocks become the payload, validated now but dispatched later when the
+    /// timer expires. Returns null if the compound doesn't start with a bare WAIT.
+    /// </summary>
+    private static CommandResult? TryDeferLeadingWait(
+        CompoundCommand compound,
+        AircraftState aircraft,
+        IRunwayLookup? runways,
+        AirportGroundLayout? groundLayout,
+        IFixLookup? fixes,
+        Random rng,
+        IApproachLookup? approachLookup,
+        IProcedureLookup? procedureLookup,
+        bool validateDctFixes,
+        bool autoCrossRunway
+    )
+    {
+        var firstBlock = compound.Blocks[0];
+        if (firstBlock.Condition is not null)
+        {
+            return null;
+        }
+
+        // Find a WAIT command in the first block (could be sole command or parallel with others)
+        WaitCommand? waitCmd = null;
+        WaitDistanceCommand? waitDistCmd = null;
+        foreach (var cmd in firstBlock.Commands)
+        {
+            if (cmd is WaitCommand w)
+            {
+                waitCmd = w;
+                break;
+            }
+
+            if (cmd is WaitDistanceCommand wd)
+            {
+                waitDistCmd = wd;
+                break;
+            }
+        }
+
+        if (waitCmd is null && waitDistCmd is null)
+        {
+            return null;
+        }
+
+        // Build payload: sibling commands from the same block (minus WAIT) + subsequent blocks.
+        // "WAIT 10, FH 270" → payload is [FH 270]; "WAIT 10; FH 270" → payload is [FH 270].
+        var payloadBlocks = new List<ParsedBlock>();
+
+        // Sibling commands in the first block (everything except the WAIT)
+        var siblings = firstBlock.Commands.Where(c => c != (ParsedCommand?)waitCmd && c != (ParsedCommand?)waitDistCmd).ToList();
+        if (siblings.Count > 0)
+        {
+            payloadBlocks.Add(new ParsedBlock(firstBlock.Condition, siblings));
+        }
+
+        // Subsequent blocks
+        for (int i = 1; i < compound.Blocks.Count; i++)
+        {
+            payloadBlocks.Add(compound.Blocks[i]);
+        }
+
+        // Bare WAIT with no payload — standalone wait, let queue handle it
+        if (payloadBlocks.Count == 0)
+        {
+            return null;
+        }
+
+        var payload = new CompoundCommand(payloadBlocks);
+
+        // Validate the payload commands now so the user gets immediate feedback
+        foreach (var block in payloadBlocks)
+        {
+            foreach (var cmd in block.Commands)
+            {
+                if (CommandDescriber.IsGroundCommand(cmd) && !aircraft.IsOnGround)
+                {
+                    return new CommandResult(false, $"{CommandDescriber.DescribeNatural(cmd)} requires the aircraft to be on the ground");
+                }
+            }
+        }
+
+        // Build a description of the deferred payload
+        var payloadDesc = string.Join(" ; ", payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
+
+        DeferredDispatch deferred;
+        string timerDesc;
+        if (waitCmd is not null)
+        {
+            deferred = new DeferredDispatch(waitCmd.Seconds, payload);
+            timerDesc = $"{waitCmd.Seconds}s";
+        }
+        else
+        {
+            deferred = new DeferredDispatch(payload, waitDistCmd!.DistanceNm);
+            timerDesc = $"{waitDistCmd.DistanceNm}nm";
+        }
+
+        aircraft.DeferredDispatches.Add(deferred);
+        return new CommandResult(true, $"Will execute in {timerDesc}: {payloadDesc}");
+    }
+
+    /// <summary>
     /// Handles command dispatch when aircraft has an active phase.
     /// Returns a result if the command was handled (accepted or rejected),
     /// or null if phases were cleared and normal dispatch should proceed.
@@ -471,16 +595,6 @@ public static class CommandDispatcher
         // Extract the first command to check acceptance
         var firstCmd = compound.Blocks[0].Commands[0];
         var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
-
-        // WAIT is a delayed execution wrapper — always accepted, clears phases so the queue can tick
-        if (cmdType is CanonicalCommandType.Wait or CanonicalCommandType.WaitDistance)
-        {
-            var ctx = BuildMinimalContext(aircraft);
-            aircraft.Phases?.Clear(ctx);
-            aircraft.Phases = null;
-            aircraft.Targets.TurnRateOverride = null;
-            return null;
-        }
 
         // Try tower/ground-specific handling first (phase-interactive commands)
         var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, runways, groundLayout, fixes, procedureLookup, autoCrossRunway);

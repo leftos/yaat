@@ -180,6 +180,7 @@ public sealed class SimulationEngine
     public void TickPhysics(double delta)
     {
         World.Tick(delta, PreTick);
+        ProcessDeferredDispatches(delta);
     }
 
     /// <summary>
@@ -452,6 +453,55 @@ public sealed class SimulationEngine
     }
 
     // --- Private tick methods ---
+
+    private void ProcessDeferredDispatches(double deltaSeconds)
+    {
+        foreach (var aircraft in World.GetSnapshot())
+        {
+            if (aircraft.DeferredDispatches.Count == 0)
+            {
+                continue;
+            }
+
+            for (int i = aircraft.DeferredDispatches.Count - 1; i >= 0; i--)
+            {
+                var d = aircraft.DeferredDispatches[i];
+
+                if (d.IsDistanceBased)
+                {
+                    double distNm = aircraft.GroundSpeed * deltaSeconds / 3600.0;
+                    d.RemainingDistanceNm -= distNm;
+                    if (d.RemainingDistanceNm > 0)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    d.RemainingSeconds -= deltaSeconds;
+                    if (d.RemainingSeconds > 0)
+                    {
+                        continue;
+                    }
+                }
+
+                aircraft.DeferredDispatches.RemoveAt(i);
+                var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
+                CommandDispatcher.DispatchCompound(
+                    d.Payload,
+                    aircraft,
+                    _runways,
+                    groundLayout,
+                    _fixes,
+                    World.Rng,
+                    _approachLookup,
+                    _procedureLookup,
+                    Scenario?.ValidateDctFixes ?? true,
+                    Scenario?.AutoCrossRunway ?? false
+                );
+            }
+        }
+    }
 
     private void EmitTerminal(string kind, string callsign, string message)
     {

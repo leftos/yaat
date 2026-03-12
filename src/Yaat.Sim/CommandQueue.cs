@@ -90,3 +90,29 @@ public class CommandQueue
 
     public bool IsComplete => CurrentBlockIndex >= Blocks.Count;
 }
+
+/// <summary>
+/// A parsed compound command whose execution is deferred by a WAIT timer.
+/// Ticks independently of the phase system; when expired, the payload dispatches
+/// fresh through <see cref="Commands.CommandDispatcher.DispatchCompound"/>.
+/// </summary>
+public sealed class DeferredDispatch
+{
+    public double RemainingSeconds { get; set; }
+    public double RemainingDistanceNm { get; set; }
+    public bool IsDistanceBased { get; }
+    public Commands.CompoundCommand Payload { get; }
+
+    public DeferredDispatch(double seconds, Commands.CompoundCommand payload)
+    {
+        RemainingSeconds = seconds;
+        Payload = payload;
+    }
+
+    public DeferredDispatch(Commands.CompoundCommand payload, double distanceNm)
+    {
+        IsDistanceBased = true;
+        RemainingDistanceNm = distanceNm;
+        Payload = payload;
+    }
+}

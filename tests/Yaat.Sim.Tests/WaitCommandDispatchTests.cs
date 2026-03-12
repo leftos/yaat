@@ -85,52 +85,35 @@ public class WaitCommandDispatchTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void WaitCommand_DuringPushback_IsAccepted()
+    public void WaitCommand_Standalone_DuringPushback_IsRejected()
     {
         var ac = MakeGroundAircraft();
         StartPhase(ac, new PushbackPhase());
 
+        // Standalone WAIT (no following commands) during pushback is rejected
+        // because WAIT without a payload is meaningless
         var result = CommandDispatcher.DispatchCompound(WaitCompound(15), ac, null, null, null, new Random(42));
 
-        Assert.True(result.Success, $"Expected success but got: {result.Message}");
-        Assert.Null(ac.Phases);
-        Assert.Single(ac.Queue.Blocks);
+        Assert.False(result.Success);
     }
 
     [Fact]
-    public void WaitCommand_DuringTaxi_IsAccepted()
+    public void WaitCommand_Standalone_WithoutPhases_IsAccepted()
     {
         var ac = MakeGroundAircraft();
-        StartPhase(ac, new TaxiingPhase());
-
+        // No active phases — standalone WAIT goes through normal queue path
         var result = CommandDispatcher.DispatchCompound(WaitCompound(10), ac, null, null, null, new Random(42));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
-        Assert.Null(ac.Phases);
+        Assert.Single(ac.Queue.Blocks);
     }
 
     // -------------------------------------------------------------------------
-    // WAIT during airborne phases
+    // WAIT + TAXI compound (deferred dispatch)
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void WaitCommand_DuringHoldingShort_IsAccepted()
-    {
-        var ac = MakeGroundAircraft();
-        StartPhase(ac, new HoldingAfterPushbackPhase());
-
-        var result = CommandDispatcher.DispatchCompound(WaitCompound(5), ac, null, null, null, new Random(42));
-
-        Assert.True(result.Success, $"Expected success but got: {result.Message}");
-        Assert.Null(ac.Phases);
-    }
-
-    // -------------------------------------------------------------------------
-    // WAIT + TAXI compound (the original bug report scenario)
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public void WaitThenTaxi_DuringPushback_IsAccepted()
+    public void WaitThenTaxi_DuringPushback_CreatesDeferredDispatch()
     {
         var ac = MakeGroundAircraft();
         StartPhase(ac, new PushbackPhase());
@@ -141,8 +124,68 @@ public class WaitCommandDispatchTests
         var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
-        Assert.Null(ac.Phases);
-        // Should have 2 blocks in queue: wait + taxi
-        Assert.Equal(2, ac.Queue.Blocks.Count);
+        // Phases preserved — deferred dispatch doesn't touch them
+        Assert.NotNull(ac.Phases);
+        // Queue untouched — deferred dispatch doesn't use it
+        Assert.Empty(ac.Queue.Blocks);
+        // One deferred dispatch created
+        Assert.Single(ac.DeferredDispatches);
+        Assert.Equal(15, ac.DeferredDispatches[0].RemainingSeconds);
+        Assert.Single(ac.DeferredDispatches[0].Payload.Blocks);
+    }
+
+    [Fact]
+    public void WaitThenTaxi_WithoutPhases_CreatesDeferredDispatch()
+    {
+        var ac = MakeGroundAircraft();
+
+        // No active phases — deferred dispatch still works
+        var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10)]), new ParsedBlock(null, [new TaxiCommand(["B"], [])])]);
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42));
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.Single(ac.DeferredDispatches);
+        Assert.Equal(10, ac.DeferredDispatches[0].RemainingSeconds);
+    }
+
+    [Fact]
+    public void WaitCommaFH_CreatesDeferredDispatch()
+    {
+        var ac = MakeAirborneAircraft();
+
+        // "WAIT 10, FH 270" — single block with parallel WAIT + FH 270
+        var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10), new FlyHeadingCommand(270)])]);
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42));
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.Single(ac.DeferredDispatches);
+        Assert.Equal(10, ac.DeferredDispatches[0].RemainingSeconds);
+        // Payload should contain just FH 270
+        Assert.Single(ac.DeferredDispatches[0].Payload.Blocks);
+        Assert.Single(ac.DeferredDispatches[0].Payload.Blocks[0].Commands);
+        Assert.IsType<FlyHeadingCommand>(ac.DeferredDispatches[0].Payload.Blocks[0].Commands[0]);
+    }
+
+    [Fact]
+    public void ChainedWaits_CreateSingleDeferredWithNestedPayload()
+    {
+        var ac = MakeGroundAircraft();
+
+        // WAIT 5; WAIT 10; FH 270 — first WAIT defers [WAIT 10; FH 270]
+        var compound = new CompoundCommand([
+            new ParsedBlock(null, [new WaitCommand(5)]),
+            new ParsedBlock(null, [new WaitCommand(10)]),
+            new ParsedBlock(null, [new FlyHeadingCommand(270)]),
+        ]);
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42));
+
+        Assert.True(result.Success);
+        Assert.Single(ac.DeferredDispatches);
+        Assert.Equal(5, ac.DeferredDispatches[0].RemainingSeconds);
+        // Payload has 2 blocks: [WAIT 10, FH 270]
+        Assert.Equal(2, ac.DeferredDispatches[0].Payload.Blocks.Count);
     }
 }
