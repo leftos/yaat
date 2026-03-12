@@ -11,6 +11,28 @@ public sealed class TaxiRoute
 
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
+    /// <summary>
+    /// Returns a shallow copy of this route truncated to end at the segment whose
+    /// ToNodeId matches <paramref name="nodeId"/>. If the node is not found, returns this route.
+    /// </summary>
+    public TaxiRoute TruncateAt(int nodeId)
+    {
+        for (int i = 0; i < Segments.Count; i++)
+        {
+            if (Segments[i].ToNodeId == nodeId)
+            {
+                return new TaxiRoute
+                {
+                    Segments = Segments.Take(i + 1).ToList(),
+                    HoldShortPoints = HoldShortPoints.Where(hs => Segments.Take(i + 1).Any(s => s.ToNodeId == hs.NodeId)).ToList(),
+                    Warnings = Warnings,
+                };
+            }
+        }
+
+        return this;
+    }
+
     /// <summary>Current segment index being traversed.</summary>
     public int CurrentSegmentIndex { get; set; }
 

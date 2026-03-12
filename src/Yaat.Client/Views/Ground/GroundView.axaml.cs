@@ -450,6 +450,7 @@ public partial class GroundView : UserControl
         if (variants.Count <= 1)
         {
             var command = variants.Count == 1 ? variants[0].Command : "";
+            var preview = variants.Count == 1 ? variants[0].Preview : route;
             menu.Items.Add(
                 new MenuItem
                 {
@@ -458,16 +459,9 @@ public partial class GroundView : UserControl
                     FontWeight = Avalonia.Media.FontWeight.Bold,
                 }
             );
-            menu.Items.Add(
-                CreateMenuItem(
-                    "Send",
-                    () =>
-                    {
-                        vm.ActiveRoute = route;
-                        return vm.SendRawCommandAsync(callsign, initials, command);
-                    }
-                )
-            );
+            var sendItem = CreateMenuItem("Send", () => vm.SendRawCommandAsync(callsign, initials, command));
+            AttachPreviewHover(sendItem, vm, preview);
+            menu.Items.Add(sendItem);
         }
         else
         {
@@ -480,19 +474,12 @@ public partial class GroundView : UserControl
                     FontWeight = Avalonia.Media.FontWeight.Bold,
                 }
             );
-            foreach (var (label, command) in variants)
+            foreach (var (label, command, preview) in variants)
             {
                 var cmd = command;
-                menu.Items.Add(
-                    CreateMenuItem(
-                        string.IsNullOrEmpty(label) ? cmd : label,
-                        () =>
-                        {
-                            vm.ActiveRoute = route;
-                            return vm.SendRawCommandAsync(callsign, initials, cmd);
-                        }
-                    )
-                );
+                var item = CreateMenuItem(string.IsNullOrEmpty(label) ? cmd : label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
+                AttachPreviewHover(item, vm, preview);
+                menu.Items.Add(item);
             }
         }
 
@@ -583,18 +570,11 @@ public partial class GroundView : UserControl
                     continue;
                 }
 
-                var (label, command) = entry.Value;
+                var (label, command, preview) = entry.Value;
                 var cmd = command;
-                sub.Items.Add(
-                    CreateMenuItem(
-                        label,
-                        () =>
-                        {
-                            vm.ActiveRoute = route;
-                            return vm.SendRawCommandAsync(callsign, initials, cmd);
-                        }
-                    )
-                );
+                var child = CreateMenuItem(label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
+                AttachPreviewHover(child, vm, preview);
+                sub.Items.Add(child);
             }
 
             parent.Items.Add(sub);
@@ -604,15 +584,12 @@ public partial class GroundView : UserControl
         if (variants.Count <= 1)
         {
             var command = variants.Count == 1 ? variants[0].Command : "";
+            var preview = variants.Count == 1 ? variants[0].Preview : route;
             var item = CreateMenuItem(
                 $"Taxi {displayName}",
-                () =>
-                {
-                    vm.ActiveRoute = route;
-                    return vm.SendRawCommandAsync(callsign, initials, command);
-                }
+                () => vm.SendRawCommandAsync(callsign, initials, command)
             );
-            AttachPreviewHover(item, vm, route);
+            AttachPreviewHover(item, vm, preview);
             parent.Items.Add(item);
             return;
         }
@@ -620,19 +597,12 @@ public partial class GroundView : UserControl
         var defaultSub = new MenuItem { Header = $"Taxi {displayName}" };
         AttachPreviewHover(defaultSub, vm, route);
 
-        foreach (var (label, command) in variants)
+        foreach (var (label, command, preview) in variants)
         {
             var cmd = command;
-            defaultSub.Items.Add(
-                CreateMenuItem(
-                    label,
-                    () =>
-                    {
-                        vm.ActiveRoute = route;
-                        return vm.SendRawCommandAsync(callsign, initials, cmd);
-                    }
-                )
-            );
+            var child = CreateMenuItem(label, () => vm.SendRawCommandAsync(callsign, initials, cmd));
+            AttachPreviewHover(child, vm, preview);
+            defaultSub.Items.Add(child);
         }
 
         parent.Items.Add(defaultSub);
@@ -641,13 +611,6 @@ public partial class GroundView : UserControl
     private static void AttachPreviewHover(MenuItem item, GroundViewModel vm, TaxiRoute route)
     {
         item.PointerEntered += (_, _) => vm.PreviewRoute = route;
-        item.PointerExited += (_, _) =>
-        {
-            if (vm.PreviewRoute == route)
-            {
-                vm.PreviewRoute = null;
-            }
-        };
     }
 
     private static string? ExtractHoldingShortRunway(string phase, AircraftModel? ac)

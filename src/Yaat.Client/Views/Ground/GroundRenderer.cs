@@ -71,7 +71,7 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor RunwayOutlineColor = new(100, 100, 100);
     private static readonly SKColor RunwayColor = new(120, 120, 120);
     private static readonly SKColor TaxiwayColor = new(200, 180, 60);
-    private static readonly SKColor TaxiLabelColor = new(200, 180, 60, 160);
+    private static readonly SKColor TaxiLabelColor = new(230, 210, 80, 200);
     private static readonly SKColor NodeIntersection = new(80, 120, 200);
     private static readonly SKColor NodeParking = new(60, 180, 80);
     private static readonly SKColor NodeHelipad = new(180, 60, 220);
@@ -255,7 +255,7 @@ public sealed class GroundRenderer : IDisposable
     private readonly SKPaint _debugLabelPaint = new()
     {
         Color = new SKColor(255, 100, 255, 200),
-        TextSize = 10,
+        TextSize = 14,
         IsAntialias = true,
         SubpixelText = true,
         Typeface = Services.PlatformHelper.MonospaceTypeface,
@@ -264,7 +264,7 @@ public sealed class GroundRenderer : IDisposable
     private readonly SKPaint _debugEdgeLabelPaint = new()
     {
         Color = new SKColor(100, 255, 100, 180),
-        TextSize = 9,
+        TextSize = 13,
         IsAntialias = true,
         SubpixelText = true,
         Typeface = Services.PlatformHelper.MonospaceTypeface,
@@ -349,6 +349,11 @@ public sealed class GroundRenderer : IDisposable
         DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
         DrawLabels(canvas, hoveredOnly: true);
 
+        if (showDebugInfo)
+        {
+            DrawDebugOverlay(canvas, vp, layout);
+        }
+
         if (weatherInfo is not null)
         {
             DrawWeatherOverlay(canvas, weatherInfo);
@@ -366,6 +371,35 @@ public sealed class GroundRenderer : IDisposable
         };
 
         canvas.DrawText(info.ToDisplayString(), 10, 20, paint);
+    }
+
+    private void DrawDebugOverlay(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout)
+    {
+        var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
+        foreach (var node in layout.Nodes)
+        {
+            nodeScreenPos[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
+        }
+
+        foreach (var edge in layout.Edges)
+        {
+            if (!nodeScreenPos.TryGetValue(edge.FromNodeId, out var from) || !nodeScreenPos.TryGetValue(edge.ToNodeId, out var to))
+            {
+                continue;
+            }
+
+            var mx = (from.X + to.X) / 2f;
+            var my = (from.Y + to.Y) / 2f;
+            string debugLabel = $"{edge.TaxiwayName} {edge.FromNodeId}-{edge.ToNodeId}";
+            canvas.DrawText(debugLabel, mx + 2, my + 4, _debugEdgeLabelPaint);
+        }
+
+        foreach (var node in layout.Nodes)
+        {
+            var (sx, sy) = nodeScreenPos[node.Id];
+            string debugLabel = node.Name is not null ? $"{node.Id} {node.Name} ({node.Type})" : $"{node.Id} ({node.Type})";
+            canvas.DrawText(debugLabel, sx + 5, sy - 3, _debugLabelPaint);
+        }
     }
 
     private void DrawRunways(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showLabels)
@@ -473,14 +507,7 @@ public sealed class GroundRenderer : IDisposable
                 canvas.DrawLine(from.X, from.Y, to.X, to.Y, paint);
             }
 
-            if (showDebugInfo)
-            {
-                var mx = (from.X + to.X) / 2f;
-                var my = (from.Y + to.Y) / 2f;
-                string debugLabel = $"{edge.TaxiwayName} {edge.FromNodeId}-{edge.ToNodeId}";
-                canvas.DrawText(debugLabel, mx + 2, my + 4, _debugEdgeLabelPaint);
-            }
-            else if (!isRunway)
+            if (!showDebugInfo && !isRunway)
             {
                 // Show label if taxiway labels are on, or if hovering a connected node (hover-to-show)
                 bool isNearHover =
@@ -675,12 +702,7 @@ public sealed class GroundRenderer : IDisposable
                 canvas.DrawText("H", sx - 3, sy + 3, _nodeLabelPaint);
             }
 
-            if (showDebugInfo)
-            {
-                string debugLabel = node.Name is not null ? $"{node.Id} {node.Name} ({node.Type})" : $"{node.Id} ({node.Type})";
-                canvas.DrawText(debugLabel, sx + 5, sy - 3, _debugLabelPaint);
-            }
-            else if (node.Name is not null && node.Type is "Parking" or "Helipad" or "Spot")
+            if (!showDebugInfo && node.Name is not null && node.Type is "Parking" or "Helipad" or "Spot")
             {
                 bool isHovered = hoveredNodeId == node.Id;
                 if (showParkingLabels || isHovered)

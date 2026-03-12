@@ -133,25 +133,10 @@ public partial class RadarView
                 Command = new RelayCommand(() => vm.ToggleShowPath(callsign)),
             }
         );
-        var mainVm = FindMainViewModel();
-        if (mainVm is not null)
-        {
-            var isTaxiRouteShown = mainVm.Ground.IsPathShown(callsign);
-            menu.Items.Add(
-                CreateMenuItem(
-                    isTaxiRouteShown ? "Hide taxi route" : "Show taxi route",
-                    () =>
-                    {
-                        mainVm.Ground.ToggleShowTaxiRoute(callsign);
-                        return Task.CompletedTask;
-                    }
-                )
-            );
-        }
-
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
         // Aircraft assignment
+        var mainVm = FindMainViewModel();
         if (mainVm is not null && mainVm.AssignableMembers.Count > 0)
         {
             menu.Items.Add(new Separator());
