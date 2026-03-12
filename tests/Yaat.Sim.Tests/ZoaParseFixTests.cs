@@ -158,15 +158,26 @@ public class ZoaParseFixTests
         Assert.Null(jfac.ApproachId);
     }
 
-    // --- TAXI $ prefix ---
+    // --- TAXI @ and $ prefix ---
 
     [Fact]
-    public void Parse_TaxiDollarGate_ParsesAsParking()
+    public void Parse_TaxiDollarPrefix_ParsesAsSpot()
     {
         var result = CommandParser.Parse("TAXI Y $10");
         Assert.NotNull(result);
         var taxi = Assert.IsType<TaxiCommand>(result);
-        Assert.Equal("10", taxi.DestinationParking);
+        Assert.Equal("10", taxi.DestinationSpot);
+        Assert.Null(taxi.DestinationParking);
+    }
+
+    [Fact]
+    public void Parse_TaxiAtPrefix_ParsesAsParking()
+    {
+        var result = CommandParser.Parse("TAXI Y @A10");
+        Assert.NotNull(result);
+        var taxi = Assert.IsType<TaxiCommand>(result);
+        Assert.Equal("A10", taxi.DestinationParking);
+        Assert.Null(taxi.DestinationSpot);
     }
 
     // --- Alias additions ---

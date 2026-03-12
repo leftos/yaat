@@ -95,10 +95,14 @@ public sealed class AirportGroundLayout
     /// </summary>
     public GroundNode? FindSpotByName(string name)
     {
-        return FindHelipadByName(name) ?? FindParkingByName(name) ?? FindSpotNode(name);
+        return FindHelipadByName(name) ?? FindParkingByName(name) ?? FindSpotNodeByName(name);
     }
 
-    private GroundNode? FindSpotNode(string name)
+    /// <summary>
+    /// Find a named spot node (GroundNodeType.Spot only).
+    /// Used by $ prefix commands to resolve spot-only destinations.
+    /// </summary>
+    public GroundNode? FindSpotNodeByName(string name)
     {
         foreach (var node in Nodes.Values)
         {

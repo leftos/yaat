@@ -217,8 +217,13 @@ public record LandCommand(string SpotName, bool NoDelete = false, bool IsTaxiway
 public record ClearedTakeoffPresentCommand : ParsedCommand;
 
 // Ground commands
-public record PushbackCommand(int? Heading = null, string? Taxiway = null, string? FacingTaxiway = null, string? DestinationParking = null)
-    : ParsedCommand;
+public record PushbackCommand(
+    int? Heading = null,
+    string? Taxiway = null,
+    string? FacingTaxiway = null,
+    string? DestinationParking = null,
+    string? DestinationSpot = null
+) : ParsedCommand;
 
 public record TaxiCommand(
     List<string> Path,
@@ -226,7 +231,8 @@ public record TaxiCommand(
     string? DestinationRunway = null,
     bool NoDelete = false,
     string? DestinationParking = null,
-    List<string>? CrossRunways = null
+    List<string>? CrossRunways = null,
+    string? DestinationSpot = null
 ) : ParsedCommand;
 
 public record HoldPositionCommand : ParsedCommand;
@@ -243,7 +249,7 @@ public record FollowCommand(string TargetCallsign) : ParsedCommand;
 
 public record GiveWayCommand(string TargetCallsign) : ParsedCommand;
 
-public record TaxiAllCommand(string? DestinationRunway = null, string? DestinationParking = null) : ParsedCommand;
+public record TaxiAllCommand(string? DestinationRunway = null, string? DestinationParking = null, string? DestinationSpot = null) : ParsedCommand;
 
 public record BreakConflictCommand : ParsedCommand;
 

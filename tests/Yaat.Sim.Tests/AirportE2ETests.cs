@@ -768,7 +768,7 @@ public class AirportE2ETests
     // SKW5966 pushed back to T7A point 2 (mid-spur, heading 284°).
     // "TAXI HERE" on gate 7A sent "TAXI T7A" which walked south to the
     // dead end instead of north toward gate 7A. The correct command should
-    // include the destination spot: TAXI @7A or TAXI T7A @7A.
+    // include the destination spot: TAXI $7A or TAXI T7A $7A.
     // -------------------------------------------------------------------------
 
     /// <summary>
@@ -851,7 +851,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiToSpot7A_FromPushback_RoutesToGate()
     {
-        // TAXI @7A — A* direct from pushback node to gate 7A.
+        // TAXI $7A — A* direct from pushback node to gate 7A.
         // Should route north along T7A toward the gate.
         var layout = LoadLayout("SFO", "sfo");
         if (layout is null)
@@ -865,16 +865,16 @@ public class AirportE2ETests
 
         var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
 
-        // TAXI @7A — no explicit path, A* to spot
-        var taxi = new TaxiCommand([], [], DestinationParking: "7A");
+        // TAXI $7A — no explicit path, A* to spot
+        var taxi = new TaxiCommand([], [], DestinationSpot: "7A");
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null);
-        Assert.True(result.Success, $"TAXI @7A should succeed: {result.Message}");
+        Assert.True(result.Success, $"TAXI $7A should succeed: {result.Message}");
 
         // Route should end at or very near gate 7A
         var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
         var lastNode = layout.Nodes[lastSeg.ToNodeId];
         double distToSpot = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, spot7A.Latitude, spot7A.Longitude);
-        Assert.True(distToSpot < 0.02, $"TAXI @7A should end near gate 7A: last node dist={distToSpot:F4}nm");
+        Assert.True(distToSpot < 0.02, $"TAXI $7A should end near gate 7A: last node dist={distToSpot:F4}nm");
 
         // Route should go north (toward gate 7A), not south
         Assert.True(
@@ -886,7 +886,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiT7A_ToSpot7A_FromPushback_RoutesToGate()
     {
-        // TAXI T7A @7A — explicit T7A path extended to gate 7A.
+        // TAXI T7A $7A — explicit T7A path extended to gate 7A.
         // ResolveExplicitPath walks T7A (south to dead end), then A* extends to 7A.
         var layout = LoadLayout("SFO", "sfo");
         if (layout is null)
@@ -900,8 +900,8 @@ public class AirportE2ETests
 
         var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
 
-        // TAXI T7A @7A — explicit path + parking destination
-        var taxi = new TaxiCommand(["T7A"], [], DestinationParking: "7A");
+        // TAXI T7A $7A — explicit path + spot destination
+        var taxi = new TaxiCommand(["T7A"], [], DestinationSpot: "7A");
         var result = GroundCommandHandler.TryTaxi(ac, taxi, layout, null);
 
         if (result.Success)
@@ -910,13 +910,13 @@ public class AirportE2ETests
             var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
             var lastNode = layout.Nodes[lastSeg.ToNodeId];
             double distToSpot = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, spot7A.Latitude, spot7A.Longitude);
-            Assert.True(distToSpot < 0.02, $"TAXI T7A @7A should end near gate 7A: last node dist={distToSpot:F4}nm");
+            Assert.True(distToSpot < 0.02, $"TAXI T7A $7A should end near gate 7A: last node dist={distToSpot:F4}nm");
         }
         else
         {
             // Document the failure — T7A walks to dead end, then A* from dead end to 7A
             // may or may not find a route depending on graph connectivity.
-            // This is acceptable: TAXI @7A (no explicit path) is the better command.
+            // This is acceptable: TAXI $7A (no explicit path) is the better command.
             Assert.Contains("7A", result.Message!);
         }
     }
@@ -981,7 +981,7 @@ public class AirportE2ETests
     [Fact]
     public void SFO_TaxiToSpot7A_ThenRetaxi_Succeeds()
     {
-        // End-to-end: TAXI @7A completes, aircraft is in HoldingInPositionPhase,
+        // End-to-end: TAXI $7A completes, aircraft is in HoldingInPositionPhase,
         // then a second taxi command succeeds.
         var layout = LoadLayout("SFO", "sfo");
         if (layout is null)
@@ -995,10 +995,10 @@ public class AirportE2ETests
 
         var ac = MakeGroundAircraft("SFO", pushback.Latitude, pushback.Longitude);
 
-        // Step 1: TAXI @7A
-        var taxi1 = new TaxiCommand([], [], DestinationParking: "7A");
+        // Step 1: TAXI $7A
+        var taxi1 = new TaxiCommand([], [], DestinationSpot: "7A");
         var result1 = GroundCommandHandler.TryTaxi(ac, taxi1, layout, null);
-        Assert.True(result1.Success, $"TAXI @7A should succeed: {result1.Message}");
+        Assert.True(result1.Success, $"TAXI $7A should succeed: {result1.Message}");
 
         // Place aircraft at last target node so ArriveAtNode fires
         var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];

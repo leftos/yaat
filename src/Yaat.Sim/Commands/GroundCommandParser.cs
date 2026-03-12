@@ -15,26 +15,35 @@ internal static class GroundCommandParser
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        // @spot or $spot syntax: PUSH @4A, PUSH @4A A, PUSH @4A 180
+        // @parking or $spot syntax: PUSH @A10, PUSH $7A, PUSH @A10 180
         if (tokens.Length >= 1 && (tokens[0].StartsWith('@') || tokens[0].StartsWith('$')) && tokens[0].Length > 1)
         {
-            string spotName = tokens[0][1..].ToUpperInvariant();
+            bool isSpot = tokens[0].StartsWith('$');
+            string name = tokens[0][1..].ToUpperInvariant();
             if (tokens.Length == 1)
             {
-                return new PushbackCommand(DestinationParking: spotName);
+                return isSpot ? new PushbackCommand(DestinationSpot: name) : new PushbackCommand(DestinationParking: name);
             }
 
             if (tokens.Length == 2)
             {
-                if (int.TryParse(tokens[1], out var hdg) && hdg >= 1 && hdg <= 360)
+                int? hdg = null;
+                string? facingTwy = null;
+                if (int.TryParse(tokens[1], out var h) && h >= 1 && h <= 360)
                 {
-                    return new PushbackCommand(Heading: hdg, DestinationParking: spotName);
+                    hdg = h;
+                }
+                else
+                {
+                    facingTwy = tokens[1].ToUpperInvariant();
                 }
 
-                return new PushbackCommand(FacingTaxiway: tokens[1].ToUpperInvariant(), DestinationParking: spotName);
+                return isSpot
+                    ? new PushbackCommand(Heading: hdg, FacingTaxiway: facingTwy, DestinationSpot: name)
+                    : new PushbackCommand(Heading: hdg, FacingTaxiway: facingTwy, DestinationParking: name);
             }
 
-            return new PushbackCommand(DestinationParking: spotName);
+            return isSpot ? new PushbackCommand(DestinationSpot: name) : new PushbackCommand(DestinationParking: name);
         }
 
         if (tokens.Length == 1)
@@ -117,14 +126,22 @@ internal static class GroundCommandParser
             return null;
         }
 
-        return new TaxiCommand(taxi.Path, taxi.HoldShorts, destRunway, taxi.NoDelete, taxi.DestinationParking, taxi.CrossRunways);
+        return new TaxiCommand(
+            taxi.Path,
+            taxi.HoldShorts,
+            destRunway,
+            taxi.NoDelete,
+            taxi.DestinationParking,
+            taxi.CrossRunways,
+            taxi.DestinationSpot
+        );
     }
 
     /// <summary>
-    /// Shared taxi token parser. Handles path, HS, RWY keywords, and @parking tokens.
+    /// Shared taxi token parser. Handles path, HS, RWY keywords, @parking, and $spot tokens.
     /// If detectTrailingRunway is true and no explicit RWY keyword was found,
     /// treats the last path token as a destination runway if it looks like one.
-    /// Tokens starting with @ are extracted as DestinationParking (strip @).
+    /// Tokens starting with @ set DestinationParking, $ set DestinationSpot.
     /// </summary>
     internal static ParsedCommand? ParseTaxiTokens(string[] tokens, bool detectTrailingRunway)
     {
@@ -138,6 +155,7 @@ internal static class GroundCommandParser
         List<string>? crossRunways = null;
         string? destRunway = null;
         string? destParking = null;
+        string? destSpot = null;
         bool inHoldShort = false;
         bool inRwy = false;
         bool inCross = false;
@@ -189,10 +207,16 @@ internal static class GroundCommandParser
                 continue;
             }
 
-            // @token or $token = parking destination (strip prefix)
-            if ((token.StartsWith('@') || token.StartsWith('$')) && token.Length > 1)
+            // @token = parking destination, $token = spot destination (strip prefix)
+            if (token.StartsWith('@') && token.Length > 1)
             {
                 destParking = token[1..].ToUpperInvariant();
+                continue;
+            }
+
+            if (token.StartsWith('$') && token.Length > 1)
+            {
+                destSpot = token[1..].ToUpperInvariant();
                 continue;
             }
 
@@ -224,13 +248,13 @@ internal static class GroundCommandParser
             }
         }
 
-        // Allow empty path when parking destination is set (A* will find the route)
-        if (path.Count == 0 && destParking is null)
+        // Allow empty path when parking/spot destination is set (A* will find the route)
+        if (path.Count == 0 && destParking is null && destSpot is null)
         {
             return null;
         }
 
-        return new TaxiCommand(path, holdShorts, destRunway, noDelete, destParking, crossRunways);
+        return new TaxiCommand(path, holdShorts, destRunway, noDelete, destParking, crossRunways, destSpot);
     }
 
     /// <summary>
@@ -250,9 +274,14 @@ internal static class GroundCommandParser
             return null;
         }
 
-        if ((token.StartsWith('@') || token.StartsWith('$')) && token.Length > 1)
+        if (token.StartsWith('@') && token.Length > 1)
         {
             return new TaxiAllCommand(DestinationParking: token[1..].ToUpperInvariant());
+        }
+
+        if (token.StartsWith('$') && token.Length > 1)
+        {
+            return new TaxiAllCommand(DestinationSpot: token[1..].ToUpperInvariant());
         }
 
         return new TaxiAllCommand(DestinationRunway: token.ToUpperInvariant());

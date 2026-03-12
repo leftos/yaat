@@ -404,7 +404,7 @@ public static class CommandRegistry
                 false,
                 ["PUSH"],
                 [O(null, [], "Pushback (auto heading)"), O("Heading", [R("heading", "0-360")], "Pushback facing heading")],
-                [Mod("@", "spot", false)]
+                [Mod("@", "parking", false), Mod("$", "spot", false)]
             ),
             Cmd(
                 Taxi,
@@ -419,6 +419,7 @@ public static class CommandRegistry
                     Mod("CROSS", "runway", true),
                     Mod("NODEL", null, false),
                     Mod("@", "parking", false),
+                    Mod("$", "spot", false),
                 ]
             ),
             Bare(HoldPosition, "Hold Position", "Ground", false, ["HOLD", "HP"]),
@@ -476,7 +477,7 @@ public static class CommandRegistry
                 "Ground",
                 true,
                 ["TAXIALL"],
-                [O(null, [R("destination", "runway or @spot")], "Taxi all parked aircraft to destination (A* pathfinding)")]
+                [O(null, [R("destination", "runway, @parking, or $spot")], "Taxi all parked aircraft to destination (A* pathfinding)")]
             ),
             Bare(BreakConflict, "Break Conflict", "Ground", false, ["BREAK"]),
             Bare(Go, "Begin Takeoff Roll", "Tower", false, ["GO"]),

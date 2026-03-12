@@ -549,9 +549,11 @@ public static class CommandDescriber
 
     private static string FormatPushCanonical(PushbackCommand push)
     {
-        if (push.DestinationParking is not null)
+        if (push.DestinationParking is not null || push.DestinationSpot is not null)
         {
-            var result = $"PUSH @{push.DestinationParking}";
+            var prefix = push.DestinationSpot is not null ? "$" : "@";
+            var name = push.DestinationSpot ?? push.DestinationParking;
+            var result = $"PUSH {prefix}{name}";
             if (push.FacingTaxiway is not null)
             {
                 result += $" {push.FacingTaxiway}";
@@ -584,9 +586,10 @@ public static class CommandDescriber
 
     private static string FormatPushNatural(PushbackCommand push)
     {
-        if (push.DestinationParking is not null)
+        if (push.DestinationParking is not null || push.DestinationSpot is not null)
         {
-            var msg = $"Push to {push.DestinationParking}";
+            var name = push.DestinationSpot ?? push.DestinationParking;
+            var msg = $"Push to {name}";
             if (push.FacingTaxiway is not null)
             {
                 msg += $" facing {push.FacingTaxiway}";
@@ -851,7 +854,11 @@ public static class CommandDescriber
     {
         var parts = new List<string> { "TAXI" };
         parts.AddRange(taxi.Path);
-        if (taxi.DestinationParking is not null)
+        if (taxi.DestinationSpot is not null)
+        {
+            parts.Add($"${taxi.DestinationSpot}");
+        }
+        else if (taxi.DestinationParking is not null)
         {
             parts.Add($"@{taxi.DestinationParking}");
         }
@@ -863,11 +870,18 @@ public static class CommandDescriber
     {
         var displayPath = taxi.Path.Where(t => !TaxiPathfinder.IsNodeReference(t)).ToList();
 
+        if (taxi.DestinationSpot is not null)
+        {
+            return displayPath.Count > 0
+                ? $"Taxi via {string.Join(" ", displayPath)} to spot {taxi.DestinationSpot}"
+                : $"Taxi to spot {taxi.DestinationSpot}";
+        }
+
         if (taxi.DestinationParking is not null)
         {
             return displayPath.Count > 0
-                ? $"Taxi via {string.Join(" ", displayPath)} to spot {taxi.DestinationParking}"
-                : $"Taxi to spot {taxi.DestinationParking}";
+                ? $"Taxi via {string.Join(" ", displayPath)} to parking {taxi.DestinationParking}"
+                : $"Taxi to parking {taxi.DestinationParking}";
         }
 
         return displayPath.Count > 0 ? $"Taxi via {string.Join(" ", displayPath)}" : "Taxi";
@@ -875,6 +889,11 @@ public static class CommandDescriber
 
     private static string FormatTaxiAllCanonical(TaxiAllCommand taxiAll)
     {
+        if (taxiAll.DestinationSpot is not null)
+        {
+            return $"TAXIALL ${taxiAll.DestinationSpot}";
+        }
+
         if (taxiAll.DestinationParking is not null)
         {
             return $"TAXIALL @{taxiAll.DestinationParking}";
@@ -885,9 +904,14 @@ public static class CommandDescriber
 
     private static string FormatTaxiAllNatural(TaxiAllCommand taxiAll)
     {
+        if (taxiAll.DestinationSpot is not null)
+        {
+            return $"Taxi all to spot {taxiAll.DestinationSpot}";
+        }
+
         if (taxiAll.DestinationParking is not null)
         {
-            return $"Taxi all to spot {taxiAll.DestinationParking}";
+            return $"Taxi all to parking {taxiAll.DestinationParking}";
         }
 
         return taxiAll.DestinationRunway is not null ? $"Taxi all to runway {taxiAll.DestinationRunway}" : "Taxi all";

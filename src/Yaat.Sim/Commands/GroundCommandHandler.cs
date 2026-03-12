@@ -40,7 +40,7 @@ internal static class GroundCommandHandler
         }
 
         Log.LogDebug(
-            "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], destRwy={Rwy}, destParking={Pkg}",
+            "[TryTaxi] {Callsign}: nearest node {NodeId} at ({NLat:F6}, {NLon:F6}), dist={Dist:F4}nm, path=[{Path}], destRwy={Rwy}, destParking={Pkg}, destSpot={Spot}",
             aircraft.Callsign,
             startNode.Id,
             startNode.Latitude,
@@ -48,13 +48,14 @@ internal static class GroundCommandHandler
             GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, startNode.Latitude, startNode.Longitude),
             string.Join(" ", taxi.Path),
             taxi.DestinationRunway ?? "(none)",
-            taxi.DestinationParking ?? "(none)"
+            taxi.DestinationParking ?? "(none)",
+            taxi.DestinationSpot ?? "(none)"
         );
 
         TaxiRoute? route;
         string? failReason;
 
-        if (taxi.DestinationParking is not null)
+        if (taxi.DestinationParking is not null || taxi.DestinationSpot is not null)
         {
             route = ResolveParkingRoute(groundLayout, startNode, taxi, runways, out failReason);
         }
@@ -238,26 +239,43 @@ internal static class GroundCommandHandler
     {
         failReason = null;
 
-        var parkingNode = groundLayout.FindSpotByName(taxi.DestinationParking!);
-        if (parkingNode is null)
+        // Resolve destination node: @ = parking/helipad only, $ = spot only
+        GroundNode? destNode;
+        string destLabel;
+        if (taxi.DestinationSpot is not null)
         {
-            failReason = $"Cannot find parking spot '{taxi.DestinationParking}'";
-            return null;
+            destNode = groundLayout.FindSpotNodeByName(taxi.DestinationSpot);
+            destLabel = taxi.DestinationSpot;
+            if (destNode is null)
+            {
+                failReason = $"Cannot find spot '{taxi.DestinationSpot}'";
+                return null;
+            }
+        }
+        else
+        {
+            destNode = groundLayout.FindHelipadByName(taxi.DestinationParking!) ?? groundLayout.FindParkingByName(taxi.DestinationParking!);
+            destLabel = taxi.DestinationParking!;
+            if (destNode is null)
+            {
+                failReason = $"Cannot find parking '{taxi.DestinationParking}'";
+                return null;
+            }
         }
 
         if (taxi.Path.Count == 0)
         {
-            // No explicit path — A* direct to parking
-            var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, parkingNode.Id);
+            // No explicit path — A* direct to destination
+            var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, destNode.Id);
             if (route is null)
             {
-                failReason = $"No route to parking spot '{taxi.DestinationParking}'";
+                failReason = $"No route to {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'";
             }
 
             return route;
         }
 
-        // Explicit path given — resolve it, then extend to parking via A*
+        // Explicit path given — resolve it, then extend to destination via A*
         var explicitRoute = TaxiPathfinder.ResolveExplicitPath(
             groundLayout,
             startNode.Id,
@@ -277,17 +295,17 @@ internal static class GroundCommandHandler
         // Find where the explicit path ends
         int endNodeId = explicitRoute.Segments.Count > 0 ? explicitRoute.Segments[^1].ToNodeId : startNode.Id;
 
-        if (endNodeId == parkingNode.Id)
+        if (endNodeId == destNode.Id)
         {
             return explicitRoute;
         }
 
-        // Extend from end of explicit path to parking node via A*
-        var extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, parkingNode.Id);
+        // Extend from end of explicit path to destination node via A*
+        var extension = TaxiPathfinder.FindRoute(groundLayout, endNodeId, destNode.Id);
         if (extension is null)
         {
-            Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to parking {Parking}", endNodeId, taxi.DestinationParking);
-            failReason = $"Cannot reach parking spot '{taxi.DestinationParking}' from end of taxi route";
+            Log.LogDebug("[TryTaxi] Cannot extend from node {EndNode} to {DestLabel}", endNodeId, destLabel);
+            failReason = $"Cannot reach {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}' from end of taxi route";
             return null;
         }
 
@@ -308,7 +326,7 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Pushback requires aircraft to be at parking");
         }
 
-        if (push.DestinationParking is not null)
+        if (push.DestinationParking is not null || push.DestinationSpot is not null)
         {
             return TryPushbackToSpot(aircraft, push, groundLayout);
         }
@@ -428,10 +446,26 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "No airport ground layout available");
         }
 
-        var destNode = groundLayout.FindSpotByName(push.DestinationParking!);
-        if (destNode is null)
+        // Resolve destination: @ = parking/helipad only, $ = spot only
+        GroundNode? destNode;
+        string destLabel;
+        if (push.DestinationSpot is not null)
         {
-            return new CommandResult(false, $"Cannot find parking spot '{push.DestinationParking}'");
+            destNode = groundLayout.FindSpotNodeByName(push.DestinationSpot);
+            destLabel = push.DestinationSpot;
+            if (destNode is null)
+            {
+                return new CommandResult(false, $"Cannot find spot '{push.DestinationSpot}'");
+            }
+        }
+        else
+        {
+            destNode = groundLayout.FindHelipadByName(push.DestinationParking!) ?? groundLayout.FindParkingByName(push.DestinationParking!);
+            destLabel = push.DestinationParking!;
+            if (destNode is null)
+            {
+                return new CommandResult(false, $"Cannot find parking '{push.DestinationParking}'");
+            }
         }
 
         var startNode = groundLayout.FindNearestNode(aircraft.Latitude, aircraft.Longitude);
@@ -443,7 +477,7 @@ internal static class GroundCommandHandler
         var route = TaxiPathfinder.FindRoute(groundLayout, startNode.Id, destNode.Id);
         if (route is null)
         {
-            return new CommandResult(false, $"No route to parking spot '{push.DestinationParking}'");
+            return new CommandResult(false, $"No route to {(push.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'");
         }
 
         // Resolve final heading: explicit heading, facing taxiway, or parking node's heading
@@ -464,9 +498,9 @@ internal static class GroundCommandHandler
         resolvedHeading ??= destNode.Heading is not null ? FlightPhysics.NormalizeHeadingInt(destNode.Heading.Value) : null;
 
         Log.LogDebug(
-            "[Pushback] {Callsign}: push to spot {Spot} via {SegCount} segments, finalHdg={Hdg}",
+            "[Pushback] {Callsign}: push to {DestLabel} via {SegCount} segments, finalHdg={Hdg}",
             aircraft.Callsign,
-            push.DestinationParking,
+            destLabel,
             route.Segments.Count,
             resolvedHeading?.ToString() ?? "none"
         );
@@ -480,9 +514,9 @@ internal static class GroundCommandHandler
         aircraft.Phases.Add(new AtParkingPhase());
         aircraft.Phases.Start(ctx);
 
-        aircraft.ParkingSpot = push.DestinationParking!.ToUpperInvariant();
+        aircraft.ParkingSpot = destLabel.ToUpperInvariant();
 
-        var msg = $"Pushing back to {push.DestinationParking}";
+        var msg = $"Pushing back to {destLabel}";
         if (push.FacingTaxiway is not null)
         {
             msg += $" facing {push.FacingTaxiway}";
