@@ -847,6 +847,7 @@ internal static class NavigationCommandHandler
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+        aircraft.DestinationRunway = approachRunway.Designator;
 
         aircraft.Phases.Add(interceptPhase);
         aircraft.Phases.Add(finalPhase);

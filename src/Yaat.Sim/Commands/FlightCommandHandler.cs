@@ -586,6 +586,8 @@ internal static class FlightCommandHandler
         aircraft.StarViaMode = false;
         aircraft.SidViaCeiling = null;
         aircraft.StarViaFloor = null;
+        aircraft.DepartureRunway = null;
+        aircraft.DestinationRunway = null;
     }
 
     private static string AltitudeVerb(AircraftState aircraft, int targetAltitude)

@@ -9,6 +9,7 @@ using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.ViewModels;
 
@@ -58,6 +59,7 @@ public partial class RadarViewModel : ObservableObject
     private Func<string, AircraftModel?>? _findAircraft;
     private FixDatabase? _fixDb;
     private ApproachDatabase? _approachDb;
+    private ProcedureDatabase? _procedureDb;
 
     public string? PrimaryAirportId { get; private set; }
 
@@ -266,6 +268,11 @@ public partial class RadarViewModel : ObservableObject
     }
 
     public ApproachDatabase? ApproachDb => _approachDb;
+
+    public void SetProcedureDb(ProcedureDatabase procedureDb)
+    {
+        _procedureDb = procedureDb;
+    }
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {
@@ -1483,7 +1490,8 @@ public partial class RadarViewModel : ObservableObject
                 continue;
             }
 
-            var fingerprint = $"{ac.Route}|{ac.ActiveSidId}|{ac.ActiveStarId}|{ac.ActiveApproachId}|{ac.ExpectedApproach}";
+            var fingerprint =
+                $"{ac.Route}|{ac.ActiveSidId}|{ac.ActiveStarId}|{ac.ActiveApproachId}|{ac.ExpectedApproach}|{ac.DepartureRunway}|{ac.DestinationRunway}";
             if (_pathCache.TryGetValue(callsign, out var cached) && cached.Fingerprint == fingerprint)
             {
                 entries.Add(new ShownPathEntry(callsign, cached.Waypoints, PathColors[_pathColorIndices[callsign]], ac.Latitude, ac.Longitude));
@@ -1510,7 +1518,7 @@ public partial class RadarViewModel : ObservableObject
             return [];
         }
 
-        var fixNames = _fixDb.ExpandRoute(ac.Route);
+        var fixNames = ResolveCifpAwareRoute(ac);
         var result = new List<DrawnWaypoint>(fixNames.Count + 10);
 
         foreach (var name in fixNames)
@@ -1543,6 +1551,219 @@ public partial class RadarViewModel : ObservableObject
                         result.Add(new DrawnWaypoint(name, pos.Value.Lat, pos.Value.Lon));
                     }
                 }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Resolves the route fix names using CIFP data for the correct SID/STAR transitions
+    /// when available, falling back to <see cref="FixDatabase.ExpandRoute"/> otherwise.
+    /// </summary>
+    private IReadOnlyList<string> ResolveCifpAwareRoute(AircraftModel ac)
+    {
+        if (string.IsNullOrWhiteSpace(ac.Route))
+        {
+            return [];
+        }
+
+        var routeTokens = ac.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        // Try to resolve SID fixes from CIFP
+        IReadOnlyList<string>? sidFixes = null;
+        int sidTokensConsumed = 0;
+        if (_procedureDb is not null && !string.IsNullOrEmpty(ac.ActiveSidId) && !string.IsNullOrEmpty(ac.Departure))
+        {
+            (sidFixes, sidTokensConsumed) = ResolveSidFixes(ac, routeTokens);
+        }
+
+        // Try to resolve STAR fixes from CIFP
+        IReadOnlyList<string>? starFixes = null;
+        string? starToken = null;
+        if (_procedureDb is not null && !string.IsNullOrEmpty(ac.ActiveStarId) && !string.IsNullOrEmpty(ac.Destination))
+        {
+            (starFixes, starToken) = ResolveStarFixes(ac, routeTokens);
+        }
+
+        // If neither CIFP resolution succeeded, fall back entirely
+        if (sidFixes is null && starFixes is null)
+        {
+            return _fixDb!.ExpandRoute(ac.Route);
+        }
+
+        // Build combined fix list: SID fixes → middle route tokens → STAR fixes
+        var result = new List<string>();
+
+        if (sidFixes is not null)
+        {
+            result.AddRange(sidFixes);
+        }
+
+        // Add middle route tokens (between SID and STAR)
+        for (int i = sidFixes is not null ? sidTokensConsumed : 0; i < routeTokens.Length; i++)
+        {
+            var token = routeTokens[i];
+            if (double.TryParse(token, out _))
+            {
+                continue;
+            }
+
+            // Skip the STAR token and any transition token before it
+            if (starToken is not null && string.Equals(token, starToken, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            // Skip tokens already consumed as SID name or enroute transition
+            if (sidFixes is not null && i < sidTokensConsumed)
+            {
+                continue;
+            }
+
+            // Skip SID/STAR names that FixDatabase would expand
+            if (_fixDb!.IsSidOrStar(token))
+            {
+                continue;
+            }
+
+            result.Add(token);
+        }
+
+        if (starFixes is not null)
+        {
+            result.AddRange(starFixes);
+        }
+
+        // Deduplicate adjacent identical fix names
+        var deduped = new List<string>(result.Count);
+        foreach (var name in result)
+        {
+            if (deduped.Count == 0 || !string.Equals(deduped[^1], name, StringComparison.OrdinalIgnoreCase))
+            {
+                deduped.Add(name);
+            }
+        }
+
+        return deduped;
+    }
+
+    private (IReadOnlyList<string>? Fixes, int TokensConsumed) ResolveSidFixes(AircraftModel ac, string[] routeTokens)
+    {
+        if (routeTokens.Length == 0)
+        {
+            return (null, 0);
+        }
+
+        var sid = _procedureDb!.GetSid(ac.Departure, ac.ActiveSidId);
+        if (sid is null)
+        {
+            return (null, 0);
+        }
+
+        var orderedLegs = new List<CifpLeg>();
+
+        if (!string.IsNullOrEmpty(ac.DepartureRunway))
+        {
+            var rwKey = "RW" + ac.DepartureRunway;
+            if (sid.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+            {
+                orderedLegs.AddRange(rwTransition.Legs);
+            }
+        }
+
+        orderedLegs.AddRange(sid.CommonLegs);
+
+        // Enroute transition (second route token)
+        int tokensConsumed = 1; // SID name token
+        if (routeTokens.Length > 1)
+        {
+            var enrouteKey = routeTokens[1].ToUpperInvariant();
+            if (sid.EnrouteTransitions.TryGetValue(enrouteKey, out var enTransition))
+            {
+                orderedLegs.AddRange(enTransition.Legs);
+                tokensConsumed = 2;
+            }
+        }
+
+        if (orderedLegs.Count == 0)
+        {
+            return (null, 0);
+        }
+
+        var fixes = ExtractFixNames(orderedLegs);
+        return fixes.Count > 0 ? (fixes, tokensConsumed) : (null, 0);
+    }
+
+    private (IReadOnlyList<string>? Fixes, string? StarToken) ResolveStarFixes(AircraftModel ac, string[] routeTokens)
+    {
+        var star = _procedureDb!.GetStar(ac.Destination, ac.ActiveStarId);
+        if (star is null)
+        {
+            return (null, null);
+        }
+
+        var orderedLegs = new List<CifpLeg>();
+
+        // Find the STAR token and possible transition in the route
+        string? starToken = null;
+        string? transitionName = null;
+        for (int i = 0; i < routeTokens.Length; i++)
+        {
+            if (string.Equals(routeTokens[i], ac.ActiveStarId, StringComparison.OrdinalIgnoreCase))
+            {
+                starToken = routeTokens[i];
+                // Check if preceding token is an enroute transition
+                if (i > 0)
+                {
+                    var prevToken = routeTokens[i - 1].ToUpperInvariant();
+                    if (star.EnrouteTransitions.ContainsKey(prevToken))
+                    {
+                        transitionName = prevToken;
+                        starToken = routeTokens[i - 1]; // Include transition token so middle-route loop stops before it
+                    }
+                }
+
+                break;
+            }
+        }
+
+        // Enroute transition
+        if (transitionName is not null && star.EnrouteTransitions.TryGetValue(transitionName, out var enTransition))
+        {
+            orderedLegs.AddRange(enTransition.Legs);
+        }
+
+        orderedLegs.AddRange(star.CommonLegs);
+
+        // Runway transition
+        if (!string.IsNullOrEmpty(ac.DestinationRunway))
+        {
+            var rwKey = "RW" + ac.DestinationRunway;
+            if (star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+            {
+                orderedLegs.AddRange(rwTransition.Legs);
+            }
+        }
+
+        if (orderedLegs.Count == 0)
+        {
+            return (null, null);
+        }
+
+        var fixes = ExtractFixNames(orderedLegs);
+        return fixes.Count > 0 ? (fixes, starToken) : (null, null);
+    }
+
+    private static List<string> ExtractFixNames(List<CifpLeg> legs)
+    {
+        var result = new List<string>(legs.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var leg in legs)
+        {
+            if (!string.IsNullOrEmpty(leg.FixIdentifier) && seen.Add(leg.FixIdentifier))
+            {
+                result.Add(leg.FixIdentifier);
             }
         }
 

@@ -160,6 +160,12 @@ public partial class AircraftModel : ObservableObject
     private string _activeStarId = "";
 
     [ObservableProperty]
+    private string _departureRunway = "";
+
+    [ObservableProperty]
+    private string _destinationRunway = "";
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
     [NotifyPropertyChangedFor(nameof(CruiseAltitudeDisplay))]
     [NotifyPropertyChangedFor(nameof(HasCruise))]
@@ -521,6 +527,8 @@ public partial class AircraftModel : ObservableObject
             CwtCode = dto.CwtCode,
             ActiveSidId = dto.ActiveSidId,
             ActiveStarId = dto.ActiveStarId,
+            DepartureRunway = dto.DepartureRunway,
+            DestinationRunway = dto.DestinationRunway,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         return model;
@@ -576,6 +584,8 @@ public partial class AircraftModel : ObservableObject
         CwtCode = dto.CwtCode;
         ActiveSidId = dto.ActiveSidId;
         ActiveStarId = dto.ActiveStarId;
+        DepartureRunway = dto.DepartureRunway;
+        DestinationRunway = dto.DestinationRunway;
         DistanceFromFix = computeDistance?.Invoke(this);
     }
 

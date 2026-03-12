@@ -493,6 +493,8 @@ public partial class MainViewModel : ObservableObject
             {
                 var approachDb = new ApproachDatabase(cifpService.CifpFilePath);
                 Radar.SetApproachDb(approachDb);
+                var procedureDb = new ProcedureDatabase(cifpService.CifpFilePath);
+                Radar.SetProcedureDb(procedureDb);
                 _log.LogInformation("Client-side CIFP initialized for FMC fix highlighting");
             }
         }

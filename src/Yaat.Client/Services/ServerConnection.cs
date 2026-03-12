@@ -488,7 +488,9 @@ public record AircraftDto(
     string? ExpectedApproach = null,
     string CwtCode = "",
     string ActiveSidId = "",
-    string ActiveStarId = ""
+    string ActiveStarId = "",
+    string DepartureRunway = "",
+    string DestinationRunway = ""
 );
 
 public record LoadScenarioResultDto(

@@ -148,6 +148,7 @@ internal static class GroundCommandHandler
         if (detectedRunway is not null)
         {
             aircraft.Phases.AssignedRunway = detectedRunway;
+            aircraft.DepartureRunway = detectedRunway.Designator;
         }
 
         aircraft.Phases.Add(new TaxiingPhase());
@@ -504,6 +505,7 @@ internal static class GroundCommandHandler
 
         aircraft.Phases ??= new PhaseList();
         aircraft.Phases.AssignedRunway = runway;
+        aircraft.DepartureRunway = runway.Designator;
         return CommandDispatcher.Ok($"Runway {runway.Designator}");
     }
 

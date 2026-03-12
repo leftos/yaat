@@ -143,6 +143,14 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
     }
 
     /// <summary>
+    /// Returns true if the token is a known SID or STAR identifier.
+    /// </summary>
+    public bool IsSidOrStar(string token)
+    {
+        return _sidAllFixes.ContainsKey(token) || _starAllFixes.ContainsKey(token);
+    }
+
+    /// <summary>
     /// Expands a route string into constituent fix names.
     /// SID/STAR identifiers are expanded to all body + transition
     /// fixes (ordered). Used for autocomplete highlighting.

@@ -150,6 +150,12 @@ public class AircraftState
     // Procedure state (SID/STAR)
     public string? ActiveSidId { get; set; }
     public string? ActiveStarId { get; set; }
+
+    /// <summary>Runway designator snapshot from when the SID was activated. Used for radar route display.</summary>
+    public string? DepartureRunway { get; set; }
+
+    /// <summary>Runway designator snapshot for arrival. Set when an approach or pattern assigns a runway. Used for radar route display.</summary>
+    public string? DestinationRunway { get; set; }
     public bool SidViaMode { get; set; }
     public bool StarViaMode { get; set; }
     public int? SidViaCeiling { get; set; }

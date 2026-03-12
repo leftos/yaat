@@ -321,6 +321,8 @@ public static class FlightPhysics
         aircraft.StarViaMode = false;
         aircraft.SidViaCeiling = null;
         aircraft.StarViaFloor = null;
+        aircraft.DepartureRunway = null;
+        aircraft.DestinationRunway = null;
     }
 
     /// <summary>Constant for bank angle formula: (π/180) × 1.6878 / 32.174 ≈ 0.0009146.</summary>

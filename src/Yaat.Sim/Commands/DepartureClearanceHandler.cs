@@ -156,6 +156,7 @@ internal static class DepartureClearanceHandler
 
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
+        aircraft.DepartureRunway = runway.Designator;
         InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, holding.HoldShort.NodeId, logger, runways);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
@@ -181,6 +182,7 @@ internal static class DepartureClearanceHandler
         aircraft.Phases.Clear(ctx);
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
+        aircraft.DepartureRunway = runway.Designator;
         InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, null, logger, runways);
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
 
@@ -251,6 +253,7 @@ internal static class DepartureClearanceHandler
 
         // Set runway and store departure clearance for TaxiingPhase to consume
         aircraft.Phases!.AssignedRunway = runway;
+        aircraft.DepartureRunway = runway.Designator;
         aircraft.Phases.DepartureClearance = new DepartureClearanceInfo
         {
             Type = clearanceType,

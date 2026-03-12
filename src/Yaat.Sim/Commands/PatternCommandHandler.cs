@@ -35,6 +35,7 @@ internal static class PatternCommandHandler
 
             aircraft.Phases ??= new PhaseList();
             aircraft.Phases.AssignedRunway = resolved;
+            aircraft.DestinationRunway = resolved.Designator;
         }
 
         if (aircraft.Phases?.AssignedRunway is null)
@@ -118,6 +119,7 @@ internal static class PatternCommandHandler
         );
 
         var phases = new PhaseList { AssignedRunway = runway };
+        aircraft.DestinationRunway = runway.Designator;
         phases.LandingClearance = aircraft.Phases.LandingClearance;
         phases.ClearedRunwayId = aircraft.Phases.ClearedRunwayId;
         phases.TrafficDirection = aircraft.Phases.TrafficDirection;
@@ -202,6 +204,7 @@ internal static class PatternCommandHandler
 
             aircraft.Phases ??= new PhaseList();
             aircraft.Phases.AssignedRunway = resolved;
+            aircraft.DestinationRunway = resolved.Designator;
         }
 
         if (aircraft.Phases?.AssignedRunway is null)
@@ -573,6 +576,11 @@ internal static class PatternCommandHandler
         }
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
+        if (runway is not null)
+        {
+            aircraft.DestinationRunway = runway.Designator;
+        }
+
         aircraft.Phases.Add(phase);
         var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);

@@ -60,6 +60,7 @@ public static class ApproachCommandHandler
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+        aircraft.DestinationRunway = approachRunway.Designator;
 
         // Handle rich CAPP forms: AT fix, DCT fix — prepend to approach fixes
         if (cmd.AtFix is not null && cmd.AtFixLat is not null && cmd.AtFixLon is not null)
@@ -151,6 +152,7 @@ public static class ApproachCommandHandler
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+        aircraft.DestinationRunway = approachRunway.Designator;
 
         // Insert hold-in-lieu if needed
         if (needsHold && procedure.HoldInLieuLeg is { } holdLeg)
@@ -233,6 +235,7 @@ public static class ApproachCommandHandler
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+        aircraft.DestinationRunway = approachRunway.Designator;
 
         aircraft.Phases.Add(
             new InterceptCoursePhase
@@ -291,6 +294,7 @@ public static class ApproachCommandHandler
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+        aircraft.DestinationRunway = approachRunway.Designator;
 
         // Determine execution path based on aircraft position
         double finalCourse = approachRunway.TrueHeading;
