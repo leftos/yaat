@@ -69,12 +69,15 @@ public static class TaxiPathfinder
         int currentNodeId = fromNodeId;
         int segmentCountBeforeLastTw = 0;
 
-        // Resolve destination hint for direction guidance when no next taxiway is available
+        // Resolve destination hint for direction guidance when no next taxiway is available.
+        // Use destinationRunway first; fall back to the first explicit hold-short (HS keyword)
+        // so that "TAXI Y H B M1 HS 01L" steers the same direction as "TAXI Y H B M1 1L".
+        string? effectiveDestRunway = destinationRunway ?? explicitHoldShorts?.FirstOrDefault();
         GroundNode? destinationHint = null;
-        if (destinationRunway is not null)
+        if (effectiveDestRunway is not null)
         {
-            var holdShortNodes = layout.GetRunwayHoldShortNodes(destinationRunway);
-            diagnosticLog?.Invoke($"[Pathfinder] destinationRunway={destinationRunway}, holdShortNodes.Count={holdShortNodes.Count}");
+            var holdShortNodes = layout.GetRunwayHoldShortNodes(effectiveDestRunway);
+            diagnosticLog?.Invoke($"[Pathfinder] effectiveDestRunway={effectiveDestRunway}, holdShortNodes.Count={holdShortNodes.Count}");
             if (holdShortNodes.Count == 1)
             {
                 destinationHint = holdShortNodes[0];
@@ -139,7 +142,7 @@ public static class TaxiPathfinder
             // (short hop) and runway centerline bridging are allowed.
             bool isFirstTw = twIdx == 0;
             var passedHint = nextTwName is null ? destinationHint : null;
-            var passedStopId = nextTwName is null ? destinationRunway : null;
+            var passedStopId = nextTwName is null ? effectiveDestRunway : null;
 
             if (layout.Nodes.TryGetValue(currentNodeId, out var curNode))
             {
