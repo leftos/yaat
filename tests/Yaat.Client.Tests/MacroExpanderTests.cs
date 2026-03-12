@@ -8,9 +8,9 @@ public class MacroExpanderTests
     private static readonly List<MacroDefinition> Macros =
     [
         new() { Name = "BAYTOUR", Expansion = "DCT VPCOL VPCHA VPMID" },
-        new() { Name = "HC", Expansion = "FH $1, CM $2" },
-        new() { Name = "FC", Expansion = "FH $hdg, CM $alt" },
-        new() { Name = "BIG", Expansion = "FH $1, CM $2, SPD $3, SQ $4, DCT $5, TL $6, TR $7, DM $8, RL $9, RR $10" },
+        new() { Name = "HC", Expansion = "FH &1, CM &2" },
+        new() { Name = "FC", Expansion = "FH &hdg, CM &alt" },
+        new() { Name = "BIG", Expansion = "FH &1, CM &2, SPD &3, SQ &4, DCT &5, TL &6, TR &7, DM &8, RL &9, RR &10" },
     ];
 
     [Fact]
@@ -60,8 +60,8 @@ public class MacroExpanderTests
         var result = MacroExpander.TryExpand("!FC 270", Macros, out var error);
         Assert.Null(result);
         Assert.NotNull(error);
-        Assert.Contains("$hdg", error);
-        Assert.Contains("$alt", error);
+        Assert.Contains("&hdg", error);
+        Assert.Contains("&alt", error);
     }
 
     [Fact]
@@ -168,8 +168,8 @@ public class MacroExpanderTests
     {
         var macros = new List<MacroDefinition>
         {
-            new() { Name = "HDG", Expansion = "FH $1" },
-            new() { Name = "HCLI", Expansion = "!HDG $1, CM $2" },
+            new() { Name = "HDG", Expansion = "FH &1" },
+            new() { Name = "HCLI", Expansion = "!HDG &1, CM &2" },
         };
         var result = MacroExpander.TryExpand("!HCLI 270 5000", macros, out var error);
         Assert.Null(error);
@@ -179,10 +179,10 @@ public class MacroExpanderTests
     [Fact]
     public void ExplicitParams_OrderDiffersFromExpansion()
     {
-        // Name declares $alt first, $hdg second — so input arg 1 maps to alt, arg 2 maps to hdg
+        // Name declares &alt first, &hdg second — so input arg 1 maps to alt, arg 2 maps to hdg
         var macros = new List<MacroDefinition>
         {
-            new() { Name = "HC $alt $hdg", Expansion = "FH $hdg, CM $alt" },
+            new() { Name = "HC &alt &hdg", Expansion = "FH &hdg, CM &alt" },
         };
         var result = MacroExpander.TryExpand("!HC 5000 270", macros, out var error);
         Assert.Null(error);
@@ -192,10 +192,10 @@ public class MacroExpanderTests
     [Fact]
     public void ExplicitParams_FindMacroMatchesBaseName()
     {
-        // FindMacro should match "HC" even when macro name is "HC $hdg $alt"
+        // FindMacro should match "HC" even when macro name is "HC &hdg &alt"
         var macros = new List<MacroDefinition>
         {
-            new() { Name = "HC $hdg $alt", Expansion = "FH $hdg, CM $alt" },
+            new() { Name = "HC &hdg &alt", Expansion = "FH &hdg, CM &alt" },
         };
         var result = MacroExpander.TryExpand("!HC 270 5000", macros, out var error);
         Assert.Null(error);
@@ -205,15 +205,15 @@ public class MacroExpanderTests
     [Fact]
     public void ExplicitParams_InvalidExpansion_ReturnsError()
     {
-        // $hgd is a typo — declared $hdg but expansion uses $hgd
+        // &hgd is a typo — declared &hdg but expansion uses &hgd
         var macros = new List<MacroDefinition>
         {
-            new() { Name = "HC $hdg $alt", Expansion = "FH $hgd, CM $alt" },
+            new() { Name = "HC &hdg &alt", Expansion = "FH &hgd, CM &alt" },
         };
         var result = MacroExpander.TryExpand("!HC 270 5000", macros, out var error);
         Assert.Null(result);
         Assert.NotNull(error);
-        Assert.Contains("$hdg", error);
+        Assert.Contains("&hdg", error);
         Assert.Contains("not found in expansion", error);
     }
 }
@@ -230,35 +230,35 @@ public class MacroDefinitionTests
     [Fact]
     public void ParameterCount_PositionalParams()
     {
-        var def = new MacroDefinition { Name = "TEST", Expansion = "FH $1, CM $2" };
+        var def = new MacroDefinition { Name = "TEST", Expansion = "FH &1, CM &2" };
         Assert.Equal(2, def.ParameterCount);
     }
 
     [Fact]
     public void ParameterCount_NamedParams()
     {
-        var def = new MacroDefinition { Name = "TEST", Expansion = "FH $hdg, CM $alt" };
+        var def = new MacroDefinition { Name = "TEST", Expansion = "FH &hdg, CM &alt" };
         Assert.Equal(2, def.ParameterCount);
     }
 
     [Fact]
     public void ParameterNames_PositionalOrder()
     {
-        var def = new MacroDefinition { Name = "TEST", Expansion = "FH $1, CM $2" };
+        var def = new MacroDefinition { Name = "TEST", Expansion = "FH &1, CM &2" };
         Assert.Equal(new[] { "1", "2" }, def.ParameterNames);
     }
 
     [Fact]
     public void ParameterNames_NamedOrder()
     {
-        var def = new MacroDefinition { Name = "TEST", Expansion = "FH $hdg, CM $alt" };
+        var def = new MacroDefinition { Name = "TEST", Expansion = "FH &hdg, CM &alt" };
         Assert.Equal(new[] { "hdg", "alt" }, def.ParameterNames);
     }
 
     [Fact]
     public void ParameterNames_DuplicatesCollapsed()
     {
-        var def = new MacroDefinition { Name = "TEST", Expansion = "FH $hdg, TL $hdg" };
+        var def = new MacroDefinition { Name = "TEST", Expansion = "FH &hdg, TL &hdg" };
         Assert.Single(def.ParameterNames);
         Assert.Equal("hdg", def.ParameterNames[0]);
     }
@@ -266,36 +266,36 @@ public class MacroDefinitionTests
     [Fact]
     public void BaseName_PlainName_ReturnsSame()
     {
-        var def = new MacroDefinition { Name = "HC", Expansion = "FH $1" };
+        var def = new MacroDefinition { Name = "HC", Expansion = "FH &1" };
         Assert.Equal("HC", def.BaseName);
     }
 
     [Fact]
     public void BaseName_WithExplicitParams_ReturnsFirstToken()
     {
-        var def = new MacroDefinition { Name = "HC $hdg $alt", Expansion = "FH $hdg, CM $alt" };
+        var def = new MacroDefinition { Name = "HC &hdg &alt", Expansion = "FH &hdg, CM &alt" };
         Assert.Equal("HC", def.BaseName);
     }
 
     [Fact]
     public void HasExplicitParameters_PlainName_ReturnsFalse()
     {
-        var def = new MacroDefinition { Name = "HC", Expansion = "FH $1, CM $2" };
+        var def = new MacroDefinition { Name = "HC", Expansion = "FH &1, CM &2" };
         Assert.False(def.HasExplicitParameters);
     }
 
     [Fact]
     public void HasExplicitParameters_WithParams_ReturnsTrue()
     {
-        var def = new MacroDefinition { Name = "HC $hdg $alt", Expansion = "FH $hdg, CM $alt" };
+        var def = new MacroDefinition { Name = "HC &hdg &alt", Expansion = "FH &hdg, CM &alt" };
         Assert.True(def.HasExplicitParameters);
     }
 
     [Fact]
     public void ParameterNames_ExplicitParams_ReturnsDeclarationOrder()
     {
-        // Name declares $alt before $hdg — that order should be used regardless of expansion order
-        var def = new MacroDefinition { Name = "HC $alt $hdg", Expansion = "FH $hdg, CM $alt" };
+        // Name declares &alt before &hdg — that order should be used regardless of expansion order
+        var def = new MacroDefinition { Name = "HC &alt &hdg", Expansion = "FH &hdg, CM &alt" };
         Assert.Equal(new[] { "alt", "hdg" }, def.ParameterNames);
     }
 
@@ -306,10 +306,10 @@ public class MacroDefinitionTests
     [InlineData("_private", true)]
     [InlineData("1BAD", false)]
     [InlineData("", false)]
-    [InlineData("HAS SPACE", false)] // second token not a $param
-    [InlineData("HC $hdg $alt", true)]
-    [InlineData("HC $hdg $hdg", false)] // duplicate param
-    [InlineData("HC $1bad", false)] // param starts with digit
+    [InlineData("HAS SPACE", false)] // second token not a &param
+    [InlineData("HC &hdg &alt", true)]
+    [InlineData("HC &hdg &hdg", false)] // duplicate param
+    [InlineData("HC &1bad", false)] // param starts with digit
     public void IsValidName(string name, bool expected)
     {
         Assert.Equal(expected, MacroDefinition.IsValidName(name));
@@ -318,23 +318,23 @@ public class MacroDefinitionTests
     [Fact]
     public void Validate_ExplicitParamNotInExpansion_ReturnsError()
     {
-        var def = new MacroDefinition { Name = "HC $hdg $alt", Expansion = "FH $hgd, CM $alt" };
+        var def = new MacroDefinition { Name = "HC &hdg &alt", Expansion = "FH &hgd, CM &alt" };
         var error = def.Validate();
         Assert.NotNull(error);
-        Assert.Contains("$hdg", error);
+        Assert.Contains("&hdg", error);
     }
 
     [Fact]
     public void Validate_AllExplicitParamsUsed_ReturnsNull()
     {
-        var def = new MacroDefinition { Name = "HC $hdg $alt", Expansion = "FH $hdg, CM $alt" };
+        var def = new MacroDefinition { Name = "HC &hdg &alt", Expansion = "FH &hdg, CM &alt" };
         Assert.Null(def.Validate());
     }
 
     [Fact]
     public void Validate_InferredParams_AlwaysNull()
     {
-        var def = new MacroDefinition { Name = "HC", Expansion = "FH $1, CM $2" };
+        var def = new MacroDefinition { Name = "HC", Expansion = "FH &1, CM &2" };
         Assert.Null(def.Validate());
     }
 
@@ -347,6 +347,6 @@ public class MacroDefinitionTests
     [Fact]
     public void ExtractBaseName_WithParams()
     {
-        Assert.Equal("HC", MacroDefinition.ExtractBaseName("HC $hdg $alt"));
+        Assert.Equal("HC", MacroDefinition.ExtractBaseName("HC &hdg &alt"));
     }
 }

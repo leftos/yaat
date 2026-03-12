@@ -23,7 +23,7 @@ Services/
   CommandInputController.cs     # Autocomplete (callsign/command/fix/macro), history nav, signature help, FixDb binary search
   CommandSignature.cs           # SignaturePart record (AXAML DataType dependency)
   SignatureHelpState.cs         # Observable state for signature help tooltip (overload nav, active param, dedup)
-  MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional $1 or named $hdg)
+  MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional &1 or named &hdg)
   MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
   TrainingDataService.cs         # Fetches scenarios/weather from vNAS data API (data-api.vnas.vatsim.net)
   FixSuggester.cs               # Fix name suggestions from FixDb

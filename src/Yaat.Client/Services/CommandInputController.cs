@@ -708,7 +708,7 @@ public partial class CommandInputController : ObservableObject
             }
 
             var paramNames = macro.ParameterNames;
-            var paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"${n}")) : "";
+            var paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"&{n}")) : "";
 
             Suggestions.Add(
                 new SuggestionItem

@@ -1467,7 +1467,7 @@ As you type in the command bar, a popup appears with matching suggestions:
   - **CTO modifiers** — departure instructions vary by flight rules. IFR: `RH` and heading prefixes (`H`, `RH`, `LH`). VFR: all modifiers including `OC`, `MRC`, `MRD`, `MR270`, `MLC`, `MLD`, `ML270`, `MLT`, `MRT`, `DCT`.
   - **Runway designators** — for `ELD`, `ERD`, `EF`, `ELB`, `ERB`, `CROSS`, `CTL`, `LAHSO`, `CVA`: shows runways from the primary airport
   - **Fix names** — for `DCT`, `DCTF`, `ADCTF`, `HFIXL`, `HFIXR`, `HFIX`, `CFIX`, `DEPART`, `JFAC`, and `AT` conditions: route fixes + navdata fixes
-- **Macros** (yellow) — when typing `!`, matching macro names with parameter hints (e.g., `!HC $1 $2` or `!FC $hdg $alt`)
+- **Macros** (yellow) — when typing `!`, matching macro names with parameter hints (e.g., `!HC &1 &2` or `!FC &hdg &alt`)
 - After accepting a callsign, the popup immediately shows all available command verbs
 
 Suggestions are context-aware: after a `;` or `,` separator in compound commands, suggestions reset for the new command. Conditions (`LV`, `AT`) are also suggested. When the input starts with a callsign, suggestions use that aircraft's data (route fixes, flight rules) rather than the grid-selected aircraft.
@@ -1498,10 +1498,10 @@ Macros support two parameter styles:
 
 | Style | Expansion | Invocation | Result |
 |-------|-----------|------------|--------|
-| Positional | `FH $1, CM $2` | `!HC 270 5000` | `FH 270, CM 5000` |
-| Named | `FH $hdg, CM $alt` | `!FC 270 5000` | `FH 270, CM 5000` |
+| Positional | `FH &1, CM &2` | `!HC 270 5000` | `FH 270, CM 5000` |
+| Named | `FH &hdg, CM &alt` | `!FC 270 5000` | `FH 270, CM 5000` |
 
-Named parameters serve as documentation — the autocomplete popup shows `!FC $hdg $alt` instead of `!FC $1 $2`, making it clear what each argument means. Arguments are always supplied positionally (in the order they first appear in the expansion).
+Named parameters serve as documentation — the autocomplete popup shows `!FC &hdg &alt` instead of `!FC &1 &2`, making it clear what each argument means. Arguments are always supplied positionally (in the order they first appear in the expansion).
 
 ### Usage
 

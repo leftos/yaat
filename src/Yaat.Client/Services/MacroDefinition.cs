@@ -24,7 +24,7 @@ public sealed partial class MacroDefinition
         get
         {
             var tokens = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            return tokens.Length > 1 && tokens.Skip(1).Any(t => t.StartsWith('$'));
+            return tokens.Length > 1 && tokens.Skip(1).Any(t => t.StartsWith('&'));
         }
     }
 
@@ -78,7 +78,7 @@ public sealed partial class MacroDefinition
                     return false;
                 }
 
-                var paramName = tokens[i][1..]; // strip $
+                var paramName = tokens[i][1..]; // strip &
                 if (!seen.Add(paramName))
                 {
                     return false; // duplicate
@@ -112,10 +112,10 @@ public sealed partial class MacroDefinition
         var paramNames = ParseExplicitParameters();
         foreach (var param in paramNames)
         {
-            var pattern = $"${param}";
+            var pattern = $"&{param}";
             if (!Expansion.Contains(pattern, StringComparison.OrdinalIgnoreCase))
             {
-                return $"Parameter ${param} declared in name but not found in expansion";
+                return $"Parameter &{param} declared in name but not found in expansion";
             }
         }
 
@@ -128,7 +128,7 @@ public sealed partial class MacroDefinition
         var names = new List<string>();
         for (var i = 1; i < tokens.Length; i++)
         {
-            if (tokens[i].StartsWith('$') && tokens[i].Length > 1)
+            if (tokens[i].StartsWith('&') && tokens[i].Length > 1)
             {
                 names.Add(tokens[i][1..]);
             }
@@ -153,12 +153,12 @@ public sealed partial class MacroDefinition
         return names;
     }
 
-    [GeneratedRegex(@"\$([A-Za-z_]\w*|\d+)")]
+    [GeneratedRegex(@"&([A-Za-z_]\w*|\d+)")]
     private static partial Regex GetParamRegex();
 
     [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*$")]
     private static partial Regex GetNameRegex();
 
-    [GeneratedRegex(@"^\$[A-Za-z_]\w*$")]
+    [GeneratedRegex(@"^&[A-Za-z_]\w*$")]
     private static partial Regex GetParamTokenRegex();
 }

@@ -219,7 +219,7 @@
                                Foreground="{DynamicResource SubtleTextBrush}"
                                FontSize="11"
                                Margin="0,0,0,8"
-                               Text="Define reusable command shortcuts. Use !NAME to invoke a macro. Inferred params: Name=HC, Expansion=FH $1, CM $2. Explicit params: Name=HC $hdg $alt, Expansion=FH $hdg, CM $alt. Explicit params control argument order." />
+                               Text="Define reusable command shortcuts. Use !NAME to invoke a macro. Inferred params: Name=HC, Expansion=FH &amp;1, CM &amp;2. Explicit params: Name=HC &amp;hdg &amp;alt, Expansion=FH &amp;hdg, CM &amp;alt. Explicit params control argument order." />
 
                     <!-- Bottom buttons for macros -->
                     <StackPanel DockPanel.Dock="Bottom"

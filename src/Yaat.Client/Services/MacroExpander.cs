@@ -98,7 +98,7 @@ public static partial class MacroExpander
 
                     if (pos >= commandText.Length || commandText[pos] is ';' or ',')
                     {
-                        var hint = paramNames.Count > 0 ? $" ({string.Join(", ", paramNames.Select(n => $"${n}"))})" : "";
+                        var hint = paramNames.Count > 0 ? $" ({string.Join(", ", paramNames.Select(n => $"&{n}"))})" : "";
                         error = $"Macro \"!{macro.BaseName}\" expects {paramNames.Count} parameter(s), got {p}{hint}";
                         return null;
                     }
@@ -180,6 +180,6 @@ public static partial class MacroExpander
         );
     }
 
-    [GeneratedRegex(@"\$([A-Za-z_]\w*|\d+)")]
+    [GeneratedRegex(@"&([A-Za-z_]\w*|\d+)")]
     private static partial Regex GetParamSlotRegex();
 }
