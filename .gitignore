@@ -6,6 +6,9 @@ obj/
 *.userosscache
 *.sln.docstates
 
+## Temp
+.tmp/
+
 ## IDE
 .vs/
 .idea/

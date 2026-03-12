@@ -64,6 +64,7 @@ public sealed class TaxiRoute
     /// </summary>
     public bool AddHoldShortAtIntersection(string target, AirportGroundLayout layout)
     {
+        int? previousNodeId = null;
         for (int segIdx = CurrentSegmentIndex; segIdx < Segments.Count; segIdx++)
         {
             var seg = Segments[segIdx];
@@ -71,11 +72,13 @@ public sealed class TaxiRoute
 
             if (GetHoldShortAt(nodeId) is not null)
             {
+                previousNodeId = nodeId;
                 continue;
             }
 
             if (!layout.Nodes.TryGetValue(nodeId, out var node))
             {
+                previousNodeId = nodeId;
                 continue;
             }
 
@@ -93,22 +96,28 @@ public sealed class TaxiRoute
                 return true;
             }
 
-            // Check if any adjacent edge has a matching taxiway name
+            // Check if any adjacent edge has a matching taxiway name.
+            // Use the previous node so the aircraft stops before the intersection.
             foreach (var edge in node.Edges)
             {
                 if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
                 {
-                    HoldShortPoints.Add(
-                        new HoldShortPoint
-                        {
-                            NodeId = nodeId,
-                            Reason = HoldShortReason.ExplicitHoldShort,
-                            TargetName = target.ToUpperInvariant(),
-                        }
-                    );
+                    int holdNodeId = previousNodeId ?? nodeId;
+                    if (GetHoldShortAt(holdNodeId) is null)
+                    {
+                        HoldShortPoints.Add(
+                            new HoldShortPoint
+                            {
+                                NodeId = holdNodeId,
+                                Reason = HoldShortReason.ExplicitHoldShort,
+                                TargetName = target.ToUpperInvariant(),
+                            }
+                        );
+                    }
                     return true;
                 }
             }
+            previousNodeId = nodeId;
         }
 
         return false;

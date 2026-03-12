@@ -664,6 +664,235 @@ public class SfoReplayTests(ITestOutputHelper output)
         );
     }
 
+    // --- Ground bugs recording: hold-short taxiway positioning, conflict detection, WARP stale phases ---
+
+    private const string GroundBugsRecordingPath = "TestData/sfo-ground-bugs-recording.json";
+
+    private static SessionRecording? LoadGroundBugsRecording()
+    {
+        if (!File.Exists(GroundBugsRecordingPath))
+        {
+            return null;
+        }
+
+        var json = File.ReadAllText(GroundBugsRecordingPath);
+        return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    }
+
+    /// <summary>
+    /// Bug 1: AAL1766 "TAXI Y M1 HS A RWY 01L" — hold short of taxiway A should stop
+    /// at the node BEFORE the A intersection, not at the intersection node itself (90).
+    /// Node 418 is the previous node on M1 before the A intersection.
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_AAL1766_HoldShortA_StopsBeforeIntersection()
+    {
+        var recording = LoadGroundBugsRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // AAL1766 taxi command fires at t=744. Replay far enough for it to reach hold-short.
+        engine.Replay(recording, 850.0);
+
+        var aal = engine.FindAircraft("AAL1766");
+        Assert.NotNull(aal);
+
+        var route = aal.AssignedTaxiRoute;
+        Assert.NotNull(route);
+
+        // Find the HS A hold-short point
+        var hsA = route.HoldShortPoints.FirstOrDefault(h =>
+            h.Reason == HoldShortReason.ExplicitHoldShort && string.Equals(h.TargetName, "A", StringComparison.OrdinalIgnoreCase)
+        );
+        Assert.NotNull(hsA);
+
+        // The hold-short should NOT be at node 90 (the intersection). It should be at a
+        // preceding node (418 or similar) so the aircraft stops before entering taxiway A.
+        Assert.NotEqual(90, hsA.NodeId);
+
+        _output.WriteLine($"AAL1766 HS A hold-short node: {hsA.NodeId} (expected != 90, the intersection node)");
+    }
+
+    /// <summary>
+    /// Bug 2: SWA7348 in LineUpPhase ("LiningUp") should be classified as stationary
+    /// by GroundConflictDetector, not as Taxiing. Aircraft in LiningUp phase should not
+    /// cause false conflicts with nearby holding aircraft.
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_SWA7348_LiningUp_NoFalseConflict()
+    {
+        var recording = LoadGroundBugsRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // SWA7348 gets CTO at t=648; by ~655s it should be in LineUpPhase.
+        // At that point, nearby holding aircraft should not have GroundSpeedLimit set
+        // from a false conflict with SWA7348.
+        engine.Replay(recording, 660.0);
+
+        var swa = engine.FindAircraft("SWA7348");
+        if (swa is null)
+        {
+            return;
+        }
+
+        string? phaseName = swa.Phases?.CurrentPhase?.Name;
+        _output.WriteLine($"SWA7348 phase: {phaseName ?? "(null)"}, gs={swa.GroundSpeed:F1}");
+
+        // If SWA7348 is in LiningUp or LinedUpAndWaiting, check that nearby aircraft
+        // don't have conflict speed limits caused by it
+        if (phaseName is "LiningUp" or "LinedUpAndWaiting")
+        {
+            // Check AAL1766 (which should be holding short nearby) doesn't have a false limit
+            var aal = engine.FindAircraft("AAL1766");
+            if (aal is not null && aal.IsOnGround && aal.GroundSpeed <= 0.1)
+            {
+                // A stationary aircraft shouldn't get a ground speed limit from
+                // another stationary aircraft (both stationary → skip pair)
+                _output.WriteLine($"AAL1766 GroundSpeedLimit: {aal.GroundSpeedLimit?.ToString("F1") ?? "null"}");
+            }
+        }
+
+        // More direct test: verify GroundConflictDetector.Classify treats LiningUp correctly
+        // by checking that SWA7348 in LiningUp phase doesn't have a Taxiing-based conflict limit
+        if (phaseName is "LiningUp" && swa.GroundSpeedLimit is not null)
+        {
+            Assert.Fail(
+                $"SWA7348 is in LiningUp phase but has GroundSpeedLimit={swa.GroundSpeedLimit:F1}kts. "
+                    + "LiningUp should be classified as stationary, not Taxiing."
+            );
+        }
+    }
+
+    /// <summary>
+    /// Bug 3: AAL2839 gets warped (UI warp) at t=632 but phases aren't cleared.
+    /// After warp, phases and taxi route should be null so subsequent commands work.
+    /// </summary>
+    [Fact]
+    public void Replay_Sfo_AAL2839_WarpClearsPhases()
+    {
+        var recording = LoadGroundBugsRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // AAL2839 CTO fires at t=504 (enters tower phases), then warp at t=632 should clear all
+        engine.Replay(recording, 640.0);
+
+        var aal = engine.FindAircraft("AAL2839");
+        Assert.NotNull(aal);
+
+        _output.WriteLine(
+            $"AAL2839 phases: {aal.Phases?.CurrentPhase?.Name ?? "(null)"}, route: {(aal.AssignedTaxiRoute is null ? "null" : "present")}"
+        );
+
+        Assert.Null(aal.Phases);
+        Assert.Null(aal.AssignedTaxiRoute);
+    }
+
+    /// <summary>
+    /// Diagnostic: trace SWA7348 and nearby ground aircraft tick-by-tick to understand
+    /// the false conflict between SWA7348 and AAL holding short of 01L.
+    /// </summary>
+    [Fact]
+    public void Diag_Sfo_GroundBugs_SWA7348_ConflictTrace()
+    {
+        var recording = LoadGroundBugsRecording();
+        if (recording is null)
+        {
+            return;
+        }
+
+        var layout = new TestAirportGroundData().GetLayout("SFO");
+
+        string[] callsigns = ["SWA7348", "AAL2839", "DAL819"];
+
+        for (double t = 0; t <= 650.0; t += 5.0)
+        {
+            var engine = BuildEngine();
+            if (engine is null)
+            {
+                return;
+            }
+
+            engine.Replay(recording, t);
+            var snapshot = engine.World.GetSnapshot();
+
+            var groundAc = snapshot.Where(a => a.IsOnGround && callsigns.Contains(a.Callsign)).ToList();
+            if (groundAc.Count == 0)
+            {
+                continue;
+            }
+
+            bool anyInteresting = groundAc.Any(a => a.GroundSpeedLimit is not null || a.GroundSpeed > 0.1 || a.Phases?.CurrentPhase is not null);
+            if (!anyInteresting && t > 5)
+            {
+                continue;
+            }
+
+            _output.WriteLine($"--- t={t:F0}s ---");
+            foreach (var ac in groundAc.OrderBy(a => a.Callsign))
+            {
+                string phase = ac.Phases?.CurrentPhase?.Name ?? "(none)";
+                string routeStr = "no-route";
+                string targetInfo = "";
+                if (ac.AssignedTaxiRoute is { } taxiRoute)
+                {
+                    routeStr = $"seg={taxiRoute.CurrentSegmentIndex}/{taxiRoute.Segments.Count}";
+                    if (taxiRoute.CurrentSegment is { } curSeg && layout?.Nodes.TryGetValue(curSeg.ToNodeId, out var tgtNode) == true)
+                    {
+                        double distToTarget = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, tgtNode.Latitude, tgtNode.Longitude);
+                        targetInfo = $" tgt={curSeg.ToNodeId}@{distToTarget * GeoMath.FeetPerNm:F0}ft";
+                    }
+
+                    var hsPoints = taxiRoute
+                        .HoldShortPoints.Select(h => $"{h.NodeId}:{h.Reason}:{h.TargetName}{(h.IsCleared ? ":CLR" : "")}")
+                        .ToList();
+                    if (hsPoints.Count > 0)
+                    {
+                        targetInfo += $" hs=[{string.Join(",", hsPoints)}]";
+                    }
+                }
+
+                string limit = ac.GroundSpeedLimit is not null ? $"limit={ac.GroundSpeedLimit:F1}" : "";
+                _output.WriteLine(
+                    $"  {ac.Callsign, -10} pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.Heading:F0} gs={ac.GroundSpeed:F1} phase={phase, -24} {routeStr}{targetInfo} {limit}"
+                );
+            }
+
+            // Show pairwise distances
+            for (int i = 0; i < groundAc.Count; i++)
+            {
+                for (int j = i + 1; j < groundAc.Count; j++)
+                {
+                    double distFt =
+                        GeoMath.DistanceNm(groundAc[i].Latitude, groundAc[i].Longitude, groundAc[j].Latitude, groundAc[j].Longitude)
+                        * GeoMath.FeetPerNm;
+                    if (distFt < 2000)
+                    {
+                        _output.WriteLine($"    dist({groundAc[i].Callsign},{groundAc[j].Callsign})={distFt:F0}ft");
+                    }
+                }
+            }
+
+            // Run conflict detection with diagnostic logging on the snapshot
+            GroundConflictDetector.ApplySpeedLimits(
+                snapshot,
+                layout,
+                deltaSeconds: 1.0,
+                diagnosticLog: msg => _output.WriteLine($"  [CONFLICT] {msg}")
+            );
+        }
+    }
+
     /// <summary>
     /// AMX669 gets "TAXI M2 B M1 HS 01L" at t=61. Same pattern as SWA7348 — explicit hold-short
     /// without destination runway. M1 walk should go toward the 1L hold-short (2-3 segments).

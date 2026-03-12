@@ -118,16 +118,14 @@ internal static class HoldShortAnnotator
         }
 
         // Second pass: taxiway intersection — find the first node with an
-        // adjacent edge on the target taxiway
+        // adjacent edge on the target taxiway, then use the PREVIOUS node
+        // so the aircraft stops before the intersection, not on it.
+        int? previousToNodeId = null;
         foreach (var seg in segments)
         {
             if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
             {
-                continue;
-            }
-
-            if (HoldShortExists(holdShorts, node.Id))
-            {
+                previousToNodeId = seg.ToNodeId;
                 continue;
             }
 
@@ -135,17 +133,22 @@ internal static class HoldShortAnnotator
             {
                 if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
                 {
-                    holdShorts.Add(
-                        new HoldShortPoint
-                        {
-                            NodeId = node.Id,
-                            Reason = HoldShortReason.ExplicitHoldShort,
-                            TargetName = target.ToUpperInvariant(),
-                        }
-                    );
+                    int holdNodeId = previousToNodeId ?? seg.ToNodeId;
+                    if (!HoldShortExists(holdShorts, holdNodeId))
+                    {
+                        holdShorts.Add(
+                            new HoldShortPoint
+                            {
+                                NodeId = holdNodeId,
+                                Reason = HoldShortReason.ExplicitHoldShort,
+                                TargetName = target.ToUpperInvariant(),
+                            }
+                        );
+                    }
                     return;
                 }
             }
+            previousToNodeId = seg.ToNodeId;
         }
     }
 

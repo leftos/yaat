@@ -25,7 +25,8 @@ public static class GroundConflictDetector
     private const double SlowTaxiSpeedKts = 5.0;
     private const double SearchRangeNm = 0.1;
     private const double FtPerNm = 6076.12;
-    private const int ConvergenceLookaheadSegments = 5;
+    private const double ConvergenceLookaheadFt = 1500.0;
+    private const double ConvergenceSlowdownFt = 400.0;
 
     private enum MovementState
     {
@@ -41,7 +42,12 @@ public static class GroundConflictDetector
     /// Clears all limits first, then classifies movement state, then checks pairs.
     /// Aircraft with an active BREAK override are exempt from all conflict limits.
     /// </summary>
-    public static void ApplySpeedLimits(List<AircraftState> aircraft, AirportGroundLayout? layout, double deltaSeconds = 0)
+    public static void ApplySpeedLimits(
+        List<AircraftState> aircraft,
+        AirportGroundLayout? layout,
+        double deltaSeconds = 0,
+        Action<string>? diagnosticLog = null
+    )
     {
         // Clear previous limits and tick down BREAK timers
         for (int i = 0; i < aircraft.Count; i++)
@@ -66,6 +72,9 @@ public static class GroundConflictDetector
 
             var (state, dir) = Classify(ac);
             entries.Add((ac, state, dir));
+            diagnosticLog?.Invoke(
+                $"[Classify] {ac.Callsign}: {state}, dir={dir?.ToString("F0") ?? "null"}, gs={ac.GroundSpeed:F1}, phase={ac.Phases?.CurrentPhase?.Name ?? "null"}, route={ac.AssignedTaxiRoute?.CurrentSegmentIndex.ToString() ?? "null"}/{ac.AssignedTaxiRoute?.Segments.Count.ToString() ?? "null"}"
+            );
         }
 
         for (int i = 0; i < entries.Count; i++)
@@ -102,6 +111,7 @@ public static class GroundConflictDetector
                 // Both stationary — nothing to do
                 if (stateA == MovementState.Stationary && stateB == MovementState.Stationary)
                 {
+                    diagnosticLog?.Invoke($"[Pair] {a.Callsign}+{b.Callsign}: both stationary, skip");
                     continue;
                 }
 
@@ -112,16 +122,17 @@ public static class GroundConflictDetector
                 }
 
                 double distFt = distNm * FtPerNm;
+                diagnosticLog?.Invoke($"[Pair] {a.Callsign}({stateA})+{b.Callsign}({stateB}): dist={distFt:F0}ft");
 
                 // 1. Same-edge (both taxiing with layout)
                 if (layout is not null && stateA == MovementState.Taxiing && stateB == MovementState.Taxiing)
                 {
-                    if (TrySameEdge(a, b, distFt))
+                    if (TrySameEdge(a, b, distFt, diagnosticLog))
                     {
                         continue;
                     }
 
-                    if (TryConvergence(a, b, layout))
+                    if (TryConvergence(a, b, layout, diagnosticLog))
                     {
                         continue;
                     }
@@ -137,7 +148,7 @@ public static class GroundConflictDetector
                 // 3. Proximity-to-stationary
                 if (stateA == MovementState.Stationary || stateB == MovementState.Stationary)
                 {
-                    ResolveProximityToStationary(a, stateA, dirA, b, stateB, dirB, distFt);
+                    ResolveProximityToStationary(a, stateA, dirA, b, stateB, dirB, distFt, diagnosticLog);
                     continue;
                 }
 
@@ -209,7 +220,7 @@ public static class GroundConflictDetector
 
         // Stationary: specific holding/parked phases
         bool isStationaryPhase =
-            phaseName is "At Parking" or "Holding After Pushback" or "LinedUpAndWaiting"
+            phaseName is "At Parking" or "Holding After Pushback" or "LinedUpAndWaiting" or "LiningUp"
             || (phaseName is not null && phaseName.StartsWith("Holding Short", StringComparison.Ordinal));
 
         if (isStationaryPhase)
@@ -260,7 +271,7 @@ public static class GroundConflictDetector
 
     // --- Conflict resolution ---
 
-    private static bool TrySameEdge(AircraftState a, AircraftState b, double distFt)
+    private static bool TrySameEdge(AircraftState a, AircraftState b, double distFt, Action<string>? diagnosticLog = null)
     {
         var segA = a.AssignedTaxiRoute?.CurrentSegment;
         var segB = b.AssignedTaxiRoute?.CurrentSegment;
@@ -276,6 +287,9 @@ public static class GroundConflictDetector
 
         if (!sameEdge)
         {
+            diagnosticLog?.Invoke(
+                $"  [SameEdge] {a.Callsign} seg={segA.FromNodeId}→{segA.ToNodeId}, {b.Callsign} seg={segB.FromNodeId}→{segB.ToNodeId}: not same edge"
+            );
             return false;
         }
 
@@ -285,6 +299,10 @@ public static class GroundConflictDetector
             // Trailing: the one farther from the target node slows down
             double distAToTarget = DistToSegTarget(a, segA);
             double distBToTarget = DistToSegTarget(b, segB);
+
+            diagnosticLog?.Invoke(
+                $"  [SameEdge] same-dir edge {segA.FromNodeId}→{segA.ToNodeId}: {a.Callsign} distToTgt={distAToTarget:F4}nm, {b.Callsign} distToTgt={distBToTarget:F4}nm"
+            );
 
             if (distAToTarget > distBToTarget)
             {
@@ -297,6 +315,7 @@ public static class GroundConflictDetector
         }
         else
         {
+            diagnosticLog?.Invoke($"  [SameEdge] head-on on edge, dist={distFt:F0}ft");
             // Opposite direction on same edge — head-on, both stop
             if (distFt <= OppositeStopDistanceFt)
             {
@@ -308,7 +327,7 @@ public static class GroundConflictDetector
         return true;
     }
 
-    private static bool TryConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout)
+    private static bool TryConvergence(AircraftState a, AircraftState b, AirportGroundLayout layout, Action<string>? diagnosticLog = null)
     {
         var routeA = a.AssignedTaxiRoute;
         var routeB = b.AssignedTaxiRoute;
@@ -321,6 +340,7 @@ public static class GroundConflictDetector
         int? sharedNodeId = FindSharedUpcomingNode(routeA, routeB);
         if (sharedNodeId is null)
         {
+            diagnosticLog?.Invoke($"  [Convergence] {a.Callsign}+{b.Callsign}: no shared upcoming node within {ConvergenceLookaheadFt:F0}ft");
             return false;
         }
 
@@ -332,16 +352,37 @@ public static class GroundConflictDetector
 
         double distA = GeoMath.DistanceNm(a.Latitude, a.Longitude, node.Latitude, node.Longitude);
         double distB = GeoMath.DistanceNm(b.Latitude, b.Longitude, node.Latitude, node.Longitude);
+        double distAFt = distA * FtPerNm;
+        double distBFt = distB * FtPerNm;
 
         double conflictDistFt = GeoMath.DistanceNm(a.Latitude, a.Longitude, b.Latitude, b.Longitude) * FtPerNm;
-        if (distA > distB)
+
+        AircraftState yielder = distA > distB ? a : b;
+        AircraftState winner = distA > distB ? b : a;
+        double yielderDistFt = Math.Max(distAFt, distBFt);
+
+        // Graduated speed: full stop when close, slow taxi when further
+        double limitSpeed;
+        if (conflictDistFt <= StopDistanceFt)
         {
-            ApplyMinLimit(a, 0, "convergence", b, conflictDistFt);
+            limitSpeed = 0;
+        }
+        else if (conflictDistFt <= ConvergenceSlowdownFt)
+        {
+            limitSpeed = SlowTaxiSpeedKts;
         }
         else
         {
-            ApplyMinLimit(b, 0, "convergence", a, conflictDistFt);
+            // Scale linearly from slow taxi to normal taxi speed based on distance to shared node
+            double t = Math.Clamp((yielderDistFt - ConvergenceSlowdownFt) / (ConvergenceLookaheadFt - ConvergenceSlowdownFt), 0, 1);
+            limitSpeed = SlowTaxiSpeedKts + t * (15.0 - SlowTaxiSpeedKts);
         }
+
+        diagnosticLog?.Invoke(
+            $"  [Convergence] shared node={sharedNodeId.Value}: {a.Callsign} {distAFt:F0}ft away, {b.Callsign} {distBFt:F0}ft away → {yielder.Callsign} yields to {winner.Callsign}, pairDist={conflictDistFt:F0}ft, limit={limitSpeed:F1}"
+        );
+
+        ApplyMinLimit(yielder, limitSpeed, "convergence", winner, conflictDistFt);
 
         return true;
     }
@@ -407,44 +448,65 @@ public static class GroundConflictDetector
         AircraftState b,
         MovementState stateB,
         double? dirB,
-        double distFt
+        double distFt,
+        Action<string>? diagnosticLog = null
     )
     {
+        diagnosticLog?.Invoke(
+            $"  [Proximity] {a.Callsign}({stateA},gs={a.GroundSpeed:F1})+{b.Callsign}({stateB},gs={b.GroundSpeed:F1}): dist={distFt:F0}ft"
+        );
+
         // Identify which is moving and which is stationary
         if (stateA != MovementState.Stationary && dirA is not null && a.GroundSpeed > 0)
         {
-            ApplyClosingLimit(a, dirA.Value, b, distFt);
+            ApplyClosingLimit(a, dirA.Value, b, distFt, diagnosticLog);
         }
 
         if (stateB != MovementState.Stationary && dirB is not null && b.GroundSpeed > 0)
         {
-            ApplyClosingLimit(b, dirB.Value, a, distFt);
+            ApplyClosingLimit(b, dirB.Value, a, distFt, diagnosticLog);
         }
     }
 
-    private static void ApplyClosingLimit(AircraftState mover, double moveDir, AircraftState obstacle, double distFt)
+    private static void ApplyClosingLimit(
+        AircraftState mover,
+        double moveDir,
+        AircraftState obstacle,
+        double distFt,
+        Action<string>? diagnosticLog = null
+    )
     {
         double bearing = GeoMath.BearingTo(mover.Latitude, mover.Longitude, obstacle.Latitude, obstacle.Longitude);
-        if (HeadingDifference(moveDir, bearing) >= 90)
+        double angleDiff = HeadingDifference(moveDir, bearing);
+        if (angleDiff >= 90)
         {
+            diagnosticLog?.Invoke(
+                $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: dir={moveDir:F0} bearing={bearing:F0} diff={angleDiff:F0}° ≥90, not closing"
+            );
             return;
         }
 
         if (distFt <= StopDistanceFt)
         {
+            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ stop({StopDistanceFt:F0}ft) → limit=0");
             ApplyMinLimit(mover, 0, "proximity stop", obstacle, distFt);
         }
         else if (distFt <= TrailDistanceFt)
         {
-            // When trailing a stationary obstacle (parked aircraft), allow slow taxi
-            // instead of matching 0 kts — aircraft need to pass parked gates.
             double limitSpeed = obstacle.GroundSpeed;
             if (limitSpeed < SlowTaxiSpeedKts)
             {
                 limitSpeed = SlowTaxiSpeedKts;
             }
 
+            diagnosticLog?.Invoke(
+                $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ trail({TrailDistanceFt:F0}ft) → limit={limitSpeed:F1}"
+            );
             ApplyMinLimit(mover, limitSpeed, "proximity trail", obstacle, distFt);
+        }
+        else
+        {
+            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft > trail({TrailDistanceFt:F0}ft), no limit");
         }
     }
 
@@ -549,25 +611,47 @@ public static class GroundConflictDetector
         return seg.Edge.DistanceNm;
     }
 
+    /// <summary>
+    /// Find a node that both routes will pass through within <see cref="ConvergenceLookaheadFt"/>,
+    /// but only if the two routes arrive from different edges (true convergence from different
+    /// directions). If both routes reach the shared node via the same FromNodeId, it's a
+    /// following/trailing situation — not a convergence.
+    /// </summary>
     private static int? FindSharedUpcomingNode(TaxiRoute routeA, TaxiRoute routeB)
     {
-        // Collect upcoming target nodes for A
-        var nodesA = new HashSet<int>();
-        int startA = routeA.CurrentSegmentIndex;
-        int endA = Math.Min(startA + ConvergenceLookaheadSegments, routeA.Segments.Count);
-        for (int i = startA; i < endA; i++)
+        double lookaheadNm = ConvergenceLookaheadFt / FtPerNm;
+
+        // Collect upcoming target nodes for A within distance-based lookahead,
+        // recording which FromNodeId leads into each target node.
+        var nodesA = new Dictionary<int, int>(); // ToNodeId → FromNodeId
+        double cumulativeA = 0;
+        for (int i = routeA.CurrentSegmentIndex; i < routeA.Segments.Count; i++)
         {
-            nodesA.Add(routeA.Segments[i].ToNodeId);
+            var seg = routeA.Segments[i];
+            cumulativeA += seg.Edge?.DistanceNm ?? 0;
+            if (cumulativeA > lookaheadNm)
+            {
+                break;
+            }
+
+            nodesA.TryAdd(seg.ToNodeId, seg.FromNodeId);
         }
 
-        // Check if B shares any upcoming target node
-        int startB = routeB.CurrentSegmentIndex;
-        int endB = Math.Min(startB + ConvergenceLookaheadSegments, routeB.Segments.Count);
-        for (int i = startB; i < endB; i++)
+        // Check if B shares any upcoming target node within distance-based lookahead,
+        // but only if B arrives from a different edge than A (different FromNodeId).
+        double cumulativeB = 0;
+        for (int i = routeB.CurrentSegmentIndex; i < routeB.Segments.Count; i++)
         {
-            if (nodesA.Contains(routeB.Segments[i].ToNodeId))
+            var seg = routeB.Segments[i];
+            cumulativeB += seg.Edge?.DistanceNm ?? 0;
+            if (cumulativeB > lookaheadNm)
             {
-                return routeB.Segments[i].ToNodeId;
+                break;
+            }
+
+            if (nodesA.TryGetValue(seg.ToNodeId, out int fromA) && fromA != seg.FromNodeId)
+            {
+                return seg.ToNodeId;
             }
         }
 

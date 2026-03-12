@@ -482,6 +482,14 @@ internal static class FlightCommandHandler
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
+        if (aircraft.Phases is not null)
+        {
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            aircraft.Phases.Clear(ctx);
+            aircraft.Phases = null;
+        }
+        aircraft.AssignedTaxiRoute = null;
+        aircraft.Targets.TurnRateOverride = null;
         aircraft.Latitude = cmd.Latitude;
         aircraft.Longitude = cmd.Longitude;
         aircraft.Heading = cmd.Heading;

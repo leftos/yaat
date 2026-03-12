@@ -639,6 +639,14 @@ public sealed class SimulationEngine
             return;
         }
 
+        if (aircraft.Phases is not null)
+        {
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            aircraft.Phases.Clear(ctx);
+            aircraft.Phases = null;
+        }
+        aircraft.AssignedTaxiRoute = null;
+        aircraft.Targets.TurnRateOverride = null;
         aircraft.Latitude = latitude;
         aircraft.Longitude = longitude;
         aircraft.Heading = heading;

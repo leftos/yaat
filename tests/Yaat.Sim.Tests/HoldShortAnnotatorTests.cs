@@ -195,6 +195,7 @@ public class HoldShortAnnotatorTests
     {
         // Node 2 is a hold-short for runway 15 — not a match for target "A".
         // Node 3 is a taxiway intersection with edge on taxiway "A".
+        // Hold-short should be placed at node 2 (BEFORE the intersection), not node 3.
         var hs15 = HoldShortNode(2, "15");
         var intersectionNode = new GroundNode
         {
@@ -211,7 +212,7 @@ public class HoldShortAnnotatorTests
         HoldShortAnnotator.AddExplicitHoldShort(layout, segments, holdShorts, "A");
 
         var hs = Assert.Single(holdShorts);
-        Assert.Equal(3, hs.NodeId);
+        Assert.Equal(2, hs.NodeId);
         Assert.Equal(HoldShortReason.ExplicitHoldShort, hs.Reason);
         Assert.Equal("A", hs.TargetName);
     }
