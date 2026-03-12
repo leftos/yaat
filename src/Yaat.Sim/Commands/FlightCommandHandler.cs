@@ -1,5 +1,7 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim.Commands;
 
@@ -545,10 +547,34 @@ internal static class FlightCommandHandler
             description = $"{cmd.Taxiway1}/{cmd.Taxiway2} intersection";
         }
 
+        // Clear stale state from prior operations
+        if (aircraft.Phases is not null)
+        {
+            var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+            aircraft.Phases.Clear(ctx);
+            aircraft.Phases = null;
+        }
+        aircraft.AssignedTaxiRoute = null;
+        aircraft.Queue.Blocks.Clear();
+        aircraft.IsHeld = false;
+        aircraft.Targets.TurnRateOverride = null;
+
+        // Place on ground at the target node with best heading alignment
         aircraft.Latitude = node.Latitude;
         aircraft.Longitude = node.Longitude;
         aircraft.IndicatedAirspeed = 0;
-        aircraft.Targets.TargetSpeed = null;
+        aircraft.IsOnGround = true;
+        aircraft.Targets.TargetSpeed = 0;
+
+        double heading = PickBestEdgeHeading(layout, node, aircraft.Heading);
+        aircraft.Heading = heading;
+        aircraft.Track = heading;
+
+        // Install ground-idle phase so subsequent commands (TAXI, LUAW, etc.) have phase context
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Add(new HoldingInPositionPhase());
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
+
         return CommandDispatcher.Ok($"Warped to {description}");
     }
 
@@ -565,5 +591,48 @@ internal static class FlightCommandHandler
     private static string AltitudeVerb(AircraftState aircraft, int targetAltitude)
     {
         return aircraft.Altitude > targetAltitude ? "Descend and maintain" : "Climb and maintain";
+    }
+
+    private static double PickBestEdgeHeading(AirportGroundLayout layout, GroundNode node, double currentHeading)
+    {
+        double bestHeading = currentHeading;
+        double bestDelta = 360;
+
+        foreach (var edge in node.Edges)
+        {
+            double bearing = EdgeBearing(layout, node, edge);
+            double delta = ((bearing - currentHeading) % 360 + 540) % 360 - 180;
+            delta = Math.Abs(delta);
+            if (delta < bestDelta)
+            {
+                bestDelta = delta;
+                bestHeading = bearing;
+            }
+        }
+
+        return bestHeading;
+    }
+
+    private static double EdgeBearing(AirportGroundLayout layout, GroundNode node, GroundEdge edge)
+    {
+        if (edge.FromNodeId == node.Id && edge.IntermediatePoints.Count > 0)
+        {
+            var pt = edge.IntermediatePoints[0];
+            return GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
+        }
+
+        if (edge.ToNodeId == node.Id && edge.IntermediatePoints.Count > 0)
+        {
+            var pt = edge.IntermediatePoints[^1];
+            return GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
+        }
+
+        int otherId = edge.FromNodeId == node.Id ? edge.ToNodeId : edge.FromNodeId;
+        if (layout.Nodes.TryGetValue(otherId, out var otherNode))
+        {
+            return GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
+        }
+
+        return 0;
     }
 }

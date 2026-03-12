@@ -106,6 +106,12 @@ internal static class DepartureClearanceHandler
             return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, fixes, logger, runways);
         }
 
+        // Aircraft holding in position (e.g. after WARPG) — allow LUAW/CTO with assigned runway
+        if (currentPhase is HoldingInPositionPhase)
+        {
+            return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, runways, fixes, logger);
+        }
+
         if (clearanceType == ClearanceType.ClearedForTakeoff)
         {
             return new CommandResult(false, "Aircraft is not lined up and waiting");
@@ -151,6 +157,32 @@ internal static class DepartureClearanceHandler
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
         InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, holding.HoldShort.NodeId, logger, runways);
+
+        return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
+    }
+
+    internal static CommandResult LineUpFromPosition(
+        AircraftState aircraft,
+        ClearanceType clearanceType,
+        DepartureInstruction departure,
+        int? assignedAltitude,
+        IRunwayLookup? runways,
+        IFixLookup? fixes,
+        ILogger logger
+    )
+    {
+        if (aircraft.Phases?.AssignedRunway is not { } runway)
+        {
+            return new CommandResult(false, "No runway assigned — use RWY first");
+        }
+
+        // Clear the holding phase and rebuild with tower departure phases
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        aircraft.Phases.Clear(ctx);
+
+        aircraft.Phases = new PhaseList { AssignedRunway = runway };
+        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, null, logger, runways);
+        aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
     }

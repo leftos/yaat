@@ -536,78 +536,9 @@ public partial class GroundViewModel : ObservableObject
         await _sendCommand(callsign, "DEL", initials);
     }
 
-    public async Task WarpToNodeAsync(string callsign, int nodeId)
+    public async Task WarpToNodeAsync(string callsign, string initials, int nodeId)
     {
-        if (_domainLayout is null || !_domainLayout.Nodes.TryGetValue(nodeId, out var node))
-        {
-            return;
-        }
-
-        var ac = GroundAircraft.FirstOrDefault(a => a.Callsign == callsign);
-        var currentHeading = ac?.Heading ?? 0;
-
-        var heading = PickBestEdgeHeading(_domainLayout, node, currentHeading);
-        await _connection.WarpAircraftAsync(callsign, node.Latitude, node.Longitude, heading);
-    }
-
-    private static double PickBestEdgeHeading(AirportGroundLayout layout, GroundNode node, double currentHeading)
-    {
-        double bestHeading = currentHeading;
-        double bestDelta = 360;
-
-        foreach (var edge in node.Edges)
-        {
-            double bearing = ComputeEdgeBearing(layout, node, edge);
-
-            double delta = Math.Abs(NormalizeDelta(bearing - currentHeading));
-            if (delta < bestDelta)
-            {
-                bestDelta = delta;
-                bestHeading = bearing;
-            }
-        }
-
-        return bestHeading;
-    }
-
-    private static double ComputeEdgeBearing(AirportGroundLayout layout, GroundNode node, GroundEdge edge)
-    {
-        // Use the first intermediate point along the direction away from node
-        if (edge.FromNodeId == node.Id && edge.IntermediatePoints.Count > 0)
-        {
-            var pt = edge.IntermediatePoints[0];
-            return Yaat.Sim.GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
-        }
-
-        if (edge.ToNodeId == node.Id && edge.IntermediatePoints.Count > 0)
-        {
-            var pt = edge.IntermediatePoints[^1];
-            return Yaat.Sim.GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
-        }
-
-        // No intermediate points — use the other node's position
-        int otherId = edge.FromNodeId == node.Id ? edge.ToNodeId : edge.FromNodeId;
-        if (layout.Nodes.TryGetValue(otherId, out var otherNode))
-        {
-            return Yaat.Sim.GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
-        }
-
-        return 0;
-    }
-
-    private static double NormalizeDelta(double delta)
-    {
-        delta %= 360;
-        if (delta > 180)
-        {
-            delta -= 360;
-        }
-        else if (delta < -180)
-        {
-            delta += 360;
-        }
-
-        return delta;
+        await _sendCommand(callsign, $"WARPG #{nodeId}", initials);
     }
 
     public List<TaxiRoute> FindRoutesToNode(int fromNodeId, int toNodeId)

@@ -243,6 +243,107 @@ public class DepartureClearanceHandlerTests
     }
 
     // -------------------------------------------------------------------------
+    // TryDepartureClearance from HoldingInPosition (e.g. after WARPG)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryDepartureClearance_FromHoldingInPosition_CTO_Succeeds()
+    {
+        var ac = MakeAircraft();
+        var rwy = DefaultRunway();
+        ac.Phases!.AssignedRunway = rwy;
+
+        var holdPhase = new HoldingInPositionPhase();
+        ac.Phases.Add(holdPhase);
+        ac.Phases.Start(MinCtx(ac));
+
+        var runways = new StubRunwayLookup(rwy);
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holdPhase,
+            ClearanceType.ClearedForTakeoff,
+            new RunwayHeadingDeparture(),
+            5000,
+            runways,
+            null,
+            Logger
+        );
+
+        Assert.True(result.Success);
+        Assert.Contains("Cleared for takeoff", result.Message!);
+        Assert.Contains("runway heading", result.Message!);
+        Assert.Contains("climb and maintain 5,000", result.Message!);
+
+        // Verify tower phases were installed
+        Assert.Contains(ac.Phases!.Phases, p => p is LineUpPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is LinedUpAndWaitingPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is TakeoffPhase);
+        Assert.Contains(ac.Phases.Phases, p => p is InitialClimbPhase);
+
+        // LUAW should be pre-satisfied (CTO)
+        var luaw = ac.Phases.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        Assert.True(luaw.Requirements[0].IsSatisfied);
+    }
+
+    [Fact]
+    public void TryDepartureClearance_FromHoldingInPosition_LUAW_Succeeds()
+    {
+        var ac = MakeAircraft();
+        var rwy = DefaultRunway();
+        ac.Phases!.AssignedRunway = rwy;
+
+        var holdPhase = new HoldingInPositionPhase();
+        ac.Phases.Add(holdPhase);
+        ac.Phases.Start(MinCtx(ac));
+
+        var runways = new StubRunwayLookup(rwy);
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holdPhase,
+            ClearanceType.LineUpAndWait,
+            new DefaultDeparture(),
+            null,
+            runways,
+            null,
+            Logger
+        );
+
+        Assert.True(result.Success);
+        Assert.Contains("Line up and wait", result.Message!);
+
+        // Tower phases installed but LUAW NOT pre-satisfied
+        var luaw = ac.Phases!.Phases.OfType<LinedUpAndWaitingPhase>().First();
+        Assert.False(luaw.Requirements[0].IsSatisfied);
+    }
+
+    [Fact]
+    public void TryDepartureClearance_FromHoldingInPosition_NoRunway_Fails()
+    {
+        var ac = MakeAircraft();
+        // No AssignedRunway set
+
+        var holdPhase = new HoldingInPositionPhase();
+        ac.Phases!.Add(holdPhase);
+        ac.Phases.Start(MinCtx(ac));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holdPhase,
+            ClearanceType.ClearedForTakeoff,
+            new DefaultDeparture(),
+            null,
+            null,
+            null,
+            Logger
+        );
+
+        Assert.False(result.Success);
+        Assert.Contains("No runway assigned", result.Message!);
+    }
+
+    // -------------------------------------------------------------------------
     // Closed-traffic departure
     // -------------------------------------------------------------------------
 

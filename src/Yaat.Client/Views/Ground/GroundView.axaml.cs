@@ -240,7 +240,7 @@ public partial class GroundView : UserControl
             );
 
             menu.Items.Add(new Separator());
-            menu.Items.Add(CreateMenuItem("Warp here", () => vm.WarpToNodeAsync(callsign, nodeId)));
+            menu.Items.Add(CreateMenuItem("Warp here", () => vm.WarpToNodeAsync(callsign, initials, nodeId)));
         }
 
         if (menu.Items.Count > 0)
