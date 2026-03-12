@@ -741,6 +741,7 @@ public sealed class SavedWindowGeometry
     public double Width { get; set; }
     public double Height { get; set; }
     public bool IsMaximized { get; set; }
+    public int ScreenIndex { get; set; }
 }
 
 public sealed class SavedGridLayout

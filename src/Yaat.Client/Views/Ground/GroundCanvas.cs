@@ -764,7 +764,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             maxLon = Math.Max(maxLon, node.Longitude);
         }
 
+        var savedRotation = Viewport.RotationDeg;
         Viewport.FitBounds(minLat, maxLat, minLon, maxLon);
+        Viewport.RotationDeg = savedRotation;
         _hasFitBounds = true;
         OnViewportChanged();
     }

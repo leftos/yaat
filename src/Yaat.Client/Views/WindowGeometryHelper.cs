@@ -1,6 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Platform.Storage;
+using Avalonia.Platform;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.Views;
@@ -34,15 +34,34 @@ public sealed class WindowGeometryHelper
     {
         var geo = _preferences.GetWindowGeometry(_windowName);
 
-        if (geo is not null && IsVisibleOnAnyScreen(geo.X, geo.Y, geo.Width, geo.Height))
+        if (geo is not null)
         {
-            _window.Width = geo.Width;
-            _window.Height = geo.Height;
-            _window.Position = new PixelPoint(geo.X, geo.Y);
-
-            if (geo.IsMaximized)
+            var screens = _window.Screens.All;
+            if (screens.Count > 0)
             {
-                _window.WindowState = WindowState.Maximized;
+                var targetScreen = GetTargetScreen(screens, geo);
+                var workArea = targetScreen.WorkingArea;
+
+                var width = Math.Min(geo.Width, workArea.Width);
+                var height = Math.Min(geo.Height, workArea.Height);
+
+                var x = Clamp(geo.X, workArea.X, workArea.Right - (int)width);
+                var y = Clamp(geo.Y, workArea.Y, workArea.Bottom - (int)height);
+
+                _window.WindowStartupLocation = WindowStartupLocation.Manual;
+                _window.Width = width;
+                _window.Height = height;
+                _window.Position = new PixelPoint(x, y);
+
+                if (geo.IsMaximized)
+                {
+                    _window.WindowState = WindowState.Maximized;
+                }
+            }
+            else
+            {
+                _window.Width = geo.Width;
+                _window.Height = geo.Height;
             }
         }
         else
@@ -58,6 +77,41 @@ public sealed class WindowGeometryHelper
 
         _window.PositionChanged += OnPositionChanged;
         _window.Closing += OnClosing;
+    }
+
+    private static Screen GetTargetScreen(IReadOnlyList<Screen> screens, SavedWindowGeometry geo)
+    {
+        // Prefer the saved screen index if it still exists
+        if (geo.ScreenIndex >= 0 && geo.ScreenIndex < screens.Count)
+        {
+            return screens[geo.ScreenIndex];
+        }
+
+        // Fall back to whichever screen contains the saved center point
+        var centerX = geo.X + (int)(geo.Width / 2);
+        var centerY = geo.Y + (int)(geo.Height / 2);
+        var center = new PixelPoint(centerX, centerY);
+
+        foreach (var screen in screens)
+        {
+            if (screen.WorkingArea.Contains(center))
+            {
+                return screen;
+            }
+        }
+
+        // No screen contains the saved position — use primary
+        return screens[0];
+    }
+
+    private static int Clamp(int value, int min, int max)
+    {
+        if (min > max)
+        {
+            return min;
+        }
+
+        return Math.Max(min, Math.Min(value, max));
     }
 
     private void OnPositionChanged(object? sender, PixelPointEventArgs e)
@@ -81,30 +135,27 @@ public sealed class WindowGeometryHelper
             Width = isMax ? _lastNormalWidth : _window.Width,
             Height = isMax ? _lastNormalHeight : _window.Height,
             IsMaximized = isMax,
+            ScreenIndex = GetCurrentScreenIndex(),
         };
 
         _preferences.SetWindowGeometry(_windowName, geo);
     }
 
-    private bool IsVisibleOnAnyScreen(int x, int y, double w, double h)
+    private int GetCurrentScreenIndex()
     {
         var screens = _window.Screens.All;
-        if (screens.Count == 0)
-        {
-            return false;
-        }
+        var centerX = _window.Position.X + (int)(_window.Width / 2);
+        var centerY = _window.Position.Y + (int)(_window.Height / 2);
+        var center = new PixelPoint(centerX, centerY);
 
-        foreach (var screen in screens)
+        for (var i = 0; i < screens.Count; i++)
         {
-            var bounds = screen.WorkingArea;
-            var overlapX = x + w > bounds.X && x < bounds.Right;
-            var overlapY = y + h > bounds.Y && y < bounds.Bottom;
-            if (overlapX && overlapY)
+            if (screens[i].WorkingArea.Contains(center))
             {
-                return true;
+                return i;
             }
         }
 
-        return false;
+        return 0;
     }
 }
