@@ -505,7 +505,7 @@ public static class CommandRegistry
                 "Exit Left",
                 "Ground",
                 false,
-                ["EL"],
+                ["EL", "EXITL"],
                 [O(null, [], "Exit runway to the left"), O("Taxiway", [R("taxiway", "taxiway name")], "Exit runway left onto taxiway")],
                 [Mod("NODEL", null, false)]
             ),
@@ -514,7 +514,7 @@ public static class CommandRegistry
                 "Exit Right",
                 "Ground",
                 false,
-                ["ER"],
+                ["ER", "EXITR"],
                 [O(null, [], "Exit runway to the right"), O("Taxiway", [R("taxiway", "taxiway name")], "Exit runway right onto taxiway")],
                 [Mod("NODEL", null, false)]
             ),

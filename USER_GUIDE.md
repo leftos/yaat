@@ -346,8 +346,8 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Cross runway | `CROSS 28L` | — | — |
 | Hold short | `HS B` | — | — |
 | Assign runway | `RWY 30` | — | — |
-| Exit left | `EL` | — | — |
-| Exit right | `ER` | — | — |
+| Exit left | `EL` | `EXITL` | — |
+| Exit right | `ER` | `EXITR` | — |
 | Exit taxiway | `EXIT A3` | — | — |
 | Follow | `FOLLOW SWA123` | `FOL` | — |
 | Give way | `GIVEWAY SWA123` | `BEHIND` | — |
@@ -644,8 +644,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `GA MLT` | Go around, make left traffic |
 | `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft (overrides published missed approach) |
 | `GA RH 50` | Go around, fly runway heading, climb to 5,000 ft (overrides published missed approach) |
-| `EL` | Exit runway to the left |
-| `ER` | Exit runway to the right |
+| `EL` / `EXITL` | Exit runway to the left |
+| `ER` / `EXITR` | Exit runway to the right |
 | `EXIT A3` | Exit runway at taxiway A3 |
 | `EL NODEL` / `ER NODEL` / `EXIT A3 NODEL` | Exit with auto-delete exemption |
 
