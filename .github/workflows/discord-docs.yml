@@ -2,7 +2,7 @@ name: Discord Docs Sync
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - "INSTALL.md"
       - "README.md"
