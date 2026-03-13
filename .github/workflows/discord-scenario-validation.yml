@@ -45,7 +45,7 @@ jobs:
           dotnet-quality: "ga"
 
       - name: Build validator
-        run: dotnet build tools/Yaat.ScenarioValidator -c Release -q
+        run: dotnet build tools/Yaat.ScenarioValidator -c Release
 
       - name: Run validation and post to Discord
         run: |
