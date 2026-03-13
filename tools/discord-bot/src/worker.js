@@ -170,6 +170,8 @@ async function handleGitHubWebhook(request, env, ctx) {
 
   if (event === "issues") {
     ctx.waitUntil(handleIssueEvent(payload, env));
+  } else if (event === "issue_comment") {
+    ctx.waitUntil(handleIssueCommentEvent(payload, env));
   }
 
   return new Response("OK", { status: 200 });
@@ -198,6 +200,12 @@ async function handleIssueEvent(payload, env) {
       statusMessage = `✅ This issue has been **resolved**! The fix should be available soon.\n\nSee ${issueLink} for details.`;
     }
   } else if (action === "reopened") {
+    // Skip if the /reopen slash command already handled this (avoids duplicate message)
+    const reopenFlag = await env.THREAD_ISSUES.get(`reopen:${issueNumber}`);
+    if (reopenFlag) {
+      await env.THREAD_ISSUES.delete(`reopen:${issueNumber}`);
+      return;
+    }
     statusMessage = `🔄 This issue has been **reopened** and will be looked at again.\n\nSee ${issueLink} for details.`;
   }
 
@@ -217,6 +225,28 @@ async function handleIssueEvent(payload, env) {
   } else if (action === "reopened") {
     await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
   }
+}
+
+async function handleIssueCommentEvent(payload, env) {
+  const { action, comment, issue } = payload;
+  if (action !== "created") return;
+
+  // Skip comments posted by the bot itself (via Discord→GitHub sync) to prevent echo loops.
+  // We detect this by checking if the comment author matches the GitHub token's authenticated user.
+  // As a heuristic, comments created by the sync contain "via Discord:" in the body.
+  if (comment.body?.includes("via Discord:\n\n")) return;
+
+  const threadId = await findThreadForIssue(env, issue.number);
+  if (!threadId) return;
+
+  const author = comment.user?.login || "Unknown";
+  const shortBody =
+    comment.body?.length > 1800 ? comment.body.slice(0, 1800) + "…" : (comment.body || "");
+  const issueLink = `[#${issue.number}](${issue.html_url})`;
+  const commentLink = `[comment](${comment.html_url})`;
+
+  const message = `💬 **${author}** commented on ${issueLink} (${commentLink}):\n\n${shortBody}`;
+  await postToDiscordThread(env.DISCORD_BOT_TOKEN, threadId, message);
 }
 
 async function findThreadForIssue(env, issueNumber) {
@@ -323,6 +353,40 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
     if (commandName === "unresolve") {
       await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
       await editOriginalResponse(appId, token, { content: "Thread unmarked as resolved." });
+      return;
+    }
+
+    if (commandName === "reopen") {
+      const mapping = await env.THREAD_ISSUES.get(threadId, { type: "json" });
+      if (!mapping) {
+        await editOriginalResponse(appId, token, {
+          content: "No linked GitHub issue found. Use `/create-issue` or `/create-feature-request` first.",
+        });
+        return;
+      }
+
+      // Mark that we're reopening this issue so the GitHub webhook doesn't duplicate the message
+      await env.THREAD_ISSUES.put(`reopen:${mapping.issueNumber}`, "1", { expirationTtl: 60 });
+
+      // Reopen the GitHub issue
+      await updateGitHubIssue(env.GITHUB_TOKEN, env.GITHUB_REPO, mapping.issueNumber, {
+        state: "open",
+      });
+
+      // Remove terminal labels so the issue appears fresh
+      const terminalLabels = Object.entries(STATUS_LABELS)
+        .filter(([, v]) => v.terminal)
+        .map(([k]) => k);
+      for (const label of terminalLabels) {
+        await removeGitHubLabel(env.GITHUB_TOKEN, env.GITHUB_REPO, mapping.issueNumber, label);
+      }
+
+      // Unmark the thread as resolved on Discord
+      await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
+
+      await editOriginalResponse(appId, token, {
+        content: `Reopened GitHub issue: ${mapping.issueUrl}`,
+      });
       return;
     }
 
@@ -624,6 +688,25 @@ async function createGitHubComment(token, repo, issueNumber, body) {
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`GitHub comment failed (${res.status}): ${text}`);
+  }
+}
+
+async function removeGitHubLabel(token, repo, issueNumber, label) {
+  const encoded = encodeURIComponent(label);
+  const res = await fetch(
+    `https://api.github.com/repos/${repo}/issues/${issueNumber}/labels/${encoded}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "yaat-discord-bot",
+        Accept: "application/vnd.github.v3+json",
+      },
+    },
+  );
+  // 404 = label wasn't on the issue, that's fine
+  if (!res.ok && res.status !== 404) {
+    console.error(`Failed to remove label "${label}" from issue ${issueNumber}:`, await res.text());
   }
 }
 

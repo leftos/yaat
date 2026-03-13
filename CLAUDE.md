@@ -148,15 +148,17 @@ Cloudflare Worker (JS, no framework) deployed as `yaat-discord-bot`. State in KV
 - `/create-issue` — creates GitHub issue labeled `bug` from forum thread
 - `/create-feature-request` — creates GitHub issue labeled `enhancement`
 - `/resolve` / `/unresolve` — manually toggle resolved state (checkmark title prefix + reaction)
+- `/reopen` — reopens linked GitHub issue, removes terminal labels, unmarks thread as resolved
 
 Re-running a slash command in an already-linked thread triggers an immediate comment sync instead.
 
 **Auto-sync** (cron every 15min): New non-bot thread replies → GitHub issue comments.
 
-**GitHub → Discord** (webhook on `issues` events at `/github`):
+**GitHub → Discord** (webhook on `issues` + `issue_comment` events at `/github`):
 - Labels (`in progress`, `completed`, `wontfix`, `not a bug`, `duplicate`) → status message posted to linked thread
 - Terminal labels/close → per-type emoji prefix on title (✅/🚫/❌/♻️), matching reaction, thread archived
 - Issue reopened → emoji prefix removed, thread unarchived
+- New issue comments → posted to linked Discord thread (skips comments from Discord→GitHub sync to prevent echo loops)
 
 **KV mappings:** `threadId → {issueNumber, issueUrl, guildId, lastSyncedMessageId}` and reverse `issue:{N} → threadId`.
 

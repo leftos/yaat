@@ -27,6 +27,11 @@ const commands = [
     description: "Unmark this thread as resolved (removes checkmark from title and reaction)",
     type: 1,
   },
+  {
+    name: "reopen",
+    description: "Reopen the linked GitHub issue and unmark this thread as resolved",
+    type: 1,
+  },
 ];
 
 const appId = process.env.DISCORD_APP_ID;
