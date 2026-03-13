@@ -403,7 +403,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Line up and wait | `LUAW` | `POS`, `LU`, `PH` | — |
 | Cleared for takeoff | `CTO` | — | — |
 | Cancel takeoff | `CTOC` | — | — |
-| Cleared to land | `CTL` | `FS` | — |
+| Cleared to land | `CLAND` | `CL`, `FS` | — |
 | Land and hold short | `LAHSO` | — | — |
 | Cancel landing | `CLC` | `CTLC` | — |
 | Go around | `GA` | — | — |
@@ -604,7 +604,7 @@ Helicopters are detected automatically from the ICAO type designator. They use t
 | `LAND H1` | Land at named spot H1 (helipad, parking, or ramp position) |
 | `LAND H1 NODEL` | Land at H1, exempt from auto-delete |
 
-Helicopters can also use all standard tower commands (`CTO`, `CTL`, `LUAW`, `TG`, `SG`, `GA`) with runway assignments — they hover-taxi onto the runway, hold position, and take off/land like fixed-wing aircraft. This is typical for IFR operations. `CTO` requires a runway; `CTOPP` does not.
+Helicopters can also use all standard tower commands (`CTO`, `CLAND`, `LUAW`, `TG`, `SG`, `GA`) with runway assignments — they hover-taxi onto the runway, hold position, and take off/land like fixed-wing aircraft. This is typical for IFR operations. `CTO` requires a runway; `CTOPP` does not.
 
 **Spawning helicopters:** Use the ADD command with a helicopter type (e.g., `H60`, `EC35`, `R44`). Use `@` prefix for helipad/parking spawn: `ADD V S P @H1 H60`.
 
@@ -634,8 +634,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) |
 | `CTO MLT 28L` | Cleared for takeoff, make left traffic runway 28L (cross-runway pattern) |
 | `CTOC` | Cancel takeoff clearance |
-| `CTL` / `FS` | Cleared to land (full stop) |
-| `CTL NODEL` | Cleared to land (exempt from auto-delete after landing) |
+| `CLAND` / `CL` / `FS` | Cleared to land (full stop) |
+| `CLAND NODEL` | Cleared to land (exempt from auto-delete after landing) |
 | `LAHSO 33` | Cleared to land, hold short of runway 33 (LAHSO). Includes landing clearance. Aircraft stops before the intersecting runway and waits for a taxi/cross command. |
 | `CLC` / `CTLC` | Cancel landing clearance |
 | `GA` | Go around (instrument: fly published missed approach; otherwise: runway heading, 2,000 AGL) |
@@ -999,13 +999,13 @@ Scenarios can define an `autoDeleteMode` that automatically removes aircraft aft
 
 Override the scenario setting in **Settings > General > Auto-Delete Aircraft**. Options: "Use Scenario Setting" (default), "Never", "On Landing", "On Parking".
 
-To exempt a specific aircraft from auto-delete, append `NODEL` to `CTL`, `TAXI`, `EL`, `ER`, or `EXIT` commands (e.g., `CTL NODEL`, `TAXI S T U @B12 NODEL`, `EL NODEL`, `EXIT A3 NODEL`). This is useful when repositioning aircraft after landing or parking for reuse.
+To exempt a specific aircraft from auto-delete, append `NODEL` to `CLAND`, `TAXI`, `EL`, `ER`, or `EXIT` commands (e.g., `CLAND NODEL`, `TAXI S T U @B12 NODEL`, `EL NODEL`, `EXIT A3 NODEL`). This is useful when repositioning aircraft after landing or parking for reuse.
 
 #### Simulation Shortcuts
 
 Two optional shortcuts in **Settings > Scenarios > Simulation Shortcuts** simplify tower operations for trainees:
 
-- **Auto-clear aircraft to land** — Aircraft on final approach are automatically cleared to land without requiring a CTL command. Go-arounds due to missing landing clearance will not occur. Manual CTL commands still work when issued. Configured per position type (GND, TWR, APP, CTR). Defaults: GND on, TWR off, APP on, CTR on — so only tower controllers must issue explicit landing clearances by default.
+- **Auto-clear aircraft to land** — Aircraft on final approach are automatically cleared to land without requiring a CLAND command. Go-arounds due to missing landing clearance will not occur. Manual CLAND commands still work when issued. Configured per position type (GND, TWR, APP, CTR). Defaults: GND on, TWR off, APP on, CTR on — so only tower controllers must issue explicit landing clearances by default.
 - **Aircraft cross runways automatically** — Taxiing aircraft cross inactive runways without stopping for a CROSS command. Explicit hold-short commands and destination runway hold-shorts still apply.
 
 The auto-clear setting is applied based on the student position type in the loaded scenario. Both settings are synced to the server on scenario load and when settings are saved.
@@ -1465,7 +1465,7 @@ As you type in the command bar, a popup appears with matching suggestions:
 - **Callsigns** — aircraft whose callsign matches what you've typed, showing type and route
 - **Command arguments** — after typing a verb + space, context-specific options appear:
   - **CTO modifiers** — departure instructions vary by flight rules. IFR: `RH` and heading prefixes (`H`, `RH`, `LH`). VFR: all modifiers including `OC`, `MRC`, `MRD`, `MR270`, `MLC`, `MLD`, `ML270`, `MLT`, `MRT`, `DCT`.
-  - **Runway designators** — for `ELD`, `ERD`, `EF`, `ELB`, `ERB`, `CROSS`, `CTL`, `LAHSO`, `CVA`: shows runways from the primary airport
+  - **Runway designators** — for `ELD`, `ERD`, `EF`, `ELB`, `ERB`, `CROSS`, `CLAND`, `LAHSO`, `CVA`: shows runways from the primary airport
   - **Fix names** — for `DCT`, `DCTF`, `ADCTF`, `HFIXL`, `HFIXR`, `HFIX`, `CFIX`, `DEPART`, `JFAC`, and `AT` conditions: route fixes + navdata fixes
 - **Macros** (yellow) — when typing `!`, matching macro names with parameter hints (e.g., `!HC &1 &2` or `!FC &hdg &alt`)
 - After accepting a callsign, the popup immediately shows all available command verbs

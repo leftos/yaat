@@ -242,7 +242,7 @@ public partial class AircraftModel : ObservableObject
 
             var shorthand = LandingClearance switch
             {
-                "ClearedToLand" => "CTL",
+                "ClearedToLand" => "CLAND",
                 "ClearedForOption" => "COPT",
                 "ClearedTouchAndGo" => "TG",
                 "ClearedStopAndGo" => "SG",

@@ -19,7 +19,26 @@ public class VnasScenarioParseTests(ITestOutputHelper output)
     private readonly ITestOutputHelper _output = output;
 
     [Theory]
+    [InlineData("ZAB")]
+    [InlineData("ZAU")]
+    [InlineData("ZBW")]
+    [InlineData("ZDC")]
+    [InlineData("ZDV")]
+    [InlineData("ZFW")]
+    [InlineData("ZHU")]
+    [InlineData("ZID")]
+    [InlineData("ZJX")]
+    [InlineData("ZKC")]
+    [InlineData("ZLA")]
+    [InlineData("ZLC")]
+    [InlineData("ZMA")]
+    [InlineData("ZME")]
+    [InlineData("ZMP")]
+    [InlineData("ZNY")]
     [InlineData("ZOA")]
+    [InlineData("ZOB")]
+    [InlineData("ZSE")]
+    [InlineData("ZTL")]
     public void AllScenarios_PresetCommandsParse(string artccId)
     {
         var dir = Path.Combine(ScenariosRoot, artccId);

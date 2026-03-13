@@ -143,7 +143,7 @@ StarsCoordinationStatus.cs     # Enum: Unsent→Unacknowledged→Acknowledged→
 
 # Commands/
 Commands/CanonicalCommandType.cs    # Enum of every command type
-Commands/ParsedCommand.cs           # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition
+Commands/ParsedCommand.cs           # Discriminated union records; CompoundCommand/ParsedBlock/BlockCondition; includes server-only commands (DEL, PAUSE, ADD, etc.)
 Commands/CommandDefinition.cs       # ArgMode enum, CommandDefinition/CommandOverload/CompoundModifier records
 Commands/CommandRegistry.cs         # Single source of truth: CommandDefinition per type (label, category, aliases, overloads, modifiers)
 Commands/CommandScheme.cs           # CanonicalCommandType → CommandPattern (aliases only); Default() from registry
@@ -317,7 +317,6 @@ src/Yaat.Server/
     CommandParser.cs           # Server-side canonical parsing; IsTrackCommand(), IsCoordinationCommand()
     DepartureCommandParser.cs  # Departure-specific command parsing
     GroundCommandParser.cs     # Ground operation command parsing
-    ServerCommands.cs          # Server-only records (DEL, PAUSE, etc.)
 
   Spawn/SpawnParser.cs         # ADD command → SpawnRequest
   Protocol/                    # CRC binary: VarintCodec, MessageFraming, SignalRMessageParser, SignalRMessageBuilder

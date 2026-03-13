@@ -484,7 +484,7 @@ public partial class GroundViewModel : ObservableObject
 
     public async Task ClearedToLandAsync(string callsign, string initials)
     {
-        await _sendCommand(callsign, "CTL", initials);
+        await _sendCommand(callsign, "CLAND", initials);
     }
 
     public async Task CancelLandingClearanceAsync(string callsign, string initials)

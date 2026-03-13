@@ -143,12 +143,12 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | CTO left/right traffic | `CTOMLT`/`CTOMRT` | `CTO MLT`/`CTO MRT` (+ `CTOMLT`/`CTOMRT` aliases) | YAAT supports as modifiers and standalone verbs |
 | CTO runway heading | `CTORH` | `CTO RH`/`CTO MRH`/`CTO MSO` | YAAT supports as modifier |
 | GA heading + alt | — | `GA 270 5000`, `GA RH 2000` | **YAAT-only** |
-| Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CTL`/`FS` | **YAAT-only** optional explicit landing clearance |
+| Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CLAND`/`CL` | **YAAT-only** optional explicit landing clearance |
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |
 | Cleared for option | — | `COPT` | **YAAT-only** |
 | LAHSO | `LAHSO {rwy}` | `LAHSO {rwy}` | Parity |
 | GO (begin takeoff roll during stop-and-go) | `GO` | `GO` | Parity |
-| NODEL flag | — | `CTL NODEL`, `EL NODEL`, etc. | YAAT-only — exempts from auto-delete |
+| NODEL flag | — | `CLAND NODEL`, `EL NODEL`, etc. | YAAT-only — exempts from auto-delete |
 
 #### CTO Modifiers (YAAT-only richness)
 
@@ -169,7 +169,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
-| Cleared approach | `CAPP`/`CTL` | `CAPP` | ATCTrainer uses `CTL` as alias; YAAT uses `CTL` for landing clearance |
+| Cleared approach | `CAPP`/`CTL` | `CAPP`/`CTL` | Parity — `CTL` is ATCTrainer alias for CAPP |
 | Straight-in | — | `CAPPSI`/`JAPPSI` | YAAT-only — skips hold-in-lieu |
 | Force approach | — | `CAPPF`/`JAPPF` | YAAT-only — bypasses intercept angle check |
 | PTAC | — | `PTAC 280 025 ILS30` | YAAT-only — position/turn/altitude/cleared |

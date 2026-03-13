@@ -195,24 +195,6 @@ public sealed class ServerConnection : IAsyncDisposable
         await _connection!.InvokeAsync("SendChat", initials, message);
     }
 
-    public async Task<CommandResultDto> SpawnAircraftAsync(string args)
-    {
-        EnsureConnected();
-        return await _connection!.InvokeAsync<CommandResultDto>("SpawnAircraft", args);
-    }
-
-    public async Task DeleteAircraftAsync(string callsign)
-    {
-        EnsureConnected();
-        await _connection!.InvokeAsync("DeleteAircraft", callsign);
-    }
-
-    public async Task WarpAircraftAsync(string callsign, double latitude, double longitude, double heading)
-    {
-        EnsureConnected();
-        await _connection!.InvokeAsync("WarpAircraft", callsign, latitude, longitude, heading);
-    }
-
     public async Task<CommandResultDto> AmendFlightPlanAsync(string callsign, FlightPlanAmendmentDto dto)
     {
         EnsureConnected();
@@ -232,24 +214,6 @@ public sealed class ServerConnection : IAsyncDisposable
     }
 
     // --- Simulation state ---
-
-    public async Task PauseSimulationAsync()
-    {
-        EnsureConnected();
-        await _connection!.InvokeAsync("PauseSimulation");
-    }
-
-    public async Task ResumeSimulationAsync()
-    {
-        EnsureConnected();
-        await _connection!.InvokeAsync("ResumeSimulation");
-    }
-
-    public async Task SetSimRateAsync(int rate)
-    {
-        EnsureConnected();
-        await _connection!.InvokeAsync("SetSimRate", rate);
-    }
 
     public async Task SetAutoAcceptDelayAsync(int seconds)
     {

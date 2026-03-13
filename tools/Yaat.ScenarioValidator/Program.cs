@@ -5,13 +5,38 @@ namespace Yaat.ScenarioValidator;
 
 public static class Program
 {
+    private static readonly string[] AllArtccs =
+    [
+        "ZAB",
+        "ZAU",
+        "ZBW",
+        "ZDC",
+        "ZDV",
+        "ZFW",
+        "ZHU",
+        "ZID",
+        "ZJX",
+        "ZKC",
+        "ZLA",
+        "ZLC",
+        "ZMA",
+        "ZME",
+        "ZMP",
+        "ZNY",
+        "ZOA",
+        "ZOB",
+        "ZSE",
+        "ZTL",
+    ];
+
     private static readonly JsonSerializerOptions JsonOutputOpts = new() { WriteIndented = true };
 
     public static async Task<int> Main(string[] args)
     {
-        string? artccId = null;
+        var artccIds = new List<string>();
         string? filePath = null;
         string? dirPath = null;
+        bool allMode = false;
         bool jsonOutput = false;
 
         for (int i = 0; i < args.Length; i++)
@@ -19,13 +44,21 @@ public static class Program
             switch (args[i])
             {
                 case "--artcc" when i + 1 < args.Length:
-                    artccId = args[++i].ToUpperInvariant();
+                    // Consume all following non-flag arguments as ARTCC IDs
+                    while (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
+                    {
+                        artccIds.Add(args[++i].ToUpperInvariant());
+                    }
+
                     break;
                 case "--file" when i + 1 < args.Length:
                     filePath = args[++i];
                     break;
                 case "--dir" when i + 1 < args.Length:
                     dirPath = args[++i];
+                    break;
+                case "--all":
+                    allMode = true;
                     break;
                 case "--json":
                     jsonOutput = true;
@@ -36,18 +69,28 @@ public static class Program
             }
         }
 
-        int modeCount = (artccId is not null ? 1 : 0) + (filePath is not null ? 1 : 0) + (dirPath is not null ? 1 : 0);
+        int modeCount = (artccIds.Count > 0 ? 1 : 0) + (filePath is not null ? 1 : 0) + (dirPath is not null ? 1 : 0) + (allMode ? 1 : 0);
         if (modeCount != 1)
         {
             PrintUsage();
             return 1;
         }
 
+        if (allMode)
+        {
+            return await ValidateMultipleAsync(AllArtccs, jsonOutput);
+        }
+
+        if (artccIds.Count > 1)
+        {
+            return await ValidateMultipleAsync([.. artccIds], jsonOutput);
+        }
+
         List<ScenarioValidationResult> results;
 
-        if (artccId is not null)
+        if (artccIds.Count == 1)
         {
-            results = await ValidateArtccAsync(artccId, jsonOutput);
+            results = await ValidateArtccAsync(artccIds[0], jsonOutput);
         }
         else if (filePath is not null)
         {
@@ -65,6 +108,77 @@ public static class Program
         }
 
         return PrintTextReport(results);
+    }
+
+    private static async Task<int> ValidateMultipleAsync(string[] artccs, bool jsonOutput)
+    {
+        var allResults = new Dictionary<string, List<ScenarioValidationResult>>();
+
+        foreach (var artcc in artccs)
+        {
+            if (!jsonOutput)
+            {
+                Console.Error.WriteLine($"\n=== {artcc} ===");
+            }
+
+            var results = await ValidateArtccAsync(artcc, jsonOutput);
+            allResults[artcc] = results;
+        }
+
+        if (jsonOutput)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(allResults, JsonOutputOpts));
+            return allResults.Values.Any(list => list.Any(r => r.Failures.Count > 0)) ? 1 : 0;
+        }
+
+        Console.WriteLine("\n=== SUMMARY ===\n");
+        bool anyFailures = false;
+        foreach (var artcc in artccs)
+        {
+            var results = allResults[artcc];
+            int scenarios = results.Count;
+            int presets = results.Sum(r => r.TotalPresets);
+            int failures = results.Sum(r => r.Failures.Count);
+            var status = failures == 0 ? "PASS" : $"FAIL ({failures})";
+            if (failures > 0)
+            {
+                anyFailures = true;
+            }
+
+            Console.WriteLine($"  {artcc}: {scenarios} scenarios, {presets} presets — {status}");
+        }
+
+        if (anyFailures)
+        {
+            Console.WriteLine();
+            foreach (var artcc in artccs)
+            {
+                var failed = allResults[artcc].Where(r => r.Failures.Count > 0).ToList();
+                if (failed.Count == 0)
+                {
+                    continue;
+                }
+
+                Console.WriteLine($"\n=== {artcc} FAILURES ===\n");
+                foreach (var scenario in failed)
+                {
+                    Console.WriteLine($"  {scenario.ScenarioName}");
+                    var byAircraft = scenario.Failures.GroupBy(f => f.AircraftId);
+                    foreach (var group in byAircraft)
+                    {
+                        Console.WriteLine($"    {group.Key}:");
+                        foreach (var f in group)
+                        {
+                            Console.WriteLine($"      \"{f.Command}\"");
+                        }
+                    }
+
+                    Console.WriteLine();
+                }
+            }
+        }
+
+        return anyFailures ? 1 : 0;
     }
 
     private static async Task<List<ScenarioValidationResult>> ValidateArtccAsync(string artccId, bool quiet)
@@ -218,7 +332,8 @@ public static class Program
     private static void PrintUsage()
     {
         Console.Error.WriteLine("Usage:");
-        Console.Error.WriteLine("  Yaat.ScenarioValidator --artcc <ARTCC_ID>");
+        Console.Error.WriteLine("  Yaat.ScenarioValidator --artcc <ID> [<ID>...]");
+        Console.Error.WriteLine("  Yaat.ScenarioValidator --all");
         Console.Error.WriteLine("  Yaat.ScenarioValidator --file <scenario.json>");
         Console.Error.WriteLine("  Yaat.ScenarioValidator --dir <path/to/scenarios/>");
         Console.Error.WriteLine();

@@ -48,14 +48,8 @@ public partial class MainViewModel
     {
         try
         {
-            if (IsPaused)
-            {
-                await _connection.ResumeSimulationAsync();
-            }
-            else
-            {
-                await _connection.PauseSimulationAsync();
-            }
+            var cmd = IsPaused ? "UNPAUSE" : "PAUSE";
+            await _connection.SendCommandAsync("", cmd, _preferences.UserInitials);
         }
         catch (Exception ex)
         {

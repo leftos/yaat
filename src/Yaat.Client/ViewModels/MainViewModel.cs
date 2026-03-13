@@ -662,13 +662,13 @@ public partial class MainViewModel : ObservableObject
                 {
                     var cmdVerb = tokens[1].Split([' ', ',', ';'], 2)[0];
                     _log.LogWarning("Unrecognized command '{Verb}' in input '{Input}'", cmdVerb, commandText);
-                    StatusText = $"Unrecognized command \"{cmdVerb}\" — type a command like FH 270, CM 240, CTL";
+                    StatusText = $"Unrecognized command \"{cmdVerb}\" — type a command like FH 270, CM 240, CLAND";
                 }
                 else
                 {
                     var verb = commandText.Split([' ', ',', ';'], 2)[0];
                     _log.LogWarning("Unrecognized command '{Verb}' in input '{Input}'", verb, commandText);
-                    StatusText = $"Unrecognized command \"{verb}\" — type a command like FH 270, CM 240, CTL";
+                    StatusText = $"Unrecognized command \"{verb}\" — type a command like FH 270, CM 240, CLAND";
                 }
             }
 
@@ -706,14 +706,14 @@ public partial class MainViewModel : ObservableObject
     {
         if (parsed.Type == CanonicalCommandType.Pause)
         {
-            await _connection.PauseSimulationAsync();
+            await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
             AddHistory("PAUSE");
             CommandText = "";
             return;
         }
         if (parsed.Type == CanonicalCommandType.Unpause)
         {
-            await _connection.ResumeSimulationAsync();
+            await _connection.SendCommandAsync("", "UNPAUSE", _preferences.UserInitials);
             AddHistory("UNPAUSE");
             CommandText = "";
             return;
@@ -722,7 +722,7 @@ public partial class MainViewModel : ObservableObject
         {
             if (int.TryParse(parsed.Argument, out var rate))
             {
-                await _connection.SetSimRateAsync(rate);
+                await _connection.SendCommandAsync("", $"SIMRATE {rate}", _preferences.UserInitials);
                 AddHistory($"SIMRATE {rate}");
             }
             CommandText = "";
@@ -759,23 +759,20 @@ public partial class MainViewModel : ObservableObject
                 StatusText = "ADD requires arguments: ADD {rules} {weight} {engine} {position...}";
                 return;
             }
+            var canonical = $"ADD {parsed.Argument}";
             try
             {
-                var result = await _connection.SpawnAircraftAsync(parsed.Argument);
-                if (result.Success)
+                var result = await _connection.SendCommandAsync("", canonical, _preferences.UserInitials);
+                AddHistory(canonical);
+                if (!string.IsNullOrEmpty(result.Message))
                 {
-                    AddHistory($"ADD {parsed.Argument}");
-                    StatusText = result.Message ?? "Aircraft spawned";
-                }
-                else
-                {
-                    StatusText = result.Message ?? "Spawn failed";
+                    StatusText = result.Message;
                 }
             }
             catch (Exception ex)
             {
-                _log.LogError(ex, "SpawnAircraft failed");
-                StatusText = $"Spawn error: {ex.Message}";
+                _log.LogError(ex, "ADD failed");
+                StatusText = $"ADD error: {ex.Message}";
             }
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
@@ -982,14 +979,8 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            if (IsPaused)
-            {
-                await _connection.ResumeSimulationAsync();
-            }
-            else
-            {
-                await _connection.PauseSimulationAsync();
-            }
+            var cmd = IsPaused ? "UNPAUSE" : "PAUSE";
+            await _connection.SendCommandAsync("", cmd, _preferences.UserInitials);
         }
         catch (Exception ex)
         {
@@ -1018,7 +1009,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            await _connection.SetSimRateAsync(rate);
+            await _connection.SendCommandAsync("", $"SIMRATE {rate}", _preferences.UserInitials);
         }
         catch (Exception ex)
         {
