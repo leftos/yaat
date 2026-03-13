@@ -227,6 +227,9 @@ public partial class MainViewModel : ObservableObject
     private int _selectedTabIndex;
 
     [ObservableProperty]
+    private double _dataGridScale = 1.0;
+
+    [ObservableProperty]
     private string _distanceReferenceFix = "";
 
     public string WindowTitle
@@ -443,6 +446,7 @@ public partial class MainViewModel : ObservableObject
         Radar.SetPreferences(_preferences);
         Radar.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
 
+        _dataGridScale = _preferences.DataGridFontSize / 12.0;
         IsDataGridPoppedOut = _preferences.IsDataGridPoppedOut;
         IsGroundViewPoppedOut = _preferences.IsGroundViewPoppedOut;
         IsRadarViewPoppedOut = _preferences.IsRadarViewPoppedOut;

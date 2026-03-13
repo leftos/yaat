@@ -15,6 +15,7 @@ public partial class DataGridView : UserControl
     public DataGridView()
     {
         InitializeComponent();
+        KeyDown += OnDataGridViewKeyDown;
     }
 
     public DataGrid? GetDataGrid()
@@ -216,6 +217,39 @@ public partial class DataGridView : UserControl
         }
 
         grid.ContextMenu = menu;
+    }
+
+    private void OnDataGridViewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.Control || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        int delta = e.Key switch
+        {
+            Key.OemPlus => 1,
+            Key.Add => 1,
+            Key.OemMinus => -1,
+            Key.Subtract => -1,
+            _ => 0,
+        };
+        bool reset = e.Key is Key.D0 or Key.NumPad0;
+
+        if (delta != 0)
+        {
+            int current = vm.Preferences.DataGridFontSize;
+            int next = Math.Clamp(current + delta, 8, 24);
+            vm.Preferences.SetDataGridFontSize(next);
+            vm.DataGridScale = next / 12.0;
+            e.Handled = true;
+        }
+        else if (reset)
+        {
+            vm.Preferences.SetDataGridFontSize(12);
+            vm.DataGridScale = 1.0;
+            e.Handled = true;
+        }
     }
 
     private static void AddCommandTextBox(ContextMenu menu, Func<string, Task> onSubmit)

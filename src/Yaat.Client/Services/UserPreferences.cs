@@ -132,6 +132,7 @@ public sealed class UserPreferences
     public bool AssignmentTintEnabled => _data.AssignmentTintEnabled;
     public string AssignmentTintColor => _data.AssignmentTintColor;
     public string SignatureHelpPlacement => _data.SignatureHelpPlacement;
+    public int DataGridFontSize => _data.DataGridFontSize;
 
     public void SetSavedServers(IEnumerable<SavedServer> servers, string lastUsedUrl)
     {
@@ -312,6 +313,12 @@ public sealed class UserPreferences
     public void SetSignatureHelpPlacement(string placement)
     {
         _data.SignatureHelpPlacement = placement;
+        Save();
+    }
+
+    public void SetDataGridFontSize(int size)
+    {
+        _data.DataGridFontSize = Math.Clamp(size, 8, 24);
         Save();
     }
 
@@ -561,6 +568,7 @@ public sealed class UserPreferences
             AssignmentTintEnabled = GetFieldOr(obj, "assignmentTintEnabled", false),
             AssignmentTintColor = GetFieldOr(obj, "assignmentTintColor", "#00FF00"),
             SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
+            DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
         };
 
         // Normalize empty server list on recovery
@@ -723,6 +731,7 @@ public sealed class UserPreferences
         public bool AssignmentTintEnabled { get; set; }
         public string AssignmentTintColor { get; set; } = "#00FF00";
         public string SignatureHelpPlacement { get; set; } = "Above";
+        public int DataGridFontSize { get; set; } = 12;
     }
 
     private sealed class SavedCommandScheme

@@ -4,6 +4,10 @@
              x:Class="Yaat.Client.Views.DataGridView"
              x:DataType="vm:MainViewModel">
 
+    <LayoutTransformControl>
+    <LayoutTransformControl.LayoutTransform>
+        <ScaleTransform ScaleX="{Binding DataGridScale}" ScaleY="{Binding DataGridScale}" />
+    </LayoutTransformControl.LayoutTransform>
     <DockPanel>
     <TextBox x:Name="SearchBox"
              DockPanel.Dock="Top"
@@ -150,5 +154,6 @@
         </DataGrid.Columns>
     </DataGrid>
     </DockPanel>
+    </LayoutTransformControl>
 
 </UserControl>

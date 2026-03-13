@@ -163,6 +163,9 @@ public partial class SettingsViewModel : ObservableObject
     private int _selectedSignatureHelpPlacementIndex;
 
     [ObservableProperty]
+    private int _dataGridFontSize;
+
+    [ObservableProperty]
     private bool _isCapturingKey;
 
     private string _aircraftSelectKeyName = "Add";
@@ -206,6 +209,7 @@ public partial class SettingsViewModel : ObservableObject
         _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
         _assignmentTintColor = _preferences.AssignmentTintColor;
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
+        _dataGridFontSize = _preferences.DataGridFontSize;
         LoadMacros();
     }
 
@@ -244,6 +248,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
         _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
+        _preferences.SetDataGridFontSize(DataGridFontSize);
         SaveMacros();
         Saved = true;
     }

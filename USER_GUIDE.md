@@ -1288,6 +1288,8 @@ All three views can be popped out simultaneously. Pop-out state and window posit
 
 The default tab. Shows the aircraft data grid described above.
 
+**Zoom:** Use **Ctrl+Plus** / **Ctrl+Minus** to increase or decrease the font size while the aircraft list is focused. **Ctrl+0** resets to the default size (12pt). The font size can also be set in **Settings > Display**. Range: 8-24pt. The setting persists across sessions.
+
 ### Flight Plan Editor
 
 Double-click an aircraft row in the Aircraft List to open its Flight Plan Editor (FPE). You can also **Ctrl+Left-Click** an aircraft symbol or datablock in the Ground View or Radar View.

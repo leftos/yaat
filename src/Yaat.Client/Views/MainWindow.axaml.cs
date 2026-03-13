@@ -1267,6 +1267,7 @@ public partial class MainWindow : Window
         if ((dialog.DataContext as SettingsViewModel)?.Saved == true)
         {
             vm.RefreshCommandScheme();
+            vm.DataGridScale = vm.Preferences.DataGridFontSize / 12.0;
             ApplyKeybinds(vm.Preferences);
             SyncAllRadarViewTint();
         }

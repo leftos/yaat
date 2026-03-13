@@ -155,6 +155,30 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- Display tab -->
+            <TabItem Header="Display">
+                <ScrollViewer>
+                    <StackPanel Margin="12" Spacing="12">
+                        <TextBlock Text="Aircraft List"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Font Size:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <NumericUpDown Value="{Binding DataGridFontSize}"
+                                           Minimum="8"
+                                           Maximum="24"
+                                           Increment="1"
+                                           Width="120"
+                                           HorizontalAlignment="Left" />
+                            <TextBlock Text="Controls the zoom level of the aircraft list. Default: 12. You can also use Ctrl+Plus / Ctrl+Minus / Ctrl+0 while the aircraft list is focused."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- Commands tab -->
             <TabItem Header="Commands" x:Name="CommandsTab">
                 <DockPanel Margin="12">
