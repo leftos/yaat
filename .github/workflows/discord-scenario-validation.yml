@@ -47,61 +47,56 @@ jobs:
       - name: Build validator
         run: dotnet build tools/Yaat.ScenarioValidator -c Release
 
-      - name: Run validation and post to Discord
+      - name: Run validation
         run: |
-          set -euo pipefail
-
-          ARTCCS="ZAB ZAU ZBW ZDC ZDV ZFW ZHU ZID ZJX ZKC ZLA ZLC ZMA ZME ZMP ZNY ZOA ZOB ZSE ZTL"
-          DATE=$(date -u +%Y-%m-%d)
-
-          # Run validator for all ARTCCs
-          echo "Running scenario validation for all ARTCCs..."
           dotnet run --project tools/Yaat.ScenarioValidator --no-build -c Release -- --all --json > /tmp/validation.json 2>/tmp/validation.log || true
           cat /tmp/validation.log >&2
 
-          for ARTCC in $ARTCCS; do
-            CHANNEL_VAR="${ARTCC}_CHANNEL"
-            CHANNEL="${!CHANNEL_VAR}"
+      - name: Post to Discord
+        run: |
+          set -euo pipefail
+          python3 << 'PYEOF'
+          import json, urllib.request, time, os
 
-            if [ -z "$CHANNEL" ]; then
-              echo "Skipping $ARTCC — no channel ID configured"
-              continue
-            fi
+          bot_token = os.environ["DISCORD_BOT_TOKEN"]
+          date = time.strftime("%Y-%m-%d", time.gmtime())
 
-            echo "Processing $ARTCC..."
-
-            # Format the Discord message from JSON
-            MESSAGE=$(python3 << 'PYEOF'
-          import json, sys
+          artccs = ["ZAB","ZAU","ZBW","ZDC","ZDV","ZFW","ZHU","ZID","ZJX","ZKC","ZLA","ZLC","ZMA","ZME","ZMP","ZNY","ZOA","ZOB","ZSE","ZTL"]
 
           with open("/tmp/validation.json") as f:
               data = json.load(f)
 
-          artcc = sys.argv[1] if len(sys.argv) > 1 else ""
-          date = sys.argv[2] if len(sys.argv) > 2 else ""
+          def api(method, url, payload=None):
+              headers = {"Authorization": f"Bot {bot_token}", "User-Agent": "YAAT-Validation/1.0"}
+              if payload is not None:
+                  headers["Content-Type"] = "application/json"
+                  data_bytes = json.dumps(payload).encode("utf-8")
+              else:
+                  data_bytes = None
+              req = urllib.request.Request(url, data=data_bytes, method=method, headers=headers)
+              return json.loads(urllib.request.urlopen(req).read())
 
-          if artcc not in data:
-              print(f"# {artcc} Scenario Validation — {date}\n\nNo scenario data available.")
-              sys.exit(0)
+          def format_message(artcc):
+              if artcc not in data:
+                  return f"# {artcc} Scenario Validation \u2014 {date}\n\nNo scenario data available."
 
-          results = data[artcc]
-          scenarios = len(results)
-          presets = sum(r.get("TotalPresets", r.get("totalPresets", 0)) for r in results)
-          failures = []
-          for r in results:
-              name = r.get("ScenarioName", r.get("scenarioName", ""))
-              for f in r.get("Failures", r.get("failures", [])):
-                  acid = f.get("AircraftId", f.get("aircraftId", ""))
-                  cmd = f.get("Command", f.get("command", ""))
-                  failures.append((name, acid, cmd))
+              results = data[artcc]
+              scenarios = len(results)
+              presets = sum(r.get("TotalPresets", r.get("totalPresets", 0)) for r in results)
+              failures = []
+              for r in results:
+                  name = r.get("ScenarioName", r.get("scenarioName", ""))
+                  for fail in r.get("Failures", r.get("failures", [])):
+                      acid = fail.get("AircraftId", fail.get("aircraftId", ""))
+                      cmd = fail.get("Command", fail.get("command", ""))
+                      failures.append((name, acid, cmd))
 
-          if not failures:
-              print(f"# {artcc} Scenario Validation — {date}\n\n{scenarios} scenarios, {presets} presets — all commands parsed successfully.")
-          else:
-              lines = [f"# {artcc} Scenario Validation — {date}\n"]
+              if not failures:
+                  return f"# {artcc} Scenario Validation \u2014 {date}\n\n{scenarios} scenarios, {presets} presets \u2014 all commands parsed successfully."
+
+              lines = [f"# {artcc} Scenario Validation \u2014 {date}\n"]
               lines.append(f"{scenarios} scenarios, {presets} presets, {len(failures)} failure{'s' if len(failures) != 1 else ''}\n")
 
-              # Group by scenario then aircraft
               by_scenario = {}
               for name, acid, cmd in failures:
                   by_scenario.setdefault(name, {}).setdefault(acid, []).append(cmd)
@@ -111,123 +106,84 @@ jobs:
                   for acid, cmds in aircraft.items():
                       lines.append(f"  {acid}:")
                       for cmd in cmds:
-                          lines.append(f'    `{cmd}`')
+                          lines.append(f"    `{cmd}`")
                   lines.append("")
 
-              print("\n".join(lines))
-          PYEOF
-          "$ARTCC" "$DATE")
+              return "\n".join(lines)
 
-            # Fetch last message from channel and compare
-            LAST_CONTENT=$(python3 << 'PYEOF'
-          import json, urllib.request, sys
+          def get_last_content(channel):
+              try:
+                  msgs = api("GET", f"https://discord.com/api/v10/channels/{channel}/messages?limit=1")
+                  return msgs[0].get("content", "") if msgs else ""
+              except Exception:
+                  return ""
 
-          bot_token = sys.argv[1]
-          channel = sys.argv[2]
+          def clear_channel(channel):
+              while True:
+                  msgs = api("GET", f"https://discord.com/api/v10/channels/{channel}/messages?limit=100")
+                  if not msgs:
+                      break
+                  for m in msgs:
+                      try:
+                          req = urllib.request.Request(
+                              f"https://discord.com/api/v10/channels/{channel}/messages/{m['id']}",
+                              method="DELETE",
+                              headers={"Authorization": f"Bot {bot_token}", "User-Agent": "YAAT-Validation/1.0"}
+                          )
+                          urllib.request.urlopen(req)
+                      except Exception:
+                          pass
+                      time.sleep(0.5)
+                  print(f"  Deleted {len(msgs)} message(s)")
 
-          try:
-              req = urllib.request.Request(
-                  f"https://discord.com/api/v10/channels/{channel}/messages?limit=1",
-                  headers={"Authorization": f"Bot {bot_token}", "User-Agent": "YAAT-Validation/1.0"}
-              )
-              msgs = json.loads(urllib.request.urlopen(req).read())
-              if msgs:
-                  print(msgs[0].get("content", ""))
-          except Exception:
-              pass
-          PYEOF
-          "$DISCORD_BOT_TOKEN" "$CHANNEL" 2>/dev/null || true)
+          def post_chunks(channel, text):
+              limit = 1900
+              lines = text.split("\n")
+              chunks, current, best_break = [], "", ""
 
-            # Compare first 1900 chars (Discord message limit boundary)
-            MSG_PREFIX=$(echo "$MESSAGE" | head -c 1900)
-            LAST_PREFIX=$(echo "$LAST_CONTENT" | head -c 1900)
-
-            if [ "$MSG_PREFIX" = "$LAST_PREFIX" ] && [ -n "$LAST_CONTENT" ]; then
-              echo "  $ARTCC unchanged — skipping"
-              continue
-            fi
-
-            echo "  $ARTCC changed — updating channel"
-
-            # Clear channel
-            python3 << 'PYEOF'
-          import json, urllib.request, time, sys
-
-          bot_token, channel = sys.argv[1], sys.argv[2]
-          while True:
-              req = urllib.request.Request(
-                  f"https://discord.com/api/v10/channels/{channel}/messages?limit=100",
-                  headers={"Authorization": f"Bot {bot_token}", "User-Agent": "YAAT-Validation/1.0"}
-              )
-              msgs = json.loads(urllib.request.urlopen(req).read())
-              if not msgs:
-                  break
-              for m in msgs:
-                  dreq = urllib.request.Request(
-                      f"https://discord.com/api/v10/channels/{channel}/messages/{m['id']}",
-                      method="DELETE",
-                      headers={"Authorization": f"Bot {bot_token}", "User-Agent": "YAAT-Validation/1.0"}
-                  )
-                  try:
-                      urllib.request.urlopen(dreq)
-                  except Exception:
-                      pass
-                  time.sleep(0.5)
-              print(f"Deleted {len(msgs)} message(s) from {channel}")
-          PYEOF
-          "$DISCORD_BOT_TOKEN" "$CHANNEL"
-
-            # Post message in chunks
-            python3 << 'PYEOF'
-          import json, urllib.request, time, sys
-
-          bot_token = sys.argv[1]
-          channel = sys.argv[2]
-          text = sys.argv[3]
-
-          limit = 1900
-          lines = text.split("\n")
-          chunks, current, best_break = [], "", ""
-
-          for line in lines:
-              candidate = current + ("\n" if current else "") + line
-              stripped = line.strip()
-              is_break = stripped == "" or stripped.startswith("#") or stripped.startswith("**")
-              if is_break and current:
-                  best_break = current
-              if len(candidate) > limit and current:
-                  if best_break:
-                      chunks.append(best_break)
-                      remainder = current[len(best_break):].lstrip("\n")
-                      current = remainder + ("\n" if remainder else "") + line if remainder else line
+              for line in lines:
+                  candidate = current + ("\n" if current else "") + line
+                  stripped = line.strip()
+                  is_break = stripped == "" or stripped.startswith("#") or stripped.startswith("**")
+                  if is_break and current:
+                      best_break = current
+                  if len(candidate) > limit and current:
+                      if best_break:
+                          chunks.append(best_break)
+                          remainder = current[len(best_break):].lstrip("\n")
+                          current = remainder + ("\n" if remainder else "") + line if remainder else line
+                      else:
+                          chunks.append(current)
+                          current = line
+                      best_break = ""
                   else:
-                      chunks.append(current)
-                      current = line
-                  best_break = ""
-              else:
-                  current = candidate
-          if current:
-              chunks.append(current)
+                      current = candidate
+              if current:
+                  chunks.append(current)
 
-          url = f"https://discord.com/api/v10/channels/{channel}/messages"
-          for i, chunk in enumerate(chunks):
-              payload = json.dumps({"content": chunk.strip(), "flags": 4}).encode("utf-8")
-              req = urllib.request.Request(
-                  url, data=payload,
-                  headers={
-                      "Authorization": f"Bot {bot_token}",
-                      "Content-Type": "application/json",
-                      "User-Agent": "YAAT-Validation/1.0"
-                  }
-              )
-              urllib.request.urlopen(req)
-              if i < len(chunks) - 1:
-                  time.sleep(1)
+              url = f"https://discord.com/api/v10/channels/{channel}/messages"
+              for i, chunk in enumerate(chunks):
+                  api("POST", url, {"content": chunk.strip(), "flags": 4})
+                  if i < len(chunks) - 1:
+                      time.sleep(1)
+              print(f"  Posted {len(chunks)} message(s)")
 
-          print(f"Posted {len(chunks)} message(s) to {channel}")
+          for artcc in artccs:
+              channel = os.environ.get(f"{artcc}_CHANNEL", "")
+              if not channel:
+                  print(f"{artcc}: no channel ID configured, skipping")
+                  continue
+
+              message = format_message(artcc)
+              last_content = get_last_content(channel)
+
+              if message[:1900] == last_content[:1900] and last_content:
+                  print(f"{artcc}: unchanged, skipping")
+                  continue
+
+              print(f"{artcc}: updating channel...")
+              clear_channel(channel)
+              post_chunks(channel, message)
+
+          print("Done.")
           PYEOF
-          "$DISCORD_BOT_TOKEN" "$CHANNEL" "$MESSAGE"
-
-          done
-
-          echo "Done."
