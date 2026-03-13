@@ -52,8 +52,8 @@ internal static class TestVnasData
     }
 
     /// <summary>
-    /// Returns a <see cref="ProcedureDatabase"/> backed by the system CIFP cache
-    /// (%LOCALAPPDATA%/yaat/cache/cifp/), or null if no CIFP file is cached.
+    /// Returns a <see cref="ProcedureDatabase"/> backed by either the bundled
+    /// TestData/FAACIFP18.gz or the system CIFP cache (%LOCALAPPDATA%/yaat/cache/cifp/).
     /// Loads lazily and caches for the process lifetime.
     /// </summary>
     internal static ProcedureDatabase? ProcedureDatabase
@@ -72,6 +72,16 @@ internal static class TestVnasData
 
             _procedureDbAttempted = true;
 
+            // Try bundled gzipped CIFP in TestData first (works in CI)
+            var bundledGz = Path.Combine(TestDataDir, "FAACIFP18.gz");
+            if (File.Exists(bundledGz))
+            {
+                var decompressed = DecompressGzip(bundledGz);
+                _procedureDatabase = new ProcedureDatabase(decompressed);
+                return _procedureDatabase;
+            }
+
+            // Fall back to system CIFP cache
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             var cacheDir = Path.Combine(localAppData, "yaat", "cache", "cifp");
             if (!Directory.Exists(cacheDir))
@@ -88,6 +98,16 @@ internal static class TestVnasData
             _procedureDatabase = new ProcedureDatabase(cifpFile);
             return _procedureDatabase;
         }
+    }
+
+    private static string DecompressGzip(string gzPath)
+    {
+        var decompressedPath = Path.Combine(Path.GetTempPath(), "FAACIFP18-test");
+        using var inputStream = File.OpenRead(gzPath);
+        using var gzipStream = new System.IO.Compression.GZipStream(inputStream, System.IO.Compression.CompressionMode.Decompress);
+        using var outputStream = File.Create(decompressedPath);
+        gzipStream.CopyTo(outputStream);
+        return decompressedPath;
     }
 
     internal static void EnsureInitialized()
