@@ -56,7 +56,7 @@ jobs:
 
           # Run validator for all ARTCCs
           echo "Running scenario validation for all ARTCCs..."
-          dotnet run --project tools/Yaat.ScenarioValidator --no-build -c Release -- --all --json > /tmp/validation.json 2>/tmp/validation.log
+          dotnet run --project tools/Yaat.ScenarioValidator --no-build -c Release -- --all --json > /tmp/validation.json 2>/tmp/validation.log || true
           cat /tmp/validation.log >&2
 
           for ARTCC in $ARTCCS; do
