@@ -285,12 +285,23 @@ internal static class NavigationCommandHandler
         {
             var transitions = fixes.GetStarTransitions(cmd.StarId);
             var match = transitions?.FirstOrDefault(t => t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
-            if (match is null || match.Value.Fixes is null)
+            if (match is not null && match.Value.Fixes is not null)
             {
-                return new CommandResult(false, $"Unknown transition '{cmd.Transition}' for STAR {cmd.StarId}");
+                routeFixes = [.. match.Value.Fixes, .. starBody];
             }
-
-            routeFixes = [.. match.Value.Fixes, .. starBody];
+            else
+            {
+                // No transition matched — try joining at an intermediate fix in the body
+                int fixIdx = starBody.ToList().FindIndex(f => f.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
+                if (fixIdx >= 0)
+                {
+                    routeFixes = starBody.Skip(fixIdx).ToList();
+                }
+                else
+                {
+                    return new CommandResult(false, $"Unknown transition or fix '{cmd.Transition}' for STAR {cmd.StarId}");
+                }
+            }
         }
         else
         {
@@ -369,9 +380,11 @@ internal static class NavigationCommandHandler
         var orderedLegs = new List<CifpLeg>();
 
         // Enroute transition (if specified)
+        bool transitionMatched = false;
         if (cmd.Transition is not null && star.EnrouteTransitions.TryGetValue(cmd.Transition, out var enTransition))
         {
             orderedLegs.AddRange(enTransition.Legs);
+            transitionMatched = true;
         }
 
         orderedLegs.AddRange(star.CommonLegs);
@@ -400,6 +413,32 @@ internal static class NavigationCommandHandler
 
         // Convert legs to NavigationTargets with constraints
         var targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs, fixes);
+
+        // If transition was specified but didn't match, try joining at an intermediate fix
+        if (cmd.Transition is not null && !transitionMatched)
+        {
+            int fixIdx = targets.FindIndex(t => t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
+            if (fixIdx >= 0)
+            {
+                return targets.GetRange(fixIdx, targets.Count - fixIdx);
+            }
+
+            // Check each enroute transition for the fix
+            foreach (var (transName, trans) in star.EnrouteTransitions)
+            {
+                var transTargets = DepartureClearanceHandler.ResolveLegsToTargets(trans.Legs, fixes);
+                int transFixIdx = transTargets.FindIndex(t => t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
+                if (transFixIdx >= 0)
+                {
+                    var result = transTargets.GetRange(transFixIdx, transTargets.Count - transFixIdx);
+                    result.AddRange(targets);
+                    return result;
+                }
+            }
+
+            // Fix not found in CIFP data — fall through to NavData
+            return null;
+        }
 
         // Filter to fixes ahead of aircraft (same logic as NavData fallback)
         if (cmd.Transition is null && targets.Count > 1)

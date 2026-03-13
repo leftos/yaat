@@ -394,7 +394,81 @@ public class NavigationCommandTests
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
 
         Assert.False(result.Success);
-        Assert.Contains("Unknown transition", result.Message);
+        Assert.Contains("Unknown transition or fix", result.Message);
+    }
+
+    [Fact]
+    public void Jarr_WithIntermediateFix_JoinsFromThatFix()
+    {
+        var fixes = new TestFixLookup(
+            starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "BRIXX", "OAK"] },
+            fixPositions: new()
+            {
+                ["EMZOH"] = (37.9, -121.5),
+                ["COREZ"] = (37.8, -121.7),
+                ["BRIXX"] = (37.7, -121.9),
+                ["OAK"] = (37.72, -122.22),
+            }
+        );
+
+        var aircraft = MakeAircraft();
+        var cmd = new JoinStarCommand("EMZOH4", "COREZ");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+
+        Assert.True(result.Success);
+        Assert.Equal("COREZ", aircraft.Targets.NavigationRoute[0].Name);
+        Assert.DoesNotContain(aircraft.Targets.NavigationRoute, t => t.Name == "EMZOH");
+    }
+
+    [Fact]
+    public void Jarr_TransitionTakesPriorityOverFixName()
+    {
+        // "COREZ" exists as both a transition name and a fix in the body
+        var fixes = new TestFixLookup(
+            starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
+            starTransitions: new() { ["EMZOH4"] = [("COREZ", ["COREZ", "EMZOH"])] },
+            fixPositions: new()
+            {
+                ["EMZOH"] = (37.9, -121.5),
+                ["COREZ"] = (37.8, -121.7),
+                ["OAK"] = (37.72, -122.22),
+            }
+        );
+
+        var aircraft = MakeAircraft();
+        var cmd = new JoinStarCommand("EMZOH4", "COREZ");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+
+        Assert.True(result.Success);
+        // Transition matched: route is transition fixes + body = COREZ EMZOH COREZ OAK (deduped: COREZ EMZOH COREZ OAK)
+        // The first fix should be COREZ from the transition, and EMZOH should appear (from transition)
+        Assert.Contains(aircraft.Targets.NavigationRoute, t => t.Name == "EMZOH");
+    }
+
+    [Fact]
+    public void Jarr_NonexistentFixAndTransition_ReturnsError()
+    {
+        var fixes = new TestFixLookup(
+            starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
+            starTransitions: new() { ["EMZOH4"] = [("KENNO", ["KENNO", "EMZOH"])] },
+            fixPositions: new()
+            {
+                ["EMZOH"] = (37.9, -121.5),
+                ["COREZ"] = (37.8, -121.7),
+                ["OAK"] = (37.72, -122.22),
+                ["KENNO"] = (37.8, -121.7),
+            }
+        );
+
+        var aircraft = MakeAircraft();
+        var cmd = new JoinStarCommand("EMZOH4", "NOSUCH");
+
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+
+        Assert.False(result.Success);
+        Assert.Contains("Unknown transition or fix 'NOSUCH'", result.Message);
     }
 
     // --- Holding Pattern ---
