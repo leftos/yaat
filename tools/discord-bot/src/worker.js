@@ -14,6 +14,9 @@ const MEMBER_ROLE_ID = "1479929042429018192";
 // R2 public URL for uploaded attachments
 const R2_PUBLIC_URL = "https://pub-1f460757f70f46d8b557747a4d0ffe0d.r2.dev";
 
+// Cached installation token (valid for ~1 hour, regenerated per worker invocation)
+let cachedInstallationToken = null;
+
 // Status labels → display text, emoji, and whether they represent a terminal (closed) state
 const STATUS_LABELS = {
   "in progress": {
@@ -52,6 +55,12 @@ export default {
 
     if (request.method !== "POST") {
       return new Response("Method not allowed", { status: 405 });
+    }
+
+    // Manual sync endpoint: POST /sync/58 (requires Authorization: Bearer <GITHUB_WEBHOOK_SECRET>)
+    const syncMatch = url.pathname.match(/^\/sync\/(\d+)$/);
+    if (syncMatch) {
+      return handleManualSync(request, env, parseInt(syncMatch[1], 10));
     }
 
     // GitHub webhook endpoint
@@ -154,6 +163,29 @@ async function handleDiscordInteraction(request, env, ctx) {
   return new Response("Unknown interaction type", { status: 400 });
 }
 
+// --- Manual sync handler ---
+
+async function handleManualSync(request, env, issueNumber) {
+  const auth = request.headers.get("Authorization");
+  if (auth !== `Bearer ${env.GITHUB_WEBHOOK_SECRET}`) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const threadId = await findThreadForIssue(env, issueNumber);
+  if (!threadId) {
+    return jsonResponse({ error: `No linked Discord thread for issue #${issueNumber}` }, 404);
+  }
+
+  const mapping = await env.THREAD_ISSUES.get(threadId, { type: "json" });
+  if (!mapping) {
+    return jsonResponse({ error: "Thread mapping found but data is missing" }, 500);
+  }
+
+  const githubToken = await getGitHubToken(env);
+  const count = await syncThread(env, threadId, mapping, githubToken);
+  return jsonResponse({ issue: issueNumber, synced: count });
+}
+
 // --- GitHub webhook handler ---
 
 async function handleGitHubWebhook(request, env, ctx) {
@@ -231,10 +263,9 @@ async function handleIssueCommentEvent(payload, env) {
   const { action, comment, issue } = payload;
   if (action !== "created") return;
 
-  // Skip comments posted by the bot itself (via Discord→GitHub sync) to prevent echo loops.
-  // We detect this by checking if the comment author matches the GitHub token's authenticated user.
-  // As a heuristic, comments created by the sync contain "via Discord:" in the body.
-  if (comment.body?.includes("via Discord:\n\n")) return;
+  // Skip comments posted by the GitHub App (via Discord→GitHub sync) to prevent echo loops.
+  // The app posts as a [bot] user, so check user type. Also keep the text heuristic as a fallback.
+  if (comment.user?.type === "Bot" || comment.body?.includes("via Discord:\n\n")) return;
 
   const threadId = await findThreadForIssue(env, issue.number);
   if (!threadId) return;
@@ -356,6 +387,8 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
       return;
     }
 
+    const githubToken = await getGitHubToken(env);
+
     if (commandName === "reopen") {
       const mapping = await env.THREAD_ISSUES.get(threadId, { type: "json" });
       if (!mapping) {
@@ -369,7 +402,7 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
       await env.THREAD_ISSUES.put(`reopen:${mapping.issueNumber}`, "1", { expirationTtl: 60 });
 
       // Reopen the GitHub issue
-      await updateGitHubIssue(env.GITHUB_TOKEN, env.GITHUB_REPO, mapping.issueNumber, {
+      await updateGitHubIssue(githubToken, env.GITHUB_REPO, mapping.issueNumber, {
         state: "open",
       });
 
@@ -378,7 +411,7 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
         .filter(([, v]) => v.terminal)
         .map(([k]) => k);
       for (const label of terminalLabels) {
-        await removeGitHubLabel(env.GITHUB_TOKEN, env.GITHUB_REPO, mapping.issueNumber, label);
+        await removeGitHubLabel(githubToken, env.GITHUB_REPO, mapping.issueNumber, label);
       }
 
       // Unmark the thread as resolved on Discord
@@ -411,7 +444,7 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
       const conversation = formatConversation(messages, urlMap);
       const body = `> Created from [Discord thread](${threadUrl})\n\n## Conversation\n\n${conversation}`;
 
-      await updateGitHubIssue(env.GITHUB_TOKEN, env.GITHUB_REPO, existing.issueNumber, { body });
+      await updateGitHubIssue(githubToken, env.GITHUB_REPO, existing.issueNumber, { body });
 
       const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : "0";
       existing.lastSyncedMessageId = lastMessageId;
@@ -424,7 +457,7 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
     }
 
     if (existing) {
-      const count = await syncThread(env, threadId, existing);
+      const count = await syncThread(env, threadId, existing, githubToken);
       await editOriginalResponse(appId, token, {
         content:
           count > 0
@@ -460,7 +493,7 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
     const conversation = formatConversation(messages, urlMap);
     const body = `> Created from [Discord thread](${threadUrl})\n\n## Conversation\n\n${conversation}`;
 
-    const issue = await createGitHubIssue(env.GITHUB_TOKEN, env.GITHUB_REPO, {
+    const issue = await createGitHubIssue(githubToken, env.GITHUB_REPO, {
       title: thread.name,
       body,
       labels,
@@ -492,6 +525,7 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
 // --- Sync logic ---
 
 async function syncAllThreads(env) {
+  const githubToken = await getGitHubToken(env);
   const keys = await env.THREAD_ISSUES.list();
   let synced = 0;
 
@@ -500,7 +534,7 @@ async function syncAllThreads(env) {
     try {
       const mapping = await env.THREAD_ISSUES.get(key.name, { type: "json" });
       if (!mapping) continue;
-      const count = await syncThread(env, key.name, mapping);
+      const count = await syncThread(env, key.name, mapping, githubToken);
       synced += count;
     } catch (err) {
       console.error(`Failed to sync thread ${key.name}:`, err);
@@ -512,7 +546,7 @@ async function syncAllThreads(env) {
   }
 }
 
-async function syncThread(env, threadId, mapping) {
+async function syncThread(env, threadId, mapping, githubToken) {
   const messages = await discordApi(
     `/channels/${threadId}/messages?after=${mapping.lastSyncedMessageId}&limit=100`,
     env.DISCORD_BOT_TOKEN,
@@ -538,7 +572,7 @@ async function syncThread(env, threadId, mapping) {
     const author = msg.author.global_name || msg.author.username;
     const commentBody = `**${author}** via Discord:\n\n${formatMessage(msg, urlMap)}`;
 
-    await createGitHubComment(env.GITHUB_TOKEN, env.GITHUB_REPO, mapping.issueNumber, commentBody);
+    await createGitHubComment(githubToken, env.GITHUB_REPO, mapping.issueNumber, commentBody);
   }
 
   // Always update cursor to latest message (including bot messages)
@@ -737,6 +771,77 @@ async function grantMemberRole(guildId, userId, env) {
   }
 }
 
+// --- GitHub App authentication ---
+
+async function getGitHubToken(env) {
+  if (cachedInstallationToken) return cachedInstallationToken;
+
+  const now = Math.floor(Date.now() / 1000);
+  const payload = { iat: now - 60, exp: now + 600, iss: env.GITHUB_APP_ID };
+  const jwt = await createJWT(payload, env.GITHUB_APP_PRIVATE_KEY);
+
+  const res = await fetch(
+    `https://api.github.com/app/installations/${env.GITHUB_APP_INSTALLATION_ID}/access_tokens`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "yaat-discord-bot",
+      },
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to get GitHub App installation token (${res.status}): ${text}`);
+  }
+
+  const data = await res.json();
+  cachedInstallationToken = data.token;
+  return cachedInstallationToken;
+}
+
+async function createJWT(payload, pemKey) {
+  // Handle PEM keys stored with literal \n (Cloudflare secrets) and strip all headers
+  const pem = pemKey.replace(/\\n/g, "\n");
+  const isPkcs8 = pem.includes("BEGIN PRIVATE KEY") && !pem.includes("BEGIN RSA PRIVATE KEY");
+  const pemBody = pem.replace(/-----[A-Z ]+-----/g, "").replace(/\s/g, "");
+  const derBytes = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0));
+  const pkcs8Der = isPkcs8 ? derBytes.buffer : wrapPkcs1InPkcs8(derBytes);
+
+  const key = await crypto.subtle.importKey("pkcs8", pkcs8Der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+
+  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const body = base64url(JSON.stringify(payload));
+  const signingInput = `${header}.${body}`;
+
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(signingInput));
+  return `${signingInput}.${base64url(signature)}`;
+}
+
+function wrapPkcs1InPkcs8(pkcs1Der) {
+  const keyLen = pkcs1Der.byteLength;
+  const totalLen = keyLen + 22; // 3 (version) + 15 (AlgorithmIdentifier) + 4 (OCTET STRING header)
+  // prettier-ignore
+  const header = new Uint8Array([
+    0x30, 0x82, (totalLen >> 8) & 0xff, totalLen & 0xff,       // SEQUENCE
+    0x02, 0x01, 0x00,                                           // INTEGER version = 0
+    0x30, 0x0d,                                                  // SEQUENCE (AlgorithmIdentifier)
+    0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, // OID rsaEncryption
+    0x05, 0x00,                                                  // NULL
+    0x04, 0x82, (keyLen >> 8) & 0xff, keyLen & 0xff,            // OCTET STRING
+  ]);
+  const pkcs8 = new Uint8Array(header.length + keyLen);
+  pkcs8.set(header);
+  pkcs8.set(pkcs1Der, header.length);
+  return pkcs8.buffer;
+}
+
+function base64url(input) {
+  const str = typeof input === "string" ? btoa(input) : btoa(String.fromCharCode(...new Uint8Array(input)));
+  return str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 // --- Crypto ---
 
 async function verifyDiscordSignature(publicKey, signature, timestamp, body) {
@@ -796,8 +901,9 @@ function ephemeral(content) {
   return jsonResponse({ type: 4, data: { content, flags: 64 } });
 }
 
-function jsonResponse(data) {
+function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
+    status,
     headers: { "Content-Type": "application/json" },
   });
 }

@@ -6,11 +6,13 @@ compatibility_date = "2024-12-01"
 GITHUB_REPO = "leftos/yaat"
 
 # Set these via `wrangler secret put <NAME>`:
-# DISCORD_PUBLIC_KEY   - from Discord app > General Information
-# DISCORD_BOT_TOKEN    - from Discord app > Bot
-# GITHUB_TOKEN         - GitHub PAT with repo scope
-# DISCORD_ALLOWED_USER_ID - your Discord user ID
-# GITHUB_WEBHOOK_SECRET - secret for GitHub webhook signature verification
+# DISCORD_PUBLIC_KEY          - from Discord app > General Information
+# DISCORD_BOT_TOKEN           - from Discord app > Bot
+# DISCORD_ALLOWED_USER_ID     - your Discord user ID
+# GITHUB_WEBHOOK_SECRET       - secret for GitHub webhook signature verification
+# GITHUB_APP_ID               - GitHub App ID (from app settings > General)
+# GITHUB_APP_PRIVATE_KEY      - GitHub App private key (PEM format, generate from app settings > Private keys)
+# GITHUB_APP_INSTALLATION_ID  - Installation ID (from app settings > Installations > click your repo)
 
 [[r2_buckets]]
 binding = "ATTACHMENTS"
