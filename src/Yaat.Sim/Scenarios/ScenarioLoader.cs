@@ -2,6 +2,7 @@ using System.Text.Json;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 
@@ -228,6 +229,11 @@ public static class ScenarioLoader
         }
 
         PopulateNavigationRoute(state, cond.NavigationPath, fixes, procedures, warnings);
+
+        if (ac.OnAltitudeProfile)
+        {
+            ApplyAltitudeProfile(state, cond.NavigationPath, fixes, procedures, warnings);
+        }
 
         return new LoadedAircraft
         {
@@ -563,6 +569,120 @@ public static class ScenarioLoader
                     Longitude = fix.Lon,
                 }
             );
+        }
+    }
+
+    /// <summary>
+    /// When onAltitudeProfile is true, finds the STAR in the navigation path,
+    /// resolves CIFP altitude/speed constraints, overlays them on route targets,
+    /// and enables StarViaMode (equivalent to auto-DVIA at spawn).
+    /// </summary>
+    private static void ApplyAltitudeProfile(
+        AircraftState state,
+        string? navigationPath,
+        IFixLookup fixes,
+        IProcedureLookup? procedures,
+        List<string> warnings
+    )
+    {
+        if (string.IsNullOrWhiteSpace(navigationPath) || procedures is null || string.IsNullOrEmpty(state.Destination))
+        {
+            return;
+        }
+
+        // Find the STAR token in the navigation path
+        var tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string? starId = null;
+        string? runwayDesignator = null;
+
+        foreach (var token in tokens)
+        {
+            var parts = token.Split('.');
+            var rawName = parts[0];
+            var starBody = fixes.GetStarBody(rawName);
+            if (starBody is not null && starBody.Count > 0)
+            {
+                starId = rawName;
+                runwayDesignator = parts.Length > 1 ? parts[1] : null;
+                break;
+            }
+        }
+
+        if (starId is null)
+        {
+            return;
+        }
+
+        var star = procedures.GetStar(state.Destination, starId);
+        if (star is null)
+        {
+            return;
+        }
+
+        // Build CIFP-constrained targets: common legs + runway transition
+        var orderedLegs = new List<CifpLeg>();
+        orderedLegs.AddRange(star.CommonLegs);
+
+        if (runwayDesignator is not null)
+        {
+            var rwKey = "RW" + runwayDesignator;
+            if (!star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+            {
+                var bothKey = "RW" + runwayDesignator.TrimEnd('L', 'R', 'C') + "B";
+                star.RunwayTransitions.TryGetValue(bothKey, out rwTransition);
+            }
+
+            if (rwTransition is not null)
+            {
+                orderedLegs.AddRange(rwTransition.Legs);
+            }
+        }
+
+        if (orderedLegs.Count == 0)
+        {
+            return;
+        }
+
+        var constrainedTargets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs, fixes);
+
+        // Build a lookup of constraints by fix name
+        var constraintsByFix = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
+        foreach (var target in constrainedTargets)
+        {
+            constraintsByFix[target.Name] = target;
+        }
+
+        // Overlay constraints onto existing route targets
+        var route = state.Targets.NavigationRoute;
+        for (int i = 0; i < route.Count; i++)
+        {
+            if (constraintsByFix.TryGetValue(route[i].Name, out var constrained))
+            {
+                route[i] = new NavigationTarget
+                {
+                    Name = route[i].Name,
+                    Latitude = route[i].Latitude,
+                    Longitude = route[i].Longitude,
+                    AltitudeRestriction = constrained.AltitudeRestriction,
+                    SpeedRestriction = constrained.SpeedRestriction,
+                    IsFlyOver = constrained.IsFlyOver,
+                };
+            }
+        }
+
+        state.ActiveStarId = starId;
+        state.StarViaMode = true;
+
+        // Apply the first constrained fix's restrictions immediately so the aircraft
+        // starts descending toward the first STAR constraint at spawn, not after
+        // sequencing through unconstrained fixes.
+        foreach (var target in route)
+        {
+            if (target.AltitudeRestriction is not null || target.SpeedRestriction is not null)
+            {
+                FlightPhysics.ApplyFixConstraints(state, target);
+                break;
+            }
         }
     }
 

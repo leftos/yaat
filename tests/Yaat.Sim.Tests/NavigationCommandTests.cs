@@ -249,6 +249,37 @@ public class NavigationCommandTests
         Assert.Contains("No active STAR", result.Message);
     }
 
+    [Fact]
+    public void Dvia_ImmediatelyAppliesFirstConstrainedFix()
+    {
+        var aircraft = MakeAircraft(altitude: 20000);
+        aircraft.ActiveStarId = "TEST1";
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "FIX1",
+                Latitude = 37.8,
+                Longitude = -122.3,
+            }
+        );
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "FIX2",
+                Latitude = 37.9,
+                Longitude = -122.4,
+                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 12000, null),
+            }
+        );
+
+        var cmd = new DescendViaCommand(null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+
+        Assert.True(result.Success);
+        Assert.True(aircraft.StarViaMode);
+        Assert.Equal(12000, aircraft.Targets.TargetAltitude);
+    }
+
     // --- APPS ---
 
     [Fact]

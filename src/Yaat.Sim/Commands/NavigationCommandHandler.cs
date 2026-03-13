@@ -928,6 +928,7 @@ internal static class NavigationCommandHandler
         aircraft.SidViaMode = true;
         aircraft.SidViaCeiling = cmd.Altitude;
         aircraft.SpeedRestrictionsDeleted = false;
+        ApplyFirstConstrainedFix(aircraft);
 
         if (cmd.Altitude is not null)
         {
@@ -947,6 +948,7 @@ internal static class NavigationCommandHandler
         aircraft.StarViaMode = true;
         aircraft.StarViaFloor = cmd.Altitude;
         aircraft.SpeedRestrictionsDeleted = false;
+        ApplyFirstConstrainedFix(aircraft);
 
         // DVIA SPD <speed> <fix>: inject a speed restriction at the specified fix in the nav route
         if (cmd.Speed is { } speed && cmd.SpeedFixName is not null && cmd.SpeedFixLat is not null && cmd.SpeedFixLon is not null)
@@ -985,6 +987,24 @@ internal static class NavigationCommandHandler
         }
 
         return CommandDispatcher.Ok("Descend via STAR");
+    }
+
+    /// <summary>
+    /// Applies constraints from the first fix in the nav route that has an altitude
+    /// or speed restriction. Called immediately when CVIA/DVIA is issued so the
+    /// aircraft starts working toward the first constraint right away, rather than
+    /// waiting to sequence through unconstrained fixes.
+    /// </summary>
+    private static void ApplyFirstConstrainedFix(AircraftState aircraft)
+    {
+        foreach (var target in aircraft.Targets.NavigationRoute)
+        {
+            if (target.AltitudeRestriction is not null || target.SpeedRestriction is not null)
+            {
+                FlightPhysics.ApplyFixConstraints(aircraft, target);
+                break;
+            }
+        }
     }
 
     internal static CommandResult DispatchReportFieldInSight(AircraftState aircraft)
