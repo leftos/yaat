@@ -170,11 +170,11 @@ public class WindPhysicsTests
     [Fact]
     public void TasCorrection_AtFL350_GroundSpeedHigherThanIas()
     {
-        // At FL350 with no wind, GS should be ~TAS = IAS * 1.796 ≈ 503 for IAS 280
+        // At FL350 with no wind, GS ≈ TAS ≈ 473 kts for IAS 280 (ISA compressible flow)
         var ac = MakeAircraft(280, 090, 35_000);
         FlightPhysics.Update(ac, 1.0, null, null);
 
-        Assert.True(ac.GroundSpeed > 480, $"Expected GS > 480 at FL350 IAS 280, got {ac.GroundSpeed}");
+        Assert.True(ac.GroundSpeed > 450, $"Expected GS > 450 at FL350 IAS 280, got {ac.GroundSpeed}");
     }
 
     // -------------------------------------------------------------------------

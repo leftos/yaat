@@ -630,6 +630,7 @@ public static class CommandParser
             // Broadcast
             Say when arg is not null => new SayCommand(arg),
             SaySpeed when arg is null => new SaySpeedCommand(),
+            SayMach when arg is null => new SayMachCommand(),
             // Queue
             DeleteQueuedCommands when arg is null => new DeleteQueuedCommand(),
             DeleteQueuedCommands => int.TryParse(arg, out var delAtBlock) ? new DeleteQueuedCommand(delAtBlock) : null,

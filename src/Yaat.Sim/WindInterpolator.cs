@@ -8,20 +8,22 @@ public static class WindInterpolator
     private const double DegToRad = Math.PI / 180.0;
     private const double RadToDeg = 180.0 / Math.PI;
 
-    // Standard atmosphere TAS/CAS factors at altitude checkpoints.
-    // Accurate within 1-2% of ISA. At FL350 IAS 280 → TAS ~503 kts.
-    private static readonly (double Altitude, double Factor)[] TasFactors =
-    [
-        (0, 1.000),
-        (5_000, 1.077),
-        (10_000, 1.165),
-        (15_000, 1.261),
-        (20_000, 1.370),
-        (25_000, 1.494),
-        (30_000, 1.634),
-        (35_000, 1.796),
-        (40_000, 2.014),
-    ];
+    // ISA standard atmosphere constants
+    private const double T0 = 288.15; // Sea-level temperature (K)
+    private const double LapseRate = 0.0065; // Tropospheric lapse rate (K/m)
+    private const double G = 9.80665; // Standard gravity (m/s²)
+    private const double RGas = 287.05287; // Specific gas constant for dry air (J/(kg·K))
+    private const double Gamma = 1.4; // Ratio of specific heats
+    private const double KtToMs = 0.514444;
+    private const double MsToKt = 1.0 / KtToMs;
+    private const double FtToM = 0.3048;
+    private const double GOverLR = G / (LapseRate * RGas); // ~5.255876
+    private const double GammaRatio = Gamma / (Gamma - 1.0); // 3.5
+    private const double InvGammaRatio = 1.0 / GammaRatio; // 2/7
+    private const double TropopauseM = 11_000.0; // Tropopause altitude (m)
+    private const double TropopauseK = 216.65; // Tropopause temperature (K)
+    private static readonly double A0 = Math.Sqrt(Gamma * RGas * T0); // Sea-level speed of sound (~340.294 m/s)
+    private static readonly double DeltaTropopause = Math.Pow(TropopauseK / T0, GOverLR); // ~0.22336
 
     /// <summary>
     /// Returns interpolated wind at the given altitude.
@@ -97,68 +99,80 @@ public static class WindInterpolator
     }
 
     /// <summary>
-    /// Converts indicated airspeed (IAS/CAS) to true airspeed (TAS) using a standard
-    /// atmosphere lookup table with linear interpolation. Accurate within 1-2% of ISA.
+    /// Converts indicated airspeed (IAS/CAS) to true airspeed (TAS) using ISA compressible
+    /// flow equations. CAS → Mach → TAS via isentropic impact pressure relations.
     /// </summary>
     public static double IasToTas(double ias, double altitudeFt)
     {
-        return ias * GetTasFactor(altitudeFt);
+        var (tempK, _) = GetAtmosphere(altitudeFt);
+        double mach = IasToMach(ias, altitudeFt);
+        double aLocal = Math.Sqrt(Gamma * RGas * tempK);
+        return mach * aLocal * MsToKt;
     }
 
     /// <summary>
     /// Converts true airspeed (TAS) to indicated airspeed (IAS/CAS) using the inverse
-    /// of the altitude-based TAS factor lookup table.
+    /// of the ISA compressible flow equations.
     /// </summary>
     public static double TasToIas(double tas, double altitudeFt)
     {
-        double factor = GetTasFactor(altitudeFt);
-        return factor > 0 ? tas / factor : tas;
+        var (tempK, _) = GetAtmosphere(altitudeFt);
+        double aLocal = Math.Sqrt(Gamma * RGas * tempK);
+        double mach = tas * KtToMs / aLocal;
+        return MachToIas(mach, altitudeFt);
     }
 
     /// <summary>
-    /// Converts a Mach number to indicated airspeed (IAS) at the given altitude.
-    /// Uses ISA temperature model to compute speed of sound, then divides by TAS factor.
+    /// Converts a Mach number to indicated airspeed (IAS/CAS) at the given altitude
+    /// using ISA compressible flow: Mach → impact pressure at altitude → CAS at sea level.
     /// </summary>
     public static double MachToIas(double mach, double altitudeFt)
     {
-        double tas = mach * SpeedOfSoundKts(altitudeFt);
-        return TasToIas(tas, altitudeFt);
+        var (_, delta) = GetAtmosphere(altitudeFt);
+        double qcOverP0 = delta * (Math.Pow(1.0 + 0.2 * mach * mach, GammaRatio) - 1.0);
+        double vcMs = A0 * Math.Sqrt(5.0 * (Math.Pow(qcOverP0 + 1.0, InvGammaRatio) - 1.0));
+        return vcMs * MsToKt;
+    }
+
+    /// <summary>
+    /// Converts indicated airspeed (IAS/CAS) to Mach number at the given altitude
+    /// using ISA compressible flow: CAS → impact pressure at sea level → Mach at altitude.
+    /// 280 KIAS at FL350 ≈ M0.82.
+    /// </summary>
+    public static double IasToMach(double ias, double altitudeFt)
+    {
+        var (_, delta) = GetAtmosphere(altitudeFt);
+        double vcRatio = ias * KtToMs / A0;
+        double qcOverP0 = Math.Pow(1.0 + 0.2 * vcRatio * vcRatio, GammaRatio) - 1.0;
+        double qcOverP = qcOverP0 / delta;
+        return Math.Sqrt(5.0 * (Math.Pow(qcOverP + 1.0, InvGammaRatio) - 1.0));
     }
 
     /// <summary>
     /// ISA speed of sound at the given altitude in knots.
-    /// Below 36,089 ft: T = 288.15 - 0.001981 × alt (K). Above: T = 216.65 K (tropopause).
-    /// Speed of sound = 661.5 × sqrt(T / 288.15).
     /// </summary>
     internal static double SpeedOfSoundKts(double altitudeFt)
     {
-        double tempK = altitudeFt < 36_089 ? 288.15 - 0.001981 * altitudeFt : 216.65;
-        return 661.5 * Math.Sqrt(tempK / 288.15);
+        var (tempK, _) = GetAtmosphere(altitudeFt);
+        return Math.Sqrt(Gamma * RGas * tempK) * MsToKt;
     }
 
-    private static double GetTasFactor(double altitudeFt)
+    /// <summary>
+    /// Returns ISA temperature (K) and pressure ratio δ = P/P₀ at the given altitude.
+    /// Below tropopause (36,089 ft): standard lapse rate. Above: isothermal stratosphere.
+    /// </summary>
+    internal static (double TempK, double Delta) GetAtmosphere(double altitudeFt)
     {
-        if (altitudeFt <= TasFactors[0].Altitude)
+        double h = altitudeFt * FtToM;
+        if (h <= TropopauseM)
         {
-            return TasFactors[0].Factor;
+            double t = T0 - LapseRate * h;
+            double delta = Math.Pow(t / T0, GOverLR);
+            return (t, delta);
         }
 
-        if (altitudeFt >= TasFactors[^1].Altitude)
-        {
-            return TasFactors[^1].Factor;
-        }
-
-        int upper = 1;
-        while (upper < TasFactors.Length && TasFactors[upper].Altitude < altitudeFt)
-        {
-            upper++;
-        }
-
-        var (lowAlt, lowFactor) = TasFactors[upper - 1];
-        var (highAlt, highFactor) = TasFactors[upper];
-        double t = (altitudeFt - lowAlt) / (highAlt - lowAlt);
-
-        return lowFactor + t * (highFactor - lowFactor);
+        double stratDelta = DeltaTropopause * Math.Exp(-G * (h - TropopauseM) / (RGas * TropopauseK));
+        return (TropopauseK, stratDelta);
     }
 
     /// <summary>

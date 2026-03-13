@@ -87,6 +87,8 @@ public record SayCommand(string Text) : ParsedCommand;
 
 public record SaySpeedCommand : ParsedCommand;
 
+public record SayMachCommand : ParsedCommand;
+
 public record UnsupportedCommand(string RawText) : ParsedCommand;
 
 // Departure instruction hierarchy for CTO commands

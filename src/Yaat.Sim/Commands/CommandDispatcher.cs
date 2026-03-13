@@ -301,6 +301,8 @@ public static class CommandDispatcher
                 return Ok(""); // SAY is a broadcast; handled before dispatch
             case SaySpeedCommand:
                 return Ok(""); // SSPD is a broadcast; handled before dispatch
+            case SayMachCommand:
+                return Ok(""); // SMACH is a broadcast; handled before dispatch
 
             // --- Navigation commands ---
             case JoinRadialOutboundCommand cmd:

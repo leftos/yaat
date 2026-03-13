@@ -132,6 +132,7 @@ public enum CanonicalCommandType
     // Broadcast
     Say,
     SaySpeed,
+    SayMach,
 
     // Navigation (continued)
     ForceDirectTo,

@@ -83,14 +83,16 @@ public class MachCommandTests
     {
         AircraftCategorization.Initialize([]);
 
-        var ac = CreateAircraft(altitude: 35000, ias: 280);
+        // Start at IAS 250 so there's a meaningful delta from M0.82 (~279 KIAS at FL350)
+        var ac = CreateAircraft(altitude: 35000, ias: 250);
         ac.Targets.TargetMach = 0.82;
 
         FlightPhysics.Update(ac, 1.0);
 
-        // TargetSpeed should be set to the Mach-equivalent IAS
-        double expectedIas = WindInterpolator.MachToIas(0.82, 35000);
-        Assert.NotNull(ac.Targets.TargetSpeed);
+        // Mach hold recomputes TargetSpeed each tick; aircraft should accelerate toward M0.82 IAS
+        double machIas = WindInterpolator.MachToIas(0.82, 35000);
+        Assert.True(ac.IndicatedAirspeed > 250, "Aircraft should accelerate toward Mach-equivalent IAS");
+        Assert.Equal(0.82, ac.Targets.TargetMach);
     }
 
     [Fact]

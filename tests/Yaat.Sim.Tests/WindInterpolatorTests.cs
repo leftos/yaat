@@ -251,25 +251,55 @@ public class WindInterpolatorTests
     [Fact]
     public void IasToTas_AtFL250_ApproximatelyCorrect()
     {
-        // Factor at FL250 = 1.494 → IAS 200 → TAS ~299
+        // ISA compressible flow: IAS 200 at FL250 → TAS ~293
         double tas = WindInterpolator.IasToTas(200, 25_000);
-        Assert.InRange(tas, 297, 301);
+        Assert.InRange(tas, 291, 296);
     }
 
     [Fact]
     public void IasToTas_AtFL350_ApproximatelyCorrect()
     {
-        // Factor at FL350 = 1.796 → IAS 280 → TAS ~503
+        // ISA compressible flow: IAS 280 at FL350 → TAS ~473
         double tas = WindInterpolator.IasToTas(280, 35_000);
-        Assert.InRange(tas, 500, 506);
+        Assert.InRange(tas, 471, 476);
     }
 
     [Fact]
-    public void IasToTas_AboveTable_ClampsToHighestFactor()
+    public void IasToTas_AboveTropopause_ContinuesISA()
     {
-        double tas45k = WindInterpolator.IasToTas(200, 45_000);
+        // Above tropopause (36,089 ft) is isothermal; TAS still increases with altitude
+        // because pressure decreases even though temperature is constant.
         double tas40k = WindInterpolator.IasToTas(200, 40_000);
-        Assert.Equal(tas40k, tas45k, precision: 1);
+        double tas45k = WindInterpolator.IasToTas(200, 45_000);
+        Assert.True(tas45k > tas40k, "TAS should increase with altitude above tropopause");
+    }
+
+    // -------------------------------------------------------------------------
+    // IasToMach
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void IasToMach_AtFL350_280kt_ApproximatelyM082()
+    {
+        double mach = WindInterpolator.IasToMach(280, 35_000);
+        Assert.InRange(mach, 0.81, 0.83);
+    }
+
+    [Fact]
+    public void IasToMach_AtSeaLevel_250kt_SubsonicLow()
+    {
+        double mach = WindInterpolator.IasToMach(250, 0);
+        Assert.InRange(mach, 0.36, 0.40);
+    }
+
+    [Fact]
+    public void IasToMach_RoundTrip_WithMachToIas()
+    {
+        double originalMach = 0.82;
+        double altitude = 35_000;
+        double ias = WindInterpolator.MachToIas(originalMach, altitude);
+        double recoveredMach = WindInterpolator.IasToMach(ias, altitude);
+        Assert.Equal(originalMach, recoveredMach, precision: 4);
     }
 
     // -------------------------------------------------------------------------

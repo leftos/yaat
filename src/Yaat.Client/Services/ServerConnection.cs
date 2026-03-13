@@ -454,7 +454,10 @@ public record AircraftDto(
     string ActiveSidId = "",
     string ActiveStarId = "",
     string DepartureRunway = "",
-    string DestinationRunway = ""
+    string DestinationRunway = "",
+    double IndicatedAirspeed = 0,
+    double Mach = 0,
+    double? AssignedMach = null
 );
 
 public record LoadScenarioResultDto(

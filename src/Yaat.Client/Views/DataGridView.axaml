@@ -136,10 +136,11 @@
             <DataGridTextColumn Header="Hdg" Binding="{Binding Heading, StringFormat=\{0:F0\}}" Width="Auto" />
             <DataGridTextColumn Header="Alt" Binding="{Binding Altitude, StringFormat=\{0:F0\}}" Width="Auto" />
             <DataGridTextColumn Header="Spd" Binding="{Binding GroundSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn Header="Mach" Binding="{Binding MachDisplay}" Width="Auto" />
             <DataGridTextColumn Header="VS" Binding="{Binding VerticalSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
             <DataGridTextColumn Header="AHdg" Binding="{Binding AssignedHeadingDisplay}" Width="Auto" />
             <DataGridTextColumn Header="AAlt" Binding="{Binding AssignedAltitude, StringFormat=\{0:F0\}}" Width="Auto" />
-            <DataGridTextColumn Header="ASpd" Binding="{Binding AssignedSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn Header="ASpd" Binding="{Binding AssignedSpeedDisplay}" Width="Auto" />
             <DataGridTemplateColumn Width="Auto" SortMemberPath="DistanceFromFix">
                 <DataGridTemplateColumn.Header>
                     <TextBlock Text="{Binding DataContext.DistanceReferenceFix, RelativeSource={RelativeSource AncestorType=Window}, StringFormat='Dist ({0})', FallbackValue='Dist'}" x:Name="DistanceHeader" />

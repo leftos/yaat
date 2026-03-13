@@ -24,6 +24,7 @@ public partial class AircraftModel : ObservableObject
     private double _heading;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MachDisplay))]
     private double _altitude;
 
     [ObservableProperty]
@@ -55,6 +56,7 @@ public partial class AircraftModel : ObservableObject
     private double? _assignedAltitude;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AssignedSpeedDisplay))]
     private double? _assignedSpeed;
 
     [ObservableProperty]
@@ -164,6 +166,24 @@ public partial class AircraftModel : ObservableObject
 
     [ObservableProperty]
     private string _destinationRunway = "";
+
+    [ObservableProperty]
+    private double _indicatedAirspeed;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MachDisplay))]
+    private double _mach;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AssignedSpeedDisplay))]
+    private double? _assignedMach;
+
+    public string MachDisplay => Altitude >= 24000 && Mach >= 0.01 ? $"M.{Mach * 100:F0}" : "";
+
+    public string AssignedSpeedDisplay =>
+        AssignedMach.HasValue ? $"M.{AssignedMach.Value * 100:F0}"
+        : AssignedSpeed.HasValue ? AssignedSpeed.Value.ToString("F0")
+        : "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CruiseDisplay))]
@@ -529,6 +549,9 @@ public partial class AircraftModel : ObservableObject
             ActiveStarId = dto.ActiveStarId,
             DepartureRunway = dto.DepartureRunway,
             DestinationRunway = dto.DestinationRunway,
+            IndicatedAirspeed = dto.IndicatedAirspeed,
+            Mach = dto.Mach,
+            AssignedMach = dto.AssignedMach,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         return model;
@@ -586,6 +609,9 @@ public partial class AircraftModel : ObservableObject
         ActiveStarId = dto.ActiveStarId;
         DepartureRunway = dto.DepartureRunway;
         DestinationRunway = dto.DestinationRunway;
+        IndicatedAirspeed = dto.IndicatedAirspeed;
+        Mach = dto.Mach;
+        AssignedMach = dto.AssignedMach;
         DistanceFromFix = computeDistance?.Invoke(this);
     }
 
