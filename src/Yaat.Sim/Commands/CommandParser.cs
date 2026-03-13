@@ -1,22 +1,27 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using static Yaat.Sim.Commands.CanonicalCommandType;
 
 namespace Yaat.Sim.Commands;
 
 public static class CommandParser
 {
-    private static readonly HashSet<string> UnsupportedVerbs = [];
-
     /// <summary>
     /// Parses a compound command string that may contain ';' (sequential blocks)
     /// and ',' (parallel commands within a block). Returns null if any part fails to parse.
+    /// Pass a <paramref name="debugLog"/> (e.g. Console.Out) to trace each decision point.
     /// </summary>
-    public static CompoundCommand? ParseCompound(string input, IFixLookup fixes, string? aircraftRoute = null)
+    public static CompoundCommand? ParseCompound(string input, IFixLookup fixes, string? aircraftRoute = null, TextWriter? debugLog = null)
     {
-        var trimmed = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(input.Trim())));
+        var trimmed = CommandSchemeParser.ExpandMultiCommand(
+            CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(input.Trim())),
+            fixes
+        );
+        debugLog?.WriteLine($"[ParseCompound] input=\"{input.Trim()}\" expanded=\"{trimmed}\"");
         if (string.IsNullOrEmpty(trimmed))
         {
+            debugLog?.WriteLine("[ParseCompound] => empty after expansion, returning null");
             return null;
         }
 
@@ -27,20 +32,26 @@ public static class CommandParser
         {
             // Check for standalone LV/AT conditions (makes it compound even without ; or ,)
             var upperCheck = trimmed.ToUpperInvariant();
-            isCompound = upperCheck.StartsWith("LV ") || upperCheck.StartsWith("AT ") || upperCheck.StartsWith("ATFN ");
+            isCompound =
+                upperCheck.StartsWith("LV ") || upperCheck.StartsWith("AT ") || upperCheck.StartsWith("ATFN ") || upperCheck.StartsWith("ONHO ");
 
-            // GIVEWAY/BEHIND/GW are compound only if they have 3+ tokens (condition form)
+            // GIVEWAY/BEHIND/GW are compound only when followed by callsign + TAXI or RWY command
             if (!isCompound && (upperCheck.StartsWith("GIVEWAY ") || upperCheck.StartsWith("BEHIND ") || upperCheck.StartsWith("GW ")))
             {
                 var tokens = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                isCompound = tokens.Length >= 3;
+                isCompound =
+                    tokens.Length >= 4
+                    && (tokens[2].Equals("TAXI", StringComparison.OrdinalIgnoreCase) || tokens[2].Equals("RWY", StringComparison.OrdinalIgnoreCase));
             }
         }
+
+        debugLog?.WriteLine($"[ParseCompound] isCompound={isCompound}");
 
         if (!isCompound)
         {
             // Single command — wrap in a compound structure
             var single = Parse(trimmed, fixes, aircraftRoute);
+            debugLog?.WriteLine($"[ParseCompound] single Parse => {(single is null ? "null" : single.GetType().Name)}");
             if (single is null)
             {
                 return null;
@@ -52,11 +63,14 @@ public static class CommandParser
         var blockStrings = trimmed.Split(';');
         var blocks = new List<ParsedBlock>();
 
-        foreach (var blockStr in blockStrings)
+        for (int i = 0; i < blockStrings.Length; i++)
         {
-            var parsed = ParseBlock(blockStr.Trim(), fixes, aircraftRoute);
+            var blockTrimmed = blockStrings[i].Trim();
+            debugLog?.WriteLine($"[ParseCompound] block[{i}]=\"{blockTrimmed}\"");
+            var parsed = ParseBlock(blockTrimmed, fixes, aircraftRoute, debugLog);
             if (parsed is null)
             {
+                debugLog?.WriteLine($"[ParseCompound] block[{i}] => FAILED");
                 return null;
             }
 
@@ -71,7 +85,7 @@ public static class CommandParser
         return new CompoundCommand(blocks);
     }
 
-    private static List<ParsedBlock>? ParseBlock(string blockStr, IFixLookup fixes, string? aircraftRoute)
+    private static List<ParsedBlock>? ParseBlock(string blockStr, IFixLookup fixes, string? aircraftRoute, TextWriter? debugLog = null)
     {
         if (string.IsNullOrWhiteSpace(blockStr))
         {
@@ -88,6 +102,7 @@ public static class CommandParser
             var condResult = ParseLvCondition(remaining, fixes);
             if (condResult is null)
             {
+                debugLog?.WriteLine($"  [ParseBlock] LV condition parse failed for \"{blockStr}\"");
                 return null;
             }
 
@@ -99,6 +114,7 @@ public static class CommandParser
             var condResult = ParseAtCondition(remaining, fixes);
             if (condResult is null)
             {
+                debugLog?.WriteLine($"  [ParseBlock] AT condition parse failed for \"{blockStr}\"");
                 return null;
             }
 
@@ -110,6 +126,7 @@ public static class CommandParser
             var condResult = ParseAtfnCondition(remaining);
             if (condResult is null)
             {
+                debugLog?.WriteLine($"  [ParseBlock] ATFN condition parse failed for \"{blockStr}\"");
                 return null;
             }
 
@@ -118,14 +135,78 @@ public static class CommandParser
         }
         else if (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW "))
         {
-            var condResult = ParseGiveWayCondition(remaining);
-            if (condResult is null)
+            // GW is a condition only when followed by callsign + TAXI or RWY command.
+            // "GW JBU987 TAXI T U" → condition. "GW JBU987 N" → standalone command with location.
+            var gwTokens = remaining.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (
+                gwTokens.Length < 3
+                || (!gwTokens[2].Equals("TAXI", StringComparison.OrdinalIgnoreCase) && !gwTokens[2].Equals("RWY", StringComparison.OrdinalIgnoreCase))
+            )
+            {
+                // Not a condition form — fall through to command list parsing
+                debugLog?.WriteLine($"  [ParseBlock] GW not in condition form (no TAXI/RWY after callsign), treating as command");
+            }
+            else
+            {
+                var condResult = ParseGiveWayCondition(remaining);
+                if (condResult is null)
+                {
+                    debugLog?.WriteLine($"  [ParseBlock] GW condition parse failed for \"{blockStr}\"");
+                    return null;
+                }
+
+                condition = condResult.Value.Condition;
+                remaining = condResult.Value.Remainder;
+                debugLog?.WriteLine(
+                    $"  [ParseBlock] GW condition => callsign={((GiveWayCondition)condition).TargetCallsign}, remainder=\"{remaining}\""
+                );
+            }
+        }
+        else if (upper.StartsWith("ONHO ") || upper.StartsWith("ONH "))
+        {
+            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 2)
             {
                 return null;
             }
 
-            condition = condResult.Value.Condition;
-            remaining = condResult.Value.Remainder;
+            remaining = tokens[1];
+            var remainingUpper = remaining.ToUpperInvariant();
+
+            // ONHO followed by another condition (AT/LV/ATFN) → two sequential blocks:
+            // block 1 = ONHO (no commands), block 2 = inner condition + commands
+            if (remainingUpper.StartsWith("AT ") || remainingUpper.StartsWith("LV ") || remainingUpper.StartsWith("ATFN "))
+            {
+                var innerBlocks = ParseBlock(remaining, fixes, aircraftRoute, debugLog);
+                if (innerBlocks is null)
+                {
+                    return null;
+                }
+
+                var onhoBlock = new ParsedBlock(new OnHandoffCondition(), []);
+                return [onhoBlock, .. innerBlocks];
+            }
+
+            condition = new OnHandoffCondition();
+        }
+
+        if (condition is not null)
+        {
+            debugLog?.WriteLine($"  [ParseBlock] condition={condition.GetType().Name}, remainder=\"{remaining}\"");
+
+            // Chained conditions: remainder starts with another AT/LV/ATFN → split into sequential blocks
+            var remUpper = remaining.ToUpperInvariant();
+            if (remUpper.StartsWith("AT ") || remUpper.StartsWith("LV ") || remUpper.StartsWith("ATFN "))
+            {
+                var innerBlocks = ParseBlock(remaining, fixes, aircraftRoute, debugLog);
+                if (innerBlocks is null)
+                {
+                    return null;
+                }
+
+                var outerBlock = new ParsedBlock(condition, []);
+                return [outerBlock, .. innerBlocks];
+            }
         }
 
         // Bare condition with no following command (e.g., "AT BRIXX")
@@ -140,7 +221,12 @@ public static class CommandParser
         }
 
         // After condition extraction, apply expansions to the remainder
-        var expanded = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(remaining)));
+        var expanded = CommandSchemeParser.ExpandMultiCommand(CommandSchemeParser.ExpandWait(CommandSchemeParser.ExpandSpeedUntil(remaining)), fixes);
+        if (expanded != remaining)
+        {
+            debugLog?.WriteLine($"  [ParseBlock] remainder expanded: \"{remaining}\" => \"{expanded}\"");
+        }
+
         if (expanded.Contains(';'))
         {
             // Expansion produced additional blocks — first gets this block's condition,
@@ -158,7 +244,7 @@ public static class CommandParser
 
                 if (i == 0)
                 {
-                    var cmds = ParseCommandList(sub, fixes, aircraftRoute);
+                    var cmds = ParseCommandList(sub, fixes, aircraftRoute, debugLog);
                     if (cmds is null)
                     {
                         return null;
@@ -169,7 +255,7 @@ public static class CommandParser
                 else
                 {
                     // Recursive call for subsequent blocks (they may have their own conditions)
-                    var subParsed = ParseBlock(sub, fixes, aircraftRoute);
+                    var subParsed = ParseBlock(sub, fixes, aircraftRoute, debugLog);
                     if (subParsed is null)
                     {
                         return null;
@@ -185,7 +271,7 @@ public static class CommandParser
         remaining = expanded;
 
         // Split remaining by ',' for parallel commands
-        var commands = ParseCommandList(remaining, fixes, aircraftRoute);
+        var commands = ParseCommandList(remaining, fixes, aircraftRoute, debugLog);
         if (commands is null)
         {
             return null;
@@ -194,11 +280,11 @@ public static class CommandParser
         return [new ParsedBlock(condition, commands)];
     }
 
-    private static List<ParsedCommand>? ParseCommandList(string input, IFixLookup fixes, string? aircraftRoute)
+    private static List<ParsedCommand>? ParseCommandList(string input, IFixLookup fixes, string? aircraftRoute, TextWriter? debugLog = null)
     {
-        // SAY/APREQ consume entire remainder as literal text — don't split on comma
+        // SAY consumes entire remainder as literal text — don't split on comma
         var upperCheck = input.TrimStart().ToUpperInvariant();
-        if (upperCheck.StartsWith("SAY ") || upperCheck.StartsWith("APREQ"))
+        if (upperCheck.StartsWith("SAY ") || upperCheck.StartsWith("SAYF "))
         {
             var cmd = Parse(input.Trim(), fixes, aircraftRoute);
             return cmd is not null ? [cmd] : null;
@@ -213,25 +299,30 @@ public static class CommandParser
             var cmd = Parse(trimmedCmd, fixes, aircraftRoute);
             if (cmd is not null)
             {
+                debugLog?.WriteLine($"    [ParseCommandList] \"{trimmedCmd}\" => {cmd.GetType().Name}");
                 commands.Add(cmd);
                 continue;
             }
 
             // Try expanding concatenated commands: "FH 270 CM 5000" → "FH 270, CM 5000"
-            var expanded = CommandSchemeParser.ExpandMultiCommand(trimmedCmd);
+            var expanded = CommandSchemeParser.ExpandMultiCommand(trimmedCmd, fixes);
             if (expanded == trimmedCmd)
             {
+                debugLog?.WriteLine($"    [ParseCommandList] \"{trimmedCmd}\" => FAILED (no expansion available)");
                 return null;
             }
 
+            debugLog?.WriteLine($"    [ParseCommandList] \"{trimmedCmd}\" expanded to \"{expanded}\"");
             foreach (var subCmd in expanded.Split(','))
             {
                 var parsed = Parse(subCmd.Trim(), fixes, aircraftRoute);
                 if (parsed is null)
                 {
+                    debugLog?.WriteLine($"    [ParseCommandList] sub \"{subCmd.Trim()}\" => FAILED");
                     return null;
                 }
 
+                debugLog?.WriteLine($"    [ParseCommandList] sub \"{subCmd.Trim()}\" => {parsed.GetType().Name}");
                 commands.Add(parsed);
             }
         }
@@ -321,212 +412,387 @@ public static class CommandParser
             return null;
         }
 
+        // T{n}L/T{n}R concatenated relative turns (e.g. T30L → LeftTurnCommand(30))
+        var upper = trimmed.ToUpperInvariant();
+        if (upper.Length >= 3 && upper[0] == 'T' && char.IsDigit(upper[1]) && upper[^1] is 'L' or 'R' && int.TryParse(upper[1..^1], out var relDeg))
+        {
+            return upper[^1] == 'L' ? new LeftTurnCommand(relDeg) : new RightTurnCommand(relDeg);
+        }
+
         var parts = trimmed.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var verb = parts[0].ToUpperInvariant();
         var arg = parts.Length > 1 ? parts[1].Trim() : null;
 
-        if (UnsupportedVerbs.Contains(verb))
+        // Legacy merged forms not in registry
+        switch (verb)
         {
-            return new UnsupportedCommand(trimmed);
+            case "CTOMRT":
+                return DepartureCommandParser.ParseCtoArg("MRT" + (arg is not null ? " " + arg : ""), fixes);
+            case "CTOMLT":
+                return DepartureCommandParser.ParseCtoArg("MLT" + (arg is not null ? " " + arg : ""), fixes);
+            case "CTORH" when arg is null:
+                return new ClearedForTakeoffCommand(new RunwayHeadingDeparture());
+            case "GAMRT" when arg is null:
+                return new GoAroundCommand(TrafficPattern: PatternDirection.Right);
+            case "GAMLT" when arg is null:
+                return new GoAroundCommand(TrafficPattern: PatternDirection.Left);
+            case "T" when arg is not null:
+                return ParseTurnWithDirection(arg);
         }
 
-        if (verb == "DCT" && fixes is not null)
+        // RWY {runway} [TAXI] {path} → rewrite to Taxi command
+        if (verb == "RWY" && arg is not null)
         {
-            return ParseDirectTo(arg, fixes, aircraftRoute);
+            var rewritten = RewriteRwyToTaxiArg(arg);
+            if (rewritten is not null)
+            {
+                return ParseByType(Taxi, rewritten, fixes, aircraftRoute, trimmed);
+            }
         }
 
-        if (verb == "DCTF" && fixes is not null)
+        // Resolve alias → CanonicalCommandType via registry
+        if (!CommandRegistry.AliasToCanonicType.TryGetValue(verb, out var type))
         {
-            return ParseForceDirectTo(arg, fixes, aircraftRoute);
+            return TryConcatenation(upper, fixes);
         }
 
-        if (verb == "ADCT" && fixes is not null)
-        {
-            return ParseAppendDirectTo(arg, fixes, aircraftRoute);
-        }
+        return ParseByType(type, arg, fixes, aircraftRoute, trimmed);
+    }
 
-        if (verb == "ADCTF" && fixes is not null)
+    private static ParsedCommand? ParseByType(CanonicalCommandType type, string? arg, IFixLookup? fixes, string? aircraftRoute, string rawInput)
+    {
+        return type switch
         {
-            return ParseAppendForceDirectTo(arg, fixes, aircraftRoute);
-        }
-
-        return verb switch
-        {
-            "FH" => ParseHeading(arg, h => new FlyHeadingCommand(h)),
-            "TL" => ParseHeading(arg, h => new TurnLeftCommand(h)),
-            "TR" => ParseHeading(arg, h => new TurnRightCommand(h)),
-            "LT" => ParseDegrees(arg, d => new LeftTurnCommand(d)),
-            "RT" => ParseDegrees(arg, d => new RightTurnCommand(d)),
-            "FPH" when arg is null => new FlyPresentHeadingCommand(),
-            "CM" => ParseAltitude(arg, fixes, a => new ClimbMaintainCommand(a)),
-            "DM" => ParseAltitude(arg, fixes, a => new DescendMaintainCommand(a)),
-            "SPD" => ParseSpeed(arg),
-            "RNS" or "NS" when arg is null => new ResumeNormalSpeedCommand(),
-            "RFAS" when arg is null => new ReduceToFinalApproachSpeedCommand(),
-            "DSR" when arg is null => new DeleteSpeedRestrictionsCommand(),
-            "EXP" => ParseExpedite(arg),
-            "NORM" when arg is null => new NormalRateCommand(),
-            "MACH" or "M" when arg is not null => ParseMach(arg),
-            "FHN" => ParseHeading(arg, h => new ForceHeadingCommand(h)),
-            "CMN" => ParseAltitude(arg, fixes, a => new ForceAltitudeCommand(a)),
-            "SPDN" or "SLN" => ParseForceSpeed(arg),
-            "WARP" => ParseWarp(arg, fixes),
-            "WARPG" when arg is not null => ParseWarpGround(arg),
-            "SQ" or "SQUAWK" => ParseSquawkOrReset(arg),
-            "SQVFR" or "SQV" when arg is null => new SquawkVfrCommand(),
-            "SQNORM" or "SN" or "SQA" or "SQON" when arg is null => new SquawkNormalCommand(),
-            "SQSBY" or "SQS" when arg is null => new SquawkStandbyCommand(),
-            "SQI" or "SQID" or "ID" when arg is null => new IdentCommand(),
-            "IDENT" when arg is null => new IdentCommand(),
-            "RANDSQ" when arg is null => new RandomSquawkCommand(),
-            "SQALL" when arg is null => new SquawkAllCommand(),
-            "SNALL" when arg is null => new SquawkNormalAllCommand(),
-            "SSALL" when arg is null => new SquawkStandbyAllCommand(),
-            "DEL" when arg is null => new DeleteCommand(),
-            "PAUSE" when arg is null => new PauseCommand(),
-            "UNPAUSE" when arg is null => new UnpauseCommand(),
-            "SIMRATE" => ParseInt(arg, r => new SimRateCommand(r)),
-            "SPAWN" when arg is null => new SpawnNowCommand(),
-            "SPAWNDELAY" => ParseInt(arg, s => new SpawnDelayCommand(s)),
-            "DELAY" or "WAIT" => ParseWaitSeconds(arg),
-            "WAITD" => ParseWaitDistance(arg),
-            // Tower commands
-            "LUAW" or "POS" or "LU" or "PH" when arg is null => new LineUpAndWaitCommand(),
-            "CTO" => DepartureCommandParser.ParseCtoArg(arg, fixes),
-            "CTOMRT" => DepartureCommandParser.ParseCtoArg("MRT" + (arg is not null ? " " + arg : ""), fixes),
-            "CTOMLT" => DepartureCommandParser.ParseCtoArg("MLT" + (arg is not null ? " " + arg : ""), fixes),
-            "CTOC" when arg is null => new CancelTakeoffClearanceCommand(),
-            "GA" => ParseGoAround(arg, fixes),
-            "GAMRT" when arg is null => new GoAroundCommand(TrafficPattern: PatternDirection.Right),
-            "GAMLT" when arg is null => new GoAroundCommand(TrafficPattern: PatternDirection.Left),
-            "CTL" when arg is null or "NODEL" => new ClearedToLandCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true),
-            "LAHSO" when arg is not null => new LandAndHoldShortCommand(arg.Trim().ToUpperInvariant()),
-            "EL" when arg is null or "NODEL" => new ExitLeftCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true),
-            "ER" when arg is null or "NODEL" => new ExitRightCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true),
-            "EXIT" when arg is not null => GroundCommandParser.ParseExitTaxiway(arg),
-            // Pattern commands
-            "ELD" => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterLeftDownwindCommand(rwy)),
-            "ERD" => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterRightDownwindCommand(rwy)),
-            "ELC" => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterLeftCrosswindCommand(rwy)),
-            "ERC" => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterRightCrosswindCommand(rwy)),
-            "ELB" => DepartureCommandParser.ParsePatternBaseEntry(arg),
-            "ERB" => DepartureCommandParser.ParsePatternBaseEntry(arg, right: true),
-            "EF" => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterFinalCommand(rwy)),
-            "MLT" => new MakeLeftTrafficCommand(arg?.ToUpperInvariant()),
-            "MRT" => new MakeRightTrafficCommand(arg?.ToUpperInvariant()),
-            "TC" when arg is null => new TurnCrosswindCommand(),
-            "TD" when arg is null => new TurnDownwindCommand(),
-            "TB" when arg is null => new TurnBaseCommand(),
-            "EXT" when arg is null => new ExtendDownwindCommand(),
-            "SA" or "MSA" when arg is null => new MakeShortApproachCommand(),
-            "MNA" when arg is null => new MakeNormalApproachCommand(),
-            "NO270" when arg is null => new Cancel270Command(),
-            "PS" or "PATTSIZE" when arg is not null => ParsePatternSize(arg),
-            "MLS" => ParseSTurns(arg, TurnDirection.Left),
-            "MRS" => ParseSTurns(arg, TurnDirection.Right),
-            "P270" or "PLAN270" when arg is null => new Plan270Command(),
-            "L360" when arg is null => new MakeLeft360Command(),
-            "R360" when arg is null => new MakeRight360Command(),
-            "L270" when arg is null => new MakeLeft270Command(),
-            "R270" when arg is null => new MakeRight270Command(),
-            "CA" or "CIRCLE" when arg is null => new CircleAirportCommand(),
-            "SEQ" => ParseSequence(arg),
-            // Option approach / special ops commands
-            "TG" => new TouchAndGoCommand(arg?.Trim().ToUpperInvariant()),
-            "SG" when arg is null => new StopAndGoCommand(),
-            "LA" when arg is null => new LowApproachCommand(),
-            "COPT" when arg is null => new ClearedForOptionCommand(),
-            // Hold commands
-            "HPPL" when arg is null => new HoldPresentPosition360Command(TurnDirection.Left),
-            "HPPR" when arg is null => new HoldPresentPosition360Command(TurnDirection.Right),
-            "HPP" when arg is null => new HoldPresentPositionHoverCommand(),
-            "HFIXL" => ParseHoldAtFix(arg, fixes, TurnDirection.Left),
-            "HFIXR" => ParseHoldAtFix(arg, fixes, TurnDirection.Right),
-            "HFIX" => ParseHoldAtFixHover(arg, fixes),
-            // Helicopter commands
-            "ATXI" => new AirTaxiCommand(arg?.Trim().ToUpperInvariant()),
-            "LAND" when arg is not null => ParseLand(arg),
-            "CTOPP" when arg is null => new ClearedTakeoffPresentCommand(),
-            // Ground commands
-            "PUSH" => GroundCommandParser.ParsePushback(arg),
-            "TAXI" => GroundCommandParser.ParseTaxi(arg),
-            "RWY" => GroundCommandParser.ParseRwyTaxi(arg),
-            "HOLD" or "HP" when arg is null => new HoldPositionCommand(),
-            "HOLD" when arg is not null => ApproachCommandParser.ParseHold(arg, fixes),
-            "RES" or "RESUME" when arg is null => new ResumeCommand(),
-            "CROSS" => GroundCommandParser.ParseCross(arg),
-            "HS" => GroundCommandParser.ParseHoldShort(arg),
-            "FOLLOW" or "FOL" => GroundCommandParser.ParseFollow(arg),
-            "GIVEWAY" or "BEHIND" or "GW" => GroundCommandParser.ParseGiveWay(arg),
-            "TAXIALL" => GroundCommandParser.ParseTaxiAll(arg),
-            "BREAK" when arg is null => new BreakConflictCommand(),
-            "GO" when arg is null => new GoCommand(),
-            // Approach commands
-            "EAPP" or "EXPECT" => ParseExpectApproach(arg),
-            "CAPP" => ApproachCommandParser.ParseCapp(arg, fixes, false),
-            "CAPPF" => ApproachCommandParser.ParseCapp(arg, fixes, true),
-            "CAPPSI" => ApproachCommandParser.ParseCappSi(arg, fixes),
-            "JAPP" => ApproachCommandParser.ParseJapp(arg, fixes, false),
-            "JAPPF" => ApproachCommandParser.ParseJapp(arg, fixes, true),
-            "JAPPSI" => ApproachCommandParser.ParseJappSi(arg, fixes),
-            "JFAC" or "JLOC" or "JF" => ApproachCommandParser.ParseJfac(arg),
-            "JARR" or "ARR" or "JSTAR" or "STAR" => ApproachCommandParser.ParseJarr(arg),
-            "JAWY" => ApproachCommandParser.ParseJawy(arg),
-            "JRADO" or "JRAD" => ApproachCommandParser.ParseJrado(arg, fixes),
-            "JRADI" or "JICRS" => ApproachCommandParser.ParseJradi(arg, fixes),
-            "HOLDP" => ApproachCommandParser.ParseHold(arg, fixes),
-            "PTAC" => ApproachCommandParser.ParsePtac(arg, fixes),
-            "CVIA" => ApproachCommandParser.ParseCvia(arg),
-            "DVIA" => ApproachCommandParser.ParseDvia(arg, fixes),
-            "CFIX" or "CF" => ApproachCommandParser.ParseCfix(arg, fixes),
-            "DEPART" or "DEP" => ApproachCommandParser.ParseDepart(arg, fixes),
-            "APPS" => ApproachCommandParser.ParseApps(arg),
-            "CVA" or "VISUAL" => ApproachCommandParser.ParseCva(arg),
-            "RFIS" when arg is null => new ReportFieldInSightCommand(),
-            "RTIS" => new ReportTrafficInSightCommand(arg?.Trim().ToUpperInvariant()),
-            // Track commands
-            "AS" => ParseTcpArg(arg, tcp => new SetActivePositionCommand(tcp)),
-            "TRACK" => new TrackAircraftCommand(arg?.Trim().ToUpperInvariant()),
-            "DROP" when arg is null => new DropTrackCommand(),
-            "HO" => ParseTcpArg(arg, tcp => new InitiateHandoffCommand(tcp)),
-            "HOF" => ParseTcpArg(arg, tcp => new ForceHandoffCommand(tcp)),
-            "ACCEPT" or "A" => new AcceptHandoffCommand(arg?.Trim().ToUpperInvariant()),
-            "CANCEL" when arg is null => new CancelHandoffCommand(),
-            "ACCEPTALL" when arg is null => new AcceptAllHandoffsCommand(),
-            "HOALL" => ParseTcpArg(arg, tcp => new InitiateHandoffAllCommand(tcp)),
-            "PO" => new PointOutCommand(arg?.Trim().ToUpperInvariant()),
-            "OK" when arg is null => new AcknowledgeCommand(),
-            "ANNOTATE" or "AN" or "BOX" when arg is not null => ParseStripAnnotate(arg),
-            "STRIP" when arg is not null => new StripPushCommand(arg.Trim().ToUpperInvariant()),
-            "SP" or "SP1" or "SCRATCHPAD" when arg is not null => new Scratchpad1Command(arg.Trim().ToUpperInvariant()),
-            "SP2" when arg is not null => new Scratchpad2Command(arg.Trim().ToUpperInvariant()),
-            "TEMPALT" or "TA" or "TEMP" or "QQ" => ParseAltitudeHundreds(arg, h => new TemporaryAltitudeCommand(h)),
-            "CRUISE" or "QZ" => ParseAltitudeHundreds(arg, h => new CruiseCommand(h)),
-            "ONHO" or "ONH" when arg is null => new OnHandoffCommand(),
-            "SAY" when arg is not null => new SayCommand(arg),
-            "APREQ" => new SayCommand("APREQ" + (arg is not null ? " " + arg : "")),
-            "SSPD" when arg is null => new SaySpeedCommand(),
-            "SS" when arg is null => new SquawkStandbyCommand(),
-            "DELAT" when arg is null => new DeleteQueuedCommand(),
-            "DELAT" => int.TryParse(arg, out var delAtBlock) ? new DeleteQueuedCommand(delAtBlock) : null,
-            "SHOWAT" when arg is null => new ShowQueuedCommand(),
-            // Coordination commands
-            "RD" => new CoordinationReleaseCommand(arg?.Trim().ToUpperInvariant()),
-            "RDH" => ParseHoldArgs(arg),
-            "RDR" => new CoordinationRecallCommand(arg?.Trim().ToUpperInvariant()),
-            "RDACK" => new CoordinationAcknowledgeCommand(arg?.Trim().ToUpperInvariant()),
-            "RDAUTO" => ParseOptionalListId(arg, listId => new CoordinationAutoAckCommand(listId)),
+            // Heading
+            FlyHeading => ParseHeading(arg, h => new FlyHeadingCommand(h)),
+            TurnLeft => ParseHeading(arg, h => new TurnLeftCommand(h)),
+            TurnRight => ParseHeading(arg, h => new TurnRightCommand(h)),
+            RelativeLeft => ParseDegrees(arg, d => new LeftTurnCommand(d)),
+            RelativeRight => ParseDegrees(arg, d => new RightTurnCommand(d)),
+            FlyPresentHeading when arg is null => new FlyPresentHeadingCommand(),
+            // Altitude / Speed
+            ClimbMaintain => ParseAltitude(arg, fixes, a => new ClimbMaintainCommand(a)),
+            DescendMaintain => ParseAltitude(arg, fixes, a => new DescendMaintainCommand(a)),
+            Speed => ParseSpeed(arg),
+            ResumeNormalSpeed when arg is null => new ResumeNormalSpeedCommand(),
+            ReduceToFinalApproachSpeed when arg is null => new ReduceToFinalApproachSpeedCommand(),
+            DeleteSpeedRestrictions when arg is null => new DeleteSpeedRestrictionsCommand(),
+            Expedite => ParseExpedite(arg),
+            NormalRate when arg is null => new NormalRateCommand(),
+            Mach when arg is not null => ParseMach(arg),
+            // Force commands
+            ForceHeading => ParseHeading(arg, h => new ForceHeadingCommand(h)),
+            ForceAltitude => ParseAltitude(arg, fixes, a => new ForceAltitudeCommand(a)),
+            ForceSpeed => ParseForceSpeed(arg),
+            Warp => ParseWarp(arg, fixes),
+            WarpGround when arg is not null => ParseWarpGround(arg),
+            // Transponder
+            Squawk => ParseSquawkOrReset(arg),
+            SquawkVfr when arg is null or "1200" => new SquawkVfrCommand(),
+            SquawkNormal when arg is null => new SquawkNormalCommand(),
+            SquawkStandby when arg is null => new SquawkStandbyCommand(),
+            Ident when arg is null => new IdentCommand(),
+            RandomSquawk when arg is null => new RandomSquawkCommand(),
+            SquawkAll when arg is null => new SquawkAllCommand(),
+            SquawkNormalAll when arg is null => new SquawkNormalAllCommand(),
+            SquawkStandbyAll when arg is null => new SquawkStandbyAllCommand(),
+            // Navigation
+            DirectTo when fixes is not null => ParseDirectTo(arg, fixes, aircraftRoute),
+            ForceDirectTo when fixes is not null => ParseForceDirectTo(arg, fixes, aircraftRoute),
+            AppendDirectTo when fixes is not null => ParseAppendDirectTo(arg, fixes, aircraftRoute),
+            AppendForceDirectTo when fixes is not null => ParseAppendForceDirectTo(arg, fixes, aircraftRoute),
+            // Sim control
+            Delete when arg is null => new DeleteCommand(),
+            Pause when arg is null => new PauseCommand(),
+            Unpause when arg is null => new UnpauseCommand(),
+            SimRate => ParseInt(arg, r => new SimRateCommand(r)),
+            Wait => ParseWaitSeconds(arg),
+            WaitDistance => ParseWaitDistance(arg),
+            SpawnNow when arg is null => new SpawnNowCommand(),
+            SpawnDelay => ParseInt(arg, s => new SpawnDelayCommand(s)),
+            Add when arg is not null => new AddAircraftCommand(arg),
+            // Tower
+            LineUpAndWait when arg is null => new LineUpAndWaitCommand(),
+            ClearedForTakeoff => DepartureCommandParser.ParseCtoArg(arg, fixes),
+            CancelTakeoffClearance when arg is null => new CancelTakeoffClearanceCommand(),
+            GoAround => ParseGoAround(arg, fixes),
+            ClearedToLand when arg is null or "NODEL" => new ClearedToLandCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true),
+            LandAndHoldShort when arg is not null => new LandAndHoldShortCommand(arg.Trim().ToUpperInvariant()),
+            CancelLandingClearance when arg is null => new CancelLandingClearanceCommand(),
+            Sequence => ParseSequence(arg),
+            // Pattern
+            EnterLeftDownwind => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterLeftDownwindCommand(rwy)),
+            EnterRightDownwind => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterRightDownwindCommand(rwy)),
+            EnterLeftCrosswind => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterLeftCrosswindCommand(rwy)),
+            EnterRightCrosswind => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterRightCrosswindCommand(rwy)),
+            EnterLeftBase => DepartureCommandParser.ParsePatternBaseEntry(arg),
+            EnterRightBase => DepartureCommandParser.ParsePatternBaseEntry(arg, right: true),
+            EnterFinal => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterFinalCommand(rwy)),
+            MakeLeftTraffic => new MakeLeftTrafficCommand(arg?.ToUpperInvariant()),
+            MakeRightTraffic => new MakeRightTrafficCommand(arg?.ToUpperInvariant()),
+            TurnCrosswind when arg is null => new TurnCrosswindCommand(),
+            TurnDownwind when arg is null => new TurnDownwindCommand(),
+            TurnBase when arg is null => new TurnBaseCommand(),
+            ExtendDownwind when arg is null => new ExtendDownwindCommand(),
+            MakeShortApproach when arg is null => new MakeShortApproachCommand(),
+            MakeNormalApproach when arg is null => new MakeNormalApproachCommand(),
+            Cancel270 when arg is null => new Cancel270Command(),
+            PatternSize when arg is not null => ParsePatternSize(arg),
+            MakeLeftSTurns => ParseSTurns(arg, TurnDirection.Left),
+            MakeRightSTurns => ParseSTurns(arg, TurnDirection.Right),
+            Plan270 when arg is null => new Plan270Command(),
+            MakeLeft360 when arg is null => new MakeLeft360Command(),
+            MakeRight360 when arg is null => new MakeRight360Command(),
+            MakeLeft270 when arg is null => new MakeLeft270Command(),
+            MakeRight270 when arg is null => new MakeRight270Command(),
+            CircleAirport when arg is null => new CircleAirportCommand(),
+            // Option / special ops
+            TouchAndGo => new TouchAndGoCommand(arg?.Trim().ToUpperInvariant()),
+            StopAndGo when arg is null => new StopAndGoCommand(),
+            LowApproach when arg is null => new LowApproachCommand(),
+            ClearedForOption when arg is null => new ClearedForOptionCommand(),
+            // Hold
+            HoldPresentPosition360Left when arg is null => new HoldPresentPosition360Command(TurnDirection.Left),
+            HoldPresentPosition360Right when arg is null => new HoldPresentPosition360Command(TurnDirection.Right),
+            HoldPresentPositionHover when arg is null => new HoldPresentPositionHoverCommand(),
+            HoldAtFixLeft => ParseHoldAtFix(arg, fixes, TurnDirection.Left),
+            HoldAtFixRight => ParseHoldAtFix(arg, fixes, TurnDirection.Right),
+            HoldAtFixHover => ParseHoldAtFixHover(arg, fixes),
+            // Helicopter
+            AirTaxi => new AirTaxiCommand(arg?.Trim().ToUpperInvariant()),
+            Land when arg is not null => ParseLand(arg),
+            ClearedTakeoffPresent when arg is null => new ClearedTakeoffPresentCommand(),
+            // Ground — HOLD is overloaded: bare = HoldPosition, with args = HoldingPattern
+            Pushback => GroundCommandParser.ParsePushback(arg),
+            Taxi => GroundCommandParser.ParseTaxi(arg),
+            AssignRunway => GroundCommandParser.ParseRwyTaxi(arg),
+            HoldPosition when arg is null => new HoldPositionCommand(),
+            HoldPosition when arg is not null => ApproachCommandParser.ParseHold(arg, fixes),
+            Resume when arg is null => new ResumeCommand(),
+            CrossRunway => GroundCommandParser.ParseCross(arg),
+            HoldShort => GroundCommandParser.ParseHoldShort(arg),
+            Follow => GroundCommandParser.ParseFollow(arg),
+            GiveWay => GroundCommandParser.ParseGiveWay(arg),
+            TaxiAll => GroundCommandParser.ParseTaxiAll(arg),
+            BreakConflict when arg is null => new BreakConflictCommand(),
+            CanonicalCommandType.Go when arg is null => new GoCommand(),
+            ExitLeft when arg is null or "NODEL" => new ExitLeftCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true),
+            ExitLeft => new ExitLeftCommand(false, arg?.Trim().ToUpperInvariant()),
+            ExitRight when arg is null or "NODEL" => new ExitRightCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true),
+            ExitRight => new ExitRightCommand(false, arg?.Trim().ToUpperInvariant()),
+            ExitTaxiway when arg is not null => GroundCommandParser.ParseExitTaxiway(arg),
+            // Approach
+            ExpectApproach => ParseExpectApproach(arg),
+            ClearedApproach => ApproachCommandParser.ParseCapp(arg, fixes, false),
+            ClearedApproachForce => ApproachCommandParser.ParseCapp(arg, fixes, true),
+            ClearedApproachStraightIn => ApproachCommandParser.ParseCappSi(arg, fixes),
+            JoinApproach => ApproachCommandParser.ParseJapp(arg, fixes, false),
+            JoinApproachForce => ApproachCommandParser.ParseJapp(arg, fixes, true),
+            JoinApproachStraightIn => ApproachCommandParser.ParseJappSi(arg, fixes),
+            JoinFinalApproachCourse => ApproachCommandParser.ParseJfac(arg),
+            JoinStar => ApproachCommandParser.ParseJarr(arg),
+            JoinAirway => ApproachCommandParser.ParseJawy(arg),
+            JoinRadialOutbound => ApproachCommandParser.ParseJrado(arg, fixes),
+            JoinRadialInbound => ApproachCommandParser.ParseJradi(arg, fixes),
+            HoldingPattern => ApproachCommandParser.ParseHold(arg, fixes),
+            PositionTurnAltitudeClearance => ApproachCommandParser.ParsePtac(arg, fixes),
+            ClimbVia => ApproachCommandParser.ParseCvia(arg),
+            DescendVia => ApproachCommandParser.ParseDvia(arg, fixes),
+            CrossFix => ApproachCommandParser.ParseCfix(arg, fixes),
+            DepartFix => ApproachCommandParser.ParseDepart(arg, fixes),
+            ListApproaches => ApproachCommandParser.ParseApps(arg),
+            ClearedVisualApproach => ApproachCommandParser.ParseCva(arg),
+            ReportFieldInSight when arg is null => new ReportFieldInSightCommand(),
+            ReportTrafficInSight => new ReportTrafficInSightCommand(arg?.Trim().ToUpperInvariant()),
+            // Track operations
+            SetActivePosition => ParseTcpArg(arg, tcp => new SetActivePositionCommand(tcp)),
+            TrackAircraft => new TrackAircraftCommand(arg?.Trim().ToUpperInvariant()),
+            DropTrack when arg is null => new DropTrackCommand(),
+            InitiateHandoff when arg is null => new InitiateHandoffCommand(null),
+            InitiateHandoff => ParseTcpArg(arg, tcp => new InitiateHandoffCommand(tcp)),
+            ForceHandoff => ParseTcpArg(arg, tcp => new ForceHandoffCommand(tcp)),
+            AcceptHandoff => new AcceptHandoffCommand(arg?.Trim().ToUpperInvariant()),
+            CancelHandoff when arg is null => new CancelHandoffCommand(),
+            AcceptAllHandoffs when arg is null => new AcceptAllHandoffsCommand(),
+            InitiateHandoffAll => ParseTcpArg(arg, tcp => new InitiateHandoffAllCommand(tcp)),
+            PointOut => new PointOutCommand(arg?.Trim().ToUpperInvariant()),
+            Acknowledge when arg is null => new AcknowledgeCommand(),
+            // Data operations
+            Annotate when arg is not null => ParseStripAnnotate(arg),
+            StripPush when arg is not null => new StripPushCommand(arg.Trim().ToUpperInvariant()),
+            Scratchpad1 when arg is not null => new Scratchpad1Command(arg.Trim().ToUpperInvariant()),
+            Scratchpad2 when arg is not null => new Scratchpad2Command(arg.Trim().ToUpperInvariant()),
+            TemporaryAltitude when arg is null => new TemporaryAltitudeCommand(0),
+            TemporaryAltitude when int.TryParse(arg, out var taVal) && taVal == 0 => new TemporaryAltitudeCommand(0),
+            TemporaryAltitude => ParseAltitudeHundreds(arg, h => new TemporaryAltitudeCommand(h)),
+            Cruise => ParseAltitudeHundreds(arg, h => new CruiseCommand(h)),
+            OnHandoff when arg is null => new OnHandoffCommand(),
+            // Broadcast
+            Say when arg is not null => new SayCommand(arg),
+            SaySpeed when arg is null => new SaySpeedCommand(),
+            // Queue
+            DeleteQueuedCommands when arg is null => new DeleteQueuedCommand(),
+            DeleteQueuedCommands => int.TryParse(arg, out var delAtBlock) ? new DeleteQueuedCommand(delAtBlock) : null,
+            ShowQueuedCommands when arg is null => new ShowQueuedCommand(),
+            // Coordination
+            CoordinationRelease => new CoordinationReleaseCommand(arg?.Trim().ToUpperInvariant()),
+            CoordinationHold => ParseHoldArgs(arg),
+            CoordinationRecall => new CoordinationRecallCommand(arg?.Trim().ToUpperInvariant()),
+            CoordinationAcknowledge => new CoordinationAcknowledgeCommand(arg?.Trim().ToUpperInvariant()),
+            CoordinationAutoAck => ParseOptionalListId(arg, listId => new CoordinationAutoAckCommand(listId)),
             // Consolidation
-            "CON" => ParseConsolidate(arg, false),
-            "CON+" => ParseConsolidate(arg, true),
-            "DECON" => ParseDeconsolidate(arg),
-            // Flight plan amendments
-            "APT" or "DEST" => ParseChangeDestination(arg),
-            "FP" => ParseCreateFlightPlan(arg, "IFR"),
-            "VP" => ParseCreateFlightPlan(arg, "VFR"),
-            "REMARKS" or "REM" when arg is not null => new SetRemarksCommand(arg),
-            _ => null,
+            Consolidate => ParseConsolidate(arg, false),
+            ConsolidateFull => ParseConsolidate(arg, true),
+            Deconsolidate => ParseDeconsolidate(arg),
+            // Flight plan
+            ChangeDestination => ParseChangeDestination(arg),
+            CreateFlightPlan => ParseCreateFlightPlan(arg, "IFR"),
+            CreateVfrFlightPlan => ParseCreateFlightPlan(arg, "VFR"),
+            SetRemarks when arg is not null => new SetRemarksCommand(arg),
+            // Verbs with arg-required guards: return null when arg missing (invalid usage)
+            Mach
+            or WarpGround
+            or LandAndHoldShort
+            or PatternSize
+            or Land
+            or ExitTaxiway
+            or Annotate
+            or StripPush
+            or Scratchpad1
+            or Scratchpad2
+            or Say
+            or SetRemarks
+            or Add when arg is null => null,
+            // Registry-known but not yet handled
+            _ => new UnsupportedCommand(rawInput),
         };
+    }
+
+    /// <summary>
+    /// Concatenation fallback: tries prefix-matching registry aliases when verb+digits
+    /// are written without a space (e.g. FH270, CM240, SQ1234).
+    /// </summary>
+    private static ParsedCommand? TryConcatenation(string upperInput, IFixLookup? fixes)
+    {
+        foreach (var (alias, type) in ConcatenationCandidates.Value)
+        {
+            if (!upperInput.StartsWith(alias, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var remainder = upperInput[alias.Length..];
+            if (remainder.Length == 0)
+            {
+                continue;
+            }
+
+            bool isAltitudeCommand = type is ClimbMaintain or DescendMaintain;
+            if (isAltitudeCommand ? !IsAltitudeArg(remainder) : !int.TryParse(remainder, out _))
+            {
+                continue;
+            }
+
+            return ParseByType(type, remainder, fixes, null, upperInput);
+        }
+
+        return null;
+    }
+
+    private static readonly Lazy<List<(string Alias, CanonicalCommandType Type)>> ConcatenationCandidates = new(BuildConcatenationCandidates);
+
+    private static List<(string Alias, CanonicalCommandType Type)> BuildConcatenationCandidates()
+    {
+        var candidates = new List<(string Alias, CanonicalCommandType Type)>();
+        foreach (var def in CommandRegistry.All.Values)
+        {
+            if (def.ArgMode == ArgMode.None)
+            {
+                continue;
+            }
+
+            if (IsConcatenationExcluded(def.Type))
+            {
+                continue;
+            }
+
+            foreach (var alias in def.DefaultAliases)
+            {
+                candidates.Add((alias.ToUpperInvariant(), def.Type));
+            }
+        }
+
+        candidates.Sort((a, b) => b.Alias.Length.CompareTo(a.Alias.Length));
+        return candidates;
+    }
+
+    internal static bool IsConcatenationExcluded(CanonicalCommandType type)
+    {
+        return type
+            is RelativeLeft
+                or RelativeRight
+                or Pause
+                or Unpause
+                or SimRate
+                or Wait
+                or WaitDistance
+                or Add
+                or DirectTo
+                or AppendDirectTo
+                or HoldAtFixLeft
+                or HoldAtFixRight
+                or HoldAtFixHover
+                or SpawnNow
+                or SpawnDelay
+                or Taxi
+                or CrossRunway
+                or HoldShort
+                or Follow
+                or Say;
+    }
+
+    internal static bool IsAltitudeArg(string arg)
+    {
+        if (int.TryParse(arg, out _))
+        {
+            return true;
+        }
+
+        var plusIndex = arg.IndexOf('+');
+        if (plusIndex <= 0 || plusIndex == arg.Length - 1)
+        {
+            return false;
+        }
+
+        return int.TryParse(arg[(plusIndex + 1)..], out _);
+    }
+
+    /// <summary>
+    /// Rewrites "RWY {runway} [TAXI] {path}" to "{path} RWY {runway}" for Taxi command.
+    /// </summary>
+    internal static string? RewriteRwyToTaxiArg(string arg)
+    {
+        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length < 2)
+        {
+            return null;
+        }
+
+        var runway = tokens[0].ToUpperInvariant();
+        int startIdx = 1;
+
+        if (startIdx < tokens.Length && tokens[startIdx].Equals("TAXI", StringComparison.OrdinalIgnoreCase))
+        {
+            startIdx++;
+        }
+
+        if (startIdx >= tokens.Length)
+        {
+            return null;
+        }
+
+        var remaining = string.Join(" ", tokens[startIdx..]);
+        return $"{remaining} RWY {runway}";
     }
 
     /// <summary>
@@ -889,7 +1155,7 @@ public static class CommandParser
 
     private static ParsedCommand? ParseWaitSeconds(string? arg)
     {
-        if (arg is null || !int.TryParse(arg, out var seconds) || seconds <= 0)
+        if (arg is null || !int.TryParse(arg, out var seconds) || seconds < 0)
         {
             return null;
         }
@@ -920,6 +1186,36 @@ public static class CommandParser
         }
 
         return factory(heading);
+    }
+
+    /// <summary>
+    /// Parses "T {degrees} {direction}" — ATCTrainer turn command.
+    /// Direction: L, LEFT, R, RIGHT.
+    /// </summary>
+    private static ParsedCommand? ParseTurnWithDirection(string? arg)
+    {
+        if (arg is null)
+        {
+            return null;
+        }
+
+        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2 || !int.TryParse(parts[0], out var degrees))
+        {
+            return null;
+        }
+
+        if (degrees < 1 || degrees > 359)
+        {
+            return null;
+        }
+
+        return parts[1].ToUpperInvariant() switch
+        {
+            "L" or "LEFT" => new LeftTurnCommand(degrees),
+            "R" or "RIGHT" => new RightTurnCommand(degrees),
+            _ => null,
+        };
     }
 
     private static ParsedCommand? ParseDegrees(string? arg, Func<int, ParsedCommand> factory)
@@ -1052,11 +1348,26 @@ public static class CommandParser
             return new SpeedCommand(ceilSpeed, SpeedModifier.Ceiling);
         }
 
-        if (!int.TryParse(arg, out var speed))
+        // SPD M.80 or SPD M80 → delegate to Mach
+        if (arg.StartsWith('M') || arg.StartsWith('m'))
+        {
+            return ParseMach(arg[1..]);
+        }
+
+        // SPD {speed} {termination_fix} — speed until waypoint, then resume normal
+        var speedParts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        if (!int.TryParse(speedParts[0], out var speed))
         {
             return null;
         }
 
+        if (speedParts.Length == 1)
+        {
+            return new SpeedCommand(speed);
+        }
+
+        // Second token is a termination waypoint — ignored for now (not yet modeled),
+        // but parse successfully so scenario validation passes
         return new SpeedCommand(speed);
     }
 

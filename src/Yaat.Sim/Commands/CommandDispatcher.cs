@@ -1161,6 +1161,7 @@ public static class CommandDispatcher
             },
             GiveWayCondition gw => new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = gw.TargetCallsign },
             DistanceFinalCondition df => new BlockTrigger { Type = BlockTriggerType.DistanceFinal, DistanceFinalNm = df.DistanceNm },
+            OnHandoffCondition => new BlockTrigger { Type = BlockTriggerType.OnHandoff },
             _ => null,
         };
     }

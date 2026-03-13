@@ -12,6 +12,12 @@ public sealed class SimulationWorld
     public WeatherProfile? Weather { get; set; }
     public AirportGroundLayout? GroundLayout { get; set; }
 
+    /// <summary>
+    /// Student TCP. Handoff accepts to this position do not trigger ONHO conditions.
+    /// Set from the scenario's <c>studentPositionId</c> → resolved <see cref="Tcp"/>.
+    /// </summary>
+    public Tcp? StudentTcp { get; set; }
+
     public void AddAircraft(AircraftState aircraft)
     {
         lock (_lock)
@@ -66,8 +72,15 @@ public sealed class SimulationWorld
             GroundConflictDetector.ApplySpeedLimits(_aircraft, GroundLayout, deltaSeconds);
 
             var weather = Weather;
+            var studentTcp = StudentTcp;
             foreach (var ac in _aircraft)
             {
+                // Student TCP accepts don't trigger ONHO conditions
+                if (ac.HandoffAccepted && studentTcp is not null && ac.Owner?.IsTcp(studentTcp) == true)
+                {
+                    ac.HandoffAccepted = false;
+                }
+
                 preTick?.Invoke(ac, deltaSeconds);
                 FlightPhysics.Update(ac, deltaSeconds, Lookup, weather);
             }

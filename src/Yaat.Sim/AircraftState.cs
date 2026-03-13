@@ -79,7 +79,7 @@ public class AircraftState
 
     /// <summary>
     /// Cached ground layout for the airport this aircraft is currently at (or about to land at).
-    /// Set at lifecycle events: spawn, CTL, flight plan amend. Used by phases and commands.
+    /// Set at lifecycle events: spawn, CLAND, flight plan amend. Used by phases and commands.
     /// </summary>
     public AirportGroundLayout? GroundLayout { get; set; }
     public string Route { get; set; } = "";
@@ -142,6 +142,7 @@ public class AircraftState
     public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }
     public bool OnHandoff { get; set; }
+    public bool HandoffAccepted { get; set; }
     public double? HandoffInitiatedAt { get; set; }
     public int? AssignedAltitude { get; set; }
 

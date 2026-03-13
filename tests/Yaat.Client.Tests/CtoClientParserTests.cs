@@ -149,9 +149,9 @@ public class CtoClientParserTests
     [Fact]
     public void ClimbMaintain_ViceAlias_Concatenated()
     {
+        // C was removed as CM alias for ATCTrainer compatibility (C is not an ATCTrainer alias)
         var result = CommandSchemeParser.ParseCompound("C240", _scheme);
-        Assert.NotNull(result);
-        Assert.Equal("CM 240", result.CanonicalString);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -173,9 +173,9 @@ public class CtoClientParserTests
     [Fact]
     public void Speed_ViceAlias_Concatenated()
     {
+        // S was removed as SPD alias for ATCTrainer compatibility (S is not an ATCTrainer alias)
         var result = CommandSchemeParser.ParseCompound("S250", _scheme);
-        Assert.NotNull(result);
-        Assert.Equal("SPD 250", result.CanonicalString);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -219,11 +219,11 @@ public class CtoClientParserTests
     }
 
     [Fact]
-    public void FlyPresentHeading_BareH()
+    public void FlyHeading_BareH_ReturnsNull()
     {
+        // H maps to FlyHeading (via registry), which requires a heading argument
         var result = CommandSchemeParser.ParseCompound("H", _scheme);
-        Assert.NotNull(result);
-        Assert.Equal("FPH", result.CanonicalString);
+        Assert.Null(result);
     }
 
     [Fact]

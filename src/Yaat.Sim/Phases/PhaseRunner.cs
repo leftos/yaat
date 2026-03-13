@@ -82,7 +82,7 @@ public static class PhaseRunner
             }
 
             // Pattern/visual traffic re-enters the pattern after a go-around.
-            // If TrafficDirection was cleared (e.g. by CTL during go-around), default to left.
+            // If TrafficDirection was cleared (e.g. by CLAND during go-around), default to left.
             // Instrument approach traffic does NOT auto-enter the pattern — they fly
             // runway heading to 2000 AGL and await instructions.
             if (current is GoAroundPhase { ReenterPattern: true } && phases.IsComplete && phases.AssignedRunway is not null)

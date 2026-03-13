@@ -62,7 +62,7 @@ public sealed class PhaseList
 
     /// <summary>
     /// Landing clearance that persists across phases.
-    /// Set by CTL command (possibly on downwind/base), consumed by FinalApproachPhase.
+    /// Set by CLAND command (possibly on downwind/base), consumed by FinalApproachPhase.
     /// Cleared by CTOC or supplanted by a new clearance for a different runway.
     /// </summary>
     public ClearanceType? LandingClearance { get; set; }

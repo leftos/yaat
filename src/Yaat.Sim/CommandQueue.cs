@@ -8,6 +8,7 @@ public enum BlockTriggerType
     ReachFrdPoint,
     GiveWay,
     DistanceFinal,
+    OnHandoff,
 }
 
 public class BlockTrigger

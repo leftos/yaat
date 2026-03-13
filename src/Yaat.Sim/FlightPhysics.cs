@@ -631,6 +631,11 @@ public static class FlightPhysics
                     TrackFrdMiss(aircraft, block);
                     return;
                 }
+
+                if (block.Trigger.Type is BlockTriggerType.OnHandoff)
+                {
+                    aircraft.HandoffAccepted = false;
+                }
             }
 
             // Apply the block's commands
@@ -742,6 +747,7 @@ public static class FlightPhysics
                 && GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, trigger.TargetLat.Value, trigger.TargetLon.Value) < FrdArrivalNm,
             BlockTriggerType.GiveWay => IsGiveWayMet(aircraft, trigger, aircraftLookup),
             BlockTriggerType.DistanceFinal => IsDistanceFinalMet(aircraft, trigger),
+            BlockTriggerType.OnHandoff => aircraft.HandoffAccepted,
             _ => true,
         };
     }

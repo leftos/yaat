@@ -354,13 +354,18 @@ internal static class GroundCommandParser
             return null;
         }
 
-        var callsign = arg.Trim();
-        if (callsign.Length == 0)
+        // GW {callsign} [{runway/taxiway}]
+        // The optional location is a single token (runway or taxiway name).
+        // If there are more tokens, this is a compound form handled by ParseBlock.
+        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
         {
             return null;
         }
 
-        return new GiveWayCommand(callsign);
+        var callsign = parts[0];
+        var location = parts.Length == 2 ? parts[1].Trim().ToUpperInvariant() : null;
+        return new GiveWayCommand(callsign, location);
     }
 
     /// <summary>

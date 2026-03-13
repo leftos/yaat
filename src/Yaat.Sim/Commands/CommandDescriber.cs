@@ -235,7 +235,7 @@ public static class CommandDescriber
             LineUpAndWaitCommand => "LUAW",
             ClearedForTakeoffCommand cto => FormatCtoCanonical(cto),
             CancelTakeoffClearanceCommand => "CTOC",
-            ClearedToLandCommand => "CTL",
+            ClearedToLandCommand => "CLAND",
             LandAndHoldShortCommand cmd => $"LAHSO {cmd.CrossingRunwayId}",
             CancelLandingClearanceCommand => "CLC",
             GoAroundCommand ga => FormatGaCanonical(ga),

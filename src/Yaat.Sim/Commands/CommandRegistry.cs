@@ -6,6 +6,12 @@ public static class CommandRegistry
 {
     public static IReadOnlyDictionary<CanonicalCommandType, CommandDefinition> All { get; } = Build();
 
+    /// <summary>
+    /// Reverse lookup: alias (uppercased) → CanonicalCommandType.
+    /// Used by CommandParser as a fallback when the switch doesn't handle a verb.
+    /// </summary>
+    public static IReadOnlyDictionary<string, CanonicalCommandType> AliasToCanonicType { get; } = BuildAliasToCanonicType();
+
     public static CommandDefinition? Get(CanonicalCommandType type)
     {
         return All.GetValueOrDefault(type);
@@ -14,6 +20,56 @@ public static class CommandRegistry
     public static IReadOnlyList<CommandDefinition> ByCategory(string category)
     {
         return All.Values.Where(d => d.Category == category).ToArray();
+    }
+
+    /// <summary>
+    /// Returns the set of aliases (uppercased) for commands where every overload
+    /// takes exactly one required non-literal parameter. Used by ExpandMultiCommand
+    /// to split concatenated verb-arg pairs like "FH 270 CM 5000" → "FH 270, CM 5000".
+    /// </summary>
+    public static HashSet<string> SingleArgAliases { get; } = BuildSingleArgAliases();
+
+    private static HashSet<string> BuildSingleArgAliases()
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var def in All.Values)
+        {
+            if (def.Overloads.Length == 0)
+            {
+                continue;
+            }
+
+            // A verb is splittable if it has an overload with exactly 1 non-literal param
+            // AND no overload has more than 1 non-literal param (avoids multi-arg verbs like DEPART).
+            bool hasSingleArg = def.Overloads.Any(o => o.Parameters.Count(p => !p.IsLiteral) == 1);
+            bool hasMultiArg = def.Overloads.Any(o => o.Parameters.Count(p => !p.IsLiteral) > 1);
+
+            if (!hasSingleArg || hasMultiArg)
+            {
+                continue;
+            }
+
+            foreach (var alias in def.DefaultAliases)
+            {
+                result.Add(alias);
+            }
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, CanonicalCommandType> BuildAliasToCanonicType()
+    {
+        var result = new Dictionary<string, CanonicalCommandType>(StringComparer.OrdinalIgnoreCase);
+        foreach (var def in All.Values)
+        {
+            foreach (var alias in def.DefaultAliases)
+            {
+                result.TryAdd(alias, def.Type);
+            }
+        }
+
+        return result;
     }
 
     private static Dictionary<CanonicalCommandType, CommandDefinition> Build()
@@ -46,14 +102,14 @@ public static class CommandRegistry
     private static CommandDefinition[] HeadingCommands() =>
         [
             Cmd(FlyHeading, "Fly Heading", "Heading", false, ["FH", "H"], [O(null, [R("heading", "0-360")], "Fly assigned heading")]),
-            Cmd(TurnLeft, "Turn Left", "Heading", false, ["TL", "L", "LT"], [O(null, [R("heading", "0-360")], "Turn left to heading")]),
-            Cmd(TurnRight, "Turn Right", "Heading", false, ["TR", "R", "RT"], [O(null, [R("heading", "0-360")], "Turn right to heading")]),
+            Cmd(TurnLeft, "Turn Left", "Heading", false, ["TL", "L"], [O(null, [R("heading", "0-360")], "Turn left to heading")]),
+            Cmd(TurnRight, "Turn Right", "Heading", false, ["TR", "R"], [O(null, [R("heading", "0-360")], "Turn right to heading")]),
             Cmd(
                 RelativeLeft,
                 "Relative Left",
                 "Heading",
                 false,
-                ["RELL"],
+                ["RELL", "LT"],
                 [O(null, [R("degrees", "1-360")], "Turn left by degrees")],
                 syntaxPatterns: ["T{n}L"]
             ),
@@ -62,11 +118,11 @@ public static class CommandRegistry
                 "Relative Right",
                 "Heading",
                 false,
-                ["RELR"],
+                ["RELR", "RT"],
                 [O(null, [R("degrees", "1-360")], "Turn right by degrees")],
                 syntaxPatterns: ["T{n}R"]
             ),
-            Bare(FlyPresentHeading, "Fly Present Heading", "Heading", false, ["FPH", "FCH", "H"]),
+            Bare(FlyPresentHeading, "Fly Present Heading", "Heading", false, ["FPH", "FCH"]),
         ];
 
     private static CommandDefinition[] AltitudeSpeedCommands() =>
@@ -76,7 +132,7 @@ public static class CommandRegistry
                 "Climb/Maintain",
                 "Altitude / Speed",
                 false,
-                ["CM", "C"],
+                ["CM"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Climb and maintain altitude")]
             ),
             Cmd(
@@ -84,7 +140,7 @@ public static class CommandRegistry
                 "Descend/Maintain",
                 "Altitude / Speed",
                 false,
-                ["DM", "D"],
+                ["DM"],
                 [O(null, [R("altitude", "altitude in hundreds")], "Descend and maintain altitude")]
             ),
             Cmd(
@@ -92,7 +148,7 @@ public static class CommandRegistry
                 "Speed",
                 "Altitude / Speed",
                 false,
-                ["SPD", "S", "SLOW", "SL", "SPEED"],
+                ["SPD", "SPEED", "DS", "IS", "SLOW", "SL"],
                 [O(null, [R("speed", "knots IAS")], "Maintain speed")]
             ),
             Bare(ResumeNormalSpeed, "Resume Normal Speed", "Altitude / Speed", false, ["RNS", "NS"]),
@@ -240,7 +296,7 @@ public static class CommandRegistry
                 "Cleared to Land",
                 "Tower",
                 false,
-                ["CTL", "FS"],
+                ["CLAND", "CL", "FS"],
                 [O(null, [], "Cleared to land current runway"), O("Runway", [R("runway", "runway designator")], "Cleared to land runway")],
                 [Mod("NODEL", null, false)]
             ),
@@ -562,7 +618,7 @@ public static class CommandRegistry
                 "Track Operations",
                 false,
                 ["HO"],
-                [O(null, [R("position", "position ID")], "Initiate handoff to position")]
+                [O(null, [], "Initiate handoff"), O("Position", [R("position", "position ID")], "Initiate handoff to position")]
             ),
             Cmd(
                 ForceHandoff,
@@ -695,7 +751,7 @@ public static class CommandRegistry
 
     private static CommandDefinition[] BroadcastCommands() =>
         [
-            Cmd(Say, "Say", "Broadcast", false, ["SAY"], [O(null, [R("message", "free text")], "Broadcast pilot message")]),
+            Cmd(Say, "Say", "Broadcast", false, ["SAY", "SAYF"], [O(null, [R("message", "free text")], "Broadcast pilot message")]),
             Bare(SaySpeed, "Say Speed", "Broadcast", false, ["SSPD"]),
         ];
 
@@ -714,7 +770,7 @@ public static class CommandRegistry
                 "Cleared Approach",
                 "Approach",
                 false,
-                ["CAPP"],
+                ["CAPP", "CTL"],
                 [O(null, [], "Auto-resolve approach"), O("Approach", [R("approach", "approach ID")], "Clear for approach")]
             ),
             Cmd(JoinApproach, "Join Approach", "Approach", false, ["JAPP"], [O(null, [R("approach", "approach ID")], "Join approach course")]),
@@ -840,7 +896,7 @@ public static class CommandRegistry
                 "Depart Fix",
                 "Approach",
                 false,
-                ["DEPART", "DEP"],
+                ["DEPART", "DEP", "D"],
                 [O(null, [R("fix", "fix name"), R("heading", "0-360")], "Depart fix on heading")]
             ),
             Cmd(

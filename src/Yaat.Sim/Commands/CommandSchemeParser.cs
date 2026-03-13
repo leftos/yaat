@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Commands;
 
@@ -11,23 +12,6 @@ public record ParseFailure(string Verb, string Reason);
 public static class CommandSchemeParser
 {
     private static readonly HashSet<string> PassthroughVerbs = new(StringComparer.OrdinalIgnoreCase) { "LV", "AT", "ATFN" };
-
-    private static bool IsAltitudeArg(string arg)
-    {
-        if (int.TryParse(arg, out _))
-        {
-            return true;
-        }
-
-        // AGL: {letters}+{digits}
-        var plusIndex = arg.IndexOf('+');
-        if (plusIndex <= 0 || plusIndex == arg.Length - 1)
-        {
-            return false;
-        }
-
-        return int.TryParse(arg[(plusIndex + 1)..], out _);
-    }
 
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme)
     {
@@ -47,7 +31,7 @@ public static class CommandSchemeParser
         var upper = trimmed.ToUpperInvariant();
         if (!isCompound)
         {
-            isCompound = upper.StartsWith("LV ") || upper.StartsWith("AT ") || upper.StartsWith("ATFN ");
+            isCompound = upper.StartsWith("LV ") || upper.StartsWith("AT ") || upper.StartsWith("ATFN ") || upper.StartsWith("ONHO ");
 
             // GIVEWAY/BEHIND/GW are compound only if they have 3+ tokens (condition form)
             if (!isCompound && (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW ")))
@@ -113,7 +97,7 @@ public static class CommandSchemeParser
                 return null;
             }
 
-            if (!IsAltitudeArg(tokens[1]))
+            if (!CommandParser.IsAltitudeArg(tokens[1]))
             {
                 return null;
             }
@@ -158,6 +142,32 @@ public static class CommandSchemeParser
 
             parts.Add($"GIVEWAY {tokens[1].ToUpperInvariant()}");
             remaining = tokens[2];
+        }
+        else if (upper.StartsWith("ONHO "))
+        {
+            var tokens = remaining.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 2)
+            {
+                return null;
+            }
+
+            remaining = tokens[1];
+            var remainderUpper = remaining.ToUpperInvariant();
+
+            // ONHO followed by another condition → emit ONHO as a standalone block,
+            // then recursively parse the remainder as a separate block
+            if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
+            {
+                var innerCanonical = ParseBlockToCanonical(remaining, scheme);
+                if (innerCanonical is null)
+                {
+                    return null;
+                }
+
+                return $"ONHO; {innerCanonical}";
+            }
+
+            parts.Add("ONHO");
         }
 
         // Apply ExpandWait and ExpandSpeedUntil to the remainder after condition extraction
@@ -234,9 +244,9 @@ public static class CommandSchemeParser
 
     private static string? ParseCommandList(string remaining, CommandScheme scheme)
     {
-        // SAY/APREQ consume entire remainder as literal text — don't split on comma
+        // SAY consumes entire remainder as literal text — don't split on comma
         var upperCheck = remaining.TrimStart().ToUpperInvariant();
-        if (upperCheck.StartsWith("SAY ") || upperCheck.StartsWith("APREQ"))
+        if (upperCheck.StartsWith("SAY "))
         {
             var parsed = Parse(remaining.Trim(), scheme);
             return parsed is not null ? ToCanonical(parsed.Type, parsed.Argument) : null;
@@ -359,14 +369,6 @@ public static class CommandSchemeParser
             return new ParsedInput(CanonicalCommandType.ClearedForTakeoff, arg.Trim());
         }
 
-        // APREQ [text] → SAY APREQ [text]
-        if (input.StartsWith("APREQ", StringComparison.OrdinalIgnoreCase) && (input.Length == 5 || input[5] == ' '))
-        {
-            var remainder = input.Length > 6 ? input[6..].Trim() : "";
-            var sayArg = remainder.Length > 0 ? "APREQ " + remainder : "APREQ";
-            return new ParsedInput(CanonicalCommandType.Say, sayArg);
-        }
-
         // Build (alias, type) pairs from the scheme, longest alias first so
         // HFIXL matches before HFIX.
         var candidates = new List<(string Alias, CanonicalCommandType Type)>();
@@ -424,46 +426,6 @@ public static class CommandSchemeParser
         return false;
     }
 
-    private static bool StartsWithAnyAlias(string input, CommandPattern pattern, out string matchedAlias)
-    {
-        foreach (var alias in pattern.Aliases)
-        {
-            if (input.StartsWith(alias, StringComparison.OrdinalIgnoreCase))
-            {
-                matchedAlias = alias;
-                return true;
-            }
-        }
-
-        matchedAlias = "";
-        return false;
-    }
-
-    private static bool IsConcatenationExcluded(CanonicalCommandType type)
-    {
-        return type
-            is CanonicalCommandType.RelativeLeft
-                or CanonicalCommandType.RelativeRight
-                or CanonicalCommandType.Pause
-                or CanonicalCommandType.Unpause
-                or CanonicalCommandType.SimRate
-                or CanonicalCommandType.Wait
-                or CanonicalCommandType.WaitDistance
-                or CanonicalCommandType.Add
-                or CanonicalCommandType.DirectTo
-                or CanonicalCommandType.AppendDirectTo
-                or CanonicalCommandType.HoldAtFixLeft
-                or CanonicalCommandType.HoldAtFixRight
-                or CanonicalCommandType.HoldAtFixHover
-                or CanonicalCommandType.SpawnNow
-                or CanonicalCommandType.SpawnDelay
-                or CanonicalCommandType.Taxi
-                or CanonicalCommandType.CrossRunway
-                or CanonicalCommandType.HoldShort
-                or CanonicalCommandType.Follow
-                or CanonicalCommandType.Say;
-    }
-
     private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme)
     {
         return ParseSpaceSeparated(input, scheme, out _);
@@ -479,7 +441,7 @@ public static class CommandSchemeParser
         // RWY {runway} [TAXI] {path} → rewrite to Taxi with RWY keyword
         if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase) && arg is not null)
         {
-            var rewritten = RewriteRwyToTaxiArg(arg);
+            var rewritten = CommandParser.RewriteRwyToTaxiArg(arg);
             if (rewritten is not null)
             {
                 return new ParsedInput(CanonicalCommandType.Taxi, rewritten);
@@ -536,7 +498,7 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            if (IsConcatenationExcluded(type))
+            if (CommandParser.IsConcatenationExcluded(type))
             {
                 continue;
             }
@@ -563,7 +525,7 @@ public static class CommandSchemeParser
             }
 
             bool isAltitudeCommand = type is CanonicalCommandType.ClimbMaintain or CanonicalCommandType.DescendMaintain;
-            if (isAltitudeCommand ? !IsAltitudeArg(remainder) : !int.TryParse(remainder, out _))
+            if (isAltitudeCommand ? !CommandParser.IsAltitudeArg(remainder) : !int.TryParse(remainder, out _))
             {
                 continue;
             }
@@ -579,45 +541,23 @@ public static class CommandSchemeParser
         return null;
     }
 
-    internal static string? RewriteRwyToTaxiArg(string arg)
+    /// <summary>
+    /// Splits concatenated single-arg commands within a single command string.
+    /// "FH 270 CM 5000" → "FH 270, CM 5000". "DM 6000 FH 270 SPD 190" → "DM 6000, FH 270, SPD 190".
+    /// Uses CommandRegistry.SingleArgAliases to detect verb boundaries.
+    /// </summary>
+    public static string ExpandMultiCommand(string input)
     {
-        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length < 2)
-        {
-            return null;
-        }
-
-        // First token is the runway
-        var runway = tokens[0].ToUpperInvariant();
-        int startIdx = 1;
-
-        // Skip optional TAXI keyword
-        if (startIdx < tokens.Length && tokens[startIdx].Equals("TAXI", StringComparison.OrdinalIgnoreCase))
-        {
-            startIdx++;
-        }
-
-        if (startIdx >= tokens.Length)
-        {
-            return null;
-        }
-
-        // Remaining tokens are the path [HS ...]
-        var remaining = string.Join(" ", tokens[startIdx..]);
-        return $"{remaining} RWY {runway}";
+        return ExpandMultiCommand(input, fixes: null);
     }
 
     /// <summary>
-    /// Heading/altitude verbs that take exactly one token as argument.
-    /// Used by ExpandMultiCommand to split e.g. "FH 270 CM 5000" → "FH 270, CM 5000".
+    /// Splits concatenated commands like "FH 270 CM 5000 SPD 190" into "FH 270, CM 5000, SPD 190".
+    /// When <paramref name="fixes"/> is provided, uses greedy parsing: each verb consumes as many
+    /// tokens as CommandParser.Parse can handle, only splitting when adding the next token fails.
+    /// Without fixes, falls back to the heuristic (strict single-arg verb-arg pairs).
     /// </summary>
-    private static readonly HashSet<string> HeadingAltVerbs = new(StringComparer.OrdinalIgnoreCase) { "FH", "TL", "TR", "CM", "DM", "SPD" };
-
-    /// <summary>
-    /// Splits concatenated heading/altitude commands within a single command string.
-    /// "FH 270 CM 5000" → "FH 270, CM 5000". Returns original string if not splittable.
-    /// </summary>
-    public static string ExpandMultiCommand(string input)
+    public static string ExpandMultiCommand(string input, IFixLookup? fixes)
     {
         if (input.Contains(',') || input.Contains(';'))
         {
@@ -625,20 +565,105 @@ public static class CommandSchemeParser
         }
 
         var tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length != 4)
+
+        if (fixes is not null && tokens.Length >= 2)
         {
-            return input;
+            return ExpandMultiCommandGreedy(tokens, fixes);
         }
 
-        var verb1 = tokens[0].ToUpperInvariant();
-        var verb2 = tokens[2].ToUpperInvariant();
-
-        if (HeadingAltVerbs.Contains(verb1) && HeadingAltVerbs.Contains(verb2))
+        if (tokens.Length < 4 || tokens.Length % 2 != 0)
         {
-            return $"{tokens[0]} {tokens[1]}, {tokens[2]} {tokens[3]}";
+            return string.Join(' ', tokens);
         }
 
-        return input;
+        return ExpandMultiCommandHeuristic(tokens);
+    }
+
+    private static readonly HashSet<string> ConditionPrefixes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ONHO",
+        "ONH",
+        "AT",
+        "ATFN",
+        "LV",
+        "GIVEWAY",
+        "BEHIND",
+        "GW",
+    };
+
+    /// <summary>
+    /// Greedy splitting: each verb consumes tokens until Parse fails, then the next token
+    /// must be a new verb. Falls back to returning input unchanged if splitting fails.
+    /// </summary>
+    private static string ExpandMultiCommandGreedy(string[] tokens, IFixLookup fixes)
+    {
+        // Don't split commands that start with condition prefixes — ParseBlock handles those
+        if (ConditionPrefixes.Contains(tokens[0]))
+        {
+            return string.Join(' ', tokens);
+        }
+
+        var parts = new List<string>();
+        int i = 0;
+
+        while (i < tokens.Length)
+        {
+            // Current token should be a verb — try parsing with increasing arg counts
+            string? lastGood = null;
+            int lastGoodEnd = i;
+
+            for (int end = i + 1; end <= tokens.Length; end++)
+            {
+                var candidate = string.Join(' ', tokens[i..end]);
+                var result = CommandParser.Parse(candidate, fixes);
+                if (result is not null)
+                {
+                    lastGood = candidate;
+                    lastGoodEnd = end;
+                }
+            }
+
+            if (lastGood is null)
+            {
+                // First token doesn't parse as any command — can't split
+                return string.Join(' ', tokens);
+            }
+
+            parts.Add(lastGood);
+            i = lastGoodEnd;
+        }
+
+        return parts.Count >= 2 ? string.Join(", ", parts) : string.Join(' ', tokens);
+    }
+
+    /// <summary>
+    /// Heuristic splitting: strict alternating verb-arg pairs where all verbs are single-arg.
+    /// Used when no IFixLookup is available (client-side scheme parsing).
+    /// </summary>
+    private static string ExpandMultiCommandHeuristic(string[] tokens)
+    {
+        if (tokens.Length < 4 || tokens.Length % 2 != 0)
+        {
+            return string.Join(' ', tokens);
+        }
+
+        var singleArgVerbs = CommandRegistry.SingleArgAliases;
+
+        for (int i = 0; i < tokens.Length; i += 2)
+        {
+            if (!singleArgVerbs.Contains(tokens[i]))
+            {
+                return string.Join(' ', tokens);
+            }
+        }
+
+        var parts = new List<string>();
+        for (int i = 0; i < tokens.Length; i += 2)
+        {
+            parts.Add($"{tokens[i]} {tokens[i + 1]}");
+        }
+
+        return string.Join(", ", parts);
     }
 
     /// <summary>

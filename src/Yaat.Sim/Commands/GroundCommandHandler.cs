@@ -725,7 +725,7 @@ internal static class GroundCommandHandler
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         if (cat != AircraftCategory.Helicopter)
         {
-            return new CommandResult(false, "LAND is only available for helicopters (use CTL for fixed-wing)");
+            return new CommandResult(false, "LAND is only available for helicopters (use CLAND for fixed-wing)");
         }
 
         if (groundLayout is null)

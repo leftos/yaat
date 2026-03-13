@@ -87,6 +87,13 @@ internal static class ApproachCommandParser
             return new ClearedApproachCommand(approachId, null, force, null, null, null, dctFixName, dctPos.Value.Lat, dctPos.Value.Lon, null, null);
         }
 
+        // 2 tokens: approachId airportCode (e.g., "CAPP I9 MIA")
+        // Reject if second token is a known command verb (prevents greedy over-matching)
+        if (tokens.Length == 2 && !CommandRegistry.AliasToCanonicType.ContainsKey(approachId))
+        {
+            return new ClearedApproachCommand(keyword, approachId, force, null, null, null, null, null, null, null, null);
+        }
+
         return null;
     }
 
@@ -405,12 +412,17 @@ internal static class ApproachCommandParser
 
         var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        // DVIA SPD <speed> <fix>
-        if (parts.Length >= 3 && parts[0].Equals("SPD", StringComparison.OrdinalIgnoreCase))
+        // DVIA SPD <speed> [fix]
+        if (parts.Length >= 2 && parts[0].Equals("SPD", StringComparison.OrdinalIgnoreCase))
         {
             if (!int.TryParse(parts[1], out var speed) || speed <= 0)
             {
                 return null;
+            }
+
+            if (parts.Length < 3)
+            {
+                return new DescendViaCommand(null, speed);
             }
 
             var fixName = parts[2].ToUpperInvariant();
@@ -430,7 +442,8 @@ internal static class ApproachCommandParser
 
         if (!int.TryParse(parts[0], out var value) || value <= 0)
         {
-            return null;
+            // Non-numeric arg: treat as STAR name (e.g., "DVIA HHOOD5" = join STAR + descend via)
+            return new JoinStarCommand(parts[0].ToUpperInvariant(), parts.Length > 1 ? parts[1].ToUpperInvariant() : null);
         }
 
         // Altitude in hundreds

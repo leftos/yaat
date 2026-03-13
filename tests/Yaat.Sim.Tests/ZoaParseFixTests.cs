@@ -23,6 +23,8 @@ public class ZoaParseFixTests
     [InlineData("CM 5000 FH 270", "CM 5000, FH 270")]
     [InlineData("DM 040 TL 180", "DM 040, TL 180")]
     [InlineData("SPD 210 DM 040", "SPD 210, DM 040")]
+    [InlineData("FH 270 CM 5000 SPD 250", "FH 270, CM 5000, SPD 250")]
+    [InlineData("DM 6000 FH 270 SPD 190", "DM 6000, FH 270, SPD 190")]
     public void ExpandMultiCommand_SplitsHeadingAltitudeCombos(string input, string expected)
     {
         Assert.Equal(expected, CommandSchemeParser.ExpandMultiCommand(input));
@@ -32,7 +34,6 @@ public class ZoaParseFixTests
     [InlineData("FH 270")]
     [InlineData("CM 5000")]
     [InlineData("TAXI Y M1 HS A RWY 01L")]
-    [InlineData("FH 270 CM 5000 SPD 250")]
     public void ExpandMultiCommand_LeavesNonMatchingInputUnchanged(string input)
     {
         Assert.Equal(input, CommandSchemeParser.ExpandMultiCommand(input));
@@ -127,17 +128,6 @@ public class ZoaParseFixTests
         Assert.Equal("hello, world", say.Text);
     }
 
-    // --- APREQ → SAY ---
-
-    [Fact]
-    public void Parse_Apreq_ReturnsSayCommand()
-    {
-        var result = CommandParser.Parse("APREQ RUNWAY 33");
-        Assert.NotNull(result);
-        var say = Assert.IsType<SayCommand>(result);
-        Assert.Equal("APREQ RUNWAY 33", say.Text);
-    }
-
     // --- Bare CAPP/JFAC ---
 
     [Fact]
@@ -202,15 +192,38 @@ public class ZoaParseFixTests
         Assert.IsType(expectedType, result);
     }
 
-    // --- GW as compound condition ---
+    // --- GW as compound condition (only with TAXI/RWY) ---
 
     [Fact]
-    public void ParseCompound_GW_AsCondition()
+    public void ParseCompound_GW_WithTaxi_AsCondition()
     {
-        var result = CommandParser.ParseCompound("GW UAL123 SPD 210", Fixes);
+        var result = CommandParser.ParseCompound("GW UAL123 TAXI T U W", Fixes);
         Assert.NotNull(result);
         Assert.Single(result.Blocks);
-        Assert.NotNull(result.Blocks[0].Condition);
+        Assert.IsType<GiveWayCondition>(result.Blocks[0].Condition);
+        Assert.Single(result.Blocks[0].Commands);
+        Assert.IsType<TaxiCommand>(result.Blocks[0].Commands[0]);
+    }
+
+    [Fact]
+    public void ParseCompound_GW_WithRwyTaxi_AsCondition()
+    {
+        var result = CommandParser.ParseCompound("GW UAL123 RWY 17L TAXI T U W", Fixes);
+        Assert.NotNull(result);
+        Assert.Single(result.Blocks);
+        Assert.IsType<GiveWayCondition>(result.Blocks[0].Condition);
+    }
+
+    [Fact]
+    public void ParseCompound_GW_WithLocation()
+    {
+        var result = CommandParser.ParseCompound("GW AAL1944 G", Fixes);
+        Assert.NotNull(result);
+        Assert.Single(result.Blocks);
+        Assert.Null(result.Blocks[0].Condition);
+        var gw = Assert.IsType<GiveWayCommand>(result.Blocks[0].Commands[0]);
+        Assert.Equal("AAL1944", gw.TargetCallsign);
+        Assert.Equal("G", gw.Location);
     }
 
     // --- CTOMRT/CTOMLT ---

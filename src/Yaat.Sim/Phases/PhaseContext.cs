@@ -35,6 +35,6 @@ public sealed class PhaseContext
     /// <summary>Scenario elapsed time in seconds. Used for approach score timestamps.</summary>
     public double ScenarioElapsedSeconds { get; init; }
 
-    /// <summary>When true, aircraft are automatically cleared to land (no CTL command needed).</summary>
+    /// <summary>When true, aircraft are automatically cleared to land (no CLAND command needed).</summary>
     public bool AutoClearedToLand { get; init; }
 }

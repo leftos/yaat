@@ -86,6 +86,7 @@ public static class TrackEngine
         ac.HandoffPeer = null;
         ac.HandoffInitiatedAt = null;
         ac.HandoffRedirectedBy = null;
+        ac.HandoffAccepted = true;
         return new CommandResult(true, $"Accepted {ac.Callsign}");
     }
 

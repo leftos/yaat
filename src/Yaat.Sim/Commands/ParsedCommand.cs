@@ -247,7 +247,7 @@ public record AssignRunwayCommand(string RunwayId) : ParsedCommand;
 
 public record FollowCommand(string TargetCallsign) : ParsedCommand;
 
-public record GiveWayCommand(string TargetCallsign) : ParsedCommand;
+public record GiveWayCommand(string TargetCallsign, string? Location = null) : ParsedCommand;
 
 public record TaxiAllCommand(string? DestinationRunway = null, string? DestinationParking = null, string? DestinationSpot = null) : ParsedCommand;
 
@@ -256,9 +256,9 @@ public record BreakConflictCommand : ParsedCommand;
 public record GoCommand : ParsedCommand;
 
 // Exit commands
-public record ExitLeftCommand(bool NoDelete = false) : ParsedCommand;
+public record ExitLeftCommand(bool NoDelete = false, string? Taxiway = null) : ParsedCommand;
 
-public record ExitRightCommand(bool NoDelete = false) : ParsedCommand;
+public record ExitRightCommand(bool NoDelete = false, string? Taxiway = null) : ParsedCommand;
 
 public record ExitTaxiwayCommand(string Taxiway, bool NoDelete = false) : ParsedCommand;
 
@@ -284,6 +284,8 @@ public record GiveWayCondition(string TargetCallsign) : BlockCondition;
 
 public record DistanceFinalCondition(double DistanceNm) : BlockCondition;
 
+public record OnHandoffCondition : BlockCondition;
+
 // Track operations commands
 public record SetActivePositionCommand(string TcpCode) : ParsedCommand;
 
@@ -291,7 +293,7 @@ public record TrackAircraftCommand(string? TcpCode = null) : ParsedCommand;
 
 public record DropTrackCommand : ParsedCommand;
 
-public record InitiateHandoffCommand(string TcpCode) : ParsedCommand;
+public record InitiateHandoffCommand(string? TcpCode) : ParsedCommand;
 
 public record ForceHandoffCommand(string TcpCode) : ParsedCommand;
 
@@ -420,3 +422,22 @@ public record ChangeDestinationCommand(string Airport) : ParsedCommand;
 public record CreateFlightPlanCommand(string FlightRules, string AircraftType, int CruiseAltitude, string Route) : ParsedCommand;
 
 public record SetRemarksCommand(string Text) : ParsedCommand;
+
+// Server/global commands
+public record DeleteCommand : ParsedCommand;
+
+public record PauseCommand : ParsedCommand;
+
+public record UnpauseCommand : ParsedCommand;
+
+public record SimRateCommand(int Rate) : ParsedCommand;
+
+public record SpawnNowCommand : ParsedCommand;
+
+public record SpawnDelayCommand(int Seconds) : ParsedCommand;
+
+public record AddAircraftCommand(string Args) : ParsedCommand;
+
+public record ConsolidateCommand(string ReceivingTcpCode, string SendingTcpCode, bool Full) : ParsedCommand;
+
+public record DeconsolidateCommand(string TcpCode) : ParsedCommand;
