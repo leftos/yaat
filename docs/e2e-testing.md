@@ -140,6 +140,8 @@ When writing replay tests for aircraft with WAIT presets:
 | File | Scenario | Airport | Good for testing |
 |------|----------|---------|-----------------|
 | `oak-taxi-recording.json` | OAK taxi session | OAK | Taxi routing, variant inference |
+| `issue58-jstar-intermediate-fix-recording.json` | S3-NCTC-3 Area C Complete | OAK | JSTAR intermediate fix joining (JARR EMZOH4 SKIZM) |
+| `issue58-star-180-recording.json` | S3-NCTC-2 Area C Sequencing | OAK | NavigationPath STAR expansion (pre-assigned STARs) |
 
 ### How to Add a New Recording
 
@@ -147,6 +149,28 @@ When writing replay tests for aircraft with WAIT presets:
 2. Save a recording via the session recording feature
 3. Copy the `.yaat-recording.json` to `tests/Yaat.Sim.Tests/TestData/` with a short, descriptive name. If the recording is for a GitHub issue, include the issue number in the filename (e.g., `sfo-issue53-taxi-overshoot-recording.json`) so the issue thread is easy to find later.
 4. Write a replay test that fails with the bug and passes after the fix
+
+### Per-Tick Observation Pattern
+
+For debugging navigation, physics, or phase bugs, replay to a point and then tick manually while logging aircraft state each second:
+
+```csharp
+engine.Replay(recording, targetTime);
+var aircraft = engine.FindAircraft("CALLSIGN");
+
+for (int t = 1; t <= 30; t++)
+{
+    engine.TickOneSecond();
+    aircraft = engine.FindAircraft("CALLSIGN");
+    var nextFix = aircraft.Targets.NavigationRoute.Count > 0
+        ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
+    output.WriteLine($"t={t} hdg={aircraft.Heading:F1} "
+        + $"lat={aircraft.Latitude:F4} lon={aircraft.Longitude:F4} "
+        + $"alt={aircraft.Altitude:F0} next={nextFix}");
+}
+```
+
+This pattern lets you "see" heading reversals, altitude oscillations, fix sequencing, and other bugs in the test output. See `Issue58JstarIntermediateFixTests` for a complete example.
 
 ### Key OAK Reference Points
 

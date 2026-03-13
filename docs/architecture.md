@@ -205,7 +205,7 @@ AtParkingPhase / PushbackPhase / PushbackToSpotPhase / TaxiingPhase / HoldingSho
 CrossingRunwayPhase / RunwayExitPhase / HoldingAfterExitPhase / FollowingPhase
 
 # Data/
-Data/IFixLookup.cs             # Interface: GetFixPosition, GetAirportElevation
+Data/IFixLookup.cs             # Interface: GetFixPosition, GetAirportElevation, GetSidBody/Transitions, GetStarBody/Transitions
 Data/IRunwayLookup.cs          # Interface: GetRunway, GetRunways
 Data/FixDatabase.cs            # Implements both; VNAS protobuf + custom fixes; AllFixNames, ExpandRoute
 Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading

@@ -42,7 +42,14 @@ public static class ScenarioLoader
         ReadCommentHandling = JsonCommentHandling.Skip,
     };
 
-    public static ScenarioLoadResult Load(string json, IFixLookup fixes, IRunwayLookup runways, IAirportGroundData? groundData, Random rng)
+    public static ScenarioLoadResult Load(
+        string json,
+        IFixLookup fixes,
+        IRunwayLookup runways,
+        IAirportGroundData? groundData,
+        Random rng,
+        IProcedureLookup? procedures
+    )
     {
         var scenario = JsonSerializer.Deserialize<Scenario>(json, JsonOptions);
 
@@ -58,7 +65,7 @@ public static class ScenarioLoader
 
         foreach (var ac in scenario.Aircraft)
         {
-            var loaded = LoadAircraft(ac, fixes, runways, warnings, groundData, scenario.PrimaryAirportId, scenario.PrimaryApproach, rng);
+            var loaded = LoadAircraft(ac, fixes, runways, warnings, groundData, scenario.PrimaryAirportId, scenario.PrimaryApproach, rng, procedures);
             if (loaded is null)
             {
                 continue;
@@ -126,7 +133,8 @@ public static class ScenarioLoader
         IAirportGroundData? groundData,
         string? primaryAirportId,
         string? primaryApproach,
-        Random rng
+        Random rng,
+        IProcedureLookup? procedures
     )
     {
         var cond = ac.StartingConditions;
@@ -219,7 +227,7 @@ public static class ScenarioLoader
             state.GroundLayout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
         }
 
-        PopulateNavigationRoute(state, cond.NavigationPath, fixes, warnings);
+        PopulateNavigationRoute(state, cond.NavigationPath, fixes, procedures, warnings);
 
         return new LoadedAircraft
         {
@@ -479,7 +487,13 @@ public static class ScenarioLoader
         return GeoMath.BearingTo(lat, lon, targetPos.Value.Lat, targetPos.Value.Lon);
     }
 
-    private static void PopulateNavigationRoute(AircraftState state, string? navigationPath, IFixLookup fixes, List<string> warnings)
+    private static void PopulateNavigationRoute(
+        AircraftState state,
+        string? navigationPath,
+        IFixLookup fixes,
+        IProcedureLookup? procedures,
+        List<string> warnings
+    )
     {
         if (string.IsNullOrWhiteSpace(navigationPath))
         {
@@ -489,12 +503,42 @@ public static class ScenarioLoader
         var tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var resolved = new List<ResolvedFix>();
 
-        foreach (var token in tokens)
+        for (int tokenIdx = 0; tokenIdx < tokens.Length; tokenIdx++)
         {
-            var fixName = token.Split('.')[0];
+            var token = tokens[tokenIdx];
+
+            // Split runway suffix (e.g., "EMZOH4.30" → name="EMZOH4", runway="30")
+            var parts = token.Split('.');
+            var rawName = parts[0];
+            string? runwayDesignator = parts.Length > 1 ? parts[1] : null;
+
+            // Check SID first (e.g., "CNDEL5") — expand body + match transition to next token
+            var sidBody = fixes.GetSidBody(rawName);
+            if (sidBody is not null && sidBody.Count > 0)
+            {
+                string? nextToken = tokenIdx + 1 < tokens.Length ? tokens[tokenIdx + 1].Split('.')[0] : null;
+                ExpandSidBody(resolved, rawName, sidBody, nextToken, fixes, warnings, state.Callsign);
+                continue;
+            }
+
+            // Check if this token is a STAR reference (e.g., "EMZOH4")
+            var starBody = fixes.GetStarBody(rawName);
+            if (starBody is not null && starBody.Count > 0)
+            {
+                ExpandStarBody(resolved, rawName, starBody, runwayDesignator, state.Destination, fixes, procedures, warnings, state.Callsign);
+                continue;
+            }
+
+            // Regular fix: strip trailing digits (e.g., procedure version numbers)
+            var fixName = rawName;
             while (fixName.Length > 2 && char.IsDigit(fixName[^1]))
             {
                 fixName = fixName[..^1];
+            }
+
+            if (resolved.Count > 0 && fixName.Equals(resolved[^1].Name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
             }
 
             var pos = fixes.GetFixPosition(fixName);
@@ -520,6 +564,185 @@ public static class ScenarioLoader
                 }
             );
         }
+    }
+
+    /// <summary>
+    /// Expands a SID body into resolved fixes, then appends transition fixes
+    /// if the next route token matches a transition endpoint.
+    /// </summary>
+    private static void ExpandSidBody(
+        List<ResolvedFix> resolved,
+        string sidId,
+        IReadOnlyList<string> sidBody,
+        string? nextToken,
+        IFixLookup fixes,
+        List<string> warnings,
+        string callsign
+    )
+    {
+        foreach (var fixName in sidBody)
+        {
+            AddResolvedFix(resolved, fixName, fixes, warnings, callsign, sidId);
+        }
+
+        if (nextToken is null)
+        {
+            return;
+        }
+
+        // Strip trailing digits from next token to get the fix name for matching
+        var nextFixName = nextToken;
+        while (nextFixName.Length > 2 && char.IsDigit(nextFixName[^1]))
+        {
+            nextFixName = nextFixName[..^1];
+        }
+
+        var transitions = fixes.GetSidTransitions(sidId);
+        if (transitions is null)
+        {
+            return;
+        }
+
+        // Find the transition whose endpoint matches the next route token
+        foreach (var trans in transitions)
+        {
+            if (!trans.Name.Equals(nextFixName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Append transition fixes (skipping any that overlap with the end of body)
+            foreach (var fixName in trans.Fixes)
+            {
+                AddResolvedFix(resolved, fixName, fixes, warnings, callsign, sidId);
+            }
+
+            break;
+        }
+    }
+
+    /// <summary>
+    /// Expands a STAR into resolved fixes, starting from the last already-resolved fix.
+    /// Uses NavData for the common body and CIFP (if available) for runway transitions.
+    /// </summary>
+    private static void ExpandStarBody(
+        List<ResolvedFix> resolved,
+        string starId,
+        IReadOnlyList<string> starBody,
+        string? runwayDesignator,
+        string? destination,
+        IFixLookup fixes,
+        IProcedureLookup? procedures,
+        List<string> warnings,
+        string callsign
+    )
+    {
+        int startIdx = 0;
+
+        // If we have a preceding fix, find it in the STAR body to determine the join point
+        if (resolved.Count > 0)
+        {
+            var lastFix = resolved[^1].Name;
+            for (int i = 0; i < starBody.Count; i++)
+            {
+                if (starBody[i].Equals(lastFix, StringComparison.OrdinalIgnoreCase))
+                {
+                    startIdx = i + 1;
+                    break;
+                }
+            }
+
+            // Also check STAR transitions for the join fix
+            if (startIdx == 0)
+            {
+                var transitions = fixes.GetStarTransitions(starId);
+                if (transitions is not null)
+                {
+                    foreach (var trans in transitions)
+                    {
+                        int transIdx = -1;
+                        for (int i = 0; i < trans.Fixes.Count; i++)
+                        {
+                            if (trans.Fixes[i].Equals(lastFix, StringComparison.OrdinalIgnoreCase))
+                            {
+                                transIdx = i;
+                                break;
+                            }
+                        }
+
+                        if (transIdx >= 0)
+                        {
+                            for (int i = transIdx + 1; i < trans.Fixes.Count; i++)
+                            {
+                                AddResolvedFix(resolved, trans.Fixes[i], fixes, warnings, callsign, starId);
+                            }
+
+                            startIdx = 0;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Append STAR body fixes from the start index
+        for (int i = startIdx; i < starBody.Count; i++)
+        {
+            AddResolvedFix(resolved, starBody[i], fixes, warnings, callsign, starId);
+        }
+
+        // Append runway transition legs from CIFP if available
+        if (runwayDesignator is not null && destination is not null && procedures is not null)
+        {
+            var star = procedures.GetStar(destination, starId);
+            if (star is not null)
+            {
+                var rwKey = "RW" + runwayDesignator;
+                if (!star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+                {
+                    var bothKey = "RW" + runwayDesignator.TrimEnd('L', 'R', 'C') + "B";
+                    star.RunwayTransitions.TryGetValue(bothKey, out rwTransition);
+                }
+
+                if (rwTransition is not null)
+                {
+                    var rwTargets = Commands.DepartureClearanceHandler.ResolveLegsToTargets(rwTransition.Legs, fixes);
+                    foreach (var target in rwTargets)
+                    {
+                        if (resolved.Count > 0 && target.Name.Equals(resolved[^1].Name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        resolved.Add(new ResolvedFix(target.Name, target.Latitude, target.Longitude));
+                    }
+                }
+            }
+        }
+    }
+
+    private static void AddResolvedFix(
+        List<ResolvedFix> resolved,
+        string fixName,
+        IFixLookup fixes,
+        List<string> warnings,
+        string callsign,
+        string starId
+    )
+    {
+        if (resolved.Count > 0 && fixName.Equals(resolved[^1].Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var pos = fixes.GetFixPosition(fixName);
+        if (pos is null)
+        {
+            warnings.Add($"{callsign}: Could not resolve STAR {starId} fix '{fixName}', skipping");
+            return;
+        }
+
+        resolved.Add(new ResolvedFix(fixName, pos.Value.Lat, pos.Value.Lon));
     }
 
     private static string ExtractSuffix(string equipType)

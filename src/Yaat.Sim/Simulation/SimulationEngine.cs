@@ -75,7 +75,7 @@ public sealed class SimulationEngine
         World.Clear();
         World.Rng = new Random(rngSeed);
 
-        var result = ScenarioLoader.Load(json, _fixes, _runways, _groundData, World.Rng);
+        var result = ScenarioLoader.Load(json, _fixes, _runways, _groundData, World.Rng, _procedureLookup);
 
         Scenario = new SimScenarioState
         {
