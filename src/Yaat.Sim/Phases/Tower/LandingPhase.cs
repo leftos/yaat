@@ -1,18 +1,23 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
 /// Flare, touchdown, and rollout deceleration.
 /// Flare begins at category-specific altitude AGL.
-/// Touchdown sets IsOnGround=true. Rollout completes at 20 kts.
+/// Touchdown sets IsOnGround=true.
+/// When an exit is assigned, the aircraft maintains coast speed until the kinematic braking
+/// point, then decelerates to the angle-dependent turn-off speed.
+/// Without an exit, decelerates uniformly to 20 kts.
 /// </summary>
 public sealed class LandingPhase : Phase
 {
-    private const double RolloutCompleteSpeed = 20.0;
+    private const double DefaultRolloutCompleteSpeed = 20.0;
     private const double CenterlineGainDegPerNm = 150.0;
     private const double MaxCenterlineCorrectionDeg = 10.0;
+    private const double MaxDecelRateKtsPerSec = 10.0;
 
     private double _fieldElevation;
     private double _runwayHeading;
@@ -22,6 +27,11 @@ public sealed class LandingPhase : Phase
     private bool _canGoAround;
     private double _lahsoHoldShortDistNm;
     private bool _hasLahso;
+
+    // Exit-aware braking state
+    private GroundNode? _resolvedExitNode;
+    private double _exitTurnOffSpeed;
+    private ExitPreference? _lastResolvedPreference;
 
     public bool StoppedForLahso { get; private set; }
 
@@ -112,8 +122,16 @@ public sealed class LandingPhase : Phase
         double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
         ctx.Targets.TargetHeading = FlightPhysics.NormalizeHeading(_runwayHeading - correction);
 
-        // LAHSO: compute distance to hold-short point and increase deceleration if needed
+        // Re-resolve exit if preference changed mid-rollout
+        var currentPref = ctx.Aircraft.Phases?.RequestedExit;
+        if (currentPref != _lastResolvedPreference)
+        {
+            ResolveExit(ctx);
+        }
+
         double decelRate = CategoryPerformance.RolloutDecelRate(ctx.Category);
+
+        // LAHSO: compute distance to hold-short point and increase deceleration if needed
         if (_hasLahso)
         {
             double distFromThreshold = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
@@ -121,15 +139,10 @@ public sealed class LandingPhase : Phase
 
             if (distToHoldShort > 0 && ctx.Aircraft.IndicatedAirspeed > 1.0)
             {
-                // v² = 2 * a * d → a = v² / (2d)
-                double speedFps = ctx.Aircraft.GroundSpeed * 6076.12 / 3600.0;
-                double distFt = distToHoldShort * 6076.12;
-                double requiredDecelFps2 = (speedFps * speedFps) / (2.0 * distFt);
-                double requiredDecelKtsPerSec = requiredDecelFps2 * 3600.0 / 6076.12;
-
-                if (requiredDecelKtsPerSec > decelRate)
+                double lahsoDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, 0, distToHoldShort);
+                if (lahsoDecel > decelRate)
                 {
-                    decelRate = requiredDecelKtsPerSec;
+                    decelRate = lahsoDecel;
                 }
             }
             else if (distToHoldShort <= 0)
@@ -139,6 +152,48 @@ public sealed class LandingPhase : Phase
                 StoppedForLahso = true;
                 ctx.Logger.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
                 return true;
+            }
+        }
+
+        // Exit-aware braking: compute required decel to reach exit at turn-off speed
+        if (_resolvedExitNode is not null)
+        {
+            double distToExit = GeoMath.AlongTrackDistanceNm(
+                _resolvedExitNode.Latitude,
+                _resolvedExitNode.Longitude,
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                _runwayHeading
+            );
+
+            if (distToExit > 0 && ctx.Aircraft.IndicatedAirspeed > _exitTurnOffSpeed)
+            {
+                double exitDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, _exitTurnOffSpeed, distToExit);
+
+                if (exitDecel > decelRate)
+                {
+                    // Need to brake harder to make the exit
+                    decelRate = Math.Min(exitDecel, MaxDecelRateKtsPerSec);
+                }
+                else
+                {
+                    // Not yet at braking point — coast at or above RolloutCoastSpeed
+                    double coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
+                    if (ctx.Aircraft.IndicatedAirspeed > coastSpeed)
+                    {
+                        // Allow normal decel down to coast speed, but not below it
+                        double coastLimited = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
+                        if (coastLimited < coastSpeed)
+                        {
+                            decelRate = 0;
+                        }
+                    }
+                    else
+                    {
+                        // Already at or below coast speed — hold speed until braking point
+                        decelRate = 0;
+                    }
+                }
             }
         }
 
@@ -162,13 +217,67 @@ public sealed class LandingPhase : Phase
             return true;
         }
 
-        if (!_hasLahso && ctx.Aircraft.IndicatedAirspeed <= RolloutCompleteSpeed)
+        // Completion threshold depends on whether an exit is resolved
+        double completeSpeed = _resolvedExitNode is not null ? _exitTurnOffSpeed : DefaultRolloutCompleteSpeed;
+
+        if (!_hasLahso && ctx.Aircraft.IndicatedAirspeed <= completeSpeed)
         {
             ctx.Logger.LogDebug("[Landing] {Callsign}: rollout complete, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
             return true;
         }
 
         return false;
+    }
+
+    private void ResolveExit(PhaseContext ctx)
+    {
+        var preference = ctx.Aircraft.Phases?.RequestedExit;
+        _lastResolvedPreference = preference;
+        _resolvedExitNode = null;
+
+        if (preference is null || ctx.GroundLayout is null)
+        {
+            return;
+        }
+
+        var result = ctx.GroundLayout.FindExitAheadOnRunway(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _runwayHeading, preference);
+
+        if (result is null)
+        {
+            return;
+        }
+
+        _resolvedExitNode = result.Value.Node;
+        double? exitAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, _runwayHeading);
+        _exitTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
+
+        ctx.Logger.LogDebug(
+            "[Landing] {Callsign}: resolved exit at {Taxiway}, angle={Angle}, turnOffSpeed={Speed:F0}kts",
+            ctx.Aircraft.Callsign,
+            result.Value.Taxiway,
+            exitAngle?.ToString("F0") ?? "?",
+            _exitTurnOffSpeed
+        );
+    }
+
+    /// <summary>
+    /// Compute required deceleration (kts/sec) to go from current ground speed to target speed
+    /// over the given distance. Uses kinematic equation: v_final² = v_initial² - 2*a*d.
+    /// </summary>
+    private static double ComputeRequiredDecel(double currentGroundSpeedKts, double targetSpeedKts, double distanceNm)
+    {
+        double currentFps = currentGroundSpeedKts * 6076.12 / 3600.0;
+        double targetFps = targetSpeedKts * 6076.12 / 3600.0;
+        double distFt = distanceNm * 6076.12;
+
+        if (distFt <= 0)
+        {
+            return MaxDecelRateKtsPerSec;
+        }
+
+        // a = (v_initial² - v_final²) / (2d)
+        double requiredDecelFps2 = (currentFps * currentFps - targetFps * targetFps) / (2.0 * distFt);
+        return requiredDecelFps2 * 3600.0 / 6076.12;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

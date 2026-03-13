@@ -649,6 +649,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `EXIT A3` | Exit runway at taxiway A3 |
 | `EL NODEL` / `ER NODEL` / `EXIT A3 NODEL` | Exit with auto-delete exemption |
 
+When an exit is assigned (via `EL`, `ER`, or `EXIT`), the aircraft maintains a higher rollout speed and only decelerates when kinematically necessary to reach the exit at the correct turn-off speed. High-speed exits (≤45° from runway heading) target ~30 kts; standard 90° exits target ~15 kts. Without an assigned exit, aircraft decelerate uniformly to 20 kts. This allows realistic runway throughput in high-traffic scenarios.
+
 #### CTO Departure Modifiers
 
 All CTO modifiers accept an optional altitude suffix using the same format as CM/DM (see Altitude Arguments above). A bare number (1-360) without a modifier prefix is interpreted as a heading: `CTO 270` = fly heading 270, `CTO 270 050` = fly heading 270, climb to 5,000 ft.

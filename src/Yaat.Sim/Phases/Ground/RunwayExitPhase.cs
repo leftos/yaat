@@ -20,6 +20,7 @@ public sealed class RunwayExitPhase : Phase
     private string? _exitTaxiway;
     private string? _runwayId;
     private ExitPreference? _lastResolvedPreference;
+    private double _exitSpeed;
     private double _timeSinceLastLog;
 
     public override string Name => "Runway Exit";
@@ -64,21 +65,19 @@ public sealed class RunwayExitPhase : Phase
             return true;
         }
 
-        double exitSpeed = CategoryPerformance.RunwayExitSpeed(ctx.Category);
-
         // Decelerate to exit speed if faster
-        if (ctx.Aircraft.IndicatedAirspeed > exitSpeed)
+        if (ctx.Aircraft.IndicatedAirspeed > _exitSpeed)
         {
             double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Max(exitSpeed, ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Max(_exitSpeed, ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds);
         }
-        else if (ctx.Aircraft.IndicatedAirspeed < exitSpeed)
+        else if (ctx.Aircraft.IndicatedAirspeed < _exitSpeed)
         {
             double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Min(exitSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
+            ctx.Aircraft.IndicatedAirspeed = Math.Min(_exitSpeed, ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds);
         }
 
-        ctx.Targets.TargetSpeed = exitSpeed;
+        ctx.Targets.TargetSpeed = _exitSpeed;
 
         // Determine current target: exit node first, then clear node
         var target = _reachedExitNode && _clearNode is not null ? _clearNode : _exitNode;
@@ -179,6 +178,14 @@ public sealed class RunwayExitPhase : Phase
         }
 
         _exitTaxiway = _exitNode is not null ? ctx.GroundLayout!.GetExitTaxiwayName(_exitNode) : null;
+
+        // Compute angle-dependent exit speed
+        double? exitAngle = null;
+        if (_exitNode is not null && _exitTaxiway is not null)
+        {
+            exitAngle = ctx.GroundLayout!.ComputeExitAngle(_exitNode, _exitTaxiway, heading);
+        }
+        _exitSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
 
         // Find the next node along the taxiway past the exit intersection so the
         // aircraft rolls clear of the runway surface, not just to the boundary node.

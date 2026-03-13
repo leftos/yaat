@@ -183,7 +183,7 @@ LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
 InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode when DepartureSidId set
 FinalApproachPhase.cs          # Glideslope; auto-go-around at 0.5nm; illegal intercept check (§5-9-1)
-LandingPhase.cs                # Flare→touchdown→rollout to 20kts; LAHSO-aware (kinematic stop before hold-short)
+LandingPhase.cs                # Flare→touchdown→rollout; exit-aware (maintains coast speed, decels to angle-dependent turn-off speed); LAHSO-aware
 RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)
 GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern alt for VFR/pattern traffic)
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs

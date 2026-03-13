@@ -464,7 +464,7 @@ public static class CategoryPerformance
         return 5;
     }
 
-    /// <summary>Speed when exiting runway onto taxiway (knots).</summary>
+    /// <summary>Speed when exiting runway onto taxiway (knots). Fallback when exit angle is unknown.</summary>
     public static double RunwayExitSpeed(AircraftCategory cat)
     {
         return cat switch
@@ -475,6 +475,60 @@ public static class CategoryPerformance
             AircraftCategory.Helicopter => 15,
             _ => 25,
         };
+    }
+
+    /// <summary>Turn-off speed for high-speed exits (≤45° from runway heading).</summary>
+    public static double HighSpeedExitSpeed(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 30,
+            AircraftCategory.Turboprop => 25,
+            AircraftCategory.Piston => 18,
+            AircraftCategory.Helicopter => 15,
+            _ => 30,
+        };
+    }
+
+    /// <summary>Turn-off speed for standard exits (>45° from runway heading).</summary>
+    public static double StandardExitSpeed(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 15,
+            AircraftCategory.Turboprop => 15,
+            AircraftCategory.Piston => 12,
+            AircraftCategory.Helicopter => 10,
+            _ => 15,
+        };
+    }
+
+    /// <summary>Minimum speed maintained during rollout before the kinematic braking point for an assigned exit.</summary>
+    public static double RolloutCoastSpeed(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 40,
+            AircraftCategory.Turboprop => 35,
+            AircraftCategory.Piston => 25,
+            AircraftCategory.Helicopter => 15,
+            _ => 40,
+        };
+    }
+
+    /// <summary>
+    /// Returns the angle-dependent exit turn-off speed. Uses high-speed threshold for
+    /// exits ≤45° from runway heading, standard threshold for steeper exits.
+    /// Falls back to <see cref="RunwayExitSpeed"/> when exit angle is unknown.
+    /// </summary>
+    public static double ExitTurnOffSpeed(AircraftCategory cat, double? exitAngleDeg)
+    {
+        if (exitAngleDeg is null)
+        {
+            return RunwayExitSpeed(cat);
+        }
+
+        return exitAngleDeg.Value <= 45.0 ? HighSpeedExitSpeed(cat) : StandardExitSpeed(cat);
     }
 
     /// <summary>Speed when crossing a runway (knots).</summary>

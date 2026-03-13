@@ -426,6 +426,153 @@ public sealed class AirportGroundLayout
         return best;
     }
 
+    /// <summary>
+    /// Compute the angle between the runway heading and the exit taxiway at the given node.
+    /// Returns the absolute angle in degrees (0 = aligned with runway, 90 = perpendicular).
+    /// Returns null if no taxiway edge heading can be determined.
+    /// </summary>
+    public double? ComputeExitAngle(GroundNode exitNode, string taxiwayName, double runwayHeading)
+    {
+        // Use the taxiway heading that diverges most from the runway — this represents
+        // the exit direction, not the direction back along the runway.
+        double? bestAngle = null;
+
+        foreach (var edge in exitNode.Edges)
+        {
+            if (IsRunwayEdge(edge))
+            {
+                continue;
+            }
+
+            if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            int otherNodeId = edge.FromNodeId == exitNode.Id ? edge.ToNodeId : edge.FromNodeId;
+            if (!Nodes.TryGetValue(otherNodeId, out var otherNode))
+            {
+                continue;
+            }
+
+            double heading = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double angle = Math.Abs(NormalizeAngle(heading - runwayHeading));
+
+            if (bestAngle is null || angle > bestAngle.Value)
+            {
+                bestAngle = angle;
+            }
+        }
+
+        return bestAngle;
+    }
+
+    /// <summary>
+    /// Find a runway exit that is ahead of the aircraft along the runway heading.
+    /// Applies the given exit preference (taxiway name, side, or nearest).
+    /// Returns the exit node and its taxiway name, or null if no suitable exit is ahead.
+    /// </summary>
+    public (GroundNode Node, string Taxiway)? FindExitAheadOnRunway(
+        double lat,
+        double lon,
+        double runwayHeading,
+        ExitPreference? preference,
+        double maxSearchNm = 1.5
+    )
+    {
+        GroundNode? best = null;
+        double bestScore = double.MaxValue;
+
+        foreach (var node in Nodes.Values)
+        {
+            if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
+            {
+                continue;
+            }
+
+            if (HasRunwayCenterlineEdge(node))
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+            if (dist > maxSearchNm)
+            {
+                continue;
+            }
+
+            // Only consider exits ahead of the aircraft along the runway
+            double alongTrack = GeoMath.AlongTrackDistanceNm(node.Latitude, node.Longitude, lat, lon, runwayHeading);
+            if (alongTrack <= 0)
+            {
+                continue;
+            }
+
+            // Check for taxiway edges
+            bool matchesPreference = false;
+            bool hasTaxiwayEdge = false;
+
+            foreach (var edge in node.Edges)
+            {
+                if (IsRunwayEdge(edge))
+                {
+                    continue;
+                }
+
+                hasTaxiwayEdge = true;
+
+                if (preference?.Taxiway is { } taxiway && string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchesPreference = true;
+                    break;
+                }
+            }
+
+            if (!hasTaxiwayEdge)
+            {
+                continue;
+            }
+
+            // Apply preference filters
+            if (preference?.Taxiway is not null && !matchesPreference)
+            {
+                continue;
+            }
+
+            if (preference?.Side is { } side)
+            {
+                double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
+                double relative = NormalizeAngle(bearing - runwayHeading);
+                bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
+                if (!isOnRequestedSide)
+                {
+                    continue;
+                }
+            }
+
+            // Score by along-track distance (prefer nearest ahead exit)
+            double score = alongTrack;
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = node;
+            }
+        }
+
+        if (best is null)
+        {
+            return null;
+        }
+
+        string? taxiwayName = GetExitTaxiwayName(best);
+        if (taxiwayName is null)
+        {
+            return null;
+        }
+
+        return (best, taxiwayName);
+    }
+
     private static bool IsRunwayEdge(GroundEdge edge)
     {
         return edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);

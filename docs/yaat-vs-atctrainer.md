@@ -324,6 +324,15 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | Speed floor/ceiling | — | `SPD 210+` / `SPD 210-` |
 | Auto-cancel at 5nm | Not documented | Yes (per 7110.65 §5-7-1) |
 
+### Runway Exit Deceleration
+
+| Aspect | ATCTrainer | YAAT |
+|--------|-----------|------|
+| Exit-aware rollout | Not documented | Yes — aircraft maintains speed until kinematic braking point for assigned exit |
+| High-speed exit speed | Not documented | ~30 kts (≤45° angle from runway heading) |
+| Standard exit speed | Not documented | ~15 kts (>45° angle, e.g. 90° turn) |
+| No exit assigned | Uniform deceleration | Uniform deceleration to 20 kts (same) |
+
 ### Ground Operations
 
 | Aspect | ATCTrainer | YAAT |
