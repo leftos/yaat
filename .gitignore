@@ -25,8 +25,9 @@ tools/oak_layout_dump.json
 ## Local scenario snapshots (downloaded via tools/refresh-scenarios.py)
 tests/Yaat.Sim.Tests/TestData/Scenarios/
 
-## Environment variables
-.env
-
 ## Deployment
 deploy-to-droplet.ps1
+
+## Secrets
+.env
+tools/discord-bot/yaat-bot.2026-03-13.private-key.pem
