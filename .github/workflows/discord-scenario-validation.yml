@@ -1,0 +1,233 @@
+name: Discord Scenario Validation
+
+on:
+  schedule:
+    - cron: "0 10 * * 0"  # Sundays 02:00 PT (10:00 UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+      ZAB_CHANNEL: "1481824000479854756"
+      ZAU_CHANNEL: "1481824003520860220"
+      ZBW_CHANNEL: "1481824006779699251"
+      ZDC_CHANNEL: "1481824009971826891"
+      ZDV_CHANNEL: "1481824013893374043"
+      ZFW_CHANNEL: "1481824017076982003"
+      ZHU_CHANNEL: "1481824020554055751"
+      ZID_CHANNEL: "1481824024144252968"
+      ZJX_CHANNEL: "1481824027298500609"
+      ZKC_CHANNEL: "1481824030372921458"
+      ZLA_CHANNEL: "1481824033518391307"
+      ZLC_CHANNEL: "1481824036907516075"
+      ZMA_CHANNEL: "1481824040153911539"
+      ZME_CHANNEL: "1481824043211685989"
+      ZMP_CHANNEL: "1481824046776848384"
+      ZNY_CHANNEL: "1481824050387882014"
+      ZOA_CHANNEL: "1481824053521285253"
+      ZOB_CHANNEL: "1481824056645783716"
+      ZSE_CHANNEL: "1481824060508864573"
+      ZTL_CHANNEL: "1481824063994462268"
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7  # v5.2.0
+        with:
+          dotnet-version: "10.0.x"
+          dotnet-quality: "ga"
+
+      - name: Build validator
+        run: dotnet build tools/Yaat.ScenarioValidator -c Release -q
+
+      - name: Run validation and post to Discord
+        run: |
+          set -euo pipefail
+
+          ARTCCS="ZAB ZAU ZBW ZDC ZDV ZFW ZHU ZID ZJX ZKC ZLA ZLC ZMA ZME ZMP ZNY ZOA ZOB ZSE ZTL"
+          DATE=$(date -u +%Y-%m-%d)
+
+          # Run validator for all ARTCCs
+          echo "Running scenario validation for all ARTCCs..."
+          dotnet run --project tools/Yaat.ScenarioValidator --no-build -c Release -- --all --json > /tmp/validation.json 2>/tmp/validation.log
+          cat /tmp/validation.log >&2
+
+          for ARTCC in $ARTCCS; do
+            CHANNEL_VAR="${ARTCC}_CHANNEL"
+            CHANNEL="${!CHANNEL_VAR}"
+
+            if [ -z "$CHANNEL" ]; then
+              echo "Skipping $ARTCC — no channel ID configured"
+              continue
+            fi
+
+            echo "Processing $ARTCC..."
+
+            # Format the Discord message from JSON
+            MESSAGE=$(python3 << 'PYEOF'
+          import json, sys
+
+          with open("/tmp/validation.json") as f:
+              data = json.load(f)
+
+          artcc = sys.argv[1] if len(sys.argv) > 1 else ""
+          date = sys.argv[2] if len(sys.argv) > 2 else ""
+
+          if artcc not in data:
+              print(f"# {artcc} Scenario Validation — {date}\n\nNo scenario data available.")
+              sys.exit(0)
+
+          results = data[artcc]
+          scenarios = len(results)
+          presets = sum(r.get("TotalPresets", r.get("totalPresets", 0)) for r in results)
+          failures = []
+          for r in results:
+              name = r.get("ScenarioName", r.get("scenarioName", ""))
+              for f in r.get("Failures", r.get("failures", [])):
+                  acid = f.get("AircraftId", f.get("aircraftId", ""))
+                  cmd = f.get("Command", f.get("command", ""))
+                  failures.append((name, acid, cmd))
+
+          if not failures:
+              print(f"# {artcc} Scenario Validation — {date}\n\n{scenarios} scenarios, {presets} presets — all commands parsed successfully.")
+          else:
+              lines = [f"# {artcc} Scenario Validation — {date}\n"]
+              lines.append(f"{scenarios} scenarios, {presets} presets, {len(failures)} failure{'s' if len(failures) != 1 else ''}\n")
+
+              # Group by scenario then aircraft
+              by_scenario = {}
+              for name, acid, cmd in failures:
+                  by_scenario.setdefault(name, {}).setdefault(acid, []).append(cmd)
+
+              for name, aircraft in by_scenario.items():
+                  lines.append(f"**{name}**")
+                  for acid, cmds in aircraft.items():
+                      lines.append(f"  {acid}:")
+                      for cmd in cmds:
+                          lines.append(f'    `{cmd}`')
+                  lines.append("")
+
+              print("\n".join(lines))
+          PYEOF
+          "$ARTCC" "$DATE")
+
+            # Fetch last message from channel and compare
+            LAST_CONTENT=$(python3 << 'PYEOF'
+          import json, urllib.request, sys
+
+          bot_token = sys.argv[1]
+          channel = sys.argv[2]
+
+          try:
+              req = urllib.request.Request(
+                  f"https://discord.com/api/v10/channels/{channel}/messages?limit=1",
+                  headers={"Authorization": f"Bot {bot_token}", "User-Agent": "YAAT-Validation/1.0"}
+              )
+              msgs = json.loads(urllib.request.urlopen(req).read())
+              if msgs:
+                  print(msgs[0].get("content", ""))
+          except Exception:
+              pass
+          PYEOF
+          "$DISCORD_BOT_TOKEN" "$CHANNEL" 2>/dev/null || true)
+
+            # Compare first 1900 chars (Discord message limit boundary)
+            MSG_PREFIX=$(echo "$MESSAGE" | head -c 1900)
+            LAST_PREFIX=$(echo "$LAST_CONTENT" | head -c 1900)
+
+            if [ "$MSG_PREFIX" = "$LAST_PREFIX" ] && [ -n "$LAST_CONTENT" ]; then
+              echo "  $ARTCC unchanged — skipping"
+              continue
+            fi
+
+            echo "  $ARTCC changed — updating channel"
+
+            # Clear channel
+            python3 << 'PYEOF'
+          import json, urllib.request, time, sys
+
+          bot_token, channel = sys.argv[1], sys.argv[2]
+          while True:
+              req = urllib.request.Request(
+                  f"https://discord.com/api/v10/channels/{channel}/messages?limit=100",
+                  headers={"Authorization": f"Bot {bot_token}", "User-Agent": "YAAT-Validation/1.0"}
+              )
+              msgs = json.loads(urllib.request.urlopen(req).read())
+              if not msgs:
+                  break
+              for m in msgs:
+                  dreq = urllib.request.Request(
+                      f"https://discord.com/api/v10/channels/{channel}/messages/{m['id']}",
+                      method="DELETE",
+                      headers={"Authorization": f"Bot {bot_token}", "User-Agent": "YAAT-Validation/1.0"}
+                  )
+                  try:
+                      urllib.request.urlopen(dreq)
+                  except Exception:
+                      pass
+                  time.sleep(0.5)
+              print(f"Deleted {len(msgs)} message(s) from {channel}")
+          PYEOF
+          "$DISCORD_BOT_TOKEN" "$CHANNEL"
+
+            # Post message in chunks
+            python3 << 'PYEOF'
+          import json, urllib.request, time, sys
+
+          bot_token = sys.argv[1]
+          channel = sys.argv[2]
+          text = sys.argv[3]
+
+          limit = 1900
+          lines = text.split("\n")
+          chunks, current, best_break = [], "", ""
+
+          for line in lines:
+              candidate = current + ("\n" if current else "") + line
+              stripped = line.strip()
+              is_break = stripped == "" or stripped.startswith("#") or stripped.startswith("**")
+              if is_break and current:
+                  best_break = current
+              if len(candidate) > limit and current:
+                  if best_break:
+                      chunks.append(best_break)
+                      remainder = current[len(best_break):].lstrip("\n")
+                      current = remainder + ("\n" if remainder else "") + line if remainder else line
+                  else:
+                      chunks.append(current)
+                      current = line
+                  best_break = ""
+              else:
+                  current = candidate
+          if current:
+              chunks.append(current)
+
+          url = f"https://discord.com/api/v10/channels/{channel}/messages"
+          for i, chunk in enumerate(chunks):
+              payload = json.dumps({"content": chunk.strip(), "flags": 4}).encode("utf-8")
+              req = urllib.request.Request(
+                  url, data=payload,
+                  headers={
+                      "Authorization": f"Bot {bot_token}",
+                      "Content-Type": "application/json",
+                      "User-Agent": "YAAT-Validation/1.0"
+                  }
+              )
+              urllib.request.urlopen(req)
+              if i < len(chunks) - 1:
+                  time.sleep(1)
+
+          print(f"Posted {len(chunks)} message(s) to {channel}")
+          PYEOF
+          "$DISCORD_BOT_TOKEN" "$CHANNEL" "$MESSAGE"
+
+          done
+
+          echo "Done."

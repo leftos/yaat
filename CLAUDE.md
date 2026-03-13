@@ -138,6 +138,7 @@ See [`docs/scenario-validation.md`](docs/scenario-validation.md) for how to vali
 | `discord-push.yml` | Push to `master` | Posts commit list embed to `DISCORD_WEBHOOK_URL` |
 | `discord-nightly.yml` | Cron 02:00 PT (+ manual) | Claude Haiku summarizes yaat + yaat-server commits since last digest; posts to `DISCORD_NIGHTLY_WEBHOOK_URL` |
 | `discord-docs.yml` | Push to `master` (INSTALL/README/USER_GUIDE) + manual | Clears + reposts doc content to dedicated channels via bot token; USER_GUIDE posts ToC only |
+| `discord-scenario-validation.yml` | Weekly cron Sunday 02:00 PT (+ manual) | Runs ScenarioValidator for all 20 ARTCCs; posts per-ARTCC reports to dedicated channels via bot token; content-diffs to skip unchanged channels |
 
 ### Discord Bot (`tools/discord-bot/`)
 
