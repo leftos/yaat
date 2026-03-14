@@ -352,6 +352,7 @@ public static class CommandParser
 
     private static (BlockCondition Condition, string Remainder)? ParseAtCondition(string input, NavigationDatabase navDb)
     {
+        // "AT 5000 CM 190" → condition=LevelCondition(5000), remainder="CM 190"
         // "AT SUNOL FH 090" → condition=AtFixCondition(SUNOL, lat, lon), remainder="FH 090"
         // "AT BRIXX" → condition=AtFixCondition(BRIXX, lat, lon), remainder=""
         var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -363,7 +364,14 @@ public static class CommandParser
         var token = parts[1].ToUpperInvariant();
         var remainder = parts.Length >= 3 ? string.Join(' ', parts.Skip(2)) : "";
 
-        // Try direct fix lookup first
+        // Try altitude first — "AT 5000 ..." means "when reaching altitude 5000"
+        int? altitude = AltitudeResolver.Resolve(token, navDb);
+        if (altitude is not null)
+        {
+            return (new LevelCondition(altitude.Value), remainder);
+        }
+
+        // Try direct fix lookup
         var pos = navDb.GetFixPosition(token);
         if (pos is not null)
         {

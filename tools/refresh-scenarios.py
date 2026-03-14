@@ -58,16 +58,18 @@ def refresh_artcc(artcc_id: str) -> None:
 
     print(f"  Found {len(summaries)} scenarios")
 
+    total = len(summaries)
     ok = 0
     fail = 0
     skipped = 0
-    for i, s in enumerate(summaries):
+    for i, s in enumerate(summaries, 1):
         sid = s["id"]
         name = s.get("name", sid)
         path = os.path.join(out_dir, f"{sid}.json")
 
         if os.path.exists(path) and os.path.getsize(path) > 0:
             skipped += 1
+            print(f"\r  [{i}/{total}] {skipped} cached, {ok} downloaded, {fail} failed", end="", flush=True)
             continue
 
         try:
@@ -80,13 +82,12 @@ def refresh_artcc(artcc_id: str) -> None:
             ok += 1
         except Exception as e:
             fail += 1
-            print(f"  FAIL {name}: {e}")
+            print(f"\n  FAIL {name}: {e}")
 
-        if (i + 1) % 20 == 0:
-            print(f"  {i + 1}/{len(summaries)}...")
+        print(f"\r  [{i}/{total}] {skipped} cached, {ok} downloaded, {fail} failed", end="", flush=True)
         time.sleep(0.1)
 
-    print(f"  Done: {ok} downloaded, {skipped} cached, {fail} failed")
+    print(f"\n  Done: {ok} downloaded, {skipped} cached, {fail} failed")
 
 
 def main() -> None:

@@ -113,6 +113,12 @@ public static class CommandSchemeParser
                 return null;
             }
 
+            // AT with altitude requires a following command (AT 5000 CM 190)
+            if (CommandParser.IsAltitudeArg(tokens[1]) && tokens.Length < 3)
+            {
+                return null;
+            }
+
             parts.Add($"AT {tokens[1].ToUpperInvariant()}");
             remaining = tokens.Length >= 3 ? tokens[2] : "";
         }
