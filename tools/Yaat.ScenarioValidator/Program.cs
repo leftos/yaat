@@ -116,42 +116,54 @@ public static class Program
 
     private static async Task<NavigationDatabase> DownloadNavDataAsync()
     {
-        try
+        var client = new VnasClient();
+
+        for (int attempt = 1; attempt <= 3; attempt++)
         {
-            Console.Error.Write("Downloading NavData...");
-            var client = new VnasClient();
-            var navData = await client.DownloadNavDataAsync();
-            if (navData is not null)
+            try
             {
-                var db = new NavigationDatabase(navData, customFixesBaseDir: "");
-                Console.Error.WriteLine($" {db.Count} fixes");
-                return db;
+                Console.Error.Write(attempt == 1 ? "Downloading NavData..." : $" retry {attempt}/3...");
+                var navData = await client.DownloadNavDataAsync();
+                if (navData is not null)
+                {
+                    var db = new NavigationDatabase(navData, customFixesBaseDir: "");
+                    Console.Error.WriteLine($" {db.Count} fixes");
+                    return db;
+                }
+
+                Console.Error.Write(" null response");
             }
-
-            Console.Error.WriteLine(" failed (null response), proceeding without NavData");
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($" failed ({ex.Message}), proceeding without NavData");
+            catch (Exception ex)
+            {
+                Console.Error.Write($" failed ({ex.Message})");
+            }
         }
 
-        return new NavigationDatabase(null, customFixesBaseDir: "");
+        Console.Error.WriteLine();
+        Console.Error.WriteLine("ERROR: NavData download failed after 3 attempts — fix resolution will be unavailable");
+        Console.Error.WriteLine("       Results will have many false-positive failures. Aborting.");
+        Environment.Exit(1);
+        return null!; // unreachable
     }
 
     private static async Task<int> ValidateMultipleAsync(string[] artccs, NavigationDatabase navDb, bool jsonOutput)
     {
         var allResults = new Dictionary<string, List<ScenarioValidationResult>>();
 
-        foreach (var artcc in artccs)
+        var tasks = artccs.Select(async artcc =>
         {
-            if (!jsonOutput)
+            var results = await ValidateArtccAsync(artcc, navDb, quiet: true);
+            lock (allResults)
             {
-                Console.Error.WriteLine($"\n=== {artcc} ===");
+                allResults[artcc] = results;
             }
 
-            var results = await ValidateArtccAsync(artcc, navDb, jsonOutput);
-            allResults[artcc] = results;
-        }
+            int failures = results.Sum(r => r.Failures.Count);
+            int procIssues = results.Sum(r => r.ProcedureIssues.Count);
+            int presets = results.Sum(r => r.TotalPresets);
+            Console.Error.WriteLine($"  [{artcc}] {results.Count} scenarios, {presets} presets, {failures} failures, {procIssues} procedure issues");
+        });
+        await Task.WhenAll(tasks);
 
         if (jsonOutput)
         {
@@ -242,7 +254,11 @@ public static class Program
 
         if (summaries.Count == 0)
         {
-            Console.Error.WriteLine($" no scenarios found for {artccId}");
+            if (!quiet)
+            {
+                Console.Error.WriteLine($" no scenarios found for {artccId}");
+            }
+
             return [];
         }
 
@@ -252,48 +268,58 @@ public static class Program
             Console.Error.WriteLine($"Validating {summaries.Count} {artccId} scenarios...\n");
         }
 
-        var results = new List<ScenarioValidationResult>();
-
-        for (int i = 0; i < summaries.Count; i++)
+        // Download and validate scenarios in parallel (throttled to 8 concurrent)
+        using var throttle = new SemaphoreSlim(8);
+        int completed = 0;
+        var tasks = summaries.Select(async summary =>
         {
-            var summary = summaries[i];
-            var json = await client.GetScenarioJsonAsync(summary.Id);
-            if (json is null)
+            await throttle.WaitAsync();
+            try
             {
-                Console.Error.WriteLine($"  [{i + 1}/{summaries.Count}] {summary.Name} — FETCH FAILED");
-                continue;
-            }
-
-            var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json, navDb);
-            if (result is null)
-            {
-                Console.Error.WriteLine($"  [{i + 1}/{summaries.Count}] {summary.Name} — JSON PARSE FAILED");
-                continue;
-            }
-
-            results.Add(result);
-
-            if (!quiet)
-            {
-                var issues = new List<string>();
-                if (result.Failures.Count > 0)
+                var json = await client.GetScenarioJsonAsync(summary.Id);
+                if (json is null)
                 {
-                    issues.Add($"{result.Failures.Count} failure{(result.Failures.Count != 1 ? "s" : "")}");
+                    Console.Error.WriteLine($"  [{artccId}] {summary.Name} — FETCH FAILED");
+                    return (ScenarioValidationResult?)null;
                 }
 
-                if (result.ProcedureIssues.Count > 0)
+                var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json, navDb);
+                if (result is null)
                 {
-                    issues.Add($"{result.ProcedureIssues.Count} procedure issue{(result.ProcedureIssues.Count != 1 ? "s" : "")}");
+                    Console.Error.WriteLine($"  [{artccId}] {summary.Name} — JSON PARSE FAILED");
+                    return null;
                 }
 
-                var status = issues.Count == 0 ? "OK" : string.Join(", ", issues);
-                Console.Error.WriteLine(
-                    $"  [{i + 1}/{summaries.Count}] {result.ScenarioName} ({result.AircraftCount} aircraft, {result.TotalPresets} presets) — {status}"
-                );
-            }
-        }
+                if (!quiet)
+                {
+                    int n = Interlocked.Increment(ref completed);
+                    var issues = new List<string>();
+                    if (result.Failures.Count > 0)
+                    {
+                        issues.Add($"{result.Failures.Count} failure{(result.Failures.Count != 1 ? "s" : "")}");
+                    }
 
-        return results;
+                    if (result.ProcedureIssues.Count > 0)
+                    {
+                        issues.Add($"{result.ProcedureIssues.Count} procedure issue{(result.ProcedureIssues.Count != 1 ? "s" : "")}");
+                    }
+
+                    var status = issues.Count == 0 ? "OK" : string.Join(", ", issues);
+                    Console.Error.WriteLine(
+                        $"  [{n}/{summaries.Count}] {result.ScenarioName} ({result.AircraftCount} aircraft, {result.TotalPresets} presets) — {status}"
+                    );
+                }
+
+                return result;
+            }
+            finally
+            {
+                throttle.Release();
+            }
+        });
+
+        var all = await Task.WhenAll(tasks);
+        return all.Where(r => r is not null).ToList()!;
     }
 
     private static List<ScenarioValidationResult> ValidateFile(string path, NavigationDatabase navDb)
