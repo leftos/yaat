@@ -367,6 +367,7 @@ public partial class MainViewModel
             SetRadarAirportPosition(state.PrimaryAirportId);
             ApplySimState(state.IsPaused, (int)state.SimRate, state.ElapsedSeconds, state.IsPlayback, state.TapeEnd);
 
+            Ground.SetScenarioId(state.ScenarioId);
             if (!string.IsNullOrEmpty(state.PrimaryAirportId))
             {
                 SetDistanceReference(state.PrimaryAirportId);
