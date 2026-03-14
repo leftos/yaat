@@ -4,6 +4,7 @@ using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Services;
+using Yaat.Client.Views;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.ViewModels;
@@ -358,23 +359,15 @@ public partial class SettingsViewModel : ObservableObject
         MacroRows.Clear();
     }
 
-    public void ImportMacros(IEnumerable<SavedMacro> macros)
+    public void ImportMacros(MacroImportResult result)
     {
         var existingBaseNames = new HashSet<string>(MacroRows.Select(r => MacroDefinition.ExtractBaseName(r.Name)), StringComparer.OrdinalIgnoreCase);
 
-        foreach (var m in macros)
+        // Add non-conflicting macros
+        foreach (var m in result.NewMacros)
         {
-            var importBaseName = MacroDefinition.ExtractBaseName(m.Name);
-            if (existingBaseNames.Contains(importBaseName))
-            {
-                // Overwrite existing (match on base name so "HC $a $b" overwrites "HC" or "HC $x $y")
-                var existing = MacroRows.First(r =>
-                    string.Equals(MacroDefinition.ExtractBaseName(r.Name), importBaseName, StringComparison.OrdinalIgnoreCase)
-                );
-                existing.Name = m.Name;
-                existing.Expansion = m.Expansion;
-            }
-            else
+            var baseName = MacroDefinition.ExtractBaseName(m.Name);
+            if (!existingBaseNames.Contains(baseName))
             {
                 MacroRows.Add(
                     new MacroRow
@@ -384,7 +377,49 @@ public partial class SettingsViewModel : ObservableObject
                         RemoveAction = r => MacroRows.Remove(r),
                     }
                 );
-                existingBaseNames.Add(importBaseName);
+                existingBaseNames.Add(baseName);
+            }
+        }
+
+        // Apply conflict resolutions
+        foreach (var conflict in result.Conflicts)
+        {
+            switch (conflict.Resolution)
+            {
+                case ConflictResolution.Overwrite:
+                {
+                    var importBaseName = MacroDefinition.ExtractBaseName(conflict.Macro.Name);
+                    var existing = MacroRows.First(r =>
+                        string.Equals(MacroDefinition.ExtractBaseName(r.Name), importBaseName, StringComparison.OrdinalIgnoreCase)
+                    );
+                    existing.Name = conflict.Macro.Name;
+                    existing.Expansion = conflict.Macro.Expansion;
+                    break;
+                }
+
+                case ConflictResolution.Skip:
+                    break;
+
+                case ConflictResolution.Rename:
+                {
+                    var renamedName = conflict.RenamedName!;
+                    // Preserve parameter declarations from original name if the rename is just a base name
+                    var originalTokens = conflict.Macro.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (originalTokens.Length > 1 && !renamedName.Contains(' '))
+                    {
+                        renamedName = renamedName + " " + string.Join(" ", originalTokens.Skip(1));
+                    }
+
+                    MacroRows.Add(
+                        new MacroRow
+                        {
+                            Name = renamedName,
+                            Expansion = conflict.Macro.Expansion,
+                            RemoveAction = r => MacroRows.Remove(r),
+                        }
+                    );
+                    break;
+                }
             }
         }
     }

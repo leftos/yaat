@@ -115,10 +115,51 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            var existingNames = new HashSet<string>(vm.MacroRows.Select(r => r.Name), StringComparer.OrdinalIgnoreCase);
-            var importWindow = new MacroImportWindow(macros, existingNames);
-            var result = await importWindow.ShowDialog<List<SavedMacro>?>(this);
-            if (result is { Count: > 0 })
+            var existingBaseNames = new HashSet<string>(
+                vm.MacroRows.Select(r => MacroDefinition.ExtractBaseName(r.Name)),
+                StringComparer.OrdinalIgnoreCase
+            );
+
+            var newMacros = new List<SavedMacro>();
+            var conflicts = new List<MacroImportItem>();
+
+            foreach (var m in macros)
+            {
+                var baseName = MacroDefinition.ExtractBaseName(m.Name);
+                if (existingBaseNames.Contains(baseName))
+                {
+                    var existingRow = vm.MacroRows.First(r =>
+                        string.Equals(MacroDefinition.ExtractBaseName(r.Name), baseName, StringComparison.OrdinalIgnoreCase)
+                    );
+
+                    // Generate a default rename suggestion
+                    var renameCandidate = GenerateRenameSuggestion(baseName, existingBaseNames, macros);
+
+                    conflicts.Add(
+                        new MacroImportItem
+                        {
+                            Macro = m,
+                            ExistingExpansion = existingRow.Expansion,
+                            RenamedName = renameCandidate,
+                        }
+                    );
+                }
+                else
+                {
+                    newMacros.Add(m);
+                }
+            }
+
+            if (conflicts.Count == 0)
+            {
+                // No conflicts — import all directly
+                vm.ImportMacros(new MacroImportResult { NewMacros = newMacros, Conflicts = [] });
+                return;
+            }
+
+            var importWindow = new MacroImportWindow(conflicts, newMacros, existingBaseNames);
+            var result = await importWindow.ShowDialog<MacroImportResult?>(this);
+            if (result is not null)
             {
                 vm.ImportMacros(result);
             }
@@ -127,6 +168,25 @@ public partial class SettingsWindow : Window
         {
             // Invalid file format — silently ignore
         }
+    }
+
+    private static string GenerateRenameSuggestion(string baseName, HashSet<string> existingBaseNames, List<SavedMacro> incomingMacros)
+    {
+        var incomingBaseNames = new HashSet<string>(
+            incomingMacros.Select(m => MacroDefinition.ExtractBaseName(m.Name)),
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        for (var i = 2; i < 100; i++)
+        {
+            var candidate = $"{baseName}_{i}";
+            if (!existingBaseNames.Contains(candidate) && !incomingBaseNames.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return $"{baseName}_renamed";
     }
 
     private async void OnExportSelectedClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
