@@ -90,7 +90,8 @@ jobs:
                   for fail in r.get("Failures", r.get("failures", [])):
                       acid = fail.get("AircraftId", fail.get("aircraftId", ""))
                       cmd = fail.get("Command", fail.get("command", ""))
-                      failures.append((name, acid, cmd))
+                      reason = fail.get("Reason", fail.get("reason", None))
+                      failures.append((name, acid, cmd, reason))
                   for issue in r.get("ProcedureIssues", r.get("procedureIssues", [])):
                       acid = issue.get("AircraftId", issue.get("aircraftId", ""))
                       proc_id = issue.get("ProcedureId", issue.get("procedureId", ""))
@@ -103,9 +104,9 @@ jobs:
 
               # Merge failures and procedure issues by scenario → aircraft
               by_scenario = {}
-              for name, acid, cmd in failures:
+              for name, acid, cmd, reason in failures:
                   by_scenario.setdefault(name, {}).setdefault(acid, {"failures": [], "proc_issues": []})
-                  by_scenario[name][acid]["failures"].append(cmd)
+                  by_scenario[name][acid]["failures"].append((cmd, reason))
               for name, acid, proc_id, kind, resolved in proc_issues:
                   by_scenario.setdefault(name, {}).setdefault(acid, {"failures": [], "proc_issues": []})
                   by_scenario[name][acid]["proc_issues"].append((proc_id, kind, resolved))
@@ -122,8 +123,9 @@ jobs:
                   lines.append(f"**{name}**")
                   for acid, issues in aircraft.items():
                       lines.append(f"  {acid}:")
-                      for cmd in issues["failures"]:
-                          lines.append(f"    `{cmd}`")
+                      for cmd, reason in issues["failures"]:
+                          suffix = f" — {reason}" if reason else ""
+                          lines.append(f"    `{cmd}`{suffix}")
                       for proc_id, kind, resolved in issues["proc_issues"]:
                           if kind == 0 or kind == "VersionChanged":
                               lines.append(f"    Procedure `{proc_id}` implicitly changed to `{resolved}`")
