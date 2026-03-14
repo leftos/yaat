@@ -160,6 +160,15 @@ public partial class SettingsViewModel : ObservableObject
     private string _assignmentTintColor = "#00FF00";
 
     [ObservableProperty]
+    private bool _unassignedTintEnabled;
+
+    [ObservableProperty]
+    private string _unassignedTintColor = "#888888";
+
+    [ObservableProperty]
+    private string _selectedColor = "#FFFFFF";
+
+    [ObservableProperty]
     private int _selectedSignatureHelpPlacementIndex;
 
     [ObservableProperty]
@@ -208,6 +217,9 @@ public partial class SettingsViewModel : ObservableObject
         _focusInputKeyDisplay = KeyNameToDisplay(_focusInputKeyName);
         _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
         _assignmentTintColor = _preferences.AssignmentTintColor;
+        _unassignedTintEnabled = _preferences.UnassignedTintEnabled;
+        _unassignedTintColor = _preferences.UnassignedTintColor;
+        _selectedColor = _preferences.SelectedColor;
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
         _dataGridFontSize = _preferences.DataGridFontSize;
         LoadMacros();
@@ -247,6 +259,8 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
+        _preferences.SetUnassignedTint(UnassignedTintEnabled, UnassignedTintColor);
+        _preferences.SetSelectedColor(SelectedColor);
         _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
         _preferences.SetDataGridFontSize(DataGridFontSize);
         SaveMacros();

@@ -67,6 +67,12 @@ public sealed class TargetRenderer : IDisposable
     /// <summary>When non-null, aircraft assigned to LocalUserInitials use this color.</summary>
     public SKColor? AssignmentTintColor { get; set; }
 
+    /// <summary>When non-null, aircraft NOT assigned to LocalUserInitials use this color.</summary>
+    public SKColor? UnassignedTintColor { get; set; }
+
+    /// <summary>When non-null, overrides the hardcoded white for selected aircraft.</summary>
+    public SKColor? SelectedOverrideColor { get; set; }
+
     private const float SymbolSize = 5f;
     private const float LeaderLength = 40f;
 
@@ -89,16 +95,25 @@ public sealed class TargetRenderer : IDisposable
 
             bool isSelected = ac == selectedAircraft;
             bool isOnGround = showTopDown && (int)(ac.Altitude / 100) < 1;
-            var tintColor =
-                AssignmentTintColor is { } tint
-                && LocalUserInitials is not null
-                && string.Equals(ac.AssignedTo, LocalUserInitials, StringComparison.OrdinalIgnoreCase)
-                    ? tint
-                    : (SKColor?)null;
+            SKColor? tintColor = null;
+            if (LocalUserInitials is not null)
+            {
+                bool isAssignedToMe = string.Equals(ac.AssignedTo, LocalUserInitials, StringComparison.OrdinalIgnoreCase);
+                if (isAssignedToMe && AssignmentTintColor is { } assignedTint)
+                {
+                    tintColor = assignedTint;
+                }
+                else if (!isAssignedToMe && UnassignedTintColor is { } unassignedTint)
+                {
+                    tintColor = unassignedTint;
+                }
+            }
+
             var baseSymbolColor = tintColor ?? (isOnGround ? GroundColor : SymbolColor);
             var baseDbColor = tintColor ?? (isOnGround ? GroundColor : DataBlockColor);
-            var symbolColor = isSelected ? SelectedColor : baseSymbolColor;
-            var dbColor = isSelected ? SelectedColor : baseDbColor;
+            var selectedColor = SelectedOverrideColor ?? SelectedColor;
+            var symbolColor = isSelected ? selectedColor : baseSymbolColor;
+            var dbColor = isSelected ? selectedColor : baseDbColor;
             bool isMinified = minifiedCallsigns is not null && minifiedCallsigns.Contains(ac.Callsign);
 
             if (ptlLengthMinutes > 0 && ShouldShowPtl(ac, ptlOwn, ptlAll))

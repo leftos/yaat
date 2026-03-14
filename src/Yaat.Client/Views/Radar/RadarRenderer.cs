@@ -193,6 +193,18 @@ public sealed class RadarRenderer : IDisposable
         set => _targetRenderer.AssignmentTintColor = value;
     }
 
+    public SKColor? UnassignedTintColor
+    {
+        get => _targetRenderer.UnassignedTintColor;
+        set => _targetRenderer.UnassignedTintColor = value;
+    }
+
+    public SKColor? SelectedOverrideColor
+    {
+        get => _targetRenderer.SelectedOverrideColor;
+        set => _targetRenderer.SelectedOverrideColor = value;
+    }
+
     public float RangeRingBrightness
     {
         get => _rangeRingBrightness;

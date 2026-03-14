@@ -131,6 +131,9 @@ public sealed class UserPreferences
     public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
     public bool AssignmentTintEnabled => _data.AssignmentTintEnabled;
     public string AssignmentTintColor => _data.AssignmentTintColor;
+    public bool UnassignedTintEnabled => _data.UnassignedTintEnabled;
+    public string UnassignedTintColor => _data.UnassignedTintColor;
+    public string SelectedColor => _data.SelectedColor;
     public string SignatureHelpPlacement => _data.SignatureHelpPlacement;
     public int DataGridFontSize => _data.DataGridFontSize;
 
@@ -307,6 +310,19 @@ public sealed class UserPreferences
     {
         _data.AssignmentTintEnabled = enabled;
         _data.AssignmentTintColor = color;
+        Save();
+    }
+
+    public void SetUnassignedTint(bool enabled, string color)
+    {
+        _data.UnassignedTintEnabled = enabled;
+        _data.UnassignedTintColor = color;
+        Save();
+    }
+
+    public void SetSelectedColor(string color)
+    {
+        _data.SelectedColor = color;
         Save();
     }
 
@@ -567,6 +583,9 @@ public sealed class UserPreferences
             GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
             AssignmentTintEnabled = GetFieldOr(obj, "assignmentTintEnabled", false),
             AssignmentTintColor = GetFieldOr(obj, "assignmentTintColor", "#00FF00"),
+            UnassignedTintEnabled = GetFieldOr(obj, "unassignedTintEnabled", false),
+            UnassignedTintColor = GetFieldOr(obj, "unassignedTintColor", "#888888"),
+            SelectedColor = GetFieldOr(obj, "selectedColor", "#FFFFFF"),
             SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
         };
@@ -730,6 +749,9 @@ public sealed class UserPreferences
         public bool GroundPanZoomLocked { get; set; }
         public bool AssignmentTintEnabled { get; set; }
         public string AssignmentTintColor { get; set; } = "#00FF00";
+        public bool UnassignedTintEnabled { get; set; }
+        public string UnassignedTintColor { get; set; } = "#888888";
+        public string SelectedColor { get; set; } = "#FFFFFF";
         public string SignatureHelpPlacement { get; set; } = "Above";
         public int DataGridFontSize { get; set; } = 12;
     }

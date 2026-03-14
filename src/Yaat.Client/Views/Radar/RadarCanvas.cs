@@ -341,6 +341,26 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    public SKColor? UnassignedTintColor
+    {
+        get => _renderer.UnassignedTintColor;
+        set
+        {
+            _renderer.UnassignedTintColor = value;
+            MarkDirty();
+        }
+    }
+
+    public SKColor? SelectedOverrideColor
+    {
+        get => _renderer.SelectedOverrideColor;
+        set
+        {
+            _renderer.SelectedOverrideColor = value;
+            MarkDirty();
+        }
+    }
+
     /// <summary>
     /// Sets the brightness category lookup (mapId → "A"/"B").
     /// </summary>

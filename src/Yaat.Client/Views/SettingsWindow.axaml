@@ -5,6 +5,10 @@
         Icon="avares://Yaat.Client/Resources/icon.png"
         Title="Settings">
 
+    <Window.Resources>
+        <vm:HexColorConverter x:Key="HexColorConverter" />
+    </Window.Resources>
+
     <Design.DataContext>
         <vm:SettingsViewModel />
     </Design.DataContext>
@@ -175,6 +179,81 @@
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />
                         </StackPanel>
+                        <Separator Margin="0,4" />
+                        <TextBlock Text="Command Input"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Signature Help Placement:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <ComboBox ItemsSource="{Binding SignatureHelpPlacementOptions}"
+                                      SelectedIndex="{Binding SelectedSignatureHelpPlacementIndex}"
+                                      Width="120"
+                                      HorizontalAlignment="Left" />
+                            <TextBlock Text="Controls whether the command signature help tooltip appears above or below the command input."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <Separator Margin="0,4" />
+                        <TextBlock Text="Radar Display"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <CheckBox Content="Tint my assigned aircraft"
+                                      IsChecked="{Binding AssignmentTintEnabled}" />
+                            <StackPanel Spacing="4"
+                                        IsVisible="{Binding AssignmentTintEnabled}"
+                                        Margin="28,0,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Tint Color:"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               VerticalAlignment="Center" />
+                                    <ColorPicker Color="{Binding AssignmentTintColor, Converter={StaticResource HexColorConverter}}"
+                                                 IsAlphaEnabled="False"
+                                                 Width="200"
+                                                 HorizontalAlignment="Left" />
+                                </StackPanel>
+                                <TextBlock Text="Color for targets and datablocks of aircraft assigned to you. Default: green."
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <CheckBox Content="Tint unassigned aircraft"
+                                      IsChecked="{Binding UnassignedTintEnabled}" />
+                            <StackPanel Spacing="4"
+                                        IsVisible="{Binding UnassignedTintEnabled}"
+                                        Margin="28,0,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Tint Color:"
+                                               Foreground="{DynamicResource SubtleTextBrush}"
+                                               VerticalAlignment="Center" />
+                                    <ColorPicker Color="{Binding UnassignedTintColor, Converter={StaticResource HexColorConverter}}"
+                                                 IsAlphaEnabled="False"
+                                                 Width="200"
+                                                 HorizontalAlignment="Left" />
+                                </StackPanel>
+                                <TextBlock Text="Color for aircraft not assigned to you (or unassigned). Default: gray."
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Selected Aircraft Color:"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           VerticalAlignment="Center" />
+                                <ColorPicker Color="{Binding SelectedColor, Converter={StaticResource HexColorConverter}}"
+                                             IsAlphaEnabled="False"
+                                             Width="200"
+                                             HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <TextBlock Text="Color for the currently selected aircraft's symbol and datablock. Default: white."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -341,43 +420,6 @@
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />
-                        </StackPanel>
-                        <Separator Margin="0,4" />
-                        <TextBlock Text="Command Input"
-                                   FontWeight="SemiBold" />
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Signature Help Placement:"
-                                       Foreground="{DynamicResource SubtleTextBrush}" />
-                            <ComboBox ItemsSource="{Binding SignatureHelpPlacementOptions}"
-                                      SelectedIndex="{Binding SelectedSignatureHelpPlacementIndex}"
-                                      Width="120"
-                                      HorizontalAlignment="Left" />
-                            <TextBlock Text="Controls whether the command signature help tooltip appears above or below the command input."
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
-                        <Separator Margin="0,4" />
-                        <TextBlock Text="Radar Display"
-                                   FontWeight="SemiBold" />
-                        <StackPanel Spacing="4">
-                            <CheckBox Content="Tint my assigned aircraft"
-                                      IsChecked="{Binding AssignmentTintEnabled}" />
-                            <StackPanel Spacing="4"
-                                        IsVisible="{Binding AssignmentTintEnabled}"
-                                        Margin="28,0,0,0">
-                                <TextBlock Text="Tint Color (hex):"
-                                           Foreground="{DynamicResource SubtleTextBrush}" />
-                                <TextBox Text="{Binding AssignmentTintColor}"
-                                         MaxLength="7"
-                                         Watermark="#00FF00"
-                                         Width="100"
-                                         HorizontalAlignment="Left" />
-                                <TextBlock Text="Hex color for targets and datablocks of aircraft assigned to you. Default: #00FF00 (green)."
-                                           TextWrapping="Wrap"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11" />
-                            </StackPanel>
                         </StackPanel>
                         <Separator Margin="0,4" />
                         <CheckBox Content="Server Admin Mode"
