@@ -395,16 +395,14 @@ public static class ApproachCommandHandler
             return ResolvedApproach.Fail("Cannot determine airport for approach");
         }
 
-        // Auto-resolve: when no approach ID given, derive from assigned runway
+        // Auto-resolve: when no approach ID given, try ExpectedApproach first, then assigned runway
         if (approachId is null)
         {
-            var rwy = aircraft.DestinationRunway ?? aircraft.DepartureRunway;
-            if (rwy is null)
+            approachId = aircraft.ExpectedApproach ?? aircraft.DestinationRunway ?? aircraft.DepartureRunway;
+            if (approachId is null)
             {
                 return ResolvedApproach.Fail("No approach ID and no runway assigned — cannot auto-resolve");
             }
-
-            approachId = rwy;
         }
 
         string? resolvedId = approachLookup.ResolveApproachId(airport, approachId);

@@ -437,6 +437,41 @@ public class ApproachCommandHandlerTests
         Assert.Equal(1800, aircraft.Targets.TargetAltitude);
     }
 
+    // --- CAPP auto-resolve from ExpectedApproach ---
+
+    [Fact]
+    public void Capp_BareWithExpectedApproach_ResolvesFromExpectedApproach()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.ExpectedApproach = "I28R";
+        // No DestinationRunway set — ExpectedApproach is the only source
+        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+
+        var cmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+
+        Assert.True(result.Success);
+        Assert.NotNull(aircraft.Phases?.ActiveApproach);
+        Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
+    }
+
+    [Fact]
+    public void Capp_BareWithExpectedApproachAndDestinationRunway_PrefersExpectedApproach()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.ExpectedApproach = "I28R";
+        aircraft.DestinationRunway = "28L";
+        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+
+        var cmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+
+        Assert.True(result.Success);
+        Assert.NotNull(aircraft.Phases?.ActiveApproach);
+        // ExpectedApproach "I28R" wins over DestinationRunway "28L"
+        Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
+    }
+
     // --- Error cases ---
 
     [Fact]
