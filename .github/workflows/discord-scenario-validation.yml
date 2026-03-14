@@ -59,7 +59,6 @@ jobs:
           import json, urllib.request, time, os
 
           bot_token = os.environ["DISCORD_BOT_TOKEN"]
-          date = time.strftime("%Y-%m-%d", time.gmtime())
 
           artccs = ["ZAB","ZAU","ZBW","ZDC","ZDV","ZFW","ZHU","ZID","ZJX","ZKC","ZLA","ZLC","ZMA","ZME","ZMP","ZNY","ZOA","ZOB","ZSE","ZTL"]
 
@@ -78,7 +77,7 @@ jobs:
 
           def format_message(artcc):
               if artcc not in data:
-                  return f"# {artcc} Scenario Validation \u2014 {date}\n\nNo scenario data available."
+                  return f"# {artcc} Scenario Validation\n\nNo scenario data available."
 
               results = data[artcc]
               scenarios = len(results)
@@ -100,7 +99,7 @@ jobs:
                       proc_issues.append((name, acid, proc_id, kind, resolved))
 
               if not failures and not proc_issues:
-                  return f"# {artcc} Scenario Validation \u2014 {date}\n\n{scenarios} scenarios, {presets} presets \u2014 all commands parsed successfully."
+                  return f"# {artcc} Scenario Validation\n\n{scenarios} scenarios, {presets} presets \u2014 all commands parsed successfully."
 
               # Merge failures and procedure issues by scenario → aircraft
               by_scenario = {}
@@ -111,7 +110,7 @@ jobs:
                   by_scenario.setdefault(name, {}).setdefault(acid, {"failures": [], "proc_issues": []})
                   by_scenario[name][acid]["proc_issues"].append((proc_id, kind, resolved))
 
-              lines = [f"# {artcc} Scenario Validation \u2014 {date}\n"]
+              lines = [f"# {artcc} Scenario Validation\n"]
               summary_parts = [f"{scenarios} scenarios", f"{presets} presets"]
               if failures:
                   summary_parts.append(f"{len(failures)} parse failure{'s' if len(failures) != 1 else ''}")
