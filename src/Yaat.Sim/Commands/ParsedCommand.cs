@@ -2,6 +2,24 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Commands;
 
+public readonly struct ParseResult<T>
+    where T : class
+{
+    public T? Value { get; }
+    public string? Reason { get; }
+    public bool IsSuccess => Value is not null;
+
+    private ParseResult(T? value, string? reason)
+    {
+        Value = value;
+        Reason = reason;
+    }
+
+    public static ParseResult<T> Ok(T value) => new(value, null);
+
+    public static ParseResult<T> Fail(string reason) => new(null, reason);
+}
+
 public abstract record ParsedCommand;
 
 public record FlyHeadingCommand(int Heading) : ParsedCommand;
@@ -71,13 +89,13 @@ public record SquawkNormalAllCommand : ParsedCommand;
 
 public record SquawkStandbyAllCommand : ParsedCommand;
 
-public record DirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
+public record DirectToCommand(List<ResolvedFix> Fixes, List<string> SkippedFixes) : ParsedCommand;
 
-public record ForceDirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
+public record ForceDirectToCommand(List<ResolvedFix> Fixes, List<string> SkippedFixes) : ParsedCommand;
 
-public record AppendDirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
+public record AppendDirectToCommand(List<ResolvedFix> Fixes, List<string> SkippedFixes) : ParsedCommand;
 
-public record AppendForceDirectToCommand(List<ResolvedFix> Fixes) : ParsedCommand;
+public record AppendForceDirectToCommand(List<ResolvedFix> Fixes, List<string> SkippedFixes) : ParsedCommand;
 
 public record ExpectApproachCommand(string ApproachId, string? AirportCode) : ParsedCommand;
 

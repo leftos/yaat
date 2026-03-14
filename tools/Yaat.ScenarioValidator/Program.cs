@@ -195,7 +195,8 @@ public static class Program
                             Console.WriteLine($"    {group.Key}:");
                             foreach (var f in group)
                             {
-                                Console.WriteLine($"      \"{f.Command}\"");
+                                var reason = f.Reason is not null ? $" — {f.Reason}" : "";
+                                Console.WriteLine($"      \"{f.Command}\"{reason}");
                             }
                         }
 
@@ -380,7 +381,8 @@ public static class Program
                     Console.WriteLine($"    {group.Key}:");
                     foreach (var f in group)
                     {
-                        Console.WriteLine($"      \"{f.Command}\"");
+                        var reason = f.Reason is not null ? $" — {f.Reason}" : "";
+                        Console.WriteLine($"      \"{f.Command}\"{reason}");
                     }
                 }
                 Console.WriteLine();

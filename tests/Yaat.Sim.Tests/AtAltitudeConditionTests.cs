@@ -69,13 +69,13 @@ public class AtAltitudeConditionTests
     {
         var result = CommandParser.ParseCompound("AT 5000 CM 280", NavDb);
 
-        Assert.NotNull(result);
-        Assert.Single(result.Blocks);
-        Assert.IsType<LevelCondition>(result.Blocks[0].Condition);
-        var cond = (LevelCondition)result.Blocks[0].Condition!;
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!.Blocks);
+        Assert.IsType<LevelCondition>(result.Value!.Blocks[0].Condition);
+        var cond = (LevelCondition)result.Value!.Blocks[0].Condition!;
         Assert.Equal(5000, cond.Altitude);
-        Assert.Single(result.Blocks[0].Commands);
-        Assert.IsType<ClimbMaintainCommand>(result.Blocks[0].Commands[0]);
+        Assert.Single(result.Value!.Blocks[0].Commands);
+        Assert.IsType<ClimbMaintainCommand>(result.Value!.Blocks[0].Commands[0]);
     }
 
     [Fact]
@@ -83,9 +83,9 @@ public class AtAltitudeConditionTests
     {
         var result = CommandParser.ParseCompound("AT 050 DM 100", NavDb);
 
-        Assert.NotNull(result);
-        Assert.Single(result.Blocks);
-        var cond = Assert.IsType<LevelCondition>(result.Blocks[0].Condition);
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!.Blocks);
+        var cond = Assert.IsType<LevelCondition>(result.Value!.Blocks[0].Condition);
         Assert.Equal(5000, cond.Altitude);
     }
 
@@ -94,9 +94,9 @@ public class AtAltitudeConditionTests
     {
         var result = CommandParser.ParseCompound("AT SUNOL FH 090", NavDb);
 
-        Assert.NotNull(result);
-        Assert.Single(result.Blocks);
-        Assert.IsType<AtFixCondition>(result.Blocks[0].Condition);
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!.Blocks);
+        Assert.IsType<AtFixCondition>(result.Value!.Blocks[0].Condition);
     }
 
     // -------------------------------------------------------------------------
@@ -108,9 +108,9 @@ public class AtAltitudeConditionTests
     {
         var aircraft = MakeAircraft(altitude: 3000);
         var compound = CommandParser.ParseCompound("AT 5000 CM 280", NavDb);
-        Assert.NotNull(compound);
+        Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound, aircraft, NavDb, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, NavDb, null, Random.Shared, true);
 
         Assert.Single(aircraft.Queue.Blocks);
         Assert.Equal(BlockTriggerType.ReachAltitude, aircraft.Queue.Blocks[0].Trigger!.Type);
@@ -126,9 +126,9 @@ public class AtAltitudeConditionTests
     {
         var aircraft = MakeAircraft(altitude: 3000);
         var compound = CommandParser.ParseCompound("AT 5000 CM 280", NavDb);
-        Assert.NotNull(compound);
+        Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound, aircraft, NavDb, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, NavDb, null, Random.Shared, true);
 
         // Move aircraft to within snap range of 5000
         aircraft.Altitude = 4998;
@@ -142,9 +142,9 @@ public class AtAltitudeConditionTests
     {
         var aircraft = MakeAircraft(altitude: 20000);
         var compound = CommandParser.ParseCompound("AT 25000 DEL", NavDb);
-        Assert.NotNull(compound);
+        Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound, aircraft, NavDb, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, NavDb, null, Random.Shared, true);
 
         Assert.Single(aircraft.Queue.Blocks);
         Assert.Equal(BlockTriggerType.ReachAltitude, aircraft.Queue.Blocks[0].Trigger!.Type);
@@ -157,9 +157,9 @@ public class AtAltitudeConditionTests
     {
         var aircraft = MakeAircraft(altitude: 2990, heading: 180);
         var compound = CommandParser.ParseCompound("AT 3000 FH 270", NavDb);
-        Assert.NotNull(compound);
+        Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound, aircraft, NavDb, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, NavDb, null, Random.Shared, true);
 
         // Within snap range of 3000
         aircraft.Altitude = 3005;
@@ -175,9 +175,9 @@ public class AtAltitudeConditionTests
         // "AT 5000 FH 180; AT 9000 FH 270" — two sequential FH blocks (FH = Heading type, completes when no target heading remains)
         var aircraft = MakeAircraft(altitude: 3000, heading: 090);
         var compound = CommandParser.ParseCompound("AT 5000 FH 180; AT 9000 FH 270", NavDb);
-        Assert.NotNull(compound);
+        Assert.True(compound.IsSuccess);
 
-        CommandDispatcher.DispatchCompound(compound, aircraft, NavDb, null, Random.Shared, true);
+        CommandDispatcher.DispatchCompound(compound.Value!, aircraft, NavDb, null, Random.Shared, true);
 
         Assert.Equal(2, aircraft.Queue.Blocks.Count);
 

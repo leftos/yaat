@@ -75,58 +75,58 @@ public class OnHandoffConditionTests
     public void CommandParser_OnhoSimple_ProducesSingleBlockWithCondition()
     {
         var result = CommandParser.ParseCompound("ONHO CAPP", Fixes);
-        Assert.NotNull(result);
-        Assert.Single(result.Blocks);
-        Assert.IsType<OnHandoffCondition>(result.Blocks[0].Condition);
-        Assert.Single(result.Blocks[0].Commands);
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!.Blocks);
+        Assert.IsType<OnHandoffCondition>(result.Value!.Blocks[0].Condition);
+        Assert.Single(result.Value!.Blocks[0].Commands);
     }
 
     [Fact]
     public void CommandParser_OnhoAtFix_ProducesTwoBlocks()
     {
         var result = CommandParser.ParseCompound("ONHO AT LIVVY DEL", Fixes);
-        Assert.NotNull(result);
-        Assert.Equal(2, result.Blocks.Count);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value!.Blocks.Count);
 
         // Block 1: ONHO gate (no commands)
-        Assert.IsType<OnHandoffCondition>(result.Blocks[0].Condition);
-        Assert.Empty(result.Blocks[0].Commands);
+        Assert.IsType<OnHandoffCondition>(result.Value!.Blocks[0].Condition);
+        Assert.Empty(result.Value!.Blocks[0].Commands);
 
         // Block 2: AT LIVVY DEL
-        Assert.IsType<AtFixCondition>(result.Blocks[1].Condition);
-        var atCond = (AtFixCondition)result.Blocks[1].Condition!;
+        Assert.IsType<AtFixCondition>(result.Value!.Blocks[1].Condition);
+        var atCond = (AtFixCondition)result.Value!.Blocks[1].Condition!;
         Assert.Equal("LIVVY", atCond.FixName);
-        Assert.Single(result.Blocks[1].Commands);
-        Assert.IsType<DeleteCommand>(result.Blocks[1].Commands[0]);
+        Assert.Single(result.Value!.Blocks[1].Commands);
+        Assert.IsType<DeleteCommand>(result.Value!.Blocks[1].Commands[0]);
     }
 
     [Fact]
     public void CommandParser_OnhoWaitCm_ProducesTwoBlocks()
     {
         var result = CommandParser.ParseCompound("ONHO WAIT 30 CM 360", Fixes);
-        Assert.NotNull(result);
-        Assert.Equal(2, result.Blocks.Count);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value!.Blocks.Count);
 
         // Block 1: ONHO + WAIT 30
-        Assert.IsType<OnHandoffCondition>(result.Blocks[0].Condition);
-        Assert.Single(result.Blocks[0].Commands);
-        Assert.IsType<WaitCommand>(result.Blocks[0].Commands[0]);
+        Assert.IsType<OnHandoffCondition>(result.Value!.Blocks[0].Condition);
+        Assert.Single(result.Value!.Blocks[0].Commands);
+        Assert.IsType<WaitCommand>(result.Value!.Blocks[0].Commands[0]);
 
         // Block 2: CM 360
-        Assert.Null(result.Blocks[1].Condition);
-        Assert.Single(result.Blocks[1].Commands);
-        Assert.IsType<ClimbMaintainCommand>(result.Blocks[1].Commands[0]);
+        Assert.Null(result.Value!.Blocks[1].Condition);
+        Assert.Single(result.Value!.Blocks[1].Commands);
+        Assert.IsType<ClimbMaintainCommand>(result.Value!.Blocks[1].Commands[0]);
     }
 
     [Fact]
     public void CommandParser_OnhoDm_ProducesSingleBlock()
     {
         var result = CommandParser.ParseCompound("ONHO DM 060", Fixes);
-        Assert.NotNull(result);
-        Assert.Single(result.Blocks);
-        Assert.IsType<OnHandoffCondition>(result.Blocks[0].Condition);
-        Assert.Single(result.Blocks[0].Commands);
-        Assert.IsType<DescendMaintainCommand>(result.Blocks[0].Commands[0]);
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!.Blocks);
+        Assert.IsType<OnHandoffCondition>(result.Value!.Blocks[0].Condition);
+        Assert.Single(result.Value!.Blocks[0].Commands);
+        Assert.IsType<DescendMaintainCommand>(result.Value!.Blocks[0].Commands[0]);
     }
 
     // --- Bare HO (no args) ---
@@ -162,10 +162,10 @@ public class OnHandoffConditionTests
     public void CommandParser_WaitHo_ProducesTwoBlocks()
     {
         var result = CommandParser.ParseCompound("WAIT 10 HO", Fixes);
-        Assert.NotNull(result);
-        Assert.Equal(2, result.Blocks.Count);
-        Assert.IsType<WaitCommand>(result.Blocks[0].Commands[0]);
-        Assert.IsType<InitiateHandoffCommand>(result.Blocks[1].Commands[0]);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value!.Blocks.Count);
+        Assert.IsType<WaitCommand>(result.Value!.Blocks[0].Commands[0]);
+        Assert.IsType<InitiateHandoffCommand>(result.Value!.Blocks[1].Commands[0]);
     }
 
     // --- TrackOwner.IsTcp ---

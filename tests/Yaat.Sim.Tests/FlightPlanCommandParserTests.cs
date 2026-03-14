@@ -9,7 +9,7 @@ public class FlightPlanCommandParserTests
     public void Apt_ParsesDestination()
     {
         var result = CommandParser.Parse("APT KSFO");
-        var cmd = Assert.IsType<ChangeDestinationCommand>(result);
+        var cmd = Assert.IsType<ChangeDestinationCommand>(result.Value);
         Assert.Equal("KSFO", cmd.Airport);
     }
 
@@ -17,7 +17,7 @@ public class FlightPlanCommandParserTests
     public void Dest_ParsesDestination()
     {
         var result = CommandParser.Parse("DEST KLAX");
-        var cmd = Assert.IsType<ChangeDestinationCommand>(result);
+        var cmd = Assert.IsType<ChangeDestinationCommand>(result.Value);
         Assert.Equal("KLAX", cmd.Airport);
     }
 
@@ -25,21 +25,21 @@ public class FlightPlanCommandParserTests
     public void Apt_LowercaseNormalized()
     {
         var result = CommandParser.Parse("apt ksfo");
-        var cmd = Assert.IsType<ChangeDestinationCommand>(result);
+        var cmd = Assert.IsType<ChangeDestinationCommand>(result.Value);
         Assert.Equal("KSFO", cmd.Airport);
     }
 
     [Fact]
     public void Apt_NoArg_ReturnsNull()
     {
-        Assert.Null(CommandParser.Parse("APT"));
+        Assert.Null(CommandParser.Parse("APT").Value);
     }
 
     [Fact]
     public void Fp_ParsesIfrFlightPlan()
     {
         var result = CommandParser.Parse("FP B738 220 KBOS SSOXS6 BUZRD KJFK");
-        var cmd = Assert.IsType<CreateFlightPlanCommand>(result);
+        var cmd = Assert.IsType<CreateFlightPlanCommand>(result.Value);
         Assert.Equal("IFR", cmd.FlightRules);
         Assert.Equal("B738", cmd.AircraftType);
         Assert.Equal(22000, cmd.CruiseAltitude);
@@ -50,7 +50,7 @@ public class FlightPlanCommandParserTests
     public void Vp_ParsesVfrFlightPlan()
     {
         var result = CommandParser.Parse("VP C172 5500 KOAK DCT KJFK");
-        var cmd = Assert.IsType<CreateFlightPlanCommand>(result);
+        var cmd = Assert.IsType<CreateFlightPlanCommand>(result.Value);
         Assert.Equal("VFR", cmd.FlightRules);
         Assert.Equal("C172", cmd.AircraftType);
         Assert.Equal(5500, cmd.CruiseAltitude);
@@ -60,26 +60,26 @@ public class FlightPlanCommandParserTests
     [Fact]
     public void Fp_NoArgs_ReturnsNull()
     {
-        Assert.Null(CommandParser.Parse("FP"));
+        Assert.Null(CommandParser.Parse("FP").Value);
     }
 
     [Fact]
     public void Fp_MissingAltitudeAndRoute_ReturnsNull()
     {
-        Assert.Null(CommandParser.Parse("FP B738"));
+        Assert.Null(CommandParser.Parse("FP B738").Value);
     }
 
     [Fact]
     public void Fp_NonNumericAltitude_ReturnsNull()
     {
-        Assert.Null(CommandParser.Parse("FP B738 ABC ROUTE"));
+        Assert.Null(CommandParser.Parse("FP B738 ABC ROUTE").Value);
     }
 
     [Fact]
     public void Remarks_ParsesText()
     {
         var result = CommandParser.Parse("REMARKS /V/ STUDENT");
-        var cmd = Assert.IsType<SetRemarksCommand>(result);
+        var cmd = Assert.IsType<SetRemarksCommand>(result.Value);
         Assert.Equal("/V/ STUDENT", cmd.Text);
     }
 
@@ -87,20 +87,20 @@ public class FlightPlanCommandParserTests
     public void Rem_Alias_ParsesText()
     {
         var result = CommandParser.Parse("REM /V/ STUDENT PILOT");
-        var cmd = Assert.IsType<SetRemarksCommand>(result);
+        var cmd = Assert.IsType<SetRemarksCommand>(result.Value);
         Assert.Equal("/V/ STUDENT PILOT", cmd.Text);
     }
 
     [Fact]
     public void Remarks_NoArgs_ReturnsNull()
     {
-        Assert.Null(CommandParser.Parse("REMARKS"));
+        Assert.Null(CommandParser.Parse("REMARKS").Value);
     }
 
     [Fact]
     public void Fp_MissingRoute_ReturnsNull()
     {
         // Only type + altitude, no route
-        Assert.Null(CommandParser.Parse("FP B738 220"));
+        Assert.Null(CommandParser.Parse("FP B738 220").Value);
     }
 }

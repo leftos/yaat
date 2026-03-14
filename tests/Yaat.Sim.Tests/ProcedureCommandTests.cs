@@ -185,7 +185,7 @@ public class ProcedureCommandTests
         aircraft.SidViaMode = true;
 
         var fixes = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
-        var result = CommandDispatcher.Dispatch(new DirectToCommand(fixes), aircraft, null, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new DirectToCommand(fixes, []), aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Null(aircraft.ActiveSidId);

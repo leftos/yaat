@@ -24,10 +24,10 @@ public static class ScenarioValidator
                 }
 
                 totalPresets++;
-                var compound = CommandParser.ParseCompound(preset.Command, navDb, ac.FlightPlan?.Route);
-                if (compound is null)
+                var result = CommandParser.ParseCompound(preset.Command, navDb, ac.FlightPlan?.Route);
+                if (!result.IsSuccess)
                 {
-                    failures.Add(new PresetParseFailure(ac.AircraftId, preset.Command));
+                    failures.Add(new PresetParseFailure(ac.AircraftId, preset.Command, result.Reason));
                 }
                 else
                 {
@@ -154,7 +154,7 @@ public record ScenarioValidationResult(
     List<ProcedureIssue> ProcedureIssues
 );
 
-public record PresetParseFailure(string AircraftId, string Command);
+public record PresetParseFailure(string AircraftId, string Command, string? Reason);
 
 public enum ProcedureIssueKind
 {

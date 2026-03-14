@@ -567,7 +567,7 @@ public class NavigationCommandTests
     public void DirectTo_EmptyFixList_SetsEmptyRoute()
     {
         var aircraft = MakeAircraft(heading: 090);
-        var cmd = new DirectToCommand([]);
+        var cmd = new DirectToCommand([], []);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
@@ -587,7 +587,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 090, altitude: 5000, lat: 37.7, lon: -122.2);
         aircraft.IndicatedAirspeed = 250;
 
-        var cmd = new DirectToCommand([fixA, fixB, fixC]);
+        var cmd = new DirectToCommand([fixA, fixB, fixC], []);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);

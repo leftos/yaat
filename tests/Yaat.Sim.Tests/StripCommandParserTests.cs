@@ -9,7 +9,7 @@ public class StripCommandParserTests
     public void Strip_ParsesBayName()
     {
         var result = CommandParser.Parse("STRIP Ground");
-        var cmd = Assert.IsType<StripPushCommand>(result);
+        var cmd = Assert.IsType<StripPushCommand>(result.Value);
         Assert.Equal("GROUND", cmd.BayName);
     }
 
@@ -17,14 +17,14 @@ public class StripCommandParserTests
     public void Strip_NoArg_ReturnsNull()
     {
         var result = CommandParser.Parse("STRIP");
-        Assert.Null(result);
+        Assert.Null(result.Value);
     }
 
     [Fact]
     public void An_ParsesBoxAndText()
     {
         var result = CommandParser.Parse("AN 3 RV");
-        var cmd = Assert.IsType<StripAnnotateCommand>(result);
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
         Assert.Equal(3, cmd.Box);
         Assert.Equal("RV", cmd.Text);
     }
@@ -33,7 +33,7 @@ public class StripCommandParserTests
     public void Box_ParsesBoxAndText()
     {
         var result = CommandParser.Parse("BOX 5 ATIS");
-        var cmd = Assert.IsType<StripAnnotateCommand>(result);
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
         Assert.Equal(5, cmd.Box);
         Assert.Equal("ATIS", cmd.Text);
     }
@@ -42,7 +42,7 @@ public class StripCommandParserTests
     public void Annotate_ParsesBoxAndText()
     {
         var result = CommandParser.Parse("ANNOTATE 1 CLR");
-        var cmd = Assert.IsType<StripAnnotateCommand>(result);
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
         Assert.Equal(1, cmd.Box);
         Assert.Equal("CLR", cmd.Text);
     }
@@ -51,7 +51,7 @@ public class StripCommandParserTests
     public void An_BoxOnly_ClearsBox()
     {
         var result = CommandParser.Parse("AN 3");
-        var cmd = Assert.IsType<StripAnnotateCommand>(result);
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
         Assert.Equal(3, cmd.Box);
         Assert.Null(cmd.Text);
     }
@@ -60,14 +60,14 @@ public class StripCommandParserTests
     public void An_BoxZero_ReturnsNull()
     {
         var result = CommandParser.Parse("AN 0 X");
-        Assert.Null(result);
+        Assert.Null(result.Value);
     }
 
     [Fact]
     public void An_Box10_IsValidAlias()
     {
         var result = CommandParser.Parse("AN 10 X");
-        var cmd = Assert.IsType<StripAnnotateCommand>(result);
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
         Assert.Equal(1, cmd.Box);
         Assert.Equal("X", cmd.Text);
     }
@@ -76,14 +76,14 @@ public class StripCommandParserTests
     public void An_NoArg_ReturnsNull()
     {
         var result = CommandParser.Parse("AN");
-        Assert.Null(result);
+        Assert.Null(result.Value);
     }
 
     [Fact]
     public void An_Box9_Succeeds()
     {
         var result = CommandParser.Parse("AN 9 GATE");
-        var cmd = Assert.IsType<StripAnnotateCommand>(result);
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
         Assert.Equal(9, cmd.Box);
         Assert.Equal("GATE", cmd.Text);
     }
@@ -92,7 +92,7 @@ public class StripCommandParserTests
     public void An_TextWithSpaces_PreservesFullText()
     {
         var result = CommandParser.Parse("AN 2 TWR HOLD");
-        var cmd = Assert.IsType<StripAnnotateCommand>(result);
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
         Assert.Equal(2, cmd.Box);
         Assert.Equal("TWR HOLD", cmd.Text);
     }
@@ -101,7 +101,7 @@ public class StripCommandParserTests
     public void An_Box10_MapsToBox1()
     {
         var result = CommandParser.Parse("AN 10 CLR");
-        var cmd = Assert.IsType<StripAnnotateCommand>(result);
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
         Assert.Equal(1, cmd.Box);
         Assert.Equal("CLR", cmd.Text);
     }
@@ -110,7 +110,7 @@ public class StripCommandParserTests
     public void An_Box18_MapsToBox9()
     {
         var result = CommandParser.Parse("AN 18 GATE");
-        var cmd = Assert.IsType<StripAnnotateCommand>(result);
+        var cmd = Assert.IsType<StripAnnotateCommand>(result.Value);
         Assert.Equal(9, cmd.Box);
         Assert.Equal("GATE", cmd.Text);
     }
@@ -119,6 +119,6 @@ public class StripCommandParserTests
     public void An_Box19_ReturnsNull()
     {
         var result = CommandParser.Parse("AN 19 X");
-        Assert.Null(result);
+        Assert.Null(result.Value);
     }
 }

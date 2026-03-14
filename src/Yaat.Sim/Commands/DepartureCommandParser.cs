@@ -1,5 +1,6 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using PR = Yaat.Sim.Commands.ParseResult<Yaat.Sim.Commands.ParsedCommand>;
 
 namespace Yaat.Sim.Commands;
 
@@ -174,21 +175,21 @@ internal static class DepartureCommandParser
     /// <summary>
     /// Disambiguates a single argument as runway or no-arg for ELD/ERD/EF.
     /// </summary>
-    internal static ParsedCommand? ParsePatternRunwayEntry(string? arg, Func<string?, ParsedCommand> factory)
+    internal static PR ParsePatternRunwayEntry(string? arg, Func<string?, ParsedCommand> factory)
     {
         if (arg is null)
         {
-            return factory(null);
+            return PR.Ok(factory(null));
         }
 
         var token = arg.Trim();
         if (token.Length == 0)
         {
-            return factory(null);
+            return PR.Ok(factory(null));
         }
 
         // Treat the argument as a runway identifier
-        return factory(token.ToUpperInvariant());
+        return PR.Ok(factory(token.ToUpperInvariant()));
     }
 
     /// <summary>
@@ -196,11 +197,11 @@ internal static class DepartureCommandParser
     /// Single arg: runway if contains L/C/R suffix or is exactly 2 digits,
     /// distance if numeric with optional decimal. Two args: runway then distance.
     /// </summary>
-    internal static ParsedCommand? ParsePatternBaseEntry(string? arg, bool right = false)
+    internal static PR ParsePatternBaseEntry(string? arg, bool right = false)
     {
         if (arg is null)
         {
-            return right ? new EnterRightBaseCommand() : new EnterLeftBaseCommand();
+            return PR.Ok(right ? new EnterRightBaseCommand() : new EnterLeftBaseCommand());
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -210,15 +211,15 @@ internal static class DepartureCommandParser
             var token = tokens[0].Trim();
             if (CommandParser.IsRunwayArg(token))
             {
-                return right ? new EnterRightBaseCommand(token.ToUpperInvariant()) : new EnterLeftBaseCommand(token.ToUpperInvariant());
+                return PR.Ok(right ? new EnterRightBaseCommand(token.ToUpperInvariant()) : new EnterLeftBaseCommand(token.ToUpperInvariant()));
             }
 
             if (double.TryParse(token, out var dist) && dist > 0)
             {
-                return right ? new EnterRightBaseCommand(FinalDistanceNm: dist) : new EnterLeftBaseCommand(FinalDistanceNm: dist);
+                return PR.Ok(right ? new EnterRightBaseCommand(FinalDistanceNm: dist) : new EnterLeftBaseCommand(FinalDistanceNm: dist));
             }
 
-            return null;
+            return PR.Fail($"invalid base entry arg '{arg}'");
         }
 
         if (tokens.Length == 2)
@@ -226,12 +227,12 @@ internal static class DepartureCommandParser
             var rwy = tokens[0].Trim().ToUpperInvariant();
             if (!double.TryParse(tokens[1].Trim(), out var dist2) || dist2 <= 0)
             {
-                return null;
+                return PR.Fail($"invalid base entry distance '{tokens[1]}'");
             }
 
-            return right ? new EnterRightBaseCommand(rwy, dist2) : new EnterLeftBaseCommand(rwy, dist2);
+            return PR.Ok(right ? new EnterRightBaseCommand(rwy, dist2) : new EnterLeftBaseCommand(rwy, dist2));
         }
 
-        return null;
+        return PR.Fail($"invalid base entry args '{arg}'");
     }
 }

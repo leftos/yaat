@@ -15,7 +15,7 @@ public class CommandParserCompletenessTests(ITestOutputHelper output)
         {
             // Parse with just the alias (no arg) — should produce something or null for arg-required verbs
             var result = CommandParser.Parse(alias);
-            if (result is UnsupportedCommand)
+            if (result.Value is UnsupportedCommand)
             {
                 unsupported.Add((alias, type));
             }

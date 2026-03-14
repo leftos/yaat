@@ -1,5 +1,6 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using PR = Yaat.Sim.Commands.ParseResult<Yaat.Sim.Commands.ParsedCommand>;
 
 namespace Yaat.Sim.Commands;
 
@@ -12,17 +13,17 @@ internal static class ApproachCommandParser
     /// DCT fix approachId — direct to fix then approach.
     /// DCT fix CFIX altToken approachId — direct to fix, crossing fix altitude, then approach.
     /// </summary>
-    internal static ParsedCommand? ParseCapp(string? arg, NavigationDatabase? navDb, bool force)
+    internal static PR ParseCapp(string? arg, NavigationDatabase? navDb, bool force)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return new ClearedApproachCommand(null, null, force, null, null, null, null, null, null, null, null);
+            return PR.Ok(new ClearedApproachCommand(null, null, force, null, null, null, null, null, null, null, null));
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return null;
+            return PR.Fail("CAPP requires an approach ID");
         }
 
         // Approach ID is always the last token
@@ -31,7 +32,7 @@ internal static class ApproachCommandParser
         if (tokens.Length == 1)
         {
             // Simple: CAPP ILS28R
-            return new ClearedApproachCommand(approachId, null, force, null, null, null, null, null, null, null, null);
+            return PR.Ok(new ClearedApproachCommand(approachId, null, force, null, null, null, null, null, null, null, null));
         }
 
         var keyword = tokens[0].ToUpperInvariant();
@@ -43,10 +44,10 @@ internal static class ApproachCommandParser
             var pos = navDb.GetFixPosition(fixName);
             if (pos is null)
             {
-                return null;
+                return PR.Fail($"fix '{fixName}' not found");
             }
 
-            return new ClearedApproachCommand(approachId, null, force, fixName, pos.Value.Lat, pos.Value.Lon, null, null, null, null, null);
+            return PR.Ok(new ClearedApproachCommand(approachId, null, force, fixName, pos.Value.Lat, pos.Value.Lon, null, null, null, null, null));
         }
 
         if (keyword == "DCT" && tokens.Length >= 3 && navDb is not null)
@@ -56,7 +57,7 @@ internal static class ApproachCommandParser
             var dctPos = navDb.GetFixPosition(dctFixName);
             if (dctPos is null)
             {
-                return null;
+                return PR.Fail($"fix '{dctFixName}' not found");
             }
 
             // Check for CFIX keyword: DCT fix CFIX altToken approachId (5 tokens)
@@ -65,151 +66,155 @@ internal static class ApproachCommandParser
                 var (crossAlt, crossAltType) = ParseCfixAltitudeToken(tokens[3]);
                 if (crossAlt is null)
                 {
-                    return null;
+                    return PR.Fail($"invalid crossing altitude '{tokens[3]}'");
                 }
 
-                return new ClearedApproachCommand(
-                    approachId,
-                    null,
-                    force,
-                    null,
-                    null,
-                    null,
-                    dctFixName,
-                    dctPos.Value.Lat,
-                    dctPos.Value.Lon,
-                    crossAlt,
-                    crossAltType
+                return PR.Ok(
+                    new ClearedApproachCommand(
+                        approachId,
+                        null,
+                        force,
+                        null,
+                        null,
+                        null,
+                        dctFixName,
+                        dctPos.Value.Lat,
+                        dctPos.Value.Lon,
+                        crossAlt,
+                        crossAltType
+                    )
                 );
             }
 
             // Simple DCT: DCT fixName approachId
-            return new ClearedApproachCommand(approachId, null, force, null, null, null, dctFixName, dctPos.Value.Lat, dctPos.Value.Lon, null, null);
+            return PR.Ok(
+                new ClearedApproachCommand(approachId, null, force, null, null, null, dctFixName, dctPos.Value.Lat, dctPos.Value.Lon, null, null)
+            );
         }
 
         // 2 tokens: approachId airportCode (e.g., "CAPP I9 MIA")
         // Reject if second token is a known command verb (prevents greedy over-matching)
         if (tokens.Length == 2 && !CommandRegistry.AliasToCanonicType.ContainsKey(approachId))
         {
-            return new ClearedApproachCommand(keyword, approachId, force, null, null, null, null, null, null, null, null);
+            return PR.Ok(new ClearedApproachCommand(keyword, approachId, force, null, null, null, null, null, null, null, null));
         }
 
-        return null;
+        return PR.Fail($"invalid CAPP args '{arg}'");
     }
 
     /// <summary>
     /// Parses CAPPSI approachId [airportCode].
     /// Returns a straight-in approach clearance.
     /// </summary>
-    internal static ParsedCommand? ParseCappSi(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseCappSi(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return null;
+            return PR.Fail("CAPPSI requires an approach ID");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return null;
+            return PR.Fail("CAPPSI requires an approach ID");
         }
 
         var approachId = tokens[0].ToUpperInvariant();
         var airport = tokens.Length > 1 ? tokens[1].ToUpperInvariant() : null;
-        return new ClearedApproachStraightInCommand(approachId, airport);
+        return PR.Ok(new ClearedApproachStraightInCommand(approachId, airport));
     }
 
     /// <summary>
     /// Parses JAPP approachId [airportCode].
     /// </summary>
-    internal static ParsedCommand? ParseJapp(string? arg, NavigationDatabase? navDb, bool force)
+    internal static PR ParseJapp(string? arg, NavigationDatabase? navDb, bool force)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return null;
+            return PR.Fail("JAPP requires an approach ID");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return null;
+            return PR.Fail("JAPP requires an approach ID");
         }
 
         var approachId = tokens[0].ToUpperInvariant();
         var airport = tokens.Length > 1 ? tokens[1].ToUpperInvariant() : null;
-        return new JoinApproachCommand(approachId, airport, force);
+        return PR.Ok(new JoinApproachCommand(approachId, airport, force));
     }
 
     /// <summary>
     /// Parses JAPPSI approachId [airportCode].
     /// </summary>
-    internal static ParsedCommand? ParseJappSi(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseJappSi(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return null;
+            return PR.Fail("JAPPSI requires an approach ID");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return null;
+            return PR.Fail("JAPPSI requires an approach ID");
         }
 
         var approachId = tokens[0].ToUpperInvariant();
         var airport = tokens.Length > 1 ? tokens[1].ToUpperInvariant() : null;
-        return new JoinApproachStraightInCommand(approachId, airport);
+        return PR.Ok(new JoinApproachStraightInCommand(approachId, airport));
     }
 
     /// <summary>
     /// Parses JFAC approachId.
     /// </summary>
-    internal static ParsedCommand? ParseJfac(string? arg)
+    internal static PR ParseJfac(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return new JoinFinalApproachCourseCommand(null);
+            return PR.Ok(new JoinFinalApproachCourseCommand(null));
         }
 
-        return new JoinFinalApproachCourseCommand(arg.Trim().ToUpperInvariant());
+        return PR.Ok(new JoinFinalApproachCourseCommand(arg.Trim().ToUpperInvariant()));
     }
 
     /// <summary>
     /// Parses JARR starId [transition].
     /// </summary>
-    internal static ParsedCommand? ParseJarr(string? arg)
+    internal static PR ParseJarr(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return null;
+            return PR.Fail("JARR requires a STAR ID");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return null;
+            return PR.Fail("JARR requires a STAR ID");
         }
 
         var starId = tokens[0].ToUpperInvariant();
         var transition = tokens.Length > 1 ? tokens[1].ToUpperInvariant() : null;
-        return new JoinStarCommand(starId, transition);
+        return PR.Ok(new JoinStarCommand(starId, transition));
     }
 
-    internal static ParsedCommand? ParseJawy(string? arg)
+    internal static PR ParseJawy(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return null;
+            return PR.Fail("JAWY requires an airway ID");
         }
 
-        return new JoinAirwayCommand(arg.Trim().ToUpperInvariant());
+        return PR.Ok(new JoinAirwayCommand(arg.Trim().ToUpperInvariant()));
     }
 
     /// <summary>
     /// Parses JRADO fixRadial — a single token where the last 3 digits are the radial
     /// and the rest is the fix name (e.g., "OAK090" → fix=OAK, radial=090).
     /// </summary>
-    internal static ParsedCommand? ParseJrado(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseJrado(string? arg, NavigationDatabase? navDb)
     {
         return ParseRadialCommand(arg, navDb, outbound: true);
     }
@@ -217,7 +222,7 @@ internal static class ApproachCommandParser
     /// <summary>
     /// Parses JRADI fixRadial — same format as JRADO but inbound.
     /// </summary>
-    internal static ParsedCommand? ParseJradi(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseJradi(string? arg, NavigationDatabase? navDb)
     {
         return ParseRadialCommand(arg, navDb, outbound: false);
     }
@@ -230,29 +235,29 @@ internal static class ApproachCommandParser
     ///   5 tokens: fix course leg direction entry
     /// Default direction is Right per 7110.65. Default leg is 1M.
     /// </summary>
-    internal static ParsedCommand? ParseHold(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseHold(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg) || navDb is null)
         {
-            return null;
+            return PR.Fail("HOLDP requires fix name and inbound course");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length < 3)
         {
-            return null;
+            return PR.Fail("HOLDP requires fix name, inbound course, and direction/leg");
         }
 
         var fixName = tokens[0].ToUpperInvariant();
         var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
-            return null;
+            return PR.Fail($"fix '{fixName}' not found");
         }
 
         if (!int.TryParse(tokens[1], out var inboundCourse) || inboundCourse < 0 || inboundCourse > 360)
         {
-            return null;
+            return PR.Fail($"invalid inbound course '{tokens[1]}'");
         }
 
         // Defaults
@@ -275,7 +280,7 @@ internal static class ApproachCommandParser
             }
             else
             {
-                return null;
+                return PR.Fail($"invalid hold direction or leg '{tokens[2]}'");
             }
         }
         else if (tokens.Length >= 4)
@@ -283,7 +288,7 @@ internal static class ApproachCommandParser
             // Token[2] is always leg
             if (!TryParseLeg(tokens[2], out legLength, out isMinuteBased))
             {
-                return null;
+                return PR.Fail($"invalid hold leg length '{tokens[2]}'");
             }
 
             // Token[3] is direction (or numeric → default direction Right)
@@ -299,7 +304,7 @@ internal static class ApproachCommandParser
             }
         }
 
-        return new HoldingPatternCommand(fixName, pos.Value.Lat, pos.Value.Lon, inboundCourse, legLength, isMinuteBased, direction, entry);
+        return PR.Ok(new HoldingPatternCommand(fixName, pos.Value.Lat, pos.Value.Lon, inboundCourse, legLength, isMinuteBased, direction, entry));
     }
 
     private static bool TryParseDirection(string token, out TurnDirection direction)
@@ -351,63 +356,63 @@ internal static class ApproachCommandParser
     /// Parses PTAC heading altitudeHundreds approachId.
     /// Example: "PTAC 280 025 ILS30"
     /// </summary>
-    internal static ParsedCommand? ParsePtac(string? arg, NavigationDatabase? navDb)
+    internal static PR ParsePtac(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return null;
+            return PR.Fail("PTAC requires heading altitude approachId");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length != 3)
         {
-            return null;
+            return PR.Fail("PTAC requires exactly heading altitude approachId");
         }
 
         if (!int.TryParse(tokens[0], out var heading) || heading < 1 || heading > 360)
         {
-            return null;
+            return PR.Fail($"invalid PTAC heading '{tokens[0]}'");
         }
 
         int? altitude = AltitudeResolver.Resolve(tokens[1], navDb);
         if (altitude is null)
         {
-            return null;
+            return PR.Fail($"invalid PTAC altitude '{tokens[1]}'");
         }
 
         var approachId = tokens[2].ToUpperInvariant();
-        return new PositionTurnAltitudeClearanceCommand(heading, altitude.Value, approachId);
+        return PR.Ok(new PositionTurnAltitudeClearanceCommand(heading, altitude.Value, approachId));
     }
 
     /// <summary>
     /// Parses CVIA [altitudeHundreds].
     /// Example: "CVIA" or "CVIA 190"
     /// </summary>
-    internal static ParsedCommand? ParseCvia(string? arg)
+    internal static PR ParseCvia(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return new ClimbViaCommand(null);
+            return PR.Ok(new ClimbViaCommand(null));
         }
 
         if (!int.TryParse(arg.Trim(), out var value) || value <= 0)
         {
-            return null;
+            return PR.Fail($"invalid CVIA altitude '{arg}'");
         }
 
         int altitude = value < 1000 ? value * 100 : value;
-        return new ClimbViaCommand(altitude);
+        return PR.Ok(new ClimbViaCommand(altitude));
     }
 
     /// <summary>
     /// Parses DVIA [altitudeHundreds] or DVIA SPD <speed> <fix>.
     /// Example: "DVIA", "DVIA 040", "DVIA SPD 230 GOSHI"
     /// </summary>
-    internal static ParsedCommand? ParseDvia(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseDvia(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return new DescendViaCommand(null);
+            return PR.Ok(new DescendViaCommand(null));
         }
 
         var parts = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -417,38 +422,38 @@ internal static class ApproachCommandParser
         {
             if (!int.TryParse(parts[1], out var speed) || speed <= 0)
             {
-                return null;
+                return PR.Fail($"invalid DVIA speed '{parts[1]}'");
             }
 
             if (parts.Length < 3)
             {
-                return new DescendViaCommand(null, speed);
+                return PR.Ok(new DescendViaCommand(null, speed));
             }
 
             var fixName = parts[2].ToUpperInvariant();
             if (navDb is null)
             {
-                return null;
+                return PR.Fail("DVIA SPD fix requires navdata");
             }
 
             var fixPos = navDb.GetFixPosition(fixName);
             if (fixPos is null)
             {
-                return null;
+                return PR.Fail($"fix '{fixName}' not found");
             }
 
-            return new DescendViaCommand(null, speed, fixName, fixPos.Value.Lat, fixPos.Value.Lon);
+            return PR.Ok(new DescendViaCommand(null, speed, fixName, fixPos.Value.Lat, fixPos.Value.Lon));
         }
 
         if (!int.TryParse(parts[0], out var value) || value <= 0)
         {
             // Non-numeric arg: treat as STAR name (e.g., "DVIA HHOOD5" = join STAR + descend via)
-            return new JoinStarCommand(parts[0].ToUpperInvariant(), parts.Length > 1 ? parts[1].ToUpperInvariant() : null);
+            return PR.Ok(new JoinStarCommand(parts[0].ToUpperInvariant(), parts.Length > 1 ? parts[1].ToUpperInvariant() : null));
         }
 
         // Altitude in hundreds
         int altitude = value < 1000 ? value * 100 : value;
-        return new DescendViaCommand(altitude);
+        return PR.Ok(new DescendViaCommand(altitude));
     }
 
     /// <summary>
@@ -456,24 +461,24 @@ internal static class ApproachCommandParser
     /// Accepts: "CFIX SUNOL A040", "CFIX SUNOL 040 250", "CFIX SUNOL AT 360"
     /// The "AT" keyword form splits altitude into a separate token.
     /// </summary>
-    internal static ParsedCommand? ParseCfix(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseCfix(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg) || navDb is null)
         {
-            return null;
+            return PR.Fail("CFIX requires fix name and altitude");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length < 2)
         {
-            return null;
+            return PR.Fail("CFIX requires fix name and altitude");
         }
 
         var fixName = tokens[0].ToUpperInvariant();
         var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
-            return null;
+            return PR.Fail($"fix '{fixName}' not found");
         }
 
         int altTokenIndex = 1;
@@ -487,7 +492,7 @@ internal static class ApproachCommandParser
             (altitude, altType) = ParseCfixAltitudeToken(tokens[2]);
             if (altitude is null)
             {
-                return null;
+                return PR.Fail($"invalid CFIX altitude '{tokens[2]}'");
             }
 
             altType = CrossFixAltitudeType.At;
@@ -497,7 +502,7 @@ internal static class ApproachCommandParser
             (altitude, altType) = ParseCfixAltitudeToken(tokens[1]);
             if (altitude is null)
             {
-                return null;
+                return PR.Fail($"invalid CFIX altitude '{tokens[1]}'");
             }
         }
 
@@ -507,45 +512,45 @@ internal static class ApproachCommandParser
             speed = parsedSpeed;
         }
 
-        return new CrossFixCommand(fixName, pos.Value.Lat, pos.Value.Lon, altitude.Value, altType, speed);
+        return PR.Ok(new CrossFixCommand(fixName, pos.Value.Lat, pos.Value.Lon, altitude.Value, altType, speed));
     }
 
     /// <summary>
     /// Parses DEPART fixName heading.
     /// Example: "DEPART SUNOL 270"
     /// </summary>
-    internal static ParsedCommand? ParseDepart(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseDepart(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg) || navDb is null)
         {
-            return null;
+            return PR.Fail("DEPART requires fix name and heading");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length != 2)
         {
-            return null;
+            return PR.Fail("DEPART requires exactly fix name and heading");
         }
 
         var fixName = tokens[0].ToUpperInvariant();
         var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
-            return null;
+            return PR.Fail($"fix '{fixName}' not found");
         }
 
         if (!int.TryParse(tokens[1], out var heading) || heading < 1 || heading > 360)
         {
-            return null;
+            return PR.Fail($"invalid DEPART heading '{tokens[1]}'");
         }
 
-        return new DepartFixCommand(fixName, pos.Value.Lat, pos.Value.Lon, heading);
+        return PR.Ok(new DepartFixCommand(fixName, pos.Value.Lat, pos.Value.Lon, heading));
     }
 
     /// <summary>
     /// Parses APPS [airportCode].
     /// </summary>
-    internal static ParsedCommand? ParseApps(string? arg)
+    internal static ParsedCommand ParseApps(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -558,17 +563,17 @@ internal static class ApproachCommandParser
     /// <summary>
     /// Parses CVA runwayId [LEFT|RIGHT] [FOLLOW callsign].
     /// </summary>
-    internal static ParsedCommand? ParseCva(string? arg)
+    internal static PR ParseCva(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return null;
+            return PR.Fail("CVA requires a runway ID");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return null;
+            return PR.Fail("CVA requires a runway ID");
         }
 
         string runwayId = tokens[0].ToUpperInvariant();
@@ -593,18 +598,18 @@ internal static class ApproachCommandParser
             }
         }
 
-        return new ClearedVisualApproachCommand(runwayId, null, direction, followCallsign);
+        return PR.Ok(new ClearedVisualApproachCommand(runwayId, null, direction, followCallsign));
     }
 
     /// <summary>
     /// Shared parser for radial commands (JRADO and JRADI).
     /// Splits a single token like "OAK090" into fix name + radial.
     /// </summary>
-    private static ParsedCommand? ParseRadialCommand(string? arg, NavigationDatabase? navDb, bool outbound)
+    private static PR ParseRadialCommand(string? arg, NavigationDatabase? navDb, bool outbound)
     {
         if (string.IsNullOrWhiteSpace(arg) || navDb is null)
         {
-            return null;
+            return PR.Fail("radial command requires fixRadial (e.g., OAK090)");
         }
 
         var token = arg.Trim().ToUpperInvariant();
@@ -612,35 +617,35 @@ internal static class ApproachCommandParser
         // Minimum length: 2-char fix + 3-digit radial = 5 chars
         if (token.Length < 5)
         {
-            return null;
+            return PR.Fail($"invalid radial format '{arg}' (too short)");
         }
 
         // Last 3 chars must be digits (radial)
         var radialStr = token[^3..];
         if (!radialStr.All(char.IsDigit))
         {
-            return null;
+            return PR.Fail($"invalid radial format '{arg}' (last 3 chars must be digits)");
         }
 
         var fixName = token[..^3];
         var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
-            return null;
+            return PR.Fail($"fix '{fixName}' not found");
         }
 
         var radial = int.Parse(radialStr);
         if (radial < 0 || radial > 360)
         {
-            return null;
+            return PR.Fail($"invalid radial {radial} (expected 0-360)");
         }
 
         if (outbound)
         {
-            return new JoinRadialOutboundCommand(fixName, pos.Value.Lat, pos.Value.Lon, radial);
+            return PR.Ok(new JoinRadialOutboundCommand(fixName, pos.Value.Lat, pos.Value.Lon, radial));
         }
 
-        return new JoinRadialInboundCommand(fixName, pos.Value.Lat, pos.Value.Lon, radial);
+        return PR.Ok(new JoinRadialInboundCommand(fixName, pos.Value.Lat, pos.Value.Lon, radial));
     }
 
     /// <summary>

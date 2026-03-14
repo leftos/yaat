@@ -283,15 +283,15 @@ public sealed class SimulationEngine
             return new CommandResult(false, $"Aircraft '{callsign}' not found");
         }
 
-        var compound = CommandParser.ParseCompound(command, Navigation, aircraft.Route);
-        if (compound is null)
+        var parseResult = CommandParser.ParseCompound(command, Navigation, aircraft.Route);
+        if (!parseResult.IsSuccess)
         {
-            return new CommandResult(false, $"Failed to parse command: {command}");
+            return new CommandResult(false, $"Failed to parse command: {command} — {parseResult.Reason}");
         }
 
         var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
         return CommandDispatcher.DispatchCompound(
-            compound,
+            parseResult.Value!,
             aircraft,
             Navigation,
             groundLayout,
@@ -695,14 +695,20 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            var compound = CommandParser.ParseCompound(preset.Command, Navigation, aircraft.Route);
-            if (compound is null)
+            var timedResult = CommandParser.ParseCompound(preset.Command, Navigation, aircraft.Route);
+            if (!timedResult.IsSuccess)
             {
-                _logger.LogWarning("Timed preset parse failed for {Callsign}: \"{Command}\"", preset.Callsign, preset.Command);
+                _logger.LogWarning(
+                    "Timed preset parse failed for {Callsign}: \"{Command}\" — {Reason}",
+                    preset.Callsign,
+                    preset.Command,
+                    timedResult.Reason
+                );
                 EmitTerminal("Warning", preset.Callsign, $"[Preset] Unparseable: {preset.Command}");
                 continue;
             }
 
+            var compound = timedResult.Value!;
             // Check for single SAY command — emit as Say terminal entry, don't dispatch
             if (compound.Blocks is [{ Commands: [SayCommand timedSay], Condition: null }])
             {
@@ -741,13 +747,14 @@ public sealed class SimulationEngine
 
     private void ExecuteGlobalCommand(string command)
     {
-        var parsed = CommandParser.Parse(command);
-        if (parsed is null)
+        var globalResult = CommandParser.Parse(command);
+        if (!globalResult.IsSuccess)
         {
-            _logger.LogWarning("Unknown trigger command: {Cmd}", command);
+            _logger.LogWarning("Unknown trigger command: {Cmd} — {Reason}", command, globalResult.Reason);
             return;
         }
 
+        var parsed = globalResult.Value!;
         if (parsed is SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand)
         {
             var result = HandleGlobalSquawkCommand(parsed);
@@ -812,14 +819,20 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            var compound = CommandParser.ParseCompound(preset.Command, Navigation, loaded.State.Route);
-            if (compound is null)
+            var presetResult = CommandParser.ParseCompound(preset.Command, Navigation, loaded.State.Route);
+            if (!presetResult.IsSuccess)
             {
-                _logger.LogWarning("Preset parse failed for {Callsign}: \"{Command}\"", loaded.State.Callsign, preset.Command);
+                _logger.LogWarning(
+                    "Preset parse failed for {Callsign}: \"{Command}\" — {Reason}",
+                    loaded.State.Callsign,
+                    preset.Command,
+                    presetResult.Reason
+                );
                 EmitTerminal("Warning", loaded.State.Callsign, $"[Preset] Unparseable: {preset.Command}");
                 continue;
             }
 
+            var compound = presetResult.Value!;
             // Check for single SAY command — emit as Say terminal entry, don't dispatch
             if (compound.Blocks is [{ Commands: [SayCommand say], Condition: null }])
             {
@@ -894,12 +907,13 @@ public sealed class SimulationEngine
             return;
         }
 
-        var simpleParsed = CommandParser.Parse(cmd.Command);
-        if (simpleParsed is null or SayCommand or ShowQueuedCommand)
+        var simpleResult = CommandParser.Parse(cmd.Command);
+        if (!simpleResult.IsSuccess || simpleResult.Value is SayCommand or ShowQueuedCommand)
         {
             return;
         }
 
+        var simpleParsed = simpleResult.Value!;
         if (simpleParsed is DeleteQueuedCommand delAtCmd)
         {
             ReplayDeleteQueued(aircraft, delAtCmd.BlockNumber);
@@ -952,15 +966,15 @@ public sealed class SimulationEngine
             return;
         }
 
-        var compound = CommandParser.ParseCompound(cmd.Command, Navigation, aircraft.Route);
-        if (compound is null)
+        var replayResult = CommandParser.ParseCompound(cmd.Command, Navigation, aircraft.Route);
+        if (!replayResult.IsSuccess)
         {
             return;
         }
 
         var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
         CommandDispatcher.DispatchCompound(
-            compound,
+            replayResult.Value!,
             aircraft,
             Navigation,
             groundLayout,

@@ -752,7 +752,7 @@ public class GroundCommandHandlerTests
     {
         var cmd = CommandParser.Parse("BREAK");
 
-        Assert.IsType<BreakConflictCommand>(cmd);
+        Assert.IsType<BreakConflictCommand>(cmd.Value);
     }
 
     [Fact]
@@ -760,7 +760,7 @@ public class GroundCommandHandlerTests
     {
         var cmd = CommandParser.Parse("GO");
 
-        Assert.IsType<GoCommand>(cmd);
+        Assert.IsType<GoCommand>(cmd.Value);
     }
 
     [Fact]
@@ -768,7 +768,7 @@ public class GroundCommandHandlerTests
     {
         var cmd = CommandParser.Parse("TAXIALL 30");
 
-        var taxiAll = Assert.IsType<TaxiAllCommand>(cmd);
+        var taxiAll = Assert.IsType<TaxiAllCommand>(cmd.Value);
         Assert.Equal("30", taxiAll.DestinationRunway);
     }
 

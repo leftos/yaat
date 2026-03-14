@@ -101,8 +101,6 @@
                 <MenuItem Header="_Approach Report"
                           x:Name="ApproachReportMenuItem"
                           IsEnabled="{Binding IsInRoom}" />
-                <MenuItem Header="Validate _Scenarios..."
-                          x:Name="ValidateScenariosMenuItem" />
                 <Separator />
                 <MenuItem Header="Save _Recording..."
                           Command="{Binding SaveRecordingCommand}"

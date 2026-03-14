@@ -622,7 +622,7 @@ public static class CommandSchemeParser
             {
                 var candidate = string.Join(' ', tokens[i..end]);
                 var result = CommandParser.Parse(candidate, navDb);
-                if (result is not null)
+                if (result.IsSuccess)
                 {
                     lastGood = candidate;
                     lastGoodEnd = end;

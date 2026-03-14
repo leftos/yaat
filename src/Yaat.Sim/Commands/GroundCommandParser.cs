@@ -1,3 +1,5 @@
+using PR = Yaat.Sim.Commands.ParseResult<Yaat.Sim.Commands.ParsedCommand>;
+
 namespace Yaat.Sim.Commands;
 
 internal static class GroundCommandParser
@@ -6,11 +8,11 @@ internal static class GroundCommandParser
     /// Parses PUSH [taxiway] [heading|facing_taxiway].
     /// Examples: PUSH, PUSH 180, PUSH TE, PUSH TE 180, PUSH TE T (onto TE facing toward T).
     /// </summary>
-    internal static ParsedCommand? ParsePushback(string? arg)
+    internal static PR ParsePushback(string? arg)
     {
         if (arg is null)
         {
-            return new PushbackCommand();
+            return PR.Ok(new PushbackCommand());
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -22,7 +24,7 @@ internal static class GroundCommandParser
             string name = tokens[0][1..].ToUpperInvariant();
             if (tokens.Length == 1)
             {
-                return isSpot ? new PushbackCommand(DestinationSpot: name) : new PushbackCommand(DestinationParking: name);
+                return PR.Ok(isSpot ? new PushbackCommand(DestinationSpot: name) : new PushbackCommand(DestinationParking: name));
             }
 
             if (tokens.Length == 2)
@@ -38,22 +40,24 @@ internal static class GroundCommandParser
                     facingTwy = tokens[1].ToUpperInvariant();
                 }
 
-                return isSpot
-                    ? new PushbackCommand(Heading: hdg, FacingTaxiway: facingTwy, DestinationSpot: name)
-                    : new PushbackCommand(Heading: hdg, FacingTaxiway: facingTwy, DestinationParking: name);
+                return PR.Ok(
+                    isSpot
+                        ? new PushbackCommand(Heading: hdg, FacingTaxiway: facingTwy, DestinationSpot: name)
+                        : new PushbackCommand(Heading: hdg, FacingTaxiway: facingTwy, DestinationParking: name)
+                );
             }
 
-            return isSpot ? new PushbackCommand(DestinationSpot: name) : new PushbackCommand(DestinationParking: name);
+            return PR.Ok(isSpot ? new PushbackCommand(DestinationSpot: name) : new PushbackCommand(DestinationParking: name));
         }
 
         if (tokens.Length == 1)
         {
             if (int.TryParse(tokens[0], out var heading) && heading >= 1 && heading <= 360)
             {
-                return new PushbackCommand(heading);
+                return PR.Ok(new PushbackCommand(heading));
             }
 
-            return new PushbackCommand(Taxiway: tokens[0].ToUpperInvariant());
+            return PR.Ok(new PushbackCommand(Taxiway: tokens[0].ToUpperInvariant()));
         }
 
         if (tokens.Length == 2 && !int.TryParse(tokens[0], out _))
@@ -61,15 +65,15 @@ internal static class GroundCommandParser
             string taxiway = tokens[0].ToUpperInvariant();
             if (int.TryParse(tokens[1], out var hdg) && hdg >= 1 && hdg <= 360)
             {
-                return new PushbackCommand(hdg, taxiway);
+                return PR.Ok(new PushbackCommand(hdg, taxiway));
             }
 
             // Two non-numeric tokens: PUSH TE T → push onto TE facing toward T
-            return new PushbackCommand(Taxiway: taxiway, FacingTaxiway: tokens[1].ToUpperInvariant());
+            return PR.Ok(new PushbackCommand(Taxiway: taxiway, FacingTaxiway: tokens[1].ToUpperInvariant()));
         }
 
         // Fallback: treat whole arg as taxiway name
-        return new PushbackCommand(Taxiway: arg.Trim().ToUpperInvariant());
+        return PR.Ok(new PushbackCommand(Taxiway: arg.Trim().ToUpperInvariant()));
     }
 
     /// <summary>
@@ -77,11 +81,11 @@ internal static class GroundCommandParser
     /// Also handles trailing runway: TAXI T U W 30 → path=[T,U,W], dest=30.
     /// Keywords: HS starts hold-short list, RWY sets destination runway.
     /// </summary>
-    internal static ParsedCommand? ParseTaxi(string? arg)
+    internal static PR ParseTaxi(string? arg)
     {
         if (arg is null)
         {
-            return null;
+            return PR.Fail("TAXI requires a path");
         }
 
         return ParseTaxiTokens(arg.Split(' ', StringSplitOptions.RemoveEmptyEntries), detectTrailingRunway: true);
@@ -91,17 +95,17 @@ internal static class GroundCommandParser
     /// Parses RWY {runway} [TAXI] path [HS runway...].
     /// Standalone RWY {runway} (no path) returns AssignRunwayCommand.
     /// </summary>
-    internal static ParsedCommand? ParseRwyTaxi(string? arg)
+    internal static PR ParseRwyTaxi(string? arg)
     {
         if (arg is null)
         {
-            return null;
+            return PR.Fail("RWY requires a runway ID");
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0)
         {
-            return null;
+            return PR.Fail("RWY requires a runway ID");
         }
 
         string destRunway = tokens[0].ToUpperInvariant();
@@ -117,23 +121,17 @@ internal static class GroundCommandParser
         if (remaining.Length == 0)
         {
             // Standalone RWY {runway} — assign runway without taxi
-            return new AssignRunwayCommand(destRunway);
+            return PR.Ok(new AssignRunwayCommand(destRunway));
         }
 
         var result = ParseTaxiTokens(remaining, detectTrailingRunway: false);
-        if (result is not TaxiCommand taxi)
+        if (!result.IsSuccess || result.Value is not TaxiCommand taxi)
         {
-            return null;
+            return result.IsSuccess ? PR.Fail("invalid RWY taxi path") : result;
         }
 
-        return new TaxiCommand(
-            taxi.Path,
-            taxi.HoldShorts,
-            destRunway,
-            taxi.NoDelete,
-            taxi.DestinationParking,
-            taxi.CrossRunways,
-            taxi.DestinationSpot
+        return PR.Ok(
+            new TaxiCommand(taxi.Path, taxi.HoldShorts, destRunway, taxi.NoDelete, taxi.DestinationParking, taxi.CrossRunways, taxi.DestinationSpot)
         );
     }
 
@@ -143,11 +141,11 @@ internal static class GroundCommandParser
     /// treats the last path token as a destination runway if it looks like one.
     /// Tokens starting with @ set DestinationParking, $ set DestinationSpot.
     /// </summary>
-    internal static ParsedCommand? ParseTaxiTokens(string[] tokens, bool detectTrailingRunway)
+    internal static PR ParseTaxiTokens(string[] tokens, bool detectTrailingRunway)
     {
         if (tokens.Length == 0)
         {
-            return null;
+            return PR.Fail("empty taxi route");
         }
 
         var path = new List<string>();
@@ -251,107 +249,107 @@ internal static class GroundCommandParser
         // Allow empty path when parking/spot destination is set (A* will find the route)
         if (path.Count == 0 && destParking is null && destSpot is null)
         {
-            return null;
+            return PR.Fail("empty taxi route");
         }
 
-        return new TaxiCommand(path, holdShorts, destRunway, noDelete, destParking, crossRunways, destSpot);
+        return PR.Ok(new TaxiCommand(path, holdShorts, destRunway, noDelete, destParking, crossRunways, destSpot));
     }
 
     /// <summary>
     /// Parses TAXIALL {runway|@spot}.
     /// Each parked aircraft gets A* pathfinding to the destination.
     /// </summary>
-    internal static ParsedCommand? ParseTaxiAll(string? arg)
+    internal static PR ParseTaxiAll(string? arg)
     {
         if (arg is null)
         {
-            return null;
+            return PR.Fail("TAXIALL requires a destination");
         }
 
         var token = arg.Trim();
         if (token.Length == 0)
         {
-            return null;
+            return PR.Fail("TAXIALL requires a destination");
         }
 
         if (token.StartsWith('@') && token.Length > 1)
         {
-            return new TaxiAllCommand(DestinationParking: token[1..].ToUpperInvariant());
+            return PR.Ok(new TaxiAllCommand(DestinationParking: token[1..].ToUpperInvariant()));
         }
 
         if (token.StartsWith('$') && token.Length > 1)
         {
-            return new TaxiAllCommand(DestinationSpot: token[1..].ToUpperInvariant());
+            return PR.Ok(new TaxiAllCommand(DestinationSpot: token[1..].ToUpperInvariant()));
         }
 
-        return new TaxiAllCommand(DestinationRunway: token.ToUpperInvariant());
+        return PR.Ok(new TaxiAllCommand(DestinationRunway: token.ToUpperInvariant()));
     }
 
     /// <summary>
     /// Parses CROSS runway.
     /// </summary>
-    internal static ParsedCommand? ParseCross(string? arg)
+    internal static PR ParseCross(string? arg)
     {
         if (arg is null)
         {
-            return null;
+            return PR.Fail("CROSS requires a runway");
         }
 
         var runway = arg.Trim().ToUpperInvariant();
         if (runway.Length == 0)
         {
-            return null;
+            return PR.Fail("CROSS requires a runway");
         }
 
-        return new CrossRunwayCommand(runway);
+        return PR.Ok(new CrossRunwayCommand(runway));
     }
 
     /// <summary>
     /// Parses HS target (taxiway or runway).
     /// </summary>
-    internal static ParsedCommand? ParseHoldShort(string? arg)
+    internal static PR ParseHoldShort(string? arg)
     {
         if (arg is null)
         {
-            return null;
+            return PR.Fail("HS requires a target");
         }
 
         var target = arg.Trim().ToUpperInvariant();
         if (target.Length == 0)
         {
-            return null;
+            return PR.Fail("HS requires a target");
         }
 
-        return new HoldShortCommand(target);
+        return PR.Ok(new HoldShortCommand(target));
     }
 
     /// <summary>
     /// Parses FOLLOW callsign.
     /// </summary>
-    internal static ParsedCommand? ParseFollow(string? arg)
+    internal static PR ParseFollow(string? arg)
     {
         if (arg is null)
         {
-            return null;
+            return PR.Fail("FOLLOW requires a callsign");
         }
 
         var callsign = arg.Trim();
         if (callsign.Length == 0)
         {
-            return null;
+            return PR.Fail("FOLLOW requires a callsign");
         }
 
-        return new FollowCommand(callsign);
+        return PR.Ok(new FollowCommand(callsign));
     }
 
     /// <summary>
     /// Parses GIVEWAY / BEHIND callsign.
     /// </summary>
-    internal static ParsedCommand? ParseGiveWay(string? arg)
+    internal static PR ParseGiveWay(string? arg)
     {
         if (arg is null)
         {
-            return null;
+            return PR.Fail("GIVEWAY requires a callsign");
         }
 
         // GW {callsign} [{runway/taxiway}]
@@ -360,12 +358,12 @@ internal static class GroundCommandParser
         var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
-            return null;
+            return PR.Fail("GIVEWAY requires a callsign");
         }
 
         var callsign = parts[0];
         var location = parts.Length == 2 ? parts[1].Trim().ToUpperInvariant() : null;
-        return new GiveWayCommand(callsign, location);
+        return PR.Ok(new GiveWayCommand(callsign, location));
     }
 
     /// <summary>
