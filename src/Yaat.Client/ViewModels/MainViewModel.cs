@@ -636,6 +636,13 @@ public partial class MainViewModel : ObservableObject
             commandText = resolved.Value.Remainder;
         }
 
+        // RPO control commands (client-local, bypass command pipeline)
+        var rpoResult = await TryHandleRpoCommand(commandText, target, text);
+        if (rpoResult)
+        {
+            return;
+        }
+
         // Expand macros before parsing
         var originalCommand = commandText;
         var expandedCommand = MacroExpander.TryExpand(commandText, _preferences.Macros, out var macroError);
@@ -866,6 +873,64 @@ public partial class MainViewModel : ObservableObject
             _commandInput.ResetHistoryNavigation();
             CommandText = "";
         }
+    }
+
+    private async Task<bool> TryHandleRpoCommand(string commandText, AircraftModel? target, string originalInput)
+    {
+        var upper = commandText.Trim().ToUpperInvariant();
+
+        if (upper == "TAKE")
+        {
+            if (target is null)
+            {
+                StatusText = "Select an aircraft first";
+                return true;
+            }
+            await TakeControlAsync(target.Callsign);
+            AddHistory(originalInput);
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+            return true;
+        }
+
+        if (upper.StartsWith("GIVE ", StringComparison.Ordinal))
+        {
+            if (target is null)
+            {
+                StatusText = "Select an aircraft first";
+                return true;
+            }
+            var initials = upper[5..].Trim();
+            if (initials.Length == 0)
+            {
+                StatusText = "Usage: GIVE <initials>";
+                return true;
+            }
+            await GiveControlAsync(target.Callsign, initials);
+            AddHistory(originalInput);
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+            return true;
+        }
+
+        if (upper == "GIVEUP")
+        {
+            if (target is null)
+            {
+                StatusText = "Select an aircraft first";
+                return true;
+            }
+            await ReleaseControlAsync(target.Callsign);
+            AddHistory(originalInput);
+            _commandInput.DismissSuggestions();
+            _commandInput.ResetHistoryNavigation();
+            CommandText = "";
+            return true;
+        }
+
+        return false;
     }
 
     private static bool IsGlobalCommand(CanonicalCommandType type)

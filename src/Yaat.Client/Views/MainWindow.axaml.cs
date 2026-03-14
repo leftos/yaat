@@ -1314,6 +1314,9 @@ public partial class MainWindow : Window
     }
 
     private Key _focusInputKey = Key.OemTilde;
+    private KeyModifiers _focusInputModifiers = KeyModifiers.None;
+    private Key _takeControlKey = Key.T;
+    private KeyModifiers _takeControlModifiers = KeyModifiers.Control;
 
     private void SyncAllRadarViewTint()
     {
@@ -1334,14 +1337,21 @@ public partial class MainWindow : Window
     private void ApplyKeybinds(UserPreferences prefs)
     {
         var cmdView = this.FindControl<CommandInputView>("CommandInputView");
-        if (cmdView is not null && Enum.TryParse<Key>(prefs.AircraftSelectKey, out var key))
+        if (cmdView is not null && SettingsViewModel.ParseKeybind(prefs.AircraftSelectKey, out var selKey, out var selMods))
         {
-            cmdView.SetAircraftSelectKey(key);
+            cmdView.SetAircraftSelectKeybind(selKey, selMods);
         }
 
-        if (Enum.TryParse<Key>(prefs.FocusInputKey, out var focusKey))
+        if (SettingsViewModel.ParseKeybind(prefs.FocusInputKey, out var focusKey, out var focusMods))
         {
             _focusInputKey = focusKey;
+            _focusInputModifiers = focusMods;
+        }
+
+        if (SettingsViewModel.ParseKeybind(prefs.TakeControlKey, out var takeKey, out var takeMods))
+        {
+            _takeControlKey = takeKey;
+            _takeControlModifiers = takeMods;
         }
     }
 
@@ -1417,10 +1427,17 @@ public partial class MainWindow : Window
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.Key == _focusInputKey)
+        if (e.Key == _focusInputKey && e.KeyModifiers == _focusInputModifiers)
         {
             var cmdView = this.FindControl<CommandInputView>("CommandInputView");
             cmdView?.FocusCommandInput();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == _takeControlKey && e.KeyModifiers == _takeControlModifiers && DataContext is MainViewModel vm && vm.SelectedAircraft is not null)
+        {
+            _ = vm.TakeControlAsync(vm.SelectedAircraft.Callsign);
             e.Handled = true;
             return;
         }

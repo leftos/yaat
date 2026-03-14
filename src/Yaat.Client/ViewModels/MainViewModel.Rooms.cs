@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Models;
@@ -540,6 +541,95 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to fetch assignments");
+        }
+    }
+
+    // --- RPO control ---
+
+    public string? SelfConnectionId => AssignableMembers.FirstOrDefault(m => m.Initials == _preferences.UserInitials)?.ConnectionId;
+
+    public async Task TakeControlAsync(string callsign)
+    {
+        var selfId = SelfConnectionId;
+        if (selfId is null)
+        {
+            StatusText = "Cannot take control — not in a multi-user room";
+            return;
+        }
+
+        await AssignAircraftAsync([callsign], selfId);
+    }
+
+    public async Task GiveControlAsync(string callsign, string targetInitials)
+    {
+        var member = AssignableMembers.FirstOrDefault(m => m.Initials == targetInitials.ToUpperInvariant());
+        if (member is null)
+        {
+            StatusText = $"No room member with initials '{targetInitials}'";
+            return;
+        }
+
+        await AssignAircraftAsync([callsign], member.ConnectionId);
+    }
+
+    public async Task ReleaseControlAsync(string callsign)
+    {
+        await UnassignAircraftAsync([callsign]);
+    }
+
+    public void BuildRpoMenuItems(ItemsControl menu, List<string> callsigns)
+    {
+        if (AssignableMembers.Count == 0 || callsigns.Count == 0)
+        {
+            return;
+        }
+
+        menu.Items.Add(new Separator());
+
+        var selfInitials = _preferences.UserInitials;
+        var singleCallsign = callsigns.Count == 1 ? callsigns[0] : null;
+
+        // Determine assignment state for contextual display
+        var assignedToSelf = singleCallsign is not null && GetAssignedInitials(singleCallsign) == selfInitials;
+        var selfId = SelfConnectionId;
+
+        // "Take control" — assign to self (shown unless already assigned to self)
+        if (!assignedToSelf && selfId is not null)
+        {
+            var takeItem = new MenuItem { Header = callsigns.Count > 1 ? $"Take control ({callsigns.Count})" : "Take control" };
+            takeItem.Click += async (_, _) => await AssignAircraftAsync(callsigns, selfId);
+            menu.Items.Add(takeItem);
+        }
+
+        // "Give up control" — unassign (shown when assigned to self)
+        if (assignedToSelf)
+        {
+            var releaseItem = new MenuItem { Header = "Give up control" };
+            releaseItem.Click += async (_, _) => await UnassignAircraftAsync(callsigns);
+            menu.Items.Add(releaseItem);
+        }
+
+        // "Give control" submenu — lists other members (not self)
+        var otherMembers = AssignableMembers.Where(m => m.Initials != selfInitials).ToList();
+        if (otherMembers.Count > 0)
+        {
+            var giveSubmenu = new MenuItem { Header = callsigns.Count > 1 ? $"Give control ({callsigns.Count})" : "Give control" };
+            foreach (var member in otherMembers)
+            {
+                var memberItem = new MenuItem { Header = member.Initials };
+                var connId = member.ConnectionId;
+                memberItem.Click += async (_, _) => await AssignAircraftAsync(callsigns, connId);
+                giveSubmenu.Items.Add(memberItem);
+            }
+            menu.Items.Add(giveSubmenu);
+        }
+
+        // "Unassign" — always available for multi-select or when assigned to someone else
+        if (!assignedToSelf)
+        {
+            var unassignItem = new MenuItem { Header = callsigns.Count > 1 ? $"Unassign ({callsigns.Count})" : "Unassign" };
+            unassignItem.Click += async (_, _) => await UnassignAircraftAsync(callsigns);
+            menu.Items.Add(unassignItem);
         }
     }
 }

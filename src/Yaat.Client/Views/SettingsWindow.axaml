@@ -392,7 +392,7 @@
                                         Width="160"
                                         HorizontalContentAlignment="Center"
                                         Command="{Binding StartKeyCaptureCommand}" />
-                                <TextBlock Text="(click, then press a key)"
+                                <TextBlock Text="(click, then press a key combo)"
                                            Foreground="{DynamicResource SubtleTextBrush}"
                                            FontSize="11"
                                            VerticalAlignment="Center" />
@@ -411,12 +411,31 @@
                                         Width="160"
                                         HorizontalContentAlignment="Center"
                                         Command="{Binding StartFocusInputKeyCaptureCommand}" />
-                                <TextBlock Text="(click, then press a key)"
+                                <TextBlock Text="(click, then press a key combo)"
                                            Foreground="{DynamicResource SubtleTextBrush}"
                                            FontSize="11"
                                            VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Text="Pressing this key from anywhere in the app puts focus on the command input. Default: ~ (tilde)"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Spacing="4" Margin="0,8,0,0">
+                            <TextBlock Text="Take Control Key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="TakeControlKeyButton"
+                                        Content="{Binding TakeControlKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartTakeControlKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key combo)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Pressing this key combo assigns the selected aircraft to yourself (RPO take control). Default: Ctrl+T"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />

@@ -8,15 +8,17 @@ namespace Yaat.Client.Views;
 public partial class CommandInputView : UserControl
 {
     private Key _aircraftSelectKey = Key.Add;
+    private KeyModifiers _aircraftSelectModifiers = KeyModifiers.None;
 
     public CommandInputView()
     {
         InitializeComponent();
     }
 
-    public void SetAircraftSelectKey(Key key)
+    public void SetAircraftSelectKeybind(Key key, KeyModifiers modifiers)
     {
         _aircraftSelectKey = key;
+        _aircraftSelectModifiers = modifiers;
     }
 
     protected override void OnLoaded(RoutedEventArgs e)
@@ -70,7 +72,7 @@ public partial class CommandInputView : UserControl
         var cmdInput = sender as TextBox;
         var input = vm.CommandInput;
 
-        if (e.Key == _aircraftSelectKey)
+        if (e.Key == _aircraftSelectKey && e.KeyModifiers == _aircraftSelectModifiers)
         {
             input.DismissSuggestions();
             vm.SelectAircraftFromInput();

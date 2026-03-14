@@ -122,6 +122,7 @@ public sealed class UserPreferences
     public IReadOnlyList<RecentWeather> RecentWeatherFiles => _data.RecentWeatherFiles;
     public string AircraftSelectKey => _data.AircraftSelectKey;
     public string FocusInputKey => _data.FocusInputKey;
+    public string TakeControlKey => _data.TakeControlKey;
     public HashSet<TerminalEntryKind> HiddenTerminalKinds { get; private set; } = [];
     public bool GroundShowRunwayLabels => _data.GroundShowRunwayLabels;
     public bool GroundShowTaxiwayLabels => _data.GroundShowTaxiwayLabels;
@@ -303,6 +304,12 @@ public sealed class UserPreferences
     public void SetFocusInputKey(string key)
     {
         _data.FocusInputKey = key;
+        Save();
+    }
+
+    public void SetTakeControlKey(string key)
+    {
+        _data.TakeControlKey = key;
         Save();
     }
 
@@ -574,6 +581,7 @@ public sealed class UserPreferences
             RecentWeatherFiles = GetFieldOr<List<RecentWeather>>(obj, "recentWeatherFiles", []),
             AircraftSelectKey = GetFieldOr(obj, "aircraftSelectKey", "Add"),
             FocusInputKey = GetFieldOr(obj, "focusInputKey", "OemTilde"),
+            TakeControlKey = GetFieldOr(obj, "takeControlKey", "Ctrl+T"),
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
             GroundShowRunwayLabels = GetFieldOr(obj, "groundShowRunwayLabels", true),
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
@@ -740,6 +748,7 @@ public sealed class UserPreferences
         public List<RecentWeather> RecentWeatherFiles { get; set; } = [];
         public string AircraftSelectKey { get; set; } = "Add";
         public string FocusInputKey { get; set; } = "OemTilde";
+        public string TakeControlKey { get; set; } = "Ctrl+T";
         public List<string> HiddenTerminalKinds { get; set; } = [];
         public bool GroundShowRunwayLabels { get; set; } = true;
         public bool GroundShowTaxiwayLabels { get; set; } = true;

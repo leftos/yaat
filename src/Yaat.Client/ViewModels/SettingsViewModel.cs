@@ -154,6 +154,9 @@ public partial class SettingsViewModel : ObservableObject
     private string _focusInputKeyDisplay = "~";
 
     [ObservableProperty]
+    private string _takeControlKeyDisplay = "Ctrl + T";
+
+    [ObservableProperty]
     private bool _assignmentTintEnabled;
 
     [ObservableProperty]
@@ -179,6 +182,7 @@ public partial class SettingsViewModel : ObservableObject
 
     private string _aircraftSelectKeyName = "Add";
     private string _focusInputKeyName = "OemTilde";
+    private string _takeControlKeyName = "Ctrl+T";
     private string? _captureTarget;
 
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
@@ -212,9 +216,11 @@ public partial class SettingsViewModel : ObservableObject
         _autoClearedToLandCtr = _preferences.AutoClearedToLandCtr;
         _autoCrossRunway = _preferences.AutoCrossRunway;
         _aircraftSelectKeyName = _preferences.AircraftSelectKey;
-        _aircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
+        _aircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
         _focusInputKeyName = _preferences.FocusInputKey;
-        _focusInputKeyDisplay = KeyNameToDisplay(_focusInputKeyName);
+        _focusInputKeyDisplay = KeyComboToDisplay(_focusInputKeyName);
+        _takeControlKeyName = _preferences.TakeControlKey;
+        _takeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
         _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
         _assignmentTintColor = _preferences.AssignmentTintColor;
         _unassignedTintEnabled = _preferences.UnassignedTintEnabled;
@@ -258,6 +264,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSimulationShortcuts(AutoClearedToLandGnd, AutoClearedToLandTwr, AutoClearedToLandApp, AutoClearedToLandCtr, AutoCrossRunway);
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
+        _preferences.SetTakeControlKey(_takeControlKeyName);
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
         _preferences.SetUnassignedTint(UnassignedTintEnabled, UnassignedTintColor);
         _preferences.SetSelectedColor(SelectedColor);
@@ -541,21 +548,31 @@ public partial class SettingsViewModel : ObservableObject
         StartKeyCaptureFor("FocusInput");
     }
 
+    [RelayCommand]
+    private void StartTakeControlKeyCapture()
+    {
+        StartKeyCaptureFor("TakeControl");
+    }
+
     private void StartKeyCaptureFor(string target)
     {
         _captureTarget = target;
         IsCapturingKey = true;
-        if (target == "AircraftSelect")
+        switch (target)
         {
-            AircraftSelectKeyDisplay = "Press a key...";
-        }
-        else
-        {
-            FocusInputKeyDisplay = "Press a key...";
+            case "AircraftSelect":
+                AircraftSelectKeyDisplay = "Press a key combo...";
+                break;
+            case "FocusInput":
+                FocusInputKeyDisplay = "Press a key combo...";
+                break;
+            case "TakeControl":
+                TakeControlKeyDisplay = "Press a key combo...";
+                break;
         }
     }
 
-    public void CaptureKey(Key key)
+    public void CaptureKey(Key key, KeyModifiers modifiers)
     {
         if (!IsCapturingKey)
         {
@@ -568,16 +585,21 @@ public partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        var keyName = key.ToString();
-        if (_captureTarget == "AircraftSelect")
+        var combo = BuildKeyCombo(key, modifiers);
+        switch (_captureTarget)
         {
-            _aircraftSelectKeyName = keyName;
-            AircraftSelectKeyDisplay = KeyNameToDisplay(keyName);
-        }
-        else
-        {
-            _focusInputKeyName = keyName;
-            FocusInputKeyDisplay = KeyNameToDisplay(keyName);
+            case "AircraftSelect":
+                _aircraftSelectKeyName = combo;
+                AircraftSelectKeyDisplay = KeyComboToDisplay(combo);
+                break;
+            case "FocusInput":
+                _focusInputKeyName = combo;
+                FocusInputKeyDisplay = KeyComboToDisplay(combo);
+                break;
+            case "TakeControl":
+                _takeControlKeyName = combo;
+                TakeControlKeyDisplay = KeyComboToDisplay(combo);
+                break;
         }
 
         IsCapturingKey = false;
@@ -588,13 +610,17 @@ public partial class SettingsViewModel : ObservableObject
     {
         if (IsCapturingKey)
         {
-            if (_captureTarget == "AircraftSelect")
+            switch (_captureTarget)
             {
-                AircraftSelectKeyDisplay = KeyNameToDisplay(_aircraftSelectKeyName);
-            }
-            else
-            {
-                FocusInputKeyDisplay = KeyNameToDisplay(_focusInputKeyName);
+                case "AircraftSelect":
+                    AircraftSelectKeyDisplay = KeyComboToDisplay(_aircraftSelectKeyName);
+                    break;
+                case "FocusInput":
+                    FocusInputKeyDisplay = KeyComboToDisplay(_focusInputKeyName);
+                    break;
+                case "TakeControl":
+                    TakeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
+                    break;
             }
 
             IsCapturingKey = false;
@@ -639,5 +665,75 @@ public partial class SettingsViewModel : ObservableObject
             Key.OemQuestion => "/",
             _ => key.ToString(),
         };
+    }
+
+    internal static string BuildKeyCombo(Key key, KeyModifiers modifiers)
+    {
+        var parts = new List<string>();
+        if (modifiers.HasFlag(KeyModifiers.Control))
+        {
+            parts.Add("Ctrl");
+        }
+        if (modifiers.HasFlag(KeyModifiers.Alt))
+        {
+            parts.Add("Alt");
+        }
+        if (modifiers.HasFlag(KeyModifiers.Shift))
+        {
+            parts.Add("Shift");
+        }
+        parts.Add(key.ToString());
+        return string.Join("+", parts);
+    }
+
+    internal static string KeyComboToDisplay(string combo)
+    {
+        var parts = combo.Split('+');
+        var display = new List<string>();
+        foreach (var part in parts)
+        {
+            var trimmed = part.Trim();
+            if (trimmed is "Ctrl" or "Alt" or "Shift")
+            {
+                display.Add(trimmed);
+            }
+            else
+            {
+                display.Add(KeyNameToDisplay(trimmed));
+            }
+        }
+        return string.Join(" + ", display);
+    }
+
+    public static bool ParseKeybind(string combo, out Key key, out KeyModifiers modifiers)
+    {
+        key = Key.None;
+        modifiers = KeyModifiers.None;
+
+        var parts = combo.Split('+');
+        foreach (var part in parts)
+        {
+            var trimmed = part.Trim();
+            switch (trimmed)
+            {
+                case "Ctrl":
+                    modifiers |= KeyModifiers.Control;
+                    break;
+                case "Alt":
+                    modifiers |= KeyModifiers.Alt;
+                    break;
+                case "Shift":
+                    modifiers |= KeyModifiers.Shift;
+                    break;
+                default:
+                    if (!Enum.TryParse(trimmed, out key))
+                    {
+                        return false;
+                    }
+                    break;
+            }
+        }
+
+        return key != Key.None;
     }
 }

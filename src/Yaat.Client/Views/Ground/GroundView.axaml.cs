@@ -404,6 +404,9 @@ public partial class GroundView : UserControl
         menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
+        // RPO control
+        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
+
         ShowContextMenu(menu, screenPos);
     }
 

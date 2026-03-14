@@ -190,31 +190,13 @@ public partial class DataGridView : UserControl
         deleteItem.Click += async (_, _) => await vm.Connection.SendCommandAsync(callsign, "DEL", initials);
         menu.Items.Add(deleteItem);
 
-        // Aircraft assignment
-        if (vm.AssignableMembers.Count > 0)
+        // RPO control
+        var selectedCallsigns = grid.SelectedItems.OfType<AircraftModel>().Select(a => a.Callsign).ToList();
+        if (selectedCallsigns.Count == 0)
         {
-            menu.Items.Add(new Separator());
-
-            var selectedCallsigns = grid.SelectedItems.OfType<AircraftModel>().Select(a => a.Callsign).ToList();
-            if (selectedCallsigns.Count == 0)
-            {
-                selectedCallsigns = [callsign];
-            }
-
-            var assignSubmenu = new MenuItem { Header = $"Assign ({selectedCallsigns.Count})" };
-            foreach (var member in vm.AssignableMembers)
-            {
-                var memberItem = new MenuItem { Header = member.Initials };
-                var connId = member.ConnectionId;
-                memberItem.Click += async (_, _) => await vm.AssignAircraftAsync(selectedCallsigns, connId);
-                assignSubmenu.Items.Add(memberItem);
-            }
-            menu.Items.Add(assignSubmenu);
-
-            var unassignItem = new MenuItem { Header = $"Unassign ({selectedCallsigns.Count})" };
-            unassignItem.Click += async (_, _) => await vm.UnassignAircraftAsync(selectedCallsigns);
-            menu.Items.Add(unassignItem);
+            selectedCallsigns = [callsign];
         }
+        vm.BuildRpoMenuItems(menu, selectedCallsigns);
 
         grid.ContextMenu = menu;
     }

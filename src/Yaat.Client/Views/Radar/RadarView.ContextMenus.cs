@@ -135,26 +135,8 @@ public partial class RadarView
         );
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
-        // Aircraft assignment
-        var mainVm = FindMainViewModel();
-        if (mainVm is not null && mainVm.AssignableMembers.Count > 0)
-        {
-            menu.Items.Add(new Separator());
-
-            var assignSubmenu = new MenuItem { Header = "Assign to" };
-            foreach (var member in mainVm.AssignableMembers)
-            {
-                var memberItem = new MenuItem { Header = member.Initials };
-                var connId = member.ConnectionId;
-                memberItem.Click += async (_, _) => await mainVm.AssignAircraftAsync([callsign], connId);
-                assignSubmenu.Items.Add(memberItem);
-            }
-            menu.Items.Add(assignSubmenu);
-
-            var unassignItem = new MenuItem { Header = "Unassign" };
-            unassignItem.Click += async (_, _) => await mainVm.UnassignAircraftAsync([callsign]);
-            menu.Items.Add(unassignItem);
-        }
+        // RPO control
+        FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
         ShowContextMenu(menu, screenPos);
     }

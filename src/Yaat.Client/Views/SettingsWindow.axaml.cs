@@ -59,11 +59,14 @@ public partial class SettingsWindow : Window
             exportAllBtn.Click += OnExportAllClick;
         }
 
-        var keyBtn = this.FindControl<Button>("AircraftSelectKeyButton");
-        if (keyBtn is not null)
+        foreach (var btnName in new[] { "AircraftSelectKeyButton", "FocusInputKeyButton", "TakeControlKeyButton" })
         {
-            keyBtn.KeyDown += OnKeyCaptureKeyDown;
-            keyBtn.LostFocus += OnKeyCaptureLostFocus;
+            var btn = this.FindControl<Button>(btnName);
+            if (btn is not null)
+            {
+                btn.KeyDown += OnKeyCaptureKeyDown;
+                btn.LostFocus += OnKeyCaptureLostFocus;
+            }
         }
     }
 
@@ -168,7 +171,7 @@ public partial class SettingsWindow : Window
     {
         if (DataContext is SettingsViewModel vm && vm.IsCapturingKey)
         {
-            vm.CaptureKey(e.Key);
+            vm.CaptureKey(e.Key, e.KeyModifiers);
             e.Handled = true;
         }
     }

@@ -20,9 +20,9 @@ public partial class TerminalWindow : Window
             new WindowGeometryHelper(this, vm.Preferences, "Terminal", 700, 400).Restore();
 
             var cmdView = this.FindControl<CommandInputView>("CommandInputView");
-            if (cmdView is not null && Enum.TryParse<Key>(vm.Preferences.AircraftSelectKey, out var key))
+            if (cmdView is not null && SettingsViewModel.ParseKeybind(vm.Preferences.AircraftSelectKey, out var key, out var mods))
             {
-                cmdView.SetAircraftSelectKey(key);
+                cmdView.SetAircraftSelectKeybind(key, mods);
             }
         }
     }

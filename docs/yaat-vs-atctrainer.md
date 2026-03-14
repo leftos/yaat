@@ -365,8 +365,11 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 - Save/load recordings as JSON files
 - Take Control button to exit playback and resume live
 
-### Aircraft Assignments
+### Aircraft Assignments / RPO Control
 - Assign aircraft to specific RPOs in multi-instructor rooms
+- **Take control** keybind (Ctrl+T, customizable) for instant self-assignment
+- **Terminal commands**: `TAKE`, `GIVE XX`, `GIVEUP` (support callsign prefix)
+- Context menu RPO submenu in all three views (Aircraft List, Ground View, Radar View)
 - Command rejection for others' assigned aircraft
 - `**` prefix for override
 - Visual indicators (Ctrl column, radar datablock, color tint)

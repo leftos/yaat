@@ -1272,13 +1272,26 @@ Recordings are self-contained JSON files that include the scenario definition, R
 
 When multiple instructors/RPOs are in the same room, aircraft can be assigned to specific members for sole control.
 
-**Assigning aircraft:** Right-click one or more aircraft in the Aircraft List (or a single target on the Radar View) and select **Assign > [initials]** to assign them to that member. Any room member can assign or reassign any aircraft to any other member.
+**Context menu:** Right-click an aircraft in the Aircraft List, Ground View, or Radar View to see the RPO control submenu:
+- **Take control** — assign the aircraft to yourself (hidden if already yours)
+- **Give up control** — unassign the aircraft (shown only if assigned to you)
+- **Give control > [initials]** — assign the aircraft to another room member
+- **Unassign** — remove any assignment (shown if assigned to someone else)
+
+In the Aircraft List, multi-select works: select multiple aircraft, right-click, and the RPO actions apply to all selected.
+
+**Keybind:** Press **Ctrl+T** (configurable in Settings > Advanced) with an aircraft selected to take control of it instantly.
+
+**Terminal commands:**
+- `TAKE` — assign the selected (or callsign-prefixed) aircraft to yourself
+- `GIVE XX` — assign the selected aircraft to the member with initials XX
+- `GIVEUP` — unassign the selected aircraft
+
+All three support callsign prefix: `AAL123 TAKE`, `AAL123 GIVE AB`, `AAL123 GIVEUP`.
 
 **Enforcement:** Once any assignment exists in the room, commands to aircraft assigned to someone else are rejected. The error message shows who the aircraft is assigned to.
 
 **Override:** Prefix your command with `** ` (double asterisk + space) to bypass the assignment check. The terminal shows the override: `JE (override): AAL100 FH 270`.
-
-**Unassigning:** Right-click and select **Unassign** to return aircraft to "everyone" (any member can command them).
 
 **Visual indicators:**
 - The **Ctrl** column in the Aircraft List shows the assigned controller's initials
@@ -1470,7 +1483,7 @@ Open **Settings** to configure:
 - **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking), simulation shortcuts (auto-clear to land, auto-cross runways), and validate DCT fixes against route (rejects DCT to off-route fixes; use DCTF to override)
 - **Commands** — Alias editor for customizing command verbs. Each command shows its primary name, editable aliases, and an example. Use **Reset to Defaults** to restore the built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros) below)
-- **Advanced** — Aircraft select keybind (default: Numpad +), focus command input keybind (default: `~`), and server admin mode
+- **Advanced** — Aircraft select keybind (default: Numpad +), focus command input keybind (default: `~`), take control keybind (default: Ctrl+T), and server admin mode
 
 ## Autocomplete
 
@@ -1565,6 +1578,7 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 | Escape | Dismiss suggestions / deselect aircraft / close dialog |
 | Numpad + | Select aircraft matching typed callsign (configurable in Settings > Advanced) |
 | ~ (tilde) | Focus the command input from anywhere in the app (configurable in Settings > Advanced) |
+| Ctrl+T | Take control of the selected aircraft (RPO assign to self, configurable in Settings > Advanced) |
 
 ## Window State
 
