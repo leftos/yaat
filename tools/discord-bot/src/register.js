@@ -32,6 +32,11 @@ const commands = [
     description: "Reopen the linked GitHub issue and unmark this thread as resolved",
     type: 1,
   },
+  {
+    name: "disconnect",
+    description: "Unlink this thread from its GitHub issue (stops syncing new comments)",
+    type: 1,
+  },
 ];
 
 const appId = process.env.DISCORD_APP_ID;

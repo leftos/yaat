@@ -125,7 +125,7 @@ async function handleDiscordInteraction(request, env, ctx) {
       }).catch((err) => console.error("Command processing failed:", err)),
     );
 
-    const silentCommands = ["recreate-issue"];
+    const silentCommands = ["recreate-issue", "disconnect"];
     const deferResponse = { type: DEFERRED_CHANNEL_MESSAGE };
     if (silentCommands.includes(commandName)) {
       deferResponse.data = { flags: 64 };
@@ -419,6 +419,24 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
 
       await editOriginalResponse(appId, token, {
         content: `Reopened GitHub issue: ${mapping.issueUrl}`,
+      });
+      return;
+    }
+
+    if (commandName === "disconnect") {
+      const mapping = await env.THREAD_ISSUES.get(threadId, { type: "json" });
+      if (!mapping) {
+        await editOriginalResponse(appId, token, {
+          content: "No linked GitHub issue found — nothing to disconnect.",
+        });
+        return;
+      }
+
+      await env.THREAD_ISSUES.delete(threadId);
+      await env.THREAD_ISSUES.delete(`issue:${mapping.issueNumber}`);
+
+      await editOriginalResponse(appId, token, {
+        content: `Disconnected from GitHub issue #${mapping.issueNumber}. New comments will no longer sync.`,
       });
       return;
     }
