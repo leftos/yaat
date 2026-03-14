@@ -152,7 +152,7 @@ Cloudflare Worker (JS, no framework) deployed as `yaat-discord-bot`. State in KV
 
 Re-running a slash command in an already-linked thread triggers an immediate comment sync instead.
 
-**Auto-sync** (cron every 15min): New non-bot thread replies → GitHub issue comments.
+**Auto-sync** (cron every 5min): New non-bot thread replies → GitHub issue comments.
 
 **GitHub → Discord** (webhook on `issues` + `issue_comment` events at `/github`):
 - Labels (`in progress`, `completed`, `wontfix`, `not a bug`, `duplicate`) → status message posted to linked thread

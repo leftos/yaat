@@ -22,6 +22,6 @@ bucket_name = "yaat-attachments"
 binding = "THREAD_ISSUES"
 id = "192a2dd842c74910968cbdf1946be82a"
 
-# Auto-sync new thread replies as issue comments every 15 minutes
+# Auto-sync new thread replies as issue comments every 5 minutes
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["*/5 * * * *"]
