@@ -13,6 +13,8 @@ namespace Yaat.Client.Views.Ground;
 public partial class GroundView : UserControl
 {
     public static readonly FuncValueConverter<bool, string> BoolToLockLabel = new(v => v ? "LOCK" : "UNLK");
+    public static readonly FuncValueConverter<GroundFilterMode, bool> FilterIsActive = new(v => v == GroundFilterMode.LabelsAndIcons);
+    public static readonly FuncValueConverter<GroundFilterMode, bool> FilterIsPartial = new(v => v == GroundFilterMode.IconsOnly);
     private GroundCanvas? _canvas;
     private ContextMenu? _activeContextMenu;
     private Border? _taxiInputOverlay;
@@ -124,31 +126,41 @@ public partial class GroundView : UserControl
         }
     }
 
-    private void OnToggleHoldShortLabels(object? sender, RoutedEventArgs e)
+    private void OnToggleHoldShort(object? sender, RoutedEventArgs e)
     {
         if (DataContext is GroundViewModel vm)
         {
-            vm.ShowHoldShortLabels = !vm.ShowHoldShortLabels;
+            vm.ShowHoldShort = CycleFilterMode(vm.ShowHoldShort);
             vm.SaveLabelAndLockSettings();
         }
     }
 
-    private void OnToggleParkingLabels(object? sender, RoutedEventArgs e)
+    private void OnToggleParking(object? sender, RoutedEventArgs e)
     {
         if (DataContext is GroundViewModel vm)
         {
-            vm.ShowParkingLabels = !vm.ShowParkingLabels;
+            vm.ShowParking = CycleFilterMode(vm.ShowParking);
             vm.SaveLabelAndLockSettings();
         }
     }
 
-    private void OnToggleSpotLabels(object? sender, RoutedEventArgs e)
+    private void OnToggleSpot(object? sender, RoutedEventArgs e)
     {
         if (DataContext is GroundViewModel vm)
         {
-            vm.ShowSpotLabels = !vm.ShowSpotLabels;
+            vm.ShowSpot = CycleFilterMode(vm.ShowSpot);
             vm.SaveLabelAndLockSettings();
         }
+    }
+
+    private static GroundFilterMode CycleFilterMode(GroundFilterMode current)
+    {
+        return current switch
+        {
+            GroundFilterMode.LabelsAndIcons => GroundFilterMode.IconsOnly,
+            GroundFilterMode.IconsOnly => GroundFilterMode.Off,
+            _ => GroundFilterMode.LabelsAndIcons,
+        };
     }
 
     private void OnToggleLock(object? sender, RoutedEventArgs e)

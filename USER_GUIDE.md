@@ -1355,7 +1355,7 @@ An interactive airport surface map showing taxiways, runways, and aircraft posit
 The ground layout loads automatically when a scenario is loaded for an airport with ground data.
 
 **Controls bar:** A bar in the top-right corner provides label filters and a lock toggle:
-- **Label filters** — toggle visibility for four label categories: **RWY** (runway designators), **TWY** (taxiway names), **HS** (hold-short markers), and **PARK** (parking/spot names). Click a button to toggle that category on or off. When a category is hidden, hovering over the relevant element temporarily shows its label.
+- **Filters** — **RWY** and **TWY** toggle labels on/off. **HS**, **PARK**, and **SPOT** are tri-state: click to cycle through labels+icons (bright) → icons only (medium) → hidden (dim). When a category is hidden, hovering over the relevant element temporarily shows its icon and label.
 - **LOCK / UNLK** — lock or unlock pan, zoom, and rotation. When locked, the map cannot be accidentally moved. Defaults to unlocked.
 
 **Per-scenario persistence** — Ground view settings (pan position, zoom, rotation, label filters, lock state) are saved independently for each scenario. When you load a scenario you've used before, the ground view restores your previous settings. Label filter and lock defaults for new scenarios come from your last-used values.

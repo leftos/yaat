@@ -79,19 +79,19 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         defaultValue: true
     );
 
-    public static readonly StyledProperty<bool> ShowHoldShortLabelsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
-        nameof(ShowHoldShortLabels),
-        defaultValue: true
+    public static readonly StyledProperty<GroundFilterMode> ShowHoldShortProperty = AvaloniaProperty.Register<GroundCanvas, GroundFilterMode>(
+        nameof(ShowHoldShort),
+        defaultValue: GroundFilterMode.LabelsAndIcons
     );
 
-    public static readonly StyledProperty<bool> ShowParkingLabelsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
-        nameof(ShowParkingLabels),
-        defaultValue: true
+    public static readonly StyledProperty<GroundFilterMode> ShowParkingProperty = AvaloniaProperty.Register<GroundCanvas, GroundFilterMode>(
+        nameof(ShowParking),
+        defaultValue: GroundFilterMode.LabelsAndIcons
     );
 
-    public static readonly StyledProperty<bool> ShowSpotLabelsProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
-        nameof(ShowSpotLabels),
-        defaultValue: true
+    public static readonly StyledProperty<GroundFilterMode> ShowSpotProperty = AvaloniaProperty.Register<GroundCanvas, GroundFilterMode>(
+        nameof(ShowSpot),
+        defaultValue: GroundFilterMode.LabelsAndIcons
     );
 
     public static readonly StyledProperty<bool> IsPanZoomLockedProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(IsPanZoomLocked));
@@ -190,22 +190,22 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         set => SetValue(ShowTaxiwayLabelsProperty, value);
     }
 
-    public bool ShowHoldShortLabels
+    public GroundFilterMode ShowHoldShort
     {
-        get => GetValue(ShowHoldShortLabelsProperty);
-        set => SetValue(ShowHoldShortLabelsProperty, value);
+        get => GetValue(ShowHoldShortProperty);
+        set => SetValue(ShowHoldShortProperty, value);
     }
 
-    public bool ShowParkingLabels
+    public GroundFilterMode ShowParking
     {
-        get => GetValue(ShowParkingLabelsProperty);
-        set => SetValue(ShowParkingLabelsProperty, value);
+        get => GetValue(ShowParkingProperty);
+        set => SetValue(ShowParkingProperty, value);
     }
 
-    public bool ShowSpotLabels
+    public GroundFilterMode ShowSpot
     {
-        get => GetValue(ShowSpotLabelsProperty);
-        set => SetValue(ShowSpotLabelsProperty, value);
+        get => GetValue(ShowSpotProperty);
+        set => SetValue(ShowSpotProperty, value);
     }
 
     public bool IsPanZoomLocked
@@ -324,9 +324,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == ShowDebugInfoProperty
             || change.Property == ShowRunwayLabelsProperty
             || change.Property == ShowTaxiwayLabelsProperty
-            || change.Property == ShowHoldShortLabelsProperty
-            || change.Property == ShowParkingLabelsProperty
-            || change.Property == ShowSpotLabelsProperty
+            || change.Property == ShowHoldShortProperty
+            || change.Property == ShowParkingProperty
+            || change.Property == ShowSpotProperty
         )
         {
             MarkDirty();
@@ -373,9 +373,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         WeatherDisplayInfo? WeatherInfo,
         bool ShowRunwayLabels,
         bool ShowTaxiwayLabels,
-        bool ShowHoldShortLabels,
-        bool ShowParkingLabels,
-        bool ShowSpotLabels,
+        GroundFilterMode ShowHoldShort,
+        GroundFilterMode ShowParking,
+        GroundFilterMode ShowSpot,
         IReadOnlyList<ShownTaxiRouteEntry>? ShownTaxiRoutes
     );
 
@@ -400,9 +400,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             WeatherInfo,
             ShowRunwayLabels,
             ShowTaxiwayLabels,
-            ShowHoldShortLabels,
-            ShowParkingLabels,
-            ShowSpotLabels,
+            ShowHoldShort,
+            ShowParking,
+            ShowSpot,
             ShownTaxiRoutes
         );
     }
@@ -434,9 +434,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.WeatherInfo,
             s.ShowRunwayLabels,
             s.ShowTaxiwayLabels,
-            s.ShowHoldShortLabels,
-            s.ShowParkingLabels,
-            s.ShowSpotLabels,
+            s.ShowHoldShort,
+            s.ShowParking,
+            s.ShowSpot,
             s.ShownTaxiRoutes
         );
     }

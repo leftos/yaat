@@ -39,6 +39,11 @@
             <Setter Property="Foreground" Value="#DDD" />
             <Setter Property="BorderBrush" Value="#888" />
         </Style>
+        <Style Selector="Button.gnd-filter.partial">
+            <Setter Property="Background" Value="#33FFFFFF" />
+            <Setter Property="Foreground" Value="#BBB" />
+            <Setter Property="BorderBrush" Value="#666" />
+        </Style>
     </UserControl.Styles>
 
     <Panel>
@@ -58,9 +63,9 @@
                              WeatherInfo="{Binding WeatherInfo}"
                              ShowRunwayLabels="{Binding ShowRunwayLabels}"
                              ShowTaxiwayLabels="{Binding ShowTaxiwayLabels}"
-                             ShowHoldShortLabels="{Binding ShowHoldShortLabels}"
-                             ShowParkingLabels="{Binding ShowParkingLabels}"
-                             ShowSpotLabels="{Binding ShowSpotLabels}"
+                             ShowHoldShort="{Binding ShowHoldShort}"
+                             ShowParking="{Binding ShowParking}"
+                             ShowSpot="{Binding ShowSpot}"
                              ShownTaxiRoutes="{Binding ShownTaxiRoutes}"
                              IsPanZoomLocked="{Binding IsPanZoomLocked}"
                              ViewCenterLat="{Binding ViewCenterLat, Mode=TwoWay}"
@@ -73,13 +78,11 @@
                     HorizontalAlignment="Right" VerticalAlignment="Top"
                     Margin="0,6,6,0"
                     IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <TextBlock Text="Labels:" Foreground="#888" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0"
-                       FontFamily="{StaticResource MonoFont}" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowRunwayLabels}" Content="RWY" Click="OnToggleRunwayLabels" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowTaxiwayLabels}" Content="TWY" Click="OnToggleTaxiwayLabels" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowHoldShortLabels}" Content="HS" Click="OnToggleHoldShortLabels" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowParkingLabels}" Content="PARK" Click="OnToggleParkingLabels" />
-            <Button Classes="gnd-filter" Classes.active="{Binding ShowSpotLabels}" Content="SPOT" Click="OnToggleSpotLabels" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="HS" Click="OnToggleHoldShort" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="PARK" Click="OnToggleParking" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="SPOT" Click="OnToggleSpot" />
             <Border Width="1" Background="#555" Margin="4,2" />
             <Button Classes="gnd-filter" Classes.active="{Binding IsPanZoomLocked}" Content="{Binding IsPanZoomLocked, Converter={x:Static ground:GroundView.BoolToLockLabel}}" Click="OnToggleLock" />
         </StackPanel>

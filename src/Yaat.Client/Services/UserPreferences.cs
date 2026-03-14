@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
+using Yaat.Client.Views.Ground;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Services;
@@ -126,9 +127,9 @@ public sealed class UserPreferences
     public HashSet<TerminalEntryKind> HiddenTerminalKinds { get; private set; } = [];
     public bool GroundShowRunwayLabels => _data.GroundShowRunwayLabels;
     public bool GroundShowTaxiwayLabels => _data.GroundShowTaxiwayLabels;
-    public bool GroundShowHoldShortLabels => _data.GroundShowHoldShortLabels;
-    public bool GroundShowParkingLabels => _data.GroundShowParkingLabels;
-    public bool GroundShowSpotLabels => _data.GroundShowSpotLabels;
+    public GroundFilterMode GroundShowHoldShort => (GroundFilterMode)_data.GroundShowHoldShort;
+    public GroundFilterMode GroundShowParking => (GroundFilterMode)_data.GroundShowParking;
+    public GroundFilterMode GroundShowSpot => (GroundFilterMode)_data.GroundShowSpot;
     public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
     public bool AssignmentTintEnabled => _data.AssignmentTintEnabled;
     public string AssignmentTintColor => _data.AssignmentTintColor;
@@ -345,13 +346,13 @@ public sealed class UserPreferences
         Save();
     }
 
-    public void SetGroundLabelFilters(bool runways, bool taxiways, bool holdShorts, bool parking, bool spots)
+    public void SetGroundLabelFilters(bool runways, bool taxiways, GroundFilterMode holdShort, GroundFilterMode parking, GroundFilterMode spot)
     {
         _data.GroundShowRunwayLabels = runways;
         _data.GroundShowTaxiwayLabels = taxiways;
-        _data.GroundShowHoldShortLabels = holdShorts;
-        _data.GroundShowParkingLabels = parking;
-        _data.GroundShowSpotLabels = spots;
+        _data.GroundShowHoldShort = (int)holdShort;
+        _data.GroundShowParking = (int)parking;
+        _data.GroundShowSpot = (int)spot;
         Save();
     }
 
@@ -585,9 +586,9 @@ public sealed class UserPreferences
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
             GroundShowRunwayLabels = GetFieldOr(obj, "groundShowRunwayLabels", true),
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
-            GroundShowHoldShortLabels = GetFieldOr(obj, "groundShowHoldShortLabels", true),
-            GroundShowParkingLabels = GetFieldOr(obj, "groundShowParkingLabels", true),
-            GroundShowSpotLabels = GetFieldOr(obj, "groundShowSpotLabels", true),
+            GroundShowHoldShort = GetFieldOr(obj, "groundShowHoldShort", 0),
+            GroundShowParking = GetFieldOr(obj, "groundShowParking", 0),
+            GroundShowSpot = GetFieldOr(obj, "groundShowSpot", 0),
             GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
             AssignmentTintEnabled = GetFieldOr(obj, "assignmentTintEnabled", false),
             AssignmentTintColor = GetFieldOr(obj, "assignmentTintColor", "#00FF00"),
@@ -752,9 +753,9 @@ public sealed class UserPreferences
         public List<string> HiddenTerminalKinds { get; set; } = [];
         public bool GroundShowRunwayLabels { get; set; } = true;
         public bool GroundShowTaxiwayLabels { get; set; } = true;
-        public bool GroundShowHoldShortLabels { get; set; } = true;
-        public bool GroundShowParkingLabels { get; set; } = true;
-        public bool GroundShowSpotLabels { get; set; } = true;
+        public int GroundShowHoldShort { get; set; }
+        public int GroundShowParking { get; set; }
+        public int GroundShowSpot { get; set; }
         public bool GroundPanZoomLocked { get; set; }
         public bool AssignmentTintEnabled { get; set; }
         public string AssignmentTintColor { get; set; } = "#00FF00";
@@ -858,7 +859,7 @@ public sealed class SavedGroundSettings
     public bool IsPanZoomLocked { get; set; }
     public bool ShowRunwayLabels { get; set; } = true;
     public bool ShowTaxiwayLabels { get; set; } = true;
-    public bool ShowHoldShortLabels { get; set; } = true;
-    public bool ShowParkingLabels { get; set; } = true;
-    public bool ShowSpotLabels { get; set; } = true;
+    public GroundFilterMode ShowHoldShort { get; set; }
+    public GroundFilterMode ShowParking { get; set; }
+    public GroundFilterMode ShowSpot { get; set; }
 }

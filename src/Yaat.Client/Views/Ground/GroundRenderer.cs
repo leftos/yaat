@@ -10,6 +10,16 @@ using Yaat.Sim.Data.Faa;
 namespace Yaat.Client.Views.Ground;
 
 /// <summary>
+/// Tri-state filter for ground view elements: both icon+label, icon only, or fully hidden.
+/// </summary>
+public enum GroundFilterMode
+{
+    LabelsAndIcons,
+    IconsOnly,
+    Off,
+}
+
+/// <summary>
 /// Computed datablock geometry. Shared by renderer (draw) and canvas (hit-test).
 /// </summary>
 internal readonly struct DataBlockLayout
@@ -72,11 +82,11 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor RunwayColor = new(120, 120, 120);
     private static readonly SKColor TaxiwayColor = new(200, 180, 60);
     private static readonly SKColor TaxiLabelColor = new(230, 210, 80, 200);
-    private static readonly SKColor NodeIntersection = new(80, 120, 200);
-    private static readonly SKColor NodeParking = new(60, 180, 80);
-    private static readonly SKColor NodeHelipad = new(180, 60, 220);
-    private static readonly SKColor NodeSpot = new(220, 160, 40);
-    private static readonly SKColor NodeHoldShort = new(220, 60, 60);
+    private static readonly SKColor NodeIntersection = new(80, 120, 200, 100);
+    private static readonly SKColor NodeParking = new(60, 180, 80, 140);
+    private static readonly SKColor NodeHelipad = new(180, 60, 220, 140);
+    private static readonly SKColor NodeSpot = new(220, 160, 40, 140);
+    private static readonly SKColor NodeHoldShort = new(220, 200, 60, 180);
     private static readonly SKColor ActiveRouteColor = new(60, 220, 60);
     private static readonly SKColor PreviewRouteColor = new(80, 180, 255, 180);
     private static readonly SKColor AircraftTaxiing = new(255, 255, 255);
@@ -103,7 +113,7 @@ public sealed class GroundRenderer : IDisposable
         ParkingSpot,
     }
 
-    private record struct LabelCandidate(string Text, float X, float Y, LabelPriority Priority, SKPaint Paint, SKColor? ColorOverride);
+    private record struct LabelCandidate(string[] Lines, float X, float Y, LabelPriority Priority, SKPaint Paint, SKColor? ColorOverride);
 
     private readonly SKPaint _runwayFillPaint = new()
     {
@@ -177,6 +187,13 @@ public sealed class GroundRenderer : IDisposable
     };
 
     private readonly SKPaint _nodePaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
+
+    private readonly SKPaint _holdShortBarPaint = new()
+    {
+        Style = SKPaintStyle.Stroke,
+        StrokeWidth = 2f,
+        IsAntialias = true,
+    };
 
     private readonly SKPaint _nodeLabelPaint = new()
     {
@@ -315,17 +332,17 @@ public sealed class GroundRenderer : IDisposable
         TaxiRoute? drawHoverPreview,
         IReadOnlyList<int>? drawWaypoints,
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
-        double airportCenterLat = 0,
-        double airportCenterLon = 0,
-        double airportElevation = 0,
-        bool showDebugInfo = false,
-        WeatherDisplayInfo? weatherInfo = null,
-        bool showRunwayLabels = true,
-        bool showTaxiwayLabels = true,
-        bool showHoldShortLabels = true,
-        bool showParkingLabels = true,
-        bool showSpotLabels = true,
-        IReadOnlyList<ShownTaxiRouteEntry>? shownTaxiRoutes = null
+        double airportCenterLat,
+        double airportCenterLon,
+        double airportElevation,
+        bool showDebugInfo,
+        WeatherDisplayInfo? weatherInfo,
+        bool showRunwayLabels,
+        bool showTaxiwayLabels,
+        GroundFilterMode showHoldShort,
+        GroundFilterMode showParking,
+        GroundFilterMode showSpot,
+        IReadOnlyList<ShownTaxiRouteEntry>? shownTaxiRoutes
     )
     {
         canvas.Clear(BackgroundColor);
@@ -338,13 +355,13 @@ public sealed class GroundRenderer : IDisposable
         _labelCandidates.Clear();
 
         DrawRunways(canvas, vp, layout, showRunwayLabels);
-        DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels, hoveredNodeId);
+        DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels);
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
         DrawShownTaxiRoutes(canvas, vp, layout, shownTaxiRoutes);
         DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
         DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
-        DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShortLabels, showParkingLabels, showSpotLabels);
+        DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShort, showParking, showSpot);
         DrawLabels(canvas, hoveredOnly: false);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
         DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
@@ -461,12 +478,12 @@ public sealed class GroundRenderer : IDisposable
             if (showLabels)
             {
                 string label = rwy.Name.Replace(" - ", "/");
-                _labelCandidates.Add(new LabelCandidate(label, mx, my + 4, LabelPriority.Runway, _runwayLabelPaint, null));
+                _labelCandidates.Add(new LabelCandidate([label], mx, my + 4, LabelPriority.Runway, _runwayLabelPaint, null));
             }
         }
     }
 
-    private void DrawEdges(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showDebugInfo, bool showTaxiwayLabels, int? hoveredNodeId)
+    private void DrawEdges(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showDebugInfo, bool showTaxiwayLabels)
     {
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
         foreach (var node in layout.Nodes)
@@ -508,34 +525,26 @@ public sealed class GroundRenderer : IDisposable
                 canvas.DrawLine(from.X, from.Y, to.X, to.Y, paint);
             }
 
-            if (!showDebugInfo && !isRunway)
+            bool isRamp = string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
+            if (!showDebugInfo && !isRunway && !isRamp && showTaxiwayLabels)
             {
-                // Show label if taxiway labels are on, or if hovering a connected node (hover-to-show)
-                bool isNearHover =
-                    !showTaxiwayLabels && hoveredNodeId.HasValue && (edge.FromNodeId == hoveredNodeId.Value || edge.ToNodeId == hoveredNodeId.Value);
+                var mx = (from.X + to.X) / 2f;
+                var my = (from.Y + to.Y) / 2f;
 
-                if (showTaxiwayLabels || isNearHover)
+                // Skip if too close to an existing label for the same taxiway
+                if (IsTaxiLabelTooClose(taxiLabelPositions, edge.TaxiwayName, mx, my))
                 {
-                    var mx = (from.X + to.X) / 2f;
-                    var my = (from.Y + to.Y) / 2f;
-
-                    // Skip if too close to an existing label for the same taxiway
-                    if (IsTaxiLabelTooClose(taxiLabelPositions, edge.TaxiwayName, mx, my))
-                    {
-                        continue;
-                    }
-
-                    if (!taxiLabelPositions.TryGetValue(edge.TaxiwayName, out var positions))
-                    {
-                        positions = [];
-                        taxiLabelPositions[edge.TaxiwayName] = positions;
-                    }
-
-                    positions.Add((mx, my));
-                    var priority = isNearHover ? LabelPriority.Hovered : LabelPriority.Taxiway;
-                    SKColor? color = isNearHover ? new SKColor(255, 255, 255) : null;
-                    _labelCandidates.Add(new LabelCandidate(edge.TaxiwayName, mx + 3, my - 3, priority, _taxiLabelPaint, color));
+                    continue;
                 }
+
+                if (!taxiLabelPositions.TryGetValue(edge.TaxiwayName, out var positions))
+                {
+                    positions = [];
+                    taxiLabelPositions[edge.TaxiwayName] = positions;
+                }
+
+                positions.Add((mx, my));
+                _labelCandidates.Add(new LabelCandidate([edge.TaxiwayName], mx + 3, my - 3, LabelPriority.Taxiway, _taxiLabelPaint, null));
             }
         }
     }
@@ -669,68 +678,257 @@ public sealed class GroundRenderer : IDisposable
         GroundLayoutDto layout,
         int? hoveredNodeId,
         bool showDebugInfo,
-        bool showHoldShortLabels,
-        bool showParkingLabels,
-        bool showSpotLabels
+        GroundFilterMode showHoldShort,
+        GroundFilterMode showParking,
+        GroundFilterMode showSpot
     )
     {
+        // Pre-build node→taxiway screen angle map for hold short bar rendering
+        var holdShortAngles = new Dictionary<int, float>();
+        if (showHoldShort != GroundFilterMode.Off)
+        {
+            foreach (var edge in layout.Edges)
+            {
+                ComputeHoldShortAngle(holdShortAngles, vp, layout, edge, edge.FromNodeId);
+                ComputeHoldShortAngle(holdShortAngles, vp, layout, edge, edge.ToNodeId);
+            }
+        }
+
+        // Pre-build node→connected taxiway names for hover tooltips
+        var nodeEdgeNames = new Dictionary<int, List<string>>();
+        foreach (var edge in layout.Edges)
+        {
+            if (
+                edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                continue;
+            }
+
+            AddEdgeName(nodeEdgeNames, edge.FromNodeId, edge.TaxiwayName);
+            AddEdgeName(nodeEdgeNames, edge.ToNodeId, edge.TaxiwayName);
+        }
+
         foreach (var node in layout.Nodes)
         {
             var (sx, sy) = vp.LatLonToScreen(node.Latitude, node.Longitude);
+            bool isHovered = hoveredNodeId == node.Id;
 
-            _nodePaint.Color = node.Type switch
+            if (node.Type == "RunwayHoldShort")
             {
-                "Parking" => NodeParking,
-                "Helipad" => NodeHelipad,
-                "Spot" => NodeSpot,
-                "RunwayHoldShort" => NodeHoldShort,
-                _ => NodeIntersection,
-            };
-
-            float radius = node.Type switch
-            {
-                "Parking" => 4f,
-                "Helipad" => 5f,
-                "RunwayHoldShort" => 3.5f,
-                _ => 2.5f,
-            };
-
-            canvas.DrawCircle(sx, sy, radius, _nodePaint);
-
-            // Draw "H" marker on helipads
-            if (node.Type == "Helipad")
-            {
-                _nodeLabelPaint.Color = NodeHelipad;
-                canvas.DrawText("H", sx - 3, sy + 3, _nodeLabelPaint);
-            }
-
-            if (!showDebugInfo && node.Name is not null && node.Type is "Parking" or "Helipad" or "Spot")
-            {
-                bool isHovered = hoveredNodeId == node.Id;
-                bool showLabel = node.Type == "Spot" ? showSpotLabels : showParkingLabels;
-                if (showLabel || isHovered)
+                bool drawIcon = showHoldShort != GroundFilterMode.Off || isHovered;
+                if (drawIcon)
                 {
-                    var priority = isHovered ? LabelPriority.Hovered : LabelPriority.ParkingSpot;
-                    SKColor? color = isHovered ? new SKColor(255, 255, 255) : null;
-                    _labelCandidates.Add(new LabelCandidate(node.Name, sx + 5, sy - 3, priority, _nodeLabelPaint, color));
+                    DrawHoldShortBar(canvas, sx, sy, holdShortAngles.GetValueOrDefault(node.Id, 0f));
+                }
+
+                if (node.RunwayId is not null)
+                {
+                    if (isHovered)
+                    {
+                        var twyNames = ResolveNearbyTaxiwayNames(node.Id, layout, nodeEdgeNames);
+                        string[] lines = twyNames.Count > 0 ? [$"HS {node.RunwayId}", string.Join("/", twyNames)] : [$"HS {node.RunwayId}"];
+                        _labelCandidates.Add(
+                            new LabelCandidate(lines, sx + 12, sy - 14, LabelPriority.Hovered, _nodeLabelPaint, new SKColor(255, 255, 255))
+                        );
+                    }
+                    else if (showHoldShort == GroundFilterMode.LabelsAndIcons)
+                    {
+                        _labelCandidates.Add(
+                            new LabelCandidate([$"HS {node.RunwayId}"], sx + 5, sy - 3, LabelPriority.HoldShort, _nodeLabelPaint, null)
+                        );
+                    }
                 }
             }
-            else if (node.RunwayId is not null && node.Type == "RunwayHoldShort")
+            else if (node.Type is "Parking" or "Helipad" or "Spot")
             {
-                bool isHovered = hoveredNodeId == node.Id;
-                if (showHoldShortLabels || isHovered)
+                var mode = node.Type == "Spot" ? showSpot : showParking;
+                bool drawIcon = mode != GroundFilterMode.Off || isHovered;
+
+                if (drawIcon)
                 {
-                    var priority = isHovered ? LabelPriority.Hovered : LabelPriority.HoldShort;
-                    SKColor? color = isHovered ? new SKColor(255, 255, 255) : null;
-                    _labelCandidates.Add(new LabelCandidate($"HS {node.RunwayId}", sx + 5, sy - 3, priority, _nodeLabelPaint, color));
+                    _nodePaint.Color = node.Type switch
+                    {
+                        "Parking" => NodeParking,
+                        "Helipad" => NodeHelipad,
+                        _ => NodeSpot,
+                    };
+
+                    float radius = node.Type switch
+                    {
+                        "Parking" => 4f,
+                        "Helipad" => 5f,
+                        _ => 2.5f,
+                    };
+
+                    canvas.DrawCircle(sx, sy, radius, _nodePaint);
+
+                    if (node.Type == "Helipad")
+                    {
+                        _nodeLabelPaint.Color = NodeHelipad;
+                        canvas.DrawText("H", sx - 3, sy + 3, _nodeLabelPaint);
+                    }
+                }
+
+                if (!showDebugInfo && node.Name is not null)
+                {
+                    if (isHovered)
+                    {
+                        var lines = BuildHoverLines(node.Name, node.Id, nodeEdgeNames);
+                        _labelCandidates.Add(
+                            new LabelCandidate(lines, sx + 12, sy - 14, LabelPriority.Hovered, _nodeLabelPaint, new SKColor(255, 255, 255))
+                        );
+                    }
+                    else if (mode == GroundFilterMode.LabelsAndIcons)
+                    {
+                        _labelCandidates.Add(new LabelCandidate([node.Name], sx + 5, sy - 3, LabelPriority.ParkingSpot, _nodeLabelPaint, null));
+                    }
+                }
+            }
+            else
+            {
+                // Intersection nodes — always drawn
+                _nodePaint.Color = NodeIntersection;
+                canvas.DrawCircle(sx, sy, 2.5f, _nodePaint);
+
+                if (isHovered && nodeEdgeNames.TryGetValue(node.Id, out var twyNames) && twyNames.Count > 0)
+                {
+                    _labelCandidates.Add(
+                        new LabelCandidate(
+                            [string.Join("/", twyNames)],
+                            sx + 12,
+                            sy - 14,
+                            LabelPriority.Hovered,
+                            _nodeLabelPaint,
+                            new SKColor(255, 255, 255)
+                        )
+                    );
                 }
             }
 
-            if (hoveredNodeId == node.Id)
+            if (isHovered)
             {
                 canvas.DrawCircle(sx, sy, 8f, _hoverPaint);
             }
         }
+    }
+
+    private static void AddEdgeName(Dictionary<int, List<string>> map, int nodeId, string name)
+    {
+        if (!map.TryGetValue(nodeId, out var list))
+        {
+            list = [];
+            map[nodeId] = list;
+        }
+
+        if (!list.Contains(name))
+        {
+            list.Add(name);
+        }
+    }
+
+    /// <summary>
+    /// For hold-short nodes, finds taxiway names by looking at direct edges first,
+    /// then one hop through RAMP edges to reach named taxiways.
+    /// </summary>
+    private static List<string> ResolveNearbyTaxiwayNames(int nodeId, GroundLayoutDto layout, Dictionary<int, List<string>> nodeEdgeNames)
+    {
+        // Direct taxiway edges on this node
+        if (nodeEdgeNames.TryGetValue(nodeId, out var direct) && direct.Count > 0)
+        {
+            return direct;
+        }
+
+        // One hop: find neighbors via any edge, then check their taxiway names
+        var result = new List<string>();
+        foreach (var edge in layout.Edges)
+        {
+            int neighborId;
+            if (edge.FromNodeId == nodeId)
+            {
+                neighborId = edge.ToNodeId;
+            }
+            else if (edge.ToNodeId == nodeId)
+            {
+                neighborId = edge.FromNodeId;
+            }
+            else
+            {
+                continue;
+            }
+
+            if (nodeEdgeNames.TryGetValue(neighborId, out var neighborNames))
+            {
+                foreach (var name in neighborNames)
+                {
+                    if (!result.Contains(name))
+                    {
+                        result.Add(name);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static string[] BuildHoverLines(string primaryLabel, int nodeId, Dictionary<int, List<string>> nodeEdgeNames)
+    {
+        if (!nodeEdgeNames.TryGetValue(nodeId, out var twyNames) || twyNames.Count == 0)
+        {
+            return [primaryLabel];
+        }
+
+        return [primaryLabel, string.Join("/", twyNames)];
+    }
+
+    /// <summary>
+    /// Computes the screen-space angle (radians) of the taxiway edge at a hold-short node.
+    /// Uses screen coordinates so rotation is handled correctly.
+    /// </summary>
+    private static void ComputeHoldShortAngle(Dictionary<int, float> angles, MapViewport vp, GroundLayoutDto layout, GroundEdgeDto edge, int nodeId)
+    {
+        if (angles.ContainsKey(nodeId))
+        {
+            return;
+        }
+
+        // Only use non-runway edges so the bar is perpendicular to the taxiway, not the runway
+        if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var node = layout.Nodes.Find(n => n.Id == nodeId);
+        if (node is null || node.Type != "RunwayHoldShort")
+        {
+            return;
+        }
+
+        int otherId = edge.FromNodeId == nodeId ? edge.ToNodeId : edge.FromNodeId;
+        var other = layout.Nodes.Find(n => n.Id == otherId);
+        if (other is null)
+        {
+            return;
+        }
+
+        var (nx, ny) = vp.LatLonToScreen(node.Latitude, node.Longitude);
+        var (ox, oy) = vp.LatLonToScreen(other.Latitude, other.Longitude);
+        float angle = MathF.Atan2(oy - ny, ox - nx);
+        angles[nodeId] = angle;
+    }
+
+    private void DrawHoldShortBar(SKCanvas canvas, float sx, float sy, float taxiwayAngleRad)
+    {
+        const float halfLen = 7f;
+        // Perpendicular to the taxiway direction
+        float perpAngle = taxiwayAngleRad + MathF.PI / 2f;
+        float dx = halfLen * MathF.Cos(perpAngle);
+        float dy = halfLen * MathF.Sin(perpAngle);
+
+        _holdShortBarPaint.Color = NodeHoldShort;
+        canvas.DrawLine(sx - dx, sy - dy, sx + dx, sy + dy, _holdShortBarPaint);
     }
 
     /// <summary>Minimum triangle half-length in pixels (ensures visibility when zoomed out).</summary>
@@ -1132,11 +1330,23 @@ public sealed class GroundRenderer : IDisposable
             }
 
             var paint = label.Paint;
-            float textWidth = paint.MeasureText(label.Text);
             float textHeight = paint.TextSize;
+            float lineSpacing = textHeight + 2;
+            int lineCount = label.Lines.Length;
 
-            float left = paint.TextAlign == SKTextAlign.Center ? label.X - textWidth / 2f - 2 : label.X - 2;
-            var rect = new SKRect(left, label.Y - textHeight - 1, left + textWidth + 4, label.Y + 1);
+            float maxWidth = 0;
+            foreach (var line in label.Lines)
+            {
+                float w = paint.MeasureText(line);
+                if (w > maxWidth)
+                {
+                    maxWidth = w;
+                }
+            }
+
+            float left = paint.TextAlign == SKTextAlign.Center ? label.X - maxWidth / 2f - 2 : label.X - 2;
+            float totalHeight = textHeight + (lineCount - 1) * lineSpacing;
+            var rect = new SKRect(left, label.Y - textHeight - 1, left + maxWidth + 4, label.Y + (totalHeight - textHeight) + 1);
 
             bool overlaps = false;
             foreach (var placed in placedRects)
@@ -1162,7 +1372,12 @@ public sealed class GroundRenderer : IDisposable
                 paint.Color = color;
             }
 
-            canvas.DrawText(label.Text, label.X, label.Y, paint);
+            float y = label.Y;
+            foreach (var line in label.Lines)
+            {
+                canvas.DrawText(line, label.X, y, paint);
+                y += lineSpacing;
+            }
         }
     }
 
@@ -1186,6 +1401,7 @@ public sealed class GroundRenderer : IDisposable
         _waypointMarkerPaint.Dispose();
         _waypointTextPaint.Dispose();
         _nodePaint.Dispose();
+        _holdShortBarPaint.Dispose();
         _nodeLabelPaint.Dispose();
         _aircraftPaint.Dispose();
         _hoverPaint.Dispose();

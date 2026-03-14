@@ -5,6 +5,7 @@ using SkiaSharp;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Ground;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ViewModels;
@@ -64,13 +65,13 @@ public partial class GroundViewModel : ObservableObject
     private bool _showTaxiwayLabels = true;
 
     [ObservableProperty]
-    private bool _showHoldShortLabels = true;
+    private GroundFilterMode _showHoldShort = GroundFilterMode.LabelsAndIcons;
 
     [ObservableProperty]
-    private bool _showParkingLabels = true;
+    private GroundFilterMode _showParking = GroundFilterMode.LabelsAndIcons;
 
     [ObservableProperty]
-    private bool _showSpotLabels = true;
+    private GroundFilterMode _showSpot = GroundFilterMode.LabelsAndIcons;
 
     [ObservableProperty]
     private bool _isPanZoomLocked;
@@ -133,9 +134,9 @@ public partial class GroundViewModel : ObservableObject
         {
             ShowRunwayLabels = preferences.GroundShowRunwayLabels;
             ShowTaxiwayLabels = preferences.GroundShowTaxiwayLabels;
-            ShowHoldShortLabels = preferences.GroundShowHoldShortLabels;
-            ShowParkingLabels = preferences.GroundShowParkingLabels;
-            ShowSpotLabels = preferences.GroundShowSpotLabels;
+            ShowHoldShort = preferences.GroundShowHoldShort;
+            ShowParking = preferences.GroundShowParking;
+            ShowSpot = preferences.GroundShowSpot;
             IsPanZoomLocked = preferences.GroundPanZoomLocked;
         }
     }
@@ -166,7 +167,7 @@ public partial class GroundViewModel : ObservableObject
     public void SaveLabelAndLockSettings()
     {
         SaveSettings();
-        Preferences?.SetGroundLabelFilters(ShowRunwayLabels, ShowTaxiwayLabels, ShowHoldShortLabels, ShowParkingLabels, ShowSpotLabels);
+        Preferences?.SetGroundLabelFilters(ShowRunwayLabels, ShowTaxiwayLabels, ShowHoldShort, ShowParking, ShowSpot);
         Preferences?.SetGroundPanZoomLocked(IsPanZoomLocked);
     }
 
@@ -262,9 +263,9 @@ public partial class GroundViewModel : ObservableObject
         IsPanZoomLocked = saved.IsPanZoomLocked;
         ShowRunwayLabels = saved.ShowRunwayLabels;
         ShowTaxiwayLabels = saved.ShowTaxiwayLabels;
-        ShowHoldShortLabels = saved.ShowHoldShortLabels;
-        ShowParkingLabels = saved.ShowParkingLabels;
-        ShowSpotLabels = saved.ShowSpotLabels;
+        ShowHoldShort = saved.ShowHoldShort;
+        ShowParking = saved.ShowParking;
+        ShowSpot = saved.ShowSpot;
 
         _isRestoring = false;
     }
@@ -290,9 +291,9 @@ public partial class GroundViewModel : ObservableObject
             IsPanZoomLocked = IsPanZoomLocked,
             ShowRunwayLabels = ShowRunwayLabels,
             ShowTaxiwayLabels = ShowTaxiwayLabels,
-            ShowHoldShortLabels = ShowHoldShortLabels,
-            ShowParkingLabels = ShowParkingLabels,
-            ShowSpotLabels = ShowSpotLabels,
+            ShowHoldShort = ShowHoldShort,
+            ShowParking = ShowParking,
+            ShowSpot = ShowSpot,
         };
 
         Preferences.SetGroundSettings(_activeScenarioId, settings);

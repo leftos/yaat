@@ -62,7 +62,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 - Right-click context menus: taxi route options (K-shortest paths), pushback, hold short, cross, clearances
 - Draw taxi route mode: click nodes to draw exact paths
 - Debug overlay (Ctrl+D): node IDs, names, types for manual routing
-- Label filters: RWY, TWY, HS, PARK toggles
+- Filters: RWY/TWY label toggles; HS/PARK/SPOT tri-state (labels+icons → icons only → off)
 - Lock/unlock pan/zoom
 - Per-scenario settings persistence
 - Wind/altimeter display when weather loaded
