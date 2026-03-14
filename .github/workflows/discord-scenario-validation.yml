@@ -84,29 +84,52 @@ jobs:
               scenarios = len(results)
               presets = sum(r.get("TotalPresets", r.get("totalPresets", 0)) for r in results)
               failures = []
+              proc_issues = []
               for r in results:
                   name = r.get("ScenarioName", r.get("scenarioName", ""))
                   for fail in r.get("Failures", r.get("failures", [])):
                       acid = fail.get("AircraftId", fail.get("aircraftId", ""))
                       cmd = fail.get("Command", fail.get("command", ""))
                       failures.append((name, acid, cmd))
+                  for issue in r.get("ProcedureIssues", r.get("procedureIssues", [])):
+                      acid = issue.get("AircraftId", issue.get("aircraftId", ""))
+                      proc_id = issue.get("ProcedureId", issue.get("procedureId", ""))
+                      kind = issue.get("Kind", issue.get("kind", 0))
+                      resolved = issue.get("ResolvedId", issue.get("resolvedId", None))
+                      proc_issues.append((name, acid, proc_id, kind, resolved))
 
-              if not failures:
+              if not failures and not proc_issues:
                   return f"# {artcc} Scenario Validation \u2014 {date}\n\n{scenarios} scenarios, {presets} presets \u2014 all commands parsed successfully."
 
               lines = [f"# {artcc} Scenario Validation \u2014 {date}\n"]
-              lines.append(f"{scenarios} scenarios, {presets} presets, {len(failures)} failure{'s' if len(failures) != 1 else ''}\n")
+              summary_parts = [f"{scenarios} scenarios", f"{presets} presets"]
+              if failures:
+                  summary_parts.append(f"{len(failures)} parse failure{'s' if len(failures) != 1 else ''}")
+              if proc_issues:
+                  summary_parts.append(f"{len(proc_issues)} procedure issue{'s' if len(proc_issues) != 1 else ''}")
+              lines.append(", ".join(summary_parts) + "\n")
 
-              by_scenario = {}
-              for name, acid, cmd in failures:
-                  by_scenario.setdefault(name, {}).setdefault(acid, []).append(cmd)
+              if failures:
+                  by_scenario = {}
+                  for name, acid, cmd in failures:
+                      by_scenario.setdefault(name, {}).setdefault(acid, []).append(cmd)
 
-              for name, aircraft in by_scenario.items():
-                  lines.append(f"**{name}**")
-                  for acid, cmds in aircraft.items():
-                      lines.append(f"  {acid}:")
-                      for cmd in cmds:
-                          lines.append(f"    `{cmd}`")
+                  for name, aircraft in by_scenario.items():
+                      lines.append(f"**{name}**")
+                      for acid, cmds in aircraft.items():
+                          lines.append(f"  {acid}:")
+                          for cmd in cmds:
+                              lines.append(f"    `{cmd}`")
+                      lines.append("")
+
+              if proc_issues:
+                  lines.append("**Procedure Issues**")
+                  for name, acid, proc_id, kind, resolved in proc_issues:
+                      # kind 0 = VersionChanged, 1 = NotFound
+                      if kind == 0 or kind == "VersionChanged":
+                          lines.append(f"  \u26a0\ufe0f {acid}: {proc_id} \u2192 {resolved}")
+                      else:
+                          lines.append(f"  \u274c {acid}: {proc_id} not found")
                   lines.append("")
 
               return "\n".join(lines)

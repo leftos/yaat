@@ -142,6 +142,7 @@ When writing replay tests for aircraft with WAIT presets:
 | `oak-taxi-recording.json` | OAK taxi session | OAK | Taxi routing, variant inference |
 | `issue58-jstar-intermediate-fix-recording.json` | S3-NCTC-3 Area C Complete | OAK | JSTAR intermediate fix joining (JARR EMZOH4 SKIZM) |
 | `issue58-star-180-recording.json` | S3-NCTC-2 Area C Sequencing | OAK | NavigationPath STAR expansion (pre-assigned STARs) |
+| `issue67-procedure-version-recording.json` | S3-NCTB-2 Feeder Combined | SFO | Outdated STAR version resolution (BDEGA3 → BDEGA4), descend-via with onAltitudeProfile |
 
 ### How to Add a New Recording
 

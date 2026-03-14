@@ -30,10 +30,13 @@ public partial class ScenarioValidationWindow : Window
         var statsText = this.FindControl<TextBlock>("StatsText");
         var failuresHeader = this.FindControl<TextBlock>("FailuresHeader");
         var failuresGrid = this.FindControl<DataGrid>("FailuresGrid");
+        var procHeader = this.FindControl<TextBlock>("ProcedureIssuesHeader");
+        var procGrid = this.FindControl<DataGrid>("ProcedureIssuesGrid");
 
         int totalScenarios = results.Count;
         int totalPresets = results.Sum(r => r.TotalPresets);
         int totalFailures = results.Sum(r => r.Failures.Count);
+        int totalProcIssues = results.Sum(r => r.ProcedureIssues.Count);
 
         if (summaryText is not null)
         {
@@ -42,7 +45,8 @@ public partial class ScenarioValidationWindow : Window
 
         if (statsText is not null)
         {
-            statsText.Text = $"{totalScenarios} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}";
+            statsText.Text =
+                $"{totalScenarios} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}, {totalProcIssues} procedure issue{(totalProcIssues != 1 ? "s" : "")}";
         }
 
         var rows = results.SelectMany(r => r.Failures.Select(f => new ValidationRow(r.ScenarioName, f.AircraftId, f.Command))).ToList();
@@ -51,13 +55,37 @@ public partial class ScenarioValidationWindow : Window
         {
             failuresHeader.Text =
                 rows.Count > 0
-                    ? $"{rows.Count} Failure{(rows.Count != 1 ? "s" : "")} across {results.Count(r => r.Failures.Count > 0)} scenario{(results.Count(r => r.Failures.Count > 0) != 1 ? "s" : "")}"
-                    : "No failures found";
+                    ? $"{rows.Count} Parse Failure{(rows.Count != 1 ? "s" : "")} across {results.Count(r => r.Failures.Count > 0)} scenario{(results.Count(r => r.Failures.Count > 0) != 1 ? "s" : "")}"
+                    : "No parse failures";
         }
 
         if (failuresGrid is not null)
         {
             failuresGrid.ItemsSource = rows;
+        }
+
+        var procRows = results
+            .SelectMany(r =>
+                r.ProcedureIssues.Select(i => new ProcedureIssueRow(
+                    r.ScenarioName,
+                    i.AircraftId,
+                    i.ProcedureId,
+                    i.Kind == ProcedureIssueKind.VersionChanged ? $"Version changed → {i.ResolvedId}" : "Not found in NavData"
+                ))
+            )
+            .ToList();
+
+        if (procHeader is not null)
+        {
+            procHeader.Text =
+                procRows.Count > 0
+                    ? $"{procRows.Count} Procedure Issue{(procRows.Count != 1 ? "s" : "")} across {results.Count(r => r.ProcedureIssues.Count > 0)} scenario{(results.Count(r => r.ProcedureIssues.Count > 0) != 1 ? "s" : "")}"
+                    : "No procedure issues";
+        }
+
+        if (procGrid is not null)
+        {
+            procGrid.ItemsSource = procRows;
         }
 
         _reportText = BuildReportText(artccId, results);
@@ -67,35 +95,57 @@ public partial class ScenarioValidationWindow : Window
     {
         int totalPresets = results.Sum(r => r.TotalPresets);
         int totalFailures = results.Sum(r => r.Failures.Count);
+        int totalProcIssues = results.Sum(r => r.ProcedureIssues.Count);
 
         var lines = new List<string>
         {
             $"{artccId} Scenario Validation Report",
-            $"{results.Count} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}",
+            $"{results.Count} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}, {totalProcIssues} procedure issue{(totalProcIssues != 1 ? "s" : "")}",
             "",
         };
 
         var failedScenarios = results.Where(r => r.Failures.Count > 0).ToList();
         if (failedScenarios.Count > 0)
         {
+            lines.Add("Parse Failures:");
             foreach (var scenario in failedScenarios)
             {
-                lines.Add($"{scenario.ScenarioName}");
+                lines.Add($"  {scenario.ScenarioName}");
                 var byAircraft = scenario.Failures.GroupBy(f => f.AircraftId);
                 foreach (var group in byAircraft)
                 {
-                    lines.Add($"  {group.Key}:");
+                    lines.Add($"    {group.Key}:");
                     foreach (var f in group)
                     {
-                        lines.Add($"    \"{f.Command}\"");
+                        lines.Add($"      \"{f.Command}\"");
                     }
                 }
                 lines.Add("");
             }
         }
-        else
+
+        var procScenarios = results.Where(r => r.ProcedureIssues.Count > 0).ToList();
+        if (procScenarios.Count > 0)
         {
-            lines.Add("All preset commands parsed successfully.");
+            lines.Add("Procedure Issues:");
+            foreach (var scenario in procScenarios)
+            {
+                lines.Add($"  {scenario.ScenarioName}");
+                foreach (var issue in scenario.ProcedureIssues)
+                {
+                    string detail =
+                        issue.Kind == ProcedureIssueKind.VersionChanged
+                            ? $"    {issue.AircraftId}: {issue.ProcedureId} → {issue.ResolvedId}"
+                            : $"    {issue.AircraftId}: {issue.ProcedureId} not found";
+                    lines.Add(detail);
+                }
+                lines.Add("");
+            }
+        }
+
+        if (failedScenarios.Count == 0 && procScenarios.Count == 0)
+        {
+            lines.Add("All preset commands parsed successfully. No procedure issues found.");
         }
 
         return string.Join("\n", lines);
@@ -112,3 +162,5 @@ public partial class ScenarioValidationWindow : Window
 }
 
 public record ValidationRow(string ScenarioName, string AircraftId, string Command);
+
+public record ProcedureIssueRow(string ScenarioName, string AircraftId, string ProcedureId, string IssueDescription);

@@ -256,7 +256,8 @@ ScenarioLoader.cs              # JSON → ScenarioLoadResult; resolves starting 
 ScenarioModels.cs              # Scenario JSON DTOs: Scenario, ScenarioAircraft, StartingConditions, PresetCommand, etc.
                                # ScenarioGeneratorConfig (renamed to avoid collision with AircraftGenerator static class)
 ScenarioValidator.cs           # Validates preset commands via CommandParser.ParseCompound; shared by CLI tool + client
-                               # ScenarioValidationResult, PresetParseFailure records; PermissiveFixLookup
+                               # ScenarioValidationResult, PresetParseFailure, ProcedureIssue, ProcedureIssueKind records
+                               # Detects outdated procedure versions (VersionChanged) and missing procedures (NotFound)
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
 AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator)
 SpawnRequest.cs                # Spawn descriptor
@@ -266,11 +267,11 @@ Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
 
 ## Yaat.ScenarioValidator — CLI tool (`tools/Yaat.ScenarioValidator/`)
 
-Standalone console app for validating ARTCC scenario preset commands. Downloads from vNAS API or reads local files.
+Standalone console app for validating ARTCC scenario preset commands. Downloads NavData from vNAS for procedure version validation, then fetches and validates scenarios from the vNAS API or local files.
 
 ```
-Program.cs                     # CLI entry: --artcc, --file, --dir, --json flags; text/JSON output
-VnasClient.cs                  # HttpClient wrapper for vNAS data API scenario fetches
+Program.cs                     # CLI entry: --artcc, --file, --dir, --json flags; downloads NavData for procedure checks
+VnasClient.cs                  # HttpClient wrapper for vNAS data API scenario fetches + NavData download
 ```
 
 ## yaat-server — ASP.NET Core server (`..\yaat-server\`)

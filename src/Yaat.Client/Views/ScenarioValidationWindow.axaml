@@ -40,13 +40,16 @@
                        VerticalAlignment="Center" />
         </StackPanel>
 
-        <!-- Content: DataGrid of failures -->
-        <DockPanel>
-            <TextBlock DockPanel.Dock="Top"
+        <!-- Content: two sections -->
+        <Grid RowDefinitions="Auto,*,Auto,*">
+
+            <!-- Parse failures -->
+            <TextBlock Grid.Row="0"
                        x:Name="FailuresHeader"
                        FontWeight="SemiBold"
                        Margin="0,0,0,4" />
-            <DataGrid x:Name="FailuresGrid"
+            <DataGrid Grid.Row="1"
+                      x:Name="FailuresGrid"
                       AutoGenerateColumns="False"
                       GridLinesVisibility="Horizontal"
                       CanUserResizeColumns="True"
@@ -59,7 +62,29 @@
                     <DataGridTextColumn Header="Command" Binding="{Binding Command}" Width="*" IsReadOnly="True" />
                 </DataGrid.Columns>
             </DataGrid>
-        </DockPanel>
+
+            <!-- Procedure issues -->
+            <TextBlock Grid.Row="2"
+                       x:Name="ProcedureIssuesHeader"
+                       FontWeight="SemiBold"
+                       Margin="0,8,0,4" />
+            <DataGrid Grid.Row="3"
+                      x:Name="ProcedureIssuesGrid"
+                      AutoGenerateColumns="False"
+                      GridLinesVisibility="Horizontal"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      SelectionMode="Single"
+                      HeadersVisibility="Column">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Scenario" Binding="{Binding ScenarioName}" Width="250" IsReadOnly="True" />
+                    <DataGridTextColumn Header="Aircraft" Binding="{Binding AircraftId}" Width="100" IsReadOnly="True" />
+                    <DataGridTextColumn Header="Procedure" Binding="{Binding ProcedureId}" Width="120" IsReadOnly="True" />
+                    <DataGridTextColumn Header="Issue" Binding="{Binding IssueDescription}" Width="*" IsReadOnly="True" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+        </Grid>
 
     </DockPanel>
 </Window>

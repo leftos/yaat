@@ -1215,7 +1215,8 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                var result = ScenarioValidator.Validate(json);
+                var navDb = vm.CommandInput.NavDb;
+                var result = navDb is not null ? ScenarioValidator.Validate(json, navDb) : ScenarioValidator.Validate(json);
                 if (result is not null)
                 {
                     results.Add(result);

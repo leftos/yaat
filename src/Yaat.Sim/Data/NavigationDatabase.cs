@@ -54,7 +54,8 @@ public sealed class NavigationDatabase
         IReadOnlyList<CifpStarProcedure>? stars = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? starBodies = null,
         IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? starTransitions = null,
-        IReadOnlyDictionary<string, IReadOnlyList<string>>? airways = null
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? airways = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? sidBodies = null
     )
     {
         var db = new NavigationDatabase(null, customFixesBaseDir: "");
@@ -145,6 +146,14 @@ public sealed class NavigationDatabase
             }
         }
 
+        if (sidBodies is not null)
+        {
+            foreach (var (sidId, body) in sidBodies)
+            {
+                db._sidBodies[sidId] = [.. body];
+            }
+        }
+
         return db;
     }
 
@@ -197,6 +206,35 @@ public sealed class NavigationDatabase
         return _sidBodies.TryGetValue(sidId, out var body) ? body : null;
     }
 
+    /// <summary>
+    /// Resolves a potentially outdated SID ID to the current version.
+    /// Returns the input if it matches exactly, the current version if the base name matches
+    /// (e.g., "CNDEL5" → "CNDEL6"), or null if no match exists.
+    /// </summary>
+    public string? ResolveSidId(string rawId)
+    {
+        if (_sidBodies.ContainsKey(rawId))
+        {
+            return rawId;
+        }
+
+        string baseName = StripTrailingDigits(rawId);
+        if (baseName == rawId)
+        {
+            return null;
+        }
+
+        foreach (var key in _sidBodies.Keys)
+        {
+            if (StripTrailingDigits(key).Equals(baseName, StringComparison.OrdinalIgnoreCase))
+            {
+                return key;
+            }
+        }
+
+        return null;
+    }
+
     public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetSidTransitions(string sidId)
     {
         if (!_sidTransitions.TryGetValue(sidId, out var transitions))
@@ -210,6 +248,35 @@ public sealed class NavigationDatabase
     public IReadOnlyList<string>? GetStarBody(string starId)
     {
         return _starBodies.TryGetValue(starId, out var body) ? body : null;
+    }
+
+    /// <summary>
+    /// Resolves a potentially outdated STAR ID to the current version.
+    /// Returns the input if it matches exactly, the current version if the base name matches
+    /// (e.g., "BDEGA3" → "BDEGA4"), or null if no match exists.
+    /// </summary>
+    public string? ResolveStarId(string rawId)
+    {
+        if (_starBodies.ContainsKey(rawId))
+        {
+            return rawId;
+        }
+
+        string baseName = StripTrailingDigits(rawId);
+        if (baseName == rawId)
+        {
+            return null;
+        }
+
+        foreach (var key in _starBodies.Keys)
+        {
+            if (StripTrailingDigits(key).Equals(baseName, StringComparison.OrdinalIgnoreCase))
+            {
+                return key;
+            }
+        }
+
+        return null;
     }
 
     public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId)
@@ -413,7 +480,19 @@ public sealed class NavigationDatabase
     public CifpSidProcedure? GetSid(string airportCode, string sidId)
     {
         var sids = GetSids(airportCode);
-        return sids.FirstOrDefault(s => s.ProcedureId.Equals(sidId, StringComparison.OrdinalIgnoreCase));
+        var exact = sids.FirstOrDefault(s => s.ProcedureId.Equals(sidId, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        string baseName = StripTrailingDigits(sidId);
+        if (baseName == sidId)
+        {
+            return null;
+        }
+
+        return sids.FirstOrDefault(s => StripTrailingDigits(s.ProcedureId).Equals(baseName, StringComparison.OrdinalIgnoreCase));
     }
 
     public IReadOnlyList<CifpSidProcedure> GetSids(string airportCode)
@@ -425,7 +504,19 @@ public sealed class NavigationDatabase
     public CifpStarProcedure? GetStar(string airportCode, string starId)
     {
         var stars = GetStars(airportCode);
-        return stars.FirstOrDefault(s => s.ProcedureId.Equals(starId, StringComparison.OrdinalIgnoreCase));
+        var exact = stars.FirstOrDefault(s => s.ProcedureId.Equals(starId, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        string baseName = StripTrailingDigits(starId);
+        if (baseName == starId)
+        {
+            return null;
+        }
+
+        return stars.FirstOrDefault(s => StripTrailingDigits(s.ProcedureId).Equals(baseName, StringComparison.OrdinalIgnoreCase));
     }
 
     public IReadOnlyList<CifpStarProcedure> GetStars(string airportCode)
@@ -1003,6 +1094,22 @@ public sealed class NavigationDatabase
         }
 
         return (null, s);
+    }
+
+    /// <summary>
+    /// Strips trailing digits from a procedure ID to get the base name.
+    /// E.g., "BDEGA4" → "BDEGA", "CNDEL5" → "CNDEL". Preserves at least 2 characters.
+    /// Returns the input unchanged if no trailing digits exist.
+    /// </summary>
+    public static string StripTrailingDigits(string s)
+    {
+        int end = s.Length;
+        while (end > 2 && char.IsDigit(s[end - 1]))
+        {
+            end--;
+        }
+
+        return end == s.Length ? s : s[..end];
     }
 
     private static int GetTypePriority(char typeCode)

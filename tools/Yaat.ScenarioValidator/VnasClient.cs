@@ -1,12 +1,15 @@
 using System.Text.Json;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Proto;
 
 namespace Yaat.ScenarioValidator;
 
 public sealed class VnasClient
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(60) };
 
     private const string BaseUrl = "https://data-api.vnas.vatsim.net/api/training";
+    private const string ConfigUrl = "https://configuration.vnas.vatsim.net/";
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -32,6 +35,19 @@ public sealed class VnasClient
         {
             return null;
         }
+    }
+
+    public async Task<NavDataSet?> DownloadNavDataAsync()
+    {
+        var configJson = await Http.GetStringAsync(ConfigUrl);
+        var config = JsonSerializer.Deserialize<VnasConfig>(configJson, JsonOpts);
+        if (config is null || string.IsNullOrEmpty(config.NavDataUrl))
+        {
+            return null;
+        }
+
+        var bytes = await Http.GetByteArrayAsync(config.NavDataUrl);
+        return NavDataSet.Parser.ParseFrom(bytes);
     }
 }
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yaat.Sim.Data;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.ScenarioValidator;
@@ -76,29 +77,32 @@ public static class Program
             return 1;
         }
 
+        // Download NavData for procedure validation
+        var navDb = await DownloadNavDataAsync();
+
         if (allMode)
         {
-            return await ValidateMultipleAsync(AllArtccs, jsonOutput);
+            return await ValidateMultipleAsync(AllArtccs, navDb, jsonOutput);
         }
 
         if (artccIds.Count > 1)
         {
-            return await ValidateMultipleAsync([.. artccIds], jsonOutput);
+            return await ValidateMultipleAsync([.. artccIds], navDb, jsonOutput);
         }
 
         List<ScenarioValidationResult> results;
 
         if (artccIds.Count == 1)
         {
-            results = await ValidateArtccAsync(artccIds[0], jsonOutput);
+            results = await ValidateArtccAsync(artccIds[0], navDb, jsonOutput);
         }
         else if (filePath is not null)
         {
-            results = ValidateFile(filePath);
+            results = ValidateFile(filePath, navDb);
         }
         else
         {
-            results = ValidateDirectory(dirPath!);
+            results = ValidateDirectory(dirPath!, navDb);
         }
 
         if (jsonOutput)
@@ -110,7 +114,31 @@ public static class Program
         return PrintTextReport(results);
     }
 
-    private static async Task<int> ValidateMultipleAsync(string[] artccs, bool jsonOutput)
+    private static async Task<NavigationDatabase> DownloadNavDataAsync()
+    {
+        try
+        {
+            Console.Error.Write("Downloading NavData...");
+            var client = new VnasClient();
+            var navData = await client.DownloadNavDataAsync();
+            if (navData is not null)
+            {
+                var db = new NavigationDatabase(navData, customFixesBaseDir: "");
+                Console.Error.WriteLine($" {db.Count} fixes");
+                return db;
+            }
+
+            Console.Error.WriteLine(" failed (null response), proceeding without NavData");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($" failed ({ex.Message}), proceeding without NavData");
+        }
+
+        return new NavigationDatabase(null, customFixesBaseDir: "");
+    }
+
+    private static async Task<int> ValidateMultipleAsync(string[] artccs, NavigationDatabase navDb, bool jsonOutput)
     {
         var allResults = new Dictionary<string, List<ScenarioValidationResult>>();
 
@@ -121,7 +149,7 @@ public static class Program
                 Console.Error.WriteLine($"\n=== {artcc} ===");
             }
 
-            var results = await ValidateArtccAsync(artcc, jsonOutput);
+            var results = await ValidateArtccAsync(artcc, navDb, jsonOutput);
             allResults[artcc] = results;
         }
 
@@ -139,8 +167,9 @@ public static class Program
             int scenarios = results.Count;
             int presets = results.Sum(r => r.TotalPresets);
             int failures = results.Sum(r => r.Failures.Count);
-            var status = failures == 0 ? "PASS" : $"FAIL ({failures})";
-            if (failures > 0)
+            int procIssues = results.Sum(r => r.ProcedureIssues.Count);
+            var status = failures == 0 && procIssues == 0 ? "PASS" : $"FAIL ({failures} parse, {procIssues} procedure)";
+            if (failures > 0 || procIssues > 0)
             {
                 anyFailures = true;
             }
@@ -154,26 +183,44 @@ public static class Program
             foreach (var artcc in artccs)
             {
                 var failed = allResults[artcc].Where(r => r.Failures.Count > 0).ToList();
-                if (failed.Count == 0)
+                if (failed.Count > 0)
                 {
-                    continue;
+                    Console.WriteLine($"\n=== {artcc} PARSE FAILURES ===\n");
+                    foreach (var scenario in failed)
+                    {
+                        Console.WriteLine($"  {scenario.ScenarioName}");
+                        var byAircraft = scenario.Failures.GroupBy(f => f.AircraftId);
+                        foreach (var group in byAircraft)
+                        {
+                            Console.WriteLine($"    {group.Key}:");
+                            foreach (var f in group)
+                            {
+                                Console.WriteLine($"      \"{f.Command}\"");
+                            }
+                        }
+
+                        Console.WriteLine();
+                    }
                 }
 
-                Console.WriteLine($"\n=== {artcc} FAILURES ===\n");
-                foreach (var scenario in failed)
+                var withProcIssues = allResults[artcc].Where(r => r.ProcedureIssues.Count > 0).ToList();
+                if (withProcIssues.Count > 0)
                 {
-                    Console.WriteLine($"  {scenario.ScenarioName}");
-                    var byAircraft = scenario.Failures.GroupBy(f => f.AircraftId);
-                    foreach (var group in byAircraft)
+                    Console.WriteLine($"\n=== {artcc} PROCEDURE ISSUES ===\n");
+                    foreach (var scenario in withProcIssues)
                     {
-                        Console.WriteLine($"    {group.Key}:");
-                        foreach (var f in group)
+                        Console.WriteLine($"  {scenario.ScenarioName}");
+                        foreach (var issue in scenario.ProcedureIssues)
                         {
-                            Console.WriteLine($"      \"{f.Command}\"");
+                            string detail =
+                                issue.Kind == ProcedureIssueKind.VersionChanged
+                                    ? $"    {issue.AircraftId}: {issue.ProcedureId} → {issue.ResolvedId}"
+                                    : $"    {issue.AircraftId}: {issue.ProcedureId} not found";
+                            Console.WriteLine(detail);
                         }
-                    }
 
-                    Console.WriteLine();
+                        Console.WriteLine();
+                    }
                 }
             }
         }
@@ -181,7 +228,7 @@ public static class Program
         return anyFailures ? 1 : 0;
     }
 
-    private static async Task<List<ScenarioValidationResult>> ValidateArtccAsync(string artccId, bool quiet)
+    private static async Task<List<ScenarioValidationResult>> ValidateArtccAsync(string artccId, NavigationDatabase navDb, bool quiet)
     {
         var client = new VnasClient();
 
@@ -216,7 +263,7 @@ public static class Program
                 continue;
             }
 
-            var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json);
+            var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json, navDb);
             if (result is null)
             {
                 Console.Error.WriteLine($"  [{i + 1}/{summaries.Count}] {summary.Name} — JSON PARSE FAILED");
@@ -227,7 +274,18 @@ public static class Program
 
             if (!quiet)
             {
-                var status = result.Failures.Count == 0 ? "OK" : $"{result.Failures.Count} failure{(result.Failures.Count != 1 ? "s" : "")}";
+                var issues = new List<string>();
+                if (result.Failures.Count > 0)
+                {
+                    issues.Add($"{result.Failures.Count} failure{(result.Failures.Count != 1 ? "s" : "")}");
+                }
+
+                if (result.ProcedureIssues.Count > 0)
+                {
+                    issues.Add($"{result.ProcedureIssues.Count} procedure issue{(result.ProcedureIssues.Count != 1 ? "s" : "")}");
+                }
+
+                var status = issues.Count == 0 ? "OK" : string.Join(", ", issues);
                 Console.Error.WriteLine(
                     $"  [{i + 1}/{summaries.Count}] {result.ScenarioName} ({result.AircraftCount} aircraft, {result.TotalPresets} presets) — {status}"
                 );
@@ -237,7 +295,7 @@ public static class Program
         return results;
     }
 
-    private static List<ScenarioValidationResult> ValidateFile(string path)
+    private static List<ScenarioValidationResult> ValidateFile(string path, NavigationDatabase navDb)
     {
         if (!File.Exists(path))
         {
@@ -246,7 +304,7 @@ public static class Program
         }
 
         var json = File.ReadAllText(path);
-        var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json);
+        var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json, navDb);
         if (result is null)
         {
             Console.Error.WriteLine($"Failed to parse: {path}");
@@ -256,7 +314,7 @@ public static class Program
         return [result];
     }
 
-    private static List<ScenarioValidationResult> ValidateDirectory(string path)
+    private static List<ScenarioValidationResult> ValidateDirectory(string path, NavigationDatabase navDb)
     {
         if (!Directory.Exists(path))
         {
@@ -278,7 +336,7 @@ public static class Program
         foreach (var file in files)
         {
             var json = File.ReadAllText(file);
-            var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json);
+            var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json, navDb);
             if (result is null)
             {
                 Console.Error.WriteLine($"  {Path.GetFileName(file)} — JSON PARSE FAILED");
@@ -302,9 +360,12 @@ public static class Program
 
         int totalPresets = results.Sum(r => r.TotalPresets);
         int totalFailures = results.Sum(r => r.Failures.Count);
+        int totalProcIssues = results.Sum(r => r.ProcedureIssues.Count);
 
         Console.WriteLine($"\n=== RESULTS ===");
-        Console.WriteLine($"{results.Count} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}");
+        Console.WriteLine(
+            $"{results.Count} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}, {totalProcIssues} procedure issue{(totalProcIssues != 1 ? "s" : "")}"
+        );
 
         var failedScenarios = results.Where(r => r.Failures.Count > 0).ToList();
         if (failedScenarios.Count > 0)
@@ -326,7 +387,26 @@ public static class Program
             }
         }
 
-        return totalFailures > 0 ? 1 : 0;
+        var procScenarios = results.Where(r => r.ProcedureIssues.Count > 0).ToList();
+        if (procScenarios.Count > 0)
+        {
+            Console.WriteLine($"\n=== PROCEDURE ISSUES ===\n");
+            foreach (var scenario in procScenarios)
+            {
+                Console.WriteLine($"  {scenario.ScenarioName}");
+                foreach (var issue in scenario.ProcedureIssues)
+                {
+                    string detail =
+                        issue.Kind == ProcedureIssueKind.VersionChanged
+                            ? $"    {issue.AircraftId}: {issue.ProcedureId} → {issue.ResolvedId}"
+                            : $"    {issue.AircraftId}: {issue.ProcedureId} not found";
+                    Console.WriteLine(detail);
+                }
+                Console.WriteLine();
+            }
+        }
+
+        return totalFailures > 0 || totalProcIssues > 0 ? 1 : 0;
     }
 
     private static void PrintUsage()

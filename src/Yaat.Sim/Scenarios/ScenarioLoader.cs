@@ -497,19 +497,31 @@ public static class ScenarioLoader
             string? runwayDesignator = parts.Length > 1 ? parts[1] : null;
 
             // Check SID first (e.g., "CNDEL5") — expand body + match transition to next token
-            var sidBody = navDb.GetSidBody(rawName);
-            if (sidBody is not null && sidBody.Count > 0)
+            var resolvedSidId = navDb.ResolveSidId(rawName);
+            if (resolvedSidId is not null)
             {
+                if (!resolvedSidId.Equals(rawName, StringComparison.OrdinalIgnoreCase))
+                {
+                    warnings.Add($"{state.Callsign}: SID {rawName} not found, using current version {resolvedSidId}");
+                }
+
+                var sidBody = navDb.GetSidBody(resolvedSidId)!;
                 string? nextToken = tokenIdx + 1 < tokens.Length ? tokens[tokenIdx + 1].Split('.')[0] : null;
-                ExpandSidBody(resolved, rawName, sidBody, nextToken, navDb, warnings, state.Callsign);
+                ExpandSidBody(resolved, resolvedSidId, sidBody, nextToken, navDb, warnings, state.Callsign);
                 continue;
             }
 
             // Check if this token is a STAR reference (e.g., "EMZOH4")
-            var starBody = navDb.GetStarBody(rawName);
-            if (starBody is not null && starBody.Count > 0)
+            var resolvedStarId = navDb.ResolveStarId(rawName);
+            if (resolvedStarId is not null)
             {
-                ExpandStarBody(resolved, rawName, starBody, runwayDesignator, state.Destination, navDb, warnings, state.Callsign);
+                if (!resolvedStarId.Equals(rawName, StringComparison.OrdinalIgnoreCase))
+                {
+                    warnings.Add($"{state.Callsign}: STAR {rawName} not found, using current version {resolvedStarId}");
+                }
+
+                var starBody = navDb.GetStarBody(resolvedStarId)!;
+                ExpandStarBody(resolved, resolvedStarId, starBody, runwayDesignator, state.Destination, navDb, warnings, state.Callsign);
                 continue;
             }
 
@@ -571,10 +583,15 @@ public static class ScenarioLoader
         {
             var parts = token.Split('.');
             var rawName = parts[0];
-            var starBody = navDb.GetStarBody(rawName);
-            if (starBody is not null && starBody.Count > 0)
+            var resolvedId = navDb.ResolveStarId(rawName);
+            if (resolvedId is not null)
             {
-                starId = rawName;
+                if (!resolvedId.Equals(rawName, StringComparison.OrdinalIgnoreCase))
+                {
+                    warnings.Add($"{state.Callsign}: STAR {rawName} not found, using current version {resolvedId}");
+                }
+
+                starId = resolvedId;
                 runwayDesignator = parts.Length > 1 ? parts[1] : null;
                 break;
             }
@@ -582,6 +599,18 @@ public static class ScenarioLoader
 
         if (starId is null)
         {
+            // Check if any token looks like a procedure name (has trailing digits) but wasn't found
+            foreach (var token in tokens)
+            {
+                var rawName = token.Split('.')[0];
+                string baseName = NavigationDatabase.StripTrailingDigits(rawName);
+                if (baseName != rawName)
+                {
+                    warnings.Add($"{state.Callsign}: STAR {rawName} not found in NavData — descend-via constraints not applied");
+                    break;
+                }
+            }
+
             return;
         }
 
