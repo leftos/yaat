@@ -32,7 +32,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinRadialOutboundCommand("OAK", 37.72, -122.22, 180);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("180", result.Message);
@@ -49,7 +49,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinRadialOutboundCommand("OAK", 37.72, -122.22, 270);
 
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         // Simulate trigger met: apply the intercept block
         var block = aircraft.Queue.Blocks[0];
@@ -67,7 +67,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 270);
         var cmd = new JoinRadialInboundCommand("OAK", 37.72, -122.22, 090);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("inbound", result.Message);
@@ -82,7 +82,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 270);
         var cmd = new JoinRadialInboundCommand("OAK", 37.72, -122.22, 090);
 
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         // Simulate trigger met
         var block = aircraft.Queue.Blocks[0];
@@ -101,7 +101,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 090);
         var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, 270);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("SUNOL", result.Message);
@@ -118,7 +118,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 090);
         var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, 270);
 
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         var block = aircraft.Queue.Blocks[0];
         block.ApplyAction?.Invoke(aircraft);
@@ -137,7 +137,7 @@ public class NavigationCommandTests
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("SUNOL", result.Message);
@@ -155,7 +155,7 @@ public class NavigationCommandTests
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
 
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         var block = aircraft.Queue.Blocks[0];
         block.ApplyAction?.Invoke(aircraft);
@@ -171,7 +171,7 @@ public class NavigationCommandTests
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrAbove, null);
 
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         // Aircraft at 5000, crossing at-or-above 4000: already above, no change
         Assert.Equal(3000, aircraft.Targets.TargetAltitude);
@@ -185,7 +185,7 @@ public class NavigationCommandTests
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrAbove, null);
 
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.Equal(4000, aircraft.Targets.TargetAltitude);
     }
@@ -197,7 +197,7 @@ public class NavigationCommandTests
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(210.0, aircraft.Targets.TargetSpeed);
@@ -214,7 +214,7 @@ public class NavigationCommandTests
 
         var cmd = new DescendViaCommand(5000);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.True(aircraft.StarViaMode);
@@ -229,7 +229,7 @@ public class NavigationCommandTests
 
         var cmd = new DescendViaCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.True(aircraft.StarViaMode);
@@ -243,7 +243,7 @@ public class NavigationCommandTests
 
         var cmd = new DescendViaCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("No active STAR", result.Message);
@@ -273,7 +273,7 @@ public class NavigationCommandTests
         );
 
         var cmd = new DescendViaCommand(null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.True(aircraft.StarViaMode);
@@ -289,7 +289,7 @@ public class NavigationCommandTests
 
         var cmd = new ListApproachesCommand("OAK");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("not available", result.Message);
@@ -299,11 +299,11 @@ public class NavigationCommandTests
     public void Apps_NoAirportAndNoDestination_ReturnsError()
     {
         var aircraft = MakeAircraft();
-        var approachDb = new ApproachDatabase(null);
+        var navDb = NavigationDatabase.ForTesting();
 
         var cmd = new ListApproachesCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, approachDb, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("No airport", result.Message);
@@ -313,11 +313,11 @@ public class NavigationCommandTests
     public void Apps_WithExplicitAirport_NoApproaches_ReturnsEmptyMessage()
     {
         var aircraft = MakeAircraft();
-        var approachDb = new ApproachDatabase(null);
+        var navDb = NavigationDatabase.ForTesting();
 
         var cmd = new ListApproachesCommand("OAK");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, approachDb, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("No approaches found", result.Message);
@@ -328,11 +328,11 @@ public class NavigationCommandTests
     {
         var aircraft = MakeAircraft();
         aircraft.Destination = "OAK";
-        var approachDb = new ApproachDatabase(null);
+        var navDb = NavigationDatabase.ForTesting();
 
         var cmd = new ListApproachesCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, approachDb, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("OAK", result.Message);
@@ -344,11 +344,11 @@ public class NavigationCommandTests
     public void Jarr_UnknownStar_ReturnsError()
     {
         var aircraft = MakeAircraft();
-        var fixes = new TestFixLookup();
+        var navDb = TestNavDbFactory.WithNavData();
 
         var cmd = new JoinStarCommand("NONEXIST", null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown STAR", result.Message);
@@ -357,21 +357,21 @@ public class NavigationCommandTests
     [Fact]
     public void Jarr_WithTransition_BuildsRouteFromTransitionAndBody()
     {
-        var fixes = new TestFixLookup(
-            starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
-            starTransitions: new() { ["SUNOL1"] = [("KENNO", ["KENNO", "SUNOL"])] },
+        var navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["KENNO"] = (37.8, -121.7),
                 ["SUNOL"] = (37.6, -121.9),
                 ["OAK"] = (37.72, -122.22),
-            }
+            },
+            starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
+            starTransitions: new() { ["SUNOL1"] = [("KENNO", (IReadOnlyList<string>)["KENNO", "SUNOL"])] }
         );
 
         var aircraft = MakeAircraft(heading: 180);
         var cmd = new JoinStarCommand("SUNOL1", "KENNO");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("SUNOL1", result.Message);
@@ -385,21 +385,21 @@ public class NavigationCommandTests
     [Fact]
     public void Jarr_WithoutTransition_FindsNearestFixAhead()
     {
-        var fixes = new TestFixLookup(
-            starBodies: new() { ["SUNOL1"] = ["KENNO", "SUNOL", "OAK"] },
+        var navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["KENNO"] = (37.8, -121.7),
                 ["SUNOL"] = (37.6, -121.9),
                 ["OAK"] = (37.72, -122.22),
-            }
+            },
+            starBodies: new() { ["SUNOL1"] = ["KENNO", "SUNOL", "OAK"] }
         );
 
         // Aircraft heading south, SUNOL is to the south
         var aircraft = MakeAircraft(heading: 180, lat: 37.65, lon: -121.85);
         var cmd = new JoinStarCommand("SUNOL1", null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.True(aircraft.Targets.NavigationRoute.Count >= 1);
@@ -408,21 +408,21 @@ public class NavigationCommandTests
     [Fact]
     public void Jarr_BadTransition_ReturnsError()
     {
-        var fixes = new TestFixLookup(
-            starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
-            starTransitions: new() { ["SUNOL1"] = [("KENNO", ["KENNO", "SUNOL"])] },
+        var navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["KENNO"] = (37.8, -121.7),
                 ["SUNOL"] = (37.6, -121.9),
                 ["OAK"] = (37.72, -122.22),
-            }
+            },
+            starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
+            starTransitions: new() { ["SUNOL1"] = [("KENNO", (IReadOnlyList<string>)["KENNO", "SUNOL"])] }
         );
 
         var aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("SUNOL1", "NOSUCH");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown transition or fix", result.Message);
@@ -431,21 +431,21 @@ public class NavigationCommandTests
     [Fact]
     public void Jarr_WithIntermediateFix_JoinsFromThatFix()
     {
-        var fixes = new TestFixLookup(
-            starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "BRIXX", "OAK"] },
+        var navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["EMZOH"] = (37.9, -121.5),
                 ["COREZ"] = (37.8, -121.7),
                 ["BRIXX"] = (37.7, -121.9),
                 ["OAK"] = (37.72, -122.22),
-            }
+            },
+            starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "BRIXX", "OAK"] }
         );
 
         var aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("EMZOH4", "COREZ");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal("COREZ", aircraft.Targets.NavigationRoute[0].Name);
@@ -456,21 +456,21 @@ public class NavigationCommandTests
     public void Jarr_TransitionTakesPriorityOverFixName()
     {
         // "COREZ" exists as both a transition name and a fix in the body
-        var fixes = new TestFixLookup(
-            starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
-            starTransitions: new() { ["EMZOH4"] = [("COREZ", ["COREZ", "EMZOH"])] },
+        var navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["EMZOH"] = (37.9, -121.5),
                 ["COREZ"] = (37.8, -121.7),
                 ["OAK"] = (37.72, -122.22),
-            }
+            },
+            starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
+            starTransitions: new() { ["EMZOH4"] = [("COREZ", (IReadOnlyList<string>)["COREZ", "EMZOH"])] }
         );
 
         var aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("EMZOH4", "COREZ");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         // Transition matched: route is transition fixes + body = COREZ EMZOH COREZ OAK (deduped: COREZ EMZOH COREZ OAK)
@@ -481,22 +481,22 @@ public class NavigationCommandTests
     [Fact]
     public void Jarr_NonexistentFixAndTransition_ReturnsError()
     {
-        var fixes = new TestFixLookup(
-            starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
-            starTransitions: new() { ["EMZOH4"] = [("KENNO", ["KENNO", "EMZOH"])] },
+        var navDb = TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["EMZOH"] = (37.9, -121.5),
                 ["COREZ"] = (37.8, -121.7),
                 ["OAK"] = (37.72, -122.22),
                 ["KENNO"] = (37.8, -121.7),
-            }
+            },
+            starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
+            starTransitions: new() { ["EMZOH4"] = [("KENNO", (IReadOnlyList<string>)["KENNO", "EMZOH"])] }
         );
 
         var aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("EMZOH4", "NOSUCH");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown transition or fix 'NOSUCH'", result.Message);
@@ -510,7 +510,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 090);
         var cmd = new HoldingPatternCommand("SUNOL", 37.6, -121.9, 090, 1, true, TurnDirection.Right, null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -524,7 +524,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 090);
         var holdCmd = new HoldingPatternCommand("SUNOL", 37.6, -121.9, 090, 1, true, TurnDirection.Right, null);
 
-        CommandDispatcher.Dispatch(holdCmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(holdCmd, aircraft, null, null, Random.Shared, true);
         Assert.NotNull(aircraft.Phases?.CurrentPhase);
 
         var acceptance = aircraft.Phases!.CurrentPhase!.CanAcceptCommand(CanonicalCommandType.FlyHeading);
@@ -555,7 +555,7 @@ public class NavigationCommandTests
 
         var cmd = new HoldingPatternCommand("SUNOL", 37.6, -121.9, 090, 1, true, TurnDirection.Right, null);
 
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases);
         Assert.Equal(runway, aircraft.Phases.AssignedRunway);
@@ -569,7 +569,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 090);
         var cmd = new DirectToCommand([]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Empty(aircraft.Targets.NavigationRoute);
@@ -588,7 +588,7 @@ public class NavigationCommandTests
         aircraft.IndicatedAirspeed = 250;
 
         var cmd = new DirectToCommand([fixA, fixB, fixC]);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -652,7 +652,7 @@ public class NavigationCommandTests
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrBelow, null);
 
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         // Aircraft at 3000, crossing at-or-below 4000: already below, no change
         Assert.Equal(5000, aircraft.Targets.TargetAltitude);
@@ -666,7 +666,7 @@ public class NavigationCommandTests
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrBelow, null);
 
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.Equal(4000, aircraft.Targets.TargetAltitude);
     }
@@ -680,7 +680,7 @@ public class NavigationCommandTests
 
         var cmd = new ClimbViaCommand(null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("No active SID", result.Message);
@@ -691,23 +691,23 @@ public class NavigationCommandTests
     [Fact]
     public void Jarr_EmptyStarBody_ReturnsError()
     {
-        var fixes = new TestFixLookup(starBodies: new() { ["EMPTY1"] = [] }, fixPositions: new());
+        var navDb = TestNavDbFactory.WithNavData(starBodies: new() { ["EMPTY1"] = [] });
 
         var aircraft = MakeAircraft(heading: 180);
         var cmd = new JoinStarCommand("EMPTY1", null);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
     }
 
     // --- JAWY ---
 
-    private static TestFixLookup MakeAirwayFixLookup()
+    private static NavigationDatabase MakeAirwayNavDb()
     {
         // V25: west-to-east airway — SUNOL → TRACY → MODEN → CEDES
         // Roughly along latitude 37.7, spaced ~0.3° apart in longitude
-        return new TestFixLookup(
+        return TestNavDbFactory.WithNavData(
             fixPositions: new()
             {
                 ["SUNOL"] = (37.70, -121.90),
@@ -722,11 +722,11 @@ public class NavigationCommandTests
     [Fact]
     public void Jawy_UnknownAirway_ReturnsError()
     {
-        var fixes = MakeAirwayFixLookup();
+        var fixes = MakeAirwayNavDb();
         var aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinAirwayCommand("V999");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, fixes, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown airway", result.Message);
@@ -738,7 +738,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("not available", result.Message);
@@ -747,12 +747,12 @@ public class NavigationCommandTests
     [Fact]
     public void Jawy_EastboundOnV25_InterceptsSegmentAndFollowsFixes()
     {
-        var fixes = MakeAirwayFixLookup();
+        var fixes = MakeAirwayNavDb();
         // Aircraft between SUNOL and TRACY, heading east
         var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, fixes, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("V25", result.Message);
@@ -774,12 +774,12 @@ public class NavigationCommandTests
     [Fact]
     public void Jawy_WestboundOnV25_FollowsFixesInReverse()
     {
-        var fixes = MakeAirwayFixLookup();
+        var fixes = MakeAirwayNavDb();
         // Aircraft between TRACY and MODEN, heading west
         var aircraft = MakeAircraft(heading: 270, lat: 37.72, lon: -121.45);
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, fixes, null, Random.Shared, true);
 
         Assert.True(result.Success);
 
@@ -795,12 +795,12 @@ public class NavigationCommandTests
     [Fact]
     public void Jawy_AircraftBeforeFirstFix_NavigatesFromFirstFix()
     {
-        var fixes = MakeAirwayFixLookup();
+        var fixes = MakeAirwayNavDb();
         // Aircraft west of SUNOL, heading east — no fix behind on this airway
         var aircraft = MakeAircraft(heading: 090, lat: 37.70, lon: -122.10);
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, fixes, null, Random.Shared, true);
 
         Assert.True(result.Success);
 
@@ -815,7 +815,7 @@ public class NavigationCommandTests
     [Fact]
     public void Jawy_ClearsExistingNavRoute()
     {
-        var fixes = MakeAirwayFixLookup();
+        var fixes = MakeAirwayNavDb();
         var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
@@ -827,64 +827,10 @@ public class NavigationCommandTests
         );
         var cmd = new JoinAirwayCommand("V25");
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, fixes, null, Random.Shared, true);
 
         Assert.True(result.Success);
         // Existing nav route should be cleared
         Assert.Empty(aircraft.Targets.NavigationRoute);
-    }
-
-    // --- Test helpers ---
-
-    private class TestFixLookup : IFixLookup
-    {
-        private readonly Dictionary<string, (double Lat, double Lon)> _fixPositions;
-        private readonly Dictionary<string, List<string>> _starBodies;
-        private readonly Dictionary<string, List<(string Name, List<string> Fixes)>> _starTransitions;
-        private readonly Dictionary<string, List<string>> _airways;
-
-        public TestFixLookup(
-            Dictionary<string, List<string>>? starBodies = null,
-            Dictionary<string, List<(string Name, List<string> Fixes)>>? starTransitions = null,
-            Dictionary<string, (double Lat, double Lon)>? fixPositions = null,
-            Dictionary<string, List<string>>? airways = null
-        )
-        {
-            _starBodies = starBodies ?? [];
-            _starTransitions = starTransitions ?? [];
-            _fixPositions = fixPositions ?? [];
-            _airways = airways ?? [];
-        }
-
-        public (double Lat, double Lon)? GetFixPosition(string name)
-        {
-            return _fixPositions.TryGetValue(name, out var pos) ? pos : null;
-        }
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId)
-        {
-            return _starBodies.TryGetValue(starId, out var body) ? body : null;
-        }
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId)
-        {
-            if (!_starTransitions.TryGetValue(starId, out var transitions))
-            {
-                return null;
-            }
-
-            return transitions.Select(t => (t.Name, (IReadOnlyList<string>)t.Fixes)).ToList();
-        }
-
-        public IReadOnlyList<string>? GetAirwayFixes(string airwayId)
-        {
-            return _airways.TryGetValue(airwayId, out var fixes) ? fixes : null;
-        }
     }
 }

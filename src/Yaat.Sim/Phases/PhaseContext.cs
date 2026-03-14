@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Phases;
@@ -20,9 +21,9 @@ public sealed class PhaseContext
     public Func<string, AircraftState?>? AircraftLookup { get; init; }
 
     /// <summary>
-    /// Approach procedure database. Used by approach phases for CIFP data.
+    /// Navigation database. Used by approach phases for CIFP data.
     /// </summary>
-    public Data.IApproachLookup? ApproachLookup { get; init; }
+    public NavigationDatabase? NavDb { get; init; }
 
     /// <summary>
     /// Logger for phase diagnostics. Provided by the server tick loop.

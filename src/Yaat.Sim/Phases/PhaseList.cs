@@ -27,7 +27,7 @@ public sealed class DepartureClearanceInfo
 
     /// <summary>
     /// Pre-resolved navigation targets for route-based departures.
-    /// Set by the dispatcher so phases don't need IFixLookup.
+    /// Set by the dispatcher so phases don't need NavigationDatabase.
     /// </summary>
     public List<NavigationTarget>? DepartureRoute { get; init; }
 
@@ -39,7 +39,7 @@ public sealed class DepartureClearanceInfo
 
     /// <summary>
     /// Pre-resolved pattern runway for cross-runway closed traffic departures.
-    /// Set by the dispatcher so TaxiingPhase doesn't need IRunwayLookup.
+    /// Set by the dispatcher so TaxiingPhase doesn't need NavigationDatabase.
     /// </summary>
     public RunwayInfo? PatternRunway { get; init; }
 }

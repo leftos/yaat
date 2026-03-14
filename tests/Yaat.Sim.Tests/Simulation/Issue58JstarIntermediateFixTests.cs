@@ -29,17 +29,14 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
 
     private SimulationEngine BuildEngine()
     {
-        var fixes = TestVnasData.FixDatabase;
-        Assert.NotNull(fixes);
+        var navDb = TestVnasData.NavigationDb;
+        Assert.NotNull(navDb);
 
         var groundData = new TestAirportGroundData();
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        var procedures = TestVnasData.ProcedureDatabase;
-        Assert.NotNull(procedures);
-
-        return new SimulationEngine(fixes, fixes, groundData, null, procedures);
+        return new SimulationEngine(navDb, groundData);
     }
 
     /// <summary>

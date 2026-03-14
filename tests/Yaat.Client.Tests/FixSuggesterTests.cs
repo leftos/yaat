@@ -83,7 +83,7 @@ public class FixSuggesterTests
     }
 
     // -------------------------------------------------------------------------
-    // TryAddFixSuggestions — no FixDatabase
+    // TryAddFixSuggestions — no NavigationDatabase
     // -------------------------------------------------------------------------
 
     [Fact]
@@ -121,7 +121,7 @@ public class FixSuggesterTests
     }
 
     // -------------------------------------------------------------------------
-    // AddFixSuggestions — no FixDatabase, no aircraft
+    // AddFixSuggestions — no NavigationDatabase, no aircraft
     // -------------------------------------------------------------------------
 
     [Fact]

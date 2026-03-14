@@ -39,7 +39,9 @@ public class MetarInterpolatorTests
     [Fact]
     public void GetWeather_SingleNearbyStation_ReturnsItsData()
     {
-        var fixes = new TestFixLookup(new Dictionary<string, (double, double)> { ["LAX"] = (33.9425, -118.408), ["KLAX"] = (33.9425, -118.408) });
+        var fixes = NavigationDatabase.ForTesting(
+            fixes: new Dictionary<string, (double Lat, double Lon)> { ["LAX"] = (33.9425, -118.408), ["KLAX"] = (33.9425, -118.408) }
+        );
 
         var metars = new[] { "KLAX 121853Z 27012KT 5SM BKN030 20/12 A2992" };
         var result = MetarInterpolator.GetWeatherForAirport(metars, "LAX", fixes);
@@ -55,8 +57,8 @@ public class MetarInterpolatorTests
         // Airport at (37.7, -122.2)
         // Station A at (37.7, -122.0) ≈ 10nm east, ceiling 5000, vis 10
         // Station B at (37.5, -122.2) ≈ 12nm south, ceiling 2000, vis 3
-        var fixes = new TestFixLookup(
-            new Dictionary<string, (double, double)>
+        var fixes = NavigationDatabase.ForTesting(
+            fixes: new Dictionary<string, (double Lat, double Lon)>
             {
                 ["TSTA"] = (37.7, -122.2), // target airport
                 ["KSTA"] = (37.7, -122.0), // station A
@@ -81,8 +83,8 @@ public class MetarInterpolatorTests
     public void GetWeather_NoStationsWithin50nm_ReturnsNull()
     {
         // Airport on west coast, station on east coast — way beyond 50nm
-        var fixes = new TestFixLookup(
-            new Dictionary<string, (double, double)>
+        var fixes = NavigationDatabase.ForTesting(
+            fixes: new Dictionary<string, (double Lat, double Lon)>
             {
                 ["TSTA"] = (37.7, -122.2),
                 ["KJFK"] = (40.6, -73.8),
@@ -115,27 +117,5 @@ public class MetarInterpolatorTests
     {
         var profile = new WeatherProfile();
         Assert.Null(profile.GetWeatherForAirport("OAK", null));
-    }
-
-    // -------------------------------------------------------------------------
-    // Test helpers
-    // -------------------------------------------------------------------------
-
-    private sealed class TestFixLookup(Dictionary<string, (double Lat, double Lon)> fixes) : IFixLookup
-    {
-        public (double Lat, double Lon)? GetFixPosition(string name)
-        {
-            return fixes.TryGetValue(name, out var pos) ? pos : null;
-        }
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
     }
 }

@@ -9,7 +9,7 @@ public class ApproachDatabaseTests
     [Fact]
     public void GetApproaches_NoCifpFile_ReturnsEmpty()
     {
-        var db = new ApproachDatabase(null);
+        var db = new NavigationDatabase(null);
         var result = db.GetApproaches("OAK");
         Assert.Empty(result);
     }
@@ -17,7 +17,8 @@ public class ApproachDatabaseTests
     [Fact]
     public void GetApproaches_MissingFile_ReturnsEmpty()
     {
-        var db = new ApproachDatabase("/nonexistent/path");
+        var db = new NavigationDatabase(null);
+        db.SetCifpPath("/nonexistent/path");
         var result = db.GetApproaches("OAK");
         Assert.Empty(result);
     }
@@ -33,7 +34,8 @@ public class ApproachDatabaseTests
 
         try
         {
-            var db = new ApproachDatabase(tmpFile);
+            var db = new NavigationDatabase(null);
+            db.SetCifpPath(tmpFile);
             var proc = db.GetApproach("OAK", "I28L");
 
             Assert.NotNull(proc);
@@ -57,7 +59,8 @@ public class ApproachDatabaseTests
 
         try
         {
-            var db = new ApproachDatabase(tmpFile);
+            var db = new NavigationDatabase(null);
+            db.SetCifpPath(tmpFile);
 
             // Both "KOAK" and "OAK" should work
             Assert.NotNull(db.GetApproach("KOAK", "I28L"));
@@ -87,7 +90,8 @@ public class ApproachDatabaseTests
 
         try
         {
-            var db = new ApproachDatabase(tmpFile);
+            var db = new NavigationDatabase(null);
+            db.SetCifpPath(tmpFile);
             var result = db.ResolveApproachId("OAK", shorthand);
 
             Assert.Equal(expectedId, result);
@@ -110,7 +114,8 @@ public class ApproachDatabaseTests
 
         try
         {
-            var db = new ApproachDatabase(tmpFile);
+            var db = new NavigationDatabase(null);
+            db.SetCifpPath(tmpFile);
             // "28L" without type → ILS preferred over RNAV
             var result = db.ResolveApproachId("OAK", "28L");
 
@@ -132,7 +137,8 @@ public class ApproachDatabaseTests
 
         try
         {
-            var db = new ApproachDatabase(tmpFile);
+            var db = new NavigationDatabase(null);
+            db.SetCifpPath(tmpFile);
             Assert.Null(db.ResolveApproachId("OAK", "ILS99"));
             Assert.Null(db.ResolveApproachId("OAK", ""));
             Assert.Null(db.ResolveApproachId("OAK", "NONSENSE"));
@@ -153,7 +159,8 @@ public class ApproachDatabaseTests
 
         try
         {
-            var db = new ApproachDatabase(tmpFile);
+            var db = new NavigationDatabase(null);
+            db.SetCifpPath(tmpFile);
 
             // First call loads from file
             var result1 = db.GetApproaches("OAK");

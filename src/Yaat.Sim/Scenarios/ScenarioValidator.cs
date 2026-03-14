@@ -8,7 +8,7 @@ public static class ScenarioValidator
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-    public static ScenarioValidationResult Validate(Scenario scenario, IFixLookup fixes)
+    public static ScenarioValidationResult Validate(Scenario scenario, NavigationDatabase navDb)
     {
         var failures = new List<PresetParseFailure>();
         int totalPresets = 0;
@@ -24,7 +24,7 @@ public static class ScenarioValidator
                 }
 
                 totalPresets++;
-                var compound = CommandParser.ParseCompound(preset.Command, fixes, ac.FlightPlan?.Route);
+                var compound = CommandParser.ParseCompound(preset.Command, navDb, ac.FlightPlan?.Route);
                 if (compound is null)
                 {
                     failures.Add(new PresetParseFailure(ac.AircraftId, preset.Command));
@@ -41,7 +41,7 @@ public static class ScenarioValidator
 
     public static ScenarioValidationResult Validate(Scenario scenario)
     {
-        return Validate(scenario, new PermissiveFixLookup());
+        return Validate(scenario, new NavigationDatabase(null));
     }
 
     public static ScenarioValidationResult? Validate(string scenarioJson)
@@ -62,26 +62,6 @@ public static class ScenarioValidator
         }
 
         return Validate(scenario);
-    }
-
-    /// <summary>
-    /// A permissive fix lookup that returns a dummy position for any fix name.
-    /// This allows validation to succeed even without real nav data — the goal
-    /// is to verify command syntax, not fix resolution.
-    /// </summary>
-    internal class PermissiveFixLookup : IFixLookup
-    {
-        public (double Lat, double Lon)? GetFixPosition(string name) => (37.6, -122.4);
-
-        public double? GetAirportElevation(string code) => 13.0;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
     }
 }
 

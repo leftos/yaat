@@ -7,7 +7,17 @@ namespace Yaat.Sim.Tests;
 public class OnHandoffConditionTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
-    private static readonly IFixLookup Fixes = new PermissiveFixes();
+    private static readonly NavigationDatabase Fixes = TestNavDbFactory.WithFixNames(
+        "LIVVY",
+        "MIIDY",
+        "KERRK",
+        "CAMRN",
+        "EYESS",
+        "FELTY",
+        "CAVDI",
+        "KATRN",
+        "SCHOO"
+    );
 
     // --- CommandSchemeParser: canonical form ---
 
@@ -245,20 +255,5 @@ public class OnHandoffConditionTests
         world.Tick(1.0);
 
         Assert.True(ac.HandoffAccepted);
-    }
-
-    private sealed class PermissiveFixes : IFixLookup
-    {
-        public (double Lat, double Lon)? GetFixPosition(string fixName) => (37.0, -122.0);
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
     }
 }

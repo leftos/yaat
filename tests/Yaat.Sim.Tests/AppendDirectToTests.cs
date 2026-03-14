@@ -28,10 +28,10 @@ public class AppendDirectToTests
     public void Adct_NoExistingRoute_BehavesLikeDct()
     {
         var aircraft = CreateAircraft();
-        var fixes = new StubFixLookup(("SUNOL", 37.5, -121.8));
+        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Single(aircraft.Targets.NavigationRoute);
@@ -60,10 +60,10 @@ public class AppendDirectToTests
             }
         );
 
-        var fixes = new StubFixLookup(("SUNOL", 37.5, -121.8));
+        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -86,10 +86,10 @@ public class AppendDirectToTests
             }
         );
 
-        var fixes = new StubFixLookup(("FIX1", 37.5, -121.8), ("FIX2", 37.4, -121.7));
+        var navDb = TestNavDbFactory.WithFixes(("FIX1", 37.5, -121.8), ("FIX2", 37.4, -121.7));
         var cmd = new AppendDirectToCommand([new ResolvedFix("FIX1", 37.5, -121.8), new ResolvedFix("FIX2", 37.4, -121.7)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -102,10 +102,10 @@ public class AppendDirectToTests
     public void Adct_NoExistingRoute_ChainsFiledRoute()
     {
         var aircraft = CreateAircraft("SUNOL MODESTO OXNARD");
-        var fixes = new StubFixLookup(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
+        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -128,10 +128,10 @@ public class AppendDirectToTests
             }
         );
 
-        var fixes = new StubFixLookup(("MOVDD", 37.6, -122.0), ("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
+        var navDb = TestNavDbFactory.WithFixes(("MOVDD", 37.6, -122.0), ("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -154,38 +154,13 @@ public class AppendDirectToTests
             }
         );
 
-        var fixes = new StubFixLookup(("SUNOL", 37.5, -121.8));
+        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Single(aircraft.Targets.NavigationRoute);
         Assert.Equal("SUNOL", aircraft.Targets.NavigationRoute[0].Name);
-    }
-
-    private class StubFixLookup : IFixLookup
-    {
-        private readonly Dictionary<string, (double Lat, double Lon)> _fixes = new(StringComparer.OrdinalIgnoreCase);
-
-        public StubFixLookup(params (string Name, double Lat, double Lon)[] fixes)
-        {
-            foreach (var (name, lat, lon) in fixes)
-            {
-                _fixes[name] = (lat, lon);
-            }
-        }
-
-        public (double Lat, double Lon)? GetFixPosition(string name) => _fixes.TryGetValue(name, out var pos) ? pos : null;
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
     }
 }

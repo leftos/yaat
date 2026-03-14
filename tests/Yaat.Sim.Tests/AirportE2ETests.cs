@@ -247,32 +247,38 @@ public class AirportE2ETests
             return null;
         }
 
-        var runwayLookup = new AllWidthRunwayLookup(widthFt);
-        return GeoJsonParser.Parse(airportId, File.ReadAllText(path), runwayLookup, airportId);
+        // OAK runways: 30/12, 28L/10R, 28R/10L, 15/33.
+        // NavigationDatabase.GetRunway queries by individual designator; each RunwayInfo handles both ends via Id.Contains.
+        var navDb = NavigationDatabase.ForTesting(
+            runways:
+            [
+                MakeWidthRunway(airportId, "30", "12", widthFt),
+                MakeWidthRunway(airportId, "28L", "10R", widthFt),
+                MakeWidthRunway(airportId, "28R", "10L", widthFt),
+                MakeWidthRunway(airportId, "15", "33", widthFt),
+            ]
+        );
+
+        return GeoJsonParser.Parse(airportId, File.ReadAllText(path), navDb, airportId);
     }
 
-    private class AllWidthRunwayLookup(int widthFt) : IRunwayLookup
-    {
-        public RunwayInfo? GetRunway(string airportCode, string runwayId) =>
-            new RunwayInfo
-            {
-                AirportId = airportCode,
-                Id = RunwayIdentifier.Parse(runwayId),
-                Designator = RunwayIdentifier.Parse(runwayId).End1,
-                Lat1 = 0,
-                Lon1 = 0,
-                Elevation1Ft = 0,
-                Heading1 = 0,
-                Lat2 = 0,
-                Lon2 = 0,
-                Elevation2Ft = 0,
-                Heading2 = 0,
-                LengthFt = 0,
-                WidthFt = widthFt,
-            };
-
-        public IReadOnlyList<RunwayInfo> GetRunways(string airportCode) => [];
-    }
+    private static RunwayInfo MakeWidthRunway(string airportId, string end1, string end2, int widthFt) =>
+        new RunwayInfo
+        {
+            AirportId = airportId,
+            Id = new RunwayIdentifier(end1, end2),
+            Designator = end1,
+            Lat1 = 0,
+            Lon1 = 0,
+            Elevation1Ft = 0,
+            Heading1 = 0,
+            Lat2 = 0,
+            Lon2 = 0,
+            Elevation2Ft = 0,
+            Heading2 = 0,
+            LengthFt = 0,
+            WidthFt = widthFt,
+        };
 
     [Fact]
     public void OAK_PushbackFromParking_FacingD_Succeeds()

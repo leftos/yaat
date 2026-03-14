@@ -31,15 +31,8 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
 
     private SimulationEngine? BuildEngine()
     {
-        var fixes = TestVnasData.FixDatabase;
-        if (fixes is null)
-        {
-            return null;
-        }
-
-        var procedures = TestVnasData.ProcedureDatabase;
-        var approaches = TestVnasData.ApproachDatabase;
-        if (procedures is null || approaches is null)
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
         {
             return null;
         }
@@ -48,7 +41,7 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        return new SimulationEngine(fixes, fixes, groundData, approaches, procedures);
+        return new SimulationEngine(navDb, groundData);
     }
 
     /// <summary>

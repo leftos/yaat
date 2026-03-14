@@ -6,39 +6,7 @@ namespace Yaat.Sim.Tests;
 
 public class AltitudeResolverTests
 {
-    private sealed class FakeFixLookup : IFixLookup
-    {
-        private readonly Dictionary<string, double> _elevations;
-
-        public FakeFixLookup(Dictionary<string, double> elevations)
-        {
-            _elevations = elevations;
-        }
-
-        public (double Lat, double Lon)? GetFixPosition(string name) => null;
-
-        public double? GetAirportElevation(string code)
-        {
-            return _elevations.TryGetValue(code, out var elev) ? elev : null;
-        }
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
-    }
-
-    private static readonly IFixLookup Fixes = new FakeFixLookup(
-        new Dictionary<string, double>
-        {
-            ["KOAK"] = 9.0,
-            ["OAK"] = 9.0,
-            ["KSFO"] = 13.0,
-        }
-    );
+    private static readonly NavigationDatabase Fixes = TestNavDbFactory.WithElevations(("KOAK", 9.0), ("OAK", 9.0), ("KSFO", 13.0));
 
     // --- Numeric formats (unchanged behavior) ---
 

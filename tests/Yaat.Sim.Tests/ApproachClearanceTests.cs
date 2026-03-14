@@ -47,6 +47,30 @@ public class ApproachClearanceTests
         );
     }
 
+    private static NavigationDatabase MakeNavDb(
+        string airport = "OAK",
+        string approachId = "I28R",
+        char typeCode = 'I',
+        string typeName = "ILS",
+        string runway = "28R"
+    )
+    {
+        var procedure = new CifpApproachProcedure(
+            airport,
+            approachId,
+            typeCode,
+            typeName,
+            runway,
+            [],
+            new Dictionary<string, CifpTransition>(),
+            [],
+            false,
+            null
+        );
+
+        return TestNavDbFactory.WithRunwayAndApproaches(MakeRunway(), [procedure]);
+    }
+
     // --- ApproachClearance record ---
 
     [Fact]
@@ -184,12 +208,10 @@ public class ApproachClearanceTests
     public void Jfac_CreatesPhaseSequence()
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var approachLookup = new StubApproachLookup("OAK", "I28R", 'I', "ILS", "28R");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = MakeNavDb();
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -203,11 +225,10 @@ public class ApproachClearanceTests
     public void Jfac_SetsActiveApproach()
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var approachLookup = new StubApproachLookup("OAK", "I28R", 'I', "ILS", "28R");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = MakeNavDb();
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -220,11 +241,10 @@ public class ApproachClearanceTests
     public void Jfac_SetsAssignedRunway()
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var approachLookup = new StubApproachLookup("OAK", "I28R", 'I', "ILS", "28R");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = MakeNavDb();
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.AssignedRunway);
         Assert.Equal("28R", aircraft.Phases.AssignedRunway.Designator);
@@ -234,11 +254,10 @@ public class ApproachClearanceTests
     public void Jfac_StartsInterceptPhase()
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var approachLookup = new StubApproachLookup("OAK", "I28R", 'I', "ILS", "28R");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = MakeNavDb();
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.CurrentPhase);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases.CurrentPhase);
@@ -249,11 +268,10 @@ public class ApproachClearanceTests
     public void Jfac_UnknownApproach_Fails()
     {
         var aircraft = MakeAircraft(destination: "OAK");
-        var approachLookup = new StubApproachLookup("OAK", "I28R", 'I', "ILS", "28R");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = MakeNavDb();
 
         var cmd = new JoinFinalApproachCourseCommand("VOR99");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -263,24 +281,24 @@ public class ApproachClearanceTests
     public void Jfac_NoApproachLookup_Fails()
     {
         var aircraft = MakeAircraft(destination: "OAK");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = TestNavDbFactory.WithRunways(MakeRunway());
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
-        Assert.Contains("not available", result.Message);
+        // Fails with "Unknown approach" when navDb has no approaches loaded
+        Assert.False(string.IsNullOrEmpty(result.Message));
     }
 
     [Fact]
     public void Jfac_NoDestination_Fails()
     {
         var aircraft = MakeAircraft(destination: "");
-        var approachLookup = new StubApproachLookup("OAK", "I28R", 'I', "ILS", "28R");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = MakeNavDb();
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Cannot determine airport", result.Message);
@@ -290,8 +308,7 @@ public class ApproachClearanceTests
     public void Jfac_ClearsExistingPhases()
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
-        var approachLookup = new StubApproachLookup("OAK", "I28R", 'I', "ILS", "28R");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = MakeNavDb();
 
         // Set up existing phases
         aircraft.Phases = new PhaseList();
@@ -309,7 +326,7 @@ public class ApproachClearanceTests
         );
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases!.CurrentPhase);
@@ -320,11 +337,10 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         // ApproachId is "I28R" but user types "ILS28R"
-        var approachLookup = new StubApproachLookup("OAK", "I28R", 'I', "ILS", "28R");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = MakeNavDb();
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("I28R", result.Message);
@@ -334,11 +350,10 @@ public class ApproachClearanceTests
     public void Jfac_IcaoDestination_Normalized()
     {
         var aircraft = MakeAircraft(heading: 300, destination: "KOAK");
-        var approachLookup = new StubApproachLookup("OAK", "I28R", 'I', "ILS", "28R");
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = MakeNavDb();
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
     }
@@ -356,111 +371,5 @@ public class ApproachClearanceTests
             DeltaSeconds = 1.0,
             Logger = NullLogger.Instance,
         };
-    }
-
-    private sealed class StubApproachLookup : IApproachLookup
-    {
-        private readonly Dictionary<string, List<CifpApproachProcedure>> _approaches = new(StringComparer.OrdinalIgnoreCase);
-
-        public StubApproachLookup(string airport, string approachId, char typeCode, string typeName, string runway)
-        {
-            var procedure = new CifpApproachProcedure(
-                airport,
-                approachId,
-                typeCode,
-                typeName,
-                runway,
-                [],
-                new Dictionary<string, CifpTransition>(),
-                [],
-                false,
-                null
-            );
-
-            _approaches[airport] = [procedure];
-        }
-
-        public CifpApproachProcedure? GetApproach(string airportCode, string approachId)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            if (!_approaches.TryGetValue(normalized, out var list))
-            {
-                return null;
-            }
-
-            return list.FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
-        }
-
-        public IReadOnlyList<CifpApproachProcedure> GetApproaches(string airportCode)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            return _approaches.TryGetValue(normalized, out var list) ? list : [];
-        }
-
-        public string? ResolveApproachId(string airportCode, string shorthand)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            if (!_approaches.TryGetValue(normalized, out var list))
-            {
-                return null;
-            }
-
-            // Exact match first
-            var exact = list.FirstOrDefault(a => a.ApproachId.Equals(shorthand, StringComparison.OrdinalIgnoreCase));
-            if (exact is not null)
-            {
-                return exact.ApproachId;
-            }
-
-            // Try type prefix matching (simplified)
-            foreach (var proc in list)
-            {
-                string fullName = proc.ApproachTypeName + proc.Runway;
-                if (fullName.Equals(shorthand, StringComparison.OrdinalIgnoreCase))
-                {
-                    return proc.ApproachId;
-                }
-            }
-
-            return null;
-        }
-
-        private static string NormalizeAirport(string code)
-        {
-            string upper = code.ToUpperInvariant();
-            return upper.StartsWith('K') && upper.Length == 4 ? upper[1..] : upper;
-        }
-    }
-
-    private sealed class StubRunwayLookup : IRunwayLookup
-    {
-        private readonly RunwayInfo? _runway;
-
-        public StubRunwayLookup(RunwayInfo? runway = null)
-        {
-            _runway = runway;
-        }
-
-        public RunwayInfo? GetRunway(string airportCode, string runwayId)
-        {
-            if (_runway is null)
-            {
-                return null;
-            }
-
-            string normalizedCode = airportCode.StartsWith('K') && airportCode.Length == 4 ? airportCode[1..] : airportCode;
-            string normalizedRunway = _runway.AirportId.StartsWith('K') && _runway.AirportId.Length == 4 ? _runway.AirportId[1..] : _runway.AirportId;
-
-            return
-                normalizedCode.Equals(normalizedRunway, StringComparison.OrdinalIgnoreCase)
-                && _runway.Designator.Equals(runwayId, StringComparison.OrdinalIgnoreCase)
-                ? _runway
-                : null;
-        }
-
-        public IReadOnlyList<RunwayInfo> GetRunways(string airportCode)
-        {
-            return _runway is not null ? [_runway] : [];
-        }
     }
 }

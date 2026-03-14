@@ -134,7 +134,7 @@ public partial class MainViewModel
         {
             StatusText = "Fetching live weather...";
             var artccId = _preferences.ArtccId;
-            var fixDb = _commandInput.FixDb!;
+            var fixDb = _commandInput.NavDb!;
 
             var airportIds = await _airportResolver.GetAirportIdsAsync(artccId);
             if (airportIds.Count == 0)
@@ -172,7 +172,7 @@ public partial class MainViewModel
     }
 
     private bool CanLoadLiveWeather() =>
-        IsConnected && ActiveRoomId is not null && !string.IsNullOrWhiteSpace(_preferences.ArtccId) && _commandInput.FixDb is not null;
+        IsConnected && ActiveRoomId is not null && !string.IsNullOrWhiteSpace(_preferences.ArtccId) && _commandInput.NavDb is not null;
 
     [RelayCommand(CanExecute = nameof(CanClearWeather))]
     private async Task ClearWeatherAsync()

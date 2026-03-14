@@ -292,17 +292,11 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok($"Squawk {aircraft.BeaconCode:D4}");
     }
 
-    internal static CommandResult ApplyDirectTo(
-        DirectToCommand cmd,
-        AircraftState aircraft,
-        IFixLookup? fixes,
-        IApproachLookup? approachLookup,
-        bool validateDctFixes
-    )
+    internal static CommandResult ApplyDirectTo(DirectToCommand cmd, AircraftState aircraft, NavigationDatabase? navDb, bool validateDctFixes)
     {
         if (validateDctFixes)
         {
-            var programmed = aircraft.GetProgrammedFixes(approachLookup);
+            var programmed = aircraft.GetProgrammedFixes(navDb);
             if (programmed.Count > 0)
             {
                 var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
@@ -318,9 +312,9 @@ internal static class FlightCommandHandler
         aircraft.Targets.NavigationRoute.Clear();
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        if (fixes is not null)
+        if (navDb is not null)
         {
-            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, fixes);
+            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, navDb);
         }
         foreach (var fix in resolved)
         {
@@ -340,15 +334,15 @@ internal static class FlightCommandHandler
             : CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
-    internal static CommandResult ApplyForceDirectTo(ForceDirectToCommand cmd, AircraftState aircraft, IFixLookup? fixes)
+    internal static CommandResult ApplyForceDirectTo(ForceDirectToCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        if (fixes is not null)
+        if (navDb is not null)
         {
-            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, fixes);
+            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, navDb);
         }
         foreach (var fix in resolved)
         {
@@ -371,14 +365,13 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplyAppendDirectTo(
         AppendDirectToCommand cmd,
         AircraftState aircraft,
-        IFixLookup? fixes,
-        IApproachLookup? approachLookup,
+        NavigationDatabase? navDb,
         bool validateDctFixes
     )
     {
         if (validateDctFixes)
         {
-            var programmed = aircraft.GetProgrammedFixes(approachLookup);
+            var programmed = aircraft.GetProgrammedFixes(navDb);
             if (programmed.Count > 0)
             {
                 var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
@@ -392,9 +385,9 @@ internal static class FlightCommandHandler
 
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        if (fixes is not null)
+        if (navDb is not null)
         {
-            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, fixes);
+            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, navDb);
         }
         if (aircraft.Targets.NavigationRoute.Count == 0)
         {
@@ -434,13 +427,13 @@ internal static class FlightCommandHandler
         }
     }
 
-    internal static CommandResult ApplyAppendForceDirectTo(AppendForceDirectToCommand cmd, AircraftState aircraft, IFixLookup? fixes)
+    internal static CommandResult ApplyAppendForceDirectTo(AppendForceDirectToCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
     {
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        if (fixes is not null)
+        if (navDb is not null)
         {
-            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, fixes);
+            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, navDb);
         }
         if (aircraft.Targets.NavigationRoute.Count == 0)
         {

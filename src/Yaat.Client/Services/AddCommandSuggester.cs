@@ -14,7 +14,7 @@ internal static class AddCommandSuggester
         CommandScheme scheme,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        FixDatabase? fixDb,
+        NavigationDatabase? fixDb,
         string? primaryAirportId,
         int maxSuggestions
     )
@@ -184,7 +184,7 @@ internal static class AddCommandSuggester
         int completedArgs,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        FixDatabase? fixDb,
+        NavigationDatabase? fixDb,
         string? primaryAirportId,
         int maxSuggestions
     )
@@ -250,7 +250,7 @@ internal static class AddCommandSuggester
         string prefix,
         string partial,
         ObservableCollection<SuggestionItem> suggestions,
-        FixDatabase? fixDb,
+        NavigationDatabase? fixDb,
         string? primaryAirportId,
         int maxSuggestions
     )

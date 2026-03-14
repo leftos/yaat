@@ -223,7 +223,7 @@ public class AircraftState
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }
 
-    public HashSet<string> GetProgrammedFixes(IApproachLookup? approachLookup, FixDatabase? fixDb = null)
+    public HashSet<string> GetProgrammedFixes(NavigationDatabase? navDb)
     {
         IReadOnlyList<string>? activeApproachFixNames = null;
         if (Phases?.ActiveApproach?.Procedure is { } activeProc)
@@ -231,6 +231,6 @@ public class AircraftState
             activeApproachFixNames = ApproachCommandHandler.GetApproachFixNames(activeProc);
         }
 
-        return ProgrammedFixResolver.Resolve(Route, ExpectedApproach, Destination, Departure, approachLookup, activeApproachFixNames, fixDb);
+        return ProgrammedFixResolver.Resolve(Route, ExpectedApproach, Destination, Departure, navDb, activeApproachFixNames, navDb);
     }
 }

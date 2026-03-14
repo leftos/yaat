@@ -6,7 +6,7 @@ public static class FrdResolver
 {
     private const double NmToRadians = Math.PI / (180.0 * 60.0);
 
-    public static ResolvedPosition? Resolve(string frdString, IFixLookup fixes)
+    public static ResolvedPosition? Resolve(string frdString, NavigationDatabase navDb)
     {
         var parsed = ParseFrd(frdString);
         if (parsed is null)
@@ -16,7 +16,7 @@ public static class FrdResolver
 
         var (fixName, radial, distance) = parsed.Value;
 
-        var fixPos = fixes.GetFixPosition(fixName);
+        var fixPos = navDb.GetFixPosition(fixName);
         if (fixPos is null)
         {
             return null;

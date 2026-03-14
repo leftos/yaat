@@ -20,7 +20,7 @@ internal static class TaxiVariantResolver
         string lastTaxiwayName,
         int segmentCountBeforeLastTw,
         string destinationRunway,
-        IRunwayLookup? runways,
+        NavigationDatabase? navDb,
         string? airportId,
         ref int currentNodeId,
         out string? failReason
@@ -91,7 +91,7 @@ internal static class TaxiVariantResolver
                 lastTaxiwayName,
                 segmentCountBeforeLastTw,
                 variants,
-                runways,
+                navDb,
                 airportId,
                 destinationRunway,
                 ref currentNodeId
@@ -153,14 +153,14 @@ internal static class TaxiVariantResolver
         string lastTaxiwayName,
         int segmentCountBeforeLastTw,
         List<(GroundNode HsNode, string VariantName)> variants,
-        IRunwayLookup? runways,
+        NavigationDatabase? navDb,
         string? airportId,
         string destinationRunway,
         ref int currentNodeId
     )
     {
         // Pick variant: if multiple distinct names, choose closest to runway threshold
-        string chosenVariant = PickBestVariant(variants, runways, airportId, destinationRunway);
+        string chosenVariant = PickBestVariant(variants, navDb, airportId, destinationRunway);
 
         // Find branch point: scan nodes along the last-taxiway segments
         int branchNodeId = -1;
@@ -227,7 +227,7 @@ internal static class TaxiVariantResolver
 
     private static string PickBestVariant(
         List<(GroundNode HsNode, string VariantName)> variants,
-        IRunwayLookup? runways,
+        NavigationDatabase? navDb,
         string? airportId,
         string destinationRunway
     )
@@ -246,9 +246,9 @@ internal static class TaxiVariantResolver
 
         // Multiple variants: pick closest to runway threshold
         RunwayInfo? rwyInfo = null;
-        if (runways is not null && airportId is not null)
+        if (navDb is not null && airportId is not null)
         {
-            rwyInfo = runways.GetRunway(airportId, destinationRunway);
+            rwyInfo = navDb.GetRunway(airportId, destinationRunway);
         }
 
         if (rwyInfo is null)

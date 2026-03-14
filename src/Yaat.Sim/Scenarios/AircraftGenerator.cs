@@ -23,8 +23,7 @@ public static class AircraftGenerator
     public static (AircraftState? State, string? Error) Generate(
         SpawnRequest request,
         string? primaryAirportId,
-        IFixLookup fixes,
-        IRunwayLookup runways,
+        NavigationDatabase navDb,
         IReadOnlyCollection<AircraftState> existingAircraft,
         AirportGroundLayout? groundLayout,
         Random rng
@@ -46,32 +45,22 @@ public static class AircraftGenerator
         switch (request.PositionType)
         {
             case SpawnPositionType.Bearing:
-                return GenerateBearing(request, primaryAirportId, fixes, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
+                return GenerateBearing(request, primaryAirportId, navDb, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
 
             case SpawnPositionType.Runway:
-                return GenerateOnRunway(request, primaryAirportId, runways, callsign, aircraftType, beaconCode, transponderMode, flightRules);
+                return GenerateOnRunway(request, primaryAirportId, navDb, callsign, aircraftType, beaconCode, transponderMode, flightRules);
 
             case SpawnPositionType.OnFinal:
-                return GenerateOnFinal(
-                    request,
-                    primaryAirportId,
-                    runways,
-                    callsign,
-                    aircraftType,
-                    category,
-                    beaconCode,
-                    transponderMode,
-                    flightRules
-                );
+                return GenerateOnFinal(request, primaryAirportId, navDb, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
 
             case SpawnPositionType.AtFix:
-                return GenerateAtFix(request, primaryAirportId, fixes, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
+                return GenerateAtFix(request, primaryAirportId, navDb, callsign, aircraftType, category, beaconCode, transponderMode, flightRules);
 
             case SpawnPositionType.Parking:
                 return GenerateAtParking(
                     request,
                     primaryAirportId,
-                    fixes,
+                    navDb,
                     groundLayout,
                     callsign,
                     aircraftType,
@@ -88,7 +77,7 @@ public static class AircraftGenerator
     private static (AircraftState? State, string? Error) GenerateBearing(
         SpawnRequest request,
         string? primaryAirportId,
-        IFixLookup fixes,
+        NavigationDatabase navDb,
         string callsign,
         string aircraftType,
         AircraftCategory category,
@@ -102,7 +91,7 @@ public static class AircraftGenerator
             return (null, "Bearing position requires a primary airport in the scenario");
         }
 
-        var airportPos = fixes.GetFixPosition(primaryAirportId);
+        var airportPos = navDb.GetFixPosition(primaryAirportId);
         if (airportPos is null)
         {
             return (null, $"Could not find primary airport '{primaryAirportId}' in navdata");
@@ -136,7 +125,7 @@ public static class AircraftGenerator
     private static (AircraftState? State, string? Error) GenerateAtFix(
         SpawnRequest request,
         string? primaryAirportId,
-        IFixLookup fixes,
+        NavigationDatabase navDb,
         string callsign,
         string aircraftType,
         AircraftCategory category,
@@ -145,7 +134,7 @@ public static class AircraftGenerator
         string flightRules
     )
     {
-        var resolved = FrdResolver.Resolve(request.FixId, fixes);
+        var resolved = FrdResolver.Resolve(request.FixId, navDb);
         if (resolved is null)
         {
             return (null, $"Could not resolve fix or FRD '{request.FixId}'");
@@ -155,7 +144,7 @@ public static class AircraftGenerator
         double heading = 0;
         if (!string.IsNullOrEmpty(primaryAirportId))
         {
-            var airportPos = fixes.GetFixPosition(primaryAirportId);
+            var airportPos = navDb.GetFixPosition(primaryAirportId);
             if (airportPos is not null)
             {
                 heading = ComputeBearing(resolved.Latitude, resolved.Longitude, airportPos.Value.Lat, airportPos.Value.Lon);
@@ -186,7 +175,7 @@ public static class AircraftGenerator
     private static (AircraftState? State, string? Error) GenerateOnRunway(
         SpawnRequest request,
         string? primaryAirportId,
-        IRunwayLookup runways,
+        NavigationDatabase navDb,
         string callsign,
         string aircraftType,
         uint beaconCode,
@@ -200,7 +189,7 @@ public static class AircraftGenerator
             return (null, "Runway position requires a primary airport in the scenario");
         }
 
-        var rwy = runways.GetRunway(airportId, request.RunwayId);
+        var rwy = navDb.GetRunway(airportId, request.RunwayId);
         if (rwy is null)
         {
             return (null, $"Could not find runway {request.RunwayId} at {airportId}");
@@ -233,7 +222,7 @@ public static class AircraftGenerator
     private static (AircraftState? State, string? Error) GenerateOnFinal(
         SpawnRequest request,
         string? primaryAirportId,
-        IRunwayLookup runways,
+        NavigationDatabase navDb,
         string callsign,
         string aircraftType,
         AircraftCategory category,
@@ -248,7 +237,7 @@ public static class AircraftGenerator
             return (null, "Final position requires a primary airport in the scenario");
         }
 
-        var rwy = runways.GetRunway(airportId, request.RunwayId);
+        var rwy = navDb.GetRunway(airportId, request.RunwayId);
         if (rwy is null)
         {
             return (null, $"Could not find runway {request.RunwayId} at {airportId}");
@@ -283,7 +272,7 @@ public static class AircraftGenerator
     private static (AircraftState? State, string? Error) GenerateAtParking(
         SpawnRequest request,
         string? primaryAirportId,
-        IFixLookup fixes,
+        NavigationDatabase navDb,
         AirportGroundLayout? groundLayout,
         string callsign,
         string aircraftType,
@@ -304,7 +293,7 @@ public static class AircraftGenerator
             return (null, $"Parking/helipad '{request.ParkingName}' not found");
         }
 
-        var elevation = fixes.GetAirportElevation(primaryAirportId ?? "") ?? 0;
+        var elevation = navDb.GetAirportElevation(primaryAirportId ?? "") ?? 0;
         var init = AircraftInitializer.InitializeAtParking(node, elevation);
 
         var state = new AircraftState

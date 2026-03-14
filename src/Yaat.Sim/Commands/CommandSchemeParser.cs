@@ -548,16 +548,16 @@ public static class CommandSchemeParser
     /// </summary>
     public static string ExpandMultiCommand(string input)
     {
-        return ExpandMultiCommand(input, fixes: null);
+        return ExpandMultiCommand(input, navDb: null);
     }
 
     /// <summary>
     /// Splits concatenated commands like "FH 270 CM 5000 SPD 190" into "FH 270, CM 5000, SPD 190".
-    /// When <paramref name="fixes"/> is provided, uses greedy parsing: each verb consumes as many
+    /// When <paramref name="navDb"/> is provided, uses greedy parsing: each verb consumes as many
     /// tokens as CommandParser.Parse can handle, only splitting when adding the next token fails.
-    /// Without fixes, falls back to the heuristic (strict single-arg verb-arg pairs).
+    /// Without navDb, falls back to the heuristic (strict single-arg verb-arg pairs).
     /// </summary>
-    public static string ExpandMultiCommand(string input, IFixLookup? fixes)
+    public static string ExpandMultiCommand(string input, NavigationDatabase? navDb)
     {
         if (input.Contains(',') || input.Contains(';'))
         {
@@ -566,9 +566,9 @@ public static class CommandSchemeParser
 
         var tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        if (fixes is not null && tokens.Length >= 2)
+        if (navDb is not null && tokens.Length >= 2)
         {
-            return ExpandMultiCommandGreedy(tokens, fixes);
+            return ExpandMultiCommandGreedy(tokens, navDb);
         }
 
         if (tokens.Length < 4 || tokens.Length % 2 != 0)
@@ -595,7 +595,7 @@ public static class CommandSchemeParser
     /// Greedy splitting: each verb consumes tokens until Parse fails, then the next token
     /// must be a new verb. Falls back to returning input unchanged if splitting fails.
     /// </summary>
-    private static string ExpandMultiCommandGreedy(string[] tokens, IFixLookup fixes)
+    private static string ExpandMultiCommandGreedy(string[] tokens, NavigationDatabase navDb)
     {
         // Don't split commands that start with condition prefixes — ParseBlock handles those
         if (ConditionPrefixes.Contains(tokens[0]))
@@ -615,7 +615,7 @@ public static class CommandSchemeParser
             for (int end = i + 1; end <= tokens.Length; end++)
             {
                 var candidate = string.Join(' ', tokens[i..end]);
-                var result = CommandParser.Parse(candidate, fixes);
+                var result = CommandParser.Parse(candidate, navDb);
                 if (result is not null)
                 {
                     lastGood = candidate;
@@ -638,7 +638,7 @@ public static class CommandSchemeParser
 
     /// <summary>
     /// Heuristic splitting: strict alternating verb-arg pairs where all verbs are single-arg.
-    /// Used when no IFixLookup is available (client-side scheme parsing).
+    /// Used when no NavigationDatabase is available (client-side scheme parsing).
     /// </summary>
     private static string ExpandMultiCommandHeuristic(string[] tokens)
     {

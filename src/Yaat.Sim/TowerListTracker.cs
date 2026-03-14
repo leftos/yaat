@@ -22,15 +22,15 @@ public sealed class TowerListTracker
 
     /// <summary>
     /// Initialize from ARTCC config. Collects all tower list configurations
-    /// from all STARS facilities, resolving airport positions via IFixLookup.
+    /// from all STARS facilities, resolving airport positions via NavigationDatabase.
     /// Clears any previous state.
     /// </summary>
-    public void Initialize(ArtccConfigRoot config, IFixLookup fixes)
+    public void Initialize(ArtccConfigRoot config, NavigationDatabase navDb)
     {
         _airports.Clear();
         _entries.Clear();
 
-        CollectTowerListAirports(config.Facility, fixes);
+        CollectTowerListAirports(config.Facility, navDb);
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public sealed class TowerListTracker
 
     // --- Private ---
 
-    private void CollectTowerListAirports(FacilityConfig facility, IFixLookup fixes)
+    private void CollectTowerListAirports(FacilityConfig facility, NavigationDatabase navDb)
     {
         if (facility.StarsConfiguration is { } stars)
         {
@@ -165,7 +165,7 @@ public sealed class TowerListTracker
                         var listConfig = pLists[pListIndex];
                         pListIndex++;
 
-                        var pos = fixes.GetFixPosition(towerListConfig.AirportId);
+                        var pos = navDb.GetFixPosition(towerListConfig.AirportId);
                         if (pos is null)
                         {
                             continue;
@@ -181,7 +181,7 @@ public sealed class TowerListTracker
 
         foreach (var child in facility.ChildFacilities)
         {
-            CollectTowerListAirports(child, fixes);
+            CollectTowerListAirports(child, navDb);
         }
     }
 }

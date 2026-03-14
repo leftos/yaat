@@ -21,7 +21,7 @@ public sealed class LiveWeatherService
     /// Builds a WeatherProfile from live aviationweather.gov data.
     /// Returns null if both METAR and FD fetches fail.
     /// </summary>
-    public async Task<WeatherProfile?> BuildLiveWeatherAsync(string artccId, IReadOnlyList<string> airportIds, IFixLookup fixes)
+    public async Task<WeatherProfile?> BuildLiveWeatherAsync(string artccId, IReadOnlyList<string> airportIds, NavigationDatabase fixes)
     {
         if (airportIds.Count == 0)
         {
@@ -119,7 +119,7 @@ public sealed class LiveWeatherService
         }
     }
 
-    private List<WindLayer> BuildWindLayersFromFd(List<StationWinds> stations, string artccId, IFixLookup fixes)
+    private List<WindLayer> BuildWindLayersFromFd(List<StationWinds> stations, string artccId, NavigationDatabase fixes)
     {
         // Get ARTCC center for magnetic declination
         var artccCenter = GetArtccCenter(artccId, fixes);
@@ -250,7 +250,7 @@ public sealed class LiveWeatherService
         };
     }
 
-    private static (double Lat, double Lon) GetArtccCenter(string artccId, IFixLookup fixes)
+    private static (double Lat, double Lon) GetArtccCenter(string artccId, NavigationDatabase fixes)
     {
         // Try to resolve the primary airport as a proxy for ARTCC center
         var primaryAirport = artccId.ToUpperInvariant() switch

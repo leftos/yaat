@@ -57,7 +57,7 @@ public class WeatherProfile
     /// Get parsed ceiling/visibility for an airport, with caching.
     /// Uses exact station match first, then IDW interpolation from nearby stations.
     /// </summary>
-    public MetarParser.ParsedMetar? GetWeatherForAirport(string airportId, IFixLookup? fixes)
+    public MetarParser.ParsedMetar? GetWeatherForAirport(string airportId, NavigationDatabase? navDb)
     {
         if (Metars.Count == 0)
         {
@@ -69,7 +69,7 @@ public class WeatherProfile
             return cached;
         }
 
-        var result = MetarInterpolator.GetWeatherForAirport(Metars, airportId, fixes);
+        var result = MetarInterpolator.GetWeatherForAirport(Metars, airportId, navDb);
         _metarCache[airportId] = result;
         return result;
     }

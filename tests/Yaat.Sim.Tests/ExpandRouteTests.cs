@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Proto;
 
 namespace Yaat.Sim.Tests;
@@ -37,7 +38,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new FixDatabase(navData);
+        var db = new NavigationDatabase(navData);
 
         var result = db.ExpandRouteForNavigation("OAK6 OAK SYRAH", "OAK");
 
@@ -77,7 +78,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new FixDatabase(navData);
+        var db = new NavigationDatabase(navData);
 
         var result = db.ExpandRouteForNavigation("CNDEL5 PORTE FFOIL", null);
 
@@ -108,7 +109,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new FixDatabase(navData);
+        var db = new NavigationDatabase(navData);
 
         var result = db.ExpandRouteForNavigation("OAK SYRAH V244 SUNOL", null);
 
@@ -129,7 +130,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new FixDatabase(navData);
+        var db = new NavigationDatabase(navData);
 
         var result = db.ExpandRouteForNavigation("SUNOL 050", null);
 
@@ -165,7 +166,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new FixDatabase(navData);
+        var db = new NavigationDatabase(navData);
 
         var result = db.ExpandRoute("OAK6 SYRAH");
 
@@ -182,7 +183,7 @@ public class ExpandRouteTests
         // Published SID with ordered body
         var navData = BuildNavData(sids: [new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } }]);
 
-        var db = new FixDatabase(navData);
+        var db = new NavigationDatabase(navData);
 
         var result = db.ExpandRoute("CNDEL5");
 
@@ -193,7 +194,7 @@ public class ExpandRouteTests
     public void ExpandRouteForNavigation_EmptyRoute_ReturnsEmpty()
     {
         var navData = BuildNavData();
-        var db = new FixDatabase(navData);
+        var db = new NavigationDatabase(navData);
 
         Assert.Empty(db.ExpandRouteForNavigation("", null));
         Assert.Empty(db.ExpandRouteForNavigation("  ", null));
@@ -220,7 +221,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new FixDatabase(navData);
+        var db = new NavigationDatabase(navData);
 
         var result = db.ExpandRouteForNavigation("SUNOL BDEGA2", null);
 

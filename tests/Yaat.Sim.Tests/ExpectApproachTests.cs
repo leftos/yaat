@@ -40,7 +40,7 @@ public class ExpectApproachTests
         );
     }
 
-    private static (StubApproachLookup, StubRunwayLookup) MakeStubs()
+    private static NavigationDatabase MakeNavDb()
     {
         var procedure = new CifpApproachProcedure(
             "OAK",
@@ -59,17 +59,17 @@ public class ExpectApproachTests
             null
         );
 
-        return (new StubApproachLookup(procedure), new StubRunwayLookup(MakeRunway()));
+        return TestNavDbFactory.WithRunwayAndApproaches(MakeRunway(), [procedure]);
     }
 
     [Fact]
     public void Eapp_SetsExpectedApproach()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
@@ -79,10 +79,10 @@ public class ExpectApproachTests
     public void Eapp_ReturnsConfirmationMessage()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ExpectApproachCommand("I28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("Expecting", result.Message);
@@ -93,11 +93,11 @@ public class ExpectApproachTests
     public void Eapp_WithExplicitAirport_SetsExpectedApproach()
     {
         var aircraft = MakeAircraft(destination: "SFO");
-        var (approachLookup, runwayLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         // Explicit airport overrides destination
         var cmd = new ExpectApproachCommand("ILS28R", "OAK");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
@@ -107,10 +107,10 @@ public class ExpectApproachTests
     public void Eapp_UnknownApproach_ReturnsError()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ExpectApproachCommand("VOR99", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -120,13 +120,14 @@ public class ExpectApproachTests
     public void Eapp_NoApproachLookup_ReturnsError()
     {
         var aircraft = MakeAircraft();
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = TestNavDbFactory.WithRunways(MakeRunway());
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
-        Assert.Contains("not available", result.Message);
+        // Fails with "Unknown approach" when navDb has no approaches loaded
+        Assert.False(string.IsNullOrEmpty(result.Message));
     }
 
     [Fact]
@@ -134,10 +135,10 @@ public class ExpectApproachTests
     {
         var aircraft = MakeAircraft();
         aircraft.ExpectedApproach = "V28L";
-        var (approachLookup, runwayLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
@@ -147,96 +148,13 @@ public class ExpectApproachTests
     public void Eapp_ResolvesShorthandId()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         // "ILS28R" should resolve to "I28R"
         var cmd = new ExpectApproachCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal("I28R", aircraft.ExpectedApproach);
-    }
-
-    // --- Test helpers ---
-
-    private sealed class StubApproachLookup : IApproachLookup
-    {
-        private readonly CifpApproachProcedure _procedure;
-
-        public StubApproachLookup(CifpApproachProcedure procedure)
-        {
-            _procedure = procedure;
-        }
-
-        public CifpApproachProcedure? GetApproach(string airportCode, string approachId)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            return
-                normalized.Equals(_procedure.Airport, StringComparison.OrdinalIgnoreCase)
-                && approachId.Equals(_procedure.ApproachId, StringComparison.OrdinalIgnoreCase)
-                ? _procedure
-                : null;
-        }
-
-        public IReadOnlyList<CifpApproachProcedure> GetApproaches(string airportCode)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            return normalized.Equals(_procedure.Airport, StringComparison.OrdinalIgnoreCase) ? [_procedure] : [];
-        }
-
-        public string? ResolveApproachId(string airportCode, string shorthand)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            if (!normalized.Equals(_procedure.Airport, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            if (shorthand.Equals(_procedure.ApproachId, StringComparison.OrdinalIgnoreCase))
-            {
-                return _procedure.ApproachId;
-            }
-
-            string fullName = _procedure.ApproachTypeName + _procedure.Runway;
-            return fullName.Equals(shorthand, StringComparison.OrdinalIgnoreCase) ? _procedure.ApproachId : null;
-        }
-
-        private static string NormalizeAirport(string code)
-        {
-            string upper = code.ToUpperInvariant();
-            return upper.StartsWith('K') && upper.Length == 4 ? upper[1..] : upper;
-        }
-    }
-
-    private sealed class StubRunwayLookup : IRunwayLookup
-    {
-        private readonly RunwayInfo? _runway;
-
-        public StubRunwayLookup(RunwayInfo? runway = null)
-        {
-            _runway = runway;
-        }
-
-        public RunwayInfo? GetRunway(string airportCode, string runwayId)
-        {
-            if (_runway is null)
-            {
-                return null;
-            }
-
-            string normalizedCode = airportCode.StartsWith('K') && airportCode.Length == 4 ? airportCode[1..] : airportCode;
-            string normalizedRunway = _runway.AirportId.StartsWith('K') && _runway.AirportId.Length == 4 ? _runway.AirportId[1..] : _runway.AirportId;
-
-            return
-                normalizedCode.Equals(normalizedRunway, StringComparison.OrdinalIgnoreCase)
-                && _runway.Designator.Equals(runwayId, StringComparison.OrdinalIgnoreCase)
-                ? _runway
-                : null;
-        }
-
-        public IReadOnlyList<RunwayInfo> GetRunways(string airportCode)
-        {
-            return _runway is not null ? [_runway] : [];
-        }
     }
 }

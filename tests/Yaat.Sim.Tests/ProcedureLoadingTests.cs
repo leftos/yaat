@@ -13,73 +13,50 @@ public class ProcedureLoadingTests
 {
     private static readonly ILogger Logger = NullLogger.Instance;
 
-    // --- Test doubles ---
-
-    private sealed class TestFixLookup : IFixLookup
-    {
-        private readonly Dictionary<string, (double Lat, double Lon)> _fixes;
-        private readonly Dictionary<string, List<string>> _starBodies;
-
-        public TestFixLookup(Dictionary<string, (double Lat, double Lon)>? fixes = null, Dictionary<string, List<string>>? starBodies = null)
-        {
-            _fixes = fixes ?? [];
-            _starBodies = starBodies ?? [];
-        }
-
-        public (double Lat, double Lon)? GetFixPosition(string name) => _fixes.TryGetValue(name.ToUpperInvariant(), out var pos) ? pos : null;
-
-        public double? GetAirportElevation(string code) => code == "KSFO" ? 13.0 : null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? dep) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => _starBodies.TryGetValue(starId, out var body) ? body : null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
-    }
-
-    private sealed class TestProcedureLookup : IProcedureLookup
-    {
-        private readonly Dictionary<string, CifpSidProcedure> _sids = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, CifpStarProcedure> _stars = new(StringComparer.OrdinalIgnoreCase);
-
-        public void AddSid(CifpSidProcedure sid) => _sids[$"{sid.Airport}:{sid.ProcedureId}"] = sid;
-
-        public void AddStar(CifpStarProcedure star) => _stars[$"{star.Airport}:{star.ProcedureId}"] = star;
-
-        public CifpSidProcedure? GetSid(string airportCode, string sidId) => _sids.TryGetValue($"{airportCode}:{sidId}", out var sid) ? sid : null;
-
-        public IReadOnlyList<CifpSidProcedure> GetSids(string airportCode) => [];
-
-        public CifpStarProcedure? GetStar(string airportCode, string starId) =>
-            _stars.TryGetValue($"{airportCode}:{starId}", out var star) ? star : null;
-
-        public IReadOnlyList<CifpStarProcedure> GetStars(string airportCode) => [];
-    }
-
     // --- Helpers ---
 
-    private static TestFixLookup CreateFixLookup()
+    private static readonly Dictionary<string, (double Lat, double Lon)> DefaultFixes = new(StringComparer.OrdinalIgnoreCase)
     {
-        return new TestFixLookup(
-            fixes: new Dictionary<string, (double Lat, double Lon)>
+        ["KSFO"] = (37.619, -122.375),
+        ["MOLEN"] = (37.63, -122.35),
+        ["PORTE"] = (37.65, -122.30),
+        ["SFO"] = (37.619, -122.375),
+        ["OAK"] = (37.72, -122.22),
+        ["SUNOL"] = (37.58, -121.88),
+        ["GROVE"] = (37.55, -121.95),
+        ["ARCHI"] = (37.50, -122.00),
+        ["BDEGA"] = (38.31, -123.06),
+        ["CEDES"] = (37.55, -122.30),
+        ["FAITH"] = (37.45, -122.35),
+        ["BRIXX"] = (37.40, -122.40),
+    };
+
+    private static readonly Dictionary<string, IReadOnlyList<string>> DefaultStarBodies = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["BDEGA3"] = ["BDEGA", "CEDES", "FAITH", "BRIXX"],
+    };
+
+    private static NavigationDatabase CreateNavDb(
+        CifpSidProcedure? sid = null,
+        CifpStarProcedure? star = null,
+        Dictionary<string, (double Lat, double Lon)>? extraFixes = null
+    )
+    {
+        Dictionary<string, (double Lat, double Lon)> fixes;
+        if (extraFixes is not null)
+        {
+            fixes = new Dictionary<string, (double Lat, double Lon)>(DefaultFixes, StringComparer.OrdinalIgnoreCase);
+            foreach (var (k, v) in extraFixes)
             {
-                ["KSFO"] = (37.619, -122.375),
-                ["MOLEN"] = (37.63, -122.35),
-                ["PORTE"] = (37.65, -122.30),
-                ["SFO"] = (37.619, -122.375),
-                ["OAK"] = (37.72, -122.22),
-                ["SUNOL"] = (37.58, -121.88),
-                ["GROVE"] = (37.55, -121.95),
-                ["ARCHI"] = (37.50, -122.00),
-                ["BDEGA"] = (38.31, -123.06),
-                ["CEDES"] = (37.55, -122.30),
-                ["FAITH"] = (37.45, -122.35),
-                ["BRIXX"] = (37.40, -122.40),
-            },
-            starBodies: new Dictionary<string, List<string>> { ["BDEGA3"] = ["BDEGA", "CEDES", "FAITH", "BRIXX"] }
-        );
+                fixes[k] = v;
+            }
+        }
+        else
+        {
+            fixes = DefaultFixes;
+        }
+
+        return TestNavDbFactory.WithFixesAndProcedures(fixes, sid is not null ? [sid] : null, star is not null ? [star] : null, DefaultStarBodies);
     }
 
     private static AircraftState CreateIfrAircraft(string route, string departure = "KSFO", string destination = "KSFO")
@@ -263,12 +240,9 @@ public class ProcedureLoadingTests
         aircraft.Heading = 150;
         aircraft.Track = 150;
 
-        var fixes = CreateFixLookup();
-        var procedures = new TestProcedureLookup();
-        procedures.AddStar(CreateTestStar());
-
+        var navDb = CreateNavDb(star: CreateTestStar());
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, procedures, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
@@ -296,12 +270,9 @@ public class ProcedureLoadingTests
         var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Altitude = 20000;
 
-        var fixes = CreateFixLookup();
-        var procedures = new TestProcedureLookup();
-        procedures.AddStar(CreateTestStar());
-
+        var navDb = CreateNavDb(star: CreateTestStar());
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, procedures, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
         Assert.False(aircraft.StarViaMode);
@@ -317,11 +288,10 @@ public class ProcedureLoadingTests
         aircraft.Heading = 150;
         aircraft.Track = 150;
 
-        var fixes = CreateFixLookup();
-        // No procedure lookup — forces NavData fallback
-
+        // No CIFP procedures — forces NavData fallback
+        var navDb = CreateNavDb();
         var cmd = new JoinStarCommand("BDEGA3", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal("BDEGA3", aircraft.ActiveStarId);
@@ -342,11 +312,8 @@ public class ProcedureLoadingTests
         var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
-        var fixes = CreateFixLookup();
-        var procedures = new TestProcedureLookup();
-        procedures.AddSid(CreateTestSid());
-
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
         Assert.Equal("PORTE3", result!.SidId);
@@ -370,11 +337,8 @@ public class ProcedureLoadingTests
         var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
-        var fixes = CreateFixLookup();
-        var procedures = new TestProcedureLookup();
-        procedures.AddSid(CreateTestSid());
-
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
 
@@ -389,11 +353,8 @@ public class ProcedureLoadingTests
         var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") }; // No match
 
-        var fixes = CreateFixLookup();
-        var procedures = new TestProcedureLookup();
-        procedures.AddSid(CreateTestSid());
-
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
         // Should have common legs only (PORTE, OAK) + enroute (SUNOL)
@@ -405,10 +366,9 @@ public class ProcedureLoadingTests
     {
         var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
 
-        var fixes = CreateFixLookup();
-        // No procedure lookup
-
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, null);
+        // No CIFP SID injected — resolver finds no matching procedure
+        var navDb = CreateNavDb();
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.Null(result);
     }
@@ -418,11 +378,8 @@ public class ProcedureLoadingTests
     {
         var aircraft = CreateIfrAircraft("BOGUS7 SUNOL V244 OAK");
 
-        var fixes = CreateFixLookup();
-        var procedures = new TestProcedureLookup();
-        procedures.AddSid(CreateTestSid());
-
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.Null(result);
     }
@@ -433,11 +390,8 @@ public class ProcedureLoadingTests
         var aircraft = CreateIfrAircraft("PORTE3 V244 OAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
-        var fixes = CreateFixLookup();
-        var procedures = new TestProcedureLookup();
-        procedures.AddSid(CreateTestSid());
-
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
 
@@ -549,7 +503,7 @@ public class ProcedureLoadingTests
     [Fact]
     public void ResolveLegsToTargets_ConvertsLegsWithConstraints()
     {
-        var fixes = CreateFixLookup();
+        var navDb = CreateNavDb();
         var legs = new List<CifpLeg>
         {
             new(
@@ -567,7 +521,7 @@ public class ProcedureLoadingTests
             new("PORTE", CifpPathTerminator.TF, null, null, new CifpSpeedRestriction(200, true), CifpFixRole.None, 20, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, fixes);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
 
         Assert.Equal(2, targets.Count);
         Assert.Equal("MOLEN", targets[0].Name);
@@ -579,7 +533,7 @@ public class ProcedureLoadingTests
     [Fact]
     public void ResolveLegsToTargets_SkipsUnknownFixes()
     {
-        var fixes = CreateFixLookup();
+        var navDb = CreateNavDb();
         var legs = new List<CifpLeg>
         {
             new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
@@ -587,7 +541,7 @@ public class ProcedureLoadingTests
             new("PORTE", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, fixes);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
 
         Assert.Equal(2, targets.Count);
         Assert.Equal("MOLEN", targets[0].Name);
@@ -597,7 +551,7 @@ public class ProcedureLoadingTests
     [Fact]
     public void ResolveLegsToTargets_DeduplicatesAdjacentFixes()
     {
-        var fixes = CreateFixLookup();
+        var navDb = CreateNavDb();
         var legs = new List<CifpLeg>
         {
             new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
@@ -605,7 +559,7 @@ public class ProcedureLoadingTests
             new("PORTE", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, fixes);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
 
         Assert.Equal(2, targets.Count);
     }
@@ -694,7 +648,7 @@ public class ProcedureLoadingTests
         var startPt = GeoMath.ProjectPoint(centerLat, centerLon, 0, radius);
         var endPt = GeoMath.ProjectPoint(centerLat, centerLon, 90, radius);
 
-        var fixes = new TestFixLookup(fixes: new Dictionary<string, (double Lat, double Lon)> { ["FIX1"] = startPt, ["FIX2"] = endPt });
+        var navDb = CreateNavDb(extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["FIX1"] = startPt, ["FIX2"] = endPt });
 
         var legs = new List<CifpLeg>
         {
@@ -716,7 +670,7 @@ public class ProcedureLoadingTests
             ),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, fixes);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
 
         // Should have: FIX1, intermediate arc points, FIX2
         Assert.True(targets.Count > 2, $"Expected arc expansion, got {targets.Count} targets");
@@ -740,8 +694,8 @@ public class ProcedureLoadingTests
         var startPt = GeoMath.ProjectPoint(navaidLat, navaidLon, 180, rho);
         var endPt = GeoMath.ProjectPoint(navaidLat, navaidLon, 270, rho);
 
-        var fixes = new TestFixLookup(
-            fixes: new Dictionary<string, (double Lat, double Lon)>
+        var navDb = CreateNavDb(
+            extraFixes: new Dictionary<string, (double Lat, double Lon)>
             {
                 ["FIX1"] = startPt,
                 ["FIX2"] = endPt,
@@ -769,7 +723,7 @@ public class ProcedureLoadingTests
             ),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, fixes);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
 
         Assert.True(targets.Count > 2, $"Expected arc expansion, got {targets.Count} targets");
         Assert.Equal("FIX1", targets[0].Name);
@@ -779,7 +733,7 @@ public class ProcedureLoadingTests
     [Fact]
     public void ResolveLegsToTargets_SkipsProcedureTurnLegs()
     {
-        var fixes = CreateFixLookup();
+        var navDb = CreateNavDb();
         var legs = new List<CifpLeg>
         {
             new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
@@ -787,7 +741,7 @@ public class ProcedureLoadingTests
             new("OAK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, fixes);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
 
         Assert.Equal(2, targets.Count);
         Assert.Equal("MOLEN", targets[0].Name);
@@ -813,17 +767,15 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>()
         );
 
-        var fixes = new TestFixLookup(
-            fixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
+        var navDb = CreateNavDb(
+            sid: sid,
+            extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
         );
-
-        var procedures = new TestProcedureLookup();
-        procedures.AddSid(sid);
 
         var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
         Assert.Equal("SSTIK", result!.Targets[0].Name);
@@ -848,17 +800,15 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>()
         );
 
-        var fixes = new TestFixLookup(
-            fixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
+        var navDb = CreateNavDb(
+            sid: sid,
+            extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
         );
-
-        var procedures = new TestProcedureLookup();
-        procedures.AddSid(sid);
 
         var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01R") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
         Assert.Equal("SSTIK", result!.Targets[0].Name);
@@ -882,8 +832,9 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>()
         );
 
-        var fixes = new TestFixLookup(
-            fixes: new Dictionary<string, (double Lat, double Lon)>
+        var navDb = CreateNavDb(
+            sid: sid,
+            extraFixes: new Dictionary<string, (double Lat, double Lon)>
             {
                 ["MOLEN"] = (37.63, -122.35),
                 ["SSTIK"] = (37.50, -122.40),
@@ -891,13 +842,10 @@ public class ProcedureLoadingTests
             }
         );
 
-        var procedures = new TestProcedureLookup();
-        procedures.AddSid(sid);
-
         var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") };
 
-        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, fixes, procedures);
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
         // Exact match RW01L (MOLEN) should win over RW01B (SSTIK)
@@ -921,17 +869,15 @@ public class ProcedureLoadingTests
             }
         );
 
-        var fixes = new TestFixLookup(
-            fixes: new Dictionary<string, (double Lat, double Lon)>
+        var navDb = CreateNavDb(
+            star: star,
+            extraFixes: new Dictionary<string, (double Lat, double Lon)>
             {
                 ["BDEGA"] = (38.31, -123.06),
                 ["CEDES"] = (37.55, -122.30),
                 ["BRIXX"] = (37.40, -122.40),
             }
         );
-
-        var procedures = new TestProcedureLookup();
-        procedures.AddStar(star);
 
         var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Latitude = 38.5;
@@ -942,7 +888,7 @@ public class ProcedureLoadingTests
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28L") };
 
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, procedures, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         var brixx = aircraft.Targets.NavigationRoute.FirstOrDefault(t => t.Name == "BRIXX");

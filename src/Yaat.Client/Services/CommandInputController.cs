@@ -40,7 +40,7 @@ public partial class CommandInputController : ObservableObject
     private bool _isNavigatingHistory;
     private bool _suppressNextUpdate;
 
-    public FixDatabase? FixDb { get; set; }
+    public NavigationDatabase? NavDb { get; set; }
     public string? PrimaryAirportId { get; set; }
     public IReadOnlyList<MacroDefinition>? Macros { get; set; }
 
@@ -92,7 +92,7 @@ public partial class CommandInputController : ObservableObject
             {
                 var atArg = GetConditionArgFragment(fragment);
                 var atPrefix = FixSuggester.GetTextBeforeLastWord(text);
-                FixSuggester.AddFixSuggestions(atArg, atPrefix, selectedAircraft, Suggestions, FixDb, MaxSuggestions);
+                FixSuggester.AddFixSuggestions(atArg, atPrefix, selectedAircraft, Suggestions, NavDb, MaxSuggestions);
             }
             else if (
                 string.Equals(conditionVerb, "GIVEWAY", StringComparison.OrdinalIgnoreCase)
@@ -145,7 +145,7 @@ public partial class CommandInputController : ObservableObject
                 scheme,
                 targetAircraft,
                 Suggestions,
-                FixDb,
+                NavDb,
                 PrimaryAirportId,
                 MaxSuggestions
             )
@@ -160,7 +160,7 @@ public partial class CommandInputController : ObservableObject
                 scheme,
                 targetAircraft,
                 Suggestions,
-                FixDb,
+                NavDb,
                 PrimaryAirportId,
                 MaxSuggestions
             )
@@ -168,7 +168,7 @@ public partial class CommandInputController : ObservableObject
         {
             // Command-specific argument suggestions (CTO modifiers, runways, fixes)
         }
-        else if (FixSuggester.TryAddFixSuggestions(fragmentForSuggestion, text, targetAircraft, scheme, Suggestions, FixDb, MaxSuggestions))
+        else if (FixSuggester.TryAddFixSuggestions(fragmentForSuggestion, text, targetAircraft, scheme, Suggestions, NavDb, MaxSuggestions))
         {
             // Fix suggestions were added (DCT or callsign+DCT context)
         }

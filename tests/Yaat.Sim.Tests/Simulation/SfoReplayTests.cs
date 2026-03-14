@@ -43,8 +43,8 @@ public class SfoReplayTests(ITestOutputHelper output)
 
     private SimulationEngine? BuildEngine(bool withProcedures = false)
     {
-        var fixes = TestVnasData.FixDatabase;
-        if (fixes is null)
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
         {
             return null;
         }
@@ -58,7 +58,6 @@ public class SfoReplayTests(ITestOutputHelper output)
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(_output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        var procedures = withProcedures ? TestVnasData.ProcedureDatabase : null;
-        return new SimulationEngine(fixes, fixes, groundData, null, procedures);
+        return new SimulationEngine(navDb, groundData);
     }
 }

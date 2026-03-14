@@ -12,7 +12,7 @@ internal static class ApproachCommandParser
     /// DCT fix approachId — direct to fix then approach.
     /// DCT fix CFIX altToken approachId — direct to fix, crossing fix altitude, then approach.
     /// </summary>
-    internal static ParsedCommand? ParseCapp(string? arg, IFixLookup? fixes, bool force)
+    internal static ParsedCommand? ParseCapp(string? arg, NavigationDatabase? navDb, bool force)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -36,11 +36,11 @@ internal static class ApproachCommandParser
 
         var keyword = tokens[0].ToUpperInvariant();
 
-        if (keyword == "AT" && tokens.Length >= 3 && fixes is not null)
+        if (keyword == "AT" && tokens.Length >= 3 && navDb is not null)
         {
             // AT fixName approachId
             var fixName = tokens[1].ToUpperInvariant();
-            var pos = fixes.GetFixPosition(fixName);
+            var pos = navDb.GetFixPosition(fixName);
             if (pos is null)
             {
                 return null;
@@ -49,11 +49,11 @@ internal static class ApproachCommandParser
             return new ClearedApproachCommand(approachId, null, force, fixName, pos.Value.Lat, pos.Value.Lon, null, null, null, null, null);
         }
 
-        if (keyword == "DCT" && tokens.Length >= 3 && fixes is not null)
+        if (keyword == "DCT" && tokens.Length >= 3 && navDb is not null)
         {
             // DCT fixName [CFIX altToken] approachId
             var dctFixName = tokens[1].ToUpperInvariant();
-            var dctPos = fixes.GetFixPosition(dctFixName);
+            var dctPos = navDb.GetFixPosition(dctFixName);
             if (dctPos is null)
             {
                 return null;
@@ -101,7 +101,7 @@ internal static class ApproachCommandParser
     /// Parses CAPPSI approachId [airportCode].
     /// Returns a straight-in approach clearance.
     /// </summary>
-    internal static ParsedCommand? ParseCappSi(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand? ParseCappSi(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -122,7 +122,7 @@ internal static class ApproachCommandParser
     /// <summary>
     /// Parses JAPP approachId [airportCode].
     /// </summary>
-    internal static ParsedCommand? ParseJapp(string? arg, IFixLookup? fixes, bool force)
+    internal static ParsedCommand? ParseJapp(string? arg, NavigationDatabase? navDb, bool force)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -143,7 +143,7 @@ internal static class ApproachCommandParser
     /// <summary>
     /// Parses JAPPSI approachId [airportCode].
     /// </summary>
-    internal static ParsedCommand? ParseJappSi(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand? ParseJappSi(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -209,17 +209,17 @@ internal static class ApproachCommandParser
     /// Parses JRADO fixRadial — a single token where the last 3 digits are the radial
     /// and the rest is the fix name (e.g., "OAK090" → fix=OAK, radial=090).
     /// </summary>
-    internal static ParsedCommand? ParseJrado(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand? ParseJrado(string? arg, NavigationDatabase? navDb)
     {
-        return ParseRadialCommand(arg, fixes, outbound: true);
+        return ParseRadialCommand(arg, navDb, outbound: true);
     }
 
     /// <summary>
     /// Parses JRADI fixRadial — same format as JRADO but inbound.
     /// </summary>
-    internal static ParsedCommand? ParseJradi(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand? ParseJradi(string? arg, NavigationDatabase? navDb)
     {
-        return ParseRadialCommand(arg, fixes, outbound: false);
+        return ParseRadialCommand(arg, navDb, outbound: false);
     }
 
     /// <summary>
@@ -230,9 +230,9 @@ internal static class ApproachCommandParser
     ///   5 tokens: fix course leg direction entry
     /// Default direction is Right per 7110.65. Default leg is 1M.
     /// </summary>
-    internal static ParsedCommand? ParseHold(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand? ParseHold(string? arg, NavigationDatabase? navDb)
     {
-        if (string.IsNullOrWhiteSpace(arg) || fixes is null)
+        if (string.IsNullOrWhiteSpace(arg) || navDb is null)
         {
             return null;
         }
@@ -244,7 +244,7 @@ internal static class ApproachCommandParser
         }
 
         var fixName = tokens[0].ToUpperInvariant();
-        var pos = fixes.GetFixPosition(fixName);
+        var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
             return null;
@@ -351,7 +351,7 @@ internal static class ApproachCommandParser
     /// Parses PTAC heading altitudeHundreds approachId.
     /// Example: "PTAC 280 025 ILS30"
     /// </summary>
-    internal static ParsedCommand? ParsePtac(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand? ParsePtac(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -369,7 +369,7 @@ internal static class ApproachCommandParser
             return null;
         }
 
-        int? altitude = AltitudeResolver.Resolve(tokens[1], fixes);
+        int? altitude = AltitudeResolver.Resolve(tokens[1], navDb);
         if (altitude is null)
         {
             return null;
@@ -403,7 +403,7 @@ internal static class ApproachCommandParser
     /// Parses DVIA [altitudeHundreds] or DVIA SPD <speed> <fix>.
     /// Example: "DVIA", "DVIA 040", "DVIA SPD 230 GOSHI"
     /// </summary>
-    internal static ParsedCommand? ParseDvia(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand? ParseDvia(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -426,12 +426,12 @@ internal static class ApproachCommandParser
             }
 
             var fixName = parts[2].ToUpperInvariant();
-            if (fixes is null)
+            if (navDb is null)
             {
                 return null;
             }
 
-            var fixPos = fixes.GetFixPosition(fixName);
+            var fixPos = navDb.GetFixPosition(fixName);
             if (fixPos is null)
             {
                 return null;
@@ -456,9 +456,9 @@ internal static class ApproachCommandParser
     /// Accepts: "CFIX SUNOL A040", "CFIX SUNOL 040 250", "CFIX SUNOL AT 360"
     /// The "AT" keyword form splits altitude into a separate token.
     /// </summary>
-    internal static ParsedCommand? ParseCfix(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand? ParseCfix(string? arg, NavigationDatabase? navDb)
     {
-        if (string.IsNullOrWhiteSpace(arg) || fixes is null)
+        if (string.IsNullOrWhiteSpace(arg) || navDb is null)
         {
             return null;
         }
@@ -470,7 +470,7 @@ internal static class ApproachCommandParser
         }
 
         var fixName = tokens[0].ToUpperInvariant();
-        var pos = fixes.GetFixPosition(fixName);
+        var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
             return null;
@@ -514,9 +514,9 @@ internal static class ApproachCommandParser
     /// Parses DEPART fixName heading.
     /// Example: "DEPART SUNOL 270"
     /// </summary>
-    internal static ParsedCommand? ParseDepart(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand? ParseDepart(string? arg, NavigationDatabase? navDb)
     {
-        if (string.IsNullOrWhiteSpace(arg) || fixes is null)
+        if (string.IsNullOrWhiteSpace(arg) || navDb is null)
         {
             return null;
         }
@@ -528,7 +528,7 @@ internal static class ApproachCommandParser
         }
 
         var fixName = tokens[0].ToUpperInvariant();
-        var pos = fixes.GetFixPosition(fixName);
+        var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
             return null;
@@ -600,9 +600,9 @@ internal static class ApproachCommandParser
     /// Shared parser for radial commands (JRADO and JRADI).
     /// Splits a single token like "OAK090" into fix name + radial.
     /// </summary>
-    private static ParsedCommand? ParseRadialCommand(string? arg, IFixLookup? fixes, bool outbound)
+    private static ParsedCommand? ParseRadialCommand(string? arg, NavigationDatabase? navDb, bool outbound)
     {
-        if (string.IsNullOrWhiteSpace(arg) || fixes is null)
+        if (string.IsNullOrWhiteSpace(arg) || navDb is null)
         {
             return null;
         }
@@ -623,7 +623,7 @@ internal static class ApproachCommandParser
         }
 
         var fixName = token[..^3];
-        var pos = fixes.GetFixPosition(fixName);
+        var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
             return null;

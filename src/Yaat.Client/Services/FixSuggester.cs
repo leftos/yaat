@@ -17,7 +17,7 @@ internal static class FixSuggester
         AircraftModel? selectedAircraft,
         CommandScheme scheme,
         ObservableCollection<SuggestionItem> suggestions,
-        FixDatabase? fixDb,
+        NavigationDatabase? fixDb,
         int maxSuggestions
     )
     {
@@ -63,7 +63,7 @@ internal static class FixSuggester
         string prefix,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        FixDatabase? fixDb,
+        NavigationDatabase? fixDb,
         int maxSuggestions
     )
     {
@@ -110,7 +110,7 @@ internal static class FixSuggester
         string prefix,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        FixDatabase? fixDb,
+        NavigationDatabase? fixDb,
         int maxSuggestions
     )
     {
@@ -152,7 +152,7 @@ internal static class FixSuggester
         }
     }
 
-    internal static SortedSet<string> CollectRouteFixNames(AircraftModel aircraft, FixDatabase? fixDb)
+    internal static SortedSet<string> CollectRouteFixNames(AircraftModel aircraft, NavigationDatabase? fixDb)
     {
         var fixes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -193,7 +193,7 @@ internal static class FixSuggester
         string token,
         string prefix,
         ObservableCollection<SuggestionItem> suggestions,
-        FixDatabase fixDb,
+        NavigationDatabase fixDb,
         int maxSuggestions,
         ref int count
     )
@@ -212,7 +212,7 @@ internal static class FixSuggester
         string prefix,
         string fixTextPrefix,
         ObservableCollection<SuggestionItem> suggestions,
-        FixDatabase fixDb,
+        NavigationDatabase fixDb,
         int maxSuggestions,
         ref int count
     )

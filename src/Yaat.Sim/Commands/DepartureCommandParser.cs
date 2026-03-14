@@ -11,7 +11,7 @@ internal static class DepartureCommandParser
     /// When no lateral modifier is present, a bare number is heading (1-360),
     /// and the second number is altitude.
     /// </summary>
-    internal static ParsedCommand ParseCtoArg(string? arg, IFixLookup? fixes)
+    internal static ParsedCommand ParseCtoArg(string? arg, NavigationDatabase? navDb)
     {
         if (arg is null)
         {
@@ -30,11 +30,11 @@ internal static class DepartureCommandParser
         // Special case: DCT requires a fix name (and optional altitude after)
         if (mod == "DCT")
         {
-            return ParseCtoDct(tokens, fixes);
+            return ParseCtoDct(tokens, navDb);
         }
 
         // Try to parse as a named modifier (MRC, MRD, RH, OC, H270, etc.)
-        var departure = ParseCtoModifier(mod, fixes);
+        var departure = ParseCtoModifier(mod, navDb);
         if (departure is not null)
         {
             // For closed traffic, second token is a pattern runway ID (e.g., "CTO MRT 28R")
@@ -43,14 +43,14 @@ internal static class DepartureCommandParser
                 return new ClearedForTakeoffCommand(ct with { RunwayId = secondToken.ToUpperInvariant() });
             }
 
-            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken, fixes) : null;
+            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken, navDb) : null;
             return new ClearedForTakeoffCommand(departure, alt);
         }
 
         // Bare number: first number is heading (1-360), second is altitude
         if (int.TryParse(mod, out var bareNum) && bareNum >= 1 && bareNum <= 360)
         {
-            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken, fixes) : null;
+            int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken, navDb) : null;
             return new ClearedForTakeoffCommand(new FlyHeadingDeparture(bareNum, null), alt);
         }
 
@@ -62,7 +62,7 @@ internal static class DepartureCommandParser
     /// Parses a single CTO modifier token into a DepartureInstruction,
     /// or returns null if the token is not a recognized modifier.
     /// </summary>
-    internal static DepartureInstruction? ParseCtoModifier(string mod, IFixLookup? fixes)
+    internal static DepartureInstruction? ParseCtoModifier(string mod, NavigationDatabase? navDb)
     {
         // Relative turns: MRC (90R), MRD (180R), MR{N}, MLC, MLD, ML{N}
         if (mod.StartsWith("MR", StringComparison.Ordinal) && mod.Length > 2)
@@ -147,19 +147,19 @@ internal static class DepartureCommandParser
     /// <summary>
     /// Parses CTO DCT {fix} [altitude].
     /// </summary>
-    internal static ParsedCommand ParseCtoDct(string[] tokens, IFixLookup? fixes)
+    internal static ParsedCommand ParseCtoDct(string[] tokens, NavigationDatabase? navDb)
     {
         // tokens[0] = "DCT", tokens[1] = fix name, tokens[2] = optional altitude
-        if (tokens.Length < 2 || fixes is null)
+        if (tokens.Length < 2 || navDb is null)
         {
             return new ClearedForTakeoffCommand(new DefaultDeparture());
         }
 
         var fixName = tokens[1].ToUpperInvariant();
-        var pos = fixes.GetFixPosition(fixName);
+        var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
-            var frd = FrdResolver.Resolve(fixName, fixes);
+            var frd = FrdResolver.Resolve(fixName, navDb);
             if (frd is null)
             {
                 return new ClearedForTakeoffCommand(new DefaultDeparture());
@@ -167,7 +167,7 @@ internal static class DepartureCommandParser
             pos = (frd.Latitude, frd.Longitude);
         }
 
-        int? alt = tokens.Length > 2 ? AltitudeResolver.Resolve(tokens[2], fixes) : null;
+        int? alt = tokens.Length > 2 ? AltitudeResolver.Resolve(tokens[2], navDb) : null;
         return new ClearedForTakeoffCommand(new DirectFixDeparture(fixName, pos.Value.Lat, pos.Value.Lon), alt);
     }
 

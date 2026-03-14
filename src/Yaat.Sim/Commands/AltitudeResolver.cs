@@ -9,7 +9,7 @@ public static class AltitudeResolver
     /// or AGL with an airport prefix (e.g., "KOAK+010").
     /// Returns the final MSL altitude in feet, or null if the argument is invalid.
     /// </summary>
-    public static int? Resolve(string? arg, IFixLookup? fixes)
+    public static int? Resolve(string? arg, NavigationDatabase? navDb)
     {
         if (arg is null)
         {
@@ -43,12 +43,12 @@ public static class AltitudeResolver
 
         int aglAltitude = aglValue < 1000 ? aglValue * 100 : aglValue;
 
-        if (fixes is null)
+        if (navDb is null)
         {
             return null;
         }
 
-        var elevation = fixes.GetAirportElevation(airportCode);
+        var elevation = navDb.GetAirportElevation(airportCode);
         if (elevation is null)
         {
             return null;

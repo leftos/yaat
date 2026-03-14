@@ -9,11 +9,11 @@ namespace Yaat.Sim.Tests;
 /// <summary>
 /// Loads AircraftSpecs.json, AircraftCwt.json, FaaAcd.json, and NavData.dat from TestData/ and
 /// initializes <see cref="AircraftCategorization"/>, <see cref="WakeTurbulenceData"/>,
-/// <see cref="AircraftApproachSpeed"/>, and <see cref="FixDatabase"/>. Thread-safe; only initializes once per process.
+/// <see cref="AircraftApproachSpeed"/>, and <see cref="NavigationDatabase"/>. Thread-safe; only initializes once per process.
 ///
 /// Call <see cref="EnsureInitialized"/> at the top of any test that needs
 /// accurate aircraft data. Safe to call multiple times.
-/// Use <see cref="FixDatabase"/> for tests that require real nav data (fixes, runways).
+/// Use <see cref="NavigationDb"/> for tests that require real nav data (fixes, runways, approaches, procedures).
 /// </summary>
 internal static class TestVnasData
 {
@@ -21,23 +21,21 @@ internal static class TestVnasData
     private static bool _initialized;
     private static readonly object _lock = new();
 
-    private static FixDatabase? _fixDatabase;
-    private static ProcedureDatabase? _procedureDatabase;
-    private static ApproachDatabase? _approachDatabase;
+    private static NavigationDatabase? _navigationDatabase;
     private static string? _cifpPath;
     private static bool _procedureDbAttempted;
 
     /// <summary>
-    /// Returns a <see cref="FixDatabase"/> loaded from NavData.dat, or null if the file is not present.
-    /// Loads lazily and caches for the process lifetime.
+    /// Returns a <see cref="NavigationDatabase"/> loaded from NavData.dat (and optionally CIFP),
+    /// or null if NavData.dat is not present. Loads lazily and caches for the process lifetime.
     /// </summary>
-    internal static FixDatabase? FixDatabase
+    internal static NavigationDatabase? NavigationDb
     {
         get
         {
-            if (_fixDatabase is not null)
+            if (_navigationDatabase is not null)
             {
-                return _fixDatabase;
+                return _navigationDatabase;
             }
 
             var path = Path.Combine(TestDataDir, "NavData.dat");
@@ -48,56 +46,15 @@ internal static class TestVnasData
 
             var bytes = File.ReadAllBytes(path);
             var navData = NavDataSet.Parser.ParseFrom(bytes);
-            _fixDatabase = new FixDatabase(navData);
-            return _fixDatabase;
-        }
-    }
-
-    /// <summary>
-    /// Returns a <see cref="ProcedureDatabase"/> backed by either the bundled
-    /// TestData/FAACIFP18.gz or the system CIFP cache (%LOCALAPPDATA%/yaat/cache/cifp/).
-    /// Loads lazily and caches for the process lifetime.
-    /// </summary>
-    internal static ProcedureDatabase? ProcedureDatabase
-    {
-        get
-        {
-            if (_procedureDatabase is not null)
-            {
-                return _procedureDatabase;
-            }
+            _navigationDatabase = new NavigationDatabase(navData, customFixesBaseDir: "");
 
             var cifpPath = ResolveCifpPath();
-            if (cifpPath is null)
+            if (cifpPath is not null)
             {
-                return null;
+                _navigationDatabase.SetCifpPath(cifpPath);
             }
 
-            _procedureDatabase = new ProcedureDatabase(cifpPath);
-            return _procedureDatabase;
-        }
-    }
-
-    /// <summary>
-    /// Returns an <see cref="ApproachDatabase"/> backed by the same CIFP data as <see cref="ProcedureDatabase"/>.
-    /// </summary>
-    internal static ApproachDatabase? ApproachDatabase
-    {
-        get
-        {
-            if (_approachDatabase is not null)
-            {
-                return _approachDatabase;
-            }
-
-            var cifpPath = ResolveCifpPath();
-            if (cifpPath is null)
-            {
-                return null;
-            }
-
-            _approachDatabase = new ApproachDatabase(cifpPath);
-            return _approachDatabase;
+            return _navigationDatabase;
         }
     }
 
@@ -105,9 +62,8 @@ internal static class TestVnasData
     {
         if (_procedureDbAttempted)
         {
-            // Already resolved — return the path from the existing database if available
-            // We can't get the path back, so just check if we have data
-            return _procedureDatabase is not null || _approachDatabase is not null ? _cifpPath : null;
+            // Already resolved — return cached path (may be null if CIFP not found)
+            return _cifpPath;
         }
 
         _procedureDbAttempted = true;

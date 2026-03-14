@@ -1,40 +1,40 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Proto;
 
 namespace Yaat.Sim.Data;
 
 /// <summary>
-/// Indexes all airports, fixes, and custom fixes from
-/// VNAS NavData protobuf. Also indexes SID/STAR procedures
-/// for route expansion (autocomplete prioritization).
+/// Unified navigation data: NavData fixes/runways/airways/SID/STAR indexes
+/// plus lazy-loaded CIFP procedures (SIDs, STARs, approaches).
+/// Replaces FixDatabase + ProcedureDatabase + ApproachDatabase.
 /// </summary>
-public sealed class FixDatabase : IFixLookup, IRunwayLookup
+public sealed class NavigationDatabase
 {
-    private readonly Dictionary<string, (double Lat, double Lon)> _fixes = new(StringComparer.OrdinalIgnoreCase);
-
+    private readonly Dictionary<string, (double Lat, double Lon)> _navDb = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, double> _elevations = new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Dictionary<string, List<string>> _sidBodies = new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Dictionary<string, List<string>> _sidAllFixes = new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Dictionary<string, List<(string Name, List<string> Fixes)>> _sidTransitions = new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Dictionary<string, List<string>> _starBodies = new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Dictionary<string, List<string>> _starAllFixes = new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Dictionary<string, List<(string Name, List<string> Fixes)>> _starTransitions = new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Dictionary<string, List<string>> _airways = new(StringComparer.OrdinalIgnoreCase);
-
     private readonly Dictionary<string, List<RunwayInfo>> _runways = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly ILogger Log = SimLog.CreateLogger<FixDatabase>();
+    // CIFP lazy caches
+    private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _sidCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IReadOnlyList<CifpStarProcedure>> _starCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IReadOnlyList<CifpApproachProcedure>> _approachCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public FixDatabase(NavDataSet? navData, string? customFixesBaseDir = null)
+    private string? _cifpFilePath;
+
+    private static readonly ILogger Log = SimLog.CreateLogger("NavigationDatabase");
+
+    public NavigationDatabase(NavDataSet? navData, string? customFixesBaseDir = null)
     {
         BuildIndex(navData);
         BuildProcedureIndex(navData);
@@ -42,16 +42,126 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
         AllFixNames = BuildSortedNames();
     }
 
-    public int Count => _fixes.Count;
+    /// <summary>
+    /// Creates a NavigationDatabase pre-populated with test data. Intended only for unit tests.
+    /// </summary>
+    public static NavigationDatabase ForTesting(
+        IReadOnlyDictionary<string, (double Lat, double Lon)>? fixes = null,
+        IReadOnlyList<RunwayInfo>? runways = null,
+        IReadOnlyDictionary<string, IReadOnlyList<CifpApproachProcedure>>? approachesByAirport = null,
+        IReadOnlyDictionary<string, double>? elevations = null,
+        IReadOnlyList<CifpSidProcedure>? sids = null,
+        IReadOnlyList<CifpStarProcedure>? stars = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? starBodies = null,
+        IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? starTransitions = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? airways = null
+    )
+    {
+        var db = new NavigationDatabase(null, customFixesBaseDir: "");
+
+        if (fixes is not null)
+        {
+            foreach (var (name, pos) in fixes)
+            {
+                db._navDb[name] = pos;
+            }
+        }
+
+        if (runways is not null)
+        {
+            foreach (var rwy in runways)
+            {
+                void Index(string key)
+                {
+                    if (!db._runways.TryGetValue(key, out var list))
+                    {
+                        list = [];
+                        db._runways[key] = list;
+                    }
+
+                    list.Add(rwy);
+                }
+
+                Index(rwy.AirportId);
+            }
+        }
+
+        if (approachesByAirport is not null)
+        {
+            foreach (var (airportCode, procedures) in approachesByAirport)
+            {
+                string normalized = NormalizeAirport(airportCode);
+                db._approachCache[normalized] = procedures;
+            }
+        }
+
+        if (elevations is not null)
+        {
+            foreach (var (code, elev) in elevations)
+            {
+                db._elevations[code] = elev;
+            }
+        }
+
+        if (sids is not null)
+        {
+            foreach (var sid in sids)
+            {
+                string key = NormalizeAirport(sid.Airport);
+                db._sidCache.AddOrUpdate(key, [sid], (_, existing) => [.. existing, sid]);
+            }
+        }
+
+        if (stars is not null)
+        {
+            foreach (var star in stars)
+            {
+                string key = NormalizeAirport(star.Airport);
+                db._starCache.AddOrUpdate(key, [star], (_, existing) => [.. existing, star]);
+            }
+        }
+
+        if (starBodies is not null)
+        {
+            foreach (var (starId, body) in starBodies)
+            {
+                db._starBodies[starId] = [.. body];
+            }
+        }
+
+        if (starTransitions is not null)
+        {
+            foreach (var (starId, transitions) in starTransitions)
+            {
+                db._starTransitions[starId] = transitions.Select(t => (t.Name, (List<string>)[.. t.Fixes])).ToList();
+            }
+        }
+
+        if (airways is not null)
+        {
+            foreach (var (airwayId, airwayFixes) in airways)
+            {
+                db._airways[airwayId] = [.. airwayFixes];
+            }
+        }
+
+        return db;
+    }
+
+    public int Count => _navDb.Count;
 
     /// <summary>
     /// Sorted array of all fix names, for prefix-search autocomplete.
     /// </summary>
     public string[] AllFixNames { get; }
 
+    // ──────────────────────────────────────────────
+    //  NavData lookups (eagerly built)
+    // ──────────────────────────────────────────────
+
     public (double Lat, double Lon)? GetFixPosition(string name)
     {
-        return _fixes.TryGetValue(name, out var pos) ? pos : null;
+        return _navDb.TryGetValue(name, out var pos) ? pos : null;
     }
 
     public double? GetAirportElevation(string code)
@@ -287,6 +397,174 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
         return deduped;
     }
 
+    // ──────────────────────────────────────────────
+    //  CIFP lookups (lazy-loaded per airport)
+    // ──────────────────────────────────────────────
+
+    /// <summary>Sets the CIFP file path after initialization (e.g., after async download). Clears all CIFP caches.</summary>
+    public void SetCifpPath(string path)
+    {
+        _cifpFilePath = path;
+        _sidCache.Clear();
+        _starCache.Clear();
+        _approachCache.Clear();
+    }
+
+    public CifpSidProcedure? GetSid(string airportCode, string sidId)
+    {
+        var sids = GetSids(airportCode);
+        return sids.FirstOrDefault(s => s.ProcedureId.Equals(sidId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public IReadOnlyList<CifpSidProcedure> GetSids(string airportCode)
+    {
+        string normalized = NormalizeAirport(airportCode);
+        return _sidCache.GetOrAdd(normalized, LoadSids);
+    }
+
+    public CifpStarProcedure? GetStar(string airportCode, string starId)
+    {
+        var stars = GetStars(airportCode);
+        return stars.FirstOrDefault(s => s.ProcedureId.Equals(starId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public IReadOnlyList<CifpStarProcedure> GetStars(string airportCode)
+    {
+        string normalized = NormalizeAirport(airportCode);
+        return _starCache.GetOrAdd(normalized, LoadStars);
+    }
+
+    public CifpApproachProcedure? GetApproach(string airportCode, string approachId)
+    {
+        var approaches = GetApproaches(airportCode);
+        return approaches.FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public IReadOnlyList<CifpApproachProcedure> GetApproaches(string airportCode)
+    {
+        string normalized = NormalizeAirport(airportCode);
+        return _approachCache.GetOrAdd(normalized, LoadApproaches);
+    }
+
+    public string? ResolveApproachId(string airportCode, string shorthand)
+    {
+        if (string.IsNullOrWhiteSpace(shorthand))
+        {
+            return null;
+        }
+
+        var approaches = GetApproaches(airportCode);
+        if (approaches.Count == 0)
+        {
+            return null;
+        }
+
+        string upper = shorthand.ToUpperInvariant();
+
+        // Exact match first
+        var exact = approaches.FirstOrDefault(a => a.ApproachId.Equals(upper, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact.ApproachId;
+        }
+
+        var parsed = ParseShorthand(upper);
+        if (parsed is null)
+        {
+            return null;
+        }
+
+        var (typeCode, runway, variant) = parsed.Value;
+
+        if (typeCode is not null)
+        {
+            var match = approaches.FirstOrDefault(a =>
+                a.TypeCode == typeCode
+                && a.Runway is not null
+                && a.Runway.Equals(runway, StringComparison.OrdinalIgnoreCase)
+                && (variant is null || a.ApproachId.EndsWith(variant, StringComparison.OrdinalIgnoreCase))
+            );
+
+            if (match is not null)
+            {
+                return match.ApproachId;
+            }
+
+            char? altCode = typeCode switch
+            {
+                'H' => 'R',
+                'R' => 'H',
+                _ => null,
+            };
+
+            if (altCode is not null)
+            {
+                match = approaches.FirstOrDefault(a =>
+                    a.TypeCode == altCode
+                    && a.Runway is not null
+                    && a.Runway.Equals(runway, StringComparison.OrdinalIgnoreCase)
+                    && (variant is null || a.ApproachId.EndsWith(variant, StringComparison.OrdinalIgnoreCase))
+                );
+
+                if (match is not null)
+                {
+                    return match.ApproachId;
+                }
+            }
+        }
+        else if (runway is not null)
+        {
+            var candidates = approaches.Where(a => a.Runway is not null && a.Runway.Equals(runway, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (candidates.Count > 0)
+            {
+                var best = candidates.OrderBy(a => GetTypePriority(a.TypeCode)).First();
+                return best.ApproachId;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the CIFP STAR runway transition fix names for a given airport/STAR/runway.
+    /// These are the fixes in the runway-specific transition segment (e.g., EMZOH4 RW30 transition).
+    /// </summary>
+    public IReadOnlyList<string>? GetStarRunwayTransitions(string airportCode, string starId, string runwayId)
+    {
+        var star = GetStar(airportCode, starId);
+        if (star is null)
+        {
+            return null;
+        }
+
+        // Normalize runway ID: "30" → "RW30", "30L" → "RW30L"
+        string rwyKey = runwayId.StartsWith("RW", StringComparison.OrdinalIgnoreCase) ? runwayId : $"RW{runwayId}";
+
+        foreach (var (key, transition) in star.RunwayTransitions)
+        {
+            if (key.Equals(rwyKey, StringComparison.OrdinalIgnoreCase))
+            {
+                var fixes = new List<string>();
+                foreach (var leg in transition.Legs)
+                {
+                    if (!string.IsNullOrEmpty(leg.FixIdentifier))
+                    {
+                        fixes.Add(leg.FixIdentifier);
+                    }
+                }
+
+                return fixes;
+            }
+        }
+
+        return null;
+    }
+
+    // ──────────────────────────────────────────────
+    //  NavData index building (private)
+    // ──────────────────────────────────────────────
+
     private void BuildIndex(NavDataSet? navData)
     {
         if (navData is null)
@@ -307,13 +585,13 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
             if (!string.IsNullOrEmpty(airport.FaaId))
             {
-                _fixes.TryAdd(airport.FaaId, pos);
+                _navDb.TryAdd(airport.FaaId, pos);
                 _elevations.TryAdd(airport.FaaId, airport.Elevation);
             }
 
             if (!string.IsNullOrEmpty(airport.IcaoId))
             {
-                _fixes.TryAdd(airport.IcaoId, pos);
+                _navDb.TryAdd(airport.IcaoId, pos);
                 _elevations.TryAdd(airport.IcaoId, airport.Elevation);
             }
         }
@@ -326,13 +604,12 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                 continue;
             }
 
-            _fixes.TryAdd(fix.Id, (loc.Lat, loc.Lon));
+            _navDb.TryAdd(fix.Id, (loc.Lat, loc.Lon));
         }
 
         int runwayCount = 0;
         foreach (var airport in navData.Airports)
         {
-            // Build paired RunwayInfo: match opposite ends by location proximity
             var paired = new HashSet<int>();
             var runwayInfos = new List<RunwayInfo>();
 
@@ -349,7 +626,6 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                     continue;
                 }
 
-                // Look for the opposite end: rwy2.StartLocation ≈ rwy1.EndLocation
                 int matchIdx = -1;
                 for (int j = i + 1; j < airport.Runways.Count; j++)
                 {
@@ -396,7 +672,6 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
                 }
                 else
                 {
-                    // Unpaired (single designator); use EndLocation for the other end
                     info = new RunwayInfo
                     {
                         AirportId = airport.FaaId ?? airport.IcaoId ?? "",
@@ -454,8 +729,8 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
         }
 
         Log.LogInformation(
-            "Fix database built: {Count} entries " + "({Airports} airports + {Fixes} fixes + {Runways} runways + {Airways} airways)",
-            _fixes.Count,
+            "Navigation database built: {Count} entries " + "({Airports} airports + {Fixes} fixes + {Runways} runways + {Airways} airways)",
+            _navDb.Count,
             navData.Airports.Count,
             navData.Fixes.Count,
             runwayCount,
@@ -547,7 +822,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
     private void LoadCustomFixes(string? baseDir)
     {
-        baseDir ??= Path.Combine(AppContext.BaseDirectory, "data", "custom_fixes");
+        baseDir ??= Path.Combine(AppContext.BaseDirectory, "data", "custom_navDb");
 
         var loadResult = CustomFixLoader.LoadAll(baseDir);
 
@@ -584,7 +859,7 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
             foreach (var alias in def.Aliases)
             {
-                if (_fixes.TryAdd(alias, pos.Value))
+                if (_navDb.TryAdd(alias, pos.Value))
                 {
                     added++;
                 }
@@ -600,8 +875,146 @@ public sealed class FixDatabase : IFixLookup, IRunwayLookup
 
     private string[] BuildSortedNames()
     {
-        var names = _fixes.Keys.ToArray();
+        var names = _navDb.Keys.ToArray();
         Array.Sort(names, StringComparer.OrdinalIgnoreCase);
         return names;
+    }
+
+    // ──────────────────────────────────────────────
+    //  CIFP loaders (private)
+    // ──────────────────────────────────────────────
+
+    private IReadOnlyList<CifpSidProcedure> LoadSids(string normalizedAirport)
+    {
+        if (_cifpFilePath is null || !File.Exists(_cifpFilePath))
+        {
+            return [];
+        }
+
+        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+        return CifpParser.ParseSids(_cifpFilePath, icao);
+    }
+
+    private IReadOnlyList<CifpStarProcedure> LoadStars(string normalizedAirport)
+    {
+        if (_cifpFilePath is null || !File.Exists(_cifpFilePath))
+        {
+            return [];
+        }
+
+        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+        return CifpParser.ParseStars(_cifpFilePath, icao);
+    }
+
+    private IReadOnlyList<CifpApproachProcedure> LoadApproaches(string normalizedAirport)
+    {
+        if (_cifpFilePath is null || !File.Exists(_cifpFilePath))
+        {
+            return [];
+        }
+
+        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+        return CifpParser.ParseApproaches(_cifpFilePath, icao);
+    }
+
+    private static string NormalizeAirport(string code)
+    {
+        string upper = code.ToUpperInvariant().Trim();
+        return upper.StartsWith('K') && upper.Length == 4 ? upper[1..] : upper;
+    }
+
+    private static (char? TypeCode, string? Runway, string? Variant)? ParseShorthand(string s)
+    {
+        var (typeCode, rest) = TryStripTypePrefix(s);
+
+        if (typeCode is not null && rest.Length > 0)
+        {
+            int i = 0;
+            while (i < rest.Length && char.IsDigit(rest[i]))
+            {
+                i++;
+            }
+
+            if (i == 0)
+            {
+                return null;
+            }
+
+            if (i < rest.Length && rest[i] is 'L' or 'R' or 'C')
+            {
+                i++;
+            }
+
+            string runway = rest[..i];
+            string? variant = i < rest.Length ? rest[i..] : null;
+
+            return (typeCode, runway, variant);
+        }
+
+        if (s.Length >= 1 && char.IsDigit(s[0]))
+        {
+            int i = 0;
+            while (i < s.Length && char.IsDigit(s[i]))
+            {
+                i++;
+            }
+
+            if (i < s.Length && s[i] is 'L' or 'R' or 'C')
+            {
+                i++;
+            }
+
+            if (i > 0 && i == s.Length)
+            {
+                return (null, s, null);
+            }
+        }
+
+        return null;
+    }
+
+    private static (char? Code, string Remainder) TryStripTypePrefix(string s)
+    {
+        ReadOnlySpan<(string Prefix, char Code)> prefixes =
+        [
+            ("ILS", 'I'),
+            ("LOC", 'L'),
+            ("RNAV", 'H'),
+            ("GPS", 'P'),
+            ("VOR", 'V'),
+            ("NDB", 'N'),
+            ("LDA", 'X'),
+            ("TACAN", 'T'),
+            ("SDF", 'U'),
+        ];
+
+        foreach (var (prefix, code) in prefixes)
+        {
+            if (s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return (code, s[prefix.Length..]);
+            }
+        }
+
+        if (s.Length >= 2 && char.IsLetter(s[0]) && char.IsDigit(s[1]))
+        {
+            char code = char.ToUpperInvariant(s[0]);
+            return (code, s[1..]);
+        }
+
+        return (null, s);
+    }
+
+    private static int GetTypePriority(char typeCode)
+    {
+        return typeCode switch
+        {
+            'I' => 0, // ILS
+            'L' => 1, // LOC
+            'H' => 2, // RNAV(GPS)
+            'R' => 3, // RNAV
+            'P' => 4, // GPS
+            _ => 10,
+        };
     }
 }

@@ -493,7 +493,7 @@ public class GroundCommandHandlerTests
         Assert.IsType<HoldingShortPhase>(ac.Phases.CurrentPhase);
 
         var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand()])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42), null, null, true);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, new Random(42), true);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
     }
@@ -523,7 +523,7 @@ public class GroundCommandHandlerTests
         ac.Phases.Start(ctx);
 
         var compound = new CompoundCommand([new ParsedBlock(null, [new ResumeCommand()])]);
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, null, new Random(42), null, null, true);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, new Random(42), true);
 
         Assert.False(result.Success);
     }
@@ -536,9 +536,9 @@ public class GroundCommandHandlerTests
     public void TryAssignRunway_ValidRunway_SetsAssignedRunway()
     {
         var ac = MakeGroundAircraft();
-        var runways = new StubRunwayLookup("OAK", "28R");
+        var navDb = TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280));
 
-        var result = GroundCommandHandler.TryAssignRunway(ac, "28R", runways);
+        var result = GroundCommandHandler.TryAssignRunway(ac, "28R", navDb);
 
         Assert.True(result.Success);
         Assert.Contains("Runway 28R", result.Message!);
@@ -551,9 +551,9 @@ public class GroundCommandHandlerTests
     public void TryAssignRunway_InvalidRunway_Fails()
     {
         var ac = MakeGroundAircraft();
-        var runways = new StubRunwayLookup("OAK", "28R");
+        var navDb = TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280));
 
-        var result = GroundCommandHandler.TryAssignRunway(ac, "99X", runways);
+        var result = GroundCommandHandler.TryAssignRunway(ac, "99X", navDb);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown runway", result.Message!);
@@ -574,9 +574,9 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         ac.Phases = null;
-        var runways = new StubRunwayLookup("OAK", "28R");
+        var navDb = TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280));
 
-        var result = GroundCommandHandler.TryAssignRunway(ac, "28R", runways);
+        var result = GroundCommandHandler.TryAssignRunway(ac, "28R", navDb);
 
         Assert.True(result.Success);
         Assert.NotNull(ac.Phases);
@@ -591,10 +591,13 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         var layout = MakeSimpleLayout();
-        var runways = new StubRunwayLookup("OAK", "28R", node3Lat: 37.730, node3Lon: -122.218);
+        // Threshold (Lat1) at node3 position so auto-detect resolves runway
+        var navDb = TestNavDbFactory.WithRunways(
+            TestRunwayFactory.Make(designator: "28R", airportId: "OAK", thresholdLat: 37.730, thresholdLon: -122.218, heading: 280)
+        );
         var cmd = new TaxiCommand(["A"], []);
 
-        var result = GroundCommandHandler.TryTaxi(ac, cmd, layout, runways);
+        var result = GroundCommandHandler.TryTaxi(ac, cmd, layout, navDb);
 
         Assert.True(result.Success);
         Assert.NotNull(ac.Phases?.AssignedRunway);
@@ -652,49 +655,15 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         var layout = MakeSimpleLayout();
-        var runways = new StubRunwayLookup("OAK", "28R", node3Lat: 37.730, node3Lon: -122.218);
+        var navDb = TestNavDbFactory.WithRunways(
+            TestRunwayFactory.Make(designator: "28R", airportId: "OAK", thresholdLat: 37.730, thresholdLon: -122.218, heading: 280)
+        );
         var cmd = new TaxiCommand(["A"], [], DestinationRunway: "28R");
 
-        var result = GroundCommandHandler.TryTaxi(ac, cmd, layout, runways);
+        var result = GroundCommandHandler.TryTaxi(ac, cmd, layout, navDb);
 
         Assert.True(result.Success);
         Assert.NotNull(ac.Phases?.AssignedRunway);
-    }
-
-    // -------------------------------------------------------------------------
-    // Stub for IRunwayLookup
-    // -------------------------------------------------------------------------
-
-    private sealed class StubRunwayLookup(string airportId, string designator, double node3Lat = 37.730, double node3Lon = -122.218) : IRunwayLookup
-    {
-        private readonly RunwayInfo _runway = new()
-        {
-            AirportId = airportId,
-            Id = new RunwayIdentifier(designator),
-            Designator = designator,
-            Lat1 = node3Lat,
-            Lon1 = node3Lon,
-            Elevation1Ft = 6,
-            Heading1 = 280,
-            Lat2 = node3Lat + 0.02,
-            Lon2 = node3Lon,
-            Elevation2Ft = 6,
-            Heading2 = 100,
-            LengthFt = 10000,
-            WidthFt = 150,
-        };
-
-        public RunwayInfo? GetRunway(string airportCode, string runwayId)
-        {
-            if (airportCode == airportId && _runway.Id.Contains(runwayId))
-            {
-                return _runway.ForApproach(runwayId);
-            }
-
-            return null;
-        }
-
-        public IReadOnlyList<RunwayInfo> GetRunways(string airportCode) => airportCode == airportId ? [_runway] : [];
     }
 
     // -------------------------------------------------------------------------
@@ -816,7 +785,7 @@ public class GroundCommandHandlerTests
         // Compound: TAXI A, CROSS 28R — one block, two parallel commands
         var compound = new CompoundCommand([new ParsedBlock(null, [new TaxiCommand(["A"], []), new CrossRunwayCommand("28R")])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, layout, null, new Random(42), null, null, true);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, layout, new Random(42), true);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.NotNull(ac.AssignedTaxiRoute);

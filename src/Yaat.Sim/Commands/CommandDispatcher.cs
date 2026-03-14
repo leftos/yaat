@@ -19,12 +19,9 @@ public static class CommandDispatcher
     public static CommandResult DispatchCompound(
         CompoundCommand compound,
         AircraftState aircraft,
-        IRunwayLookup? runways,
+        NavigationDatabase? navDb,
         AirportGroundLayout? groundLayout,
-        IFixLookup? fixes,
         Random rng,
-        IApproachLookup? approachLookup,
-        IProcedureLookup? procedureLookup,
         bool validateDctFixes,
         bool autoCrossRunway = false
     )
@@ -32,18 +29,7 @@ public static class CommandDispatcher
         // Leading WAIT → deferred dispatch: extract the timer and store the remaining
         // blocks as a deferred payload. The payload dispatches fresh when the timer expires,
         // without touching phases or the command queue.
-        var deferredResult = TryDeferLeadingWait(
-            compound,
-            aircraft,
-            runways,
-            groundLayout,
-            fixes,
-            rng,
-            approachLookup,
-            procedureLookup,
-            validateDctFixes,
-            autoCrossRunway
-        );
+        var deferredResult = TryDeferLeadingWait(compound, aircraft, navDb, groundLayout, rng, validateDctFixes, autoCrossRunway);
         if (deferredResult is not null)
         {
             return deferredResult;
@@ -52,7 +38,7 @@ public static class CommandDispatcher
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase, runways, groundLayout, fixes, rng, procedureLookup, autoCrossRunway);
+            var result = DispatchWithPhase(compound, aircraft, currentPhase, navDb, groundLayout, rng, autoCrossRunway);
             if (result is not null)
             {
                 return result;
@@ -123,16 +109,7 @@ public static class CommandDispatcher
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(
-                    parsedBlock.Commands,
-                    aircraft,
-                    rng,
-                    fixes,
-                    approachLookup,
-                    runways,
-                    procedureLookup,
-                    validateDctFixes
-                ),
+                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, rng, navDb, validateDctFixes),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
                 IsWaitBlock = isWait,
@@ -167,12 +144,9 @@ public static class CommandDispatcher
     public static CommandResult Dispatch(
         ParsedCommand command,
         AircraftState aircraft,
-        IRunwayLookup? runways,
+        NavigationDatabase? navDb,
         AirportGroundLayout? groundLayout,
-        IFixLookup? fixes,
         Random rng,
-        IApproachLookup? approachLookup,
-        IProcedureLookup? procedureLookup,
         bool validateDctFixes,
         bool autoCrossRunway = false
     )
@@ -181,18 +155,7 @@ public static class CommandDispatcher
         if (CommandDescriber.IsGroundCommand(command))
         {
             var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
-            return DispatchCompound(
-                compound,
-                aircraft,
-                runways,
-                groundLayout,
-                fixes,
-                rng,
-                approachLookup,
-                procedureLookup,
-                validateDctFixes,
-                autoCrossRunway
-            );
+            return DispatchCompound(compound, aircraft, navDb, groundLayout, rng, validateDctFixes, autoCrossRunway);
         }
 
         // Clear any existing queue when a new single command is issued
@@ -200,7 +163,7 @@ public static class CommandDispatcher
         aircraft.Queue.CurrentBlockIndex = 0;
 
         bool hadProcedure = aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null;
-        var result = ApplyCommand(command, aircraft, rng, fixes, approachLookup, runways, procedureLookup, validateDctFixes);
+        var result = ApplyCommand(command, aircraft, rng, navDb, validateDctFixes);
         CheckVectoringWarning(aircraft, [command], hadProcedure);
         return result;
     }
@@ -209,10 +172,7 @@ public static class CommandDispatcher
         ParsedCommand command,
         AircraftState aircraft,
         Random rng,
-        IFixLookup? fixes,
-        IApproachLookup? approachLookup,
-        IRunwayLookup? runways,
-        IProcedureLookup? procedureLookup,
+        NavigationDatabase? navDb,
         bool validateDctFixes
     )
     {
@@ -278,13 +238,13 @@ public static class CommandDispatcher
 
             // --- Direct-to ---
             case DirectToCommand cmd:
-                return FlightCommandHandler.ApplyDirectTo(cmd, aircraft, fixes, approachLookup, validateDctFixes);
+                return FlightCommandHandler.ApplyDirectTo(cmd, aircraft, navDb, validateDctFixes);
             case ForceDirectToCommand cmd:
-                return FlightCommandHandler.ApplyForceDirectTo(cmd, aircraft, fixes);
+                return FlightCommandHandler.ApplyForceDirectTo(cmd, aircraft, navDb);
             case AppendDirectToCommand cmd:
-                return FlightCommandHandler.ApplyAppendDirectTo(cmd, aircraft, fixes, approachLookup, validateDctFixes);
+                return FlightCommandHandler.ApplyAppendDirectTo(cmd, aircraft, navDb, validateDctFixes);
             case AppendForceDirectToCommand cmd:
-                return FlightCommandHandler.ApplyAppendForceDirectTo(cmd, aircraft, fixes);
+                return FlightCommandHandler.ApplyAppendForceDirectTo(cmd, aircraft, navDb);
 
             // --- Warp ---
             case WarpCommand cmd:
@@ -320,7 +280,7 @@ public static class CommandDispatcher
 
             case ExpectApproachCommand eapp:
             {
-                var eappResolved = ApproachCommandHandler.ResolveApproach(eapp.ApproachId, eapp.AirportCode, aircraft, approachLookup, runways);
+                var eappResolved = ApproachCommandHandler.ResolveApproach(eapp.ApproachId, eapp.AirportCode, aircraft, navDb);
                 if (!eappResolved.Success)
                 {
                     return new CommandResult(false, eappResolved.Error);
@@ -331,56 +291,29 @@ public static class CommandDispatcher
             }
 
             case ListApproachesCommand cmd:
-                return NavigationCommandHandler.DispatchListApproaches(cmd, aircraft, approachLookup);
+                return NavigationCommandHandler.DispatchListApproaches(cmd, aircraft, navDb);
             case JoinStarCommand cmd:
-                return NavigationCommandHandler.DispatchJarr(cmd, aircraft, fixes, procedureLookup);
+                return NavigationCommandHandler.DispatchJarr(cmd, aircraft, navDb);
             case JoinAirwayCommand cmd:
-                return NavigationCommandHandler.DispatchJawy(cmd, aircraft, fixes);
+                return NavigationCommandHandler.DispatchJawy(cmd, aircraft, navDb);
             case HoldingPatternCommand cmd:
                 return NavigationCommandHandler.DispatchHoldingPattern(cmd, aircraft);
             case JoinFinalApproachCourseCommand cmd:
-                return NavigationCommandHandler.DispatchJfac(cmd, aircraft, approachLookup, runways);
+                return NavigationCommandHandler.DispatchJfac(cmd, aircraft, navDb);
 
             // --- Approach commands ---
             case ClearedApproachCommand cmd:
-                return ApproachCommandHandler.TryClearedApproach(cmd, aircraft, approachLookup, runways, fixes);
+                return ApproachCommandHandler.TryClearedApproach(cmd, aircraft, navDb);
             case JoinApproachCommand cmd:
-                return ApproachCommandHandler.TryJoinApproach(
-                    cmd.ApproachId,
-                    cmd.AirportCode,
-                    cmd.Force,
-                    straightIn: false,
-                    aircraft,
-                    approachLookup,
-                    runways,
-                    fixes
-                );
+                return ApproachCommandHandler.TryJoinApproach(cmd.ApproachId, cmd.AirportCode, cmd.Force, straightIn: false, aircraft, navDb);
             case ClearedApproachStraightInCommand cmd:
-                return ApproachCommandHandler.TryJoinApproach(
-                    cmd.ApproachId,
-                    cmd.AirportCode,
-                    force: false,
-                    straightIn: true,
-                    aircraft,
-                    approachLookup,
-                    runways,
-                    fixes
-                );
+                return ApproachCommandHandler.TryJoinApproach(cmd.ApproachId, cmd.AirportCode, force: false, straightIn: true, aircraft, navDb);
             case JoinApproachStraightInCommand cmd:
-                return ApproachCommandHandler.TryJoinApproach(
-                    cmd.ApproachId,
-                    cmd.AirportCode,
-                    force: false,
-                    straightIn: true,
-                    aircraft,
-                    approachLookup,
-                    runways,
-                    fixes
-                );
+                return ApproachCommandHandler.TryJoinApproach(cmd.ApproachId, cmd.AirportCode, force: false, straightIn: true, aircraft, navDb);
             case PositionTurnAltitudeClearanceCommand cmd:
-                return ApproachCommandHandler.TryPtac(cmd, aircraft, approachLookup, runways, fixes);
+                return ApproachCommandHandler.TryPtac(cmd, aircraft, navDb);
             case ClearedVisualApproachCommand cmd:
-                return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, runways);
+                return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, navDb);
             case ReportFieldInSightCommand:
                 return NavigationCommandHandler.DispatchReportFieldInSight(aircraft);
             case ReportTrafficInSightCommand cmd:
@@ -393,7 +326,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Downwind,
                     runwayId: cmd.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
             case EnterRightDownwindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -401,7 +335,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Downwind,
                     runwayId: cmd.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
             case EnterLeftCrosswindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -409,7 +344,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Crosswind,
                     runwayId: cmd.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
             case EnterRightCrosswindCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -417,7 +353,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Crosswind,
                     runwayId: cmd.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
             case EnterLeftBaseCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -426,7 +363,7 @@ public static class CommandDispatcher
                     PatternEntryLeg.Base,
                     runwayId: cmd.RunwayId,
                     finalDistanceNm: cmd.FinalDistanceNm,
-                    runways: runways
+                    navDb: navDb
                 );
             case EnterRightBaseCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -435,7 +372,7 @@ public static class CommandDispatcher
                     PatternEntryLeg.Base,
                     runwayId: cmd.RunwayId,
                     finalDistanceNm: cmd.FinalDistanceNm,
-                    runways: runways
+                    navDb: navDb
                 );
             case EnterFinalCommand cmd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -443,7 +380,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Final,
                     runwayId: cmd.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
             case PatternSizeCommand cmd:
                 return PatternCommandHandler.TrySetPatternSize(aircraft, cmd.SizeNm);
@@ -483,12 +421,9 @@ public static class CommandDispatcher
     private static CommandResult? TryDeferLeadingWait(
         CompoundCommand compound,
         AircraftState aircraft,
-        IRunwayLookup? runways,
+        NavigationDatabase? navDb,
         AirportGroundLayout? groundLayout,
-        IFixLookup? fixes,
         Random rng,
-        IApproachLookup? approachLookup,
-        IProcedureLookup? procedureLookup,
         bool validateDctFixes,
         bool autoCrossRunway
     )
@@ -588,11 +523,9 @@ public static class CommandDispatcher
         CompoundCommand compound,
         AircraftState aircraft,
         Phase currentPhase,
-        IRunwayLookup? runways,
+        NavigationDatabase? navDb,
         AirportGroundLayout? groundLayout,
-        IFixLookup? fixes,
         Random rng,
-        IProcedureLookup? procedureLookup,
         bool autoCrossRunway = false
     )
     {
@@ -601,7 +534,7 @@ public static class CommandDispatcher
         var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
 
         // Try tower/ground-specific handling first (phase-interactive commands)
-        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, runways, groundLayout, fixes, procedureLookup, autoCrossRunway);
+        var towerResult = TryApplyTowerCommand(firstCmd, aircraft, currentPhase, navDb, groundLayout, autoCrossRunway);
         if (towerResult is not null)
         {
             if (towerResult.Success)
@@ -614,10 +547,8 @@ public static class CommandDispatcher
                         block.Commands[i],
                         aircraft,
                         aircraft.Phases?.CurrentPhase ?? currentPhase,
-                        runways,
+                        navDb,
                         groundLayout,
-                        fixes,
-                        procedureLookup,
                         autoCrossRunway
                     );
                 }
@@ -652,10 +583,8 @@ public static class CommandDispatcher
         ParsedCommand command,
         AircraftState aircraft,
         Phase currentPhase,
-        IRunwayLookup? runways,
+        NavigationDatabase? navDb,
         AirportGroundLayout? groundLayout,
-        IFixLookup? fixes,
-        IProcedureLookup? procedureLookup,
         bool autoCrossRunway = false
     )
     {
@@ -664,7 +593,7 @@ public static class CommandDispatcher
             case ClearedForTakeoffCommand cto:
                 if (currentPhase is LinedUpAndWaitingPhase luaw)
                 {
-                    return DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, fixes, procedureLookup, runways);
+                    return DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, navDb);
                 }
                 return DepartureClearanceHandler.TryDepartureClearance(
                     aircraft,
@@ -672,10 +601,8 @@ public static class CommandDispatcher
                     ClearanceType.ClearedForTakeoff,
                     cto.Departure,
                     cto.AssignedAltitude,
-                    runways,
-                    fixes,
-                    Log,
-                    procedureLookup
+                    navDb,
+                    Log
                 );
 
             case CancelTakeoffClearanceCommand:
@@ -688,10 +615,8 @@ public static class CommandDispatcher
                     ClearanceType.LineUpAndWait,
                     new DefaultDeparture(),
                     null,
-                    runways,
-                    fixes,
-                    Log,
-                    procedureLookup
+                    navDb,
+                    Log
                 );
 
             case ClearedToLandCommand ctl:
@@ -713,7 +638,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Downwind,
                     runwayId: eld.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
             case EnterRightDownwindCommand erd:
                 return PatternCommandHandler.TryEnterPattern(
@@ -721,7 +647,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Downwind,
                     runwayId: erd.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
             case EnterLeftCrosswindCommand elc:
                 return PatternCommandHandler.TryEnterPattern(
@@ -729,7 +656,8 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Crosswind,
                     runwayId: elc.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
             case EnterRightCrosswindCommand erc:
                 return PatternCommandHandler.TryEnterPattern(
@@ -737,7 +665,8 @@ public static class CommandDispatcher
                     PatternDirection.Right,
                     PatternEntryLeg.Crosswind,
                     runwayId: erc.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
             case EnterLeftBaseCommand elb:
                 return PatternCommandHandler.TryEnterPattern(
@@ -746,7 +675,7 @@ public static class CommandDispatcher
                     PatternEntryLeg.Base,
                     runwayId: elb.RunwayId,
                     finalDistanceNm: elb.FinalDistanceNm,
-                    runways: runways
+                    navDb: navDb
                 );
             case EnterRightBaseCommand erb:
                 return PatternCommandHandler.TryEnterPattern(
@@ -755,7 +684,7 @@ public static class CommandDispatcher
                     PatternEntryLeg.Base,
                     runwayId: erb.RunwayId,
                     finalDistanceNm: erb.FinalDistanceNm,
-                    runways: runways
+                    navDb: navDb
                 );
             case EnterFinalCommand ef:
                 return PatternCommandHandler.TryEnterPattern(
@@ -763,14 +692,15 @@ public static class CommandDispatcher
                     PatternDirection.Left,
                     PatternEntryLeg.Final,
                     runwayId: ef.RunwayId,
-                    runways: runways
+                    finalDistanceNm: null,
+                    navDb: navDb
                 );
 
             // Pattern modification commands
             case MakeLeftTrafficCommand mlt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, runways);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, navDb);
             case MakeRightTrafficCommand mrt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId, runways);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId, navDb);
             case TurnCrosswindCommand:
                 return PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(aircraft, "crosswind");
             case TurnDownwindCommand:
@@ -790,7 +720,7 @@ public static class CommandDispatcher
             case MakeRight270Command:
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270);
             case CircleAirportCommand:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, null, null);
             case PatternSizeCommand ps:
                 return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm);
             case MakeNormalApproachCommand:
@@ -855,7 +785,7 @@ public static class CommandDispatcher
             case PushbackCommand push:
                 return GroundCommandHandler.TryPushback(aircraft, push, groundLayout);
             case TaxiCommand taxi:
-                return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, runways, autoCrossRunway);
+                return GroundCommandHandler.TryTaxi(aircraft, taxi, groundLayout, navDb, autoCrossRunway);
             case HoldPositionCommand:
                 return GroundCommandHandler.TryHoldPosition(aircraft);
             case ResumeCommand:
@@ -865,7 +795,7 @@ public static class CommandDispatcher
             case HoldShortCommand hs:
                 return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout);
             case AssignRunwayCommand assignRwy:
-                return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId, runways);
+                return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId, navDb);
             case FollowCommand follow:
                 return GroundCommandHandler.TryFollow(aircraft, follow, groundLayout);
             case GiveWayCommand gw:
@@ -952,9 +882,9 @@ public static class CommandDispatcher
         };
     }
 
-    internal static RunwayInfo? ResolveRunway(AircraftState aircraft, string runwayId, IRunwayLookup? runways)
+    internal static RunwayInfo? ResolveRunway(AircraftState aircraft, string runwayId, NavigationDatabase? navDb)
     {
-        if (runways is null)
+        if (navDb is null)
         {
             return null;
         }
@@ -974,7 +904,7 @@ public static class CommandDispatcher
         // Hold-short runway IDs can be combined (e.g., "28R/10L").
         // Try each end until one resolves.
         var parsed = RunwayIdentifier.Parse(runwayId);
-        var result = runways.GetRunway(airportId, parsed.End1) ?? runways.GetRunway(airportId, parsed.End2);
+        var result = navDb.GetRunway(airportId, parsed.End1) ?? navDb.GetRunway(airportId, parsed.End2);
         if (result is null)
         {
             Log.LogWarning(
@@ -1068,10 +998,7 @@ public static class CommandDispatcher
         List<ParsedCommand> commands,
         AircraftState aircraft,
         Random rng,
-        IFixLookup? fixes,
-        IApproachLookup? approachLookup,
-        IRunwayLookup? runways,
-        IProcedureLookup? procedureLookup,
+        NavigationDatabase? navDb,
         bool validateDctFixes
     )
     {
@@ -1083,16 +1010,7 @@ public static class CommandDispatcher
 
             foreach (var cmd in captured)
             {
-                var result = ApplyCommand(
-                    cmd,
-                    ac,
-                    rng,
-                    fixes,
-                    approachLookup,
-                    runways: runways,
-                    procedureLookup: procedureLookup,
-                    validateDctFixes: validateDctFixes
-                );
+                var result = ApplyCommand(cmd, ac, rng, navDb, validateDctFixes);
                 if (!result.Success)
                 {
                     Log.LogWarning("Command {Command} failed during block apply: {Message}", CommandDescriber.DescribeCommand(cmd), result.Message);

@@ -23,7 +23,7 @@ public static class ApproachGateDatabase
 
     private static bool _initialized;
 
-    public static void Initialize(CifpParseResult cifpData, IFixLookup fixLookup, IRunwayLookup runwayLookup)
+    public static void Initialize(CifpParseResult cifpData, NavigationDatabase navDb)
     {
         var result = new Dictionary<(string Airport, string Runway), double>();
         int computed = 0;
@@ -32,7 +32,7 @@ public static class ApproachGateDatabase
         foreach (var ((airport, runway), fafFixName) in cifpData.FafFixes)
         {
             // Resolve FAF fix position
-            (double Lat, double Lon)? fafPos = fixLookup.GetFixPosition(fafFixName);
+            (double Lat, double Lon)? fafPos = navDb.GetFixPosition(fafFixName);
 
             if (fafPos is null && cifpData.TerminalWaypoints.TryGetValue(fafFixName, out var terminalPos))
             {
@@ -46,7 +46,7 @@ public static class ApproachGateDatabase
             }
 
             // Get runway threshold
-            var runwayInfo = runwayLookup.GetRunway(airport, runway) ?? runwayLookup.GetRunway($"K{airport}", runway);
+            var runwayInfo = navDb.GetRunway(airport, runway) ?? navDb.GetRunway($"K{airport}", runway);
             if (runwayInfo is null)
             {
                 skipped++;

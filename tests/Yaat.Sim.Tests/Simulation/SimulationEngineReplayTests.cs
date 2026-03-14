@@ -30,8 +30,8 @@ public class SimulationEngineReplayTests
 
     private static SimulationEngine? BuildEngine()
     {
-        var fixes = TestVnasData.FixDatabase;
-        if (fixes is null)
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
         {
             return null;
         }
@@ -42,7 +42,7 @@ public class SimulationEngineReplayTests
             return null;
         }
 
-        return new SimulationEngine(fixes, fixes, groundData, null, null);
+        return new SimulationEngine(navDb, groundData);
     }
 
     [Fact]

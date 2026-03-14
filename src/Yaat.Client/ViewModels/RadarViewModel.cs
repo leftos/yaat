@@ -57,9 +57,7 @@ public partial class RadarViewModel : ObservableObject
     private bool _isRestoring;
     private Func<string, double?>? _getAirportElevation;
     private Func<string, AircraftModel?>? _findAircraft;
-    private FixDatabase? _fixDb;
-    private ApproachDatabase? _approachDb;
-    private ProcedureDatabase? _procedureDb;
+    private NavigationDatabase? _navDb;
 
     public string? PrimaryAirportId { get; private set; }
 
@@ -255,24 +253,14 @@ public partial class RadarViewModel : ObservableObject
         _getAirportElevation = lookup;
     }
 
-    public void SetFixDb(FixDatabase fixDb)
+    public void SetNavDb(NavigationDatabase navDb)
     {
-        _fixDb = fixDb;
-        FixNames = fixDb.AllFixNames;
+        _navDb = navDb;
+        FixNames = navDb.AllFixNames;
         SetFixes(BuildVisibleFixes());
     }
 
-    public void SetApproachDb(ApproachDatabase approachDb)
-    {
-        _approachDb = approachDb;
-    }
-
-    public ApproachDatabase? ApproachDb => _approachDb;
-
-    public void SetProcedureDb(ProcedureDatabase procedureDb)
-    {
-        _procedureDb = procedureDb;
-    }
+    public NavigationDatabase? NavDb => _navDb;
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {
@@ -304,23 +292,23 @@ public partial class RadarViewModel : ObservableObject
             return;
         }
 
-        ProgrammedFixNames = ProgrammedFixResolver.Resolve(ac.Route, ac.ExpectedApproach, ac.Destination, ac.Departure, _approachDb, null, _fixDb);
+        ProgrammedFixNames = ProgrammedFixResolver.Resolve(ac.Route, ac.ExpectedApproach, ac.Destination, ac.Departure, _navDb, null, _navDb);
     }
 
     public string[]? FixNames { get; private set; }
 
     private IReadOnlyList<(string Name, double Lat, double Lon)> BuildVisibleFixes()
     {
-        if (_fixDb is null)
+        if (_navDb is null)
         {
             return [];
         }
 
-        var names = _fixDb.AllFixNames;
+        var names = _navDb.AllFixNames;
         var result = new List<(string, double, double)>(names.Length);
         foreach (var name in names)
         {
-            var pos = _fixDb.GetFixPosition(name);
+            var pos = _navDb.GetFixPosition(name);
             if (pos.HasValue)
             {
                 result.Add((name, pos.Value.Lat, pos.Value.Lon));
@@ -1513,7 +1501,7 @@ public partial class RadarViewModel : ObservableObject
 
     private IReadOnlyList<DrawnWaypoint> ResolveFlightPathWaypoints(AircraftModel ac)
     {
-        if (_fixDb is null)
+        if (_navDb is null)
         {
             return [];
         }
@@ -1523,7 +1511,7 @@ public partial class RadarViewModel : ObservableObject
 
         foreach (var name in fixNames)
         {
-            var pos = _fixDb.GetFixPosition(name);
+            var pos = _navDb.GetFixPosition(name);
             if (pos.HasValue)
             {
                 result.Add(new DrawnWaypoint(name, pos.Value.Lat, pos.Value.Lon));
@@ -1531,9 +1519,9 @@ public partial class RadarViewModel : ObservableObject
         }
 
         // Append approach fixes if an approach is active
-        if (_approachDb is not null && !string.IsNullOrEmpty(ac.ActiveApproachId) && !string.IsNullOrEmpty(ac.Destination))
+        if (_navDb is not null && !string.IsNullOrEmpty(ac.ActiveApproachId) && !string.IsNullOrEmpty(ac.Destination))
         {
-            var procedure = _approachDb.GetApproach(ac.Destination, ac.ActiveApproachId);
+            var procedure = _navDb.GetApproach(ac.Destination, ac.ActiveApproachId);
             if (procedure is not null)
             {
                 var approachFixNames = ApproachCommandHandler.GetApproachFixNames(procedure);
@@ -1545,7 +1533,7 @@ public partial class RadarViewModel : ObservableObject
                         continue;
                     }
 
-                    var pos = _fixDb.GetFixPosition(name);
+                    var pos = _navDb.GetFixPosition(name);
                     if (pos.HasValue)
                     {
                         result.Add(new DrawnWaypoint(name, pos.Value.Lat, pos.Value.Lon));
@@ -1559,7 +1547,7 @@ public partial class RadarViewModel : ObservableObject
 
     /// <summary>
     /// Resolves the route fix names using CIFP data for the correct SID/STAR transitions
-    /// when available, falling back to <see cref="FixDatabase.ExpandRoute"/> otherwise.
+    /// when available, falling back to <see cref="NavigationDatabase.ExpandRoute"/> otherwise.
     /// </summary>
     private IReadOnlyList<string> ResolveCifpAwareRoute(AircraftModel ac)
     {
@@ -1573,7 +1561,7 @@ public partial class RadarViewModel : ObservableObject
         // Try to resolve SID fixes from CIFP
         IReadOnlyList<string>? sidFixes = null;
         int sidTokensConsumed = 0;
-        if (_procedureDb is not null && !string.IsNullOrEmpty(ac.ActiveSidId) && !string.IsNullOrEmpty(ac.Departure))
+        if (_navDb is not null && !string.IsNullOrEmpty(ac.ActiveSidId) && !string.IsNullOrEmpty(ac.Departure))
         {
             (sidFixes, sidTokensConsumed) = ResolveSidFixes(ac, routeTokens);
         }
@@ -1581,7 +1569,7 @@ public partial class RadarViewModel : ObservableObject
         // Try to resolve STAR fixes from CIFP
         IReadOnlyList<string>? starFixes = null;
         string? starToken = null;
-        if (_procedureDb is not null && !string.IsNullOrEmpty(ac.ActiveStarId) && !string.IsNullOrEmpty(ac.Destination))
+        if (_navDb is not null && !string.IsNullOrEmpty(ac.ActiveStarId) && !string.IsNullOrEmpty(ac.Destination))
         {
             (starFixes, starToken) = ResolveStarFixes(ac, routeTokens);
         }
@@ -1589,7 +1577,7 @@ public partial class RadarViewModel : ObservableObject
         // If neither CIFP resolution succeeded, fall back entirely
         if (sidFixes is null && starFixes is null)
         {
-            return _fixDb!.ExpandRoute(ac.Route);
+            return _navDb!.ExpandRoute(ac.Route);
         }
 
         // Build combined fix list: SID fixes → middle route tokens → STAR fixes
@@ -1621,8 +1609,8 @@ public partial class RadarViewModel : ObservableObject
                 continue;
             }
 
-            // Skip SID/STAR names that FixDatabase would expand
-            if (_fixDb!.IsSidOrStar(token))
+            // Skip SID/STAR names that NavigationDatabase would expand
+            if (_navDb!.IsSidOrStar(token))
             {
                 continue;
             }
@@ -1655,7 +1643,7 @@ public partial class RadarViewModel : ObservableObject
             return (null, 0);
         }
 
-        var sid = _procedureDb!.GetSid(ac.Departure, ac.ActiveSidId);
+        var sid = _navDb!.GetSid(ac.Departure, ac.ActiveSidId);
         if (sid is null)
         {
             return (null, 0);
@@ -1697,7 +1685,7 @@ public partial class RadarViewModel : ObservableObject
 
     private (IReadOnlyList<string>? Fixes, string? StarToken) ResolveStarFixes(AircraftModel ac, string[] routeTokens)
     {
-        var star = _procedureDb!.GetStar(ac.Destination, ac.ActiveStarId);
+        var star = _navDb!.GetStar(ac.Destination, ac.ActiveStarId);
         if (star is null)
         {
             return (null, null);

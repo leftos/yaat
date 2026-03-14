@@ -32,14 +32,8 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
 
     private SimulationEngine? BuildEngine()
     {
-        var fixes = TestVnasData.FixDatabase;
-        if (fixes is null)
-        {
-            return null;
-        }
-
-        var procedures = TestVnasData.ProcedureDatabase;
-        if (procedures is null)
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
         {
             return null;
         }
@@ -48,7 +42,7 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        return new SimulationEngine(fixes, fixes, groundData, null, procedures);
+        return new SimulationEngine(navDb, groundData);
     }
 
     /// <summary>

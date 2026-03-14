@@ -10,9 +10,9 @@ public static class ProgrammedFixResolver
         string? expectedApproach,
         string? destination,
         string? departure,
-        IApproachLookup? approachLookup,
+        NavigationDatabase? navDb,
         IReadOnlyList<string>? activeApproachFixNames,
-        FixDatabase? fixDb
+        NavigationDatabase? fixDb
     )
     {
         var fixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -22,13 +22,13 @@ public static class ProgrammedFixResolver
             ExpandRouteInto(fixes, route, fixDb);
         }
 
-        if (!string.IsNullOrEmpty(expectedApproach) && approachLookup is not null)
+        if (!string.IsNullOrEmpty(expectedApproach) && navDb is not null)
         {
             string airport = !string.IsNullOrEmpty(destination) ? destination : (departure ?? "");
             if (!string.IsNullOrEmpty(airport))
             {
-                string resolvedId = approachLookup.ResolveApproachId(airport, expectedApproach) ?? expectedApproach;
-                var procedure = approachLookup.GetApproach(airport, resolvedId);
+                string resolvedId = navDb.ResolveApproachId(airport, expectedApproach) ?? expectedApproach;
+                var procedure = navDb.GetApproach(airport, resolvedId);
                 if (procedure is not null)
                 {
                     foreach (var name in ApproachCommandHandler.GetApproachFixNames(procedure))
@@ -50,7 +50,7 @@ public static class ProgrammedFixResolver
         return fixes;
     }
 
-    private static void ExpandRouteInto(HashSet<string> fixes, string route, FixDatabase? fixDb)
+    private static void ExpandRouteInto(HashSet<string> fixes, string route, NavigationDatabase? fixDb)
     {
         var tokens = route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 

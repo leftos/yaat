@@ -12,7 +12,8 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class ZoaParseFixTests
 {
-    private static readonly IFixLookup Fixes = new PermissiveFixes();
+    // NavigationDatabase that resolves any of the fix names used in this test file.
+    private static readonly NavigationDatabase Fixes = TestNavDbFactory.WithFixNames("SUNOL", "OAK", "ARCHI", "BRIXX", "BESSA", "VPBCK", "RBL");
 
     // --- ExpandMultiCommand ---
 
@@ -449,23 +450,5 @@ public class ZoaParseFixTests
         Assert.IsType<AtFixCondition>(result.Blocks[0].Condition);
         Assert.Single(result.Blocks[0].Commands);
         Assert.IsType<PointOutCommand>(result.Blocks[0].Commands[0]);
-    }
-
-    /// <summary>
-    /// Permissive fix lookup that returns a dummy position for any fix name.
-    /// </summary>
-    private sealed class PermissiveFixes : IFixLookup
-    {
-        public (double Lat, double Lon)? GetFixPosition(string fixName) => (37.0, -122.0);
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
     }
 }

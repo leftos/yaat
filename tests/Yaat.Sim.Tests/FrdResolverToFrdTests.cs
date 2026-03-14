@@ -68,7 +68,7 @@ public class FrdResolverToFrdTests
         Assert.NotNull(frdString);
 
         // Resolve it back
-        var stubFixes = new StubFixLookup(("OAK", 37.7213, -122.2208));
+        var stubFixes = TestNavDbFactory.WithFixes(("OAK", 37.7213, -122.2208));
         var resolved = FrdResolver.Resolve(frdString, stubFixes);
         Assert.NotNull(resolved);
 
@@ -98,30 +98,5 @@ public class FrdResolverToFrdTests
         var suffix = result["OAK".Length..];
         Assert.Equal(6, suffix.Length);
         Assert.True(int.TryParse(suffix, out _));
-    }
-
-    private sealed class StubFixLookup : IFixLookup
-    {
-        private readonly Dictionary<string, (double Lat, double Lon)> _fixes = new(StringComparer.OrdinalIgnoreCase);
-
-        public StubFixLookup(params (string Name, double Lat, double Lon)[] fixes)
-        {
-            foreach (var (name, lat, lon) in fixes)
-            {
-                _fixes[name] = (lat, lon);
-            }
-        }
-
-        public (double Lat, double Lon)? GetFixPosition(string name) => _fixes.TryGetValue(name, out var pos) ? pos : null;
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
     }
 }

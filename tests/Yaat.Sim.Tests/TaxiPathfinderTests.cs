@@ -317,51 +317,6 @@ public class TaxiPathfinderTests
         return layout;
     }
 
-    private sealed class TestRunwayLookup : IRunwayLookup
-    {
-        private readonly Dictionary<(string Airport, string Runway), RunwayInfo> _runways = new(new AirportRunwayComparer());
-
-        public void Add(RunwayInfo info)
-        {
-            _runways[(info.AirportId, info.Designator)] = info;
-        }
-
-        public RunwayInfo? GetRunway(string airportCode, string runwayId)
-        {
-            return _runways.GetValueOrDefault((airportCode, runwayId));
-        }
-
-        public IReadOnlyList<RunwayInfo> GetRunways(string airportCode)
-        {
-            var result = new List<RunwayInfo>();
-            foreach (var (key, info) in _runways)
-            {
-                if (string.Equals(key.Airport, airportCode, StringComparison.OrdinalIgnoreCase))
-                {
-                    result.Add(info);
-                }
-            }
-            return result;
-        }
-
-        private sealed class AirportRunwayComparer : IEqualityComparer<(string Airport, string Runway)>
-        {
-            public bool Equals((string Airport, string Runway) x, (string Airport, string Runway) y)
-            {
-                return string.Equals(x.Airport, y.Airport, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(x.Runway, y.Runway, StringComparison.OrdinalIgnoreCase);
-            }
-
-            public int GetHashCode((string Airport, string Runway) obj)
-            {
-                return HashCode.Combine(
-                    StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Airport),
-                    StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Runway)
-                );
-            }
-        }
-    }
-
     [Fact]
     public void FindRoute_ShortestPath_ReturnsValidRoute()
     {
@@ -603,8 +558,7 @@ public class TaxiPathfinderTests
         var layout = BuildVariantLayout();
 
         // Runway 30 threshold is further north (37.710)
-        var runways = new TestRunwayLookup();
-        runways.Add(
+        var navDb = TestNavDbFactory.WithRunways(
             new RunwayInfo
             {
                 AirportId = "KTEST",
@@ -629,7 +583,7 @@ public class TaxiPathfinderTests
             ["A", "W"],
             out string? failReason,
             destinationRunway: "30",
-            runways: runways,
+            navDb: navDb,
             airportId: "KTEST"
         );
 

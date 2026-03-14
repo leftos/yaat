@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -11,8 +9,6 @@ namespace Yaat.Sim.Tests;
 
 public class ProgrammedFixesTests
 {
-    private static readonly ILogger Logger = NullLogger.Instance;
-
     private static AircraftState MakeAircraft(string route = "", string? destination = "OAK", string? expectedApproach = null)
     {
         return new AircraftState
@@ -50,9 +46,18 @@ public class ProgrammedFixesTests
         );
     }
 
-    private static StubApproachLookup MakeApproachLookup()
+    private static NavigationDatabase MakeApproachDb()
     {
-        return new StubApproachLookup(MakeApproachProcedure());
+        var procedure = MakeApproachProcedure();
+        var runway = TestRunwayFactory.Make(
+            designator: "28R",
+            airportId: "OAK",
+            thresholdLat: 37.72,
+            thresholdLon: -122.22,
+            heading: 280,
+            elevationFt: 9
+        );
+        return TestNavDbFactory.WithRunwayAndApproaches(runway, [procedure]);
     }
 
     // --- GetProgrammedFixes ---
@@ -87,7 +92,7 @@ public class ProgrammedFixesTests
     public void GetProgrammedFixes_ExpectedApproachOnly_ReturnsApproachFixes()
     {
         var aircraft = MakeAircraft(expectedApproach: "I28R");
-        var approachLookup = MakeApproachLookup();
+        var approachLookup = MakeApproachDb();
 
         var fixes = aircraft.GetProgrammedFixes(approachLookup);
 
@@ -129,7 +134,7 @@ public class ProgrammedFixesTests
     public void GetProgrammedFixes_Combined_ReturnsUnion()
     {
         var aircraft = MakeAircraft(route: "SUNOL MODESTO", expectedApproach: "I28R");
-        var approachLookup = MakeApproachLookup();
+        var approachLookup = MakeApproachDb();
 
         var fixes = aircraft.GetProgrammedFixes(approachLookup);
 
@@ -168,10 +173,10 @@ public class ProgrammedFixesTests
     public void Dct_ToProgrammedFix_Accepted()
     {
         var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var fixes = new StubFixLookup(("SUNOL", 37.5, -121.8));
+        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, validateDctFixes: true);
 
         Assert.True(result.Success);
     }
@@ -180,10 +185,10 @@ public class ProgrammedFixesTests
     public void Dct_ToNonProgrammedFix_Rejected()
     {
         var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
+        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, validateDctFixes: true);
 
         Assert.False(result.Success);
         Assert.Contains("not programmed", result.Message);
@@ -194,11 +199,11 @@ public class ProgrammedFixesTests
     public void Dct_ToExpectedApproachFix_Accepted()
     {
         var aircraft = MakeAircraft(expectedApproach: "I28R");
-        var approachLookup = MakeApproachLookup();
-        var fixes = new StubFixLookup(("GROVE", 37.78, -122.35));
+        // MakeApproachDb() has the approach for OAK I28R with GROVE as IAF; pass it as both approach lookup and fix navDb
+        var navDb = MakeApproachDb();
         var cmd = new DirectToCommand([new ResolvedFix("GROVE", 37.78, -122.35)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, approachLookup, null, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, validateDctFixes: true);
 
         Assert.True(result.Success);
     }
@@ -207,10 +212,10 @@ public class ProgrammedFixesTests
     public void Dctf_ToNonProgrammedFix_Accepted()
     {
         var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
+        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
         var cmd = new ForceDirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, validateDctFixes: true);
 
         Assert.True(result.Success);
     }
@@ -219,10 +224,10 @@ public class ProgrammedFixesTests
     public void Adct_ToNonProgrammedFix_Rejected()
     {
         var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
+        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
         var cmd = new AppendDirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, validateDctFixes: true);
 
         Assert.False(result.Success);
         Assert.Contains("not programmed", result.Message);
@@ -233,10 +238,10 @@ public class ProgrammedFixesTests
     {
         // Aircraft with no route, no expected approach = empty programmed set → backward compat
         var aircraft = MakeAircraft(route: "");
-        var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
+        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, validateDctFixes: true);
 
         Assert.True(result.Success);
     }
@@ -245,10 +250,10 @@ public class ProgrammedFixesTests
     public void Dct_ValidationDisabled_AllowsNonProgrammedFix()
     {
         var aircraft = MakeAircraft(route: "SUNOL MODESTO OXNARD");
-        var fixes = new StubFixLookup(("RANDOM", 37.0, -121.0));
+        var navDb = TestNavDbFactory.WithFixes(("RANDOM", 37.0, -121.0));
         var cmd = new DirectToCommand([new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: false);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, validateDctFixes: false);
 
         Assert.True(result.Success);
     }
@@ -257,89 +262,13 @@ public class ProgrammedFixesTests
     public void Dct_MultipleFixes_RejectsIfAnyNonProgrammed()
     {
         var aircraft = MakeAircraft(route: "SUNOL MODESTO");
-        var fixes = new StubFixLookup(("SUNOL", 37.5, -121.8), ("RANDOM", 37.0, -121.0));
+        var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("RANDOM", 37.0, -121.0));
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8), new ResolvedFix("RANDOM", 37.0, -121.0)]);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, null, fixes, Random.Shared, null, null, validateDctFixes: true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, validateDctFixes: true);
 
         Assert.False(result.Success);
         Assert.Contains("RANDOM", result.Message);
         Assert.DoesNotContain("SUNOL", result.Message!);
-    }
-
-    // --- Test helpers ---
-
-    private sealed class StubFixLookup : IFixLookup
-    {
-        private readonly Dictionary<string, (double Lat, double Lon)> _fixes = new(StringComparer.OrdinalIgnoreCase);
-
-        public StubFixLookup(params (string Name, double Lat, double Lon)[] fixes)
-        {
-            foreach (var (name, lat, lon) in fixes)
-            {
-                _fixes[name] = (lat, lon);
-            }
-        }
-
-        public (double Lat, double Lon)? GetFixPosition(string name) => _fixes.TryGetValue(name, out var pos) ? pos : null;
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
-    }
-
-    private sealed class StubApproachLookup : IApproachLookup
-    {
-        private readonly CifpApproachProcedure _procedure;
-
-        public StubApproachLookup(CifpApproachProcedure procedure)
-        {
-            _procedure = procedure;
-        }
-
-        public CifpApproachProcedure? GetApproach(string airportCode, string approachId)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            return
-                normalized.Equals(_procedure.Airport, StringComparison.OrdinalIgnoreCase)
-                && approachId.Equals(_procedure.ApproachId, StringComparison.OrdinalIgnoreCase)
-                ? _procedure
-                : null;
-        }
-
-        public IReadOnlyList<CifpApproachProcedure> GetApproaches(string airportCode)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            return normalized.Equals(_procedure.Airport, StringComparison.OrdinalIgnoreCase) ? [_procedure] : [];
-        }
-
-        public string? ResolveApproachId(string airportCode, string shorthand)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            if (!normalized.Equals(_procedure.Airport, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            if (shorthand.Equals(_procedure.ApproachId, StringComparison.OrdinalIgnoreCase))
-            {
-                return _procedure.ApproachId;
-            }
-
-            string fullName = _procedure.ApproachTypeName + _procedure.Runway;
-            return fullName.Equals(shorthand, StringComparison.OrdinalIgnoreCase) ? _procedure.ApproachId : null;
-        }
-
-        private static string NormalizeAirport(string code)
-        {
-            string upper = code.ToUpperInvariant();
-            return upper.StartsWith('K') && upper.Length == 4 ? upper[1..] : upper;
-        }
     }
 }

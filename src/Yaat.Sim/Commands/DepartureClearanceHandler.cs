@@ -17,9 +17,7 @@ internal static class DepartureClearanceHandler
         ClearedForTakeoffCommand cto,
         AircraftState aircraft,
         LinedUpAndWaitingPhase luaw,
-        IFixLookup? fixes,
-        IProcedureLookup? procedures,
-        IRunwayLookup? runways
+        NavigationDatabase? navDb
     )
     {
         if (aircraft.Phases?.AssignedRunway is null)
@@ -34,7 +32,7 @@ internal static class DepartureClearanceHandler
         // Propagate departure to TakeoffPhase and InitialClimbPhase
         if (aircraft.Phases is not null)
         {
-            var routeResult = ResolveDepartureRoute(cto.Departure, aircraft, fixes, procedures);
+            var routeResult = ResolveDepartureRoute(cto.Departure, aircraft, navDb);
 
             for (int i = 0; i < aircraft.Phases.Phases.Count; i++)
             {
@@ -60,7 +58,7 @@ internal static class DepartureClearanceHandler
                 aircraft.Phases.TrafficDirection = ct.Direction;
                 aircraft.Phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
 
-                var patternRunway = ResolvePatternRunway(ct, aircraft, runways) ?? aircraft.Phases.AssignedRunway;
+                var patternRunway = ResolvePatternRunway(ct, aircraft, navDb) ?? aircraft.Phases.AssignedRunway;
                 if (patternRunway is not null)
                 {
                     var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
@@ -85,32 +83,30 @@ internal static class DepartureClearanceHandler
         ClearanceType clearanceType,
         DepartureInstruction departure,
         int? assignedAltitude,
-        IRunwayLookup? runways,
-        IFixLookup? fixes,
-        ILogger logger,
-        IProcedureLookup? procedureLookup
+        NavigationDatabase? navDb,
+        ILogger logger
     )
     {
         if (currentPhase is HoldingShortPhase holding)
         {
-            return LineUpFromHoldShort(aircraft, holding, clearanceType, departure, assignedAltitude, runways, fixes, logger, procedureLookup);
+            return LineUpFromHoldShort(aircraft, holding, clearanceType, departure, assignedAltitude, navDb, logger);
         }
 
         if (currentPhase is TaxiingPhase)
         {
-            return StoreDepartureClearanceDuringTaxi(aircraft, clearanceType, departure, assignedAltitude, runways, fixes, procedureLookup);
+            return StoreDepartureClearanceDuringTaxi(aircraft, clearanceType, departure, assignedAltitude, navDb);
         }
 
         // Aircraft is lining up — CTO can pre-satisfy the upcoming LUAW phase
         if (currentPhase is LineUpPhase && clearanceType == ClearanceType.ClearedForTakeoff)
         {
-            return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, fixes, logger, runways, procedureLookup);
+            return SatisfyUpcomingTakeoffClearance(aircraft, departure, assignedAltitude, navDb, logger);
         }
 
         // Aircraft holding in position (e.g. after WARPG) — allow LUAW/CTO with assigned runway
         if (currentPhase is HoldingInPositionPhase)
         {
-            return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, runways, fixes, logger, procedureLookup);
+            return LineUpFromPosition(aircraft, clearanceType, departure, assignedAltitude, navDb, logger);
         }
 
         if (clearanceType == ClearanceType.ClearedForTakeoff)
@@ -127,10 +123,8 @@ internal static class DepartureClearanceHandler
         ClearanceType clearanceType,
         DepartureInstruction departure,
         int? assignedAltitude,
-        IRunwayLookup? runways,
-        IFixLookup? fixes,
-        ILogger logger,
-        IProcedureLookup? procedureLookup
+        NavigationDatabase? navDb,
+        ILogger logger
     )
     {
         var runwayId = holding.HoldShort.TargetName;
@@ -139,7 +133,7 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, "Hold short point has no runway assigned");
         }
 
-        var runway = CommandDispatcher.ResolveRunway(aircraft, runwayId, runways);
+        var runway = CommandDispatcher.ResolveRunway(aircraft, runwayId, navDb);
         if (runway is null)
         {
             return new CommandResult(false, $"Cannot resolve runway {runwayId}");
@@ -159,18 +153,7 @@ internal static class DepartureClearanceHandler
         // Set the assigned runway and insert tower phases
         aircraft.Phases!.AssignedRunway = runway;
         aircraft.DepartureRunway = runway.Designator;
-        InsertTowerPhasesAfterCurrent(
-            aircraft,
-            clearanceType,
-            departure,
-            assignedAltitude,
-            runway,
-            fixes,
-            holding.HoldShort.NodeId,
-            logger,
-            runways,
-            procedureLookup
-        );
+        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, navDb, holding.HoldShort.NodeId, logger);
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
     }
@@ -180,10 +163,8 @@ internal static class DepartureClearanceHandler
         ClearanceType clearanceType,
         DepartureInstruction departure,
         int? assignedAltitude,
-        IRunwayLookup? runways,
-        IFixLookup? fixes,
-        ILogger logger,
-        IProcedureLookup? procedureLookup
+        NavigationDatabase? navDb,
+        ILogger logger
     )
     {
         if (aircraft.Phases?.AssignedRunway is not { } runway)
@@ -197,7 +178,7 @@ internal static class DepartureClearanceHandler
 
         aircraft.Phases = new PhaseList { AssignedRunway = runway };
         aircraft.DepartureRunway = runway.Designator;
-        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, fixes, null, logger, runways, procedureLookup);
+        InsertTowerPhasesAfterCurrent(aircraft, clearanceType, departure, assignedAltitude, runway, navDb, null, logger);
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
 
         return BuildDepartureMessage(clearanceType, runway.Designator, departure, assignedAltitude);
@@ -208,9 +189,7 @@ internal static class DepartureClearanceHandler
         ClearanceType clearanceType,
         DepartureInstruction departure,
         int? assignedAltitude,
-        IRunwayLookup? runways,
-        IFixLookup? fixes,
-        IProcedureLookup? procedureLookup
+        NavigationDatabase? navDb
     )
     {
         var route = aircraft.AssignedTaxiRoute;
@@ -234,7 +213,7 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, "No departure runway hold-short in taxi route");
         }
 
-        var runway = CommandDispatcher.ResolveRunway(aircraft, depHoldShort.TargetName, runways);
+        var runway = CommandDispatcher.ResolveRunway(aircraft, depHoldShort.TargetName, navDb);
         if (runway is null)
         {
             return new CommandResult(false, $"Cannot resolve runway {depHoldShort.TargetName}");
@@ -257,13 +236,13 @@ internal static class DepartureClearanceHandler
         }
 
         // Pre-resolve navigation targets for route-based departures
-        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes, procedureLookup);
+        var routeResult = ResolveDepartureRoute(departure, aircraft, navDb);
 
         // Pre-resolve pattern runway for cross-runway closed traffic
         RunwayInfo? patternRunway = null;
         if (departure is ClosedTrafficDeparture ctDep)
         {
-            patternRunway = ResolvePatternRunway(ctDep, aircraft, runways);
+            patternRunway = ResolvePatternRunway(ctDep, aircraft, navDb);
         }
 
         // Set runway and store departure clearance for TaxiingPhase to consume
@@ -288,14 +267,12 @@ internal static class DepartureClearanceHandler
         DepartureInstruction departure,
         int? assignedAltitude,
         RunwayInfo runway,
-        IFixLookup? fixes,
+        NavigationDatabase? navDb,
         int? holdShortNodeId,
-        ILogger logger,
-        IRunwayLookup? runways,
-        IProcedureLookup? procedureLookup
+        ILogger logger
     )
     {
-        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes, procedureLookup);
+        var routeResult = ResolveDepartureRoute(departure, aircraft, navDb);
 
         var lineup = new LineUpPhase(holdShortNodeId);
         var luawPhase = new LinedUpAndWaitingPhase();
@@ -346,7 +323,7 @@ internal static class DepartureClearanceHandler
             if (departure is ClosedTrafficDeparture ct)
             {
                 aircraft.Phases.TrafficDirection = ct.Direction;
-                var patternRunway = ResolvePatternRunway(ct, aircraft, runways) ?? runway;
+                var patternRunway = ResolvePatternRunway(ct, aircraft, navDb) ?? runway;
                 var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
                 aircraft.Phases.Phases.AddRange(circuit);
                 aircraft.Phases.PatternRunway = patternRunway;
@@ -365,10 +342,8 @@ internal static class DepartureClearanceHandler
         AircraftState aircraft,
         DepartureInstruction departure,
         int? assignedAltitude,
-        IFixLookup? fixes,
-        ILogger logger,
-        IRunwayLookup? runways,
-        IProcedureLookup? procedureLookup
+        NavigationDatabase? navDb,
+        ILogger logger
     )
     {
         var phases = aircraft.Phases;
@@ -407,7 +382,7 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, "Aircraft is not lined up and waiting");
         }
 
-        var routeResult = ResolveDepartureRoute(departure, aircraft, fixes, procedureLookup);
+        var routeResult = ResolveDepartureRoute(departure, aircraft, navDb);
 
         luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
         luaw.Departure = departure;
@@ -432,7 +407,7 @@ internal static class DepartureClearanceHandler
             // Remove InitialClimbPhase — UpwindPhase handles climb to pattern altitude
             phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
             var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-            var patternRunway = ResolvePatternRunway(ct, aircraft, runways) ?? rwy;
+            var patternRunway = ResolvePatternRunway(ct, aircraft, navDb) ?? rwy;
             var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
             phases.Phases.AddRange(circuit);
             phases.PatternRunway = patternRunway;
@@ -491,28 +466,23 @@ internal static class DepartureClearanceHandler
     /// Resolves the pattern runway for cross-runway closed traffic departures.
     /// Returns null if no cross-runway is specified or it can't be resolved.
     /// </summary>
-    internal static RunwayInfo? ResolvePatternRunway(ClosedTrafficDeparture ct, AircraftState aircraft, IRunwayLookup? runways)
+    internal static RunwayInfo? ResolvePatternRunway(ClosedTrafficDeparture ct, AircraftState aircraft, NavigationDatabase? navDb)
     {
-        if (ct.RunwayId is null || runways is null)
+        if (ct.RunwayId is null || navDb is null)
         {
             return null;
         }
 
-        return CommandDispatcher.ResolveRunway(aircraft, ct.RunwayId, runways);
+        return CommandDispatcher.ResolveRunway(aircraft, ct.RunwayId, navDb);
     }
 
     /// <summary>
     /// Pre-resolves navigation targets for route-based departure instructions.
-    /// Keeps IFixLookup out of the phase layer.
+    /// Keeps NavigationDatabase out of the phase layer.
     /// </summary>
-    internal static DepartureRouteResult? ResolveDepartureRoute(
-        DepartureInstruction departure,
-        AircraftState aircraft,
-        IFixLookup? fixes,
-        IProcedureLookup? procedures
-    )
+    internal static DepartureRouteResult? ResolveDepartureRoute(DepartureInstruction departure, AircraftState aircraft, NavigationDatabase? navDb)
     {
-        if (fixes is null)
+        if (navDb is null)
         {
             return null;
         }
@@ -534,7 +504,7 @@ internal static class DepartureClearanceHandler
 
             case OnCourseDeparture when aircraft.Destination is not null:
             {
-                var pos = fixes.GetFixPosition(aircraft.Destination);
+                var pos = navDb.GetFixPosition(aircraft.Destination);
                 if (pos is null)
                 {
                     return null;
@@ -555,22 +525,22 @@ internal static class DepartureClearanceHandler
             case DefaultDeparture when !aircraft.IsVfr && aircraft.Route is not null:
             {
                 // Try CIFP SID first for constrained navigation targets
-                var cifpResult = TryResolveSidFromCifp(aircraft, fixes, procedures);
+                var cifpResult = TryResolveSidFromCifp(aircraft, navDb);
                 if (cifpResult is not null)
                 {
                     return cifpResult;
                 }
 
                 // Fallback to NavData body-fix expansion (lateral path only, no constraints)
-                var expanded = fixes.ExpandRouteForNavigation(aircraft.Route, aircraft.Departure);
+                var expanded = navDb.ExpandRouteForNavigation(aircraft.Route, aircraft.Departure);
                 var targets = new List<NavigationTarget>();
 
                 // Resolve fix positions, skipping unknown fixes
-                var airportPos = aircraft.Departure is not null ? fixes.GetFixPosition(aircraft.Departure) : null;
+                var airportPos = aircraft.Departure is not null ? navDb.GetFixPosition(aircraft.Departure) : null;
 
                 foreach (var name in expanded)
                 {
-                    var pos = fixes.GetFixPosition(name);
+                    var pos = navDb.GetFixPosition(name);
                     if (pos is null)
                     {
                         continue;
@@ -616,9 +586,9 @@ internal static class DepartureClearanceHandler
     /// Appends remaining enroute fixes from the filed route after the SID.
     /// Returns null if CIFP data is unavailable or SID cannot be resolved.
     /// </summary>
-    internal static DepartureRouteResult? TryResolveSidFromCifp(AircraftState aircraft, IFixLookup fixes, IProcedureLookup? procedures)
+    internal static DepartureRouteResult? TryResolveSidFromCifp(AircraftState aircraft, NavigationDatabase navDb)
     {
-        if (procedures is null || aircraft.Route is null || aircraft.Departure is null)
+        if (aircraft.Route is null || aircraft.Departure is null)
         {
             return null;
         }
@@ -631,7 +601,7 @@ internal static class DepartureClearanceHandler
 
         // First route token is the SID name
         var sidName = routeTokens[0];
-        var sid = procedures.GetSid(aircraft.Departure, sidName);
+        var sid = navDb.GetSid(aircraft.Departure, sidName);
         if (sid is null)
         {
             return null;
@@ -675,7 +645,7 @@ internal static class DepartureClearanceHandler
         }
 
         // Convert SID legs to NavigationTargets with constraints
-        var targets = ResolveLegsToTargets(orderedLegs, fixes);
+        var targets = ResolveLegsToTargets(orderedLegs, navDb);
         if (targets.Count == 0)
         {
             return null;
@@ -713,7 +683,7 @@ internal static class DepartureClearanceHandler
                 continue;
             }
 
-            var pos = fixes.GetFixPosition(token);
+            var pos = navDb.GetFixPosition(token);
             if (pos is not null)
             {
                 targets.Add(
@@ -728,7 +698,7 @@ internal static class DepartureClearanceHandler
         }
 
         // Safety net: strip leading targets within 1nm of departure
-        var airportPos = fixes.GetFixPosition(aircraft.Departure);
+        var airportPos = navDb.GetFixPosition(aircraft.Departure);
         if (airportPos is not null)
         {
             while (targets.Count > 0)
@@ -751,7 +721,7 @@ internal static class DepartureClearanceHandler
     /// RF/AF legs are expanded into intermediate arc waypoints.
     /// PI (procedure turn) legs are skipped in SID/STAR context.
     /// </summary>
-    internal static List<NavigationTarget> ResolveLegsToTargets(IReadOnlyList<CifpLeg> legs, IFixLookup fixes)
+    internal static List<NavigationTarget> ResolveLegsToTargets(IReadOnlyList<CifpLeg> legs, NavigationDatabase navDb)
     {
         var targets = new List<NavigationTarget>();
         (double Lat, double Lon)? previousFixPos = null;
@@ -769,7 +739,7 @@ internal static class DepartureClearanceHandler
                 continue;
             }
 
-            var pos = fixes.GetFixPosition(leg.FixIdentifier);
+            var pos = navDb.GetFixPosition(leg.FixIdentifier);
             if (pos is null)
             {
                 continue;
@@ -810,7 +780,7 @@ internal static class DepartureClearanceHandler
                 && previousFixPos is not null
             )
             {
-                var navaidPos = fixes.GetFixPosition(leg.RecommendedNavaidId);
+                var navaidPos = navDb.GetFixPosition(leg.RecommendedNavaidId);
                 if (navaidPos is not null)
                 {
                     ExpandArcWaypoints(

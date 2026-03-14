@@ -106,16 +106,9 @@ public class MissedApproachTests
         return aircraft;
     }
 
-    private static IFixLookup MakeFixLookup()
+    private static NavigationDatabase MakeFixLookup()
     {
-        return new StubFixLookup(
-            new Dictionary<string, (double Lat, double Lon)>
-            {
-                ["FINIX"] = (37.01, -122.05),
-                ["MAPWP"] = (37.02, -122.08),
-                ["MHOLD"] = (37.03, -122.10),
-            }
-        );
+        return TestNavDbFactory.WithFixes(("FINIX", 37.01, -122.05), ("MAPWP", 37.02, -122.08), ("MHOLD", 37.03, -122.10));
     }
 
     [Fact]
@@ -150,7 +143,7 @@ public class MissedApproachTests
     public void BuildMissedApproachFixes_SkipsUnresolvableFixes()
     {
         var procedure = MakeProcedure();
-        var fixes = new StubFixLookup(new Dictionary<string, (double Lat, double Lon)> { ["MAPWP"] = (37.02, -122.08) });
+        var fixes = TestNavDbFactory.WithFixes(("MAPWP", 37.02, -122.08));
 
         var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
 
@@ -554,30 +547,5 @@ public class MissedApproachTests
         int holdIdx = phaseTypes.IndexOf(typeof(HoldingPatternPhase));
         Assert.True(gaIdx < navIdx);
         Assert.True(navIdx < holdIdx);
-    }
-
-    private sealed class StubFixLookup : IFixLookup
-    {
-        private readonly Dictionary<string, (double Lat, double Lon)> _fixes = new(StringComparer.OrdinalIgnoreCase);
-
-        public StubFixLookup(Dictionary<string, (double Lat, double Lon)> fixes)
-        {
-            foreach (var (name, pos) in fixes)
-            {
-                _fixes[name] = pos;
-            }
-        }
-
-        public (double Lat, double Lon)? GetFixPosition(string name) => _fixes.TryGetValue(name, out var pos) ? pos : null;
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
     }
 }

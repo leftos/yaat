@@ -35,8 +35,7 @@ public class ApproachGateDatabaseTests
             new Dictionary<string, (double Lat, double Lon)> { ["TSTFX"] = (fafLat, fafLon) }
         );
 
-        var fixLookup = new StubFixLookup();
-        var runwayLookup = new StubRunwayLookup(
+        var navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(
                 designator: "28L",
                 airportId: "TST",
@@ -49,7 +48,7 @@ public class ApproachGateDatabaseTests
             )
         );
 
-        ApproachGateDatabase.Initialize(cifpData, fixLookup, runwayLookup);
+        ApproachGateDatabase.Initialize(cifpData, navDb);
 
         double result = ApproachGateDatabase.GetMinInterceptDistanceNm("TST", "28L");
 
@@ -70,8 +69,7 @@ public class ApproachGateDatabaseTests
             }
         );
 
-        var fixLookup = new StubFixLookup();
-        var runwayLookup = new StubRunwayLookup(
+        var navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(
                 designator: "10R",
                 airportId: "KTST",
@@ -85,7 +83,7 @@ public class ApproachGateDatabaseTests
             )
         );
 
-        ApproachGateDatabase.Initialize(cifpData, fixLookup, runwayLookup);
+        ApproachGateDatabase.Initialize(cifpData, navDb);
 
         // Query with K prefix should still find the entry
         double withK = ApproachGateDatabase.GetMinInterceptDistanceNm("KTST", "10R");
@@ -119,8 +117,7 @@ public class ApproachGateDatabaseTests
             new Dictionary<string, (double Lat, double Lon)> { ["CLOSF"] = (fafLat, fafLon) }
         );
 
-        var fixLookup = new StubFixLookup();
-        var runwayLookup = new StubRunwayLookup(
+        var navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(
                 designator: "36",
                 airportId: "CLO",
@@ -135,55 +132,11 @@ public class ApproachGateDatabaseTests
             )
         );
 
-        ApproachGateDatabase.Initialize(cifpData, fixLookup, runwayLookup);
+        ApproachGateDatabase.Initialize(cifpData, navDb);
 
         double result = ApproachGateDatabase.GetMinInterceptDistanceNm("CLO", "36");
 
         // gate = max(~2+1, 5) = 5, min = 7
         Assert.Equal(7.0, result, precision: 0);
-    }
-
-    private class StubFixLookup : IFixLookup
-    {
-        public (double Lat, double Lon)? GetFixPosition(string name) => null;
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
-    }
-
-    private class StubRunwayLookup : IRunwayLookup
-    {
-        private readonly RunwayInfo? _runway;
-
-        public StubRunwayLookup(RunwayInfo? runway = null)
-        {
-            _runway = runway;
-        }
-
-        public RunwayInfo? GetRunway(string airportCode, string runwayId)
-        {
-            if (_runway is null)
-            {
-                return null;
-            }
-
-            // Match with or without K prefix
-            string normalizedCode = airportCode.StartsWith('K') ? airportCode[1..] : airportCode;
-            string normalizedRunway = _runway.AirportId.StartsWith('K') ? _runway.AirportId[1..] : _runway.AirportId;
-
-            return normalizedCode.Equals(normalizedRunway, StringComparison.OrdinalIgnoreCase) && _runway.Id.Contains(runwayId) ? _runway : null;
-        }
-
-        public IReadOnlyList<RunwayInfo> GetRunways(string airportCode)
-        {
-            return _runway is not null ? [_runway] : [];
-        }
     }
 }

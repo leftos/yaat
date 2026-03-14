@@ -43,14 +43,7 @@ public static class ScenarioLoader
         ReadCommentHandling = JsonCommentHandling.Skip,
     };
 
-    public static ScenarioLoadResult Load(
-        string json,
-        IFixLookup fixes,
-        IRunwayLookup runways,
-        IAirportGroundData? groundData,
-        Random rng,
-        IProcedureLookup? procedures
-    )
+    public static ScenarioLoadResult Load(string json, NavigationDatabase navDb, IAirportGroundData? groundData, Random rng)
     {
         var scenario = JsonSerializer.Deserialize<Scenario>(json, JsonOptions);
 
@@ -66,7 +59,7 @@ public static class ScenarioLoader
 
         foreach (var ac in scenario.Aircraft)
         {
-            var loaded = LoadAircraft(ac, fixes, runways, warnings, groundData, scenario.PrimaryAirportId, scenario.PrimaryApproach, rng, procedures);
+            var loaded = LoadAircraft(ac, navDb, warnings, groundData, scenario.PrimaryAirportId, scenario.PrimaryApproach, rng);
             if (loaded is null)
             {
                 continue;
@@ -128,14 +121,12 @@ public static class ScenarioLoader
 
     private static LoadedAircraft? LoadAircraft(
         ScenarioAircraft ac,
-        IFixLookup fixes,
-        IRunwayLookup? runways,
+        NavigationDatabase navDb,
         List<string> warnings,
         IAirportGroundData? groundData,
         string? primaryAirportId,
         string? primaryApproach,
-        Random rng,
-        IProcedureLookup? procedures
+        Random rng
     )
     {
         var cond = ac.StartingConditions;
@@ -146,7 +137,7 @@ public static class ScenarioLoader
             heading;
 
         var departureId = ac.FlightPlan?.Departure;
-        var fieldElevation = !string.IsNullOrEmpty(departureId) ? fixes.GetAirportElevation(departureId) ?? 0 : 0;
+        var fieldElevation = !string.IsNullOrEmpty(departureId) ? navDb.GetAirportElevation(departureId) ?? 0 : 0;
 
         switch (cond.Type)
         {
@@ -160,7 +151,7 @@ public static class ScenarioLoader
                 lon = cond.Coordinates.Lon;
                 alt = cond.Altitude ?? fieldElevation;
                 speed = cond.Altitude is null && cond.Speed is null ? 0 : cond.Speed ?? -1;
-                heading = ResolveHeading(cond, lat, lon, fixes, warnings, ac.AircraftId);
+                heading = ResolveHeading(cond, lat, lon, navDb, warnings, ac.AircraftId);
                 break;
 
             case "FixOrFrd":
@@ -169,7 +160,7 @@ public static class ScenarioLoader
                     warnings.Add($"{ac.AircraftId}: FixOrFrd type " + "but no fix provided");
                     return null;
                 }
-                var resolved = FrdResolver.Resolve(cond.Fix, fixes);
+                var resolved = FrdResolver.Resolve(cond.Fix, navDb);
                 if (resolved is null)
                 {
                     warnings.Add($"{ac.AircraftId}: Could not " + $"resolve fix '{cond.Fix}'");
@@ -179,17 +170,17 @@ public static class ScenarioLoader
                 lon = resolved.Longitude;
                 alt = cond.Altitude ?? fieldElevation;
                 speed = cond.Altitude is null && cond.Speed is null ? 0 : cond.Speed ?? -1;
-                heading = ResolveHeading(cond, lat, lon, fixes, warnings, ac.AircraftId);
+                heading = ResolveHeading(cond, lat, lon, navDb, warnings, ac.AircraftId);
                 break;
 
             case "OnRunway":
-                return LoadOnRunway(ac, fixes, runways, groundData, warnings, primaryApproach, rng);
+                return LoadOnRunway(ac, navDb, groundData, warnings, primaryApproach, rng);
 
             case "OnFinal":
-                return LoadOnFinal(ac, fixes, runways, groundData, warnings, primaryApproach, rng);
+                return LoadOnFinal(ac, navDb, groundData, warnings, primaryApproach, rng);
 
             case "Parking":
-                return LoadAtParking(ac, fixes, groundData, primaryAirportId, warnings, primaryApproach, rng);
+                return LoadAtParking(ac, navDb, groundData, primaryAirportId, warnings, primaryApproach, rng);
 
             default:
                 warnings.Add($"{ac.AircraftId}: Unknown starting " + $"condition type '{cond.Type}'");
@@ -228,11 +219,11 @@ public static class ScenarioLoader
             state.GroundLayout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
         }
 
-        PopulateNavigationRoute(state, cond.NavigationPath, fixes, procedures, warnings);
+        PopulateNavigationRoute(state, cond.NavigationPath, navDb, warnings);
 
         if (ac.OnAltitudeProfile)
         {
-            ApplyAltitudeProfile(state, cond.NavigationPath, fixes, procedures, warnings);
+            ApplyAltitudeProfile(state, cond.NavigationPath, navDb, warnings);
         }
 
         return new LoadedAircraft
@@ -246,8 +237,7 @@ public static class ScenarioLoader
 
     private static LoadedAircraft? LoadOnRunway(
         ScenarioAircraft ac,
-        IFixLookup fixes,
-        IRunwayLookup? runways,
+        NavigationDatabase navDb,
         IAirportGroundData? groundData,
         List<string> warnings,
         string? primaryApproach,
@@ -263,13 +253,7 @@ public static class ScenarioLoader
             return BuildDeferredAircraft(ac, primaryApproach, "OnRunway (missing runway/airport)");
         }
 
-        if (runways is null)
-        {
-            warnings.Add($"{ac.AircraftId}: OnRunway requires runway lookup");
-            return BuildDeferredAircraft(ac, primaryApproach, "OnRunway (no runway data)");
-        }
-
-        var rwy = runways.GetRunway(airportId, runwayId);
+        var rwy = navDb.GetRunway(airportId, runwayId);
         if (rwy is null)
         {
             warnings.Add($"{ac.AircraftId}: Could not find runway {runwayId} at {airportId}");
@@ -304,8 +288,7 @@ public static class ScenarioLoader
 
     private static LoadedAircraft? LoadOnFinal(
         ScenarioAircraft ac,
-        IFixLookup fixes,
-        IRunwayLookup? runways,
+        NavigationDatabase navDb,
         IAirportGroundData? groundData,
         List<string> warnings,
         string? primaryApproach,
@@ -321,13 +304,7 @@ public static class ScenarioLoader
             return BuildDeferredAircraft(ac, primaryApproach, "OnFinal (missing runway/airport)");
         }
 
-        if (runways is null)
-        {
-            warnings.Add($"{ac.AircraftId}: OnFinal requires runway lookup");
-            return BuildDeferredAircraft(ac, primaryApproach, "OnFinal (no runway data)");
-        }
-
-        var rwy = runways.GetRunway(airportId, runwayId);
+        var rwy = navDb.GetRunway(airportId, runwayId);
         if (rwy is null)
         {
             warnings.Add($"{ac.AircraftId}: Could not find runway {runwayId} at {airportId}");
@@ -372,7 +349,7 @@ public static class ScenarioLoader
 
     private static LoadedAircraft? LoadAtParking(
         ScenarioAircraft ac,
-        IFixLookup fixes,
+        NavigationDatabase navDb,
         IAirportGroundData? groundData,
         string? primaryAirportId,
         List<string> warnings,
@@ -417,7 +394,7 @@ public static class ScenarioLoader
             return BuildDeferredAircraft(ac, primaryApproach, $"Parking ({parkingName} not found)");
         }
 
-        var elevation = fixes.GetAirportElevation(airportId) ?? 0;
+        var elevation = navDb.GetAirportElevation(airportId) ?? 0;
         var init = AircraftInitializer.InitializeAtParking(node, elevation);
 
         var state = CreateBaseState(ac, primaryApproach);
@@ -454,7 +431,14 @@ public static class ScenarioLoader
         };
     }
 
-    private static double ResolveHeading(StartingConditions cond, double lat, double lon, IFixLookup fixes, List<string> warnings, string callsign)
+    private static double ResolveHeading(
+        StartingConditions cond,
+        double lat,
+        double lon,
+        NavigationDatabase navDb,
+        List<string> warnings,
+        string callsign
+    )
     {
         if (cond.Heading is not null)
         {
@@ -483,7 +467,7 @@ public static class ScenarioLoader
             fixName = fixName[..^1];
         }
 
-        var targetPos = fixes.GetFixPosition(fixName);
+        var targetPos = navDb.GetFixPosition(fixName);
         if (targetPos is null)
         {
             warnings.Add($"{callsign}: Could not resolve nav " + $"waypoint '{firstWaypoint}', heading 0");
@@ -493,13 +477,7 @@ public static class ScenarioLoader
         return GeoMath.BearingTo(lat, lon, targetPos.Value.Lat, targetPos.Value.Lon);
     }
 
-    private static void PopulateNavigationRoute(
-        AircraftState state,
-        string? navigationPath,
-        IFixLookup fixes,
-        IProcedureLookup? procedures,
-        List<string> warnings
-    )
+    private static void PopulateNavigationRoute(AircraftState state, string? navigationPath, NavigationDatabase navDb, List<string> warnings)
     {
         if (string.IsNullOrWhiteSpace(navigationPath))
         {
@@ -519,19 +497,19 @@ public static class ScenarioLoader
             string? runwayDesignator = parts.Length > 1 ? parts[1] : null;
 
             // Check SID first (e.g., "CNDEL5") — expand body + match transition to next token
-            var sidBody = fixes.GetSidBody(rawName);
+            var sidBody = navDb.GetSidBody(rawName);
             if (sidBody is not null && sidBody.Count > 0)
             {
                 string? nextToken = tokenIdx + 1 < tokens.Length ? tokens[tokenIdx + 1].Split('.')[0] : null;
-                ExpandSidBody(resolved, rawName, sidBody, nextToken, fixes, warnings, state.Callsign);
+                ExpandSidBody(resolved, rawName, sidBody, nextToken, navDb, warnings, state.Callsign);
                 continue;
             }
 
             // Check if this token is a STAR reference (e.g., "EMZOH4")
-            var starBody = fixes.GetStarBody(rawName);
+            var starBody = navDb.GetStarBody(rawName);
             if (starBody is not null && starBody.Count > 0)
             {
-                ExpandStarBody(resolved, rawName, starBody, runwayDesignator, state.Destination, fixes, procedures, warnings, state.Callsign);
+                ExpandStarBody(resolved, rawName, starBody, runwayDesignator, state.Destination, navDb, warnings, state.Callsign);
                 continue;
             }
 
@@ -547,7 +525,7 @@ public static class ScenarioLoader
                 continue;
             }
 
-            var pos = fixes.GetFixPosition(fixName);
+            var pos = navDb.GetFixPosition(fixName);
             if (pos is null)
             {
                 warnings.Add($"{state.Callsign}: Could not resolve nav fix '{token}', skipping");
@@ -557,7 +535,7 @@ public static class ScenarioLoader
             resolved.Add(new ResolvedFix(fixName, pos.Value.Lat, pos.Value.Lon));
         }
 
-        RouteChainer.AppendRouteRemainder(resolved, state.Route, fixes);
+        RouteChainer.AppendRouteRemainder(resolved, state.Route, navDb);
 
         foreach (var fix in resolved)
         {
@@ -577,15 +555,9 @@ public static class ScenarioLoader
     /// resolves CIFP altitude/speed constraints, overlays them on route targets,
     /// and enables StarViaMode (equivalent to auto-DVIA at spawn).
     /// </summary>
-    private static void ApplyAltitudeProfile(
-        AircraftState state,
-        string? navigationPath,
-        IFixLookup fixes,
-        IProcedureLookup? procedures,
-        List<string> warnings
-    )
+    private static void ApplyAltitudeProfile(AircraftState state, string? navigationPath, NavigationDatabase navDb, List<string> warnings)
     {
-        if (string.IsNullOrWhiteSpace(navigationPath) || procedures is null || string.IsNullOrEmpty(state.Destination))
+        if (string.IsNullOrWhiteSpace(navigationPath) || string.IsNullOrEmpty(state.Destination))
         {
             return;
         }
@@ -599,7 +571,7 @@ public static class ScenarioLoader
         {
             var parts = token.Split('.');
             var rawName = parts[0];
-            var starBody = fixes.GetStarBody(rawName);
+            var starBody = navDb.GetStarBody(rawName);
             if (starBody is not null && starBody.Count > 0)
             {
                 starId = rawName;
@@ -613,7 +585,7 @@ public static class ScenarioLoader
             return;
         }
 
-        var star = procedures.GetStar(state.Destination, starId);
+        var star = navDb.GetStar(state.Destination, starId);
         if (star is null)
         {
             return;
@@ -643,7 +615,7 @@ public static class ScenarioLoader
             return;
         }
 
-        var constrainedTargets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs, fixes);
+        var constrainedTargets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs, navDb);
 
         // Build a lookup of constraints by fix name
         var constraintsByFix = new Dictionary<string, NavigationTarget>(StringComparer.OrdinalIgnoreCase);
@@ -695,14 +667,14 @@ public static class ScenarioLoader
         string sidId,
         IReadOnlyList<string> sidBody,
         string? nextToken,
-        IFixLookup fixes,
+        NavigationDatabase navDb,
         List<string> warnings,
         string callsign
     )
     {
         foreach (var fixName in sidBody)
         {
-            AddResolvedFix(resolved, fixName, fixes, warnings, callsign, sidId);
+            AddResolvedFix(resolved, fixName, navDb, warnings, callsign, sidId);
         }
 
         if (nextToken is null)
@@ -717,7 +689,7 @@ public static class ScenarioLoader
             nextFixName = nextFixName[..^1];
         }
 
-        var transitions = fixes.GetSidTransitions(sidId);
+        var transitions = navDb.GetSidTransitions(sidId);
         if (transitions is null)
         {
             return;
@@ -734,7 +706,7 @@ public static class ScenarioLoader
             // Append transition fixes (skipping any that overlap with the end of body)
             foreach (var fixName in trans.Fixes)
             {
-                AddResolvedFix(resolved, fixName, fixes, warnings, callsign, sidId);
+                AddResolvedFix(resolved, fixName, navDb, warnings, callsign, sidId);
             }
 
             break;
@@ -751,8 +723,7 @@ public static class ScenarioLoader
         IReadOnlyList<string> starBody,
         string? runwayDesignator,
         string? destination,
-        IFixLookup fixes,
-        IProcedureLookup? procedures,
+        NavigationDatabase navDb,
         List<string> warnings,
         string callsign
     )
@@ -775,7 +746,7 @@ public static class ScenarioLoader
             // Also check STAR transitions for the join fix
             if (startIdx == 0)
             {
-                var transitions = fixes.GetStarTransitions(starId);
+                var transitions = navDb.GetStarTransitions(starId);
                 if (transitions is not null)
                 {
                     foreach (var trans in transitions)
@@ -794,7 +765,7 @@ public static class ScenarioLoader
                         {
                             for (int i = transIdx + 1; i < trans.Fixes.Count; i++)
                             {
-                                AddResolvedFix(resolved, trans.Fixes[i], fixes, warnings, callsign, starId);
+                                AddResolvedFix(resolved, trans.Fixes[i], navDb, warnings, callsign, starId);
                             }
 
                             startIdx = 0;
@@ -808,13 +779,13 @@ public static class ScenarioLoader
         // Append STAR body fixes from the start index
         for (int i = startIdx; i < starBody.Count; i++)
         {
-            AddResolvedFix(resolved, starBody[i], fixes, warnings, callsign, starId);
+            AddResolvedFix(resolved, starBody[i], navDb, warnings, callsign, starId);
         }
 
         // Append runway transition legs from CIFP if available
-        if (runwayDesignator is not null && destination is not null && procedures is not null)
+        if (runwayDesignator is not null && destination is not null)
         {
-            var star = procedures.GetStar(destination, starId);
+            var star = navDb.GetStar(destination, starId);
             if (star is not null)
             {
                 var rwKey = "RW" + runwayDesignator;
@@ -826,7 +797,7 @@ public static class ScenarioLoader
 
                 if (rwTransition is not null)
                 {
-                    var rwTargets = Commands.DepartureClearanceHandler.ResolveLegsToTargets(rwTransition.Legs, fixes);
+                    var rwTargets = Commands.DepartureClearanceHandler.ResolveLegsToTargets(rwTransition.Legs, navDb);
                     foreach (var target in rwTargets)
                     {
                         if (resolved.Count > 0 && target.Name.Equals(resolved[^1].Name, StringComparison.OrdinalIgnoreCase))
@@ -844,7 +815,7 @@ public static class ScenarioLoader
     private static void AddResolvedFix(
         List<ResolvedFix> resolved,
         string fixName,
-        IFixLookup fixes,
+        NavigationDatabase navDb,
         List<string> warnings,
         string callsign,
         string starId
@@ -855,7 +826,7 @@ public static class ScenarioLoader
             return;
         }
 
-        var pos = fixes.GetFixPosition(fixName);
+        var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
         {
             warnings.Add($"{callsign}: Could not resolve STAR {starId} fix '{fixName}', skipping");

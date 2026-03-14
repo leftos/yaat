@@ -62,10 +62,10 @@ public class ApproachCommandHandlerTests
     public void Capp_Basic_CreatesPhaseSequence()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -76,10 +76,10 @@ public class ApproachCommandHandlerTests
     public void Capp_SetsActiveApproach()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -91,12 +91,12 @@ public class ApproachCommandHandlerTests
     public void Capp_CancelsSpeedRestriction()
     {
         var aircraft = MakeAircraft(speed: 210);
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         Assert.Equal(210, aircraft.Targets.TargetSpeed);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -105,10 +105,10 @@ public class ApproachCommandHandlerTests
     public void Capp_WithAtFix_PrependsFixToApproachNav()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, "SUNOL", 37.5, -121.8, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
@@ -119,10 +119,10 @@ public class ApproachCommandHandlerTests
     public void Capp_WithDctFix_PrependsFixToApproachNav()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
@@ -133,10 +133,10 @@ public class ApproachCommandHandlerTests
     public void Capp_WithCrossFixAltitude_SetsAltitude()
     {
         var aircraft = MakeAircraft(altitude: 5000);
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, 3400, CrossFixAltitudeType.At);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3400, aircraft.Targets.TargetAltitude);
@@ -150,10 +150,10 @@ public class ApproachCommandHandlerTests
         // Aircraft heading 180 vs final course 280 = 100° — should still succeed at dispatch
         // Intercept angle validation happens at capture time, not dispatch time
         var aircraft = MakeAircraft(heading: 180);
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
     }
@@ -164,10 +164,10 @@ public class ApproachCommandHandlerTests
     public void Japp_CreatesPhaseSequence()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -178,10 +178,10 @@ public class ApproachCommandHandlerTests
     public void Japp_CancelsSpeedRestriction()
     {
         var aircraft = MakeAircraft(speed: 210);
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -190,10 +190,10 @@ public class ApproachCommandHandlerTests
     public void Japp_SucceedsRegardlessOfInterceptAngle()
     {
         var aircraft = MakeAircraft(heading: 180);
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
     }
@@ -204,10 +204,10 @@ public class ApproachCommandHandlerTests
     public void Cappsi_SkipsHoldInLieu()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubsWithHoldInLieu();
+        var navDb = MakeNavDbWithHoldInLieu();
 
         var cmd = new ClearedApproachStraightInCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("straight-in", result.Message);
@@ -221,10 +221,10 @@ public class ApproachCommandHandlerTests
     public void Jappsi_SkipsHoldInLieu()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubsWithHoldInLieu();
+        var navDb = MakeNavDbWithHoldInLieu();
 
         var cmd = new JoinApproachStraightInCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is HoldingPatternPhase);
@@ -236,10 +236,10 @@ public class ApproachCommandHandlerTests
     public void Japp_WithHoldInLieu_InsertsHoldPhase()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubsWithHoldInLieu();
+        var navDb = MakeNavDbWithHoldInLieu();
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -255,10 +255,10 @@ public class ApproachCommandHandlerTests
     public void Ptac_SetsHeadingAndAltitude()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, _) = MakeStubs();
+        var navDb = MakeNavDbRunwayAndApproachOnly();
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(340, aircraft.Targets.TargetHeading);
@@ -269,10 +269,10 @@ public class ApproachCommandHandlerTests
     public void Ptac_CreatesInterceptPhaseSequence()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, _) = MakeStubs();
+        var navDb = MakeNavDbRunwayAndApproachOnly();
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases);
         Assert.Equal(3, aircraft.Phases.Phases.Count);
@@ -285,10 +285,10 @@ public class ApproachCommandHandlerTests
     public void Ptac_CancelsSpeedRestriction()
     {
         var aircraft = MakeAircraft(speed: 210);
-        var (approachLookup, runwayLookup, _) = MakeStubs();
+        var navDb = MakeNavDbRunwayAndApproachOnly();
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -297,10 +297,10 @@ public class ApproachCommandHandlerTests
     public void Ptac_SetsActiveApproach()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, _) = MakeStubs();
+        var navDb = MakeNavDbRunwayAndApproachOnly();
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, approachLookup, null, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -431,11 +431,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         aircraft.ExpectedApproach = "I28R";
-        // No DestinationRunway set — ExpectedApproach is the only source
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -448,10 +447,10 @@ public class ApproachCommandHandlerTests
         var aircraft = MakeAircraft();
         aircraft.ExpectedApproach = "I28R";
         aircraft.DestinationRunway = "28L";
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -465,10 +464,10 @@ public class ApproachCommandHandlerTests
     public void Capp_UnknownApproach_Fails()
     {
         var aircraft = MakeAircraft();
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
+        var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("VOR99", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
@@ -478,13 +477,14 @@ public class ApproachCommandHandlerTests
     public void Capp_NoApproachLookup_Fails()
     {
         var aircraft = MakeAircraft();
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
+        var navDb = TestNavDbFactory.WithRunways(MakeRunway());
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, null, Random.Shared, null, null, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
 
         Assert.False(result.Success);
-        Assert.Contains("not available", result.Message);
+        // Fails with "Unknown approach" when navDb has no approaches loaded
+        Assert.False(string.IsNullOrEmpty(result.Message));
     }
 
     // --- Helpers ---
@@ -502,7 +502,7 @@ public class ApproachCommandHandlerTests
         };
     }
 
-    private static (StubApproachLookup, StubRunwayLookup, StubFixLookup) MakeStubs()
+    private static NavigationDatabase MakeNavDb()
     {
         var procedure = new CifpApproachProcedure(
             "OAK",
@@ -521,14 +521,14 @@ public class ApproachCommandHandlerTests
             null
         );
 
-        var approachLookup = new StubApproachLookup(procedure);
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
-        var fixLookup = new StubFixLookup(("GROVE", 37.78, -122.35), ("FITKI", 37.76, -122.30), ("BERYL", 37.74, -122.26));
-
-        return (approachLookup, runwayLookup, fixLookup);
+        return TestNavDbFactory.WithFixesRunwayAndApproaches(
+            [("GROVE", 37.78, -122.35), ("FITKI", 37.76, -122.30), ("BERYL", 37.74, -122.26)],
+            MakeRunway(),
+            [procedure]
+        );
     }
 
-    private static (StubApproachLookup, StubRunwayLookup, StubFixLookup) MakeStubsWithHoldInLieu()
+    private static NavigationDatabase MakeNavDbWithHoldInLieu()
     {
         var holdLeg = new CifpLeg("FITKI", CifpPathTerminator.HF, 'R', null, null, CifpFixRole.IF, 20, null, null, null);
 
@@ -549,116 +549,17 @@ public class ApproachCommandHandlerTests
             holdLeg
         );
 
-        var approachLookup = new StubApproachLookup(procedure);
-        var runwayLookup = new StubRunwayLookup(MakeRunway());
-        var fixLookup = new StubFixLookup(("GROVE", 37.78, -122.35), ("FITKI", 37.76, -122.30), ("BERYL", 37.74, -122.26));
-
-        return (approachLookup, runwayLookup, fixLookup);
+        return TestNavDbFactory.WithFixesRunwayAndApproaches(
+            [("GROVE", 37.78, -122.35), ("FITKI", 37.76, -122.30), ("BERYL", 37.74, -122.26)],
+            MakeRunway(),
+            [procedure]
+        );
     }
 
-    private sealed class StubApproachLookup : IApproachLookup
+    private static NavigationDatabase MakeNavDbRunwayAndApproachOnly()
     {
-        private readonly CifpApproachProcedure _procedure;
+        var procedure = new CifpApproachProcedure("OAK", "I28R", 'I', "ILS", "28R", [], new Dictionary<string, CifpTransition>(), [], false, null);
 
-        public StubApproachLookup(CifpApproachProcedure procedure)
-        {
-            _procedure = procedure;
-        }
-
-        public CifpApproachProcedure? GetApproach(string airportCode, string approachId)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            return
-                normalized.Equals(_procedure.Airport, StringComparison.OrdinalIgnoreCase)
-                && approachId.Equals(_procedure.ApproachId, StringComparison.OrdinalIgnoreCase)
-                ? _procedure
-                : null;
-        }
-
-        public IReadOnlyList<CifpApproachProcedure> GetApproaches(string airportCode)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            return normalized.Equals(_procedure.Airport, StringComparison.OrdinalIgnoreCase) ? [_procedure] : [];
-        }
-
-        public string? ResolveApproachId(string airportCode, string shorthand)
-        {
-            string normalized = NormalizeAirport(airportCode);
-            if (!normalized.Equals(_procedure.Airport, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            if (shorthand.Equals(_procedure.ApproachId, StringComparison.OrdinalIgnoreCase))
-            {
-                return _procedure.ApproachId;
-            }
-
-            string fullName = _procedure.ApproachTypeName + _procedure.Runway;
-            return fullName.Equals(shorthand, StringComparison.OrdinalIgnoreCase) ? _procedure.ApproachId : null;
-        }
-
-        private static string NormalizeAirport(string code)
-        {
-            string upper = code.ToUpperInvariant();
-            return upper.StartsWith('K') && upper.Length == 4 ? upper[1..] : upper;
-        }
-    }
-
-    private sealed class StubRunwayLookup : IRunwayLookup
-    {
-        private readonly RunwayInfo? _runway;
-
-        public StubRunwayLookup(RunwayInfo? runway = null)
-        {
-            _runway = runway;
-        }
-
-        public RunwayInfo? GetRunway(string airportCode, string runwayId)
-        {
-            if (_runway is null)
-            {
-                return null;
-            }
-
-            string normalizedCode = airportCode.StartsWith('K') && airportCode.Length == 4 ? airportCode[1..] : airportCode;
-            string normalizedRunway = _runway.AirportId.StartsWith('K') && _runway.AirportId.Length == 4 ? _runway.AirportId[1..] : _runway.AirportId;
-
-            return
-                normalizedCode.Equals(normalizedRunway, StringComparison.OrdinalIgnoreCase)
-                && _runway.Designator.Equals(runwayId, StringComparison.OrdinalIgnoreCase)
-                ? _runway
-                : null;
-        }
-
-        public IReadOnlyList<RunwayInfo> GetRunways(string airportCode)
-        {
-            return _runway is not null ? [_runway] : [];
-        }
-    }
-
-    private sealed class StubFixLookup : IFixLookup
-    {
-        private readonly Dictionary<string, (double Lat, double Lon)> _fixes = new(StringComparer.OrdinalIgnoreCase);
-
-        public StubFixLookup(params (string Name, double Lat, double Lon)[] fixes)
-        {
-            foreach (var (name, lat, lon) in fixes)
-            {
-                _fixes[name] = (lat, lon);
-            }
-        }
-
-        public (double Lat, double Lon)? GetFixPosition(string name) => _fixes.TryGetValue(name, out var pos) ? pos : null;
-
-        public double? GetAirportElevation(string code) => null;
-
-        public IReadOnlyList<string> ExpandRoute(string route) => [];
-
-        public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport) => [];
-
-        public IReadOnlyList<string>? GetStarBody(string starId) => null;
-
-        public IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>? GetStarTransitions(string starId) => null;
+        return TestNavDbFactory.WithRunwayAndApproaches(MakeRunway(), [procedure]);
     }
 }

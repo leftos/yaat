@@ -670,7 +670,7 @@ public partial class MainWindow : Window
         var text = input.Text?.Trim().ToUpperInvariant() ?? "";
         listBox.Items.Clear();
 
-        var fixDb = vm.CommandInput.FixDb;
+        var fixDb = vm.CommandInput.NavDb;
         if (fixDb is null || text.Length == 0)
         {
             listBox.IsVisible = false;
