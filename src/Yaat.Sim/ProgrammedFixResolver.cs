@@ -12,7 +12,9 @@ public static class ProgrammedFixResolver
         string? departure,
         NavigationDatabase? navDb,
         IReadOnlyList<string>? activeApproachFixNames,
-        NavigationDatabase? fixDb
+        NavigationDatabase? fixDb,
+        string? activeStarId,
+        string? destinationRunway
     )
     {
         var fixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -21,6 +23,8 @@ public static class ProgrammedFixResolver
         {
             ExpandRouteInto(fixes, route, fixDb);
         }
+
+        string? resolvedRunway = destinationRunway;
 
         if (!string.IsNullOrEmpty(expectedApproach) && navDb is not null)
         {
@@ -35,6 +39,12 @@ public static class ProgrammedFixResolver
                     {
                         fixes.Add(name);
                     }
+
+                    // Derive runway from approach if not explicitly set
+                    if (resolvedRunway is null && procedure.Runway is not null)
+                    {
+                        resolvedRunway = procedure.Runway;
+                    }
                 }
             }
         }
@@ -44,6 +54,23 @@ public static class ProgrammedFixResolver
             foreach (var name in activeApproachFixNames)
             {
                 fixes.Add(name);
+            }
+        }
+
+        // Expand STAR runway transition fixes if we have both a STAR and a runway
+        if (!string.IsNullOrEmpty(activeStarId) && resolvedRunway is not null && navDb is not null)
+        {
+            string airport = !string.IsNullOrEmpty(destination) ? destination : (departure ?? "");
+            if (!string.IsNullOrEmpty(airport))
+            {
+                var rwFixes = navDb.GetStarRunwayTransitions(airport, activeStarId, resolvedRunway);
+                if (rwFixes is not null)
+                {
+                    foreach (var name in rwFixes)
+                    {
+                        fixes.Add(name);
+                    }
+                }
             }
         }
 

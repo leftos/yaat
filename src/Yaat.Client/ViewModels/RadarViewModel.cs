@@ -292,7 +292,17 @@ public partial class RadarViewModel : ObservableObject
             return;
         }
 
-        ProgrammedFixNames = ProgrammedFixResolver.Resolve(ac.Route, ac.ExpectedApproach, ac.Destination, ac.Departure, _navDb, null, _navDb);
+        ProgrammedFixNames = ProgrammedFixResolver.Resolve(
+            ac.Route,
+            ac.ExpectedApproach,
+            ac.Destination,
+            ac.Departure,
+            _navDb,
+            null,
+            _navDb,
+            ac.ActiveStarId,
+            ac.DestinationRunway
+        );
     }
 
     public string[]? FixNames { get; private set; }

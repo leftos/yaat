@@ -26,8 +26,11 @@ public static class ApproachCommandHandler
 
         double finalCourse = approachRunway.TrueHeading;
 
-        // Build approach fix sequence from common legs
-        var approachFixes = BuildApproachFixes(procedure, navDb);
+        // Build approach fix sequence, selecting best transition if available
+        var transition = SelectBestTransition(procedure, aircraft, navDb);
+        var approachFixes = transition is not null
+            ? BuildApproachFixesWithTransition(transition, procedure, navDb)
+            : BuildApproachFixes(procedure, navDb);
 
         // Clear existing phases
         ClearExistingPhases(aircraft);
@@ -99,8 +102,11 @@ public static class ApproachCommandHandler
 
         double finalCourse = approachRunway.TrueHeading;
 
-        // Build approach fix sequence from procedure
-        var approachFixes = BuildApproachFixes(procedure, navDb);
+        // Build approach fix sequence, selecting best transition if available
+        var transition = SelectBestTransition(procedure, aircraft, navDb);
+        var approachFixes = transition is not null
+            ? BuildApproachFixesWithTransition(transition, procedure, navDb)
+            : BuildApproachFixes(procedure, navDb);
 
         // For JAPP: find nearest IAF/IF ahead of aircraft
         var trimmedFixes = TrimToNearestEntry(approachFixes, aircraft);
@@ -471,7 +477,21 @@ public static class ApproachCommandHandler
 
     public static IReadOnlyList<string> GetApproachFixNames(CifpApproachProcedure procedure)
     {
-        var names = new List<string>();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Collect transition fixes (all transitions — EAPP programs all of them for DCT validation)
+        foreach (var transition in procedure.Transitions.Values)
+        {
+            foreach (var leg in transition.Legs)
+            {
+                if (!string.IsNullOrEmpty(leg.FixIdentifier))
+                {
+                    names.Add(leg.FixIdentifier);
+                }
+            }
+        }
+
+        // Collect common segment fixes (stop before MAHP)
         foreach (var leg in procedure.CommonLegs)
         {
             if (string.IsNullOrEmpty(leg.FixIdentifier))
@@ -484,7 +504,8 @@ public static class ApproachCommandHandler
             }
             names.Add(leg.FixIdentifier);
         }
-        return names;
+
+        return [.. names];
     }
 
     internal static List<ApproachFix> BuildMissedApproachFixes(CifpApproachProcedure procedure, NavigationDatabase? navDb)
@@ -653,12 +674,132 @@ public static class ApproachCommandHandler
         return null;
     }
 
+    internal static CifpTransition? SelectBestTransition(CifpApproachProcedure procedure, AircraftState aircraft, NavigationDatabase? navDb)
+    {
+        if (procedure.Transitions.Count == 0)
+        {
+            return null;
+        }
+
+        // Build set of known fixes from aircraft's flight plan route + active nav route
+        var knownFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrEmpty(aircraft.Route))
+        {
+            foreach (var token in aircraft.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var dotIdx = token.IndexOf('.');
+                var fixName = dotIdx >= 0 ? token[..dotIdx] : token;
+                if (!string.IsNullOrEmpty(fixName))
+                {
+                    knownFixes.Add(fixName);
+                }
+            }
+        }
+
+        foreach (var navTarget in aircraft.Targets.NavigationRoute)
+        {
+            knownFixes.Add(navTarget.Name);
+        }
+
+        // Try route-based match: find a transition whose fix appears in known fixes
+        if (knownFixes.Count > 0)
+        {
+            foreach (var transition in procedure.Transitions.Values)
+            {
+                foreach (var leg in transition.Legs)
+                {
+                    if (!string.IsNullOrEmpty(leg.FixIdentifier) && knownFixes.Contains(leg.FixIdentifier))
+                    {
+                        return transition;
+                    }
+                }
+            }
+        }
+
+        // Fallback: pick nearest transition IAF ahead of aircraft (within ±90° of heading)
+        if (navDb is null)
+        {
+            return null;
+        }
+
+        CifpTransition? bestTransition = null;
+        double bestDist = double.MaxValue;
+
+        foreach (var transition in procedure.Transitions.Values)
+        {
+            string? firstFix = null;
+            foreach (var leg in transition.Legs)
+            {
+                if (!string.IsNullOrEmpty(leg.FixIdentifier))
+                {
+                    firstFix = leg.FixIdentifier;
+                    break;
+                }
+            }
+
+            if (firstFix is null)
+            {
+                continue;
+            }
+
+            var pos = navDb.GetFixPosition(firstFix);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
+            double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - aircraft.Heading));
+            if (angleDiff > 90)
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestTransition = transition;
+            }
+        }
+
+        return bestTransition;
+    }
+
+    private static List<ApproachFix> BuildApproachFixesWithTransition(
+        CifpTransition transition,
+        CifpApproachProcedure procedure,
+        NavigationDatabase? navDb
+    )
+    {
+        var transitionFixes = BuildFixesFromLegs(transition.Legs, navDb, stopAtMahp: false);
+        var commonFixes = BuildFixesFromLegs(procedure.CommonLegs, navDb, stopAtMahp: true);
+
+        // Deduplicate boundary: if last transition fix == first common fix, drop the duplicate from common
+        if (
+            transitionFixes.Count > 0
+            && commonFixes.Count > 0
+            && transitionFixes[^1].Name.Equals(commonFixes[0].Name, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            commonFixes.RemoveAt(0);
+        }
+
+        transitionFixes.AddRange(commonFixes);
+        return transitionFixes;
+    }
+
     private static List<ApproachFix> BuildApproachFixes(CifpApproachProcedure procedure, NavigationDatabase? navDb)
+    {
+        return BuildFixesFromLegs(procedure.CommonLegs, navDb, stopAtMahp: true);
+    }
+
+    private static List<ApproachFix> BuildFixesFromLegs(IReadOnlyList<CifpLeg> legs, NavigationDatabase? navDb, bool stopAtMahp)
     {
         var result = new List<ApproachFix>();
         (double Lat, double Lon)? previousFixPos = null;
 
-        foreach (var leg in procedure.CommonLegs)
+        foreach (var leg in legs)
         {
             if (string.IsNullOrEmpty(leg.FixIdentifier))
             {
@@ -666,7 +807,7 @@ public static class ApproachCommandHandler
             }
 
             // Skip past MAHP (missed approach) — those are in MissedApproachLegs already
-            if (leg.FixRole == CifpFixRole.MAHP)
+            if (stopAtMahp && leg.FixRole == CifpFixRole.MAHP)
             {
                 break;
             }

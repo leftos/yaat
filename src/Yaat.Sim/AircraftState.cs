@@ -231,6 +231,16 @@ public class AircraftState
             activeApproachFixNames = ApproachCommandHandler.GetApproachFixNames(activeProc);
         }
 
-        return ProgrammedFixResolver.Resolve(Route, ExpectedApproach, Destination, Departure, navDb, activeApproachFixNames, navDb);
+        return ProgrammedFixResolver.Resolve(
+            Route,
+            ExpectedApproach,
+            Destination,
+            Departure,
+            navDb,
+            activeApproachFixNames,
+            navDb,
+            ActiveStarId,
+            DestinationRunway
+        );
     }
 }
