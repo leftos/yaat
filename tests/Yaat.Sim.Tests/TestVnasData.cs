@@ -28,6 +28,8 @@ internal static class TestVnasData
     /// <summary>
     /// Returns a <see cref="NavigationDatabase"/> loaded from NavData.dat (and optionally CIFP),
     /// or null if NavData.dat is not present. Loads lazily and caches for the process lifetime.
+    /// Thread-safe: uses double-check locking to avoid publishing a partially-initialized
+    /// instance (without CIFP) to concurrent test classes.
     /// </summary>
     internal static NavigationDatabase? NavigationDb
     {
@@ -38,23 +40,32 @@ internal static class TestVnasData
                 return _navigationDatabase;
             }
 
-            var path = Path.Combine(TestDataDir, "NavData.dat");
-            if (!File.Exists(path))
+            lock (_lock)
             {
-                return null;
+                if (_navigationDatabase is not null)
+                {
+                    return _navigationDatabase;
+                }
+
+                var path = Path.Combine(TestDataDir, "NavData.dat");
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
+                var bytes = File.ReadAllBytes(path);
+                var navData = NavDataSet.Parser.ParseFrom(bytes);
+                var navDb = new NavigationDatabase(navData, customFixesBaseDir: "");
+
+                var cifpPath = ResolveCifpPath();
+                if (cifpPath is not null)
+                {
+                    navDb.SetCifpPath(cifpPath);
+                }
+
+                _navigationDatabase = navDb;
+                return _navigationDatabase;
             }
-
-            var bytes = File.ReadAllBytes(path);
-            var navData = NavDataSet.Parser.ParseFrom(bytes);
-            _navigationDatabase = new NavigationDatabase(navData, customFixesBaseDir: "");
-
-            var cifpPath = ResolveCifpPath();
-            if (cifpPath is not null)
-            {
-                _navigationDatabase.SetCifpPath(cifpPath);
-            }
-
-            return _navigationDatabase;
         }
     }
 
