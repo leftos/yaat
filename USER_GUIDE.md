@@ -238,6 +238,8 @@ Click an aircraft row to select it, or type a callsign in the command input and 
 
 Drag column headers to rearrange the column order. **Right-click any column header** to open the Column Chooser, where you can show/hide columns and reorder them using the Top/Up/Down/Last buttons. The Column Chooser also has a **"Show only active aircraft"** checkbox that hides delayed (not yet spawned) aircraft from the grid. Column order, widths, visibility, sort state, and the active-only filter are remembered across sessions.
 
+To share your layout with others, use the **Export...** and **Import...** buttons in the Column Chooser. Export saves the current column order, visibility, widths, and sort state to a `.yaat-grid-layout.json` file. Import loads a layout file and updates the dialog preview — click OK to apply it to the grid. Different training levels may benefit from different layouts — for example, an S1 ground layout might hide approach-related columns, while an S2 or S3 layout shows them. Export a layout for each level and swap between them as needed.
+
 ### Aircraft Detail Panel
 
 Selecting an aircraft row expands a detail panel below it showing additional state not visible in the grid columns:
