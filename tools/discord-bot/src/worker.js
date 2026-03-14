@@ -568,12 +568,8 @@ async function syncThread(env, threadId, mapping, githubToken) {
 
   const urlMap = await reuploadAttachments(filteredMessages, env.ATTACHMENTS);
 
-  for (const msg of filteredMessages) {
-    const author = msg.author.global_name || msg.author.username;
-    const commentBody = `**${author}** via Discord:\n\n${formatMessage(msg, urlMap)}`;
-
-    await createGitHubComment(githubToken, env.GITHUB_REPO, mapping.issueNumber, commentBody);
-  }
+  const digest = formatConversation(filteredMessages, urlMap);
+  await createGitHubComment(githubToken, env.GITHUB_REPO, mapping.issueNumber, digest);
 
   // Always update cursor to latest message (including bot messages)
   mapping.lastSyncedMessageId = messages[messages.length - 1].id;
