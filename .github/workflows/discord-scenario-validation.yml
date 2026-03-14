@@ -101,6 +101,15 @@ jobs:
               if not failures and not proc_issues:
                   return f"# {artcc} Scenario Validation \u2014 {date}\n\n{scenarios} scenarios, {presets} presets \u2014 all commands parsed successfully."
 
+              # Merge failures and procedure issues by scenario → aircraft
+              by_scenario = {}
+              for name, acid, cmd in failures:
+                  by_scenario.setdefault(name, {}).setdefault(acid, {"failures": [], "proc_issues": []})
+                  by_scenario[name][acid]["failures"].append(cmd)
+              for name, acid, proc_id, kind, resolved in proc_issues:
+                  by_scenario.setdefault(name, {}).setdefault(acid, {"failures": [], "proc_issues": []})
+                  by_scenario[name][acid]["proc_issues"].append((proc_id, kind, resolved))
+
               lines = [f"# {artcc} Scenario Validation \u2014 {date}\n"]
               summary_parts = [f"{scenarios} scenarios", f"{presets} presets"]
               if failures:
@@ -109,27 +118,17 @@ jobs:
                   summary_parts.append(f"{len(proc_issues)} procedure issue{'s' if len(proc_issues) != 1 else ''}")
               lines.append(", ".join(summary_parts) + "\n")
 
-              if failures:
-                  by_scenario = {}
-                  for name, acid, cmd in failures:
-                      by_scenario.setdefault(name, {}).setdefault(acid, []).append(cmd)
-
-                  for name, aircraft in by_scenario.items():
-                      lines.append(f"**{name}**")
-                      for acid, cmds in aircraft.items():
-                          lines.append(f"  {acid}:")
-                          for cmd in cmds:
-                              lines.append(f"    `{cmd}`")
-                      lines.append("")
-
-              if proc_issues:
-                  lines.append("**Procedure Issues**")
-                  for name, acid, proc_id, kind, resolved in proc_issues:
-                      # kind 0 = VersionChanged, 1 = NotFound
-                      if kind == 0 or kind == "VersionChanged":
-                          lines.append(f"  \u26a0\ufe0f {acid}: {proc_id} \u2192 {resolved}")
-                      else:
-                          lines.append(f"  \u274c {acid}: {proc_id} not found")
+              for name, aircraft in by_scenario.items():
+                  lines.append(f"**{name}**")
+                  for acid, issues in aircraft.items():
+                      lines.append(f"  {acid}:")
+                      for cmd in issues["failures"]:
+                          lines.append(f"    `{cmd}`")
+                      for proc_id, kind, resolved in issues["proc_issues"]:
+                          if kind == 0 or kind == "VersionChanged":
+                              lines.append(f"    Procedure `{proc_id}` implicitly changed to `{resolved}`")
+                          else:
+                              lines.append(f"    Procedure `{proc_id}` not found")
                   lines.append("")
 
               return "\n".join(lines)
