@@ -66,7 +66,7 @@ public static class CommandDispatcher
         {
             foreach (var cmd in block.Commands)
             {
-                if (CommandDescriber.IsTowerCommand(cmd) && !IsPatternEntryWithRunway(cmd))
+                if (CommandDescriber.IsTowerCommand(cmd) && !IsPatternEntryWithRunway(cmd) && !CommandDescriber.IsApproachCommand(cmd))
                 {
                     return new CommandResult(false, $"{CommandDescriber.DescribeNatural(cmd)} requires an active runway assignment");
                 }
@@ -1083,7 +1083,7 @@ public static class CommandDispatcher
 
             foreach (var cmd in captured)
             {
-                ApplyCommand(
+                var result = ApplyCommand(
                     cmd,
                     ac,
                     rng,
@@ -1093,6 +1093,10 @@ public static class CommandDispatcher
                     procedureLookup: procedureLookup,
                     validateDctFixes: validateDctFixes
                 );
+                if (!result.Success)
+                {
+                    Log.LogWarning("Command {Command} failed during block apply: {Message}", CommandDescriber.DescribeCommand(cmd), result.Message);
+                }
             }
 
             CheckVectoringWarning(ac, captured, hadProcedure);

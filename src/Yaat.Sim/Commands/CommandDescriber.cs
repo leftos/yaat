@@ -515,6 +515,18 @@ public static class CommandDescriber
                 or ClearedVisualApproachCommand;
     }
 
+    internal static bool IsApproachCommand(ParsedCommand command)
+    {
+        return command
+            is ClearedApproachCommand
+                or JoinApproachCommand
+                or ClearedApproachStraightInCommand
+                or JoinApproachStraightInCommand
+                or JoinFinalApproachCourseCommand
+                or PositionTurnAltitudeClearanceCommand
+                or ClearedVisualApproachCommand;
+    }
+
     internal static bool IsGroundCommand(ParsedCommand command)
     {
         return command

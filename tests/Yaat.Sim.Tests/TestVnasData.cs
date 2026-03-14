@@ -23,6 +23,8 @@ internal static class TestVnasData
 
     private static FixDatabase? _fixDatabase;
     private static ProcedureDatabase? _procedureDatabase;
+    private static ApproachDatabase? _approachDatabase;
+    private static string? _cifpPath;
     private static bool _procedureDbAttempted;
 
     /// <summary>
@@ -65,39 +67,70 @@ internal static class TestVnasData
                 return _procedureDatabase;
             }
 
-            if (_procedureDbAttempted)
+            var cifpPath = ResolveCifpPath();
+            if (cifpPath is null)
             {
                 return null;
             }
 
-            _procedureDbAttempted = true;
-
-            // Try bundled gzipped CIFP in TestData first (works in CI)
-            var bundledGz = Path.Combine(TestDataDir, "FAACIFP18.gz");
-            if (File.Exists(bundledGz))
-            {
-                var decompressed = DecompressGzip(bundledGz);
-                _procedureDatabase = new ProcedureDatabase(decompressed);
-                return _procedureDatabase;
-            }
-
-            // Fall back to system CIFP cache
-            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var cacheDir = Path.Combine(localAppData, "yaat", "cache", "cifp");
-            if (!Directory.Exists(cacheDir))
-            {
-                return null;
-            }
-
-            var cifpFile = Directory.EnumerateFiles(cacheDir, "FAACIFP18-*").OrderDescending().FirstOrDefault();
-            if (cifpFile is null)
-            {
-                return null;
-            }
-
-            _procedureDatabase = new ProcedureDatabase(cifpFile);
+            _procedureDatabase = new ProcedureDatabase(cifpPath);
             return _procedureDatabase;
         }
+    }
+
+    /// <summary>
+    /// Returns an <see cref="ApproachDatabase"/> backed by the same CIFP data as <see cref="ProcedureDatabase"/>.
+    /// </summary>
+    internal static ApproachDatabase? ApproachDatabase
+    {
+        get
+        {
+            if (_approachDatabase is not null)
+            {
+                return _approachDatabase;
+            }
+
+            var cifpPath = ResolveCifpPath();
+            if (cifpPath is null)
+            {
+                return null;
+            }
+
+            _approachDatabase = new ApproachDatabase(cifpPath);
+            return _approachDatabase;
+        }
+    }
+
+    private static string? ResolveCifpPath()
+    {
+        if (_procedureDbAttempted)
+        {
+            // Already resolved — return the path from the existing database if available
+            // We can't get the path back, so just check if we have data
+            return _procedureDatabase is not null || _approachDatabase is not null ? _cifpPath : null;
+        }
+
+        _procedureDbAttempted = true;
+
+        // Try bundled gzipped CIFP in TestData first (works in CI)
+        var bundledGz = Path.Combine(TestDataDir, "FAACIFP18.gz");
+        if (File.Exists(bundledGz))
+        {
+            _cifpPath = DecompressGzip(bundledGz);
+            return _cifpPath;
+        }
+
+        // Fall back to system CIFP cache
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var cacheDir = Path.Combine(localAppData, "yaat", "cache", "cifp");
+        if (!Directory.Exists(cacheDir))
+        {
+            return null;
+        }
+
+        var cifpFile = Directory.EnumerateFiles(cacheDir, "FAACIFP18-*").OrderDescending().FirstOrDefault();
+        _cifpPath = cifpFile;
+        return _cifpPath;
     }
 
     private static string DecompressGzip(string gzPath)

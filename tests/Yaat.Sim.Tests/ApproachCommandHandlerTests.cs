@@ -142,30 +142,17 @@ public class ApproachCommandHandlerTests
         Assert.Equal(3400, aircraft.Targets.TargetAltitude);
     }
 
-    // --- Intercept angle validation ---
+    // --- Intercept angle (no dispatch-time rejection) ---
 
     [Fact]
-    public void Capp_RejectsLargeInterceptAngle()
+    public void Capp_SucceedsRegardlessOfInterceptAngle()
     {
-        // Aircraft heading 180 vs final course 280 = 100° intercept
+        // Aircraft heading 180 vs final course 280 = 100° — should still succeed at dispatch
+        // Intercept angle validation happens at capture time, not dispatch time
         var aircraft = MakeAircraft(heading: 180);
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
-
-        Assert.False(result.Success);
-        Assert.Contains("Intercept angle", result.Message);
-        Assert.Contains("5-9-2", result.Message);
-    }
-
-    [Fact]
-    public void CappForce_BypassesInterceptCheck()
-    {
-        var aircraft = MakeAircraft(heading: 180);
-        var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
-
-        var cmd = new ClearedApproachCommand("ILS28R", null, true, null, null, null, null, null, null, null, null);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
 
         Assert.True(result.Success);
@@ -200,12 +187,12 @@ public class ApproachCommandHandlerTests
     }
 
     [Fact]
-    public void JappForce_BypassesInterceptCheck()
+    public void Japp_SucceedsRegardlessOfInterceptAngle()
     {
         var aircraft = MakeAircraft(heading: 180);
         var (approachLookup, runwayLookup, fixLookup) = MakeStubs();
 
-        var cmd = new JoinApproachCommand("ILS28R", null, true);
+        var cmd = new JoinApproachCommand("ILS28R", null, false);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, runwayLookup, null, fixLookup, Random.Shared, approachLookup, null, true);
 
         Assert.True(result.Success);

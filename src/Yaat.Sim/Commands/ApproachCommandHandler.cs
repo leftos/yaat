@@ -27,16 +27,6 @@ public static class ApproachCommandHandler
 
         var (procedure, approachRunway, airport) = resolved;
 
-        // Validate intercept angle unless force
-        if (!cmd.Force)
-        {
-            var rejection = ValidateInterceptAngle(aircraft, approachRunway);
-            if (rejection is not null)
-            {
-                return rejection;
-            }
-        }
-
         // Cancel existing speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
 
@@ -111,16 +101,6 @@ public static class ApproachCommandHandler
         }
 
         var (procedure, approachRunway, airport) = resolved;
-
-        // Validate intercept angle unless force
-        if (!force)
-        {
-            var rejection = ValidateInterceptAngle(aircraft, approachRunway);
-            if (rejection is not null)
-            {
-                return rejection;
-            }
-        }
 
         // Cancel existing speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
