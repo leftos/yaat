@@ -1,25 +1,47 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
+using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Yaat.Client.Services;
 
 namespace Yaat.Client.Views;
 
 public partial class ColumnChooserWindow : Window
 {
+    private static readonly FilePickerFileType GridLayoutFileType = new("YAAT Grid Layout") { Patterns = ["*.yaat-grid-layout.json"] };
+
+    private readonly Dictionary<string, double>? _columnWidths;
+    private readonly string? _sortColumn;
+    private readonly ListSortDirection? _sortDirection;
+
     public ObservableCollection<ColumnEntry> Entries { get; } = [];
     public bool Confirmed { get; private set; }
     public bool ShowOnlyActive { get; private set; }
+    public SavedGridLayout? ImportedLayout { get; private set; }
 
     public ColumnChooserWindow()
     {
         InitializeComponent();
     }
 
-    public ColumnChooserWindow(List<ColumnEntry> columns, bool showOnlyActive)
+    public ColumnChooserWindow(
+        List<ColumnEntry> columns,
+        bool showOnlyActive,
+        Dictionary<string, double>? columnWidths,
+        string? sortColumn,
+        ListSortDirection? sortDirection
+    )
     {
         InitializeComponent();
+
+        _columnWidths = columnWidths;
+        _sortColumn = sortColumn;
+        _sortDirection = sortDirection;
 
         foreach (var col in columns)
         {
@@ -33,6 +55,8 @@ public partial class ColumnChooserWindow : Window
         MoveUpButton.Click += OnMoveUp;
         MoveDownButton.Click += OnMoveDown;
         MoveLastButton.Click += OnMoveLast;
+        ExportButton.Click += OnExport;
+        ImportButton.Click += OnImport;
         OkButton.Click += OnOk;
         CancelButton.Click += OnCancel;
     }
@@ -91,6 +115,115 @@ public partial class ColumnChooserWindow : Window
         Entries.RemoveAt(idx);
         Entries.Add(item);
         ColumnList.SelectedIndex = Entries.Count - 1;
+    }
+
+    private async void OnExport(object? sender, RoutedEventArgs e)
+    {
+        var layout = new SavedGridLayout
+        {
+            ColumnOrder = Entries.Select(entry => entry.Key).ToList(),
+            HiddenColumns = Entries.Where(entry => !entry.IsVisible).Select(entry => entry.Key).ToList() is { Count: > 0 } hidden ? hidden : null,
+            ColumnWidths = _columnWidths,
+            SortColumn = _sortColumn,
+            SortDirection = _sortDirection,
+        };
+
+        var file = await StorageProvider.SaveFilePickerAsync(
+            new FilePickerSaveOptions
+            {
+                Title = "Export Grid Layout",
+                SuggestedFileName = "layout.yaat-grid-layout.json",
+                FileTypeChoices = [GridLayoutFileType],
+            }
+        );
+
+        if (file is null)
+        {
+            return;
+        }
+
+        await using var stream = await file.OpenWriteAsync();
+        await JsonSerializer.SerializeAsync(stream, layout, UserPreferences.JsonOptions);
+    }
+
+    private async void OnImport(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions
+            {
+                Title = "Import Grid Layout",
+                AllowMultiple = false,
+                FileTypeFilter = [GridLayoutFileType],
+            }
+        );
+
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        SavedGridLayout? layout;
+        try
+        {
+            await using var stream = await files[0].OpenReadAsync();
+            layout = await JsonSerializer.DeserializeAsync<SavedGridLayout>(stream, UserPreferences.JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (layout is null)
+        {
+            return;
+        }
+
+        // Reorder entries to match imported column order
+        if (layout.ColumnOrder is { Count: > 0 })
+        {
+            var keyToEntry = new Dictionary<string, ColumnEntry>();
+            foreach (var entry in Entries)
+            {
+                keyToEntry[entry.Key] = entry;
+            }
+
+            var ordered = new List<ColumnEntry>();
+            var used = new HashSet<string>();
+
+            foreach (var key in layout.ColumnOrder)
+            {
+                if (keyToEntry.TryGetValue(key, out var entry))
+                {
+                    ordered.Add(entry);
+                    used.Add(key);
+                }
+            }
+
+            // Append any columns not mentioned in the import (keep relative order)
+            foreach (var entry in Entries)
+            {
+                if (!used.Contains(entry.Key))
+                {
+                    ordered.Add(entry);
+                }
+            }
+
+            Entries.Clear();
+            foreach (var entry in ordered)
+            {
+                Entries.Add(entry);
+            }
+        }
+
+        // Update visibility
+        var hiddenSet = layout.HiddenColumns is { Count: > 0 } ? new HashSet<string>(layout.HiddenColumns) : null;
+        foreach (var entry in Entries)
+        {
+            entry.IsVisible = hiddenSet is null || !hiddenSet.Contains(entry.Key);
+        }
+
+        // Store for MainWindow to apply widths/sort after OK
+        ImportedLayout = layout;
     }
 
     private void OnOk(object? sender, RoutedEventArgs e)

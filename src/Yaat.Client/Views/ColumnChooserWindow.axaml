@@ -32,6 +32,11 @@
             <Button x:Name="MoveLastButton" Content="Last" Padding="8,4" />
         </StackPanel>
 
+        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+            <Button x:Name="ExportButton" Content="Export..." Padding="8,4" />
+            <Button x:Name="ImportButton" Content="Import..." Padding="8,4" />
+        </StackPanel>
+
         <CheckBox x:Name="ShowOnlyActiveCheckBox" Content="Show only active aircraft" Foreground="White" Margin="0,4,0,0" />
 
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">

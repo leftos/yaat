@@ -507,7 +507,17 @@ public partial class MainWindow : Window
                     );
                 }
 
-                var chooser = new ColumnChooserWindow(entries, vm.ShowOnlyActiveAircraft);
+                Dictionary<string, double>? currentWidths = null;
+                foreach (var col in dataGrid.Columns)
+                {
+                    if (!col.Width.IsAuto)
+                    {
+                        currentWidths ??= [];
+                        currentWidths[GetColumnKey(col)] = col.ActualWidth;
+                    }
+                }
+
+                var chooser = new ColumnChooserWindow(entries, vm.ShowOnlyActiveAircraft, currentWidths, _sortColumnKey, _sortDirection);
                 var ownerWindow = TopLevel.GetTopLevel(dataGrid) as Window ?? this;
                 await chooser.ShowDialog(ownerWindow);
 
@@ -539,6 +549,34 @@ public partial class MainWindow : Window
                 finally
                 {
                     _restoringGrid = false;
+                }
+
+                if (chooser.ImportedLayout is { } imported)
+                {
+                    if (imported.ColumnWidths is { Count: > 0 })
+                    {
+                        foreach (var col in dataGrid.Columns)
+                        {
+                            if (imported.ColumnWidths.TryGetValue(GetColumnKey(col), out var width))
+                            {
+                                col.Width = new DataGridLength(width);
+                            }
+                        }
+                    }
+
+                    if (imported.SortColumn is not null && imported.SortDirection is not null)
+                    {
+                        foreach (var col in dataGrid.Columns)
+                        {
+                            if (GetColumnKey(col) == imported.SortColumn)
+                            {
+                                col.Sort(imported.SortDirection.Value);
+                                _sortColumnKey = imported.SortColumn;
+                                _sortDirection = imported.SortDirection;
+                                break;
+                            }
+                        }
+                    }
                 }
 
                 vm.ShowOnlyActiveAircraft = chooser.ShowOnlyActive;
