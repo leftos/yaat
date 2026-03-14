@@ -754,6 +754,7 @@ public static class CommandRegistry
             Cmd(Say, "Say", "Broadcast", false, ["SAY", "SAYF"], [O(null, [R("message", "free text")], "Broadcast pilot message")]),
             Bare(SaySpeed, "Say Speed", "Broadcast", false, ["SSPD"]),
             Bare(SayMach, "Say Mach", "Broadcast", false, ["SMACH"]),
+            Bare(SayExpectedApproach, "Say Expected Approach", "Broadcast", false, ["SEAPP"]),
         ];
 
     private static CommandDefinition[] ApproachCommands() =>

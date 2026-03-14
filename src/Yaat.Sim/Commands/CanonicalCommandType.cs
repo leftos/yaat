@@ -133,6 +133,7 @@ public enum CanonicalCommandType
     Say,
     SaySpeed,
     SayMach,
+    SayExpectedApproach,
 
     // Navigation (continued)
     ForceDirectTo,

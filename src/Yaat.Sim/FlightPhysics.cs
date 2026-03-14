@@ -891,7 +891,11 @@ public static class FlightPhysics
     private static void ApplyBlock(AircraftState aircraft, CommandBlock block)
     {
         block.IsApplied = true;
-        block.ApplyAction?.Invoke(aircraft);
+        var handlerMessage = block.ApplyAction?.Invoke(aircraft);
+        if (handlerMessage is not null)
+        {
+            block.NaturalDescription = handlerMessage;
+        }
 
         foreach (var cmd in block.Commands)
         {

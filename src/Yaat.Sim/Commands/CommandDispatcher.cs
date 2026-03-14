@@ -133,6 +133,11 @@ public static class CommandDispatcher
             if (firstBlock.Trigger is null)
             {
                 ApplyBlock(firstBlock, aircraft);
+                // ApplyBlock may update NaturalDescription (e.g. implied CAPP resolving approach ID)
+                if (messages.Count > 0)
+                {
+                    messages[0] = firstBlock.NaturalDescription;
+                }
             }
             // If there's a trigger, the physics tick will check and apply when met
         }
@@ -979,7 +984,11 @@ public static class CommandDispatcher
     private static void ApplyBlock(CommandBlock block, AircraftState aircraft)
     {
         block.IsApplied = true;
-        block.ApplyAction?.Invoke(aircraft);
+        var handlerMessage = block.ApplyAction?.Invoke(aircraft);
+        if (handlerMessage is not null)
+        {
+            block.NaturalDescription = handlerMessage;
+        }
 
         foreach (var cmd in block.Commands)
         {
@@ -994,7 +1003,7 @@ public static class CommandDispatcher
     /// Builds a deferred action that applies all commands in a block to the aircraft.
     /// This is stored on the CommandBlock and executed when the block becomes active.
     /// </summary>
-    private static Action<AircraftState> BuildApplyAction(
+    private static Func<AircraftState, string?> BuildApplyAction(
         List<ParsedCommand> commands,
         AircraftState aircraft,
         Random rng,
@@ -1007,17 +1016,23 @@ public static class CommandDispatcher
         return ac =>
         {
             bool hadProcedure = ac.ActiveSidId is not null || ac.ActiveStarId is not null;
+            var messages = new List<string>();
 
             foreach (var cmd in captured)
             {
                 var result = ApplyCommand(cmd, ac, rng, navDb, validateDctFixes);
-                if (!result.Success)
+                if (result.Success && result.Message is not null)
+                {
+                    messages.Add(result.Message);
+                }
+                else if (!result.Success)
                 {
                     Log.LogWarning("Command {Command} failed during block apply: {Message}", CommandDescriber.DescribeCommand(cmd), result.Message);
                 }
             }
 
             CheckVectoringWarning(ac, captured, hadProcedure);
+            return messages.Count > 0 ? string.Join(", ", messages) : null;
         };
     }
 

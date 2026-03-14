@@ -34,6 +34,7 @@ internal static class NavigationCommandHandler
                 ac.Targets.NavigationRoute.Clear();
                 ac.Targets.TargetHeading = cmd.Radial;
                 ac.Targets.PreferredTurnDirection = null;
+                return null;
             },
             Description = $"at {cmd.FixName} R{cmd.Radial:D3}: FH {cmd.Radial:D3}",
             NaturalDescription = $"On {cmd.FixName} {cmd.Radial:D3} radial: fly heading {cmd.Radial:D3}",
@@ -73,6 +74,7 @@ internal static class NavigationCommandHandler
                         Longitude = cmd.FixLon,
                     }
                 );
+                return null;
             },
             Description = $"at {cmd.FixName} R{cmd.Radial:D3}: DCT {cmd.FixName}",
             NaturalDescription = $"On {cmd.FixName} {cmd.Radial:D3} radial: proceed inbound to {cmd.FixName}",
@@ -111,6 +113,7 @@ internal static class NavigationCommandHandler
                 ac.Targets.NavigationRoute.Clear();
                 ac.Targets.TargetHeading = cmd.Heading;
                 ac.Targets.PreferredTurnDirection = null;
+                return null;
             },
             Description = $"at {cmd.FixName}: FH {cmd.Heading:D3}",
             NaturalDescription = $"At {cmd.FixName}: fly heading {cmd.Heading:D3}",
@@ -171,6 +174,7 @@ internal static class NavigationCommandHandler
                 {
                     ac.Targets.TargetAltitude = previousAlt;
                 }
+                return null;
             },
             Description = $"at {cmd.FixName}: revert altitude",
             NaturalDescription = $"At {cmd.FixName}: resume assigned altitude",
@@ -639,6 +643,7 @@ internal static class NavigationCommandHandler
                 {
                     ac.Targets.NavigationRoute.Add(target);
                 }
+                return null;
             },
             Description = $"intercept {cmd.AirwayId}: DCT {string.Join(" ", remainingFixes)}",
             NaturalDescription = $"On {cmd.AirwayId}: proceed via {string.Join(" ", remainingFixes)}",

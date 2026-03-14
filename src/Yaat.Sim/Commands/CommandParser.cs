@@ -637,6 +637,7 @@ public static class CommandParser
             Say when arg is not null => new SayCommand(arg),
             SaySpeed when arg is null => new SaySpeedCommand(),
             SayMach when arg is null => new SayMachCommand(),
+            SayExpectedApproach when arg is null => new SayExpectedApproachCommand(),
             // Queue
             DeleteQueuedCommands when arg is null => new DeleteQueuedCommand(),
             DeleteQueuedCommands => int.TryParse(arg, out var delAtBlock) ? new DeleteQueuedCommand(delAtBlock) : null,

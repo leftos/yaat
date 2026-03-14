@@ -73,13 +73,14 @@ public class CommandBlock
     /// Natural-language description for broadcast when a triggered block executes
     /// (e.g., "At 5,000 ft: Climb and maintain 5000"). Set by CommandDispatcher.
     /// </summary>
-    public string NaturalDescription { get; init; } = "";
+    public string NaturalDescription { get; set; } = "";
 
     /// <summary>
     /// Deferred action that applies this block's commands to the aircraft.
     /// Set by the CommandDispatcher when building the queue.
+    /// Returns a handler message (e.g. resolved approach readback) or null.
     /// </summary>
-    public Action<AircraftState>? ApplyAction { get; init; }
+    public Func<AircraftState, string?>? ApplyAction { get; init; }
 }
 
 public class CommandQueue

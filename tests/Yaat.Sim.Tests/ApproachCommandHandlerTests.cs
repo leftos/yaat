@@ -458,6 +458,24 @@ public class ApproachCommandHandlerTests
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
     }
 
+    [Fact]
+    public void Capp_BareCompound_ReadbackContainsResolvedApproachId()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.ExpectedApproach = "I28R";
+        var navDb = MakeNavDb();
+
+        // Use DispatchCompound (the compound command path) with null ApproachId.
+        // Before the fix, NaturalDescription was pre-computed with a blank approach ID.
+        var cappCmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
+        var compound = new CompoundCommand([new ParsedBlock(null, [cappCmd])]);
+        var result = CommandDispatcher.DispatchCompound(compound, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Contains("I28R", result.Message);
+        Assert.Contains("28R", result.Message);
+    }
+
     // --- Error cases ---
 
     [Fact]

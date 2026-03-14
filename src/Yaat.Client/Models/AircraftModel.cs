@@ -463,10 +463,14 @@ public partial class AircraftModel : ObservableObject
     private bool _isAnnotated;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExpectedApproachDisplay))]
     private string? _activeApproachId;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ExpectedApproachDisplay))]
     private string? _expectedApproach;
+
+    public string ExpectedApproachDisplay => string.IsNullOrEmpty(ActiveApproachId) ? ExpectedApproach ?? "" : "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasRemarks))]

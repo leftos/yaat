@@ -23,10 +23,10 @@ public class CommandQueueTests
         };
     }
 
-    private static CommandBlock ImmediateBlock(Action<AircraftState>? applyAction = null) =>
+    private static CommandBlock ImmediateBlock(Func<AircraftState, string?>? applyAction = null) =>
         new() { Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }], ApplyAction = applyAction };
 
-    private static CommandBlock TriggeredBlock(BlockTrigger trigger, Action<AircraftState>? applyAction = null) =>
+    private static CommandBlock TriggeredBlock(BlockTrigger trigger, Func<AircraftState, string?>? applyAction = null) =>
         new()
         {
             Trigger = trigger,
@@ -430,7 +430,15 @@ public class CommandQueueTests
     public void ApplyAction_InvokedOnTrigger()
     {
         var ac = MakeAircraft(heading: 090);
-        var block = new CommandBlock { Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }], ApplyAction = a => a.Heading = 270 };
+        var block = new CommandBlock
+        {
+            Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
+            ApplyAction = a =>
+            {
+                a.Heading = 270;
+                return null;
+            },
+        };
         ac.Queue.Blocks.Add(block);
 
         FlightPhysics.Update(ac, 1.0, null, null);

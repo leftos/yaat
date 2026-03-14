@@ -507,6 +507,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Say | `SAY text` | — | — |
 | Say speed | `SSPD` | — | Aircraft reports current speed (includes Mach at/above FL240) |
 | Say mach | `SMACH` | — | Aircraft reports current Mach number |
+| Say expected approach | `SEAPP` | — | Aircraft reports expected approach |
 | Spawn now | `SPAWN` | — | — |
 | Spawn delay | `DELAY 120` | — | — |
 | Wait (seconds) | `WAIT 30` | — | — |
@@ -1234,6 +1235,16 @@ Make an aircraft report its current Mach number:
 | `SMACH` | Aircraft broadcasts its current Mach number |
 
 Aliases: `SMACH`.
+
+### Say Expected Approach
+
+Make an aircraft report its expected approach:
+
+| Command | Effect |
+|---------|--------|
+| `SEAPP` | Aircraft broadcasts its expected approach (or "No expected approach assigned") |
+
+Aliases: `SEAPP`.
 
 ## Simulation Controls
 
