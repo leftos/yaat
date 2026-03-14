@@ -108,7 +108,15 @@ public static class ScenarioValidator
                     continue;
                 }
 
-                // Token has trailing digits — check if it's a SID or STAR
+                // SID/STAR versions are a single trailing digit (e.g., BDEGA4, COKTL3).
+                // Multiple trailing digits (e.g., SEA147021) indicate an FRD — skip those.
+                int trailingDigits = rawName.Length - baseName.Length;
+                if (trailingDigits > 1)
+                {
+                    continue;
+                }
+
+                // Token has a single trailing digit — check if it's a SID or STAR
                 var resolvedSid = navDb.ResolveSidId(rawName);
                 if (resolvedSid is not null)
                 {
