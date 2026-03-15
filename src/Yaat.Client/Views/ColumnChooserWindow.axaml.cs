@@ -18,6 +18,7 @@ public partial class ColumnChooserWindow : Window
     private readonly Dictionary<string, double>? _columnWidths;
     private readonly string? _sortColumn;
     private readonly ListSortDirection? _sortDirection;
+    private readonly List<string> _defaultOrder;
 
     public ObservableCollection<ColumnEntry> Entries { get; } = [];
     public bool Confirmed { get; private set; }
@@ -27,6 +28,7 @@ public partial class ColumnChooserWindow : Window
     public ColumnChooserWindow()
     {
         InitializeComponent();
+        _defaultOrder = [];
     }
 
     public ColumnChooserWindow(
@@ -34,7 +36,8 @@ public partial class ColumnChooserWindow : Window
         bool showOnlyActive,
         Dictionary<string, double>? columnWidths,
         string? sortColumn,
-        ListSortDirection? sortDirection
+        ListSortDirection? sortDirection,
+        List<string> defaultOrder
     )
     {
         InitializeComponent();
@@ -42,6 +45,7 @@ public partial class ColumnChooserWindow : Window
         _columnWidths = columnWidths;
         _sortColumn = sortColumn;
         _sortDirection = sortDirection;
+        _defaultOrder = defaultOrder;
 
         foreach (var col in columns)
         {
@@ -57,6 +61,7 @@ public partial class ColumnChooserWindow : Window
         MoveLastButton.Click += OnMoveLast;
         ExportButton.Click += OnExport;
         ImportButton.Click += OnImport;
+        ResetButton.Click += OnReset;
         OkButton.Click += OnOk;
         CancelButton.Click += OnCancel;
     }
@@ -224,6 +229,45 @@ public partial class ColumnChooserWindow : Window
 
         // Store for MainWindow to apply widths/sort after OK
         ImportedLayout = layout;
+    }
+
+    private void OnReset(object? sender, RoutedEventArgs e)
+    {
+        var keyToEntry = new Dictionary<string, ColumnEntry>();
+        foreach (var entry in Entries)
+        {
+            keyToEntry[entry.Key] = entry;
+        }
+
+        var ordered = new List<ColumnEntry>();
+        var used = new HashSet<string>();
+
+        foreach (var key in _defaultOrder)
+        {
+            if (keyToEntry.TryGetValue(key, out var entry))
+            {
+                entry.IsVisible = true;
+                ordered.Add(entry);
+                used.Add(key);
+            }
+        }
+
+        foreach (var entry in Entries)
+        {
+            if (!used.Contains(entry.Key))
+            {
+                entry.IsVisible = true;
+                ordered.Add(entry);
+            }
+        }
+
+        Entries.Clear();
+        foreach (var entry in ordered)
+        {
+            Entries.Add(entry);
+        }
+
+        ImportedLayout = null;
     }
 
     private void OnOk(object? sender, RoutedEventArgs e)

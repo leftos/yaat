@@ -295,7 +295,8 @@ public partial class MainViewModel : ObservableObject
             || Contains(ac.Scratchpad1, filter)
             || Contains(ac.Scratchpad2, filter)
             || Contains(ac.ActiveApproachId, filter)
-            || Contains(ac.OwnerDisplay, filter);
+            || Contains(ac.OwnerDisplay, filter)
+            || Contains(ac.SmartStatus, filter);
 
         static bool Contains(string? value, string filter) => value is not null && value.Contains(filter, StringComparison.OrdinalIgnoreCase);
     }

@@ -5,6 +5,13 @@ using Yaat.Client.Services;
 
 namespace Yaat.Client.Models;
 
+public enum SmartStatusSeverity
+{
+    Normal,
+    Warning,
+    Critical,
+}
+
 public partial class AircraftModel : ObservableObject
 {
     [ObservableProperty]
@@ -497,6 +504,12 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 
+    [ObservableProperty]
+    private string _smartStatus = "";
+
+    [ObservableProperty]
+    private SmartStatusSeverity _smartStatusSeverity = SmartStatusSeverity.Normal;
+
     public static AircraftModel FromDto(AircraftDto dto, Func<AircraftModel, double?>? computeDistance = null)
     {
         var model = new AircraftModel
@@ -558,6 +571,7 @@ public partial class AircraftModel : ObservableObject
             AssignedMach = dto.AssignedMach,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
+        model.ComputeSmartStatus();
         return model;
     }
 
@@ -617,6 +631,229 @@ public partial class AircraftModel : ObservableObject
         Mach = dto.Mach;
         AssignedMach = dto.AssignedMach;
         DistanceFromFix = computeDistance?.Invoke(this);
+        ComputeSmartStatus();
+    }
+
+    public void ComputeSmartStatus()
+    {
+        var alert = CheckAlerts();
+        if (alert is not null)
+        {
+            SmartStatus = alert.Value.Text;
+            SmartStatusSeverity = alert.Value.Severity;
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(CurrentPhase))
+        {
+            var (text, severity) = ComputePhaseStatus();
+            SmartStatus = text;
+            SmartStatusSeverity = severity;
+            return;
+        }
+
+        var noPhase = ComputeNoPhaseStatus();
+        SmartStatus = noPhase.Text;
+        SmartStatusSeverity = noPhase.Severity;
+    }
+
+    private (string Text, SmartStatusSeverity Severity)? CheckAlerts()
+    {
+        if (CurrentPhase is "FinalApproach" && string.IsNullOrEmpty(LandingClearance))
+        {
+            return ("No landing clnc", SmartStatusSeverity.Critical);
+        }
+
+        if (CurrentPhase is "Landing" or "Landing-H" && string.IsNullOrEmpty(LandingClearance))
+        {
+            return ("Landing — no clnc!", SmartStatusSeverity.Critical);
+        }
+
+        if (!string.IsNullOrEmpty(HandoffPeer))
+        {
+            var target = HandoffPeerSectorCode ?? HandoffPeer;
+            return ($"HO → {target}", SmartStatusSeverity.Warning);
+        }
+
+        if (
+            !IsOnGround
+            && string.IsNullOrEmpty(CurrentPhase)
+            && string.IsNullOrEmpty(ActiveSidId)
+            && string.IsNullOrEmpty(ActiveStarId)
+            && !AssignedAltitude.HasValue
+            && string.IsNullOrEmpty(NavigationRoute)
+            && !IsDelayed
+        )
+        {
+            return ("No altitude asgn", SmartStatusSeverity.Warning);
+        }
+
+        return null;
+    }
+
+    private (string Text, SmartStatusSeverity Severity) ComputePhaseStatus()
+    {
+        var text = CurrentPhase switch
+        {
+            "At Parking" => string.IsNullOrEmpty(ParkingSpot) ? "At parking" : $"At parking {ParkingSpot}",
+            "Pushback" or "Pushback to Spot" => "Pushing back",
+            "Holding After Pushback" or "Holding In Position" => "Holding position",
+            "Holding After Exit" => "Clear of runway",
+            "Taxiing" => FormatTaxiStatus(),
+            "AirTaxi" => "Air taxi",
+            "Crossing Runway" => "Crossing runway",
+            "LiningUp" => $"Lining up {AssignedRunway}",
+            "LinedUpAndWaiting" => $"LUAW {AssignedRunway}",
+            "Takeoff" or "Takeoff-H" => $"Takeoff {AssignedRunway}",
+            "InitialClimb" => FormatInitialClimbStatus(),
+            "InterceptCourse" => string.IsNullOrEmpty(ActiveApproachId) ? "Intercepting course" : $"Intercepting {ActiveApproachId}",
+            "ApproachNav" => FormatApproachNavStatus(),
+            "HoldingPattern" or "HoldingAtFix" => string.IsNullOrEmpty(NavigatingTo) ? "Holding" : $"Holding at {NavigatingTo}",
+            "ProceedToFix" => string.IsNullOrEmpty(NavigatingTo) ? "Proceeding to fix" : $"Proceeding to {NavigatingTo}",
+            "FinalApproach" => FormatFinalApproachStatus(),
+            "Pattern Entry" => $"{PatternDirection} pattern entry",
+            "Upwind" or "Crosswind" or "Downwind" or "Base" => $"{PatternDirection} {CurrentPhase.ToLowerInvariant()} {AssignedRunway}",
+            "MidfieldCrossing" => $"Midfield crossing {AssignedRunway}",
+            "Landing" or "Landing-H" => $"Landing {(string.IsNullOrEmpty(ClearedRunway) ? AssignedRunway : ClearedRunway)}",
+            "Runway Exit" => "Exiting runway",
+            "TouchAndGo" => $"Touch-and-go {ClearedRunway}",
+            "StopAndGo" => $"Stop-and-go {ClearedRunway}",
+            "LowApproach" => $"Low approach {ClearedRunway}",
+            "GoAround" => $"Go-around {(string.IsNullOrEmpty(ClearedRunway) ? AssignedRunway : ClearedRunway)}",
+            "HPP-L" or "HPP-R" or "HPP" => "Hold present position",
+            "S-Turns" => "S-turns",
+            _ => FormatFallbackPhase(),
+        };
+
+        return (text, SmartStatusSeverity.Normal);
+    }
+
+    private string FormatTaxiStatus()
+    {
+        var baseText = string.IsNullOrEmpty(AssignedRunway) ? "Taxiing" : $"Taxi to RWY {AssignedRunway}";
+        if (!string.IsNullOrEmpty(TaxiRoute))
+        {
+            var taxiways = TaxiRoute.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var preview = string.Join(" ", taxiways.Length > 3 ? taxiways.AsSpan(0, 3).ToArray() : taxiways);
+            baseText = $"{baseText} via {preview}";
+        }
+        return baseText;
+    }
+
+    private string FormatInitialClimbStatus()
+    {
+        var text = $"Departing {DepartureRunway}";
+        if (!string.IsNullOrEmpty(ActiveSidId))
+        {
+            return $"{text}, {ActiveSidId}";
+        }
+        if (AssignedHeading.HasValue)
+        {
+            return $"{text}, hdg {AssignedHeadingDisplay}";
+        }
+        return text;
+    }
+
+    private string FormatApproachNavStatus()
+    {
+        var text = ActiveApproachId ?? "";
+        if (!string.IsNullOrEmpty(NavigationRoute))
+        {
+            text = $"{text} → {NavigationRoute.Replace(" > ", " ")}";
+        }
+        return text;
+    }
+
+    private string FormatFinalApproachStatus()
+    {
+        if (!string.IsNullOrEmpty(ActiveApproachId))
+        {
+            return $"{ActiveApproachId} final";
+        }
+        var rwy = string.IsNullOrEmpty(ClearedRunway) ? AssignedRunway : ClearedRunway;
+        return $"Final {rwy}";
+    }
+
+    private string FormatFallbackPhase()
+    {
+        if (CurrentPhase.StartsWith("Holding Short", StringComparison.Ordinal))
+        {
+            var target = CurrentPhase.Length > 14 ? CurrentPhase[14..] : "";
+            return string.IsNullOrEmpty(target) ? "Hold short" : $"Hold short {target}";
+        }
+
+        if (CurrentPhase.StartsWith("Following ", StringComparison.Ordinal))
+        {
+            return CurrentPhase;
+        }
+
+        if (CurrentPhase.StartsWith("Turn", StringComparison.Ordinal))
+        {
+            return "Turning";
+        }
+
+        return CurrentPhase;
+    }
+
+    private (string Text, SmartStatusSeverity Severity) ComputeNoPhaseStatus()
+    {
+        if (IsOnGround && GroundSpeed < 5)
+        {
+            return ("On ground", SmartStatusSeverity.Normal);
+        }
+
+        if (!IsOnGround && VerticalSpeed > 300)
+        {
+            return (FormatClimbDescentStatus("Climbing", "\u2191"), SmartStatusSeverity.Normal);
+        }
+
+        if (!IsOnGround && VerticalSpeed < -300)
+        {
+            return (FormatClimbDescentStatus("Descending", "\u2193"), SmartStatusSeverity.Normal);
+        }
+
+        if (!IsOnGround)
+        {
+            if (!string.IsNullOrEmpty(NavigationRoute))
+            {
+                return ($"\u2192 {NavigationRoute.Replace(" > ", " ")}", SmartStatusSeverity.Normal);
+            }
+            if (!string.IsNullOrEmpty(NavigatingTo))
+            {
+                return ($"\u2192 {NavigatingTo}", SmartStatusSeverity.Normal);
+            }
+            return ($"{FormatAltitudeCompact(Altitude)}, on course", SmartStatusSeverity.Normal);
+        }
+
+        return ("Taxiing", SmartStatusSeverity.Normal);
+    }
+
+    private string FormatClimbDescentStatus(string verb, string arrow)
+    {
+        string text;
+        if (AssignedAltitude.HasValue)
+        {
+            text = $"{arrow} {FormatAltitudeCompact(AssignedAltitude.Value)}";
+        }
+        else
+        {
+            text = verb;
+        }
+
+        if (!string.IsNullOrEmpty(NavigationRoute))
+        {
+            text = $"{text} \u2192 {NavigationRoute.Replace(" > ", " ")}";
+        }
+        return text;
+    }
+
+    public static string FormatAltitudeCompact(double altitude)
+    {
+        if (altitude >= 18000)
+        {
+            return $"FL{altitude / 100:F0}";
+        }
+        return altitude.ToString("N0");
     }
 
     internal static (int Order, int Seconds) ParseStatusSortKey(string status)

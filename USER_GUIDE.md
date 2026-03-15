@@ -16,6 +16,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
   - [Loading Live Weather](#loading-live-weather)
   - [Weather Editor](#weather-editor)
 - [Aircraft List](#aircraft-list)
+  - [Info Column](#info-column)
   - [Aircraft Detail Panel](#aircraft-detail-panel)
   - [Distance Column](#distance-column)
 - [Commands](#commands)
@@ -210,6 +211,7 @@ The main grid shows all aircraft in your scenario, grouped into **Active** and *
 | Column | Description |
 |--------|-------------|
 | Callsign | Aircraft callsign (e.g., UAL123) |
+| Info | Smart status — contextual summary of what the aircraft is doing right now (see [Info Column](#info-column) below) |
 | Status | Spawn status (Active, Delayed, etc.) |
 | Type | Aircraft type code (e.g., B738/L) |
 | Rules | Flight rules (IFR / VFR) |
@@ -236,9 +238,32 @@ The main grid shows all aircraft in your scenario, grouped into **Active** and *
 
 Click an aircraft row to select it, or type a callsign in the command input and press the aircraft select key (**Numpad +** by default, configurable in Settings > Advanced). Press **Esc** to deselect. Click a column header to sort by that column; click again to reverse the sort direction. Sorting always keeps the Active group on top and Delayed on the bottom, sorting within each group independently.
 
-Drag column headers to rearrange the column order. **Right-click any column header** to open the Column Chooser, where you can show/hide columns and reorder them using the Top/Up/Down/Last buttons. The Column Chooser also has a **"Show only active aircraft"** checkbox that hides delayed (not yet spawned) aircraft from the grid. Column order, widths, visibility, sort state, and the active-only filter are remembered across sessions.
+Drag column headers to rearrange the column order. **Right-click any column header** to open the Column Chooser, where you can show/hide columns and reorder them using the Top/Up/Down/Last buttons. Click **Reset to Defaults** to restore the original column order with all columns visible. The Column Chooser also has a **"Show only active aircraft"** checkbox that hides delayed (not yet spawned) aircraft from the grid. Column order, widths, visibility, sort state, and the active-only filter are remembered across sessions.
 
 To share your layout with others, use the **Export...** and **Import...** buttons in the Column Chooser. Export saves the current column order, visibility, widths, and sort state to a `.yaat-grid-layout.json` file. Import loads a layout file and updates the dialog preview — click OK to apply it to the grid. Different training levels may benefit from different layouts — for example, an S1 ground layout might hide approach-related columns, while an S2 or S3 layout shows them. Export a layout for each level and swap between them as needed.
+
+### Info Column
+
+The **Info** column shows a single contextual summary of what each aircraft is doing. It adapts to the aircraft's flight stage so you can scan one column instead of cross-referencing Phase, Clearance, Runway, Approach, etc.
+
+**Color coding:**
+- **White** — normal status (phase description, taxi route, navigation info)
+- **Gold/amber** — warning that needs attention (pending handoff, no altitude assignment)
+- **Red** — critical alert requiring immediate action (on final or landing without clearance)
+
+**Alert conditions** (override normal text, highest priority first):
+| Condition | Text | Color |
+|-----------|------|-------|
+| On final approach without landing clearance | "No landing clnc" | Red |
+| Landing without clearance | "Landing — no clnc!" | Red |
+| Handoff in progress | "HO → {sector}" | Gold |
+| Airborne, no phase/SID/STAR, no altitude assignment, no nav route | "No altitude asgn" | Gold |
+
+**Phase-based status** (white text, shown when no alerts apply): The text describes the current phase in plain language — e.g., "Taxi to RWY 28R via A B C", "LUAW 28R", "Departing 28R, OAK5", "ILS28R → CEPIN DUMBA AXMUL", "Left downwind 28R", "Landing 28R", "Go-around 28R".
+
+**No-phase fallback** (white text, when no phase is active): Shows climb/descent arrows with assigned altitude if set (e.g., "↑ FL350", "↓ 5,000"), navigation route if set (e.g., "→ OAK SFO LAX"), or "On ground" / "FL350, on course" as a last resort.
+
+The Info column is searchable — type status text in the search box to filter aircraft (e.g., "landing", "taxi", "holding").
 
 ### Aircraft Detail Panel
 

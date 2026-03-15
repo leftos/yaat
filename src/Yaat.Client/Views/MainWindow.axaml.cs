@@ -511,7 +511,15 @@ public partial class MainWindow : Window
                     }
                 }
 
-                var chooser = new ColumnChooserWindow(entries, vm.ShowOnlyActiveAircraft, currentWidths, _sortColumnKey, _sortDirection);
+                var defaultOrder = dataGrid.Columns.Select(GetColumnKey).ToList();
+                var chooser = new ColumnChooserWindow(
+                    entries,
+                    vm.ShowOnlyActiveAircraft,
+                    currentWidths,
+                    _sortColumnKey,
+                    _sortDirection,
+                    defaultOrder
+                );
                 var ownerWindow = TopLevel.GetTopLevel(dataGrid) as Window ?? this;
                 await chooser.ShowDialog(ownerWindow);
 
