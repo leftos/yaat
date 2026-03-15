@@ -49,6 +49,35 @@ public static class ApproachCommandHandler
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
         aircraft.DestinationRunway = approachRunway.Designator;
 
+        // Implied PTAC: no AT/DCT fix and aircraft is on an assigned heading → intercept on present heading
+        bool hasAtOrDctFix = cmd.AtFix is not null || cmd.DctFix is not null;
+        bool isOnAssignedHeading = aircraft.Targets.TargetHeading is not null;
+
+        if (!hasAtOrDctFix && isOnAssignedHeading)
+        {
+            aircraft.Targets.NavigationRoute.Clear();
+
+            if (cmd.CrossFixAltitude is { } interceptCxAlt && interceptCxAlt > 0)
+            {
+                aircraft.Targets.TargetAltitude = interceptCxAlt;
+            }
+
+            aircraft.Phases.Add(
+                new InterceptCoursePhase
+                {
+                    FinalApproachCourse = finalCourse,
+                    ThresholdLat = approachRunway.ThresholdLatitude,
+                    ThresholdLon = approachRunway.ThresholdLongitude,
+                }
+            );
+            aircraft.Phases.Add(new FinalApproachPhase());
+            var isHeliIntercept = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+            aircraft.Phases.Add(isHeliIntercept ? new HelicopterLandingPhase() : new LandingPhase());
+
+            StartPhases(aircraft);
+            return new CommandResult(true, $"Cleared {procedure.ApproachId} approach, runway {procedure.Runway}");
+        }
+
         // Handle rich CAPP forms: AT fix, DCT fix — prepend to approach fixes
         if (cmd.AtFix is not null && cmd.AtFixLat is not null && cmd.AtFixLon is not null)
         {
@@ -183,14 +212,19 @@ public static class ApproachCommandHandler
 
         double finalCourse = approachRunway.TrueHeading;
 
+        // Resolve heading: explicit or present
+        int heading = cmd.Heading ?? (int)Math.Round(aircraft.Heading);
+        // Resolve altitude: explicit or present
+        int altitude = cmd.Altitude ?? (int)(aircraft.Targets.TargetAltitude ?? aircraft.Altitude);
+
         // Cancel existing speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
 
         // Set heading and altitude immediately
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = cmd.Heading;
+        aircraft.Targets.TargetHeading = heading;
         aircraft.Targets.PreferredTurnDirection = null;
-        aircraft.Targets.TargetAltitude = cmd.Altitude;
+        aircraft.Targets.TargetAltitude = altitude;
 
         // Clear existing phases
         ClearExistingPhases(aircraft);
@@ -225,7 +259,7 @@ public static class ApproachCommandHandler
 
         return new CommandResult(
             true,
-            $"Turn heading {cmd.Heading:000}, maintain {cmd.Altitude}, cleared {procedure.ApproachId} approach, runway {procedure.Runway}"
+            $"Turn heading {heading:000}, maintain {altitude}, cleared {procedure.ApproachId} approach, runway {procedure.Runway}"
         );
     }
 

@@ -381,7 +381,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Join approach | `JAPP ILS28R` | — | — |
 | Straight-in apch | `CAPPSI ILS28R` | `JAPPSI` | — |
 | Forced approach | `CAPPF ILS28R` | `JAPPF` | — |
-| Pos/Turn/Alt/Clr | `PTAC 280 025 ILS30` | — | — |
+| Pos/Turn/Alt/Clr | `PTAC 280 025 ILS30` | `PTAC PH PA` | — |
 | Join final | `JFAC ILS28R` | `JLOC`, `JF` | — |
 | Join arrival | `JARR OAK.SALI2` | `ARR`, `STAR`, `JSTAR` | — |
 | Join airway | `JAWY V25` | — | — |
@@ -758,6 +758,9 @@ Approach clearances use FAA CIFP procedure data. Approach IDs can be full CIFP i
 | `CAPPF ILS28R` | Forced approach clearance (bypasses intercept angle validation) |
 | `JAPPF ILS28R` | Forced join (bypasses intercept angle check) |
 | `PTAC 280 025 ILS30` | Position/Turn/Altitude/Clearance — turn heading 280, maintain 2,500, cleared ILS 30 |
+| `PTAC PH PA ILS30` | PTAC with present heading and present altitude, explicit approach |
+| `PTAC PH PA` | PTAC with present heading/altitude, auto-resolve approach from expected approach or runway |
+| `PTAC 280 PA` | PTAC with explicit heading 280, present altitude, auto-resolve approach |
 | `JFAC ILS28R` | Join final approach course (intercept and fly the localizer) |
 | `APPS` | List available approaches for the aircraft's destination airport |
 | `APPS OAK` | List available approaches at a specific airport |
@@ -776,6 +779,8 @@ Approach clearances use FAA CIFP procedure data. Approach IDs can be full CIFP i
 | `CAPPSI DCT SUNOL ILS28R` | Direct to SUNOL, then cleared straight-in ILS 28R |
 
 **CFIX altitude prefixes:** `A034` = at or above 3,400, `B034` = at or below 3,400, `034` = at 3,400.
+
+**Heading intercept (implied PTAC):** When an aircraft is being vectored (has an assigned heading) and you issue a bare `CAPP` (no AT/DCT fix), the aircraft maintains its present heading and intercepts the final approach course — equivalent to an implied PTAC. If the aircraft has no assigned heading, CAPP navigates through approach fixes as usual. AT/DCT fixes always override heading intercept regardless of assigned heading.
 
 **Intercept angle validation:** Approach clearances validate the intercept angle per 7110.65 §5-9-2 — max 20° within 2nm of the approach gate, max 30° beyond. Use force variants (`CAPPF`/`JAPPF`) to override.
 

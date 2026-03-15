@@ -353,35 +353,58 @@ internal static class ApproachCommandParser
     }
 
     /// <summary>
-    /// Parses PTAC heading altitudeHundreds approachId.
-    /// Example: "PTAC 280 025 ILS30"
+    /// Parses PTAC [heading|PH] [altitude|PA] [approachId].
+    /// Supports flexible token counts with PH (present heading) and PA (present altitude).
+    /// Examples: "PTAC 280 025 ILS30", "PTAC PH PA ILS30", "PTAC PH PA", "PTAC 280 025", "PTAC"
     /// </summary>
     internal static PR ParsePtac(string? arg, NavigationDatabase? navDb)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return PR.Fail("PTAC requires heading altitude approachId");
+            return PR.Ok(new PositionTurnAltitudeClearanceCommand(null, null, null));
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length != 3)
+
+        if (tokens.Length < 2 || tokens.Length > 3)
         {
-            return PR.Fail("PTAC requires exactly heading altitude approachId");
+            return PR.Fail("PTAC requires [heading|PH] [altitude|PA] [approachId]");
         }
 
-        if (!int.TryParse(tokens[0], out var heading) || heading < 1 || heading > 360)
+        // Token 0: heading — integer 1-360 or PH
+        int? heading;
+        if (tokens[0].Equals("PH", StringComparison.OrdinalIgnoreCase))
         {
-            return PR.Fail($"invalid PTAC heading '{tokens[0]}'");
+            heading = null;
+        }
+        else if (int.TryParse(tokens[0], out var h) && h >= 1 && h <= 360)
+        {
+            heading = h;
+        }
+        else
+        {
+            return PR.Fail($"invalid PTAC heading '{tokens[0]}' (expected 1-360 or PH)");
         }
 
-        int? altitude = AltitudeResolver.Resolve(tokens[1], navDb);
-        if (altitude is null)
+        // Token 1: altitude — hundreds or PA
+        int? altitude;
+        if (tokens[1].Equals("PA", StringComparison.OrdinalIgnoreCase))
         {
-            return PR.Fail($"invalid PTAC altitude '{tokens[1]}'");
+            altitude = null;
+        }
+        else
+        {
+            altitude = AltitudeResolver.Resolve(tokens[1], navDb);
+            if (altitude is null)
+            {
+                return PR.Fail($"invalid PTAC altitude '{tokens[1]}' (expected altitude in hundreds or PA)");
+            }
         }
 
-        var approachId = tokens[2].ToUpperInvariant();
-        return PR.Ok(new PositionTurnAltitudeClearanceCommand(heading, altitude.Value, approachId));
+        // Token 2: approachId (optional)
+        string? approachId = tokens.Length == 3 ? tokens[2].ToUpperInvariant() : null;
+
+        return PR.Ok(new PositionTurnAltitudeClearanceCommand(heading, altitude, approachId));
     }
 
     /// <summary>

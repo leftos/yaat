@@ -308,7 +308,7 @@ public static class CommandDescriber
             JoinRadialOutboundCommand cmd => $"JRADO {cmd.FixName}{cmd.Radial:000}",
             JoinRadialInboundCommand cmd => $"JRADI {cmd.FixName}{cmd.Radial:000}",
             HoldingPatternCommand cmd => FormatHoldCanonical(cmd),
-            PositionTurnAltitudeClearanceCommand cmd => $"PTAC {cmd.Heading:000} {cmd.Altitude:000} {cmd.ApproachId}",
+            PositionTurnAltitudeClearanceCommand cmd => FormatPtacCanonical(cmd),
             ClimbViaCommand cmd => cmd.Altitude is not null ? $"CVIA {cmd.Altitude}" : "CVIA",
             DescendViaCommand cmd => cmd.Speed is not null ? $"DVIA SPD {cmd.Speed} {cmd.SpeedFixName}"
             : cmd.Altitude is not null ? $"DVIA {cmd.Altitude}"
@@ -446,8 +446,7 @@ public static class CommandDescriber
             JoinRadialOutboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial outbound",
             JoinRadialInboundCommand cmd => $"Join {cmd.FixName} {cmd.Radial:000} radial inbound",
             HoldingPatternCommand cmd => FormatHoldNatural(cmd),
-            PositionTurnAltitudeClearanceCommand cmd =>
-                $"Fly heading {cmd.Heading:000}, maintain {cmd.Altitude:N0}, cleared {cmd.ApproachId} approach",
+            PositionTurnAltitudeClearanceCommand cmd => FormatPtacNatural(cmd),
             ClimbViaCommand cmd => cmd.Altitude is not null ? $"Climb via SID, except maintain {cmd.Altitude:N0}" : "Climb via SID",
             DescendViaCommand cmd => cmd.Speed is not null ? $"Descend via STAR, {cmd.Speed} knots at {cmd.SpeedFixName}"
             : cmd.Altitude is not null ? $"Descend via STAR, except maintain {cmd.Altitude:N0}"
@@ -933,6 +932,21 @@ public static class CommandDescriber
         }
 
         return taxiAll.DestinationRunway is not null ? $"Taxi all to runway {taxiAll.DestinationRunway}" : "Taxi all";
+    }
+
+    private static string FormatPtacCanonical(PositionTurnAltitudeClearanceCommand cmd)
+    {
+        var headingStr = cmd.Heading is { } h ? $"{h:000}" : "PH";
+        var altStr = cmd.Altitude is { } a ? $"{a:000}" : "PA";
+        return cmd.ApproachId is not null ? $"PTAC {headingStr} {altStr} {cmd.ApproachId}" : $"PTAC {headingStr} {altStr}";
+    }
+
+    private static string FormatPtacNatural(PositionTurnAltitudeClearanceCommand cmd)
+    {
+        var headingPart = cmd.Heading is { } h ? $"Fly heading {h:000}" : "Maintain present heading";
+        var altPart = cmd.Altitude is { } a ? $"maintain {a:N0}" : "maintain present altitude";
+        var approachPart = cmd.ApproachId is not null ? $", cleared {cmd.ApproachId} approach" : ", cleared approach";
+        return $"{headingPart}, {altPart}{approachPart}";
     }
 
     private static string FormatCvaCanonical(ClearedVisualApproachCommand cmd)

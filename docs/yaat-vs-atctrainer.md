@@ -174,7 +174,8 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Cleared approach | `CAPP`/`CTL` | `CAPP`/`CTL` | Parity — `CTL` is ATCTrainer alias for CAPP |
 | Straight-in | — | `CAPPSI`/`JAPPSI` | YAAT-only — skips hold-in-lieu |
 | Force approach | — | `CAPPF`/`JAPPF` | YAAT-only — bypasses intercept angle check |
-| PTAC | — | `PTAC 280 025 ILS30` | YAAT-only — position/turn/altitude/cleared |
+| PTAC | — | `PTAC 280 025 ILS30` | YAAT-only — position/turn/altitude/cleared; supports PH/PA for present heading/altitude, optional approach ID |
+| CAPP heading intercept | — | `CAPP ILS28R` (on vectored aircraft) | YAAT-only — bare CAPP on vectored aircraft intercepts on present heading (implied PTAC) |
 | Rich approach forms | — | `CAPP AT SUNOL ILS28R`, `CAPP DCT SUNOL ILS28R` | YAAT-only — combines navigation + clearance |
 | Expect approach | — | `EAPP I28R` | YAAT-only — sets expected approach for DCT fix programming feature |
 | Visual approach | — | `CVA 28R` (+ LEFT/RIGHT/FOLLOW) | YAAT-only |

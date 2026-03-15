@@ -158,6 +158,100 @@ public class ApproachCommandHandlerTests
         Assert.True(result.Success);
     }
 
+    // --- CAPP heading intercept (issue #75) ---
+
+    [Fact]
+    public void Capp_WithAssignedHeading_UsesInterceptPhase()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Targets.TargetHeading = 340;
+        var navDb = MakeNavDb();
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.NotNull(aircraft.Phases);
+        Assert.Equal(3, aircraft.Phases.Phases.Count);
+        Assert.IsType<InterceptCoursePhase>(aircraft.Phases.Phases[0]);
+        Assert.IsType<FinalApproachPhase>(aircraft.Phases.Phases[1]);
+        Assert.IsType<LandingPhase>(aircraft.Phases.Phases[2]);
+        Assert.Equal(340, aircraft.Targets.TargetHeading);
+        Assert.Empty(aircraft.Targets.NavigationRoute);
+    }
+
+    [Fact]
+    public void Capp_WithAssignedHeadingAndCrossFixAlt_AppliesCrossAlt()
+    {
+        var aircraft = MakeAircraft(altitude: 5000);
+        aircraft.Targets.TargetHeading = 340;
+        var navDb = MakeNavDb();
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, 3000, CrossFixAltitudeType.At);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Equal(3000, aircraft.Targets.TargetAltitude);
+        Assert.IsType<InterceptCoursePhase>(aircraft.Phases!.Phases[0]);
+    }
+
+    [Fact]
+    public void Capp_WithAssignedHeadingAndAtFix_UsesFixNavigation()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Targets.TargetHeading = 340;
+        var navDb = MakeNavDb();
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, "SUNOL", 37.5, -121.8, null, null, null, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
+        Assert.Equal("SUNOL", navPhase.Fixes[0].Name);
+    }
+
+    [Fact]
+    public void Capp_WithAssignedHeadingAndDctFix_UsesFixNavigation()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Targets.TargetHeading = 340;
+        var navDb = MakeNavDb();
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
+        Assert.Equal("SUNOL", navPhase.Fixes[0].Name);
+    }
+
+    [Fact]
+    public void Capp_WithoutAssignedHeading_UsesFixNavigation()
+    {
+        var aircraft = MakeAircraft();
+        Assert.Null(aircraft.Targets.TargetHeading);
+        var navDb = MakeNavDb();
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Contains(aircraft.Phases!.Phases, p => p is ApproachNavigationPhase);
+    }
+
+    [Fact]
+    public void Capp_WithAssignedHeading_ClearsSpeedRestriction()
+    {
+        var aircraft = MakeAircraft(speed: 210);
+        aircraft.Targets.TargetHeading = 340;
+        var navDb = MakeNavDb();
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.Null(aircraft.Targets.TargetSpeed);
+    }
+
     // --- JAPP ---
 
     [Fact]
@@ -304,6 +398,79 @@ public class ApproachCommandHandlerTests
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
+    }
+
+    // --- PTAC PH/PA support (issue #76) ---
+
+    [Fact]
+    public void Ptac_PresentHeading_UsesAircraftHeading()
+    {
+        var aircraft = MakeAircraft(heading: 195);
+        var navDb = MakeNavDbRunwayAndApproachOnly();
+
+        var cmd = new PositionTurnAltitudeClearanceCommand(null, 2500, "ILS28R");
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Equal(195, aircraft.Targets.TargetHeading);
+    }
+
+    [Fact]
+    public void Ptac_PresentAltitude_UsesAircraftAltitude()
+    {
+        var aircraft = MakeAircraft(altitude: 4500);
+        var navDb = MakeNavDbRunwayAndApproachOnly();
+
+        var cmd = new PositionTurnAltitudeClearanceCommand(280, null, "ILS28R");
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Equal(4500, aircraft.Targets.TargetAltitude);
+    }
+
+    [Fact]
+    public void Ptac_NoApproachId_AutoResolves()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.ExpectedApproach = "ILS28R";
+        var navDb = MakeNavDbRunwayAndApproachOnly();
+
+        var cmd = new PositionTurnAltitudeClearanceCommand(280, 2500, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.NotNull(aircraft.Phases?.ActiveApproach);
+        Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
+    }
+
+    [Fact]
+    public void Ptac_AllPresent_BarePtac()
+    {
+        var aircraft = MakeAircraft(heading: 310, altitude: 3500);
+        aircraft.ExpectedApproach = "ILS28R";
+        var navDb = MakeNavDbRunwayAndApproachOnly();
+
+        var cmd = new PositionTurnAltitudeClearanceCommand(null, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Equal(310, aircraft.Targets.TargetHeading);
+        Assert.Equal(3500, aircraft.Targets.TargetAltitude);
+        Assert.IsType<InterceptCoursePhase>(aircraft.Phases!.Phases[0]);
+    }
+
+    [Fact]
+    public void Ptac_ExplicitValues_StillWork()
+    {
+        var aircraft = MakeAircraft();
+        var navDb = MakeNavDbRunwayAndApproachOnly();
+
+        var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Equal(340, aircraft.Targets.TargetHeading);
+        Assert.Equal(2500, aircraft.Targets.TargetAltitude);
     }
 
     // --- ApproachNavigationPhase ---

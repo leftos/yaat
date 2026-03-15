@@ -413,7 +413,7 @@ public record HoldingPatternCommand(
     HoldingEntry? Entry
 ) : ParsedCommand;
 
-public record PositionTurnAltitudeClearanceCommand(int Heading, int Altitude, string ApproachId) : ParsedCommand;
+public record PositionTurnAltitudeClearanceCommand(int? Heading, int? Altitude, string? ApproachId) : ParsedCommand;
 
 public record ClimbViaCommand(int? Altitude) : ParsedCommand;
 

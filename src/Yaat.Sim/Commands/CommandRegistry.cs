@@ -861,7 +861,15 @@ public static class CommandRegistry
                 "Approach",
                 false,
                 ["PTAC"],
-                [O(null, [R("heading", "0-360"), R("distance", "nm from airport"), R("approach", "approach ID")], "Position turn altitude clearance")]
+                [
+                    O(null, [], "Present heading, present altitude, auto approach"),
+                    O(null, [R("heading", "0-360 or PH"), R("altitude", "hundreds or PA")], "Heading + altitude, auto approach"),
+                    O(
+                        null,
+                        [R("heading", "0-360 or PH"), R("altitude", "hundreds or PA"), R("approach", "approach ID")],
+                        "Position turn altitude clearance"
+                    ),
+                ]
             ),
             Cmd(
                 ClimbVia,
