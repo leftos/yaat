@@ -181,7 +181,7 @@ public static class FlightPhysics
                 continue;
             }
 
-            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction);
+            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction, isDescending: true);
             if (resolvedAlt is not { } targetAlt)
             {
                 continue;
@@ -311,7 +311,7 @@ public static class FlightPhysics
 
         if (target.AltitudeRestriction is { } alt)
         {
-            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, alt);
+            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, alt, isDescending: starVia);
             if (resolvedAlt is { } targetAlt)
             {
                 // Apply ceiling/floor limits
@@ -358,20 +358,23 @@ public static class FlightPhysics
     /// Resolves an altitude restriction to a concrete target altitude based on the aircraft's
     /// current altitude and the restriction type (At, AtOrAbove, AtOrBelow, Between).
     /// Returns null if the aircraft already satisfies the restriction.
+    /// When <paramref name="isDescending"/> is true (STAR via mode), AtOrAbove constraints
+    /// resolve to the depicted altitude even when the aircraft is above it — the pilot
+    /// descends TO the constraint altitude, not just "above" it.
     /// </summary>
-    private static double? ResolveAltitudeRestriction(AircraftState aircraft, CifpAltitudeRestriction alt)
+    private static double? ResolveAltitudeRestriction(AircraftState aircraft, CifpAltitudeRestriction alt, bool isDescending)
     {
         return alt.Type switch
         {
             CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.GlideSlopeIntercept => alt.Altitude1Ft,
-            CifpAltitudeRestrictionType.AtOrAbove => aircraft.Altitude < alt.Altitude1Ft ? alt.Altitude1Ft : null,
+            CifpAltitudeRestrictionType.AtOrAbove => (isDescending || aircraft.Altitude < alt.Altitude1Ft) ? alt.Altitude1Ft : null,
             CifpAltitudeRestrictionType.AtOrBelow => aircraft.Altitude > alt.Altitude1Ft ? alt.Altitude1Ft : null,
-            CifpAltitudeRestrictionType.Between => ResolveBetweenRestriction(aircraft, alt),
+            CifpAltitudeRestrictionType.Between => ResolveBetweenRestriction(aircraft, alt, isDescending),
             _ => null,
         };
     }
 
-    private static double? ResolveBetweenRestriction(AircraftState aircraft, CifpAltitudeRestriction alt)
+    private static double? ResolveBetweenRestriction(AircraftState aircraft, CifpAltitudeRestriction alt, bool isDescending)
     {
         if (alt.Altitude2Ft is not { } lower)
         {
@@ -384,6 +387,12 @@ public static class FlightPhysics
         }
 
         if (aircraft.Altitude < lower)
+        {
+            return lower;
+        }
+
+        // Aircraft is within the band — when descending via STAR, target the lower bound
+        if (isDescending)
         {
             return lower;
         }

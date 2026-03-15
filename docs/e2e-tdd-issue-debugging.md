@@ -379,6 +379,7 @@ All test data lives in `tests/Yaat.Sim.Tests/TestData/`.
 | `issue67-dvia-recording.json` | #67 | — | DVIA constraints not applied without runway suffix |
 | `issue70-route-following-recording.json` | #70 | EVA18 | Fix-to-fix routing ignored (PIRAT → SAU) |
 | `issue74-capp-wrong-transition-recording.json` | #74 | UAL238 | CAPP picks CCR transition via BERKS false positive |
+| `issue77-alwys-descent-recording.json` | #77 | SKW5456 | ALWYS3 STAR descent — AtOrAbove constraint not triggering descent |
 | `oak-taxi-recording.json` | — | NKS2904 | OAK taxi routing baseline |
 
 ### Adding a new airport layout

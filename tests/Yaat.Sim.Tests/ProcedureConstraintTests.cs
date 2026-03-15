@@ -99,6 +99,20 @@ public class ProcedureConstraintTests
     }
 
     [Fact]
+    public void StarViaMode_AtOrAbove_DescendsToRestriction()
+    {
+        var aircraft = CreateAircraft(altitude: 9000);
+        aircraft.StarViaMode = true;
+        aircraft.ActiveStarId = "BDEGA3";
+
+        var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000));
+        FlightPhysics.ApplyFixConstraints(aircraft, target);
+
+        // STAR via mode: AtOrAbove 5000 means "descend to 5000" (the depicted altitude)
+        Assert.Equal(5000, aircraft.Targets.TargetAltitude);
+    }
+
+    [Fact]
     public void StarViaMode_WithFloor_PreventsOverDescent()
     {
         var aircraft = CreateAircraft(altitude: 15000);
@@ -152,7 +166,7 @@ public class ProcedureConstraintTests
     }
 
     [Fact]
-    public void ViaMode_BetweenRestriction_WithinRange_NoChange()
+    public void ViaMode_BetweenRestriction_WithinRange_DescendsToLowerBound()
     {
         var aircraft = CreateAircraft(altitude: 11000);
         aircraft.StarViaMode = true;
@@ -161,7 +175,8 @@ public class ProcedureConstraintTests
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
-        Assert.Null(aircraft.Targets.TargetAltitude);
+        // STAR via mode: when within range, target the lower bound to continue descent
+        Assert.Equal(10000, aircraft.Targets.TargetAltitude);
     }
 
     [Fact]
