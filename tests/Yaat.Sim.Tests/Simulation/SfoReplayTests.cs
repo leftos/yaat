@@ -18,7 +18,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// 5. engine.FindAircraft("CALLSIGN") to inspect resulting state
 /// 6. Assert on .AssignedTaxiRoute, .Phases, .Latitude/.Longitude, etc.
 ///
-/// See docs/e2e-testing.md for full guide.
+/// See docs/e2e-tdd-issue-debugging.md for full guide.
 /// </summary>
 public class SfoReplayTests(ITestOutputHelper output)
 {
