@@ -195,29 +195,6 @@ public partial class MainViewModel
             AddWarningEntry($"[WARN] {w}");
         }
 
-        ValidatePresetCommands(json);
-    }
-
-    private void ValidatePresetCommands(string json)
-    {
-        try
-        {
-            var validation = ScenarioValidator.Validate(json);
-            if (validation is null || validation.Failures.Count == 0)
-            {
-                return;
-            }
-
-            AddWarningEntry($"[WARN] {validation.Failures.Count} preset command{(validation.Failures.Count != 1 ? "s" : "")} failed to parse");
-            foreach (var f in validation.Failures)
-            {
-                AddWarningEntry($"  {f.AircraftId}: \"{f.Command}\"");
-            }
-        }
-        catch (Exception ex)
-        {
-            _log.LogDebug(ex, "Preset command validation failed");
-        }
     }
 
     [RelayCommand(CanExecute = nameof(CanUnloadScenario))]
