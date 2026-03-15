@@ -833,4 +833,168 @@ public class NavigationCommandTests
         // Existing nav route should be cleared
         Assert.Empty(aircraft.Targets.NavigationRoute);
     }
+
+    // --- AssignedValue audit ---
+
+    [Fact]
+    public void Jrado_SetsAssignedHeading_Immediately()
+    {
+        var aircraft = MakeAircraft(heading: 090);
+        var cmd = new JoinRadialOutboundCommand("OAK", 37.72, -122.22, 180);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        Assert.Equal(090, aircraft.Targets.AssignedHeading);
+    }
+
+    [Fact]
+    public void Jrado_InterceptBlock_UpdatesAssignedHeading()
+    {
+        var aircraft = MakeAircraft(heading: 090);
+        var cmd = new JoinRadialOutboundCommand("OAK", 37.72, -122.22, 270);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        var block = aircraft.Queue.Blocks[0];
+        block.ApplyAction?.Invoke(aircraft);
+
+        Assert.Equal(270, aircraft.Targets.AssignedHeading);
+    }
+
+    [Fact]
+    public void Jradi_SetsAssignedHeading_Immediately()
+    {
+        var aircraft = MakeAircraft(heading: 270);
+        var cmd = new JoinRadialInboundCommand("OAK", 37.72, -122.22, 090);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        Assert.Equal(270, aircraft.Targets.AssignedHeading);
+    }
+
+    [Fact]
+    public void Jradi_InterceptBlock_ClearsAssignedHeading()
+    {
+        var aircraft = MakeAircraft(heading: 270);
+        var cmd = new JoinRadialInboundCommand("OAK", 37.72, -122.22, 090);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        var block = aircraft.Queue.Blocks[0];
+        block.ApplyAction?.Invoke(aircraft);
+
+        Assert.Null(aircraft.Targets.AssignedHeading);
+    }
+
+    [Fact]
+    public void Dfix_ClearsAssignedHeading_Immediately()
+    {
+        var aircraft = MakeAircraft(heading: 090);
+        aircraft.Targets.AssignedHeading = 090;
+        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, 270);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        Assert.Null(aircraft.Targets.AssignedHeading);
+    }
+
+    [Fact]
+    public void Dfix_TriggerBlock_SetsAssignedHeading()
+    {
+        var aircraft = MakeAircraft(heading: 090);
+        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, 270);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        var block = aircraft.Queue.Blocks[0];
+        block.ApplyAction?.Invoke(aircraft);
+
+        Assert.Equal(270, aircraft.Targets.AssignedHeading);
+    }
+
+    [Fact]
+    public void Cfix_SetsAssignedAltitude()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.Targets.TargetAltitude = 10000;
+        aircraft.Targets.AssignedAltitude = 10000;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        Assert.Equal(4000, aircraft.Targets.AssignedAltitude);
+    }
+
+    [Fact]
+    public void Cfix_WithSpeed_SetsAssignedSpeed()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        Assert.Equal(210.0, aircraft.Targets.AssignedSpeed);
+    }
+
+    [Fact]
+    public void Cfix_RevertBlock_RestoresAssignedAltitude()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.Targets.TargetAltitude = 10000;
+        aircraft.Targets.AssignedAltitude = 10000;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        Assert.Equal(4000, aircraft.Targets.AssignedAltitude);
+
+        var block = aircraft.Queue.Blocks[0];
+        block.ApplyAction?.Invoke(aircraft);
+
+        Assert.Equal(10000, aircraft.Targets.AssignedAltitude);
+    }
+
+    [Fact]
+    public void Cfix_AtOrAbove_NoChange_DoesNotSetAssignedAltitude()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 5000);
+        aircraft.Targets.TargetAltitude = 3000;
+        aircraft.Targets.AssignedAltitude = 3000;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrAbove, null);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, null, Random.Shared, true);
+
+        // Aircraft at 5000, crossing at-or-above 4000: already above, no change to assigned
+        Assert.Equal(3000, aircraft.Targets.AssignedAltitude);
+    }
+
+    [Fact]
+    public void Jawy_SetsAssignedHeading_Immediately()
+    {
+        var fixes = MakeAirwayNavDb();
+        var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
+        var cmd = new JoinAirwayCommand("V25");
+
+        CommandDispatcher.Dispatch(cmd, aircraft, fixes, null, Random.Shared, true);
+
+        Assert.Equal(090, aircraft.Targets.AssignedHeading);
+    }
+
+    [Fact]
+    public void Jawy_InterceptBlock_ClearsAssignedHeading()
+    {
+        var fixes = MakeAirwayNavDb();
+        var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
+        var cmd = new JoinAirwayCommand("V25");
+
+        CommandDispatcher.Dispatch(cmd, aircraft, fixes, null, Random.Shared, true);
+
+        aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
+
+        Assert.Null(aircraft.Targets.AssignedHeading);
+    }
 }

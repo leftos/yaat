@@ -765,6 +765,51 @@ public class ApproachCommandHandlerTests
         );
     }
 
+    // --- AssignedValue audit ---
+
+    [Fact]
+    public void Capp_WithCrossFixAltitude_SetsAssignedAltitude()
+    {
+        var aircraft = MakeAircraft(altitude: 5000);
+        var navDb = MakeNavDb();
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, 3400, CrossFixAltitudeType.At);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.Equal(3400, aircraft.Targets.AssignedAltitude);
+    }
+
+    [Fact]
+    public void Capp_WithAssignedHeadingAndCrossFixAlt_SetsAssignedAltitude()
+    {
+        var aircraft = MakeAircraft(altitude: 5000);
+        aircraft.Targets.TargetHeading = 340;
+        aircraft.Targets.AssignedHeading = 340;
+        var navDb = MakeNavDb();
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, 3000, CrossFixAltitudeType.At);
+        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.Equal(3000, aircraft.Targets.AssignedAltitude);
+    }
+
+    [Fact]
+    public void Jfac_ClearsAssignedSpeedAndAssignedHeading()
+    {
+        var aircraft = MakeAircraft();
+        aircraft.Targets.TargetSpeed = 210;
+        aircraft.Targets.AssignedSpeed = 210;
+        aircraft.Targets.AssignedHeading = 340;
+        var navDb = MakeNavDb();
+
+        var cmd = new JoinFinalApproachCourseCommand("ILS28R");
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.Null(aircraft.Targets.AssignedHeading);
+    }
+
     private static NavigationDatabase MakeNavDbRunwayAndApproachOnly()
     {
         var procedure = new CifpApproachProcedure("OAK", "I28R", 'I', "ILS", "28R", [], new Dictionary<string, CifpTransition>(), [], false, null);

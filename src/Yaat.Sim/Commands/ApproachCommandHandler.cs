@@ -63,6 +63,7 @@ public static class ApproachCommandHandler
             if (cmd.CrossFixAltitude is { } interceptCxAlt && interceptCxAlt > 0)
             {
                 aircraft.Targets.TargetAltitude = interceptCxAlt;
+                aircraft.Targets.AssignedAltitude = interceptCxAlt;
             }
 
             aircraft.Phases.Add(
@@ -95,6 +96,7 @@ public static class ApproachCommandHandler
         if (cmd.CrossFixAltitude is { } cxAlt && cxAlt > 0)
         {
             aircraft.Targets.TargetAltitude = cxAlt;
+            aircraft.Targets.AssignedAltitude = cxAlt;
         }
 
         // Build phase sequence

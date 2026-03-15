@@ -14,8 +14,10 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchJrado(JoinRadialOutboundCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): fly present heading
+        double jradoPresentHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
+        aircraft.Targets.TargetHeading = jradoPresentHeading;
+        aircraft.Targets.AssignedHeading = jradoPresentHeading;
         aircraft.Targets.PreferredTurnDirection = null;
 
         // Block 1: on radial intercept, fly outbound heading
@@ -33,6 +35,7 @@ internal static class NavigationCommandHandler
             {
                 ac.Targets.NavigationRoute.Clear();
                 ac.Targets.TargetHeading = cmd.Radial;
+                ac.Targets.AssignedHeading = cmd.Radial;
                 ac.Targets.PreferredTurnDirection = null;
                 return null;
             },
@@ -48,8 +51,10 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchJradi(JoinRadialInboundCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): fly present heading
+        double jradiPresentHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
+        aircraft.Targets.TargetHeading = jradiPresentHeading;
+        aircraft.Targets.AssignedHeading = jradiPresentHeading;
         aircraft.Targets.PreferredTurnDirection = null;
 
         // Block 1: on radial intercept, navigate inbound to fix
@@ -65,6 +70,7 @@ internal static class NavigationCommandHandler
             },
             ApplyAction = ac =>
             {
+                ac.Targets.AssignedHeading = null;
                 ac.Targets.NavigationRoute.Clear();
                 ac.Targets.NavigationRoute.Add(
                     new NavigationTarget
@@ -87,7 +93,8 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchDepartFix(DepartFixCommand cmd, AircraftState aircraft)
     {
-        // Block 0 (immediate): navigate to fix
+        // Block 0 (immediate): navigate to fix (navigation phase — clear assigned heading)
+        aircraft.Targets.AssignedHeading = null;
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
@@ -98,7 +105,7 @@ internal static class NavigationCommandHandler
             }
         );
 
-        // Block 1: on reaching fix, fly heading
+        // Block 1: on reaching fix, fly heading (controller heading)
         var departBlock = new CommandBlock
         {
             Trigger = new BlockTrigger
@@ -112,6 +119,7 @@ internal static class NavigationCommandHandler
             {
                 ac.Targets.NavigationRoute.Clear();
                 ac.Targets.TargetHeading = cmd.Heading;
+                ac.Targets.AssignedHeading = cmd.Heading;
                 ac.Targets.PreferredTurnDirection = null;
                 return null;
             },
@@ -126,8 +134,9 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft)
     {
-        // Capture current altitude for revert after fix passage
+        // Capture current altitude/assigned for revert after fix passage
         double? previousAlt = aircraft.Targets.TargetAltitude;
+        double? previousAssignedAlt = aircraft.Targets.AssignedAltitude;
 
         // Block 0 (immediate): navigate to fix + set crossing altitude.
         // Preserve route fixes that come after the cross fix so the aircraft
@@ -161,18 +170,22 @@ internal static class NavigationCommandHandler
         {
             case CrossFixAltitudeType.At:
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
+                aircraft.Targets.AssignedAltitude = cmd.Altitude;
                 break;
             case CrossFixAltitudeType.AtOrAbove when aircraft.Altitude < cmd.Altitude:
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
+                aircraft.Targets.AssignedAltitude = cmd.Altitude;
                 break;
             case CrossFixAltitudeType.AtOrBelow when aircraft.Altitude > cmd.Altitude:
                 aircraft.Targets.TargetAltitude = cmd.Altitude;
+                aircraft.Targets.AssignedAltitude = cmd.Altitude;
                 break;
         }
 
         if (cmd.Speed is not null)
         {
             aircraft.Targets.TargetSpeed = cmd.Speed;
+            aircraft.Targets.AssignedSpeed = cmd.Speed;
         }
 
         // Block 1: on reaching fix, revert to previous altitude target
@@ -191,6 +204,7 @@ internal static class NavigationCommandHandler
                 {
                     ac.Targets.TargetAltitude = previousAlt;
                 }
+                ac.Targets.AssignedAltitude = previousAssignedAlt;
                 return null;
             },
             Description = $"at {cmd.FixName}: revert altitude",
@@ -640,8 +654,10 @@ internal static class NavigationCommandHandler
         }
 
         // Block 0 (immediate): fly present heading (to allow intercept)
+        double jawyPresentHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
+        aircraft.Targets.TargetHeading = jawyPresentHeading;
+        aircraft.Targets.AssignedHeading = jawyPresentHeading;
         aircraft.Targets.PreferredTurnDirection = null;
 
         // Block 1: on segment intercept, navigate the airway fix sequence
@@ -657,6 +673,7 @@ internal static class NavigationCommandHandler
             },
             ApplyAction = ac =>
             {
+                ac.Targets.AssignedHeading = null;
                 ac.Targets.NavigationRoute.Clear();
                 foreach (var target in navTargets)
                 {
@@ -880,8 +897,12 @@ internal static class NavigationCommandHandler
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.a.4
         aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.AssignedSpeed = null;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
+
+        // Clear assigned heading — approach takes over steering
+        aircraft.Targets.AssignedHeading = null;
 
         // Clear existing phases
         if (aircraft.Phases is not null)
