@@ -45,6 +45,15 @@ public class ControlTargets
     /// <summary>Maximum IAS in knots (speed ceiling, "do not exceed X"). Enforced continuously.</summary>
     public double? SpeedCeiling { get; set; }
 
+    /// <summary>Controller-assigned heading (FH/TL/TR/FPH/PTAC). Null when not explicitly vectored.</summary>
+    public double? AssignedHeading { get; set; }
+
+    /// <summary>Controller-assigned altitude (CM/DM). Null when not explicitly assigned.</summary>
+    public double? AssignedAltitude { get; set; }
+
+    /// <summary>Controller-assigned speed (SPD/SLOW/RFAS). Null when not explicitly assigned.</summary>
+    public double? AssignedSpeed { get; set; }
+
     /// <summary>
     /// True when the controller has issued an explicit SPD command.
     /// Prevents altitude-based auto speed scheduling from overriding

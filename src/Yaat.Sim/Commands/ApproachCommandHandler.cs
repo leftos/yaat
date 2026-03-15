@@ -49,9 +49,12 @@ public static class ApproachCommandHandler
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
         aircraft.DestinationRunway = approachRunway.Designator;
 
-        // Implied PTAC: no AT/DCT fix and aircraft is on an assigned heading → intercept on present heading
+        // Implied PTAC: no AT/DCT fix and aircraft was on an assigned heading → intercept on present heading
         bool hasAtOrDctFix = cmd.AtFix is not null || cmd.DctFix is not null;
-        bool isOnAssignedHeading = aircraft.Targets.TargetHeading is not null;
+        bool isOnAssignedHeading = aircraft.Targets.AssignedHeading is not null;
+
+        // Clear assigned heading — approach takes over steering
+        aircraft.Targets.AssignedHeading = null;
 
         if (!hasAtOrDctFix && isOnAssignedHeading)
         {
@@ -143,6 +146,9 @@ public static class ApproachCommandHandler
         // Hold-in-lieu: if procedure has one and NOT straight-in, insert hold
         bool needsHold = procedure.HasHoldInLieu && !straightIn;
 
+        // Clear assigned heading — approach takes over steering
+        aircraft.Targets.AssignedHeading = null;
+
         // Clear existing phases
         ClearExistingPhases(aircraft);
 
@@ -223,6 +229,7 @@ public static class ApproachCommandHandler
         // Set heading and altitude immediately
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetHeading = heading;
+        aircraft.Targets.AssignedHeading = heading;
         aircraft.Targets.PreferredTurnDirection = null;
         aircraft.Targets.TargetAltitude = altitude;
 
@@ -286,6 +293,9 @@ public static class ApproachCommandHandler
 
         // Cancel speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
+
+        // Clear assigned heading — approach takes over steering
+        aircraft.Targets.AssignedHeading = null;
 
         // Clear existing phases
         ClearExistingPhases(aircraft);

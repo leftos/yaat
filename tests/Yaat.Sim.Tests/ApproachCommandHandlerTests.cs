@@ -165,6 +165,7 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         aircraft.Targets.TargetHeading = 340;
+        aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
@@ -185,6 +186,7 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft(altitude: 5000);
         aircraft.Targets.TargetHeading = 340;
+        aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, 3000, CrossFixAltitudeType.At);
@@ -200,6 +202,7 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         aircraft.Targets.TargetHeading = 340;
+        aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, "SUNOL", 37.5, -121.8, null, null, null, null, null);
@@ -215,6 +218,7 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         aircraft.Targets.TargetHeading = 340;
+        aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, null, null);
@@ -240,10 +244,30 @@ public class ApproachCommandHandlerTests
     }
 
     [Fact]
+    public void Capp_WithTargetHeadingButNoAssignedHeading_UsesFixNavigation()
+    {
+        // Regression: TargetHeading is set by physics every tick during route navigation,
+        // but AssignedHeading is null because no controller heading command was issued.
+        // CAPP must use fix navigation, not intercept.
+        var aircraft = MakeAircraft();
+        aircraft.Targets.TargetHeading = 280;
+        Assert.Null(aircraft.Targets.AssignedHeading);
+        var navDb = MakeNavDb();
+
+        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Contains(aircraft.Phases!.Phases, p => p is ApproachNavigationPhase);
+        Assert.DoesNotContain(aircraft.Phases.Phases, p => p is InterceptCoursePhase);
+    }
+
+    [Fact]
     public void Capp_WithAssignedHeading_ClearsSpeedRestriction()
     {
         var aircraft = MakeAircraft(speed: 210);
         aircraft.Targets.TargetHeading = 340;
+        aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);

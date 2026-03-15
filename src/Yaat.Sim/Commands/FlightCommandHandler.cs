@@ -12,6 +12,7 @@ internal static class FlightCommandHandler
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetHeading = cmd.Heading;
+        aircraft.Targets.AssignedHeading = cmd.Heading;
         aircraft.Targets.PreferredTurnDirection = null;
         return CommandDispatcher.Ok($"Fly heading {cmd.Heading:000}");
     }
@@ -21,6 +22,7 @@ internal static class FlightCommandHandler
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetHeading = cmd.Heading;
+        aircraft.Targets.AssignedHeading = cmd.Heading;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
         return CommandDispatcher.Ok($"Turn left heading {cmd.Heading:000}");
     }
@@ -30,6 +32,7 @@ internal static class FlightCommandHandler
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetHeading = cmd.Heading;
+        aircraft.Targets.AssignedHeading = cmd.Heading;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
         return CommandDispatcher.Ok($"Turn right heading {cmd.Heading:000}");
     }
@@ -40,6 +43,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.NavigationRoute.Clear();
         var leftHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading - cmd.Degrees);
         aircraft.Targets.TargetHeading = leftHdg;
+        aircraft.Targets.AssignedHeading = leftHdg;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
         return CommandDispatcher.Ok($"Turn {cmd.Degrees} degrees left, heading {leftHdg:000}");
     }
@@ -50,6 +54,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.NavigationRoute.Clear();
         var rightHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading + cmd.Degrees);
         aircraft.Targets.TargetHeading = rightHdg;
+        aircraft.Targets.AssignedHeading = rightHdg;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
         return CommandDispatcher.Ok($"Turn {cmd.Degrees} degrees right, heading {rightHdg:000}");
     }
@@ -58,7 +63,9 @@ internal static class FlightCommandHandler
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
+        var hdg = FlightPhysics.NormalizeHeading(aircraft.Heading);
+        aircraft.Targets.TargetHeading = hdg;
+        aircraft.Targets.AssignedHeading = hdg;
         aircraft.Targets.PreferredTurnDirection = null;
         return CommandDispatcher.Ok("Fly present heading");
     }
@@ -70,6 +77,7 @@ internal static class FlightCommandHandler
         aircraft.Heading = cmd.Heading;
         aircraft.Track = cmd.Heading;
         aircraft.Targets.TargetHeading = cmd.Heading;
+        aircraft.Targets.AssignedHeading = cmd.Heading;
         aircraft.Targets.PreferredTurnDirection = null;
         return CommandDispatcher.Ok($"Force heading {cmd.Heading:000}");
     }
@@ -80,6 +88,7 @@ internal static class FlightCommandHandler
         aircraft.SidViaCeiling = null;
         aircraft.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
+        aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
     }
@@ -90,6 +99,7 @@ internal static class FlightCommandHandler
         aircraft.StarViaFloor = null;
         aircraft.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
+        aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
     }
@@ -103,6 +113,7 @@ internal static class FlightCommandHandler
         aircraft.Altitude = cmd.Altitude;
         aircraft.VerticalSpeed = 0;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
+        aircraft.Targets.AssignedAltitude = cmd.Altitude;
         return CommandDispatcher.Ok($"Force altitude {cmd.Altitude:N0}");
     }
 
@@ -123,6 +134,8 @@ internal static class FlightCommandHandler
         aircraft.Targets.TargetMach = null;
 
         aircraft.Targets.HasExplicitSpeedCommand = true;
+
+        aircraft.Targets.AssignedSpeed = cmd.Speed;
 
         switch (cmd.Modifier)
         {
@@ -161,6 +174,7 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplyResumeNormalSpeed(AircraftState aircraft)
     {
         aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.AssignedSpeed = null;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
@@ -173,6 +187,7 @@ internal static class FlightCommandHandler
         var rfasCat = AircraftCategorization.Categorize(aircraft.AircraftType);
         double approachSpeed = CategoryPerformance.ApproachSpeed(rfasCat, aircraft.AircraftType);
         aircraft.Targets.TargetSpeed = approachSpeed;
+        aircraft.Targets.AssignedSpeed = approachSpeed;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
@@ -183,6 +198,7 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplyDeleteSpeedRestrictions(AircraftState aircraft)
     {
         aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.AssignedSpeed = null;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.TargetMach = null;
@@ -234,6 +250,7 @@ internal static class FlightCommandHandler
     {
         aircraft.Targets.TargetMach = cmd.MachNumber;
         aircraft.Targets.TargetSpeed = null;
+        aircraft.Targets.AssignedSpeed = null;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
@@ -244,6 +261,7 @@ internal static class FlightCommandHandler
     {
         aircraft.IndicatedAirspeed = cmd.Speed;
         aircraft.Targets.TargetSpeed = cmd.Speed;
+        aircraft.Targets.AssignedSpeed = cmd.Speed;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.Targets.HasExplicitSpeedCommand = true;
@@ -311,6 +329,7 @@ internal static class FlightCommandHandler
 
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.AssignedHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
         if (navDb is not null)
@@ -339,6 +358,7 @@ internal static class FlightCommandHandler
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.AssignedHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
         if (navDb is not null)
@@ -494,9 +514,12 @@ internal static class FlightCommandHandler
         aircraft.VerticalSpeed = 0;
         aircraft.IndicatedAirspeed = cmd.Speed;
         aircraft.Targets.TargetHeading = cmd.Heading;
+        aircraft.Targets.AssignedHeading = cmd.Heading;
         aircraft.Targets.PreferredTurnDirection = null;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
+        aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.TargetSpeed = cmd.Speed;
+        aircraft.Targets.AssignedSpeed = cmd.Speed;
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.IsOnGround = false;

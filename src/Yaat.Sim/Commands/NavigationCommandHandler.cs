@@ -276,6 +276,7 @@ internal static class NavigationCommandHandler
         if (cifpResult is not null)
         {
             aircraft.Targets.NavigationRoute.Clear();
+            aircraft.Targets.AssignedHeading = null;
             foreach (var target in cifpResult)
             {
                 aircraft.Targets.NavigationRoute.Add(target);
@@ -340,6 +341,7 @@ internal static class NavigationCommandHandler
         }
 
         aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.AssignedHeading = null;
         foreach (var fixName in deduped)
         {
             var pos = navDb.GetFixPosition(fixName);
