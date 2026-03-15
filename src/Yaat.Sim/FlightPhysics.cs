@@ -37,6 +37,7 @@ public static class FlightPhysics
 
         UpdateNavigation(aircraft, weather);
         UpdateDescentPlanning(aircraft, cat);
+        UpdateClimbPlanning(aircraft, cat);
         UpdateHeading(aircraft, cat, deltaSeconds);
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
@@ -144,9 +145,10 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Look-ahead descent planning for STAR via mode. Scans ahead in the navigation
-    /// route to find the next altitude constraint and begins descent early enough
-    /// to meet it, instead of waiting until the aircraft reaches the constrained fix.
+    /// Step-descent planning for STAR via mode. Finds the next altitude constraint
+    /// in the route and computes the descent rate required to meet it at the fix.
+    /// Adjusts the descent rate (steeper or shallower) rather than using a fixed rate
+    /// with a distance-based trigger.
     /// </summary>
     private static void UpdateDescentPlanning(AircraftState aircraft, AircraftCategory cat)
     {
@@ -161,12 +163,7 @@ public static class FlightPhysics
             return;
         }
 
-        double descentFpm = CategoryPerformance.DescentRate(cat);
-        if (aircraft.IsExpediting)
-        {
-            descentFpm *= 1.5;
-        }
-
+        // Find the NEXT constrained fix (step descent: one constraint at a time)
         double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, route[0].Latitude, route[0].Longitude);
 
         for (int i = 0; i < route.Count; i++)
@@ -196,27 +193,108 @@ public static class FlightPhysics
             double altDelta = aircraft.Altitude - targetAlt;
             if (altDelta <= 0)
             {
+                // Already at or below this constraint — skip to see if a deeper one exists
                 continue;
             }
 
-            // Required descent distance: (altDelta / descentFpm) minutes × (GS / 60) nm/min
-            double descentMinutes = altDelta / descentFpm;
-            double descentDistNm = descentMinutes * (aircraft.GroundSpeed / 60.0);
+            // Set target altitude for this step
+            aircraft.Targets.TargetAltitude = targetAlt;
 
-            // Add buffer so descent starts slightly early
-            double bufferNm = 2.0;
+            // Compute the descent rate required to reach targetAlt at the fix
+            double standardRate = CategoryPerformance.DescentRate(cat);
+            double timeMinutes = cumulativeDistNm / (aircraft.GroundSpeed / 60.0);
 
-            if (cumulativeDistNm <= descentDistNm + bufferNm)
+            if (timeMinutes > 0.1)
             {
-                // Need to start descending now to meet this constraint.
-                // Only set target if it's lower than current target (don't override a deeper descent).
-                if (aircraft.Targets.TargetAltitude is null || aircraft.Targets.TargetAltitude > targetAlt)
-                {
-                    aircraft.Targets.TargetAltitude = targetAlt;
-                }
-
-                break;
+                double requiredFpm = altDelta / timeMinutes;
+                // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance
+                double maxRate = standardRate * 2.0;
+                double rate = Math.Min(requiredFpm, maxRate);
+                aircraft.Targets.DesiredVerticalRate = -rate;
             }
+            else
+            {
+                // Almost at the fix — descend at max rate
+                aircraft.Targets.DesiredVerticalRate = -(standardRate * 2.0);
+            }
+
+            break; // Step descent: only target the next constraint
+        }
+    }
+
+    /// <summary>
+    /// Step-climb planning for SID via mode. Symmetric to descent planning:
+    /// finds the next altitude constraint and computes the climb rate required
+    /// to meet it at the fix.
+    /// </summary>
+    private static void UpdateClimbPlanning(AircraftState aircraft, AircraftCategory cat)
+    {
+        if (!aircraft.SidViaMode || aircraft.IsOnGround || aircraft.GroundSpeed <= 0)
+        {
+            return;
+        }
+
+        var route = aircraft.Targets.NavigationRoute;
+        if (route.Count == 0)
+        {
+            return;
+        }
+
+        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, route[0].Latitude, route[0].Longitude);
+
+        for (int i = 0; i < route.Count; i++)
+        {
+            if (i > 0)
+            {
+                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Latitude, route[i - 1].Longitude, route[i].Latitude, route[i].Longitude);
+            }
+
+            if (route[i].AltitudeRestriction is not { } restriction)
+            {
+                continue;
+            }
+
+            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction, isDescending: false);
+            if (resolvedAlt is not { } targetAlt)
+            {
+                continue;
+            }
+
+            // Apply SID via ceiling
+            if (aircraft.SidViaCeiling is { } ceiling)
+            {
+                targetAlt = Math.Min(targetAlt, ceiling);
+            }
+
+            double altDelta = targetAlt - aircraft.Altitude;
+            if (altDelta <= 0)
+            {
+                // Already at or above this constraint — skip to next
+                continue;
+            }
+
+            // Set target altitude for this step
+            aircraft.Targets.TargetAltitude = targetAlt;
+
+            // Compute the climb rate required to reach targetAlt at the fix
+            double standardRate = CategoryPerformance.ClimbRate(cat, aircraft.Altitude);
+            double timeMinutes = cumulativeDistNm / (aircraft.GroundSpeed / 60.0);
+
+            if (timeMinutes > 0.1)
+            {
+                double requiredFpm = altDelta / timeMinutes;
+                // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance
+                double maxRate = standardRate * 2.0;
+                double rate = Math.Min(requiredFpm, maxRate);
+                aircraft.Targets.DesiredVerticalRate = rate;
+            }
+            else
+            {
+                // Almost at the fix — climb at max rate
+                aircraft.Targets.DesiredVerticalRate = standardRate * 2.0;
+            }
+
+            break; // Step climb: only target the next constraint
         }
     }
 
@@ -360,7 +438,8 @@ public static class FlightPhysics
     /// Returns null if the aircraft already satisfies the restriction.
     /// When <paramref name="isDescending"/> is true (STAR via mode), AtOrAbove constraints
     /// resolve to the depicted altitude even when the aircraft is above it — the pilot
-    /// descends TO the constraint altitude, not just "above" it.
+    /// descends TO the constraint altitude. When false (SID via mode), AtOrBelow constraints
+    /// resolve to the depicted altitude even when below — the pilot climbs TO the ceiling.
     /// </summary>
     private static double? ResolveAltitudeRestriction(AircraftState aircraft, CifpAltitudeRestriction alt, bool isDescending)
     {
@@ -368,7 +447,7 @@ public static class FlightPhysics
         {
             CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.GlideSlopeIntercept => alt.Altitude1Ft,
             CifpAltitudeRestrictionType.AtOrAbove => (isDescending || aircraft.Altitude < alt.Altitude1Ft) ? alt.Altitude1Ft : null,
-            CifpAltitudeRestrictionType.AtOrBelow => aircraft.Altitude > alt.Altitude1Ft ? alt.Altitude1Ft : null,
+            CifpAltitudeRestrictionType.AtOrBelow => (!isDescending || aircraft.Altitude > alt.Altitude1Ft) ? alt.Altitude1Ft : null,
             CifpAltitudeRestrictionType.Between => ResolveBetweenRestriction(aircraft, alt, isDescending),
             _ => null,
         };
@@ -381,23 +460,14 @@ public static class FlightPhysics
             return null;
         }
 
-        if (aircraft.Altitude > alt.Altitude1Ft)
-        {
-            return alt.Altitude1Ft;
-        }
-
-        if (aircraft.Altitude < lower)
-        {
-            return lower;
-        }
-
-        // Aircraft is within the band — when descending via STAR, target the lower bound
+        // Descent (STAR via): always target the lower bound — the upper bound is permissiveness
         if (isDescending)
         {
-            return lower;
+            return aircraft.Altitude > lower ? lower : null;
         }
 
-        return null;
+        // Climb (SID via): always target the upper bound — pilots want to get high fast
+        return aircraft.Altitude < alt.Altitude1Ft ? alt.Altitude1Ft : null;
     }
 
     private static void ClearProcedureState(AircraftState aircraft)

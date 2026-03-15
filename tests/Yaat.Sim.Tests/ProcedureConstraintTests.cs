@@ -140,7 +140,7 @@ public class ProcedureConstraintTests
     }
 
     [Fact]
-    public void ViaMode_BetweenRestriction_TooHigh_DescendsToUpper()
+    public void ViaMode_BetweenRestriction_TooHigh_DescendsToLower()
     {
         var aircraft = CreateAircraft(altitude: 15000);
         aircraft.StarViaMode = true;
@@ -149,11 +149,12 @@ public class ProcedureConstraintTests
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
-        Assert.Equal(12000, aircraft.Targets.TargetAltitude);
+        // STAR via: always target lower bound — upper is permissiveness
+        Assert.Equal(10000, aircraft.Targets.TargetAltitude);
     }
 
     [Fact]
-    public void ViaMode_BetweenRestriction_TooLow_ClimbsToLower()
+    public void ViaMode_BetweenRestriction_TooLow_ClimbsToUpper()
     {
         var aircraft = CreateAircraft(altitude: 8000);
         aircraft.SidViaMode = true;
@@ -162,7 +163,8 @@ public class ProcedureConstraintTests
         var target = MakeTarget(alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.Between, 12000, 10000));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
-        Assert.Equal(10000, aircraft.Targets.TargetAltitude);
+        // SID via: target upper bound — pilots want to get high fast
+        Assert.Equal(12000, aircraft.Targets.TargetAltitude);
     }
 
     [Fact]

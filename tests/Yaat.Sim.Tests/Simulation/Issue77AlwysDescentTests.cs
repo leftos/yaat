@@ -90,6 +90,66 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// SKW5456 on ALWYS3 must descend to cross ARRTU at 10000ft.
+    /// ARRTU has an "At 10000" constraint in the ALWYS3 RW19B transition.
+    /// </summary>
+    [Fact]
+    public void Alwys3_CrossesArrtuAt10000()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            output.WriteLine("Skipped: recording or NavData not available");
+            return;
+        }
+
+        engine.Replay(recording, 662);
+
+        var aircraft = engine.FindAircraft("SKW5456");
+        Assert.NotNull(aircraft);
+
+        output.WriteLine($"SKW5456 at spawn: alt={aircraft.Altitude:F0} StarViaMode={aircraft.StarViaMode}");
+        output.WriteLine($"  Route: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(f => f.Name))}");
+
+        double altAtArrtu = -1;
+        bool arrtuSequenced = false;
+        for (int t = 1; t <= 2400; t++)
+        {
+            engine.TickOneSecond();
+            aircraft = engine.FindAircraft("SKW5456");
+            if (aircraft is null)
+            {
+                break;
+            }
+
+            bool hasArrtu = aircraft.Targets.NavigationRoute.Any(f => f.Name.Equals("ARRTU", StringComparison.OrdinalIgnoreCase));
+            if (!hasArrtu && !arrtuSequenced)
+            {
+                arrtuSequenced = true;
+                altAtArrtu = aircraft.Altitude;
+                output.WriteLine($"  ARRTU sequenced at t={t}: alt={altAtArrtu:F0}");
+            }
+
+            if (t % 60 == 0 && !arrtuSequenced)
+            {
+                var nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
+                output.WriteLine(
+                    $"  t={t, 4} alt={aircraft.Altitude, 7:F0} tgtAlt={aircraft.Targets.TargetAltitude?.ToString("F0") ?? "null", 7} VS={aircraft.VerticalSpeed, 6:F0} next={nextFix}"
+                );
+            }
+
+            if (arrtuSequenced)
+            {
+                break;
+            }
+        }
+
+        Assert.True(arrtuSequenced, "ARRTU was never sequenced");
+        Assert.True(altAtArrtu is >= 9850 and <= 10150, $"Aircraft should cross ARRTU at ~10000ft (±150 tolerance), but was at {altAtArrtu:F0}ft");
+    }
+
+    /// <summary>
     /// SKW5456 on ALWYS3 must descend to cross BERKS at or below 5000ft.
     /// The aircraft starts at FL290 and has onAltitudeProfile=true (auto-DVIA).
     /// Tick until BERKS is sequenced and verify altitude.
@@ -161,6 +221,6 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
         }
 
         Assert.True(berksSequenced, "BERKS was never sequenced — aircraft may not have the fix in route");
-        Assert.True(altAtBerks <= 5500, $"Aircraft should cross BERKS at or below 5000ft (+500 tolerance), but was at {altAtBerks:F0}ft");
+        Assert.True(altAtBerks is >= 4850 and <= 5150, $"Aircraft should cross BERKS at ~5000ft (±150 tolerance), but was at {altAtBerks:F0}ft");
     }
 }
