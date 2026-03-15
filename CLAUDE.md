@@ -12,9 +12,10 @@ YAAT uses ATCTrainer scenarios directly — all vNAS data-api resources (scenari
 dotnet build                            # Build entire solution
 dotnet run --project src/Yaat.Client    # Run client (needs yaat-server at localhost:5000)
 dotnet run --project tools/Yaat.Scratch # Ad-hoc testing against Yaat.Sim types
+pwsh tools/test-all.ps1                 # Build + test both yaat and yaat-server
 ```
 
-.NET 10 SDK required. Solution uses `.slnx` format (`yaat.slnx`).
+.NET 10 SDK required. Solution uses `.slnx` format (`yaat.slnx`). Close Yaat.Client before running builds to avoid DLL lock warnings.
 
 ### Qodana (static analysis)
 
