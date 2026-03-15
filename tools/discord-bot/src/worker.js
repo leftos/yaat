@@ -417,8 +417,12 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
       // Unmark the thread as resolved on Discord
       await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
 
+      // Sync any new thread messages to the reopened issue
+      const count = await syncThread(env, threadId, mapping, githubToken);
+      const syncNote = count > 0 ? ` (synced ${count} new message(s))` : "";
+
       await editOriginalResponse(appId, token, {
-        content: `Reopened GitHub issue: ${mapping.issueUrl}`,
+        content: `Reopened GitHub issue: ${mapping.issueUrl}${syncNote}`,
       });
       return;
     }
