@@ -735,7 +735,39 @@ public static class ApproachCommandHandler
             knownFixes.Add(navTarget.Name);
         }
 
-        // Try route-based match: find a transition whose fix appears in known fixes
+        // Build set of all fix names in the approach (transitions + common legs).
+        var approachFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var leg in procedure.CommonLegs)
+        {
+            if (!string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                approachFixes.Add(leg.FixIdentifier);
+            }
+        }
+
+        foreach (var transition in procedure.Transitions.Values)
+        {
+            foreach (var leg in transition.Legs)
+            {
+                if (!string.IsNullOrEmpty(leg.FixIdentifier))
+                {
+                    approachFixes.Add(leg.FixIdentifier);
+                }
+            }
+        }
+
+        // If the aircraft's active NavigationRoute already contains an approach fix,
+        // it's heading there via its current path (e.g. a STAR delivering to the approach
+        // entry point). No transition needed — the aircraft will connect at that fix.
+        foreach (var navTarget in aircraft.Targets.NavigationRoute)
+        {
+            if (approachFixes.Contains(navTarget.Name))
+            {
+                return null;
+            }
+        }
+
+        // Try route-based match: find a transition whose fix appears in known fixes.
         if (knownFixes.Count > 0)
         {
             foreach (var transition in procedure.Transitions.Values)

@@ -145,6 +145,7 @@ When writing replay tests for aircraft with WAIT presets:
 | `issue67-procedure-version-recording.json` | S3-NCTB-2 Feeder Combined | SFO | Outdated STAR version resolution (BDEGA3 → BDEGA4), descend-via with onAltitudeProfile |
 | `issue67-dvia-recording.json` | S3-NCTB-2 Feeder Combined | SFO | STAR without runway suffix — DVIA constraints, runway-transition inference |
 | `issue70-route-following-recording.json` | S3-NCTB-6 (A) SFO19 | SFO | Fix-to-fix routing (PIRAT SAU), ALWYS STAR descent profile, look-ahead descent planning |
+| `issue74-capp-wrong-transition-recording.json` | S3-NCTB-6 (A) SFO19 | SFO | CAPP approach transition selection (UAL238 ALWYS3→I19L, BERKS boundary fix) |
 
 ### How to Add a New Recording
 
@@ -174,6 +175,63 @@ for (int t = 1; t <= 30; t++)
 ```
 
 This pattern lets you "see" heading reversals, altitude oscillations, fix sequencing, and other bugs in the test output. See `Issue58JstarIntermediateFixTests` for a complete example.
+
+## Real NavData and CIFP Tests
+
+**Never use synthetic/fabricated navdata in tests.** Always use the real `NavData.dat` and `FAACIFP18.gz` from `TestData/`. Synthetic approach procedures, transitions, and fixes are confusing — devs cannot verify behavior against real charts or aviation standards.
+
+### Accessing CIFP Procedures in Tests
+
+```csharp
+TestVnasData.EnsureInitialized();
+var navDb = TestVnasData.NavigationDb;
+if (navDb is null) return; // Skip if NavData.dat absent
+
+// Query approaches
+var procedure = navDb.GetApproach("KSFO", "I19L");
+var allApproaches = navDb.GetApproaches("KSFO");
+
+// Query STARs
+var star = navDb.GetStar("KSFO", "ALWYS3");
+
+// Query fixes
+var pos = navDb.GetFixPosition("BERKS");
+```
+
+### Testing SelectBestTransition Directly
+
+For approach transition bugs, replay to get a real aircraft state, then call `SelectBestTransition` directly:
+
+```csharp
+engine.Replay(recording, 400);
+var aircraft = engine.FindAircraft("UAL238");
+
+var resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft, navDb);
+var procedure = resolved.Procedure!;
+var selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft, navDb);
+```
+
+This tests the selection logic against the aircraft's real route, NavigationRoute, position, and heading from the recording.
+
+### Key SFO CIFP Reference
+
+**I19L (ILS 19L):**
+- Transitions: CCR (CCR → UPEND → BERKS)
+- Common legs: BERKS (IF) → SHAKE (FAF) → RW19L (MAHP)
+- BERKS is the boundary fix between transition and common legs
+
+**ALWYS3 STAR:**
+- Common legs: DYAMD → LAANE → ALWYS
+- Runway transitions: RW10B (ALWYS → ... → BERKS → ...), RW19B (ALWYS → HEFLY → ARRTU → ADDMM → COGGR → BERKS)
+- BERKS is the STAR termination fix for SFO 19L flow — this is the fix that connects to the I19L approach
+
+### Replay Timing and Aircraft State
+
+When choosing a replay time for approach tests, check what the aircraft's `NavigationRoute` contains at that time:
+- **Early replay (STAR active):** NavigationRoute has STAR fixes (e.g. BERKS). Good for testing transition selection when the aircraft is still on the STAR.
+- **Late replay (STAR consumed):** NavigationRoute is empty — all fixes were sequenced. Route-based matching uses the filed route string only. Fallback (nearest-ahead) logic kicks in.
+
+Use the per-tick observation pattern to find the right replay time for your test.
 
 ### Key OAK Reference Points
 
