@@ -37,6 +37,11 @@ const commands = [
     description: "Unlink this thread from its GitHub issue (stops syncing new comments)",
     type: 1,
   },
+  {
+    name: "sync",
+    description: "Force-sync new thread messages to the linked GitHub issue now",
+    type: 1,
+  },
 ];
 
 const appId = process.env.DISCORD_APP_ID;

@@ -125,7 +125,7 @@ async function handleDiscordInteraction(request, env, ctx) {
       }).catch((err) => console.error("Command processing failed:", err)),
     );
 
-    const silentCommands = ["recreate-issue", "disconnect"];
+    const silentCommands = ["recreate-issue", "disconnect", "sync"];
     const deferResponse = { type: DEFERRED_CHANNEL_MESSAGE };
     if (silentCommands.includes(commandName)) {
       deferResponse.data = { flags: 64 };
@@ -419,6 +419,25 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
 
       await editOriginalResponse(appId, token, {
         content: `Reopened GitHub issue: ${mapping.issueUrl}`,
+      });
+      return;
+    }
+
+    if (commandName === "sync") {
+      const mapping = await env.THREAD_ISSUES.get(threadId, { type: "json" });
+      if (!mapping) {
+        await editOriginalResponse(appId, token, {
+          content: "No linked GitHub issue found. Use `/create-issue` or `/create-feature-request` first.",
+        });
+        return;
+      }
+
+      const count = await syncThread(env, threadId, mapping, githubToken);
+      await editOriginalResponse(appId, token, {
+        content:
+          count > 0
+            ? `Synced ${count} new message(s) to ${mapping.issueUrl}`
+            : `Already up to date: ${mapping.issueUrl}`,
       });
       return;
     }
