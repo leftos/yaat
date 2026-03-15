@@ -531,7 +531,6 @@ public class GroundPhaseTests
         }
 
         Assert.True(aircraft.GroundSpeed > 0, "Should be moving before conflict");
-        double speedBefore = aircraft.GroundSpeed;
 
         // Simulate conflict: GroundSpeedLimit clamps to 0
         aircraft.GroundSpeedLimit = 0;

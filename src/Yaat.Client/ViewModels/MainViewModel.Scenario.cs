@@ -12,8 +12,6 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
-    private readonly TrainingDataService _trainingData = new();
-
     // Pending scenario source: either a file path or pre-fetched JSON from the API.
     private string? _pendingScenarioSource;
     private string? _pendingApiScenarioId;
@@ -162,7 +160,7 @@ public partial class MainViewModel
         if (result.Success)
         {
             ApplyScenarioResult(result);
-            var scenarioName = result.Name ?? ScenarioFilePath;
+            var scenarioName = result.Name;
             if (apiId is not null)
             {
                 _preferences.AddRecentScenario("", scenarioName, apiId);

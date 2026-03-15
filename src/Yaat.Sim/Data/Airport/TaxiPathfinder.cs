@@ -191,7 +191,7 @@ public static class TaxiPathfinder
         // Auto-infer numbered taxiway variant for destination runway
         if (destinationRunway is not null && taxiwayNames.Count > 0 && !IsNodeReference(taxiwayNames[^1]))
         {
-            bool inferred = TaxiVariantResolver.TryInferVariant(
+            _ = TaxiVariantResolver.TryInferVariant(
                 layout,
                 segments,
                 taxiwayNames[^1],
@@ -511,50 +511,46 @@ public static class TaxiPathfinder
         {
             diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: no direct edge from node={startNodeId}, trying BFS");
             // Try short BFS first (handles normal taxiway-to-taxiway transitions)
-            (int foundId, GroundEdge? foundEdge) = BfsToTaxiway(layout, startNodeId, taxiwayName, segments);
+            (int foundId, _) = BfsToTaxiway(layout, startNodeId, taxiwayName, segments);
 
             if (foundId != -1)
             {
                 diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: BFS found node={foundId}");
                 startNodeId = foundId;
-                startEdge = foundEdge;
             }
             else
             {
                 int variantEndId = -1;
-                GroundEdge? variantEdge = null;
 
                 if (allowCurrentTaxiwayWalk)
                 {
                     // Walk whatever taxiway the aircraft is currently on to reach
                     // the target. Handles cases like W5→W, B→D, etc. without the
                     // user having to include the current taxiway in instructions.
-                    (variantEndId, variantEdge) = WalkCurrentTaxiwayToTarget(layout, startNodeId, taxiwayName, segments);
+                    (variantEndId, _) = WalkCurrentTaxiwayToTarget(layout, startNodeId, taxiwayName, segments);
                     diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: WalkCurrentTaxiway → node={variantEndId}");
                 }
 
                 if (variantEndId != -1)
                 {
                     startNodeId = variantEndId;
-                    startEdge = variantEdge;
                 }
                 else
                 {
                     // Try bridging via runway centerline edges only. This
                     // handles cases like D→F where taxiways cross the same
                     // runway but aren't directly connected in the graph.
-                    (int rwyEndId, GroundEdge? rwyEdge) = BridgeViaRunwayEdges(layout, startNodeId, taxiwayName, segments);
+                    (int rwyEndId, _) = BridgeViaRunwayEdges(layout, startNodeId, taxiwayName, segments);
 
                     if (rwyEndId != -1)
                     {
                         startNodeId = rwyEndId;
-                        startEdge = rwyEdge;
                     }
                     else if (allowRampFallback)
                     {
                         // Graph is disconnected — straight-line fallback for
                         // parking/ramp areas where connectivity may be missing
-                        (int nearestId, double nearestDist, GroundEdge? nearestEdge) = FindNearestNodeOnTaxiway(layout, currentNode, taxiwayName);
+                        (int nearestId, double nearestDist, _) = FindNearestNodeOnTaxiway(layout, currentNode, taxiwayName);
 
                         if (nearestId == -1)
                         {
@@ -578,7 +574,6 @@ public static class TaxiPathfinder
                         );
 
                         startNodeId = nearestId;
-                        startEdge = nearestEdge;
                     }
                     else
                     {

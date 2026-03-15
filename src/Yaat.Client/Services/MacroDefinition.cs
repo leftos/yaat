@@ -156,7 +156,7 @@ public sealed partial class MacroDefinition
     [GeneratedRegex(@"&([A-Za-z_]\w*|\d+)")]
     private static partial Regex GetParamRegex();
 
-    [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*$")]
+    [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]*$")]
     private static partial Regex GetNameRegex();
 
     [GeneratedRegex(@"^&[A-Za-z_]\w*$")]

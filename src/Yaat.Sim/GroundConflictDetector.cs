@@ -182,7 +182,7 @@ public static class GroundConflictDetector
         var (subState, _) = Classify(subject);
         if (layout is not null && subState == MovementState.Taxiing && refState == MovementState.Taxiing)
         {
-            return !ShareUpcomingNode(subject, reference, layout);
+            return !ShareUpcomingNode(subject, reference);
         }
 
         // Stationary reference: check if subject is closing
@@ -235,10 +235,9 @@ public static class GroundConflictDetector
         }
 
         // Taxiing: has route with current segment (even if GS=0 due to prior speed limit)
-        if (ac.AssignedTaxiRoute?.CurrentSegment is { } seg)
+        if (ac.AssignedTaxiRoute?.CurrentSegment is not null)
         {
-            var route = ac.AssignedTaxiRoute;
-            double dir = GetSegmentDirection(ac, seg, route);
+            double dir = GetSegmentDirection(ac);
             return (MovementState.Taxiing, dir);
         }
 
@@ -252,7 +251,7 @@ public static class GroundConflictDetector
         return (MovementState.Untracked, ac.Heading);
     }
 
-    private static double GetSegmentDirection(AircraftState ac, TaxiRouteSegment seg, TaxiRoute route)
+    private static double GetSegmentDirection(AircraftState ac)
     {
         // Direction = bearing from current position toward the segment's target node.
         // We don't have the node coordinates directly on the segment, but we can
@@ -297,8 +296,8 @@ public static class GroundConflictDetector
         if (segA.ToNodeId == segB.ToNodeId)
         {
             // Trailing: the one farther from the target node slows down
-            double distAToTarget = DistToSegTarget(a, segA);
-            double distBToTarget = DistToSegTarget(b, segB);
+            double distAToTarget = DistToSegTarget(segA);
+            double distBToTarget = DistToSegTarget(segB);
 
             diagnosticLog?.Invoke(
                 $"  [SameEdge] same-dir edge {segA.FromNodeId}→{segA.ToNodeId}: {a.Callsign} distToTgt={distAToTarget:F4}nm, {b.Callsign} distToTgt={distBToTarget:F4}nm"
@@ -599,7 +598,7 @@ public static class GroundConflictDetector
         return diff;
     }
 
-    private static double DistToSegTarget(AircraftState ac, TaxiRouteSegment seg)
+    private static double DistToSegTarget(TaxiRouteSegment seg)
     {
         // Approximate: bearing-based distance to segment's ToNode is
         // not available without layout. Use the edge distance minus traversed.
@@ -628,7 +627,7 @@ public static class GroundConflictDetector
         for (int i = routeA.CurrentSegmentIndex; i < routeA.Segments.Count; i++)
         {
             var seg = routeA.Segments[i];
-            cumulativeA += seg.Edge?.DistanceNm ?? 0;
+            cumulativeA += seg.Edge.DistanceNm;
             if (cumulativeA > lookaheadNm)
             {
                 break;
@@ -643,7 +642,7 @@ public static class GroundConflictDetector
         for (int i = routeB.CurrentSegmentIndex; i < routeB.Segments.Count; i++)
         {
             var seg = routeB.Segments[i];
-            cumulativeB += seg.Edge?.DistanceNm ?? 0;
+            cumulativeB += seg.Edge.DistanceNm;
             if (cumulativeB > lookaheadNm)
             {
                 break;
@@ -658,7 +657,7 @@ public static class GroundConflictDetector
         return null;
     }
 
-    private static bool ShareUpcomingNode(AircraftState subject, AircraftState reference, AirportGroundLayout layout)
+    private static bool ShareUpcomingNode(AircraftState subject, AircraftState reference)
     {
         var routeA = subject.AssignedTaxiRoute;
         var routeB = reference.AssignedTaxiRoute;

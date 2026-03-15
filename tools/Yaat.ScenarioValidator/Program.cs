@@ -272,7 +272,7 @@ public static class Program
                 if (json is null)
                 {
                     Console.Error.WriteLine($"  [{artccId}] {summary.Name} — FETCH FAILED");
-                    return (ScenarioValidationResult?)null;
+                    return null;
                 }
 
                 var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json, navDb);

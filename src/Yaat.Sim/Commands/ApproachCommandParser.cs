@@ -428,7 +428,7 @@ internal static class ApproachCommandParser
     }
 
     /// <summary>
-    /// Parses DVIA [altitudeHundreds] or DVIA SPD <speed> <fix>.
+    /// Parses DVIA [altitudeHundreds] or DVIA SPD &lt;speed&gt; &lt;fix&gt;.
     /// Example: "DVIA", "DVIA 040", "DVIA SPD 230 GOSHI"
     /// </summary>
     internal static PR ParseDvia(string? arg, NavigationDatabase? navDb)
@@ -512,7 +512,7 @@ internal static class ApproachCommandParser
         if (tokens[1].Equals("AT", StringComparison.OrdinalIgnoreCase) && tokens.Length >= 3)
         {
             altTokenIndex = 2;
-            (altitude, altType) = ParseCfixAltitudeToken(tokens[2]);
+            (altitude, _) = ParseCfixAltitudeToken(tokens[2]);
             if (altitude is null)
             {
                 return PR.Fail($"invalid CFIX altitude '{tokens[2]}'");

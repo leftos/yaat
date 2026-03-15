@@ -21,7 +21,7 @@ internal static class FixSuggester
         int maxSuggestions
     )
     {
-        if (!scheme.Patterns.TryGetValue(Sim.Commands.CanonicalCommandType.DirectTo, out var dctPattern))
+        if (!scheme.Patterns.TryGetValue(CanonicalCommandType.DirectTo, out var dctPattern))
         {
             return false;
         }

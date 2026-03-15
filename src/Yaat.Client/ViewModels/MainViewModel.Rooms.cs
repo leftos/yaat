@@ -352,12 +352,6 @@ public partial class MainViewModel
         ActiveRoomId = state.RoomId;
         ActiveRoomName = $"({state.CreatorArtccId}) {state.CreatorInitials}'s Room";
 
-        RoomMembers.Clear();
-        foreach (var m in state.Members)
-        {
-            RoomMembers.Add(m);
-        }
-
         if (state.ScenarioId is not null)
         {
             ActiveScenarioId = state.ScenarioId;
@@ -402,7 +396,6 @@ public partial class MainViewModel
     {
         ActiveRoomId = null;
         ActiveRoomName = null;
-        RoomMembers.Clear();
         CrcLobbyClients.Clear();
         CrcRoomMembers.Clear();
         ShowCrcPanel = false;
@@ -419,12 +412,6 @@ public partial class MainViewModel
             if (dto.RoomId != ActiveRoomId)
             {
                 return;
-            }
-
-            RoomMembers.Clear();
-            foreach (var m in dto.Members)
-            {
-                RoomMembers.Add(m);
             }
 
             if (dto.ScenarioName is not null)

@@ -129,7 +129,7 @@ public partial class CommandInputController : ObservableObject
             else
             {
                 // Single token: could be callsign or command verb
-                AddCallsignSuggestions(firstToken, text, aircraft);
+                AddCallsignSuggestions(firstToken, aircraft);
                 AddCommandVerbSuggestions(firstToken, text, scheme, targetAircraft);
                 AddConditionSuggestions(firstToken);
             }
@@ -727,7 +727,7 @@ public partial class CommandInputController : ObservableObject
         return macro.Expansion;
     }
 
-    private void AddCallsignSuggestions(string token, string fullText, IReadOnlyCollection<AircraftModel> aircraft)
+    private void AddCallsignSuggestions(string token, IReadOnlyCollection<AircraftModel> aircraft)
     {
         var count = 0;
         foreach (var ac in aircraft)
@@ -785,24 +785,11 @@ public partial class CommandInputController : ObservableObject
         }
     }
 
-    private static bool MatchesAnyAlias(string token, CommandPattern pattern)
-    {
-        foreach (var alias in pattern.Aliases)
-        {
-            if (string.Equals(token, alias, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static readonly HashSet<Sim.Commands.CanonicalCommandType> DelayedOnlyCommands =
+    private static readonly HashSet<CanonicalCommandType> DelayedOnlyCommands =
     [
-        Sim.Commands.CanonicalCommandType.SpawnNow,
-        Sim.Commands.CanonicalCommandType.SpawnDelay,
-        Sim.Commands.CanonicalCommandType.Delete,
+        CanonicalCommandType.SpawnNow,
+        CanonicalCommandType.SpawnDelay,
+        CanonicalCommandType.Delete,
     ];
 
     private void AddCommandVerbSuggestions(string token, string fullText, CommandScheme scheme, AircraftModel? targetAircraft = null)

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -11,8 +10,6 @@ namespace Yaat.Sim.Tests;
 
 public class VisualApproachCommandTests
 {
-    private static readonly NullLogger Logger = NullLogger.Instance;
-
     // Runway 28R at OAK: heading 280°, threshold at (37.72, -122.22)
     private static RunwayInfo MakeRunway(string designator = "28R", double heading = 280)
     {

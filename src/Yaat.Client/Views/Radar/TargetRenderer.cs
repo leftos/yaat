@@ -74,7 +74,6 @@ public sealed class TargetRenderer : IDisposable
     public SKColor? SelectedOverrideColor { get; set; }
 
     private const float SymbolSize = 5f;
-    private const float LeaderLength = 40f;
 
     public void Render(
         SKCanvas canvas,

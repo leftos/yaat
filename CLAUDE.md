@@ -16,6 +16,14 @@ dotnet run --project tools/Yaat.Scratch # Ad-hoc testing against Yaat.Sim types
 
 .NET 10 SDK required. Solution uses `.slnx` format (`yaat.slnx`).
 
+### Qodana (static analysis)
+
+```bash
+qodana scan --results-dir .tmp/qodana-results
+```
+
+Runs JetBrains Qodana .NET locally (no CI integration). Results go to `.tmp/qodana-results/` (gitignored). False positives for DTO/MVVM/cross-project patterns are suppressed via `.editorconfig` (`resharper_*_highlighting = none`). Path exclusions (Scratch, discord-bot) are in `qodana.yaml`.
+
 ### Yaat.Scratch
 
 `tools/Yaat.Scratch` is a throwaway console project that references Yaat.Sim. Use it for quick ad-hoc testing — parsing commands, checking registry queries, debugging data structures — without spinning up the full client or writing a formal test. Edit `Program.cs` freely; it's not committed with meaningful content.

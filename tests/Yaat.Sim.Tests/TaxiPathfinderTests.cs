@@ -1127,58 +1127,6 @@ public class TaxiPathfinderTests
         return null;
     }
 
-    private static GroundNode? FindParkingOrSpot(AirportGroundLayout layout, string name)
-    {
-        foreach (var node in layout.Nodes.Values)
-        {
-            if (
-                (node.Type == GroundNodeType.Parking || node.Type == GroundNodeType.Spot)
-                && string.Equals(node.Name, name, StringComparison.OrdinalIgnoreCase)
-            )
-            {
-                return node;
-            }
-        }
-        return null;
-    }
-
-    private static int? FindNodeOnTaxiway(AirportGroundLayout layout, string taxiwayName)
-    {
-        foreach (var edge in layout.Edges)
-        {
-            if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
-            {
-                return edge.FromNodeId;
-            }
-        }
-        return null;
-    }
-
-    private static int? FindIntersectionNode(AirportGroundLayout layout, string tw1, string tw2)
-    {
-        foreach (var node in layout.Nodes.Values)
-        {
-            bool hasTw1 = false;
-            bool hasTw2 = false;
-            foreach (var edge in node.Edges)
-            {
-                if (string.Equals(edge.TaxiwayName, tw1, StringComparison.OrdinalIgnoreCase))
-                {
-                    hasTw1 = true;
-                }
-                if (string.Equals(edge.TaxiwayName, tw2, StringComparison.OrdinalIgnoreCase))
-                {
-                    hasTw2 = true;
-                }
-            }
-            if (hasTw1 && hasTw2)
-            {
-                return node.Id;
-            }
-        }
-        return null;
-    }
-
     [Fact]
     public void OAK_LayoutLoads_HasWVariants()
     {
@@ -1248,7 +1196,7 @@ public class TaxiPathfinderTests
             {
                 int startId = route1 is not null ? edge.FromNodeId : edge.ToNodeId;
                 // Now try W3 then W
-                var combined = TaxiPathfinder.ResolveExplicitPath(layout, startId, ["W3", "W"], out string? fr);
+                var combined = TaxiPathfinder.ResolveExplicitPath(layout, startId, ["W3", "W"], out _);
                 if (combined is not null)
                 {
                     return; // Success
@@ -1699,7 +1647,7 @@ public class TaxiPathfinderTests
 
         // Both routes should have similar segment counts (HS route may differ by hold-short annotations,
         // but the underlying path segments must be the same)
-        Assert.Equal(routeRwy!.Segments.Count, routeHs!.Segments.Count);
+        Assert.Equal(routeRwy.Segments.Count, routeHs.Segments.Count);
 
         // HS route must stop at the 1L hold-short, not walk the entire M1 taxiway
         var endNode = layout.Nodes[routeHs.Segments[^1].ToNodeId];
@@ -1941,7 +1889,7 @@ public class TaxiPathfinderTests
 
         var route = TaxiPathfinder.ResolveExplicitPath(
             layout,
-            w5OnlyNodeId!.Value,
+            w5OnlyNodeId.Value,
             ["W", "V", "T", "TE"],
             out string? failReason,
             destinationRunway: "26"
@@ -2022,7 +1970,7 @@ public class TaxiPathfinderTests
         // D→B with C omitted should fail: only runway centerline edges are
         // allowed for implicit bridging, and there's no runway between D and B.
         // The user must specify TAXI D C B.
-        var route = TaxiPathfinder.ResolveExplicitPath(layout, dOnlyNodeId!.Value, ["D", "B"], out string? failReason);
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, dOnlyNodeId.Value, ["D", "B"], out _);
 
         Assert.Null(route);
     }

@@ -1,10 +1,4 @@
-using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
-using Xunit;
 using Xunit.Abstractions;
-using Yaat.Sim.Simulation;
-using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
@@ -29,35 +23,4 @@ namespace Yaat.Sim.Tests.Simulation;
 public class SfoReplayTests(ITestOutputHelper output)
 {
     private readonly ITestOutputHelper _output = output;
-
-    private static SessionRecording? LoadRecording(string path)
-    {
-        if (!File.Exists(path))
-        {
-            return null;
-        }
-
-        var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-    }
-
-    private SimulationEngine? BuildEngine(bool withProcedures = false)
-    {
-        var navDb = TestVnasData.NavigationDb;
-        if (navDb is null)
-        {
-            return null;
-        }
-
-        var groundData = new TestAirportGroundData();
-        if (groundData.GetLayout("SFO") is null)
-        {
-            return null;
-        }
-
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(_output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
-
-        return new SimulationEngine(navDb, groundData);
-    }
 }

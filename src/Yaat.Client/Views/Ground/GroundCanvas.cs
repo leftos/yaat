@@ -106,7 +106,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
     private readonly GroundRenderer _renderer = new();
     private readonly Dictionary<string, SKPoint> _dataBlockOffsets = new();
-    private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = Services.PlatformHelper.MonospaceTypefaceBold };
+    private readonly SKPaint _hitTestPaint = new() { TextSize = 12, Typeface = PlatformHelper.MonospaceTypefaceBold };
     private int? _hoveredNodeId;
     private bool _hasFitBounds;
     private bool _suppressViewSync;
@@ -524,7 +524,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
 
             if (props.IsLeftButtonPressed)
             {
-                if (Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
+                if (PlatformHelper.HasActionModifier(e.KeyModifiers))
                 {
                     AircraftCtrlClicked?.Invoke(dataBlockAc.Callsign);
                 }
@@ -585,7 +585,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             if (ac is not null)
             {
                 SurfaceDataBlock(ac.Callsign);
-                if (Services.PlatformHelper.HasActionModifier(e.KeyModifiers))
+                if (PlatformHelper.HasActionModifier(e.KeyModifiers))
                 {
                     AircraftCtrlClicked?.Invoke(ac.Callsign);
                 }

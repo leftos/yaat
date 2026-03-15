@@ -138,7 +138,7 @@ public partial class RadarView
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
-        ShowContextMenu(menu, screenPos);
+        ShowContextMenu(menu);
     }
 
     private static MenuItem? BuildRouteSummaryItem(AircraftModel ac)
@@ -670,7 +670,7 @@ public partial class RadarView
 
         if (menu.Items.Count > 0)
         {
-            ShowContextMenu(menu, screenPos);
+            ShowContextMenu(menu);
         }
     }
 

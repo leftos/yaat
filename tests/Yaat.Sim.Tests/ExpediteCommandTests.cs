@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 
@@ -7,8 +5,6 @@ namespace Yaat.Sim.Tests;
 
 public class ExpediteCommandTests
 {
-    private static readonly ILogger Logger = NullLogger.Instance;
-
     private static AircraftState CreateAircraft(double altitude = 5000, double ias = 250)
     {
         return new AircraftState

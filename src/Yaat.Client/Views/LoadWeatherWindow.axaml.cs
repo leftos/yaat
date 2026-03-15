@@ -147,7 +147,7 @@ public partial class LoadWeatherWindow : Window
                 name = string.IsNullOrWhiteSpace(name) ? Path.GetFileNameWithoutExtension(filePath) : name;
 
                 var layerCount = layersProp.GetArrayLength();
-                items.Add(new LocalWeatherItem(filePath, name!, layerCount));
+                items.Add(new LocalWeatherItem(filePath, name, layerCount));
             }
             catch (Exception ex)
             {

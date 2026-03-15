@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
@@ -9,8 +8,6 @@ namespace Yaat.Sim.Commands;
 
 public static class ApproachCommandHandler
 {
-    private static readonly ILogger Log = SimLog.CreateLogger("ApproachCommandHandler");
-
     public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
     {
         var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft, navDb);
@@ -316,12 +313,6 @@ public static class ApproachCommandHandler
 
         // Determine execution path based on aircraft position
         double finalCourse = approachRunway.TrueHeading;
-        double bearingToThreshold = GeoMath.BearingTo(
-            aircraft.Latitude,
-            aircraft.Longitude,
-            approachRunway.ThresholdLatitude,
-            approachRunway.ThresholdLongitude
-        );
         double angleOff = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - finalCourse));
 
         if (cmd.FollowCallsign is not null)

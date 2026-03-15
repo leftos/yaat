@@ -102,7 +102,7 @@ public class FixSuggesterTests
     {
         var suggestions = new ObservableCollection<SuggestionItem>();
         // Empty scheme with no patterns
-        var scheme = new CommandScheme { Patterns = new Dictionary<Sim.Commands.CanonicalCommandType, CommandPattern>() };
+        var scheme = new CommandScheme { Patterns = new Dictionary<CanonicalCommandType, CommandPattern>() };
 
         var result = FixSuggester.TryAddFixSuggestions("DCT SUN", "DCT SUN", null, scheme, suggestions, null, 10);
 

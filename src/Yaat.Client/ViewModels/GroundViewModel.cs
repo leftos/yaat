@@ -6,6 +6,7 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Ground;
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ViewModels;
@@ -777,7 +778,7 @@ public partial class GroundViewModel : ObservableObject
                 continue;
             }
 
-            var bearing = Yaat.Sim.GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
+            var bearing = GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
             var heading = (int)Math.Round(bearing);
             if (heading <= 0)
             {

@@ -29,7 +29,7 @@ public static class CommandDispatcher
         // Leading WAIT → deferred dispatch: extract the timer and store the remaining
         // blocks as a deferred payload. The payload dispatches fresh when the timer expires,
         // without touching phases or the command queue.
-        var deferredResult = TryDeferLeadingWait(compound, aircraft, navDb, groundLayout, rng, validateDctFixes, autoCrossRunway);
+        var deferredResult = TryDeferLeadingWait(compound, aircraft);
         if (deferredResult is not null)
         {
             return deferredResult;
@@ -38,7 +38,7 @@ public static class CommandDispatcher
         // Phase interaction: check if aircraft has active phases
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            var result = DispatchWithPhase(compound, aircraft, currentPhase, navDb, groundLayout, rng, autoCrossRunway);
+            var result = DispatchWithPhase(compound, aircraft, currentPhase, navDb, groundLayout, autoCrossRunway);
             if (result is not null)
             {
                 return result;
@@ -109,7 +109,7 @@ public static class CommandDispatcher
             var commandBlock = new CommandBlock
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, aircraft, rng, navDb, validateDctFixes),
+                ApplyAction = BuildApplyAction(parsedBlock.Commands, rng, navDb, validateDctFixes),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
                 IsWaitBlock = isWait,
@@ -423,15 +423,7 @@ public static class CommandDispatcher
     /// The remaining blocks become the payload, validated now but dispatched later when the
     /// timer expires. Returns null if the compound doesn't start with a bare WAIT.
     /// </summary>
-    private static CommandResult? TryDeferLeadingWait(
-        CompoundCommand compound,
-        AircraftState aircraft,
-        NavigationDatabase? navDb,
-        AirportGroundLayout? groundLayout,
-        Random rng,
-        bool validateDctFixes,
-        bool autoCrossRunway
-    )
+    private static CommandResult? TryDeferLeadingWait(CompoundCommand compound, AircraftState aircraft)
     {
         var firstBlock = compound.Blocks[0];
         if (firstBlock.Condition is not null)
@@ -467,7 +459,7 @@ public static class CommandDispatcher
         var payloadBlocks = new List<ParsedBlock>();
 
         // Sibling commands in the first block (everything except the WAIT)
-        var siblings = firstBlock.Commands.Where(c => c != (ParsedCommand?)waitCmd && c != (ParsedCommand?)waitDistCmd).ToList();
+        var siblings = firstBlock.Commands.Where(c => c != waitCmd && c != waitDistCmd).ToList();
         if (siblings.Count > 0)
         {
             payloadBlocks.Add(new ParsedBlock(firstBlock.Condition, siblings));
@@ -530,7 +522,6 @@ public static class CommandDispatcher
         Phase currentPhase,
         NavigationDatabase? navDb,
         AirportGroundLayout? groundLayout,
-        Random rng,
         bool autoCrossRunway = false
     )
     {
@@ -959,23 +950,6 @@ public static class CommandDispatcher
         return null;
     }
 
-    private static void ClearActiveProcedure(AircraftState aircraft)
-    {
-        aircraft.ActiveSidId = null;
-        aircraft.ActiveStarId = null;
-        aircraft.SidViaMode = false;
-        aircraft.StarViaMode = false;
-        aircraft.SidViaCeiling = null;
-        aircraft.StarViaFloor = null;
-        aircraft.DepartureRunway = null;
-        aircraft.DestinationRunway = null;
-    }
-
-    private static string AltitudeVerb(AircraftState aircraft, int targetAltitude)
-    {
-        return aircraft.Altitude > targetAltitude ? "Descend and maintain" : "Climb and maintain";
-    }
-
     internal static CommandResult Ok(string message)
     {
         return new CommandResult(true, message);
@@ -1005,7 +979,6 @@ public static class CommandDispatcher
     /// </summary>
     private static Func<AircraftState, string?> BuildApplyAction(
         List<ParsedCommand> commands,
-        AircraftState aircraft,
         Random rng,
         NavigationDatabase? navDb,
         bool validateDctFixes

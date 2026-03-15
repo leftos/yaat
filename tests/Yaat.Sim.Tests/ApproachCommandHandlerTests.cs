@@ -12,8 +12,6 @@ namespace Yaat.Sim.Tests;
 
 public class ApproachCommandHandlerTests
 {
-    private static readonly NullLogger Logger = NullLogger.Instance;
-
     private static AircraftState MakeAircraft(
         double heading = 280,
         double altitude = 3000,
@@ -707,7 +705,7 @@ public class ApproachCommandHandlerTests
             Targets = aircraft.Targets,
             Category = cat,
             DeltaSeconds = 1.0,
-            Logger = NullLogger.Instance,
+            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
         };
     }
 

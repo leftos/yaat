@@ -113,7 +113,7 @@ public sealed class PushbackPhase : Phase
             {
                 ctx.Targets.TargetSpeed = 0;
                 ctx.Aircraft.PushbackHeading = null;
-                bool aligned = TurnNoseToward(ctx, alignmentHeading.Value, turnRate);
+                TurnNoseToward(ctx, alignmentHeading.Value, turnRate);
                 double diff = Math.Abs(FlightPhysics.NormalizeAngle(alignmentHeading.Value - ctx.Aircraft.Heading));
                 if (diff <= AlignmentThresholdDeg)
                 {

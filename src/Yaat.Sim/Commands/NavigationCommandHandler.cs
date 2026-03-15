@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
@@ -9,8 +8,6 @@ namespace Yaat.Sim.Commands;
 
 internal static class NavigationCommandHandler
 {
-    private static readonly ILogger Log = SimLog.CreateLogger("NavigationCommandHandler");
-
     internal static CommandResult DispatchJrado(JoinRadialOutboundCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): fly present heading
@@ -234,7 +231,7 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, "Approach data not available");
         }
 
-        string airport = cmd.AirportCode ?? aircraft.Destination ?? "";
+        string airport = cmd.AirportCode ?? aircraft.Destination;
         if (string.IsNullOrEmpty(airport))
         {
             return new CommandResult(false, "No airport specified and no destination in flight plan");
@@ -451,7 +448,7 @@ internal static class NavigationCommandHandler
             }
 
             // Check each enroute transition for the fix
-            foreach (var (transName, trans) in star.EnrouteTransitions)
+            foreach (var (_, trans) in star.EnrouteTransitions)
             {
                 var transTargets = DepartureClearanceHandler.ResolveLegsToTargets(trans.Legs, navDb);
                 int transFixIdx = transTargets.FindIndex(t => t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));

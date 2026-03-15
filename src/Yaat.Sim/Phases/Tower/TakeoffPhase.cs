@@ -62,7 +62,7 @@ public sealed class TakeoffPhase : Phase
             return TickGroundRoll(ctx);
         }
 
-        return TickAirborneClimb(ctx, agl);
+        return TickAirborneClimb(agl);
     }
 
     private bool TickGroundRoll(PhaseContext ctx)
@@ -134,7 +134,7 @@ public sealed class TakeoffPhase : Phase
         }
     }
 
-    private static bool TickAirborneClimb(PhaseContext ctx, double agl)
+    private static bool TickAirborneClimb(double agl)
     {
         return agl >= CompletionAgl;
     }

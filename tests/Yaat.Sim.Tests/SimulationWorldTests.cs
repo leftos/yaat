@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
@@ -159,7 +160,7 @@ public class SimulationWorldTests
     public void Clear_SetsGroundLayoutToNull()
     {
         var world = new SimulationWorld();
-        world.GroundLayout = new Yaat.Sim.Data.Airport.AirportGroundLayout { AirportId = "OAK" };
+        world.GroundLayout = new AirportGroundLayout { AirportId = "OAK" };
 
         world.Clear();
 

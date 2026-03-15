@@ -61,7 +61,7 @@ public static class FlightPhysics
         // use turn anticipation; fly-over and terminal waypoints use NavArrivalNm.
         double threshold = NavArrivalNm;
         double anticipationNm = 0;
-        bool inAnticipationZone = false;
+        bool inAnticipationZone;
 
         if (route.Count >= 2 && !nav.IsFlyOver)
         {

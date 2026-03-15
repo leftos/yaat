@@ -295,7 +295,7 @@ public partial class AircraftModel : ObservableObject
     {
         get
         {
-            var parts = new System.Collections.Generic.List<string>(4);
+            var parts = new List<string>(4);
 
             if (!string.IsNullOrEmpty(FlightRules) || !string.IsNullOrEmpty(AircraftType))
             {
@@ -336,7 +336,7 @@ public partial class AircraftModel : ObservableObject
             return false;
         }
 
-        var routeFixes = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var routeFixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var token in Route.Split(['.', ' '], StringSplitOptions.RemoveEmptyEntries))
         {
             if (token.Length >= 2 && "VJTQ".Contains(token[0]) && char.IsDigit(token[1]))

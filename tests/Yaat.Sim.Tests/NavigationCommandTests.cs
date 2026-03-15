@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -9,8 +8,6 @@ namespace Yaat.Sim.Tests;
 
 public class NavigationCommandTests
 {
-    private static readonly NullLogger Logger = NullLogger.Instance;
-
     private static AircraftState MakeAircraft(double heading = 090, double altitude = 5000, double lat = 37.7, double lon = -122.2)
     {
         return new AircraftState
@@ -365,7 +362,7 @@ public class NavigationCommandTests
                 ["OAK"] = (37.72, -122.22),
             },
             starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
-            starTransitions: new() { ["SUNOL1"] = [("KENNO", (IReadOnlyList<string>)["KENNO", "SUNOL"])] }
+            starTransitions: new() { ["SUNOL1"] = [("KENNO", ["KENNO", "SUNOL"])] }
         );
 
         var aircraft = MakeAircraft(heading: 180);
@@ -416,7 +413,7 @@ public class NavigationCommandTests
                 ["OAK"] = (37.72, -122.22),
             },
             starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
-            starTransitions: new() { ["SUNOL1"] = [("KENNO", (IReadOnlyList<string>)["KENNO", "SUNOL"])] }
+            starTransitions: new() { ["SUNOL1"] = [("KENNO", ["KENNO", "SUNOL"])] }
         );
 
         var aircraft = MakeAircraft();
@@ -464,7 +461,7 @@ public class NavigationCommandTests
                 ["OAK"] = (37.72, -122.22),
             },
             starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
-            starTransitions: new() { ["EMZOH4"] = [("COREZ", (IReadOnlyList<string>)["COREZ", "EMZOH"])] }
+            starTransitions: new() { ["EMZOH4"] = [("COREZ", ["COREZ", "EMZOH"])] }
         );
 
         var aircraft = MakeAircraft();
@@ -490,7 +487,7 @@ public class NavigationCommandTests
                 ["KENNO"] = (37.8, -121.7),
             },
             starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
-            starTransitions: new() { ["EMZOH4"] = [("KENNO", (IReadOnlyList<string>)["KENNO", "EMZOH"])] }
+            starTransitions: new() { ["EMZOH4"] = [("KENNO", ["KENNO", "EMZOH"])] }
         );
 
         var aircraft = MakeAircraft();

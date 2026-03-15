@@ -480,7 +480,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases = new PhaseList();
         ac.Phases.Add(new HoldingShortPhase(holdShort));
-        var ctx = new Phases.PhaseContext
+        var ctx = new PhaseContext
         {
             Aircraft = ac,
             Targets = ac.Targets,
@@ -512,7 +512,7 @@ public class GroundCommandHandlerTests
         };
         ac.Phases = new PhaseList();
         ac.Phases.Add(new HoldingShortPhase(holdShort));
-        var ctx = new Phases.PhaseContext
+        var ctx = new PhaseContext
         {
             Aircraft = ac,
             Targets = ac.Targets,
@@ -609,9 +609,6 @@ public class GroundCommandHandlerTests
     public void TryTaxi_EndsAtNonHoldShort_NoAutoDetect()
     {
         var ac = MakeGroundAircraft();
-        // Use layout where last node (2) is just a taxiway intersection, not a hold-short
-        var layout = MakeSimpleLayout();
-        var cmd = new TaxiCommand(["A"], []);
         // Place aircraft right at node 1, but path only goes A (to node 2 which is intersection)
         // Actually node 2 also has edges to node 3 (A). The path "A" goes from node 1 through all A-edges.
         // Let me create a minimal layout with only 2 non-HS nodes.
@@ -793,6 +790,6 @@ public class GroundCommandHandlerTests
         var allHs = ac.AssignedTaxiRoute!.HoldShortPoints;
         var hs = allHs.FirstOrDefault(h => h.TargetName is not null && RunwayIdentifier.Parse(h.TargetName).Contains("28R"));
         Assert.NotNull(hs);
-        Assert.True(hs!.IsCleared);
+        Assert.True(hs.IsCleared);
     }
 }

@@ -54,7 +54,7 @@ public sealed class TowerListTracker
         }
 
         // Remove entries for deleted aircraft
-        foreach (var (listId, entries) in _entries)
+        foreach (var (_, entries) in _entries)
         {
             var removed = entries.RemoveAll(e => !activeCallsigns.Contains(e.Callsign));
             if (removed > 0)

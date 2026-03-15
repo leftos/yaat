@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -21,8 +19,6 @@ public class AppendDirectToTests
             Route = route,
         };
     }
-
-    private static readonly ILogger Logger = NullLogger.Instance;
 
     [Fact]
     public void Adct_NoExistingRoute_BehavesLikeDct()

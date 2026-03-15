@@ -85,17 +85,7 @@ internal static class TaxiVariantResolver
 
         if (variants.Count > 0)
         {
-            return AutoExtendVariant(
-                layout,
-                segments,
-                lastTaxiwayName,
-                segmentCountBeforeLastTw,
-                variants,
-                navDb,
-                airportId,
-                destinationRunway,
-                ref currentNodeId
-            );
+            return AutoExtendVariant(layout, segments, segmentCountBeforeLastTw, variants, navDb, airportId, destinationRunway, ref currentNodeId);
         }
 
         // The walk went the wrong direction at a fork — the last taxiway does
@@ -114,7 +104,6 @@ internal static class TaxiVariantResolver
         {
             var connectors = string.Join(", ", nonVariantConnectors.Order());
             failReason = $"Taxi to runway {destinationRunway}: specify connecting taxiway ({connectors})";
-            return false;
         }
 
         return false;
@@ -150,7 +139,6 @@ internal static class TaxiVariantResolver
     private static bool AutoExtendVariant(
         AirportGroundLayout layout,
         List<TaxiRouteSegment> segments,
-        string lastTaxiwayName,
         int segmentCountBeforeLastTw,
         List<(GroundNode HsNode, string VariantName)> variants,
         NavigationDatabase? navDb,

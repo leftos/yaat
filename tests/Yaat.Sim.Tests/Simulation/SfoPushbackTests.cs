@@ -77,9 +77,9 @@ public class SfoPushbackTests(ITestOutputHelper output)
         // Get B13 parking position for distance checks
         var layout = engine.World.GroundLayout;
         Assert.NotNull(layout);
-        var b13 = layout!.FindSpotByName("B13");
+        var b13 = layout.FindSpotByName("B13");
         Assert.NotNull(b13);
-        _output.WriteLine($"B13 target: ({b13!.Latitude:F6},{b13.Longitude:F6}) hdg={b13.Heading}");
+        _output.WriteLine($"B13 target: ({b13.Latitude:F6},{b13.Longitude:F6}) hdg={b13.Heading}");
 
         double startDist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
         _output.WriteLine($"Start distance to B13: {startDist:F0}ft");
@@ -157,7 +157,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
         var layout = engine.World.GroundLayout;
         Assert.NotNull(layout);
-        var b13 = layout!.FindSpotByName("B13");
+        var b13 = layout.FindSpotByName("B13");
         Assert.NotNull(b13);
 
         // Send PUSH @B13 180
@@ -230,13 +230,13 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
         var layout = engine.World.GroundLayout;
         Assert.NotNull(layout);
-        var b12 = layout!.FindSpotByName("B12");
+        var b12 = layout.FindSpotByName("B12");
         var b13 = layout.FindSpotByName("B13");
         Assert.NotNull(b12);
         Assert.NotNull(b13);
 
-        _output.WriteLine($"B12: ({b12!.Latitude:F6},{b12.Longitude:F6}) hdg={b12.Heading}");
-        _output.WriteLine($"B13: ({b13!.Latitude:F6},{b13.Longitude:F6}) hdg={b13.Heading}");
+        _output.WriteLine($"B12: ({b12.Latitude:F6},{b12.Longitude:F6}) hdg={b12.Heading}");
+        _output.WriteLine($"B13: ({b13.Latitude:F6},{b13.Longitude:F6}) hdg={b13.Heading}");
         _output.WriteLine(
             $"Distance B12→B13: {GeoMath.DistanceNm(b12.Latitude, b12.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm:F0}ft"
         );

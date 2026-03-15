@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
@@ -9,8 +7,6 @@ namespace Yaat.Sim.Tests;
 
 public class SpeedCommandTests
 {
-    private static readonly ILogger Logger = NullLogger.Instance;
-
     private static AircraftState CreateAircraft(double altitude = 5000, double ias = 250)
     {
         return new AircraftState
@@ -296,7 +292,6 @@ public class SpeedPhysicsTests
         var ac = CreateAirborne(ias: 230);
         ac.Targets.SpeedFloor = 210;
 
-        double originalIas = ac.IndicatedAirspeed;
         FlightPhysics.Update(ac, 1.0);
 
         // No TargetSpeed should be set, IAS shouldn't change significantly

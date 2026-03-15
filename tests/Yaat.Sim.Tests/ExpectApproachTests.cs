@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -10,8 +8,6 @@ namespace Yaat.Sim.Tests;
 
 public class ExpectApproachTests
 {
-    private static readonly ILogger Logger = NullLogger.Instance;
-
     private static AircraftState MakeAircraft(string destination = "OAK")
     {
         return new AircraftState

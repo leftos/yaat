@@ -242,12 +242,12 @@ public static partial class CifpParser
     /// </summary>
     public static IReadOnlyList<CifpSidProcedure> ParseSids(string cifpFilePath, string airportIcao)
     {
-        return ParseSidStarProcedures<CifpSidProcedure>(cifpFilePath, airportIcao, 'D', BuildSidProcedure);
+        return ParseSidStarProcedures(cifpFilePath, airportIcao, 'D', BuildSidProcedure);
     }
 
     public static IReadOnlyList<CifpStarProcedure> ParseStars(string cifpFilePath, string airportIcao)
     {
-        return ParseSidStarProcedures<CifpStarProcedure>(cifpFilePath, airportIcao, 'E', BuildStarProcedure);
+        return ParseSidStarProcedures(cifpFilePath, airportIcao, 'E', BuildStarProcedure);
     }
 
     private static IReadOnlyList<T> ParseSidStarProcedures<T>(

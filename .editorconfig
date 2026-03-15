@@ -6,3 +6,38 @@ max_line_length = 150
 [*.cs]
 # Require braces for all control flow statements
 csharp_prefer_braces = true:warning
+
+# --- Qodana suppression: false positives for this codebase ---
+
+# DTO/serialization: properties accessed by JSON deserialization, not code
+resharper_not_accessed_positional_property_global_highlighting = none
+resharper_auto_property_can_be_made_get_only_global_highlighting = none
+resharper_collection_never_updated_global_highlighting = none
+resharper_property_can_be_made_init_only_global_highlighting = none
+resharper_unused_auto_property_accessor_global_highlighting = none
+
+# Cross-project / DI / framework: public APIs consumed by yaat-server
+resharper_unused_member_global_highlighting = none
+resharper_member_can_be_private_global_highlighting = none
+resharper_class_never_instantiated_global_highlighting = none
+
+# MVVM / Avalonia: CommunityToolkit.Mvvm partial methods, XAML bindings
+resharper_unused_parameter_in_partial_method_highlighting = none
+resharper_xaml_binding_with_context_not_resolved_highlighting = none
+
+# Aviation acronyms (CIFP leg types: AF, CA, CF, etc.)
+resharper_inconsistent_naming_highlighting = none
+
+# Tests use explicit default values for readability
+resharper_redundant_argument_default_value_highlighting = none
+
+# ScenarioValidator SemaphoreSlim + Task.WhenAll pattern
+resharper_access_to_disposed_closure_highlighting = none
+
+# MVVM Toolkit: field initializers overwritten in constructor (OnXChanged pattern)
+resharper_member_initializer_value_ignored_highlighting = none
+
+[*.axaml]
+# Avalonia XAML DataContext not statically resolvable
+resharper_xaml_binding_with_context_not_resolved_highlighting = none
+resharper_xaml_possible_null_reference_exception_highlighting = none

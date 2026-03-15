@@ -132,7 +132,7 @@ public partial class LoadScenarioWindow : Window
         _allArtccItems.Sort(
             (a, b) =>
             {
-                int cmp = RatingSortKey(a.Rating).CompareTo(RatingSortKey(b.Rating));
+                int cmp = string.Compare(RatingSortKey(a.Rating), RatingSortKey(b.Rating), StringComparison.Ordinal);
                 return cmp != 0 ? cmp : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
             }
         );
@@ -209,7 +209,7 @@ public partial class LoadScenarioWindow : Window
         items.Sort(
             (a, b) =>
             {
-                int cmp = RatingSortKey(a.Rating).CompareTo(RatingSortKey(b.Rating));
+                int cmp = string.Compare(RatingSortKey(a.Rating), RatingSortKey(b.Rating), StringComparison.Ordinal);
                 return cmp != 0 ? cmp : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
             }
         );

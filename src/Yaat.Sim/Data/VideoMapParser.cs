@@ -31,7 +31,7 @@ public static class VideoMapParser
                 ExtractLines(geometry, lines);
             }
         }
-        else if (root.TryGetProperty("type", out var rootType))
+        else if (root.TryGetProperty("type", out _))
         {
             // Handle bare geometry (not wrapped in FeatureCollection)
             ExtractLines(root, lines);

@@ -224,7 +224,7 @@ public class LineUpPhaseTests
 
         // Test each intersection node
         bool anyFailed = false;
-        foreach (var (node, alongTrack) in sorted)
+        foreach (var (node, _) in sorted)
         {
             var (backtrack, completed, hdgDiff) = RunLineUpFromNode(node, runway, layout);
             var status = backtrack >= 0.01 ? "FAIL" : "ok";

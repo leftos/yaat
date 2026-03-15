@@ -133,8 +133,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private readonly Dictionary<string, int> _dataBlockZOrder = new();
     private int _nextZOrder = 1;
 
-    public RadarCanvas() { }
-
     public IReadOnlyList<AircraftModel>? Aircraft
     {
         get => GetValue(AircraftProperty);
@@ -702,8 +700,6 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 e.Handled = true;
                 return;
             }
-
-            return;
         }
 
         var dataBlockAc = FindDataBlockAtPoint(pos);

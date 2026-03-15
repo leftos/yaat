@@ -419,8 +419,6 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<TrainingRoomInfoDto> ActiveRooms { get; } = [];
 
-    public ObservableCollection<RoomMemberDto> RoomMembers { get; } = [];
-
     public ObservableCollection<CrcLobbyClientDto> CrcLobbyClients { get; } = [];
 
     public ObservableCollection<CrcRoomMemberDto> CrcRoomMembers { get; } = [];
@@ -696,7 +694,7 @@ public partial class MainViewModel : ObservableObject
         {
             var canonical = forceOverride ? $"** {compound.CanonicalString}" : compound.CanonicalString;
             _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalCommand);
-            var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+            await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
 
             AddHistory(originalCommand);
 
@@ -1035,7 +1033,6 @@ public partial class MainViewModel : ObservableObject
         {
             var names = string.Join(", ", matches.Select(a => a.Callsign).Take(5));
             StatusText = $"\"{token}\" matches multiple aircraft: {names}";
-            return null;
         }
 
         return null;

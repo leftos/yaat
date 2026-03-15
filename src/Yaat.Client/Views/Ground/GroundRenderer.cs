@@ -51,7 +51,7 @@ internal readonly struct DataBlockLayout
         float blockY = screenY + offset.Y;
 
         string line1 = ac.Callsign;
-        string line2 = ac.AircraftType ?? "";
+        string line2 = ac.AircraftType;
         string line3 = isAirborne ? $"{(int)(ac.Altitude / 100):D3}" : "";
 
         float w1 = textPaint.MeasureText(line1);
@@ -90,10 +90,7 @@ public sealed class GroundRenderer : IDisposable
     private static readonly SKColor ActiveRouteColor = new(60, 220, 60);
     private static readonly SKColor PreviewRouteColor = new(80, 180, 255, 180);
     private static readonly SKColor AircraftTaxiing = new(255, 255, 255);
-    private static readonly SKColor AircraftHolding = new(255, 255, 255);
-    private static readonly SKColor AircraftParked = new(100, 100, 100);
     private static readonly SKColor AircraftSelected = new(255, 255, 255);
-    private static readonly SKColor AircraftDimmed = new(80, 80, 100);
     private static readonly SKColor AircraftAirborne = new(255, 255, 255);
     private static readonly SKColor TerminalGreen = new(0, 230, 0);
     private static readonly SKColor DrawnRouteColor = new(0, 200, 255);
@@ -136,7 +133,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 15,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypeface,
+        Typeface = PlatformHelper.MonospaceTypeface,
         TextAlign = SKTextAlign.Center,
     };
 
@@ -164,7 +161,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 13,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypeface,
+        Typeface = PlatformHelper.MonospaceTypeface,
     };
 
     private readonly SKPaint _activeRoutePaint = new()
@@ -201,7 +198,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 12,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypeface,
+        Typeface = PlatformHelper.MonospaceTypeface,
     };
 
     private readonly SKPaint _aircraftPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
@@ -218,7 +215,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 12,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
+        Typeface = PlatformHelper.MonospaceTypefaceBold,
     };
 
     private readonly SKPaint _dataBlockBgPaint = new() { Color = new SKColor(0, 0, 0, 160), Style = SKPaintStyle.Fill };
@@ -255,7 +252,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 10,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypefaceBold,
+        Typeface = PlatformHelper.MonospaceTypefaceBold,
         TextAlign = SKTextAlign.Center,
     };
 
@@ -275,7 +272,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 14,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypeface,
+        Typeface = PlatformHelper.MonospaceTypeface,
     };
 
     private readonly SKPaint _debugEdgeLabelPaint = new()
@@ -284,7 +281,7 @@ public sealed class GroundRenderer : IDisposable
         TextSize = 13,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypeface,
+        Typeface = PlatformHelper.MonospaceTypeface,
     };
 
     private readonly SKPaint[] _shownTaxiRoutePaints;
@@ -974,7 +971,7 @@ public sealed class GroundRenderer : IDisposable
             _aircraftPaint.Color =
                 isSelected ? AircraftSelected
                 : isAirborne ? AircraftAirborne
-                : GetAircraftColor(ac);
+                : GetAircraftColor();
 
             var (lengthPx, widthPx) = ComputeAircraftPixelSize(ac.AircraftType, pxPerFt);
             if (isSelected)
@@ -983,7 +980,7 @@ public sealed class GroundRenderer : IDisposable
                 widthPx *= SelectedScaleFactor;
             }
 
-            bool isHeli = AircraftCategorization.Categorize(ac.AircraftType ?? "") == AircraftCategory.Helicopter;
+            bool isHeli = AircraftCategorization.Categorize(ac.AircraftType) == AircraftCategory.Helicopter;
             float headingDeg = (float)(ac.Heading - vp.RotationDeg);
 
             if (isHeli)
@@ -1042,7 +1039,7 @@ public sealed class GroundRenderer : IDisposable
         return MathF.Max(diameterFt * 0.5f * pxPerFt, MinAircraftPx);
     }
 
-    private static SKColor GetAircraftColor(AircraftModel ac)
+    private static SKColor GetAircraftColor()
     {
         return AircraftTaxiing;
     }

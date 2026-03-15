@@ -83,7 +83,7 @@ public sealed class LineUpPhase : Phase
 
             if (dist > OnRunwayNodeThresholdNm)
             {
-                NavigateToTarget(ctx, _stage1Lat, _stage1Lon, dist);
+                NavigateToTarget(ctx, _stage1Lat, _stage1Lon);
                 LogPeriodic(ctx);
                 return false;
             }
@@ -105,7 +105,7 @@ public sealed class LineUpPhase : Phase
 
             if (dist > CenterlineArrivalThresholdNm)
             {
-                NavigateToTarget(ctx, _centerlineLat, _centerlineLon, dist);
+                NavigateToTarget(ctx, _centerlineLat, _centerlineLon);
                 LogPeriodic(ctx);
                 return false;
             }
@@ -279,7 +279,7 @@ public sealed class LineUpPhase : Phase
         }
     }
 
-    private void NavigateToTarget(PhaseContext ctx, double targetLat, double targetLon, double dist)
+    private void NavigateToTarget(PhaseContext ctx, double targetLat, double targetLon)
     {
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, targetLat, targetLon);
 

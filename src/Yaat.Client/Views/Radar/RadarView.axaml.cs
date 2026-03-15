@@ -557,7 +557,7 @@ public partial class RadarView : UserControl
             )
         );
 
-        ShowContextMenu(menu, screenPos);
+        ShowContextMenu(menu);
     }
 
     // --- Canvas interaction ---
@@ -584,7 +584,7 @@ public partial class RadarView : UserControl
         }
     }
 
-    private void ShowContextMenu(ContextMenu menu, Point pos)
+    private void ShowContextMenu(ContextMenu menu)
     {
         if (_canvas is null)
         {

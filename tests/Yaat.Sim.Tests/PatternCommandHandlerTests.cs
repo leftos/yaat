@@ -551,11 +551,10 @@ public class PatternCommandHandlerTests
     [Fact]
     public void TryEnterPattern_Crosswind_BuildsCrosswindSequence()
     {
-        var ac = MakeAircraft();
         var rwy = DefaultRunway();
         // Place aircraft near the crosswind turn point
         var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left);
-        ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon, altitude: wp.PatternAltitude);
+        var ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon, altitude: wp.PatternAltitude);
 
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Crosswind, null, null, null);
 

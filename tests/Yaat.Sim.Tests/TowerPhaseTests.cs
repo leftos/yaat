@@ -20,7 +20,6 @@ public class TowerPhaseTests
         double lon = -122.0,
         double heading = 280,
         double altitude = 100,
-        double groundSpeed = 0,
         double ias = 0,
         bool onGround = true,
         string type = "B738"
@@ -203,7 +202,7 @@ public class TowerPhaseTests
     [Fact]
     public void TouchAndGo_OnStart_OnGroundAndDecelerating()
     {
-        var ac = MakeAircraft(groundSpeed: 130, onGround: false);
+        var ac = MakeAircraft(onGround: false);
         var phase = new TouchAndGoPhase();
         var ctx = Ctx(ac);
 
@@ -218,7 +217,7 @@ public class TowerPhaseTests
     public void TouchAndGo_Rollout_ThenReaccelerate_ThenAirborne()
     {
         var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, groundSpeed: 130, onGround: false, ias: 130);
+        var ac = MakeAircraft(altitude: 100, onGround: false, ias: 130);
         var phase = new TouchAndGoPhase();
         var ctx = Ctx(ac, rwy, dt: 1.0);
 
@@ -268,7 +267,7 @@ public class TowerPhaseTests
     [Fact]
     public void StopAndGo_OnStart_DecelerateToZero()
     {
-        var ac = MakeAircraft(groundSpeed: 130, onGround: false);
+        var ac = MakeAircraft(onGround: false);
         var phase = new StopAndGoPhase();
         var ctx = Ctx(ac);
 
@@ -282,7 +281,7 @@ public class TowerPhaseTests
     public void StopAndGo_FullStop_ThenPause_ThenReaccelerate()
     {
         var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, groundSpeed: 2, onGround: true, ias: 2);
+        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 2);
         var phase = new StopAndGoPhase();
         var ctx = Ctx(ac, rwy, dt: 1.0);
 
@@ -338,7 +337,7 @@ public class TowerPhaseTests
     public void StopAndGo_TriggerGo_BypassesPauseTimer()
     {
         var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, groundSpeed: 2, onGround: true, ias: 2);
+        var ac = MakeAircraft(altitude: 100, onGround: true, ias: 2);
         var phase = new StopAndGoPhase();
         var ctx = Ctx(ac, rwy, dt: 1.0);
 
@@ -368,7 +367,7 @@ public class TowerPhaseTests
     public void LowApproach_OnStart_SetsRunwayHeadingAndApproachSpeed()
     {
         var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 500, onGround: false, groundSpeed: 140, ias: 140);
+        var ac = MakeAircraft(altitude: 500, onGround: false, ias: 140);
         var phase = new LowApproachPhase();
         var ctx = Ctx(ac, rwy);
 
@@ -382,7 +381,7 @@ public class TowerPhaseTests
     public void LowApproach_ClimbsOutAndCompletesAt1500AGL()
     {
         var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 180, onGround: false, groundSpeed: 140, ias: 140);
+        var ac = MakeAircraft(altitude: 180, onGround: false, ias: 140);
         var phase = new LowApproachPhase();
         var ctx = Ctx(ac, rwy);
 
@@ -419,7 +418,7 @@ public class TowerPhaseTests
     public void Landing_TouchdownSetsOnGround()
     {
         var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 110, onGround: false, groundSpeed: 140, ias: 140);
+        var ac = MakeAircraft(altitude: 110, onGround: false, ias: 140);
         var phase = new LandingPhase();
         var ctx = Ctx(ac, rwy);
 
@@ -444,7 +443,7 @@ public class TowerPhaseTests
     public void Landing_Rollout_CompletesAt20Kts()
     {
         var rwy = DefaultRunway(100);
-        var ac = MakeAircraft(altitude: 100, onGround: false, groundSpeed: 140, ias: 140);
+        var ac = MakeAircraft(altitude: 100, onGround: false, ias: 140);
         var phase = new LandingPhase();
         var ctx = Ctx(ac, rwy, dt: 1.0);
 
@@ -490,7 +489,7 @@ public class TowerPhaseTests
     [Fact]
     public void HoldAtFix_OnStart_NavigatesToFix()
     {
-        var ac = MakeAircraft(altitude: 5000, onGround: false, groundSpeed: 200, ias: 200);
+        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200);
         var phase = new HoldAtFixPhase
         {
             FixName = "EDDYY",
@@ -509,7 +508,7 @@ public class TowerPhaseTests
     [Fact]
     public void HoldAtFix_ArrivesAtFix_ClearsRouteAndOrbits()
     {
-        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, groundSpeed: 200, ias: 200);
+        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200);
         var phase = new HoldAtFixPhase
         {
             FixName = "EDDYY",
@@ -529,7 +528,7 @@ public class TowerPhaseTests
     [Fact]
     public void HoldAtFix_NeverSelfCompletes()
     {
-        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, groundSpeed: 200, ias: 200);
+        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200);
         var phase = new HoldAtFixPhase
         {
             FixName = "EDDYY",
@@ -551,7 +550,7 @@ public class TowerPhaseTests
     [Fact]
     public void HoldAtFix_HelicopterHover_ZeroSpeed()
     {
-        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, groundSpeed: 80, ias: 80);
+        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 80);
         var phase = new HoldAtFixPhase
         {
             FixName = "EDDYY",
@@ -588,7 +587,7 @@ public class TowerPhaseTests
     [Fact]
     public void HoldPresentPosition_Orbit_SetsPreferredTurn()
     {
-        var ac = MakeAircraft(altitude: 5000, onGround: false, groundSpeed: 200, ias: 200, heading: 90);
+        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 90);
         var phase = new HoldPresentPositionPhase { OrbitDirection = TurnDirection.Left };
         var ctx = Ctx(ac);
 
@@ -601,7 +600,7 @@ public class TowerPhaseTests
     [Fact]
     public void HoldPresentPosition_HelicopterHover_ZeroSpeed()
     {
-        var ac = MakeAircraft(altitude: 500, onGround: false, groundSpeed: 80, ias: 80, heading: 180);
+        var ac = MakeAircraft(altitude: 500, onGround: false, ias: 80, heading: 180);
         var phase = new HoldPresentPositionPhase { OrbitDirection = null };
         var ctx = Ctx(ac);
 
@@ -614,7 +613,7 @@ public class TowerPhaseTests
     [Fact]
     public void HoldPresentPosition_NeverSelfCompletes()
     {
-        var ac = MakeAircraft(altitude: 5000, onGround: false, groundSpeed: 200, ias: 200);
+        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200);
         var phase = new HoldPresentPositionPhase { OrbitDirection = TurnDirection.Right };
         var ctx = Ctx(ac);
 

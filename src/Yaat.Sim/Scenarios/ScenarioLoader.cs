@@ -868,7 +868,7 @@ public static class ScenarioLoader
                 if (rwTransitionLegs is not null)
                 {
                     var existingNames = new HashSet<string>(resolved.Select(r => r.Name), StringComparer.OrdinalIgnoreCase);
-                    var rwTargets = Commands.DepartureClearanceHandler.ResolveLegsToTargets(rwTransitionLegs, navDb);
+                    var rwTargets = DepartureClearanceHandler.ResolveLegsToTargets(rwTransitionLegs, navDb);
                     foreach (var target in rwTargets)
                     {
                         if (existingNames.Contains(target.Name))

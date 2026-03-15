@@ -500,7 +500,6 @@ public class TurnAnticipationTests
         var ifFix = GeoMath.ProjectPoint(iaf.Lat, iaf.Lon, 90, 5.0);
 
         var fix1 = new ApproachFix("IAF", iaf.Lat, iaf.Lon, Role: CifpFixRole.IAF);
-        var fix2 = new ApproachFix("IF", ifFix.Lat, ifFix.Lon, Role: CifpFixRole.IF);
 
         // Even at 0.4nm (within threshold), the IAF is fly-by and should sequence
         Assert.False(fix1.IsFlyOver);

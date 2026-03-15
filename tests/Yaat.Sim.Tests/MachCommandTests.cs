@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 
@@ -7,8 +5,6 @@ namespace Yaat.Sim.Tests;
 
 public class MachCommandTests
 {
-    private static readonly ILogger Logger = NullLogger.Instance;
-
     private static AircraftState CreateAircraft(double altitude = 35000, double ias = 280)
     {
         return new AircraftState
@@ -90,7 +86,6 @@ public class MachCommandTests
         FlightPhysics.Update(ac, 1.0);
 
         // Mach hold recomputes TargetSpeed each tick; aircraft should accelerate toward M0.82 IAS
-        double machIas = WindInterpolator.MachToIas(0.82, 35000);
         Assert.True(ac.IndicatedAirspeed > 250, "Aircraft should accelerate toward Mach-equivalent IAS");
         Assert.Equal(0.82, ac.Targets.TargetMach);
     }

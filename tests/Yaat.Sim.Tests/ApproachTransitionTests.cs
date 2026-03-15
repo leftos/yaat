@@ -133,7 +133,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         Assert.True(procedure.Transitions.ContainsKey("CCR"), "I19L should have CCR transition");
 
         var ccrTransition = procedure.Transitions["CCR"];
-        var legNames = ccrTransition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier!).ToList();
+        var legNames = ccrTransition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier).ToList();
         output.WriteLine($"CCR transition legs: {string.Join(" → ", legNames)}");
 
         // Aircraft route includes CCR — should match CCR transition
@@ -213,7 +213,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         // Should include common leg fixes (before MAHP)
         var commonFixNames = procedure
             .CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier) && l.FixRole != CifpFixRole.MAHP)
-            .Select(l => l.FixIdentifier!)
+            .Select(l => l.FixIdentifier)
             .ToList();
         foreach (var fix in commonFixNames)
         {
@@ -354,7 +354,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         var rwyId = rwyTransition.Key.Replace("RW", "");
         output.WriteLine($"Testing runway transition {rwyTransition.Key} (runway {rwyId})");
 
-        var expectedFixes = rwyTransition.Value.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier!).ToList();
+        var expectedFixes = rwyTransition.Value.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier).ToList();
         output.WriteLine($"Expected fixes: {string.Join(", ", expectedFixes)}");
 
         var result = ProgrammedFixResolver.Resolve("ALWYS3", null, "KSFO", null, navDb, null, navDb, "ALWYS3", rwyId);
@@ -384,7 +384,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         // Find a fix that only appears in a runway transition (not common legs)
         var commonFixNames = star
             .CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier))
-            .Select(l => l.FixIdentifier!)
+            .Select(l => l.FixIdentifier)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         string? rwyOnlyFix = null;
@@ -439,7 +439,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         foreach (var (rwyKey, transition) in star.RunwayTransitions)
         {
             var rwyId = rwyKey.Replace("RW", "");
-            var rwyFixes = transition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier!).ToList();
+            var rwyFixes = transition.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier).ToList();
 
             if (rwyFixes.Count == 0)
             {

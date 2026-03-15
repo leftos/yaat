@@ -1,3 +1,4 @@
+using System.IO;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -149,7 +150,7 @@ public partial class MainViewModel
             }
 
             await using var stream = await file.OpenWriteAsync();
-            await using var writer = new System.IO.StreamWriter(stream);
+            await using var writer = new StreamWriter(stream);
             await writer.WriteAsync(json);
 
             StatusText = "Recording saved";
@@ -191,7 +192,7 @@ public partial class MainViewModel
             }
 
             await using var stream = await files[0].OpenReadAsync();
-            using var reader = new System.IO.StreamReader(stream);
+            using var reader = new StreamReader(stream);
             var json = await reader.ReadToEndAsync();
 
             StatusText = "Loading recording...";

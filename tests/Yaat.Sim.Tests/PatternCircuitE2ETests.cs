@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -14,8 +12,6 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class PatternCircuitE2ETests
 {
-    private static readonly ILogger Logger = NullLogger.Instance;
-
     private static RunwayInfo DefaultRunway() => TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
     private static AircraftState MakeAircraft(RunwayInfo rwy, double altitude, double heading, double ias = 200)
@@ -48,7 +44,7 @@ public class PatternCircuitE2ETests
             DeltaSeconds = dt,
             Runway = rwy,
             FieldElevation = rwy.ElevationFt,
-            Logger = NullLogger.Instance,
+            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
         };
     }
 
@@ -103,7 +99,6 @@ public class PatternCircuitE2ETests
     public void FullCircuit_FromUpwind_CompletesAllPhases()
     {
         var rwy = DefaultRunway();
-        var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left);
         var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 200, heading: rwy.TrueHeading, ias: 180);
 
         // Build a non-touch-and-go circuit (landing)

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Xunit;
+using Yaat.Sim;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -106,7 +107,7 @@ public class SimulationEngineReplayTests
         Assert.NotNull(nks);
 
         // After 96 seconds of taxiing, aircraft should have moved from parking 11
-        double distNm = Yaat.Sim.GeoMath.DistanceNm(nks.Latitude, nks.Longitude, Parking11Lat, Parking11Lon);
+        double distNm = GeoMath.DistanceNm(nks.Latitude, nks.Longitude, Parking11Lat, Parking11Lon);
         Assert.True(distNm > 0.01, $"Expected NKS2904 to have moved from parking 11, but distance is only {distNm:F4} nm");
     }
 }

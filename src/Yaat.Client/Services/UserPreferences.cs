@@ -775,7 +775,6 @@ public sealed class UserPreferences
     {
         public List<string>? Aliases { get; set; }
         public string? Verb { get; set; }
-        public string Format { get; set; } = "";
     }
 }
 

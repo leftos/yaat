@@ -42,7 +42,7 @@ public sealed class RadarRenderer : IDisposable
         TextSize = 14,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypeface,
+        Typeface = PlatformHelper.MonospaceTypeface,
     };
 
     private static readonly SKColor ProgrammedFixColor = new(0, 220, 200);
@@ -61,7 +61,7 @@ public sealed class RadarRenderer : IDisposable
         TextSize = 14,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypeface,
+        Typeface = PlatformHelper.MonospaceTypeface,
     };
 
     private static readonly SKColor RouteDrawColor = new(255, 200, 0);
@@ -97,7 +97,7 @@ public sealed class RadarRenderer : IDisposable
         TextSize = 13,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypeface,
+        Typeface = PlatformHelper.MonospaceTypeface,
     };
 
     private readonly SKPaint _routeConditionLabelPaint = new()
@@ -106,7 +106,7 @@ public sealed class RadarRenderer : IDisposable
         TextSize = 11,
         IsAntialias = true,
         SubpixelText = true,
-        Typeface = Services.PlatformHelper.MonospaceTypeface,
+        Typeface = PlatformHelper.MonospaceTypeface,
     };
 
     // Pre-allocated paints for shown flight paths (one set per palette color)
@@ -364,7 +364,7 @@ public sealed class RadarRenderer : IDisposable
         {
             Color = new SKColor(0x00, 0xC8, 0x00), // STARS green
             TextSize = 14,
-            Typeface = Services.PlatformHelper.MonospaceTypeface,
+            Typeface = PlatformHelper.MonospaceTypeface,
             IsAntialias = true,
         };
 

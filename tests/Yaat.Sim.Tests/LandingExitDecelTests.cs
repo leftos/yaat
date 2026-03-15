@@ -469,7 +469,7 @@ public class LandingExitDecelTests
 
         // The exit node is slightly north → to the right of heading 280
         var rightResult = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Side = ExitSide.Right });
-        var leftResult = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Side = ExitSide.Left });
+        layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Side = ExitSide.Left });
 
         // Right side should find it; left side should not (only one exit in layout)
         Assert.NotNull(rightResult);

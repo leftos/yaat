@@ -11,8 +11,6 @@ public record ParseFailure(string Verb, string Reason);
 
 public static class CommandSchemeParser
 {
-    private static readonly HashSet<string> PassthroughVerbs = new(StringComparer.OrdinalIgnoreCase) { "LV", "AT", "ATFN" };
-
     public static CompoundParseResult? ParseCompound(string input, CommandScheme scheme)
     {
         return ParseCompound(input, scheme, out _);
@@ -430,11 +428,6 @@ public static class CommandSchemeParser
         }
 
         return false;
-    }
-
-    private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme)
-    {
-        return ParseSpaceSeparated(input, scheme, out _);
     }
 
     private static ParsedInput? ParseSpaceSeparated(string input, CommandScheme scheme, out ParseFailure? failure)

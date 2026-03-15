@@ -8,19 +8,6 @@ namespace Yaat.Client.Services;
 /// </summary>
 public static class ContextMenuProfileService
 {
-    private static readonly MenuGroup[] AlwaysVisibleGroups =
-    [
-        MenuGroup.Tracking,
-        MenuGroup.DataBlock,
-        MenuGroup.Squawk,
-        MenuGroup.Coordination,
-        MenuGroup.Assignment,
-        MenuGroup.DatablockToggle,
-        MenuGroup.Delete,
-    ];
-
-    private static readonly FrozenSet<MenuGroup> AlwaysVisibleSet = AlwaysVisibleGroups.ToFrozenSet();
-
     private static readonly MenuGroup[] AllPhaseGroups =
     [
         MenuGroup.Heading,

@@ -379,7 +379,7 @@ public partial class RadarViewModel : ObservableObject
             }
 
             _activeScenarioId = scenarioId;
-            ApplyVideoMapsDto(artccId, dto);
+            ApplyVideoMapsDto(dto);
 
             // Download all referenced maps
             var data = await _videoMapService.LoadMapsAsync(artccId, dto.VideoMaps);
@@ -398,7 +398,7 @@ public partial class RadarViewModel : ObservableObject
         }
     }
 
-    private void ApplyVideoMapsDto(string artccId, FacilityVideoMapsDto dto)
+    private void ApplyVideoMapsDto(FacilityVideoMapsDto dto)
     {
         // Build brightness lookup
         BrightnessLookup.Clear();

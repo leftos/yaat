@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 
@@ -166,8 +167,8 @@ public sealed class ClimbSpeedScheduleTests
         ac.Targets.HasExplicitSpeedCommand = true;
 
         // Simulate CM command
-        var cmd = new Yaat.Sim.Commands.ClimbMaintainCommand(40000);
-        Yaat.Sim.Commands.CommandDispatcher.Dispatch(cmd, ac, navDb: null, groundLayout: null, new Random(42), true);
+        var cmd = new ClimbMaintainCommand(40000);
+        CommandDispatcher.Dispatch(cmd, ac, navDb: null, groundLayout: null, new Random(42), true);
 
         Assert.False(ac.Targets.HasExplicitSpeedCommand);
     }
@@ -177,8 +178,8 @@ public sealed class ClimbSpeedScheduleTests
     {
         var ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
 
-        var cmd = new Yaat.Sim.Commands.SpeedCommand(210);
-        Yaat.Sim.Commands.CommandDispatcher.Dispatch(cmd, ac, navDb: null, groundLayout: null, new Random(42), true);
+        var cmd = new SpeedCommand(210);
+        CommandDispatcher.Dispatch(cmd, ac, navDb: null, groundLayout: null, new Random(42), true);
 
         Assert.True(ac.Targets.HasExplicitSpeedCommand);
     }

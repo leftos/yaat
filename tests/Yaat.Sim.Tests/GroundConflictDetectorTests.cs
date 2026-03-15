@@ -188,7 +188,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void TwoTaxiing_SameEdgeSameDirection_TrailerGetsSpeedLimit()
     {
-        var (layout, n0, n1, n2) = BuildSimpleLayout();
+        var (layout, _, _, _) = BuildSimpleLayout();
         var edge01 = layout.Edges[0];
 
         // Both on edge 0→1, heading north, A is behind B (further from node 1)
@@ -210,7 +210,7 @@ public class GroundConflictDetectorTests
     [Fact]
     public void TwoTaxiing_ConvergingOnSameNode_FartherOneSlows()
     {
-        var (layout, n0, n1, n2) = BuildConvergenceLayout();
+        var (layout, n0, n1, _) = BuildConvergenceLayout();
 
         var routeA = MakeRoute(MakeSeg(0, 2, "A", layout.Edges[0]));
         var routeB = MakeRoute(MakeSeg(1, 2, "B", layout.Edges[1]));

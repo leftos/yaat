@@ -316,7 +316,7 @@ public partial class MainViewModel
 
             // Strip K prefix for US ICAO stations (KOAK → OAK)
             var displayId = parsed.StationId;
-            if (displayId?.Length == 4 && displayId.StartsWith('K'))
+            if (displayId.Length == 4 && displayId.StartsWith('K'))
             {
                 displayId = displayId[1..];
             }

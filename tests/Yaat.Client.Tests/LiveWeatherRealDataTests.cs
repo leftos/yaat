@@ -68,7 +68,7 @@ public class LiveWeatherRealDataTests
     public void RealFdWinds_StationsHaveWindData()
     {
         var text = ReadTestFile("zoa_fd_winds.txt");
-        var stations = WindsAloftParser.Parse(text)!;
+        var stations = WindsAloftParser.Parse(text);
 
         foreach (var station in stations)
         {
@@ -95,7 +95,7 @@ public class LiveWeatherRealDataTests
     public void RealFdWinds_StandardLevelsPresent()
     {
         var text = ReadTestFile("zoa_fd_winds.txt");
-        var stations = WindsAloftParser.Parse(text)!;
+        var stations = WindsAloftParser.Parse(text);
 
         var allLevels = stations.SelectMany(s => s.Winds).Select(w => w.AltitudeFt).Distinct().Order().ToList();
 

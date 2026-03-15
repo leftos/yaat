@@ -94,7 +94,7 @@ public static class GeoMath
     {
         var points = new List<(double Lat, double Lon)>();
 
-        double current = startBearingDeg;
+        double current;
         double totalSweep;
 
         if (turnRight)

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -11,8 +10,6 @@ namespace Yaat.Sim.Tests;
 
 public class ApproachClearanceTests
 {
-    private static readonly NullLogger Logger = NullLogger.Instance;
-
     private static AircraftState MakeAircraft(
         double heading = 090,
         double altitude = 3000,
@@ -369,7 +366,7 @@ public class ApproachClearanceTests
             Targets = aircraft.Targets,
             Category = cat,
             DeltaSeconds = 1.0,
-            Logger = NullLogger.Instance,
+            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
         };
     }
 }

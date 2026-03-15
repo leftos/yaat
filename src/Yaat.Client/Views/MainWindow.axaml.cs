@@ -488,7 +488,7 @@ public partial class MainWindow : Window
 
                 e.Handled = true;
 
-                var entries = new System.Collections.Generic.List<ColumnEntry>();
+                var entries = new List<ColumnEntry>();
                 foreach (var col in dataGrid.Columns.OrderBy(c => c.DisplayIndex))
                 {
                     entries.Add(
@@ -532,7 +532,7 @@ public partial class MainWindow : Window
                 try
                 {
                     int displayIndex = 0;
-                    var keyToColumn = new System.Collections.Generic.Dictionary<string, DataGridColumn>();
+                    var keyToColumn = new Dictionary<string, DataGridColumn>();
                     foreach (var col in dataGrid.Columns)
                     {
                         keyToColumn[GetColumnKey(col)] = col;
@@ -641,7 +641,7 @@ public partial class MainWindow : Window
             columnHeader.PointerPressed += (_, e) =>
             {
                 var props = e.GetCurrentPoint(columnHeader).Properties;
-                if (props.IsMiddleButtonPressed || (props.IsLeftButtonPressed && Services.PlatformHelper.HasActionModifier(e.KeyModifiers)))
+                if (props.IsMiddleButtonPressed || (props.IsLeftButtonPressed && PlatformHelper.HasActionModifier(e.KeyModifiers)))
                 {
                     e.Handled = true;
                     flyout.ShowAt(columnHeader);
@@ -1063,7 +1063,7 @@ public partial class MainWindow : Window
 
     private async void OnRecentScenarioClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (sender is not MenuItem { Tag: Services.RecentScenario entry } || DataContext is not MainViewModel vm)
+        if (sender is not MenuItem { Tag: RecentScenario entry } || DataContext is not MainViewModel vm)
         {
             return;
         }
@@ -1088,7 +1088,7 @@ public partial class MainWindow : Window
     private static async Task LoadScenarioFromApiAsync(MainViewModel vm, string apiScenarioId, string? displayName = null)
     {
         vm.StatusText = "Fetching scenario…";
-        var trainingData = new Services.TrainingDataService();
+        var trainingData = new TrainingDataService();
         var json = await trainingData.GetScenarioJsonAsync(apiScenarioId);
         if (json is not null)
         {
@@ -1103,7 +1103,7 @@ public partial class MainWindow : Window
     private static async Task LoadWeatherFromApiAsync(MainViewModel vm, string apiWeatherId, string? displayName = null)
     {
         vm.StatusText = "Fetching weather…";
-        var trainingData = new Services.TrainingDataService();
+        var trainingData = new TrainingDataService();
         var json = await trainingData.GetWeatherJsonAsync(apiWeatherId);
         if (json is not null)
         {
@@ -1148,7 +1148,7 @@ public partial class MainWindow : Window
 
     private async void OnRecentWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (sender is not MenuItem { Tag: Services.RecentWeather entry } || DataContext is not MainViewModel vm)
+        if (sender is not MenuItem { Tag: RecentWeather entry } || DataContext is not MainViewModel vm)
         {
             return;
         }
@@ -1264,7 +1264,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        OpenWeatherEditor(ViewModels.WeatherEditorViewModel.CreateEmpty(vm.Preferences.ArtccId), vm);
+        OpenWeatherEditor(WeatherEditorViewModel.CreateEmpty(vm.Preferences.ArtccId), vm);
     }
 
     private void OnEditWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -1274,10 +1274,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        OpenWeatherEditor(ViewModels.WeatherEditorViewModel.FromJson(vm.ActiveWeatherJson), vm);
+        OpenWeatherEditor(WeatherEditorViewModel.FromJson(vm.ActiveWeatherJson), vm);
     }
 
-    private void OpenWeatherEditor(ViewModels.WeatherEditorViewModel editorVm, MainViewModel vm)
+    private void OpenWeatherEditor(WeatherEditorViewModel editorVm, MainViewModel vm)
     {
         if (_weatherEditorWindow is not null)
         {

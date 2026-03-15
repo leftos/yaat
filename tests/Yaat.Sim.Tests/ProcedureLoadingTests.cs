@@ -316,7 +316,7 @@ public class ProcedureLoadingTests
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
-        Assert.Equal("PORTE3", result!.SidId);
+        Assert.Equal("PORTE3", result.SidId);
 
         // Order: RW28R transition (MOLEN) → common (PORTE, OAK) → enroute transition? (SUNOL not consumed here because it's second token)
         // Actually: first token PORTE3 is SID, second token SUNOL matches enroute transition
@@ -343,7 +343,7 @@ public class ProcedureLoadingTests
         Assert.NotNull(result);
 
         // SUNOL (second route token) should match the enroute transition
-        var sunol = result!.Targets.FirstOrDefault(t => t.Name == "SUNOL");
+        var sunol = result.Targets.FirstOrDefault(t => t.Name == "SUNOL");
         Assert.NotNull(sunol);
     }
 
@@ -358,7 +358,7 @@ public class ProcedureLoadingTests
 
         Assert.NotNull(result);
         // Should have common legs only (PORTE, OAK) + enroute (SUNOL)
-        Assert.Equal("PORTE", result!.Targets[0].Name);
+        Assert.Equal("PORTE", result.Targets[0].Name);
     }
 
     [Fact]
@@ -396,12 +396,12 @@ public class ProcedureLoadingTests
         Assert.NotNull(result);
 
         // OAK (common leg) should have At 10000ft + 250kts speed
-        var oak = result!.Targets.First(t => t.Name == "OAK");
+        var oak = result.Targets.First(t => t.Name == "OAK");
         Assert.NotNull(oak.AltitudeRestriction);
-        Assert.Equal(CifpAltitudeRestrictionType.At, oak.AltitudeRestriction!.Type);
+        Assert.Equal(CifpAltitudeRestrictionType.At, oak.AltitudeRestriction.Type);
         Assert.Equal(10000, oak.AltitudeRestriction.Altitude1Ft);
         Assert.NotNull(oak.SpeedRestriction);
-        Assert.Equal(250, oak.SpeedRestriction!.SpeedKts);
+        Assert.Equal(250, oak.SpeedRestriction.SpeedKts);
     }
 
     // --- InitialClimbPhase activates SID ---
@@ -778,7 +778,7 @@ public class ProcedureLoadingTests
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
-        Assert.Equal("SSTIK", result!.Targets[0].Name);
+        Assert.Equal("SSTIK", result.Targets[0].Name);
         Assert.True(result.Targets[0].IsFlyOver);
         Assert.Equal("PORTE", result.Targets[1].Name);
     }
@@ -811,7 +811,7 @@ public class ProcedureLoadingTests
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft, navDb);
 
         Assert.NotNull(result);
-        Assert.Equal("SSTIK", result!.Targets[0].Name);
+        Assert.Equal("SSTIK", result.Targets[0].Name);
     }
 
     [Fact]
@@ -849,7 +849,7 @@ public class ProcedureLoadingTests
 
         Assert.NotNull(result);
         // Exact match RW01L (MOLEN) should win over RW01B (SSTIK)
-        Assert.Equal("MOLEN", result!.Targets[0].Name);
+        Assert.Equal("MOLEN", result.Targets[0].Name);
     }
 
     [Fact]

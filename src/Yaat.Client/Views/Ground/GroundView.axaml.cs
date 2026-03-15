@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Ground;
@@ -101,7 +102,7 @@ public partial class GroundView : UserControl
             }
         }
 
-        if (e.Key == Key.D && Services.PlatformHelper.HasActionModifier(e.KeyModifiers) && _canvas is not null)
+        if (e.Key == Key.D && PlatformHelper.HasActionModifier(e.KeyModifiers) && _canvas is not null)
         {
             _canvas.ShowDebugInfo = !_canvas.ShowDebugInfo;
             e.Handled = true;
@@ -266,7 +267,7 @@ public partial class GroundView : UserControl
 
         if (menu.Items.Count > 0)
         {
-            ShowContextMenu(menu, screenPos);
+            ShowContextMenu(menu);
         }
     }
 
@@ -419,7 +420,7 @@ public partial class GroundView : UserControl
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
 
-        ShowContextMenu(menu, screenPos);
+        ShowContextMenu(menu);
     }
 
     private void OnEmptySpaceClicked()
@@ -521,7 +522,7 @@ public partial class GroundView : UserControl
         );
         menu.Items.Add(CreateMenuItem("Cancel", () => Task.CompletedTask));
 
-        ShowContextMenu(menu, screenPos);
+        ShowContextMenu(menu);
     }
 
     private static void AddTaxiRouteItems(
@@ -669,7 +670,7 @@ public partial class GroundView : UserControl
                 continue;
             }
 
-            var dist = Yaat.Sim.GeoMath.DistanceNm(ac.Latitude, ac.Longitude, node.Latitude, node.Longitude);
+            var dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, node.Latitude, node.Longitude);
 
             if (dist >= 0.1)
             {
@@ -798,7 +799,7 @@ public partial class GroundView : UserControl
         }
     }
 
-    private void ShowContextMenu(ContextMenu menu, Point pos)
+    private void ShowContextMenu(ContextMenu menu)
     {
         if (_canvas is null)
         {

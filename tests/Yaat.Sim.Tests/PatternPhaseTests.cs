@@ -26,7 +26,6 @@ public class PatternPhaseTests
         double lon = -122.0,
         double heading = 280,
         double altitude = 1100,
-        double groundSpeed = 200,
         double ias = 200,
         bool onGround = false
     )

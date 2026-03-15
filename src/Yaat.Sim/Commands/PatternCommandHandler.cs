@@ -21,7 +21,7 @@ internal static class PatternCommandHandler
         // Resolve runway from argument if provided
         if (runwayId is not null && navDb is not null)
         {
-            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination ?? aircraft.Departure;
+            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination;
             if (airportId is null)
             {
                 return new CommandResult(false, "No airport context to resolve runway");
@@ -190,7 +190,7 @@ internal static class PatternCommandHandler
         // Resolve runway from argument if provided
         if (runwayId is not null && navDb is not null)
         {
-            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination ?? aircraft.Departure;
+            var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination;
             if (airportId is null)
             {
                 return new CommandResult(false, "No airport context to resolve runway");

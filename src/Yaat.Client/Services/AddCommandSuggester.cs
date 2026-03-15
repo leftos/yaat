@@ -19,7 +19,7 @@ internal static class AddCommandSuggester
         int maxSuggestions
     )
     {
-        if (!scheme.Patterns.TryGetValue(Sim.Commands.CanonicalCommandType.Add, out var addPattern))
+        if (!scheme.Patterns.TryGetValue(CanonicalCommandType.Add, out var addPattern))
         {
             return false;
         }
@@ -71,18 +71,7 @@ internal static class AddCommandSuggester
             }
 
             case >= 3:
-                AddPositionSuggestions(
-                    words,
-                    fullText,
-                    prefix,
-                    partial,
-                    completedArgs,
-                    selectedAircraft,
-                    suggestions,
-                    fixDb,
-                    primaryAirportId,
-                    maxSuggestions
-                );
+                AddPositionSuggestions(words, prefix, partial, completedArgs, selectedAircraft, suggestions, fixDb, primaryAirportId, maxSuggestions);
                 break;
         }
 
@@ -151,19 +140,19 @@ internal static class AddCommandSuggester
         int maxSuggestions
     )
     {
-        var options = weight switch
+        (string, string)[] options = weight switch
         {
-            WeightClass.Small => new (string, string)[]
-            {
+            WeightClass.Small =>
+            [
                 ("P", "Piston — " + FormatTypes(weight, EngineKind.Piston)),
                 ("T", "Turboprop — " + FormatTypes(weight, EngineKind.Turboprop)),
-            },
-            WeightClass.Large => new (string, string)[]
-            {
+            ],
+            WeightClass.Large =>
+            [
                 ("T", "Turboprop — " + FormatTypes(weight, EngineKind.Turboprop)),
                 ("J", "Jet — " + FormatTypes(weight, EngineKind.Jet)),
-            },
-            WeightClass.Heavy => new (string, string)[] { ("J", "Jet — " + FormatTypes(weight, EngineKind.Jet)) },
+            ],
+            WeightClass.Heavy => [("J", "Jet — " + FormatTypes(weight, EngineKind.Jet))],
             _ => [],
         };
 
@@ -178,7 +167,6 @@ internal static class AddCommandSuggester
 
     private static void AddPositionSuggestions(
         string[] words,
-        string fullText,
         string prefix,
         string partial,
         int completedArgs,

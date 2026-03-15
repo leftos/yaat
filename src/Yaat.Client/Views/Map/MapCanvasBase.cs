@@ -12,14 +12,13 @@ namespace Yaat.Client.Views.Map;
 /// <summary>
 /// Abstract base for map-rendering controls. Provides pan/zoom via mouse,
 /// viewport management, and batched invalidation. Subclasses implement
-/// <see cref="RenderContent"/> to draw with SkiaSharp.
+/// <see cref="RenderFromSnapshot"/> to draw with SkiaSharp.
 /// </summary>
 public abstract class MapCanvasBase : Control
 {
     private static readonly TimeSpan InvalidateInterval = TimeSpan.FromMilliseconds(100);
 
     private readonly MapViewport _viewport = new();
-    private readonly DispatcherTimer _invalidateTimer;
     private bool _isPanning;
     private Point _lastPanPoint;
     private bool _isPanZoomEnabled = true;
@@ -29,8 +28,8 @@ public abstract class MapCanvasBase : Control
         ClipToBounds = true;
         Focusable = true;
 
-        _invalidateTimer = new DispatcherTimer(InvalidateInterval, DispatcherPriority.Render, OnInvalidateTick);
-        _invalidateTimer.Start();
+        var invalidateTimer = new DispatcherTimer(InvalidateInterval, DispatcherPriority.Render, OnInvalidateTick);
+        invalidateTimer.Start();
     }
 
     public MapViewport Viewport => _viewport;

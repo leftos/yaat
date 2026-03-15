@@ -778,7 +778,7 @@ internal static class GroundCommandHandler
         aircraft.IsHeld = false;
         aircraft.Phases = new PhaseList();
         aircraft.Phases.Add(new AirTaxiPhase(destLat, destLon, resolvedName));
-        aircraft.Phases.Add(new Phases.Tower.HelicopterLandingPhase());
+        aircraft.Phases.Add(new HelicopterLandingPhase());
         aircraft.Phases.Add(new AtParkingPhase());
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
@@ -849,7 +849,7 @@ internal static class GroundCommandHandler
             return null;
         }
 
-        var airportId = aircraft.Departure ?? aircraft.Destination;
+        var airportId = aircraft.Departure;
         if (airportId is null)
         {
             return null;
