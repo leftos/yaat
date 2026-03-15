@@ -19,6 +19,11 @@ public class OnHandoffConditionTests
         "SCHOO"
     );
 
+    public OnHandoffConditionTests()
+    {
+        NavigationDatabase.SetInstance(Fixes);
+    }
+
     // --- CommandSchemeParser: canonical form ---
 
     [Theory]
@@ -74,7 +79,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void CommandParser_OnhoSimple_ProducesSingleBlockWithCondition()
     {
-        var result = CommandParser.ParseCompound("ONHO CAPP", Fixes);
+        var result = CommandParser.ParseCompound("ONHO CAPP");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<OnHandoffCondition>(result.Value!.Blocks[0].Condition);
@@ -84,7 +89,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void CommandParser_OnhoAtFix_ProducesTwoBlocks()
     {
-        var result = CommandParser.ParseCompound("ONHO AT LIVVY DEL", Fixes);
+        var result = CommandParser.ParseCompound("ONHO AT LIVVY DEL");
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value!.Blocks.Count);
 
@@ -103,7 +108,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void CommandParser_OnhoWaitCm_ProducesTwoBlocks()
     {
-        var result = CommandParser.ParseCompound("ONHO WAIT 30 CM 360", Fixes);
+        var result = CommandParser.ParseCompound("ONHO WAIT 30 CM 360");
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value!.Blocks.Count);
 
@@ -121,7 +126,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void CommandParser_OnhoDm_ProducesSingleBlock()
     {
-        var result = CommandParser.ParseCompound("ONHO DM 060", Fixes);
+        var result = CommandParser.ParseCompound("ONHO DM 060");
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!.Blocks);
         Assert.IsType<OnHandoffCondition>(result.Value!.Blocks[0].Condition);
@@ -161,7 +166,7 @@ public class OnHandoffConditionTests
     [Fact]
     public void CommandParser_WaitHo_ProducesTwoBlocks()
     {
-        var result = CommandParser.ParseCompound("WAIT 10 HO", Fixes);
+        var result = CommandParser.ParseCompound("WAIT 10 HO");
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value!.Blocks.Count);
         Assert.IsType<WaitCommand>(result.Value!.Blocks[0].Commands[0]);

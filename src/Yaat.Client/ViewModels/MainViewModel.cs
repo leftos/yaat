@@ -481,22 +481,23 @@ public partial class MainViewModel : ObservableObject
             using var vnasData = new VnasDataService();
             await vnasData.InitializeAsync();
 
-            var navDb = new NavigationDatabase(vnasData.NavData);
-
-            _commandInput.NavDb = navDb;
-            Radar.SetElevationLookup(navDb.GetAirportElevation);
-            Ground.SetElevationLookup(navDb.GetAirportElevation);
-            Radar.SetNavDb(navDb);
-            _log.LogInformation("Navdata loaded: {Count} fixes available for autocomplete", navDb.Count);
-
-            // CIFP for approach/procedure data (FMC fix highlighting, SID/STAR resolution)
             using var cifpService = new CifpDataService();
             await cifpService.InitializeAsync();
-            if (cifpService.CifpFilePath is not null)
+
+            if (vnasData.NavData is null || cifpService.CifpFilePath is null)
             {
-                navDb.SetCifpPath(cifpService.CifpFilePath);
-                _log.LogInformation("Client-side CIFP initialized for FMC fix highlighting");
+                _log.LogError("NavData or CIFP data unavailable — navigation database not initialized");
+                return;
             }
+
+            NavigationDatabase.Initialize(vnasData.NavData, cifpService.CifpFilePath);
+            var navDb = NavigationDatabase.Instance;
+
+            _commandInput.NavDbReady = true;
+            Radar.SetElevationLookup(navDb.GetAirportElevation);
+            Ground.SetElevationLookup(navDb.GetAirportElevation);
+            Radar.SetNavDbReady();
+            _log.LogInformation("Navdata loaded: {Count} fixes, CIFP initialized", navDb.Count);
         }
         catch (Exception ex)
         {
@@ -1102,7 +1103,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var pos = _commandInput.NavDb?.GetFixPosition(airportId);
+        var pos = _commandInput.NavDbReady ? NavigationDatabase.Instance.GetFixPosition(airportId) : null;
         if (pos.HasValue)
         {
             Radar.SetPrimaryAirportPosition(pos.Value.Lat, pos.Value.Lon);
@@ -1120,14 +1121,13 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var navDb = _commandInput.NavDb;
-        if (navDb is null)
+        if (!_commandInput.NavDbReady)
         {
             _log.LogWarning("Cannot set distance reference — navdata not loaded");
             return;
         }
 
-        var resolved = FrdResolver.Resolve(fixOrFrd, navDb);
+        var resolved = FrdResolver.Resolve(fixOrFrd, NavigationDatabase.Instance);
         if (resolved is null)
         {
             _log.LogWarning("Distance reference '{Fix}' could not be resolved", fixOrFrd);

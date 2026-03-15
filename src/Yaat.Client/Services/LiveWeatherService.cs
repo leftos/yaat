@@ -21,7 +21,7 @@ public sealed class LiveWeatherService
     /// Builds a WeatherProfile from live aviationweather.gov data.
     /// Returns null if both METAR and FD fetches fail.
     /// </summary>
-    public async Task<WeatherProfile?> BuildLiveWeatherAsync(string artccId, IReadOnlyList<string> airportIds, NavigationDatabase fixes)
+    public async Task<WeatherProfile?> BuildLiveWeatherAsync(string artccId, IReadOnlyList<string> airportIds)
     {
         if (airportIds.Count == 0)
         {
@@ -50,7 +50,7 @@ public sealed class LiveWeatherService
 
         if (fdStations is { Count: > 0 })
         {
-            windLayers.AddRange(BuildWindLayersFromFd(fdStations, artccId, fixes));
+            windLayers.AddRange(BuildWindLayersFromFd(fdStations, artccId));
         }
 
         // Add surface wind from METARs
@@ -119,10 +119,10 @@ public sealed class LiveWeatherService
         }
     }
 
-    private List<WindLayer> BuildWindLayersFromFd(List<StationWinds> stations, string artccId, NavigationDatabase fixes)
+    private List<WindLayer> BuildWindLayersFromFd(List<StationWinds> stations, string artccId)
     {
         // Get ARTCC center for magnetic declination
-        var artccCenter = GetArtccCenter(artccId, fixes);
+        var artccCenter = GetArtccCenter(artccId);
         double centerLat = artccCenter.Lat;
         double centerLon = artccCenter.Lon;
 
@@ -250,7 +250,7 @@ public sealed class LiveWeatherService
         };
     }
 
-    private static (double Lat, double Lon) GetArtccCenter(string artccId, NavigationDatabase fixes)
+    private static (double Lat, double Lon) GetArtccCenter(string artccId)
     {
         // Try to resolve the primary airport as a proxy for ARTCC center
         var primaryAirport = artccId.ToUpperInvariant() switch
@@ -282,7 +282,7 @@ public sealed class LiveWeatherService
 
         if (primaryAirport is not null)
         {
-            var pos = fixes.GetFixPosition(primaryAirport);
+            var pos = NavigationDatabase.Instance.GetFixPosition(primaryAirport);
             if (pos is not null)
             {
                 return (pos.Value.Lat, pos.Value.Lon);

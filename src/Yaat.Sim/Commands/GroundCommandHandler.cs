@@ -11,13 +11,7 @@ internal static class GroundCommandHandler
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GroundCommandHandler");
 
-    internal static CommandResult TryTaxi(
-        AircraftState aircraft,
-        TaxiCommand taxi,
-        AirportGroundLayout? groundLayout,
-        NavigationDatabase? navDb,
-        bool autoCrossRunway = false
-    )
+    internal static CommandResult TryTaxi(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, bool autoCrossRunway = false)
     {
         if (groundLayout is null)
         {
@@ -57,11 +51,11 @@ internal static class GroundCommandHandler
 
         if (taxi.DestinationParking is not null || taxi.DestinationSpot is not null)
         {
-            route = ResolveParkingRoute(groundLayout, startNode, taxi, navDb, out failReason);
+            route = ResolveParkingRoute(groundLayout, startNode, taxi, out failReason);
         }
         else
         {
-            route = ResolveStandardRoute(groundLayout, startNode, taxi, navDb, out failReason);
+            route = ResolveStandardRoute(groundLayout, startNode, taxi, out failReason);
         }
 
         if (route is null)
@@ -122,11 +116,11 @@ internal static class GroundCommandHandler
         RunwayInfo? detectedRunway = null;
         if (taxi.DestinationRunway is null && route.Segments.Count > 0)
         {
-            detectedRunway = DetectRunwayFromRoute(route, groundLayout, aircraft, navDb);
+            detectedRunway = DetectRunwayFromRoute(route, groundLayout, aircraft);
         }
         else if (taxi.DestinationRunway is not null)
         {
-            detectedRunway = CommandDispatcher.ResolveRunway(aircraft, taxi.DestinationRunway, navDb);
+            detectedRunway = CommandDispatcher.ResolveRunway(aircraft, taxi.DestinationRunway);
         }
 
         // Clear current phases
@@ -165,13 +159,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok(msg);
     }
 
-    private static TaxiRoute? ResolveStandardRoute(
-        AirportGroundLayout groundLayout,
-        GroundNode startNode,
-        TaxiCommand taxi,
-        NavigationDatabase? navDb,
-        out string? failReason
-    )
+    private static TaxiRoute? ResolveStandardRoute(AirportGroundLayout groundLayout, GroundNode startNode, TaxiCommand taxi, out string? failReason)
     {
         // Empty path + destination runway → A* to nearest hold-short node
         if (taxi.Path.Count == 0 && taxi.DestinationRunway is not null)
@@ -186,7 +174,6 @@ internal static class GroundCommandHandler
             out failReason,
             taxi.HoldShorts,
             taxi.DestinationRunway,
-            navDb,
             groundLayout.AirportId
         );
     }
@@ -229,13 +216,7 @@ internal static class GroundCommandHandler
         return route;
     }
 
-    private static TaxiRoute? ResolveParkingRoute(
-        AirportGroundLayout groundLayout,
-        GroundNode startNode,
-        TaxiCommand taxi,
-        NavigationDatabase? navDb,
-        out string? failReason
-    )
+    private static TaxiRoute? ResolveParkingRoute(AirportGroundLayout groundLayout, GroundNode startNode, TaxiCommand taxi, out string? failReason)
     {
         failReason = null;
 
@@ -283,7 +264,6 @@ internal static class GroundCommandHandler
             out failReason,
             taxi.HoldShorts,
             taxi.DestinationRunway,
-            navDb,
             groundLayout.AirportId
         );
 
@@ -529,9 +509,9 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok(msg);
     }
 
-    internal static CommandResult TryAssignRunway(AircraftState aircraft, string runwayId, NavigationDatabase? navDb)
+    internal static CommandResult TryAssignRunway(AircraftState aircraft, string runwayId)
     {
-        var runway = CommandDispatcher.ResolveRunway(aircraft, runwayId, navDb);
+        var runway = CommandDispatcher.ResolveRunway(aircraft, runwayId);
         if (runway is null)
         {
             return new CommandResult(false, $"Unknown runway {runwayId}");
@@ -788,7 +768,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Land at {resolvedName}");
     }
 
-    private static RunwayInfo? DetectRunwayFromRoute(TaxiRoute route, AirportGroundLayout layout, AircraftState aircraft, NavigationDatabase? navDb)
+    private static RunwayInfo? DetectRunwayFromRoute(TaxiRoute route, AirportGroundLayout layout, AircraftState aircraft)
     {
         int finalNodeId = route.Segments[^1].ToNodeId;
         if (!layout.Nodes.TryGetValue(finalNodeId, out var node))
@@ -822,7 +802,7 @@ internal static class GroundCommandHandler
             return null;
         }
 
-        var runway = ResolveClosestRunwayEnd(rwyId.Value, node.Latitude, node.Longitude, aircraft, navDb);
+        var runway = ResolveClosestRunwayEnd(rwyId.Value, node.Latitude, node.Longitude, aircraft);
         if (runway is not null)
         {
             Log.LogDebug(
@@ -836,25 +816,15 @@ internal static class GroundCommandHandler
         return runway;
     }
 
-    private static RunwayInfo? ResolveClosestRunwayEnd(
-        RunwayIdentifier rwyId,
-        double nodeLat,
-        double nodeLon,
-        AircraftState aircraft,
-        NavigationDatabase? navDb
-    )
+    private static RunwayInfo? ResolveClosestRunwayEnd(RunwayIdentifier rwyId, double nodeLat, double nodeLon, AircraftState aircraft)
     {
-        if (navDb is null)
-        {
-            return null;
-        }
-
         var airportId = aircraft.Departure;
         if (airportId is null)
         {
             return null;
         }
 
+        var navDb = NavigationDatabase.Instance;
         var info = navDb.GetRunway(airportId, rwyId.End1) ?? navDb.GetRunway(airportId, rwyId.End2);
         if (info is null)
         {

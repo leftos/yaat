@@ -577,15 +577,7 @@ public class TaxiPathfinderTests
             }
         );
 
-        var route = TaxiPathfinder.ResolveExplicitPath(
-            layout,
-            0,
-            ["A", "W"],
-            out string? failReason,
-            destinationRunway: "30",
-            navDb: navDb,
-            airportId: "KTEST"
-        );
+        var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30", airportId: "KTEST");
 
         Assert.NotNull(route);
         Assert.Null(failReason);
@@ -1121,7 +1113,7 @@ public class TaxiPathfinderTests
         string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
         if (File.Exists(path))
         {
-            return GeoJsonParser.Parse(airportId, File.ReadAllText(path), null, null);
+            return GeoJsonParser.Parse(airportId, File.ReadAllText(path), null);
         }
 
         return null;

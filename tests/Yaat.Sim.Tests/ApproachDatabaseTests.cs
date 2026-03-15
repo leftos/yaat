@@ -1,228 +1,137 @@
 using Xunit;
 using Yaat.Sim.Data;
-using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Tests;
 
 public class ApproachDatabaseTests
 {
-    [Fact]
-    public void GetApproaches_NoCifpFile_ReturnsEmpty()
+    private static NavigationDatabase? GetNavDb()
     {
-        var db = new NavigationDatabase(null);
-        var result = db.GetApproaches("OAK");
-        Assert.Empty(result);
+        var db = TestVnasData.NavigationDb;
+        if (db is not null)
+        {
+            NavigationDatabase.SetInstance(db);
+        }
+
+        return db;
     }
 
     [Fact]
-    public void GetApproaches_MissingFile_ReturnsEmpty()
+    public void GetApproaches_ReturnsNonEmpty()
     {
-        var db = new NavigationDatabase(null);
-        db.SetCifpPath("/nonexistent/path");
-        var result = db.GetApproaches("OAK");
-        Assert.Empty(result);
+        var db = GetNavDb();
+        if (db is null)
+        {
+            return;
+        }
+
+        var approaches = db.GetApproaches("OAK");
+        Assert.NotEmpty(approaches);
     }
 
     [Fact]
-    public void GetApproach_FromCifpData_ReturnsCorrectProcedure()
+    public void GetApproach_ExactId_ReturnsCorrectProcedure()
     {
-        var tmpFile = CreateCifpFile(
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.IF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "MUXED", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 30, "RW28L", CifpFixRole.MAHP, "CF")
-        );
-
-        try
+        var db = GetNavDb();
+        if (db is null)
         {
-            var db = new NavigationDatabase(null);
-            db.SetCifpPath(tmpFile);
-            var proc = db.GetApproach("OAK", "I28L");
+            return;
+        }
 
-            Assert.NotNull(proc);
-            Assert.Equal("I28L", proc.ApproachId);
-            Assert.Equal("ILS", proc.ApproachTypeName);
-            Assert.Equal("28L", proc.Runway);
-        }
-        finally
-        {
-            File.Delete(tmpFile);
-        }
+        var proc = db.GetApproach("OAK", "I28R");
+
+        Assert.NotNull(proc);
+        Assert.Equal("I28R", proc.ApproachId);
+        Assert.Equal("ILS", proc.ApproachTypeName);
+        Assert.Equal("28R", proc.Runway);
     }
 
     [Fact]
     public void GetApproach_KPrefixNormalized()
     {
-        var tmpFile = CreateCifpFile(
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "CF")
-        );
-
-        try
+        var db = GetNavDb();
+        if (db is null)
         {
-            var db = new NavigationDatabase(null);
-            db.SetCifpPath(tmpFile);
+            return;
+        }
 
-            // Both "KOAK" and "OAK" should work
-            Assert.NotNull(db.GetApproach("KOAK", "I28L"));
-            Assert.NotNull(db.GetApproach("OAK", "I28L"));
-        }
-        finally
-        {
-            File.Delete(tmpFile);
-        }
+        // Both "KOAK" and "OAK" should resolve the same approach
+        Assert.NotNull(db.GetApproach("KOAK", "I28R"));
+        Assert.NotNull(db.GetApproach("OAK", "I28R"));
     }
 
     [Theory]
-    [InlineData("ILS28L", "I28L")]
-    [InlineData("I28L", "I28L")]
-    [InlineData("LOC30", "L30")]
-    [InlineData("RNAV28LZ", "H28LZ")]
+    [InlineData("ILS28R", "I28R")]
+    [InlineData("I28R", "I28R")]
+    [InlineData("LOC28R", "L28R")]
+    [InlineData("RNAV28L", "H28LZ")]
     public void ResolveApproachId_VariousShorthands_ResolvesCorrectly(string shorthand, string expectedId)
     {
-        var tmpFile = CreateCifpFile(
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "CF"),
-            BuildFullApproachLine("KOAK", "L30   ", ' ', "", 10, "DUMBA", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "L30   ", ' ', "", 20, "RW30 ", CifpFixRole.MAHP, "CF"),
-            BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 10, "GROVE", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "H28LZ ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "CF")
-        );
-
-        try
+        var db = GetNavDb();
+        if (db is null)
         {
-            var db = new NavigationDatabase(null);
-            db.SetCifpPath(tmpFile);
-            var result = db.ResolveApproachId("OAK", shorthand);
+            return;
+        }
 
-            Assert.Equal(expectedId, result);
-        }
-        finally
-        {
-            File.Delete(tmpFile);
-        }
+        var result = db.ResolveApproachId("OAK", shorthand);
+        Assert.Equal(expectedId, result);
     }
 
     [Fact]
     public void ResolveApproachId_RunwayOnly_ReturnsHighestPriority()
     {
-        var tmpFile = CreateCifpFile(
-            BuildFullApproachLine("KOAK", "H28L  ", ' ', "", 10, "GROVE", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "H28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "CF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "CF")
-        );
-
-        try
+        var db = GetNavDb();
+        if (db is null)
         {
-            var db = new NavigationDatabase(null);
-            db.SetCifpPath(tmpFile);
-            // "28L" without type → ILS preferred over RNAV
-            var result = db.ResolveApproachId("OAK", "28L");
+            return;
+        }
 
-            Assert.Equal("I28L", result);
-        }
-        finally
-        {
-            File.Delete(tmpFile);
-        }
+        // "28R" has both ILS (I28R) and LOC (L28R) — ILS should be preferred
+        var result = db.ResolveApproachId("OAK", "28R");
+        Assert.Equal("I28R", result);
     }
 
     [Fact]
     public void ResolveApproachId_UnknownShorthand_ReturnsNull()
     {
-        var tmpFile = CreateCifpFile(
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "CF")
-        );
+        var db = GetNavDb();
+        if (db is null)
+        {
+            return;
+        }
 
-        try
-        {
-            var db = new NavigationDatabase(null);
-            db.SetCifpPath(tmpFile);
-            Assert.Null(db.ResolveApproachId("OAK", "ILS99"));
-            Assert.Null(db.ResolveApproachId("OAK", ""));
-            Assert.Null(db.ResolveApproachId("OAK", "NONSENSE"));
-        }
-        finally
-        {
-            File.Delete(tmpFile);
-        }
+        Assert.Null(db.ResolveApproachId("OAK", "ILS99"));
+        Assert.Null(db.ResolveApproachId("OAK", ""));
+        Assert.Null(db.ResolveApproachId("OAK", "NONSENSE"));
     }
 
     [Fact]
     public void GetApproaches_CachesPerAirport()
     {
-        var tmpFile = CreateCifpFile(
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 10, "FITKI", CifpFixRole.FAF, "TF"),
-            BuildFullApproachLine("KOAK", "I28L  ", ' ', "", 20, "RW28L", CifpFixRole.MAHP, "CF")
-        );
-
-        try
+        var db = GetNavDb();
+        if (db is null)
         {
-            var db = new NavigationDatabase(null);
-            db.SetCifpPath(tmpFile);
-
-            // First call loads from file
-            var result1 = db.GetApproaches("OAK");
-            // Second call should return same cached list
-            var result2 = db.GetApproaches("OAK");
-
-            Assert.Same(result1, result2);
+            return;
         }
-        finally
-        {
-            File.Delete(tmpFile);
-        }
+
+        // First call loads from file
+        var result1 = db.GetApproaches("OAK");
+        // Second call should return same cached list
+        var result2 = db.GetApproaches("OAK");
+
+        Assert.Same(result1, result2);
     }
 
-    // --- Helpers ---
-
-    private static string CreateCifpFile(params string[] lines)
+    [Fact]
+    public void GetApproaches_UnknownAirport_ReturnsEmpty()
     {
-        var tmpFile = Path.GetTempFileName();
-        File.WriteAllLines(tmpFile, lines);
-        return tmpFile;
-    }
-
-    private static string BuildFullApproachLine(
-        string icao,
-        string approachId,
-        char routeType,
-        string transition,
-        int sequence,
-        string fixId,
-        CifpFixRole fixRole,
-        string pathTerminator
-    )
-    {
-        var line = new char[120];
-        Array.Fill(line, ' ');
-        "SUSAP".CopyTo(0, line, 0, 5);
-        icao.PadRight(4).CopyTo(0, line, 6, 4);
-        line[12] = 'F';
-        approachId.PadRight(6).CopyTo(0, line, 13, 6);
-        line[19] = routeType == '\0' ? ' ' : routeType;
-        if (transition.Length > 0)
+        var db = GetNavDb();
+        if (db is null)
         {
-            transition.PadRight(5).CopyTo(0, line, 20, 5);
+            return;
         }
 
-        sequence.ToString("D3").CopyTo(0, line, 26, 3);
-        fixId.PadRight(5).CopyTo(0, line, 29, 5);
-        line[42] = fixRole switch
-        {
-            CifpFixRole.IAF => 'A',
-            CifpFixRole.IF => 'B',
-            CifpFixRole.FAF => 'F',
-            CifpFixRole.MAHP => 'M',
-            _ => ' ',
-        };
-        if (pathTerminator.Length >= 2)
-        {
-            line[47] = pathTerminator[0];
-            line[48] = pathTerminator[1];
-        }
-
-        return new string(line);
+        var result = db.GetApproaches("ZZZ");
+        Assert.Empty(result);
     }
 }

@@ -38,7 +38,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData);
+        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
 
         var result = db.ExpandRouteForNavigation("OAK6 OAK SYRAH", "OAK");
 
@@ -78,7 +78,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData);
+        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
 
         var result = db.ExpandRouteForNavigation("CNDEL5 PORTE FFOIL", null);
 
@@ -109,7 +109,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData);
+        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
 
         var result = db.ExpandRouteForNavigation("OAK SYRAH V244 SUNOL", null);
 
@@ -130,7 +130,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData);
+        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
 
         var result = db.ExpandRouteForNavigation("SUNOL 050", null);
 
@@ -166,7 +166,7 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData);
+        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
 
         var result = db.ExpandRoute("OAK6 SYRAH");
 
@@ -183,7 +183,7 @@ public class ExpandRouteTests
         // Published SID with ordered body
         var navData = BuildNavData(sids: [new Sid { Id = "CNDEL5", Body = { "LEJAY", "CNDEL", "PORTE" } }]);
 
-        var db = new NavigationDatabase(navData);
+        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
 
         var result = db.ExpandRoute("CNDEL5");
 
@@ -194,18 +194,18 @@ public class ExpandRouteTests
     public void ExpandRouteForNavigation_EmptyRoute_ReturnsEmpty()
     {
         var navData = BuildNavData();
-        var db = new NavigationDatabase(navData);
+        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
 
         Assert.Empty(db.ExpandRouteForNavigation("", null));
         Assert.Empty(db.ExpandRouteForNavigation("  ", null));
     }
 
     [Fact]
-    public void ExpandRouteForNavigation_RvStar_SkipsEntirely()
+    public void ExpandRouteForNavigation_SingleFixStar_StillEmitsFix()
     {
-        // STAR with single body fix (radar vectors) should be skipped
+        // STAR with single body fix — the fix is still a valid waypoint
         var navData = BuildNavData(
-            stars: [new Star { Id = "BDEGA2", Body = { "BDEGA" } }],
+            stars: [new Star { Id = "BDEGA4", Body = { "BDEGA" } }],
             fixes:
             [
                 new Fix
@@ -221,11 +221,11 @@ public class ExpandRouteTests
             ]
         );
 
-        var db = new NavigationDatabase(navData);
+        var db = new NavigationDatabase(navData, "", customFixesBaseDir: "");
 
-        var result = db.ExpandRouteForNavigation("SUNOL BDEGA2", null);
+        var result = db.ExpandRouteForNavigation("SUNOL BDEGA4", null);
 
-        Assert.Equal(["SUNOL"], result);
+        Assert.Equal(["SUNOL", "BDEGA"], result);
     }
 
     private static NavDataSet BuildNavData(

@@ -47,8 +47,9 @@ public class ApproachGateDatabaseTests
                 elevationFt: 10
             )
         );
+        NavigationDatabase.SetInstance(navDb);
 
-        ApproachGateDatabase.Initialize(cifpData, navDb);
+        ApproachGateDatabase.Initialize(cifpData);
 
         double result = ApproachGateDatabase.GetMinInterceptDistanceNm("TST", "28L");
 
@@ -82,8 +83,9 @@ public class ApproachGateDatabaseTests
                 lengthFt: 8000
             )
         );
+        NavigationDatabase.SetInstance(navDb);
 
-        ApproachGateDatabase.Initialize(cifpData, navDb);
+        ApproachGateDatabase.Initialize(cifpData);
 
         // Query with K prefix should still find the entry
         double withK = ApproachGateDatabase.GetMinInterceptDistanceNm("KTST", "10R");
@@ -131,8 +133,9 @@ public class ApproachGateDatabaseTests
                 widthFt: 100
             )
         );
+        NavigationDatabase.SetInstance(navDb);
 
-        ApproachGateDatabase.Initialize(cifpData, navDb);
+        ApproachGateDatabase.Initialize(cifpData);
 
         double result = ApproachGateDatabase.GetMinInterceptDistanceNm("CLO", "36");
 

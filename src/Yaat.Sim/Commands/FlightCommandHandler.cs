@@ -311,11 +311,11 @@ internal static class FlightCommandHandler
         return CommandDispatcher.Ok($"Squawk {aircraft.BeaconCode:D4}");
     }
 
-    internal static CommandResult ApplyDirectTo(DirectToCommand cmd, AircraftState aircraft, NavigationDatabase? navDb, bool validateDctFixes)
+    internal static CommandResult ApplyDirectTo(DirectToCommand cmd, AircraftState aircraft, bool validateDctFixes)
     {
         if (validateDctFixes)
         {
-            var programmed = aircraft.GetProgrammedFixes(navDb);
+            var programmed = aircraft.GetProgrammedFixes();
             if (programmed.Count > 0)
             {
                 var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
@@ -332,10 +332,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AssignedHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        if (navDb is not null)
-        {
-            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, navDb);
-        }
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
         foreach (var fix in resolved)
         {
             aircraft.Targets.NavigationRoute.Add(
@@ -354,17 +351,14 @@ internal static class FlightCommandHandler
             : CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
-    internal static CommandResult ApplyForceDirectTo(ForceDirectToCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
+    internal static CommandResult ApplyForceDirectTo(ForceDirectToCommand cmd, AircraftState aircraft)
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        if (navDb is not null)
-        {
-            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, navDb);
-        }
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
         foreach (var fix in resolved)
         {
             aircraft.Targets.NavigationRoute.Add(
@@ -383,16 +377,11 @@ internal static class FlightCommandHandler
             : CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
-    internal static CommandResult ApplyAppendDirectTo(
-        AppendDirectToCommand cmd,
-        AircraftState aircraft,
-        NavigationDatabase? navDb,
-        bool validateDctFixes
-    )
+    internal static CommandResult ApplyAppendDirectTo(AppendDirectToCommand cmd, AircraftState aircraft, bool validateDctFixes)
     {
         if (validateDctFixes)
         {
-            var programmed = aircraft.GetProgrammedFixes(navDb);
+            var programmed = aircraft.GetProgrammedFixes();
             if (programmed.Count > 0)
             {
                 var unprogrammed = cmd.Fixes.Where(f => !programmed.Contains(f.Name)).ToList();
@@ -406,10 +395,7 @@ internal static class FlightCommandHandler
 
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        if (navDb is not null)
-        {
-            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, navDb);
-        }
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
         if (aircraft.Targets.NavigationRoute.Count == 0)
         {
             foreach (var fix in resolved)
@@ -448,14 +434,11 @@ internal static class FlightCommandHandler
         }
     }
 
-    internal static CommandResult ApplyAppendForceDirectTo(AppendForceDirectToCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
+    internal static CommandResult ApplyAppendForceDirectTo(AppendForceDirectToCommand cmd, AircraftState aircraft)
     {
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
-        if (navDb is not null)
-        {
-            RouteChainer.AppendRouteRemainder(resolved, aircraft.Route, navDb);
-        }
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
         if (aircraft.Targets.NavigationRoute.Count == 0)
         {
             foreach (var fix in resolved)

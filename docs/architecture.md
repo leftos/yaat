@@ -205,15 +205,11 @@ AtParkingPhase / PushbackPhase / PushbackToSpotPhase / TaxiingPhase / HoldingSho
 CrossingRunwayPhase / RunwayExitPhase / HoldingAfterExitPhase / FollowingPhase
 
 # Data/
-Data/IFixLookup.cs             # Interface: GetFixPosition, GetAirportElevation, GetSidBody/Transitions, GetStarBody/Transitions
-Data/IRunwayLookup.cs          # Interface: GetRunway, GetRunways
-Data/FixDatabase.cs            # Implements both; VNAS protobuf + custom fixes; AllFixNames, ExpandRoute
+Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways/airways/SID/STAR indexes + lazy CIFP procedures.
+                               # Access via NavigationDatabase.Instance (initialized at startup, SetInstance for tests).
+Data/RouteExpander.cs          # Static: expands route strings (SID/STAR/airway/fix tokens) into ordered fix lists
 Data/CustomFixDefinition.cs / CustomFixLoader.cs  # Custom fix JSON loading
 Data/FrdResolver.cs            # Fix-Radial-Distance → lat/lon
-Data/IApproachLookup.cs        # Interface: GetApproach, GetApproaches, ResolveApproachId
-Data/ApproachDatabase.cs       # IApproachLookup impl; lazy CIFP per-airport parsing; shorthand resolution
-Data/IProcedureLookup.cs       # Interface: GetSid, GetSids, GetStar, GetStars
-Data/ProcedureDatabase.cs      # IProcedureLookup impl; lazy CIFP per-airport SID/STAR parsing
 Data/ApproachGateDatabase.cs   # Static: min intercept distances from CIFP (§5-9-1)
 Data/VideoMapMetadata.cs       # Video map metadata model
 Data/VideoMapData.cs           # Video map data structures (lines, labels, filters)

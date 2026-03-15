@@ -25,7 +25,7 @@ public class LineUpPhaseTests
             return null;
         }
 
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, null);
+        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
     }
 
     /// <summary>

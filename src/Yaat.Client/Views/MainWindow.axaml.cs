@@ -12,6 +12,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.Radar;
+using Yaat.Sim.Data;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.Views;
@@ -710,14 +711,13 @@ public partial class MainWindow : Window
         var text = input.Text?.Trim().ToUpperInvariant() ?? "";
         listBox.Items.Clear();
 
-        var fixDb = vm.CommandInput.NavDb;
-        if (fixDb is null || text.Length == 0)
+        if (!vm.CommandInput.NavDbReady || text.Length == 0)
         {
             listBox.IsVisible = false;
             return;
         }
 
-        var allNames = fixDb.AllFixNames;
+        var allNames = NavigationDatabase.Instance.AllFixNames;
         int lo = 0,
             hi = allNames.Length - 1;
         while (lo <= hi)

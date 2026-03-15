@@ -17,7 +17,6 @@ internal static class FixSuggester
         AircraftModel? selectedAircraft,
         CommandScheme scheme,
         ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase? fixDb,
         int maxSuggestions
     )
     {
@@ -54,7 +53,7 @@ internal static class FixSuggester
         var fixToken = hasTrailingSpace ? "" : lastWordAfterDct;
 
         var prefix = GetTextBeforeLastWord(fullText);
-        AddFixSuggestions(fixToken, prefix, selectedAircraft, suggestions, fixDb, maxSuggestions);
+        AddFixSuggestions(fixToken, prefix, selectedAircraft, suggestions, maxSuggestions);
         return suggestions.Count > 0;
     }
 
@@ -63,16 +62,15 @@ internal static class FixSuggester
         string prefix,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase? fixDb,
         int maxSuggestions
     )
     {
         var count = suggestions.Count;
 
         // Tier 1: Route fixes from selected aircraft's FMS
-        if (selectedAircraft is not null && fixDb is not null)
+        if (selectedAircraft is not null)
         {
-            var routeFixes = CollectRouteFixNames(selectedAircraft, fixDb);
+            var routeFixes = CollectRouteFixNames(selectedAircraft);
             foreach (var fix in routeFixes)
             {
                 if (count >= maxSuggestions)
@@ -99,10 +97,7 @@ internal static class FixSuggester
         }
 
         // Tier 2: All navdata fixes
-        if (fixDb is not null)
-        {
-            AddNavdataFixSuggestions(token, prefix, suggestions, fixDb, maxSuggestions, ref count);
-        }
+        AddNavdataFixSuggestions(token, prefix, suggestions, NavigationDatabase.Instance, maxSuggestions, ref count);
     }
 
     internal static void AddAtFixSuggestions(
@@ -110,16 +105,15 @@ internal static class FixSuggester
         string prefix,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase? fixDb,
         int maxSuggestions
     )
     {
         var count = suggestions.Count;
 
         // Tier 1: Route fixes from selected aircraft
-        if (selectedAircraft is not null && fixDb is not null)
+        if (selectedAircraft is not null)
         {
-            var routeFixes = CollectRouteFixNames(selectedAircraft, fixDb);
+            var routeFixes = CollectRouteFixNames(selectedAircraft);
             foreach (var fix in routeFixes)
             {
                 if (count >= maxSuggestions)
@@ -146,13 +140,21 @@ internal static class FixSuggester
         }
 
         // Tier 2: All navdata fixes
-        if (fixDb is not null && fixPartial.Length > 0)
+        if (fixPartial.Length > 0)
         {
-            AddNavdataFixSuggestionsWithBinarySearch(fixPartial, prefix, fixTextPrefix: "@", suggestions, fixDb, maxSuggestions, ref count);
+            AddNavdataFixSuggestionsWithBinarySearch(
+                fixPartial,
+                prefix,
+                fixTextPrefix: "@",
+                suggestions,
+                NavigationDatabase.Instance,
+                maxSuggestions,
+                ref count
+            );
         }
     }
 
-    internal static SortedSet<string> CollectRouteFixNames(AircraftModel aircraft, NavigationDatabase? fixDb)
+    internal static SortedSet<string> CollectRouteFixNames(AircraftModel aircraft)
     {
         var fixes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -166,9 +168,9 @@ internal static class FixSuggester
             fixes.Add(aircraft.Destination);
         }
 
-        if (!string.IsNullOrWhiteSpace(aircraft.Route) && fixDb is not null)
+        if (!string.IsNullOrWhiteSpace(aircraft.Route))
         {
-            var expanded = fixDb.ExpandRoute(aircraft.Route);
+            var expanded = NavigationDatabase.Instance.ExpandRoute(aircraft.Route);
             foreach (var fix in expanded)
             {
                 fixes.Add(fix);

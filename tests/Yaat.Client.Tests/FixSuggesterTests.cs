@@ -3,11 +3,17 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.Tests;
 
 public class FixSuggesterTests
 {
+    public FixSuggesterTests()
+    {
+        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+    }
+
     // -------------------------------------------------------------------------
     // GetTextBeforeLastWord
     // -------------------------------------------------------------------------
@@ -45,7 +51,7 @@ public class FixSuggesterTests
     {
         var aircraft = new AircraftModel { Departure = "OAK", Destination = "LAX" };
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft, null);
+        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Contains("OAK", fixes);
         Assert.Contains("LAX", fixes);
@@ -56,7 +62,7 @@ public class FixSuggesterTests
     {
         var aircraft = new AircraftModel();
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft, null);
+        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Empty(fixes);
     }
@@ -66,7 +72,7 @@ public class FixSuggesterTests
     {
         var aircraft = new AircraftModel { Departure = "", Destination = "  " };
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft, null);
+        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Empty(fixes);
     }
@@ -76,35 +82,23 @@ public class FixSuggesterTests
     {
         var aircraft = new AircraftModel { Departure = "OAK", Destination = "OAK" };
 
-        var fixes = FixSuggester.CollectRouteFixNames(aircraft, null);
+        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
 
         Assert.Single(fixes);
         Assert.Contains("OAK", fixes);
     }
 
     // -------------------------------------------------------------------------
-    // TryAddFixSuggestions — no NavigationDatabase
+    // TryAddFixSuggestions
     // -------------------------------------------------------------------------
-
-    [Fact]
-    public void TryAddFixSuggestions_NoFixDb_ReturnsFalse()
-    {
-        var suggestions = new ObservableCollection<SuggestionItem>();
-        var scheme = CommandScheme.Default();
-
-        var result = FixSuggester.TryAddFixSuggestions("DCT SUN", "DCT SUN", null, scheme, suggestions, null, 10);
-
-        Assert.False(result);
-    }
 
     [Fact]
     public void TryAddFixSuggestions_NoDctPattern_ReturnsFalse()
     {
         var suggestions = new ObservableCollection<SuggestionItem>();
-        // Empty scheme with no patterns
         var scheme = new CommandScheme { Patterns = new Dictionary<CanonicalCommandType, CommandPattern>() };
 
-        var result = FixSuggester.TryAddFixSuggestions("DCT SUN", "DCT SUN", null, scheme, suggestions, null, 10);
+        var result = FixSuggester.TryAddFixSuggestions("DCT SUN", "DCT SUN", null, scheme, suggestions, 10);
 
         Assert.False(result);
     }
@@ -115,21 +109,21 @@ public class FixSuggesterTests
         var suggestions = new ObservableCollection<SuggestionItem>();
         var scheme = CommandScheme.Default();
 
-        var result = FixSuggester.TryAddFixSuggestions("FH 180", "FH 180", null, scheme, suggestions, null, 10);
+        var result = FixSuggester.TryAddFixSuggestions("FH 180", "FH 180", null, scheme, suggestions, 10);
 
         Assert.False(result);
     }
 
     // -------------------------------------------------------------------------
-    // AddFixSuggestions — no NavigationDatabase, no aircraft
+    // AddFixSuggestions — empty NavigationDatabase, no aircraft
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void AddFixSuggestions_NoFixDb_NoSuggestions()
+    public void AddFixSuggestions_EmptyNavDb_NoSuggestions()
     {
         var suggestions = new ObservableCollection<SuggestionItem>();
 
-        FixSuggester.AddFixSuggestions("SUN", "", null, suggestions, null, 10);
+        FixSuggester.AddFixSuggestions("SUN", "", null, suggestions, 10);
 
         Assert.Empty(suggestions);
     }

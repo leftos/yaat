@@ -51,7 +51,7 @@ public class PatternCommandHandlerTests
         var (northLat, northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, 10.0, 2.0);
         var ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500);
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null, null);
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
 
         Assert.True(result.Success);
         Assert.Contains("crossing midfield", result.Message!);
@@ -67,7 +67,7 @@ public class PatternCommandHandlerTests
         var (southLat, southLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, 190.0, 2.0);
         var ac = MakeAircraft(lat: southLat, lon: southLon, altitude: 1500);
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null, null);
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
 
         Assert.True(result.Success);
         Assert.DoesNotContain("crossing midfield", result.Message!);
@@ -81,7 +81,7 @@ public class PatternCommandHandlerTests
         var (northLat, northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, 10.0, 2.0);
         var ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500);
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Base, null, null, null);
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Base, null, null);
 
         Assert.True(result.Success);
         Assert.Contains(ac.Phases!.Phases, p => p is MidfieldCrossingPhase);
@@ -99,7 +99,7 @@ public class PatternCommandHandlerTests
         var (farLat, farLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, 190.0, 10.0);
         var ac = MakeAircraft(lat: farLat, lon: farLon, altitude: 3000);
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null, null);
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
 
         Assert.True(result.Success);
         Assert.Contains(ac.Phases!.Phases, p => p is PatternEntryPhase);
@@ -113,7 +113,7 @@ public class PatternCommandHandlerTests
         var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left);
         var ac = MakeAircraft(lat: wp.DownwindAbeamLat, lon: wp.DownwindAbeamLon, altitude: wp.PatternAltitude);
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null, null);
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
 
         Assert.True(result.Success);
         Assert.DoesNotContain(ac.Phases!.Phases, p => p is PatternEntryPhase);
@@ -129,7 +129,7 @@ public class PatternCommandHandlerTests
         var ac = MakeAircraft();
         ac.Phases = new PhaseList(); // no runway
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null, null);
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
 
         Assert.False(result.Success);
         Assert.Contains("No assigned runway", result.Message!);
@@ -214,7 +214,7 @@ public class PatternCommandHandlerTests
     {
         var ac = MakeAircraft();
 
-        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, null, null);
+        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, null);
 
         Assert.True(result.Success);
         Assert.Equal(PatternDirection.Right, ac.Phases!.TrafficDirection);
@@ -227,7 +227,7 @@ public class PatternCommandHandlerTests
         var ac = MakeAircraft();
         ac.Phases = new PhaseList(); // no runway
 
-        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, null, null);
+        var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, null);
 
         Assert.False(result.Success);
         Assert.Contains("No assigned runway", result.Message!);
@@ -556,7 +556,7 @@ public class PatternCommandHandlerTests
         var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left);
         var ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon, altitude: wp.PatternAltitude);
 
-        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Crosswind, null, null, null);
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Crosswind, null, null);
 
         Assert.True(result.Success);
         // Should have CrosswindPhase → DownwindPhase → BasePhase → FinalApproachPhase → landing

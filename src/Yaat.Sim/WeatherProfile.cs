@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Yaat.Sim.Data;
 
 namespace Yaat.Sim;
 
@@ -57,7 +56,7 @@ public class WeatherProfile
     /// Get parsed ceiling/visibility for an airport, with caching.
     /// Uses exact station match first, then IDW interpolation from nearby stations.
     /// </summary>
-    public MetarParser.ParsedMetar? GetWeatherForAirport(string airportId, NavigationDatabase? navDb)
+    public MetarParser.ParsedMetar? GetWeatherForAirport(string airportId)
     {
         if (Metars.Count == 0)
         {
@@ -69,7 +68,7 @@ public class WeatherProfile
             return cached;
         }
 
-        var result = MetarInterpolator.GetWeatherForAirport(Metars, airportId, navDb);
+        var result = MetarInterpolator.GetWeatherForAirport(Metars, airportId);
         _metarCache[airportId] = result;
         return result;
     }

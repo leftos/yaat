@@ -22,7 +22,6 @@ internal static class ArgumentSuggester
         CommandScheme scheme,
         AircraftModel? targetAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase? fixDb,
         string? primaryAirportId,
         int maxSuggestions
     )
@@ -63,7 +62,7 @@ internal static class ArgumentSuggester
             if (paramPos == 0)
             {
                 // First arg: suggest runway designators
-                AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
+                AddRunwaySuggestions(partial, prefix, suggestions, primaryAirportId, maxSuggestions);
             }
             else if (paramPos == 1)
             {
@@ -88,7 +87,6 @@ internal static class ArgumentSuggester
             fullText,
             targetAircraft,
             suggestions,
-            fixDb,
             primaryAirportId,
             maxSuggestions
         );
@@ -102,7 +100,6 @@ internal static class ArgumentSuggester
         string fullText,
         AircraftModel? targetAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase? fixDb,
         string? primaryAirportId,
         int maxSuggestions
     )
@@ -161,12 +158,12 @@ internal static class ArgumentSuggester
         // Add contextual suggestions based on TypeHint
         if (hasRunway)
         {
-            AddRunwaySuggestions(partial, prefix, suggestions, fixDb, primaryAirportId, maxSuggestions);
+            AddRunwaySuggestions(partial, prefix, suggestions, primaryAirportId, maxSuggestions);
         }
 
         if (hasFix)
         {
-            FixSuggester.AddFixSuggestions(partial, prefix, targetAircraft, suggestions, fixDb, maxSuggestions);
+            FixSuggester.AddFixSuggestions(partial, prefix, targetAircraft, suggestions, maxSuggestions);
         }
 
         return true;
@@ -280,17 +277,16 @@ internal static class ArgumentSuggester
         string partial,
         string prefix,
         ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase? fixDb,
         string? primaryAirportId,
         int maxSuggestions
     )
     {
-        if (fixDb is null || string.IsNullOrEmpty(primaryAirportId))
+        if (string.IsNullOrEmpty(primaryAirportId))
         {
             return;
         }
 
-        var runways = fixDb.GetRunways(primaryAirportId);
+        var runways = NavigationDatabase.Instance.GetRunways(primaryAirportId);
         foreach (var rwy in runways)
         {
             string[] designators = rwy.Id.End1.Equals(rwy.Id.End2, StringComparison.OrdinalIgnoreCase) ? [rwy.Id.End1] : [rwy.Id.End1, rwy.Id.End2];

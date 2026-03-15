@@ -92,7 +92,7 @@ public class WaitCommandDispatchTests
 
         // Standalone WAIT (no following commands) during pushback is rejected
         // because WAIT without a payload is meaningless
-        var result = CommandDispatcher.DispatchCompound(WaitCompound(15), ac, null, null, new Random(42), true);
+        var result = CommandDispatcher.DispatchCompound(WaitCompound(15), ac, null, new Random(42), true);
 
         Assert.False(result.Success);
     }
@@ -102,7 +102,7 @@ public class WaitCommandDispatchTests
     {
         var ac = MakeGroundAircraft();
         // No active phases — standalone WAIT goes through normal queue path
-        var result = CommandDispatcher.DispatchCompound(WaitCompound(10), ac, null, null, new Random(42), true);
+        var result = CommandDispatcher.DispatchCompound(WaitCompound(10), ac, null, new Random(42), true);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Single(ac.Queue.Blocks);
@@ -121,7 +121,7 @@ public class WaitCommandDispatchTests
         // WAIT 15; TAXI A — two sequential blocks
         var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(15)]), new ParsedBlock(null, [new TaxiCommand(["A"], [])])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, new Random(42), true);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), true);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         // Phases preserved — deferred dispatch doesn't touch them
@@ -142,7 +142,7 @@ public class WaitCommandDispatchTests
         // No active phases — deferred dispatch still works
         var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10)]), new ParsedBlock(null, [new TaxiCommand(["B"], [])])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, new Random(42), true);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), true);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Single(ac.DeferredDispatches);
@@ -157,7 +157,7 @@ public class WaitCommandDispatchTests
         // "WAIT 10, FH 270" — single block with parallel WAIT + FH 270
         var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10), new FlyHeadingCommand(270)])]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, new Random(42), true);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), true);
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
         Assert.Single(ac.DeferredDispatches);
@@ -180,7 +180,7 @@ public class WaitCommandDispatchTests
             new ParsedBlock(null, [new FlyHeadingCommand(270)]),
         ]);
 
-        var result = CommandDispatcher.DispatchCompound(compound, ac, null, null, new Random(42), true);
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), true);
 
         Assert.True(result.Success);
         Assert.Single(ac.DeferredDispatches);

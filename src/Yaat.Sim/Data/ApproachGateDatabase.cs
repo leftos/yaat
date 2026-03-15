@@ -23,8 +23,9 @@ public static class ApproachGateDatabase
 
     private static bool _initialized;
 
-    public static void Initialize(CifpParseResult cifpData, NavigationDatabase navDb)
+    public static void Initialize(CifpParseResult cifpData)
     {
+        var navDb = NavigationDatabase.Instance;
         var result = new Dictionary<(string Airport, string Runway), double>();
         int computed = 0;
         int skipped = 0;

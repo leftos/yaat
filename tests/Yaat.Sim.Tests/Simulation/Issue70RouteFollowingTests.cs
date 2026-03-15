@@ -3,6 +3,7 @@ using MartinCostello.Logging.XUnit;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
+using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -43,7 +44,8 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        return new SimulationEngine(navDb, groundData);
+        NavigationDatabase.SetInstance(navDb);
+        return new SimulationEngine(groundData);
     }
 
     /// <summary>
@@ -62,7 +64,7 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
         }
 
         // Verify SAU VOR is in the nav database (should be loaded from CIFP navaids)
-        var sauPos = engine.Navigation.GetFixPosition("SAU");
+        var sauPos = NavigationDatabase.Instance.GetFixPosition("SAU");
         output.WriteLine($"SAU fix position: {(sauPos is null ? "NOT FOUND" : $"{sauPos.Value.Lat:F6}, {sauPos.Value.Lon:F6}")}");
 
         // EVA18 spawns at t=360

@@ -14,7 +14,6 @@ internal static class AddCommandSuggester
         CommandScheme scheme,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase? fixDb,
         string? primaryAirportId,
         int maxSuggestions
     )
@@ -71,7 +70,7 @@ internal static class AddCommandSuggester
             }
 
             case >= 3:
-                AddPositionSuggestions(words, prefix, partial, completedArgs, selectedAircraft, suggestions, fixDb, primaryAirportId, maxSuggestions);
+                AddPositionSuggestions(words, prefix, partial, completedArgs, selectedAircraft, suggestions, primaryAirportId, maxSuggestions);
                 break;
         }
 
@@ -172,7 +171,6 @@ internal static class AddCommandSuggester
         int completedArgs,
         AircraftModel? selectedAircraft,
         ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase? fixDb,
         string? primaryAirportId,
         int maxSuggestions
     )
@@ -183,7 +181,7 @@ internal static class AddCommandSuggester
             {
                 // User is typing @fixname — show fix suggestions
                 var fixPartial = partial.Length > 1 ? partial[1..] : "";
-                FixSuggester.AddAtFixSuggestions(fixPartial, prefix, selectedAircraft, suggestions, fixDb, maxSuggestions);
+                FixSuggester.AddAtFixSuggestions(fixPartial, prefix, selectedAircraft, suggestions, maxSuggestions);
             }
             else
             {
@@ -196,7 +194,7 @@ internal static class AddCommandSuggester
                     ("-", "Airborne — -{bearing} {dist_nm} {alt_ft}"),
                     ("@", "At fix — @{fix_or_FRD} {alt_ft}, or at parking — @{spot}")
                 );
-                AddRunwaySuggestions(prefix, partial, suggestions, fixDb, primaryAirportId, maxSuggestions);
+                AddRunwaySuggestions(prefix, partial, suggestions, primaryAirportId, maxSuggestions);
             }
             return;
         }
@@ -238,17 +236,16 @@ internal static class AddCommandSuggester
         string prefix,
         string partial,
         ObservableCollection<SuggestionItem> suggestions,
-        NavigationDatabase? fixDb,
         string? primaryAirportId,
         int maxSuggestions
     )
     {
-        if (fixDb is null || string.IsNullOrEmpty(primaryAirportId))
+        if (string.IsNullOrEmpty(primaryAirportId))
         {
             return;
         }
 
-        var runways = fixDb.GetRunways(primaryAirportId);
+        var runways = NavigationDatabase.Instance.GetRunways(primaryAirportId);
         foreach (var rwy in runways)
         {
             // Show both ends of each physical runway

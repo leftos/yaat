@@ -28,7 +28,7 @@ internal sealed class TestAirportGroundData : IAirportGroundData
 
         if (File.Exists(path))
         {
-            layout = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, null);
+            layout = GeoJsonParser.Parse(shortId, File.ReadAllText(path), null);
         }
 
         _cache[shortId] = layout;

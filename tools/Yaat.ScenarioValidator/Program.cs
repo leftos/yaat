@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Proto;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.ScenarioValidator;
@@ -77,32 +79,32 @@ public static class Program
             return 1;
         }
 
-        // Download NavData for procedure validation
-        var navDb = await DownloadNavDataAsync();
+        // Download NavData + CIFP for procedure validation
+        await InitializeNavDataAsync();
 
         if (allMode)
         {
-            return await ValidateMultipleAsync(AllArtccs, navDb, jsonOutput);
+            return await ValidateMultipleAsync(AllArtccs, jsonOutput);
         }
 
         if (artccIds.Count > 1)
         {
-            return await ValidateMultipleAsync([.. artccIds], navDb, jsonOutput);
+            return await ValidateMultipleAsync([.. artccIds], jsonOutput);
         }
 
         List<ScenarioValidationResult> results;
 
         if (artccIds.Count == 1)
         {
-            results = await ValidateArtccAsync(artccIds[0], navDb, jsonOutput);
+            results = await ValidateArtccAsync(artccIds[0], jsonOutput);
         }
         else if (filePath is not null)
         {
-            results = ValidateFile(filePath, navDb);
+            results = ValidateFile(filePath);
         }
         else
         {
-            results = ValidateDirectory(dirPath!, navDb);
+            results = ValidateDirectory(dirPath!);
         }
 
         if (jsonOutput)
@@ -114,21 +116,21 @@ public static class Program
         return PrintTextReport(results);
     }
 
-    private static async Task<NavigationDatabase> DownloadNavDataAsync()
+    private static async Task InitializeNavDataAsync()
     {
         var client = new VnasClient();
 
+        NavDataSet? navData = null;
         for (int attempt = 1; attempt <= 3; attempt++)
         {
             try
             {
                 Console.Error.Write(attempt == 1 ? "Downloading NavData..." : $" retry {attempt}/3...");
-                var navData = await client.DownloadNavDataAsync();
+                navData = await client.DownloadNavDataAsync();
                 if (navData is not null)
                 {
-                    var db = new NavigationDatabase(navData, customFixesBaseDir: "");
-                    Console.Error.WriteLine($" {db.Count} fixes");
-                    return db;
+                    Console.Error.WriteLine($" {navData.Fixes.Count} fixes");
+                    break;
                 }
 
                 Console.Error.Write(" null response");
@@ -139,20 +141,35 @@ public static class Program
             }
         }
 
-        Console.Error.WriteLine();
-        Console.Error.WriteLine("ERROR: NavData download failed after 3 attempts — fix resolution will be unavailable");
-        Console.Error.WriteLine("       Results will have many false-positive failures. Aborting.");
-        Environment.Exit(1);
-        return null!; // unreachable
+        if (navData is null)
+        {
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("ERROR: NavData download failed after 3 attempts. Aborting.");
+            Environment.Exit(1);
+        }
+
+        Console.Error.Write("Downloading CIFP...");
+        using var cifpService = new CifpDataService();
+        await cifpService.InitializeAsync();
+
+        if (cifpService.CifpFilePath is null)
+        {
+            Console.Error.WriteLine(" failed");
+            Console.Error.WriteLine("ERROR: CIFP download failed. Aborting.");
+            Environment.Exit(1);
+        }
+
+        Console.Error.WriteLine(" OK");
+        NavigationDatabase.Initialize(navData!, cifpService.CifpFilePath!, customFixesBaseDir: "");
     }
 
-    private static async Task<int> ValidateMultipleAsync(string[] artccs, NavigationDatabase navDb, bool jsonOutput)
+    private static async Task<int> ValidateMultipleAsync(string[] artccs, bool jsonOutput)
     {
         var allResults = new Dictionary<string, List<ScenarioValidationResult>>();
 
         var tasks = artccs.Select(async artcc =>
         {
-            var results = await ValidateArtccAsync(artcc, navDb, quiet: true);
+            var results = await ValidateArtccAsync(artcc, quiet: true);
             lock (allResults)
             {
                 allResults[artcc] = results;
@@ -233,7 +250,7 @@ public static class Program
         return anyFailures ? 1 : 0;
     }
 
-    private static async Task<List<ScenarioValidationResult>> ValidateArtccAsync(string artccId, NavigationDatabase navDb, bool quiet)
+    private static async Task<List<ScenarioValidationResult>> ValidateArtccAsync(string artccId, bool quiet)
     {
         var client = new VnasClient();
 
@@ -275,7 +292,7 @@ public static class Program
                     return null;
                 }
 
-                var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json, navDb);
+                var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json);
                 if (result is null)
                 {
                     Console.Error.WriteLine($"  [{artccId}] {summary.Name} — JSON PARSE FAILED");
@@ -314,7 +331,7 @@ public static class Program
         return all.Where(r => r is not null).ToList()!;
     }
 
-    private static List<ScenarioValidationResult> ValidateFile(string path, NavigationDatabase navDb)
+    private static List<ScenarioValidationResult> ValidateFile(string path)
     {
         if (!File.Exists(path))
         {
@@ -323,7 +340,7 @@ public static class Program
         }
 
         var json = File.ReadAllText(path);
-        var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json, navDb);
+        var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json);
         if (result is null)
         {
             Console.Error.WriteLine($"Failed to parse: {path}");
@@ -333,7 +350,7 @@ public static class Program
         return [result];
     }
 
-    private static List<ScenarioValidationResult> ValidateDirectory(string path, NavigationDatabase navDb)
+    private static List<ScenarioValidationResult> ValidateDirectory(string path)
     {
         if (!Directory.Exists(path))
         {
@@ -355,7 +372,7 @@ public static class Program
         foreach (var file in files)
         {
             var json = File.ReadAllText(file);
-            var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json, navDb);
+            var result = Yaat.Sim.Scenarios.ScenarioValidator.Validate(json);
             if (result is null)
             {
                 Console.Error.WriteLine($"  {Path.GetFileName(file)} — JSON PARSE FAILED");

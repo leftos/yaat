@@ -49,6 +49,7 @@ Three projects across two repos. **Yaat.Sim** is shared by both Yaat.Client and 
 - **SignalR**: JSON protocol on `/hubs/training`; DTOs as records in `ServerConnection.cs`
 - **MVVM**: `[ObservableProperty]`/`[RelayCommand]` from CommunityToolkit.Mvvm; `_camelCase` fields → `PascalCase` props
 - **Threading**: SignalR callbacks on background thread; marshal to UI via `Dispatcher.UIThread.Post()`
+- **NavigationDatabase singleton**: `NavigationDatabase.Instance` (static). Initialized at startup via `Initialize(navData)`. Tests use `SetInstance(db)`.
 - **No DI**: `MainWindow` creates `MainViewModel` directly
 - **Snapshots**: `SimulationWorld.GetSnapshot()` returns shallow copy; treat as read-only
 

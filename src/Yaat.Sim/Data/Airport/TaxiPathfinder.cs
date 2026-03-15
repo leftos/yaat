@@ -51,7 +51,6 @@ public static class TaxiPathfinder
         out string? failReason,
         List<string>? explicitHoldShorts = null,
         string? destinationRunway = null,
-        NavigationDatabase? navDb = null,
         string? airportId = null,
         Action<string>? diagnosticLog = null
     )
@@ -197,7 +196,6 @@ public static class TaxiPathfinder
                 taxiwayNames[^1],
                 segmentCountBeforeLastTw,
                 destinationRunway,
-                navDb,
                 airportId,
                 ref currentNodeId,
                 out failReason

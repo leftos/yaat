@@ -68,17 +68,9 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Start(MinCtx(ac));
 
         var rwy = DefaultRunway();
-        var navDb = TestNavDbFactory.WithRunways(rwy);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
-            ac,
-            holding,
-            ClearanceType.LineUpAndWait,
-            new DefaultDeparture(),
-            null,
-            navDb,
-            Logger
-        );
+        var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.LineUpAndWait, new DefaultDeparture(), null, Logger);
 
         Assert.True(result.Success);
         Assert.Contains("Line up and wait", result.Message!);
@@ -94,7 +86,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Start(MinCtx(ac));
 
         var rwy = DefaultRunway();
-        var navDb = TestNavDbFactory.WithRunways(rwy);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -102,7 +94,6 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
-            navDb,
             Logger
         );
 
@@ -139,7 +130,7 @@ public class DepartureClearanceHandlerTests
         };
 
         var rwy = DefaultRunway();
-        var navDb = TestNavDbFactory.WithRunways(rwy);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -147,7 +138,6 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             5000,
-            navDb,
             Logger
         );
 
@@ -170,7 +160,6 @@ public class DepartureClearanceHandlerTests
             taxiPhase,
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
-            null,
             null,
             Logger
         );
@@ -207,7 +196,6 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             null,
-            null,
             Logger
         );
 
@@ -223,15 +211,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(lineUp);
         ac.Phases.Start(MinCtx(ac));
 
-        var result = DepartureClearanceHandler.TryDepartureClearance(
-            ac,
-            lineUp,
-            ClearanceType.LineUpAndWait,
-            new DefaultDeparture(),
-            null,
-            null,
-            Logger
-        );
+        var result = DepartureClearanceHandler.TryDepartureClearance(ac, lineUp, ClearanceType.LineUpAndWait, new DefaultDeparture(), null, Logger);
 
         Assert.False(result.Success);
     }
@@ -251,7 +231,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(holdPhase);
         ac.Phases.Start(MinCtx(ac));
 
-        var navDb = TestNavDbFactory.WithRunways(rwy);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -259,7 +239,6 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new RunwayHeadingDeparture(),
             5000,
-            navDb,
             Logger
         );
 
@@ -290,7 +269,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(holdPhase);
         ac.Phases.Start(MinCtx(ac));
 
-        var navDb = TestNavDbFactory.WithRunways(rwy);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -298,7 +277,6 @@ public class DepartureClearanceHandlerTests
             ClearanceType.LineUpAndWait,
             new DefaultDeparture(),
             null,
-            navDb,
             Logger
         );
 
@@ -326,7 +304,6 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new DefaultDeparture(),
             null,
-            null,
             Logger
         );
 
@@ -347,10 +324,10 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Start(MinCtx(ac));
 
         var rwy = DefaultRunway();
-        var navDb = TestNavDbFactory.WithRunways(rwy);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
 
         var departure = new ClosedTrafficDeparture(PatternDirection.Left);
-        var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.ClearedForTakeoff, departure, null, navDb, Logger);
+        var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.ClearedForTakeoff, departure, null, Logger);
 
         Assert.True(result.Success);
         Assert.Equal(PatternDirection.Left, ac.Phases.TrafficDirection);
@@ -366,7 +343,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_PI_Skipped()
     {
-        var navDb = TestNavDbFactory.WithFixes(("FIXPI", 37.0, -122.0), ("FIXNORM", 37.5, -122.5));
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixes(("FIXPI", 37.0, -122.0), ("FIXNORM", 37.5, -122.5)));
 
         var legs = new[]
         {
@@ -374,7 +351,7 @@ public class DepartureClearanceHandlerTests
             new CifpLeg("FIXNORM", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 2, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         // PI leg should be skipped, only FIXNORM should appear
         Assert.Single(targets);
@@ -384,7 +361,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_UnknownFix_Skipped()
     {
-        var navDb = TestNavDbFactory.WithFixes(("KNOWN", 37.0, -122.0));
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixes(("KNOWN", 37.0, -122.0)));
 
         var legs = new[]
         {
@@ -392,7 +369,7 @@ public class DepartureClearanceHandlerTests
             new CifpLeg("KNOWN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 2, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Single(targets);
         Assert.Equal("KNOWN", targets[0].Name);
@@ -401,12 +378,12 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_WithAltitudeConstraint_Preserved()
     {
-        var navDb = TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0));
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
 
         var alt = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000);
         var legs = new[] { new CifpLeg("FIX1", CifpPathTerminator.TF, null, alt, null, CifpFixRole.None, 1, null, null, null) };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Single(targets);
         Assert.NotNull(targets[0].AltitudeRestriction);
@@ -416,7 +393,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_DuplicateAdjacentFix_Deduplicated()
     {
-        var navDb = TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0));
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
 
         var legs = new[]
         {
@@ -424,7 +401,7 @@ public class DepartureClearanceHandlerTests
             new CifpLeg("FIX1", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 2, null, null, null),
         };
 
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs, navDb);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(legs);
 
         Assert.Single(targets);
     }
@@ -503,7 +480,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        var navDb = TestNavDbFactory.WithRunways(rwy33, rwy28R);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -511,7 +488,6 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, "28R"),
             null,
-            navDb,
             Logger
         );
 
@@ -538,7 +514,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        var navDb = TestNavDbFactory.WithRunways(rwy33, rwy28L);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33, rwy28L));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -546,7 +522,6 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Left, "28L"),
             null,
-            navDb,
             Logger
         );
 
@@ -564,7 +539,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        var navDb = TestNavDbFactory.WithRunways(rwy33);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -572,7 +547,6 @@ public class DepartureClearanceHandlerTests
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right),
             null,
-            navDb,
             Logger
         );
 
@@ -612,10 +586,10 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(luaw);
         ac.Phases.Start(MinCtx(ac));
 
-        var navDb = TestNavDbFactory.WithRunways(rwy33, rwy28R);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33, rwy28R));
         var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, "28R"));
 
-        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw, navDb);
+        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw);
 
         Assert.True(result.Success);
         Assert.Equal("28R", ac.Phases.PatternRunway!.Designator);
@@ -648,14 +622,13 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(taxiing);
         ac.Phases.Start(MinCtx(ac));
 
-        var navDb = TestNavDbFactory.WithRunways(rwy33, rwy28R);
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
         var result = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
             ac,
             ClearanceType.ClearedForTakeoff,
             new ClosedTrafficDeparture(PatternDirection.Right, "28R"),
-            null,
-            navDb
+            null
         );
 
         Assert.True(result.Success);

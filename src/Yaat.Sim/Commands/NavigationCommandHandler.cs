@@ -224,13 +224,9 @@ internal static class NavigationCommandHandler
         return CommandDispatcher.Ok(cfixMsg);
     }
 
-    internal static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
+    internal static CommandResult DispatchListApproaches(ListApproachesCommand cmd, AircraftState aircraft)
     {
-        if (navDb is null)
-        {
-            return new CommandResult(false, "Approach data not available");
-        }
-
+        var navDb = NavigationDatabase.Instance;
         string airport = cmd.AirportCode ?? aircraft.Destination;
         if (string.IsNullOrEmpty(airport))
         {
@@ -275,15 +271,12 @@ internal static class NavigationCommandHandler
         return $"{typeName}{rwy}{variant}";
     }
 
-    internal static CommandResult DispatchJarr(JoinStarCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
+    internal static CommandResult DispatchJarr(JoinStarCommand cmd, AircraftState aircraft)
     {
-        if (navDb is null)
-        {
-            return new CommandResult(false, "Fix database not available");
-        }
+        var navDb = NavigationDatabase.Instance;
 
         // Try CIFP STAR first for constrained navigation targets
-        var cifpResult = TryResolveStarFromCifp(cmd, aircraft, navDb);
+        var cifpResult = TryResolveStarFromCifp(cmd, aircraft);
         if (cifpResult is not null)
         {
             aircraft.Targets.NavigationRoute.Clear();
@@ -333,7 +326,7 @@ internal static class NavigationCommandHandler
         }
         else
         {
-            routeFixes = FindStarFixesAhead(aircraft, starBody, navDb);
+            routeFixes = FindStarFixesAhead(aircraft, starBody);
         }
 
         if (routeFixes.Count == 0)
@@ -387,13 +380,14 @@ internal static class NavigationCommandHandler
     /// Builds ordered leg sequence: enroute transition → common → runway transition.
     /// Returns null if CIFP data is unavailable or STAR cannot be resolved.
     /// </summary>
-    private static List<NavigationTarget>? TryResolveStarFromCifp(JoinStarCommand cmd, AircraftState aircraft, NavigationDatabase navDb)
+    private static List<NavigationTarget>? TryResolveStarFromCifp(JoinStarCommand cmd, AircraftState aircraft)
     {
         if (aircraft.Destination is null)
         {
             return null;
         }
 
+        var navDb = NavigationDatabase.Instance;
         var star = navDb.GetStar(aircraft.Destination, cmd.StarId);
         if (star is null)
         {
@@ -436,7 +430,7 @@ internal static class NavigationCommandHandler
         }
 
         // Convert legs to NavigationTargets with constraints
-        var targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs, navDb);
+        var targets = DepartureClearanceHandler.ResolveLegsToTargets(orderedLegs);
 
         // If transition was specified but didn't match, try joining at an intermediate fix
         if (cmd.Transition is not null && !transitionMatched)
@@ -450,7 +444,7 @@ internal static class NavigationCommandHandler
             // Check each enroute transition for the fix
             foreach (var (_, trans) in star.EnrouteTransitions)
             {
-                var transTargets = DepartureClearanceHandler.ResolveLegsToTargets(trans.Legs, navDb);
+                var transTargets = DepartureClearanceHandler.ResolveLegsToTargets(trans.Legs);
                 int transFixIdx = transTargets.FindIndex(t => t.Name.Equals(cmd.Transition, StringComparison.OrdinalIgnoreCase));
                 if (transFixIdx >= 0)
                 {
@@ -516,8 +510,9 @@ internal static class NavigationCommandHandler
     /// Find the subset of STAR body fixes ahead of the aircraft (within ±90° of heading),
     /// starting from the nearest such fix. Prevents U-turns to fixes behind the aircraft.
     /// </summary>
-    private static List<string> FindStarFixesAhead(AircraftState aircraft, IReadOnlyList<string> bodyFixes, NavigationDatabase navDb)
+    private static List<string> FindStarFixesAhead(AircraftState aircraft, IReadOnlyList<string> bodyFixes)
     {
+        var navDb = NavigationDatabase.Instance;
         int bestIdx = -1;
         double bestDist = double.MaxValue;
 
@@ -558,13 +553,9 @@ internal static class NavigationCommandHandler
         return bodyFixes.Skip(bestIdx).ToList();
     }
 
-    internal static CommandResult DispatchJawy(JoinAirwayCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
+    internal static CommandResult DispatchJawy(JoinAirwayCommand cmd, AircraftState aircraft)
     {
-        if (navDb is null)
-        {
-            return new CommandResult(false, "Fix database not available");
-        }
-
+        var navDb = NavigationDatabase.Instance;
         var airwayFixes = navDb.GetAirwayFixes(cmd.AirwayId);
         if (airwayFixes is null || airwayFixes.Count == 0)
         {
@@ -572,7 +563,7 @@ internal static class NavigationCommandHandler
         }
 
         // Find the bracketing segment: the fix behind and fix ahead of the aircraft
-        var (behindIdx, aheadIdx) = FindBracketingSegment(aircraft, airwayFixes, navDb);
+        var (behindIdx, aheadIdx) = FindBracketingSegment(aircraft, airwayFixes);
         if (aheadIdx < 0)
         {
             return new CommandResult(false, $"No navigable segment found on {cmd.AirwayId}");
@@ -695,12 +686,9 @@ internal static class NavigationCommandHandler
     /// The method considers both forward and reverse traversal of the airway to determine the
     /// direction of travel that best matches the aircraft's heading.
     /// </summary>
-    private static (int BehindIdx, int AheadIdx) FindBracketingSegment(
-        AircraftState aircraft,
-        IReadOnlyList<string> airwayFixes,
-        NavigationDatabase navDb
-    )
+    private static (int BehindIdx, int AheadIdx) FindBracketingSegment(AircraftState aircraft, IReadOnlyList<string> airwayFixes)
     {
+        var navDb = NavigationDatabase.Instance;
         // Resolve positions for all fixes
         var positions = new (double Lat, double Lon)?[airwayFixes.Count];
         for (int i = 0; i < airwayFixes.Count; i++)
@@ -843,13 +831,9 @@ internal static class NavigationCommandHandler
         return CommandDispatcher.Ok($"Hold at {cmd.FixName}, {cmd.InboundCourse:D3} inbound, {dirStr} turns, {legStr} legs");
     }
 
-    internal static CommandResult DispatchJfac(JoinFinalApproachCourseCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
+    internal static CommandResult DispatchJfac(JoinFinalApproachCourseCommand cmd, AircraftState aircraft)
     {
-        if (navDb is null)
-        {
-            return new CommandResult(false, "Approach data not available");
-        }
-
+        var navDb = NavigationDatabase.Instance;
         string airport = CommandDispatcher.ResolveAirport(aircraft);
         if (string.IsNullOrEmpty(airport))
         {

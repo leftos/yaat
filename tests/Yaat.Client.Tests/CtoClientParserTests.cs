@@ -1,12 +1,18 @@
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.Tests;
 
 public class CtoClientParserTests
 {
     private readonly CommandScheme _scheme = CommandScheme.Default();
+
+    public CtoClientParserTests()
+    {
+        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+    }
 
     [Fact]
     public void BareCto_ParsesAsNoArg()

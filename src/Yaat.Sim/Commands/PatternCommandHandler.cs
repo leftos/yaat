@@ -14,12 +14,11 @@ internal static class PatternCommandHandler
         PatternDirection direction,
         PatternEntryLeg entryLeg,
         string? runwayId,
-        double? finalDistanceNm,
-        NavigationDatabase? navDb
+        double? finalDistanceNm
     )
     {
         // Resolve runway from argument if provided
-        if (runwayId is not null && navDb is not null)
+        if (runwayId is not null)
         {
             var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination;
             if (airportId is null)
@@ -27,7 +26,7 @@ internal static class PatternCommandHandler
                 return new CommandResult(false, "No airport context to resolve runway");
             }
 
-            var resolved = navDb.GetRunway(airportId, runwayId);
+            var resolved = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
             if (resolved is null)
             {
                 return new CommandResult(false, $"Runway {runwayId} not found at {airportId}");
@@ -180,15 +179,10 @@ internal static class PatternCommandHandler
         return CommandDispatcher.Ok($"Enter {dirStr} {legStr}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
     }
 
-    internal static CommandResult TryChangePatternDirection(
-        AircraftState aircraft,
-        PatternDirection newDirection,
-        string? runwayId,
-        NavigationDatabase? navDb
-    )
+    internal static CommandResult TryChangePatternDirection(AircraftState aircraft, PatternDirection newDirection, string? runwayId)
     {
         // Resolve runway from argument if provided
-        if (runwayId is not null && navDb is not null)
+        if (runwayId is not null)
         {
             var airportId = aircraft.Phases?.AssignedRunway?.AirportId ?? aircraft.Destination;
             if (airportId is null)
@@ -196,7 +190,7 @@ internal static class PatternCommandHandler
                 return new CommandResult(false, "No airport context to resolve runway");
             }
 
-            var resolved = navDb.GetRunway(airportId, runwayId);
+            var resolved = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
             if (resolved is null)
             {
                 return new CommandResult(false, $"Runway {runwayId} not found at {airportId}");

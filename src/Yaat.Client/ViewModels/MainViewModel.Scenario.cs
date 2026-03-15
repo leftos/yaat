@@ -189,12 +189,7 @@ public partial class MainViewModel
             StatusText = "Scenario load failed";
         }
 
-        foreach (var w in result.Warnings)
-        {
-            _log.LogWarning("Scenario: {Warning}", w);
-            AddWarningEntry($"[WARN] {w}");
-        }
-
+        // Warnings are already displayed and logged via PendingBroadcasts from the server.
     }
 
     [RelayCommand(CanExecute = nameof(CanUnloadScenario))]

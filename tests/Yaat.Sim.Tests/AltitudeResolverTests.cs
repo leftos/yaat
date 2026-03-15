@@ -18,7 +18,8 @@ public class AltitudeResolverTests
     [InlineData("1", 100)]
     public void Numeric_ReturnsExpected(string arg, int expected)
     {
-        Assert.Equal(expected, AltitudeResolver.Resolve(arg, Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Equal(expected, AltitudeResolver.Resolve(arg));
     }
 
     [Theory]
@@ -26,7 +27,8 @@ public class AltitudeResolverTests
     [InlineData("-1")]
     public void Numeric_InvalidReturnsNull(string arg)
     {
-        Assert.Null(AltitudeResolver.Resolve(arg, Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Null(AltitudeResolver.Resolve(arg));
     }
 
     // --- New AGL format with '+' separator ---
@@ -35,21 +37,24 @@ public class AltitudeResolverTests
     public void Agl_IcaoCode_PlusFormat()
     {
         // KOAK elevation 9 ft, 010 → 1000 AGL → 1009 MSL
-        Assert.Equal(1009, AltitudeResolver.Resolve("KOAK+010", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Equal(1009, AltitudeResolver.Resolve("KOAK+010"));
     }
 
     [Fact]
     public void Agl_FaaCode_PlusFormat()
     {
         // OAK elevation 9 ft, 050 → 5000 AGL → 5009 MSL
-        Assert.Equal(5009, AltitudeResolver.Resolve("OAK+050", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Equal(5009, AltitudeResolver.Resolve("OAK+050"));
     }
 
     [Fact]
     public void Agl_AbsoluteAglValue()
     {
         // KOAK elevation 9 ft, 1500 → 1500 AGL → 1509 MSL
-        Assert.Equal(1509, AltitudeResolver.Resolve("KOAK+1500", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Equal(1509, AltitudeResolver.Resolve("KOAK+1500"));
     }
 
     // --- Old format rejected ---
@@ -58,13 +63,15 @@ public class AltitudeResolverTests
     public void OldFormat_NoPlus_ReturnsNull()
     {
         // KOAK010 without '+' should NOT be parsed as AGL
-        Assert.Null(AltitudeResolver.Resolve("KOAK010", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Null(AltitudeResolver.Resolve("KOAK010"));
     }
 
     [Fact]
     public void OldFormat_FaaNoPlus_ReturnsNull()
     {
-        Assert.Null(AltitudeResolver.Resolve("OAK050", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Null(AltitudeResolver.Resolve("OAK050"));
     }
 
     // --- Edge cases ---
@@ -72,49 +79,50 @@ public class AltitudeResolverTests
     [Fact]
     public void Agl_NullArg_ReturnsNull()
     {
-        Assert.Null(AltitudeResolver.Resolve(null, Fixes));
-    }
-
-    [Fact]
-    public void Agl_NullFixes_ReturnsNull()
-    {
-        Assert.Null(AltitudeResolver.Resolve("KOAK+010", null));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Null(AltitudeResolver.Resolve(null));
     }
 
     [Fact]
     public void Agl_UnknownAirport_ReturnsNull()
     {
-        Assert.Null(AltitudeResolver.Resolve("ZZZZ+010", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Null(AltitudeResolver.Resolve("ZZZZ+010"));
     }
 
     [Fact]
     public void Agl_NoDigitsAfterPlus_ReturnsNull()
     {
-        Assert.Null(AltitudeResolver.Resolve("KOAK+", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Null(AltitudeResolver.Resolve("KOAK+"));
     }
 
     [Fact]
     public void Agl_PlusOnly_ReturnsNull()
     {
-        Assert.Null(AltitudeResolver.Resolve("+", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Null(AltitudeResolver.Resolve("+"));
     }
 
     [Fact]
     public void Agl_NothingBeforePlus_ParsesAsNumeric()
     {
         // "+010" is valid for int.TryParse (sign prefix) → 10 → 1000 ft
-        Assert.Equal(1000, AltitudeResolver.Resolve("+010", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Equal(1000, AltitudeResolver.Resolve("+010"));
     }
 
     [Fact]
     public void Agl_ZeroAgl_ReturnsNull()
     {
-        Assert.Null(AltitudeResolver.Resolve("KOAK+0", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Null(AltitudeResolver.Resolve("KOAK+0"));
     }
 
     [Fact]
     public void Agl_NonNumericAfterPlus_ReturnsNull()
     {
-        Assert.Null(AltitudeResolver.Resolve("KOAK+ABC", Fixes));
+        NavigationDatabase.SetInstance(Fixes);
+        Assert.Null(AltitudeResolver.Resolve("KOAK+ABC"));
     }
 }

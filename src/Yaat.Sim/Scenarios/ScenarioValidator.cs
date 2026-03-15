@@ -8,8 +8,9 @@ public static class ScenarioValidator
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-    public static ScenarioValidationResult Validate(Scenario scenario, NavigationDatabase navDb)
+    public static ScenarioValidationResult Validate(Scenario scenario)
     {
+        var navDb = NavigationDatabase.Instance;
         var failures = new List<PresetParseFailure>();
         int totalPresets = 0;
         int parsedOk = 0;
@@ -24,7 +25,7 @@ public static class ScenarioValidator
                 }
 
                 totalPresets++;
-                var result = CommandParser.ParseCompound(preset.Command, navDb, ac.FlightPlan?.Route);
+                var result = CommandParser.ParseCompound(preset.Command, ac.FlightPlan?.Route);
                 if (!result.IsSuccess)
                 {
                     failures.Add(new PresetParseFailure(ac.AircraftId, preset.Command, result.Reason));
@@ -36,14 +37,9 @@ public static class ScenarioValidator
             }
         }
 
-        var procedureIssues = ValidateProcedures(scenario, navDb);
+        var procedureIssues = ValidateProcedures(scenario);
 
         return new ScenarioValidationResult(scenario.Id, scenario.Name, scenario.Aircraft.Count, totalPresets, parsedOk, failures, procedureIssues);
-    }
-
-    public static ScenarioValidationResult Validate(Scenario scenario)
-    {
-        return Validate(scenario, new NavigationDatabase(null));
     }
 
     public static ScenarioValidationResult? Validate(string scenarioJson)
@@ -66,28 +62,9 @@ public static class ScenarioValidator
         return Validate(scenario);
     }
 
-    public static ScenarioValidationResult? Validate(string scenarioJson, NavigationDatabase navDb)
+    private static List<ProcedureIssue> ValidateProcedures(Scenario scenario)
     {
-        Scenario? scenario;
-        try
-        {
-            scenario = JsonSerializer.Deserialize<Scenario>(scenarioJson, JsonOpts);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-
-        if (scenario is null)
-        {
-            return null;
-        }
-
-        return Validate(scenario, navDb);
-    }
-
-    private static List<ProcedureIssue> ValidateProcedures(Scenario scenario, NavigationDatabase navDb)
-    {
+        var navDb = NavigationDatabase.Instance;
         var issues = new List<ProcedureIssue>();
 
         foreach (var ac in scenario.Aircraft)

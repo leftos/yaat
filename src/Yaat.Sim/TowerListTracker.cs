@@ -25,12 +25,12 @@ public sealed class TowerListTracker
     /// from all STARS facilities, resolving airport positions via NavigationDatabase.
     /// Clears any previous state.
     /// </summary>
-    public void Initialize(ArtccConfigRoot config, NavigationDatabase navDb)
+    public void Initialize(ArtccConfigRoot config)
     {
         _airports.Clear();
         _entries.Clear();
 
-        CollectTowerListAirports(config.Facility, navDb);
+        CollectTowerListAirports(config.Facility);
     }
 
     /// <summary>
@@ -133,7 +133,7 @@ public sealed class TowerListTracker
 
     // --- Private ---
 
-    private void CollectTowerListAirports(FacilityConfig facility, NavigationDatabase navDb)
+    private void CollectTowerListAirports(FacilityConfig facility)
     {
         if (facility.StarsConfiguration is { } stars)
         {
@@ -165,7 +165,7 @@ public sealed class TowerListTracker
                         var listConfig = pLists[pListIndex];
                         pListIndex++;
 
-                        var pos = navDb.GetFixPosition(towerListConfig.AirportId);
+                        var pos = NavigationDatabase.Instance.GetFixPosition(towerListConfig.AirportId);
                         if (pos is null)
                         {
                             continue;
@@ -181,7 +181,7 @@ public sealed class TowerListTracker
 
         foreach (var child in facility.ChildFacilities)
         {
-            CollectTowerListAirports(child, navDb);
+            CollectTowerListAirports(child);
         }
     }
 }

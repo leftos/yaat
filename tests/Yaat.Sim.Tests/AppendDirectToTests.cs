@@ -25,9 +25,10 @@ public class AppendDirectToTests
     {
         var aircraft = CreateAircraft();
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
+        NavigationDatabase.SetInstance(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Single(aircraft.Targets.NavigationRoute);
@@ -57,9 +58,10 @@ public class AppendDirectToTests
         );
 
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
+        NavigationDatabase.SetInstance(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -83,9 +85,10 @@ public class AppendDirectToTests
         );
 
         var navDb = TestNavDbFactory.WithFixes(("FIX1", 37.5, -121.8), ("FIX2", 37.4, -121.7));
+        NavigationDatabase.SetInstance(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("FIX1", 37.5, -121.8), new ResolvedFix("FIX2", 37.4, -121.7)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -99,9 +102,10 @@ public class AppendDirectToTests
     {
         var aircraft = CreateAircraft("SUNOL MODESTO OXNARD");
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
+        NavigationDatabase.SetInstance(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -125,9 +129,10 @@ public class AppendDirectToTests
         );
 
         var navDb = TestNavDbFactory.WithFixes(("MOVDD", 37.6, -122.0), ("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
+        NavigationDatabase.SetInstance(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
@@ -151,9 +156,10 @@ public class AppendDirectToTests
         );
 
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
+        NavigationDatabase.SetInstance(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Single(aircraft.Targets.NavigationRoute);

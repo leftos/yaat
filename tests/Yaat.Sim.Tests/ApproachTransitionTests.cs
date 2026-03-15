@@ -55,6 +55,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         // SFO LOC/DME 28R (L28R) — verify it has no transitions (localizer-only approaches
         // at SFO typically don't). If it does, find another approach without transitions.
         var procedure = navDb.GetApproach("KSFO", "L28R");
@@ -74,7 +75,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         output.WriteLine($"Using {procedure.ApproachId} (0 transitions)");
 
         var aircraft = MakeAircraft();
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft, navDb);
+        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         Assert.Null(result);
     }
@@ -88,6 +89,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         // SFO I19L has CCR transition (CCR → UPEND → BERKS) and common legs starting at BERKS.
         // An aircraft with BERKS in its NavigationRoute (from ALWYS3 STAR) should NOT match
         // the CCR transition — it's already heading to the approach.
@@ -111,7 +113,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             }
         );
 
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft, navDb);
+        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         output.WriteLine($"Selected: {result?.Name ?? "(none)"}");
         Assert.Null(result);
@@ -126,6 +128,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         // SFO I19L has the CCR transition. An aircraft with CCR in its route
         // (not in NavigationRoute — already consumed) should match that transition.
         var procedure = navDb.GetApproach("KSFO", "I19L");
@@ -139,7 +142,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         // Aircraft route includes CCR — should match CCR transition
         var aircraft = MakeAircraft(route: "SJC V334 CCR");
 
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft, navDb);
+        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         Assert.NotNull(result);
         Assert.Equal("CCR", result.Name);
@@ -154,6 +157,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         // SFO I19L with CCR transition. Aircraft with no route and no NavRoute,
         // heading roughly toward CCR — fallback should pick nearest transition IAF ahead.
         var procedure = navDb.GetApproach("KSFO", "I19L");
@@ -162,7 +166,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         // Position northeast of SFO, heading southwest — CCR should be roughly ahead
         var aircraft = MakeAircraft(route: "", heading: 250, lat: 38.0, lon: -122.0);
 
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft, navDb);
+        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         // Should find some transition via fallback (CCR is the only one and should be ahead)
         output.WriteLine($"Selected: {result?.Name ?? "(none)"}");
@@ -178,13 +182,14 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
         var aircraft = MakeAircraft(route: "");
 
         // No navDb passed → fallback can't run, no route match → null
-        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft, null);
+        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
 
         Assert.Null(result);
     }
@@ -200,6 +205,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
@@ -237,6 +243,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         var approaches = navDb.GetApproaches("KSFO");
         var procedure = approaches.FirstOrDefault(a => a.Transitions.Count == 0);
         if (procedure is null)
@@ -262,6 +269,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
@@ -284,6 +292,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
@@ -291,7 +300,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         var aircraft = MakeAircraft(route: "SJC V334 CCR", destinationRunway: "19L", heading: 320, lat: 37.5, lon: -122.1);
         var cmd = new ClearedApproachCommand("I19L", "KSFO", false, null, null, null, null, null, null, null, null);
 
-        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft, navDb);
+        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
 
         output.WriteLine($"CAPP result: {result.Success} — {result.Message}");
         Assert.True(result.Success, result.Message);
@@ -333,6 +342,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         // ALWYS3 at KSFO should have runway transitions (e.g. RW19L/RW19B with fixes like BERKS)
         var star = navDb.GetStar("KSFO", "ALWYS3");
         if (star is null)
@@ -357,7 +367,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         var expectedFixes = rwyTransition.Value.Legs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier).ToList();
         output.WriteLine($"Expected fixes: {string.Join(", ", expectedFixes)}");
 
-        var result = ProgrammedFixResolver.Resolve("ALWYS3", null, "KSFO", null, navDb, null, navDb, "ALWYS3", rwyId);
+        var result = ProgrammedFixResolver.Resolve("ALWYS3", null, "KSFO", null, null, "ALWYS3", rwyId);
 
         foreach (var fix in expectedFixes)
         {
@@ -374,6 +384,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         var star = navDb.GetStar("KSFO", "ALWYS3");
         if (star is null)
         {
@@ -381,18 +392,29 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        // Find a fix that only appears in a runway transition (not common legs)
+        // Find a fix that only appears in a CIFP runway transition
+        // (not in CIFP common legs AND not in the NavData body which is used for route expansion)
         var commonFixNames = star
             .CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier))
             .Select(l => l.FixIdentifier)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // NavData body fixes are always included via route expansion, so exclude them too
+        var navDataBody = navDb.GetStarBody("ALWYS3");
+        var navDataBodySet = navDataBody is not null
+            ? new HashSet<string>(navDataBody, StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         string? rwyOnlyFix = null;
         foreach (var transition in star.RunwayTransitions.Values)
         {
             foreach (var leg in transition.Legs)
             {
-                if (!string.IsNullOrEmpty(leg.FixIdentifier) && !commonFixNames.Contains(leg.FixIdentifier))
+                if (
+                    !string.IsNullOrEmpty(leg.FixIdentifier)
+                    && !commonFixNames.Contains(leg.FixIdentifier)
+                    && !navDataBodySet.Contains(leg.FixIdentifier)
+                )
                 {
                     rwyOnlyFix = leg.FixIdentifier;
                     break;
@@ -407,14 +429,14 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         if (rwyOnlyFix is null)
         {
-            output.WriteLine("No runway-transition-only fix found, skipping");
+            output.WriteLine("No runway-transition-only fix found (all fixes also in NavData body or CIFP common legs), skipping");
             return;
         }
 
         output.WriteLine($"Runway-transition-only fix: {rwyOnlyFix}");
 
         // Without a runway, runway transitions should NOT be expanded
-        var result = ProgrammedFixResolver.Resolve("ALWYS3", null, "KSFO", null, navDb, null, navDb, "ALWYS3", null);
+        var result = ProgrammedFixResolver.Resolve("ALWYS3", null, "KSFO", null, null, "ALWYS3", null);
 
         Assert.DoesNotContain(rwyOnlyFix, result);
     }
@@ -428,6 +450,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
+        NavigationDatabase.SetInstance(navDb);
         var star = navDb.GetStar("KSFO", "ALWYS3");
         if (star is null)
         {
@@ -458,7 +481,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             output.WriteLine($"Runway transition fixes: {string.Join(", ", rwyFixes)}");
 
             // No explicit destinationRunway, but expectedApproach should derive it
-            var result = ProgrammedFixResolver.Resolve(null, approach.ApproachId, "KSFO", null, navDb, null, navDb, "ALWYS3", null);
+            var result = ProgrammedFixResolver.Resolve(null, approach.ApproachId, "KSFO", null, null, "ALWYS3", null);
 
             // Should include runway transition fixes (derived from expected approach → runway)
             foreach (var fix in rwyFixes)

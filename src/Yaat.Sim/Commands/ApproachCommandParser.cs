@@ -13,7 +13,7 @@ internal static class ApproachCommandParser
     /// DCT fix approachId — direct to fix then approach.
     /// DCT fix CFIX altToken approachId — direct to fix, crossing fix altitude, then approach.
     /// </summary>
-    internal static PR ParseCapp(string? arg, NavigationDatabase? navDb, bool force)
+    internal static PR ParseCapp(string? arg, bool force)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -36,8 +36,9 @@ internal static class ApproachCommandParser
         }
 
         var keyword = tokens[0].ToUpperInvariant();
+        var navDb = NavigationDatabase.Instance;
 
-        if (keyword == "AT" && tokens.Length >= 3 && navDb is not null)
+        if (keyword == "AT" && tokens.Length >= 3)
         {
             // AT fixName approachId
             var fixName = tokens[1].ToUpperInvariant();
@@ -50,7 +51,7 @@ internal static class ApproachCommandParser
             return PR.Ok(new ClearedApproachCommand(approachId, null, force, fixName, pos.Value.Lat, pos.Value.Lon, null, null, null, null, null));
         }
 
-        if (keyword == "DCT" && tokens.Length >= 3 && navDb is not null)
+        if (keyword == "DCT" && tokens.Length >= 3)
         {
             // DCT fixName [CFIX altToken] approachId
             var dctFixName = tokens[1].ToUpperInvariant();
@@ -106,7 +107,7 @@ internal static class ApproachCommandParser
     /// Parses CAPPSI approachId [airportCode].
     /// Returns a straight-in approach clearance.
     /// </summary>
-    internal static PR ParseCappSi(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseCappSi(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -127,7 +128,7 @@ internal static class ApproachCommandParser
     /// <summary>
     /// Parses JAPP approachId [airportCode].
     /// </summary>
-    internal static PR ParseJapp(string? arg, NavigationDatabase? navDb, bool force)
+    internal static PR ParseJapp(string? arg, bool force)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -148,7 +149,7 @@ internal static class ApproachCommandParser
     /// <summary>
     /// Parses JAPPSI approachId [airportCode].
     /// </summary>
-    internal static PR ParseJappSi(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseJappSi(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -214,17 +215,17 @@ internal static class ApproachCommandParser
     /// Parses JRADO fixRadial — a single token where the last 3 digits are the radial
     /// and the rest is the fix name (e.g., "OAK090" → fix=OAK, radial=090).
     /// </summary>
-    internal static PR ParseJrado(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseJrado(string? arg)
     {
-        return ParseRadialCommand(arg, navDb, outbound: true);
+        return ParseRadialCommand(arg, outbound: true);
     }
 
     /// <summary>
     /// Parses JRADI fixRadial — same format as JRADO but inbound.
     /// </summary>
-    internal static PR ParseJradi(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseJradi(string? arg)
     {
-        return ParseRadialCommand(arg, navDb, outbound: false);
+        return ParseRadialCommand(arg, outbound: false);
     }
 
     /// <summary>
@@ -235,9 +236,9 @@ internal static class ApproachCommandParser
     ///   5 tokens: fix course leg direction entry
     /// Default direction is Right per 7110.65. Default leg is 1M.
     /// </summary>
-    internal static PR ParseHold(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseHold(string? arg)
     {
-        if (string.IsNullOrWhiteSpace(arg) || navDb is null)
+        if (string.IsNullOrWhiteSpace(arg))
         {
             return PR.Fail("HOLDP requires fix name and inbound course");
         }
@@ -248,6 +249,7 @@ internal static class ApproachCommandParser
             return PR.Fail("HOLDP requires fix name, inbound course, and direction/leg");
         }
 
+        var navDb = NavigationDatabase.Instance;
         var fixName = tokens[0].ToUpperInvariant();
         var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
@@ -357,7 +359,7 @@ internal static class ApproachCommandParser
     /// Supports flexible token counts with PH (present heading) and PA (present altitude).
     /// Examples: "PTAC 280 025 ILS30", "PTAC PH PA ILS30", "PTAC PH PA", "PTAC 280 025", "PTAC"
     /// </summary>
-    internal static PR ParsePtac(string? arg, NavigationDatabase? navDb)
+    internal static PR ParsePtac(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -394,7 +396,7 @@ internal static class ApproachCommandParser
         }
         else
         {
-            altitude = AltitudeResolver.Resolve(tokens[1], navDb);
+            altitude = AltitudeResolver.Resolve(tokens[1]);
             if (altitude is null)
             {
                 return PR.Fail($"invalid PTAC altitude '{tokens[1]}' (expected altitude in hundreds or PA)");
@@ -431,7 +433,7 @@ internal static class ApproachCommandParser
     /// Parses DVIA [altitudeHundreds] or DVIA SPD &lt;speed&gt; &lt;fix&gt;.
     /// Example: "DVIA", "DVIA 040", "DVIA SPD 230 GOSHI"
     /// </summary>
-    internal static PR ParseDvia(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseDvia(string? arg)
     {
         if (string.IsNullOrWhiteSpace(arg))
         {
@@ -454,11 +456,7 @@ internal static class ApproachCommandParser
             }
 
             var fixName = parts[2].ToUpperInvariant();
-            if (navDb is null)
-            {
-                return PR.Fail("DVIA SPD fix requires navdata");
-            }
-
+            var navDb = NavigationDatabase.Instance;
             var fixPos = navDb.GetFixPosition(fixName);
             if (fixPos is null)
             {
@@ -484,9 +482,9 @@ internal static class ApproachCommandParser
     /// Accepts: "CFIX SUNOL A040", "CFIX SUNOL 040 250", "CFIX SUNOL AT 360"
     /// The "AT" keyword form splits altitude into a separate token.
     /// </summary>
-    internal static PR ParseCfix(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseCfix(string? arg)
     {
-        if (string.IsNullOrWhiteSpace(arg) || navDb is null)
+        if (string.IsNullOrWhiteSpace(arg))
         {
             return PR.Fail("CFIX requires fix name and altitude");
         }
@@ -497,6 +495,7 @@ internal static class ApproachCommandParser
             return PR.Fail("CFIX requires fix name and altitude");
         }
 
+        var navDb = NavigationDatabase.Instance;
         var fixName = tokens[0].ToUpperInvariant();
         var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
@@ -542,9 +541,9 @@ internal static class ApproachCommandParser
     /// Parses DEPART fixName heading.
     /// Example: "DEPART SUNOL 270"
     /// </summary>
-    internal static PR ParseDepart(string? arg, NavigationDatabase? navDb)
+    internal static PR ParseDepart(string? arg)
     {
-        if (string.IsNullOrWhiteSpace(arg) || navDb is null)
+        if (string.IsNullOrWhiteSpace(arg))
         {
             return PR.Fail("DEPART requires fix name and heading");
         }
@@ -555,6 +554,7 @@ internal static class ApproachCommandParser
             return PR.Fail("DEPART requires exactly fix name and heading");
         }
 
+        var navDb = NavigationDatabase.Instance;
         var fixName = tokens[0].ToUpperInvariant();
         var pos = navDb.GetFixPosition(fixName);
         if (pos is null)
@@ -628,13 +628,14 @@ internal static class ApproachCommandParser
     /// Shared parser for radial commands (JRADO and JRADI).
     /// Splits a single token like "OAK090" into fix name + radial.
     /// </summary>
-    private static PR ParseRadialCommand(string? arg, NavigationDatabase? navDb, bool outbound)
+    private static PR ParseRadialCommand(string? arg, bool outbound)
     {
-        if (string.IsNullOrWhiteSpace(arg) || navDb is null)
+        if (string.IsNullOrWhiteSpace(arg))
         {
             return PR.Fail("radial command requires fixRadial (e.g., OAK090)");
         }
 
+        var navDb = NavigationDatabase.Instance;
         var token = arg.Trim().ToUpperInvariant();
 
         // Minimum length: 2-char fix + 3-digit radial = 5 chars

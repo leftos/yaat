@@ -21,7 +21,7 @@ public static class GeoJsonParser
     /// <summary>Max distance to connect a parking spot to a taxiway (nm).</summary>
     private const double ParkingConnectMaxNm = 0.15;
 
-    public static AirportGroundLayout Parse(string airportId, string geoJson, NavigationDatabase? navDb, string? runwayAirportCode)
+    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode)
     {
         var doc = JsonDocument.Parse(geoJson);
         var root = doc.RootElement;
@@ -63,24 +63,19 @@ public static class GeoJsonParser
             }
         }
 
-        return BuildLayout(airportId, parkingFeatures, helipadFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, navDb, runwayAirportCode);
+        return BuildLayout(airportId, parkingFeatures, helipadFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, runwayAirportCode);
     }
 
     /// <summary>
     /// Parse from multiple GeoJSON files (separate parking, taxiways, spots, runways).
     /// </summary>
-    public static AirportGroundLayout ParseMultiple(
-        string airportId,
-        IEnumerable<string> geoJsonFiles,
-        NavigationDatabase? navDb,
-        string? runwayAirportCode
-    )
+    public static AirportGroundLayout ParseMultiple(string airportId, IEnumerable<string> geoJsonFiles, string? runwayAirportCode)
     {
         var merged = geoJsonFiles.ToList();
 
         if (merged.Count == 1)
         {
-            return Parse(airportId, merged[0], navDb, runwayAirportCode);
+            return Parse(airportId, merged[0], runwayAirportCode);
         }
 
         var allFeatures = new List<JsonElement>();
@@ -96,7 +91,7 @@ public static class GeoJsonParser
 
         // Rebuild as single FeatureCollection
         string combined = BuildCombinedJson(allFeatures);
-        return Parse(airportId, combined, navDb, runwayAirportCode);
+        return Parse(airportId, combined, runwayAirportCode);
     }
 
     /// <summary>Max distance to connect a helipad to a taxiway (nm). Larger than parking since helipads may be further from taxiways.</summary>
@@ -109,7 +104,6 @@ public static class GeoJsonParser
         List<SpotFeature> spots,
         List<TaxiwayFeature> taxiways,
         List<RunwayFeature> runways,
-        NavigationDatabase? navDb,
         string? runwayAirportCode
     )
     {
@@ -156,7 +150,7 @@ public static class GeoJsonParser
         // Step 5: Process runway LineStrings, detect taxiway-runway crossings
         foreach (var rwy in runways)
         {
-            double rwyWidthFt = RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, navDb, runwayAirportCode);
+            double rwyWidthFt = RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, runwayAirportCode);
 
             layout.Runways.Add(
                 new GroundRunway

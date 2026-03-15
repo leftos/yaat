@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -46,7 +47,8 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        return new SimulationEngine(navDb, groundData);
+        NavigationDatabase.SetInstance(navDb);
+        return new SimulationEngine(groundData);
     }
 
     /// <summary>
@@ -75,7 +77,7 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
         output.WriteLine($"Route: {aircraft.Route}");
         output.WriteLine($"NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
 
-        var resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft, navDb);
+        var resolved = ApproachCommandHandler.ResolveApproach(null, null, aircraft);
         Assert.True(resolved.Success, $"Should resolve approach. Got: {resolved.Error}");
 
         var procedure = resolved.Procedure!;
@@ -89,7 +91,7 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
         var commonFixNames = procedure.CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier)).Select(l => l.FixIdentifier);
         output.WriteLine($"  Common legs: {string.Join(" → ", commonFixNames)}");
 
-        var selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft, navDb);
+        var selected = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
         output.WriteLine($"Selected transition: {selected?.Name ?? "(none)"}");
 
         // BERKS is a common leg fix — matching on it is a false positive.

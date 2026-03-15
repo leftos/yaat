@@ -541,22 +541,13 @@ public static class CommandSchemeParser
     }
 
     /// <summary>
-    /// Splits concatenated single-arg commands within a single command string.
-    /// "FH 270 CM 5000" → "FH 270, CM 5000". "DM 6000 FH 270 SPD 190" → "DM 6000, FH 270, SPD 190".
-    /// Uses CommandRegistry.SingleArgAliases to detect verb boundaries.
+    /// Splits concatenated commands like "FH 270 CM 5000 SPD 190" into "FH 270, CM 5000, SPD 190".
+    /// Uses greedy parsing via NavigationDatabase.Instance: each verb consumes as many tokens as
+    /// CommandParser.Parse can handle, only splitting when adding the next token fails.
+    /// Falls back to the heuristic (strict single-arg verb-arg pairs) when the greedy parse does
+    /// not produce multiple parts.
     /// </summary>
     public static string ExpandMultiCommand(string input)
-    {
-        return ExpandMultiCommand(input, navDb: null);
-    }
-
-    /// <summary>
-    /// Splits concatenated commands like "FH 270 CM 5000 SPD 190" into "FH 270, CM 5000, SPD 190".
-    /// When <paramref name="navDb"/> is provided, uses greedy parsing: each verb consumes as many
-    /// tokens as CommandParser.Parse can handle, only splitting when adding the next token fails.
-    /// Without navDb, falls back to the heuristic (strict single-arg verb-arg pairs).
-    /// </summary>
-    public static string ExpandMultiCommand(string input, NavigationDatabase? navDb)
     {
         if (input.Contains(',') || input.Contains(';'))
         {
@@ -565,9 +556,9 @@ public static class CommandSchemeParser
 
         var tokens = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        if (navDb is not null && tokens.Length >= 2)
+        if (tokens.Length >= 2)
         {
-            return ExpandMultiCommandGreedy(tokens, navDb);
+            return ExpandMultiCommandGreedy(tokens);
         }
 
         if (tokens.Length < 4 || tokens.Length % 2 != 0)
@@ -594,7 +585,7 @@ public static class CommandSchemeParser
     /// Greedy splitting: each verb consumes tokens until Parse fails, then the next token
     /// must be a new verb. Falls back to returning input unchanged if splitting fails.
     /// </summary>
-    private static string ExpandMultiCommandGreedy(string[] tokens, NavigationDatabase navDb)
+    private static string ExpandMultiCommandGreedy(string[] tokens)
     {
         // Don't split commands that start with condition prefixes — ParseBlock handles those
         if (ConditionPrefixes.Contains(tokens[0]))
@@ -614,7 +605,7 @@ public static class CommandSchemeParser
             for (int end = i + 1; end <= tokens.Length; end++)
             {
                 var candidate = string.Join(' ', tokens[i..end]);
-                var result = CommandParser.Parse(candidate, navDb);
+                var result = CommandParser.Parse(candidate);
                 if (result.IsSuccess)
                 {
                     lastGood = candidate;

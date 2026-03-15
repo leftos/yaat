@@ -105,6 +105,7 @@ public class ProcedureVersionResolutionTests
         );
 
         var navDb = NavigationDatabase.ForTesting(stars: [currentStar]);
+        NavigationDatabase.SetInstance(navDb);
 
         var result = navDb.GetStar("SFO", "BDEGA3");
         Assert.NotNull(result);
@@ -123,6 +124,7 @@ public class ProcedureVersionResolutionTests
         );
 
         var navDb = NavigationDatabase.ForTesting(sids: [currentSid]);
+        NavigationDatabase.SetInstance(navDb);
 
         var result = navDb.GetSid("SFO", "CNDEL5");
         Assert.NotNull(result);
@@ -162,6 +164,7 @@ public class ProcedureVersionResolutionTests
         );
 
         var navDb = NavigationDatabase.ForTesting(fixes, starBodies: starBodies, stars: [cifpStar]);
+        NavigationDatabase.SetInstance(navDb);
 
         // Scenario references BDEGA3 (outdated)
         var scenarioJson = """
@@ -192,7 +195,7 @@ public class ProcedureVersionResolutionTests
             }
             """;
 
-        var result = ScenarioLoader.Load(scenarioJson, navDb, null, new Random(42));
+        var result = ScenarioLoader.Load(scenarioJson, null, new Random(42));
 
         // Should have loaded the aircraft
         Assert.Single(result.ImmediateAircraft);
@@ -219,6 +222,7 @@ public class ProcedureVersionResolutionTests
         var starBodies = new Dictionary<string, IReadOnlyList<string>> { ["BDEGA4"] = ["BDEGA", "CEDES"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, starBodies: starBodies);
+        NavigationDatabase.SetInstance(navDb);
 
         var scenario = new Scenario
         {
@@ -236,7 +240,7 @@ public class ProcedureVersionResolutionTests
             ],
         };
 
-        var result = ScenarioValidator.Validate(scenario, navDb);
+        var result = ScenarioValidator.Validate(scenario);
         Assert.Single(result.ProcedureIssues);
         Assert.Equal(ProcedureIssueKind.VersionChanged, result.ProcedureIssues[0].Kind);
         Assert.Equal("BDEGA3", result.ProcedureIssues[0].ProcedureId);
@@ -250,6 +254,7 @@ public class ProcedureVersionResolutionTests
         var fixes = new Dictionary<string, (double Lat, double Lon)> { ["XYZZY"] = (37.0, -122.0) };
 
         var navDb = NavigationDatabase.ForTesting(fixes);
+        NavigationDatabase.SetInstance(navDb);
 
         var scenario = new Scenario
         {
@@ -267,7 +272,7 @@ public class ProcedureVersionResolutionTests
             ],
         };
 
-        var result = ScenarioValidator.Validate(scenario, navDb);
+        var result = ScenarioValidator.Validate(scenario);
         Assert.Single(result.ProcedureIssues);
         Assert.Equal(ProcedureIssueKind.NotFound, result.ProcedureIssues[0].Kind);
         Assert.Equal("XYZZY1", result.ProcedureIssues[0].ProcedureId);
@@ -279,6 +284,7 @@ public class ProcedureVersionResolutionTests
         var starBodies = new Dictionary<string, IReadOnlyList<string>> { ["BDEGA4"] = ["BDEGA", "CEDES"] };
 
         var navDb = NavigationDatabase.ForTesting(starBodies: starBodies);
+        NavigationDatabase.SetInstance(navDb);
 
         var scenario = new Scenario
         {
@@ -295,7 +301,7 @@ public class ProcedureVersionResolutionTests
             ],
         };
 
-        var result = ScenarioValidator.Validate(scenario, navDb);
+        var result = ScenarioValidator.Validate(scenario);
         Assert.Empty(result.ProcedureIssues);
     }
 }

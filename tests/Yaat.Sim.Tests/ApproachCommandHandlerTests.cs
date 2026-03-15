@@ -61,9 +61,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -75,9 +76,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -90,11 +92,12 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft(speed: 210);
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         Assert.Equal(210, aircraft.Targets.TargetSpeed);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -104,9 +107,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, "SUNOL", 37.5, -121.8, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
@@ -118,9 +122,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
@@ -132,9 +137,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft(altitude: 5000);
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, 3400, CrossFixAltitudeType.At);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3400, aircraft.Targets.TargetAltitude);
@@ -149,9 +155,10 @@ public class ApproachCommandHandlerTests
         // Intercept angle validation happens at capture time, not dispatch time
         var aircraft = MakeAircraft(heading: 180);
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
     }
@@ -165,9 +172,10 @@ public class ApproachCommandHandlerTests
         aircraft.Targets.TargetHeading = 340;
         aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -186,9 +194,10 @@ public class ApproachCommandHandlerTests
         aircraft.Targets.TargetHeading = 340;
         aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, 3000, CrossFixAltitudeType.At);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(3000, aircraft.Targets.TargetAltitude);
@@ -202,9 +211,10 @@ public class ApproachCommandHandlerTests
         aircraft.Targets.TargetHeading = 340;
         aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, "SUNOL", 37.5, -121.8, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
@@ -218,9 +228,10 @@ public class ApproachCommandHandlerTests
         aircraft.Targets.TargetHeading = 340;
         aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         var navPhase = aircraft.Phases!.Phases.OfType<ApproachNavigationPhase>().Single();
@@ -233,9 +244,10 @@ public class ApproachCommandHandlerTests
         var aircraft = MakeAircraft();
         Assert.Null(aircraft.Targets.TargetHeading);
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains(aircraft.Phases!.Phases, p => p is ApproachNavigationPhase);
@@ -251,9 +263,10 @@ public class ApproachCommandHandlerTests
         aircraft.Targets.TargetHeading = 280;
         Assert.Null(aircraft.Targets.AssignedHeading);
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains(aircraft.Phases!.Phases, p => p is ApproachNavigationPhase);
@@ -267,9 +280,10 @@ public class ApproachCommandHandlerTests
         aircraft.Targets.TargetHeading = 340;
         aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -281,9 +295,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -295,9 +310,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft(speed: 210);
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -307,9 +323,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft(heading: 180);
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
     }
@@ -321,9 +338,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDbWithHoldInLieu();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachStraightInCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("straight-in", result.Message);
@@ -338,9 +356,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDbWithHoldInLieu();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinApproachStraightInCommand("ILS28R", null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.DoesNotContain(aircraft.Phases!.Phases, p => p is HoldingPatternPhase);
@@ -353,9 +372,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDbWithHoldInLieu();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinApproachCommand("ILS28R", null, false);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -372,9 +392,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDbRunwayAndApproachOnly();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(340, aircraft.Targets.TargetHeading);
@@ -386,9 +407,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDbRunwayAndApproachOnly();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases);
         Assert.Equal(3, aircraft.Phases.Phases.Count);
@@ -402,9 +424,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft(speed: 210);
         var navDb = MakeNavDbRunwayAndApproachOnly();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
     }
@@ -414,9 +437,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDbRunwayAndApproachOnly();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -429,9 +453,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft(heading: 195);
         var navDb = MakeNavDbRunwayAndApproachOnly();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(null, 2500, "ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(195, aircraft.Targets.TargetHeading);
@@ -442,9 +467,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft(altitude: 4500);
         var navDb = MakeNavDbRunwayAndApproachOnly();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(280, null, "ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(4500, aircraft.Targets.TargetAltitude);
@@ -456,9 +482,10 @@ public class ApproachCommandHandlerTests
         var aircraft = MakeAircraft();
         aircraft.ExpectedApproach = "ILS28R";
         var navDb = MakeNavDbRunwayAndApproachOnly();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(280, 2500, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -471,9 +498,10 @@ public class ApproachCommandHandlerTests
         var aircraft = MakeAircraft(heading: 310, altitude: 3500);
         aircraft.ExpectedApproach = "ILS28R";
         var navDb = MakeNavDbRunwayAndApproachOnly();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(310, aircraft.Targets.TargetHeading);
@@ -486,9 +514,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDbRunwayAndApproachOnly();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Equal(340, aircraft.Targets.TargetHeading);
@@ -621,9 +650,10 @@ public class ApproachCommandHandlerTests
         var aircraft = MakeAircraft();
         aircraft.ExpectedApproach = "I28R";
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -637,9 +667,10 @@ public class ApproachCommandHandlerTests
         aircraft.ExpectedApproach = "I28R";
         aircraft.DestinationRunway = "28L";
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -653,12 +684,13 @@ public class ApproachCommandHandlerTests
         var aircraft = MakeAircraft();
         aircraft.ExpectedApproach = "I28R";
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         // Use DispatchCompound (the compound command path) with null ApproachId.
         // Before the fix, NaturalDescription was pre-computed with a blank approach ID.
         var cappCmd = new ClearedApproachCommand(null, null, false, null, null, null, null, null, null, null, null);
         var compound = new CompoundCommand([new ParsedBlock(null, [cappCmd])]);
-        var result = CommandDispatcher.DispatchCompound(compound, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.DispatchCompound(compound, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("I28R", result.Message);
@@ -672,26 +704,13 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("VOR99", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
-    }
-
-    [Fact]
-    public void Capp_NoApproachLookup_Fails()
-    {
-        var aircraft = MakeAircraft();
-        var navDb = TestNavDbFactory.WithRunways(MakeRunway());
-
-        var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, null, null);
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
-
-        Assert.False(result.Success);
-        // Fails with "Unknown approach" when navDb has no approaches loaded
-        Assert.False(string.IsNullOrEmpty(result.Message));
     }
 
     // --- Helpers ---
@@ -770,9 +789,10 @@ public class ApproachCommandHandlerTests
     {
         var aircraft = MakeAircraft(altitude: 5000);
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, "SUNOL", 37.5, -121.8, 3400, CrossFixAltitudeType.At);
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.Equal(3400, aircraft.Targets.AssignedAltitude);
     }
@@ -784,9 +804,10 @@ public class ApproachCommandHandlerTests
         aircraft.Targets.TargetHeading = 340;
         aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new ClearedApproachCommand("ILS28R", null, false, null, null, null, null, null, null, 3000, CrossFixAltitudeType.At);
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.Equal(3000, aircraft.Targets.AssignedAltitude);
     }
@@ -799,9 +820,10 @@ public class ApproachCommandHandlerTests
         aircraft.Targets.AssignedSpeed = 210;
         aircraft.Targets.AssignedHeading = 340;
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Null(aircraft.Targets.AssignedSpeed);

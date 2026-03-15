@@ -10,7 +10,7 @@ public static class MetarInterpolator
     /// Get ceiling/visibility for an airport. First checks for exact station match,
     /// then falls back to distance-weighted interpolation from nearby stations.
     /// </summary>
-    public static MetarParser.ParsedMetar? GetWeatherForAirport(IEnumerable<string> metars, string airportId, NavigationDatabase? navDb)
+    public static MetarParser.ParsedMetar? GetWeatherForAirport(IEnumerable<string> metars, string airportId)
     {
         var metarList = metars as IReadOnlyList<string> ?? metars.ToList();
 
@@ -21,10 +21,7 @@ public static class MetarInterpolator
             return exact;
         }
 
-        if (navDb is null)
-        {
-            return null;
-        }
+        var navDb = NavigationDatabase.Instance;
 
         // Resolve airport position
         var airportPos = navDb.GetFixPosition(airportId);

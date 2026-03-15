@@ -116,8 +116,9 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
+        NavigationDatabase.SetInstance(fixes);
 
-        var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         Assert.Equal(2, result.Count);
         Assert.Equal("MAPWP", result[0].Name);
@@ -133,8 +134,9 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedure(mapLegs: []);
         var fixes = MakeFixLookup();
+        NavigationDatabase.SetInstance(fixes);
 
-        var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         Assert.Empty(result);
     }
@@ -144,8 +146,9 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedure();
         var fixes = TestNavDbFactory.WithFixes(("MAPWP", 37.02, -122.08));
+        NavigationDatabase.SetInstance(fixes);
 
-        var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         Assert.Single(result);
         Assert.Equal("MAPWP", result[0].Name);
@@ -157,7 +160,8 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        NavigationDatabase.SetInstance(fixes);
+        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -268,7 +272,8 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        NavigationDatabase.SetInstance(fixes);
+        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -302,7 +307,8 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        NavigationDatabase.SetInstance(fixes);
+        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -335,7 +341,8 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        NavigationDatabase.SetInstance(fixes);
+        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -366,7 +373,8 @@ public class MissedApproachTests
         var aircraft = MakeAircraft(isPattern: true);
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        NavigationDatabase.SetInstance(fixes);
+        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -397,7 +405,8 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        NavigationDatabase.SetInstance(fixes);
+        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -431,8 +440,9 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedureWithHold();
         var fixes = MakeFixLookup();
+        NavigationDatabase.SetInstance(fixes);
 
-        var hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure, fixes);
+        var hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
         Assert.NotNull(hold);
         Assert.Equal("MHOLD", hold.FixName);
@@ -448,8 +458,9 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedure(); // only TF legs
         var fixes = MakeFixLookup();
+        NavigationDatabase.SetInstance(fixes);
 
-        var hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure, fixes);
+        var hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
         Assert.Null(hold);
     }
@@ -460,8 +471,9 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedureWithHold();
         var fixes = MakeFixLookup();
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
-        var mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure, fixes);
+        NavigationDatabase.SetInstance(fixes);
+        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        var mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -490,7 +502,8 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure(); // no hold leg
         var fixes = MakeFixLookup();
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
+        NavigationDatabase.SetInstance(fixes);
+        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {
@@ -515,8 +528,9 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedureWithHold();
         var fixes = MakeFixLookup();
-        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure, fixes);
-        var mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure, fixes);
+        NavigationDatabase.SetInstance(fixes);
+        var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
+        var mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
         {

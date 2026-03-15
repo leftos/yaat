@@ -1,5 +1,6 @@
 using Xunit;
 using Xunit.Abstractions;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -36,7 +37,8 @@ public class SfoPushbackTests(ITestOutputHelper output)
             return null;
         }
 
-        return new SimulationEngine(navDb, groundData);
+        NavigationDatabase.SetInstance(navDb);
+        return new SimulationEngine(groundData);
     }
 
     /// <summary>

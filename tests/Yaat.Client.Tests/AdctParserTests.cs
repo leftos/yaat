@@ -1,12 +1,18 @@
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.Tests;
 
 public class AdctParserTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
+
+    public AdctParserTests()
+    {
+        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+    }
 
     [Fact]
     public void Parse_AdctWithFix_ReturnsAppendDirectTo()

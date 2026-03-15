@@ -9,8 +9,8 @@ namespace Yaat.Sim.Data;
 
 /// <summary>
 /// Unified navigation data: NavData fixes/runways/airways/SID/STAR indexes
-/// plus lazy-loaded CIFP procedures (SIDs, STARs, approaches).
-/// Replaces FixDatabase + ProcedureDatabase + ApproachDatabase.
+/// plus CIFP procedures (SIDs, STARs, approaches) parsed per-airport on demand.
+/// Both NavData and CIFP are required at construction time.
 /// </summary>
 public sealed class NavigationDatabase
 {
@@ -25,21 +25,56 @@ public sealed class NavigationDatabase
     private readonly Dictionary<string, List<string>> _airways = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<RunwayInfo>> _runways = new(StringComparer.OrdinalIgnoreCase);
 
-    // CIFP lazy caches
+    // CIFP per-airport caches (parsed on first access from the CIFP file)
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpSidProcedure>> _sidCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpStarProcedure>> _starCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, IReadOnlyList<CifpApproachProcedure>> _approachCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private string? _cifpFilePath;
+    private readonly string _cifpFilePath;
 
     private static readonly ILogger Log = SimLog.CreateLogger("NavigationDatabase");
 
-    public NavigationDatabase(NavDataSet? navData, string? customFixesBaseDir = null)
+    private static NavigationDatabase? _instance;
+
+    /// <summary>
+    /// Global singleton instance. Throws if not initialized.
+    /// </summary>
+    public static NavigationDatabase Instance =>
+        _instance ?? throw new InvalidOperationException("NavigationDatabase not initialized. Call Initialize() first.");
+
+    /// <summary>
+    /// Initializes the global singleton with NavData + CIFP. Both are required.
+    /// </summary>
+    public static void Initialize(NavDataSet navData, string cifpFilePath, string? customFixesBaseDir = null)
     {
+        _instance = new NavigationDatabase(navData, cifpFilePath, customFixesBaseDir);
+    }
+
+    /// <summary>
+    /// Sets a custom instance (for tests).
+    /// </summary>
+    public static void SetInstance(NavigationDatabase db)
+    {
+        _instance = db;
+    }
+
+    public NavigationDatabase(NavDataSet navData, string cifpFilePath, string? customFixesBaseDir = null)
+    {
+        _cifpFilePath = cifpFilePath;
         BuildIndex(navData);
         BuildProcedureIndex(navData);
+        LoadCifpNavaids(cifpFilePath);
         LoadCustomFixes(customFixesBaseDir);
         AllFixNames = BuildSortedNames();
+    }
+
+    /// <summary>
+    /// Private constructor for <see cref="ForTesting"/>. Skips NavData/CIFP loading.
+    /// </summary>
+    private NavigationDatabase()
+    {
+        _cifpFilePath = "";
+        AllFixNames = [];
     }
 
     /// <summary>
@@ -55,10 +90,11 @@ public sealed class NavigationDatabase
         IReadOnlyDictionary<string, IReadOnlyList<string>>? starBodies = null,
         IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? starTransitions = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? airways = null,
-        IReadOnlyDictionary<string, IReadOnlyList<string>>? sidBodies = null
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? sidBodies = null,
+        IReadOnlyDictionary<string, IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)>>? sidTransitions = null
     )
     {
-        var db = new NavigationDatabase(null, customFixesBaseDir: "");
+        var db = new NavigationDatabase();
 
         if (fixes is not null)
         {
@@ -154,6 +190,15 @@ public sealed class NavigationDatabase
             }
         }
 
+        if (sidTransitions is not null)
+        {
+            foreach (var (sidId, transitions) in sidTransitions)
+            {
+                db._sidTransitions[sidId] = transitions.Select(t => (t.Name, (List<string>)[.. t.Fixes])).ToList();
+            }
+        }
+
+        db.AllFixNames = db.BuildSortedNames();
         return db;
     }
 
@@ -162,7 +207,7 @@ public sealed class NavigationDatabase
     /// <summary>
     /// Sorted array of all fix names, for prefix-search autocomplete.
     /// </summary>
-    public string[] AllFixNames { get; }
+    public string[] AllFixNames { get; private set; }
 
     // ──────────────────────────────────────────────
     //  NavData lookups (eagerly built)
@@ -351,89 +396,20 @@ public sealed class NavigationDatabase
     /// </summary>
     public IReadOnlyList<string> ExpandRoute(string route)
     {
-        if (string.IsNullOrWhiteSpace(route))
-        {
-            return [];
-        }
-
-        var result = new List<string>();
-        var tokens = route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var token in tokens)
-        {
-            if (double.TryParse(token, out _))
-            {
-                continue;
-            }
-
-            if (_sidAllFixes.TryGetValue(token, out var sidList))
-            {
-                result.AddRange(sidList);
-            }
-            else if (_starAllFixes.TryGetValue(token, out var starList))
-            {
-                result.AddRange(starList);
-            }
-            else
-            {
-                result.Add(token);
-            }
-        }
-
-        return result;
+        return RouteExpander.Expand(route, this);
     }
 
     /// <summary>
-    /// Expands a route string for navigation. Only emits ordered body
-    /// fixes for published SIDs/STARs. Skips radar-vector procedures
-    /// (body ≤ 1 fix). Strips leading fixes within 1nm of the departure
-    /// airport and deduplicates adjacent identical names.
+    /// Expands a route string for navigation. Strips leading fixes within 1nm of the
+    /// departure airport (departure vicinity). RouteExpander handles SID/STAR/airway
+    /// expansion and adjacent deduplication.
     /// </summary>
     public IReadOnlyList<string> ExpandRouteForNavigation(string route, string? departureAirport)
     {
-        if (string.IsNullOrWhiteSpace(route))
+        var expanded = RouteExpander.Expand(route, this);
+        if (expanded.Count == 0)
         {
-            return [];
-        }
-
-        var raw = new List<string>();
-        var tokens = route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var token in tokens)
-        {
-            if (double.TryParse(token, out _))
-            {
-                continue;
-            }
-
-            if (_sidBodies.TryGetValue(token, out var sidBody))
-            {
-                if (sidBody.Count > 1)
-                {
-                    raw.AddRange(sidBody);
-                }
-            }
-            else if (_starBodies.TryGetValue(token, out var starBody))
-            {
-                if (starBody.Count > 1)
-                {
-                    raw.AddRange(starBody);
-                }
-            }
-            else
-            {
-                raw.Add(token);
-            }
-        }
-
-        // Deduplicate adjacent identical names
-        var deduped = new List<string>(raw.Count);
-        foreach (var name in raw)
-        {
-            if (deduped.Count == 0 || !string.Equals(deduped[^1], name, StringComparison.OrdinalIgnoreCase))
-            {
-                deduped.Add(name);
-            }
+            return expanded;
         }
 
         // Strip leading fixes within 1nm of departure airport
@@ -442,9 +418,9 @@ public sealed class NavigationDatabase
             var airportPos = GetFixPosition(departureAirport);
             if (airportPos is not null)
             {
-                while (deduped.Count > 0)
+                while (expanded.Count > 0)
                 {
-                    var fixPos = GetFixPosition(deduped[0]);
+                    var fixPos = GetFixPosition(expanded[0]);
                     if (fixPos is null)
                     {
                         break;
@@ -456,38 +432,17 @@ public sealed class NavigationDatabase
                         break;
                     }
 
-                    deduped.RemoveAt(0);
+                    expanded.RemoveAt(0);
                 }
             }
         }
 
-        return deduped;
+        return expanded;
     }
 
     // ──────────────────────────────────────────────
-    //  CIFP lookups (lazy-loaded per airport)
+    //  CIFP lookups (parsed per-airport on first access)
     // ──────────────────────────────────────────────
-
-    /// <summary>Sets the CIFP file path after initialization (e.g., after async download). Clears all CIFP caches
-    /// and supplements the fix database with VOR/DME/NDB navaids from CIFP.</summary>
-    public void SetCifpPath(string path)
-    {
-        _cifpFilePath = path;
-        _sidCache.Clear();
-        _starCache.Clear();
-        _approachCache.Clear();
-
-        // Supplement the fix database with CIFP navaids (VOR/DME/NDB).
-        // NavData may not include all navaids; CIFP has a comprehensive list.
-        if (File.Exists(path))
-        {
-            var navaids = CifpParser.ParseNavaids(path);
-            foreach (var (ident, pos) in navaids)
-            {
-                _navDb.TryAdd(ident, pos);
-            }
-        }
-    }
 
     public CifpSidProcedure? GetSid(string airportCode, string sidId)
     {
@@ -668,14 +623,8 @@ public sealed class NavigationDatabase
     //  NavData index building (private)
     // ──────────────────────────────────────────────
 
-    private void BuildIndex(NavDataSet? navData)
+    private void BuildIndex(NavDataSet navData)
     {
-        if (navData is null)
-        {
-            Log.LogWarning("No NavData available — fix lookup will be empty");
-            return;
-        }
-
         foreach (var airport in navData.Airports)
         {
             var loc = airport.Location;
@@ -841,13 +790,8 @@ public sealed class NavigationDatabase
         );
     }
 
-    private void BuildProcedureIndex(NavDataSet? navData)
+    private void BuildProcedureIndex(NavDataSet navData)
     {
-        if (navData is null)
-        {
-            return;
-        }
-
         foreach (var sid in navData.Sids)
         {
             var body = new List<string>(sid.Body);
@@ -984,40 +928,43 @@ public sealed class NavigationDatabase
     }
 
     // ──────────────────────────────────────────────
-    //  CIFP loaders (private)
+    //  CIFP loaders (private, per-airport on first access)
     // ──────────────────────────────────────────────
 
     private IReadOnlyList<CifpSidProcedure> LoadSids(string normalizedAirport)
     {
-        if (_cifpFilePath is null || !File.Exists(_cifpFilePath))
-        {
-            return [];
-        }
-
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
         return CifpParser.ParseSids(_cifpFilePath, icao);
     }
 
     private IReadOnlyList<CifpStarProcedure> LoadStars(string normalizedAirport)
     {
-        if (_cifpFilePath is null || !File.Exists(_cifpFilePath))
-        {
-            return [];
-        }
-
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
         return CifpParser.ParseStars(_cifpFilePath, icao);
     }
 
     private IReadOnlyList<CifpApproachProcedure> LoadApproaches(string normalizedAirport)
     {
-        if (_cifpFilePath is null || !File.Exists(_cifpFilePath))
-        {
-            return [];
-        }
-
         string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
         return CifpParser.ParseApproaches(_cifpFilePath, icao);
+    }
+
+    /// <summary>
+    /// Supplements the fix database with VOR/DME/NDB navaids from CIFP.
+    /// </summary>
+    private void LoadCifpNavaids(string cifpFilePath)
+    {
+        if (!File.Exists(cifpFilePath))
+        {
+            Log.LogWarning("CIFP file not found: {Path}", cifpFilePath);
+            return;
+        }
+
+        var navaids = CifpParser.ParseNavaids(cifpFilePath);
+        foreach (var (ident, pos) in navaids)
+        {
+            _navDb.TryAdd(ident, pos);
+        }
     }
 
     private static string NormalizeAirport(string code)

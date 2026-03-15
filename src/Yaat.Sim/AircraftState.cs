@@ -1,5 +1,4 @@
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
@@ -223,7 +222,7 @@ public class AircraftState
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }
 
-    public HashSet<string> GetProgrammedFixes(NavigationDatabase? navDb)
+    public HashSet<string> GetProgrammedFixes()
     {
         IReadOnlyList<string>? activeApproachFixNames = null;
         if (Phases?.ActiveApproach?.Procedure is { } activeProc)
@@ -236,9 +235,7 @@ public class AircraftState
             ExpectedApproach,
             Destination,
             Departure,
-            navDb,
             activeApproachFixNames,
-            navDb,
             ActiveStarId,
             DestinationRunway
         );

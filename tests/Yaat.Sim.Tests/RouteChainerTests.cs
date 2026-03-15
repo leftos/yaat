@@ -11,8 +11,9 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix>();
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
+        NavigationDatabase.SetInstance(fixes);
 
-        RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO", fixes);
+        RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO");
 
         Assert.Empty(resolved);
     }
@@ -22,8 +23,9 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
+        NavigationDatabase.SetInstance(fixes);
 
-        RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO OXNARD", fixes);
+        RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO OXNARD");
 
         Assert.Equal(3, resolved.Count);
         Assert.Equal("SUNOL", resolved[0].Name);
@@ -36,8 +38,9 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("OXNARD", 34.2, -119.2) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
+        NavigationDatabase.SetInstance(fixes);
 
-        RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO OXNARD", fixes);
+        RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO OXNARD");
 
         Assert.Single(resolved);
         Assert.Equal("OXNARD", resolved[0].Name);
@@ -48,8 +51,9 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("BRIXX", 37.7, -121.9) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
+        NavigationDatabase.SetInstance(fixes);
 
-        RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO", fixes);
+        RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO");
 
         Assert.Single(resolved);
         Assert.Equal("BRIXX", resolved[0].Name);
@@ -60,8 +64,9 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
+        NavigationDatabase.SetInstance(fixes);
 
-        RouteChainer.AppendRouteRemainder(resolved, "SUNOL.A50 MODESTO", fixes);
+        RouteChainer.AppendRouteRemainder(resolved, "SUNOL.A50 MODESTO");
 
         Assert.Equal(2, resolved.Count);
         Assert.Equal("SUNOL", resolved[0].Name);
@@ -73,8 +78,9 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("OXNARD", 34.2, -119.2));
+        NavigationDatabase.SetInstance(fixes);
 
-        RouteChainer.AppendRouteRemainder(resolved, "SUNOL UNKNOWN OXNARD", fixes);
+        RouteChainer.AppendRouteRemainder(resolved, "SUNOL UNKNOWN OXNARD");
 
         Assert.Equal(2, resolved.Count);
         Assert.Equal("SUNOL", resolved[0].Name);
@@ -86,8 +92,9 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
+        NavigationDatabase.SetInstance(fixes);
 
-        RouteChainer.AppendRouteRemainder(resolved, "", fixes);
+        RouteChainer.AppendRouteRemainder(resolved, "");
 
         Assert.Single(resolved);
     }
@@ -97,8 +104,9 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
+        NavigationDatabase.SetInstance(fixes);
 
-        RouteChainer.AppendRouteRemainder(resolved, "Sunol MODESTO", fixes);
+        RouteChainer.AppendRouteRemainder(resolved, "Sunol MODESTO");
 
         Assert.Equal(2, resolved.Count);
         Assert.Equal("SUNOL", resolved[0].Name);

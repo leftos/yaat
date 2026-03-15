@@ -1,6 +1,7 @@
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -28,6 +29,7 @@ public class PatternEntryTests
     {
         _output = output;
         TestVnasData.EnsureInitialized();
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(MakeOak28R(), MakeSfo28R(), MakeRunway12()));
     }
 
     // OAK runway 28R: heading ~292°, elevation 9ft
@@ -94,8 +96,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -136,8 +137,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -163,8 +163,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -189,8 +188,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -215,8 +213,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -245,8 +242,7 @@ public class PatternEntryTests
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -270,8 +266,7 @@ public class PatternEntryTests
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -298,8 +293,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -323,8 +317,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -346,8 +339,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Base,
             runwayId: "28R",
-            finalDistanceNm: 3.0,
-            navDb: null
+            finalDistanceNm: 3.0
         );
 
         Assert.True(result.Success, result.Message);
@@ -380,8 +372,7 @@ public class PatternEntryTests
             PatternDirection.Left,
             PatternEntryLeg.Final,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -404,8 +395,7 @@ public class PatternEntryTests
             PatternDirection.Left,
             PatternEntryLeg.Final,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -428,14 +418,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
-        );
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
 
@@ -456,14 +439,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
-        );
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
         var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right);
@@ -509,8 +485,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
@@ -553,8 +528,7 @@ public class PatternEntryTests
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");
@@ -590,7 +564,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, leg, runwayId: "28R", finalDistanceNm: null, navDb: null);
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, leg, runwayId: "28R", finalDistanceNm: null);
 
         DumpPhases(aircraft);
         var phases = aircraft.Phases!.Phases;
@@ -614,14 +588,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
-        );
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -642,14 +609,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Base,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
-        );
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Base, runwayId: "28R", finalDistanceNm: null);
 
         var phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -668,14 +628,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Final,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
-        );
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Final, runwayId: "28R", finalDistanceNm: null);
 
         var phases = aircraft.Phases!.Phases;
         DumpPhases(aircraft);
@@ -700,14 +653,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Right,
-            PatternEntryLeg.Downwind,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
-        );
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var mc = Assert.IsType<MidfieldCrossingPhase>(aircraft.Phases!.Phases[0]);
         Assert.NotNull(mc.Waypoints);
@@ -725,14 +671,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.21, 3000, 180);
         aircraft.Phases!.AssignedRunway = runway;
 
-        PatternCommandHandler.TryEnterPattern(
-            aircraft,
-            PatternDirection.Left,
-            PatternEntryLeg.Downwind,
-            runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
-        );
+        PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Left, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         DumpPhases(aircraft);
 
@@ -810,7 +749,7 @@ public class PatternEntryTests
         var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right));
 
         var luaw = (LinedUpAndWaitingPhase)phases.Phases[0];
-        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw, null);
+        var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw);
 
         Assert.True(result.Success, result.Message);
         DumpPhases(aircraft);
@@ -836,7 +775,7 @@ public class PatternEntryTests
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases = new PhaseList();
 
-        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, null, null, null);
+        var result = PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, null, null);
 
         Assert.False(result.Success);
         Assert.Contains("runway", result.Message, StringComparison.OrdinalIgnoreCase);
@@ -855,8 +794,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -891,8 +829,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -926,6 +863,7 @@ public class PatternEntryTests
     public void SFO_ERD_FromSouth_RightPattern_WrongSide()
     {
         var runway = MakeSfo28R();
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(runway));
         // SFO 28R heading 284°, right pattern → pattern is to the north
         // South is wrong side for right pattern
         var aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
@@ -936,8 +874,7 @@ public class PatternEntryTests
             PatternDirection.Right,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -950,6 +887,7 @@ public class PatternEntryTests
     public void SFO_ELD_FromSouth_LeftPattern_CorrectSide()
     {
         var runway = MakeSfo28R();
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(runway));
         // SFO 28R heading 284°, left pattern → pattern is to the south
         // South is correct side for left pattern
         var aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
@@ -960,8 +898,7 @@ public class PatternEntryTests
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "28R",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, result.Message);
@@ -998,6 +935,7 @@ public class PatternEntryTests
     public void Runway12_LeftPattern_WrongSideDetection(string dir, double lat, double lon, double hdg, bool expectWrongSide)
     {
         var runway = MakeRunway12();
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(runway));
         var aircraft = MakeAircraft(lat, lon, 2500, hdg);
         aircraft.Phases!.AssignedRunway = runway;
 
@@ -1006,8 +944,7 @@ public class PatternEntryTests
             PatternDirection.Left,
             PatternEntryLeg.Downwind,
             runwayId: "12",
-            finalDistanceNm: null,
-            navDb: null
+            finalDistanceNm: null
         );
 
         Assert.True(result.Success, $"[{dir}] Entry should succeed: {result.Message}");

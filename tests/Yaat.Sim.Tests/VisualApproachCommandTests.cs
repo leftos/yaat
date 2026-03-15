@@ -10,6 +10,11 @@ namespace Yaat.Sim.Tests;
 
 public class VisualApproachCommandTests
 {
+    public VisualApproachCommandTests()
+    {
+        NavigationDatabase.SetInstance(MakeRunwayLookup());
+    }
+
     // Runway 28R at OAK: heading 280°, threshold at (37.72, -122.22)
     private static RunwayInfo MakeRunway(string designator = "28R", double heading = 280)
     {
@@ -63,7 +68,7 @@ public class VisualApproachCommandTests
         // Aircraft heading ~280 toward runway heading 280 → angle off = 0°
         var aircraft = MakeAircraft(heading: 280);
         var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, MakeRunwayLookup());
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -87,7 +92,7 @@ public class VisualApproachCommandTests
         // Aircraft heading 220° toward runway heading 280° → 60° off
         var aircraft = MakeAircraft(heading: 220);
         var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, MakeRunwayLookup());
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
         Assert.True(result.Success);
         var phases = aircraft.Phases!.Phases.Where(p => p.Status is PhaseStatus.Active or PhaseStatus.Pending).ToList();
@@ -105,7 +110,7 @@ public class VisualApproachCommandTests
         // Aircraft heading 100° toward runway heading 280° → 180° off
         var aircraft = MakeAircraft(heading: 100);
         var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, MakeRunwayLookup());
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
         Assert.True(result.Success);
         var phases = aircraft.Phases!.Phases.Where(p => p.Status is PhaseStatus.Active or PhaseStatus.Pending).ToList();
@@ -123,7 +128,7 @@ public class VisualApproachCommandTests
     {
         var aircraft = MakeAircraft(heading: 280);
         var cmd = new ClearedVisualApproachCommand("28R", null, null, "UAL456");
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, MakeRunwayLookup());
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
         Assert.True(result.Success);
         Assert.Equal("UAL456", aircraft.FollowingCallsign);
@@ -139,7 +144,7 @@ public class VisualApproachCommandTests
     {
         var aircraft = MakeAircraft(heading: 100);
         var cmd = new ClearedVisualApproachCommand("28R", null, PatternDirection.Right, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, MakeRunwayLookup());
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
         Assert.True(result.Success);
     }
@@ -153,7 +158,7 @@ public class VisualApproachCommandTests
     {
         var aircraft = MakeAircraft();
         var cmd = new ClearedVisualApproachCommand("99L", null, null, null);
-        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, MakeRunwayLookup());
+        var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown runway", result.Message);
@@ -171,7 +176,7 @@ public class VisualApproachCommandTests
         var aircraft = MakeAircraft(heading: 280);
         aircraft.Targets.TargetSpeed = 210;
         var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, MakeRunwayLookup());
+        ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
         Assert.NotEqual(210, aircraft.Targets.TargetSpeed);
     }
@@ -189,7 +194,7 @@ public class VisualApproachCommandTests
         aircraft.FollowingCallsign = "OLD123";
 
         var cmd = new ClearedVisualApproachCommand("28R", null, null, null);
-        ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft, MakeRunwayLookup());
+        ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 
         Assert.False(aircraft.HasReportedFieldInSight);
         Assert.False(aircraft.HasReportedTrafficInSight);
@@ -206,7 +211,7 @@ public class VisualApproachCommandTests
         var aircraft = MakeAircraft();
         aircraft.HasReportedFieldInSight = true;
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, null, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, null, Random.Shared, true);
         Assert.True(result.Success);
         Assert.Single(aircraft.PendingNotifications);
         Assert.Contains("field in sight", aircraft.PendingNotifications[0]);
@@ -218,7 +223,7 @@ public class VisualApproachCommandTests
         var aircraft = MakeAircraft();
         aircraft.HasReportedFieldInSight = false;
 
-        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, null, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ReportFieldInSightCommand(), aircraft, null, Random.Shared, true);
         Assert.False(result.Success);
     }
 
@@ -228,7 +233,7 @@ public class VisualApproachCommandTests
         var aircraft = MakeAircraft();
         aircraft.HasReportedTrafficInSight = true;
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("UAL456"), aircraft, null, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand("UAL456"), aircraft, null, Random.Shared, true);
         Assert.True(result.Success);
         Assert.Single(aircraft.PendingNotifications);
         Assert.Contains("traffic in sight", aircraft.PendingNotifications[0]);
@@ -240,7 +245,7 @@ public class VisualApproachCommandTests
         var aircraft = MakeAircraft();
         aircraft.HasReportedTrafficInSight = false;
 
-        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), aircraft, null, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(new ReportTrafficInSightCommand(null), aircraft, null, Random.Shared, true);
         Assert.False(result.Success);
     }
 }

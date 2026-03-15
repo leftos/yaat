@@ -21,11 +21,6 @@ public sealed class PhaseContext
     public Func<string, AircraftState?>? AircraftLookup { get; init; }
 
     /// <summary>
-    /// Navigation database. Used by approach phases for CIFP data.
-    /// </summary>
-    public NavigationDatabase? NavDb { get; init; }
-
-    /// <summary>
     /// Logger for phase diagnostics. Provided by the server tick loop.
     /// </summary>
     public required ILogger Logger { get; init; }

@@ -55,15 +55,14 @@ internal static class TestVnasData
 
                 var bytes = File.ReadAllBytes(path);
                 var navData = NavDataSet.Parser.ParseFrom(bytes);
-                var navDb = new NavigationDatabase(navData, customFixesBaseDir: "");
 
                 var cifpPath = ResolveCifpPath();
-                if (cifpPath is not null)
+                if (cifpPath is null)
                 {
-                    navDb.SetCifpPath(cifpPath);
+                    return null;
                 }
 
-                _navigationDatabase = navDb;
+                _navigationDatabase = new NavigationDatabase(navData, cifpPath, customFixesBaseDir: "");
                 return _navigationDatabase;
             }
         }

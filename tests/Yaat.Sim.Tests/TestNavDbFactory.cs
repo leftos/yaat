@@ -92,6 +92,8 @@ internal static class TestNavDbFactory
     /// <summary>
     /// Creates a NavigationDatabase with explicit fix positions, star bodies, star transitions, and airways.
     /// Useful for JARR, JAWY, and navdata-fallback tests.
+    /// Pre-seeds the CIFP star cache for the empty-string airport key so that aircraft with
+    /// no Destination set don't trigger a CIFP file load (which would fail with an empty path).
     /// </summary>
     internal static NavigationDatabase WithNavData(
         Dictionary<string, (double Lat, double Lon)>? fixPositions = null,
@@ -100,7 +102,16 @@ internal static class TestNavDbFactory
         Dictionary<string, IReadOnlyList<string>>? airways = null
     )
     {
-        return NavigationDatabase.ForTesting(fixPositions, null, null, null, null, null, starBodies, starTransitions, airways);
+        // Sentinel star with Airport="" pre-populates _starCache[""] so that JARR dispatch
+        // for aircraft with Destination="" skips the CIFP loader (which throws on empty path).
+        var sentinelStar = new CifpStarProcedure(
+            Airport: "",
+            ProcedureId: "__SENTINEL__",
+            CommonLegs: [],
+            EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+            RunwayTransitions: new Dictionary<string, CifpTransition>()
+        );
+        return NavigationDatabase.ForTesting(fixPositions, null, null, null, null, [sentinelStar], starBodies, starTransitions, airways);
     }
 
     /// <summary>Creates a CifpApproachProcedure with the given identifiers for use in test NavDbs.</summary>

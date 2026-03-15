@@ -8,9 +8,9 @@ namespace Yaat.Sim.Commands;
 
 public static class ApproachCommandHandler
 {
-    public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
+    public static CommandResult TryClearedApproach(ClearedApproachCommand cmd, AircraftState aircraft)
     {
-        var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft, navDb);
+        var resolved = ResolveApproach(cmd.ApproachId, cmd.AirportCode, aircraft);
         if (!resolved.Success)
         {
             return new CommandResult(false, resolved.Error);
@@ -24,10 +24,8 @@ public static class ApproachCommandHandler
         double finalCourse = approachRunway.TrueHeading;
 
         // Build approach fix sequence, selecting best transition if available
-        var transition = SelectBestTransition(procedure, aircraft, navDb);
-        var approachFixes = transition is not null
-            ? BuildApproachFixesWithTransition(transition, procedure, navDb)
-            : BuildApproachFixes(procedure, navDb);
+        var transition = SelectBestTransition(procedure, aircraft);
+        var approachFixes = transition is not null ? BuildApproachFixesWithTransition(transition, procedure) : BuildApproachFixes(procedure);
 
         // Clear existing phases
         ClearExistingPhases(aircraft);
@@ -39,8 +37,8 @@ public static class ApproachCommandHandler
             RunwayId = procedure.Runway!,
             FinalApproachCourse = finalCourse,
             Procedure = procedure,
-            MissedApproachFixes = BuildMissedApproachFixes(procedure, navDb),
-            MapHold = ExtractMissedApproachHold(procedure, navDb),
+            MissedApproachFixes = BuildMissedApproachFixes(procedure),
+            MapHold = ExtractMissedApproachHold(procedure),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -111,16 +109,9 @@ public static class ApproachCommandHandler
         return new CommandResult(true, $"Cleared {procedure.ApproachId} approach, runway {procedure.Runway}");
     }
 
-    public static CommandResult TryJoinApproach(
-        string approachId,
-        string? airportCode,
-        bool force,
-        bool straightIn,
-        AircraftState aircraft,
-        NavigationDatabase? navDb
-    )
+    public static CommandResult TryJoinApproach(string approachId, string? airportCode, bool force, bool straightIn, AircraftState aircraft)
     {
-        var resolved = ResolveApproach(approachId, airportCode, aircraft, navDb);
+        var resolved = ResolveApproach(approachId, airportCode, aircraft);
         if (!resolved.Success)
         {
             return new CommandResult(false, resolved.Error);
@@ -134,10 +125,8 @@ public static class ApproachCommandHandler
         double finalCourse = approachRunway.TrueHeading;
 
         // Build approach fix sequence, selecting best transition if available
-        var transition = SelectBestTransition(procedure, aircraft, navDb);
-        var approachFixes = transition is not null
-            ? BuildApproachFixesWithTransition(transition, procedure, navDb)
-            : BuildApproachFixes(procedure, navDb);
+        var transition = SelectBestTransition(procedure, aircraft);
+        var approachFixes = transition is not null ? BuildApproachFixesWithTransition(transition, procedure) : BuildApproachFixes(procedure);
 
         // For JAPP: find nearest IAF/IF ahead of aircraft
         var trimmedFixes = TrimToNearestEntry(approachFixes, aircraft);
@@ -159,8 +148,8 @@ public static class ApproachCommandHandler
             FinalApproachCourse = finalCourse,
             StraightIn = straightIn,
             Procedure = procedure,
-            MissedApproachFixes = BuildMissedApproachFixes(procedure, navDb),
-            MapHold = ExtractMissedApproachHold(procedure, navDb),
+            MissedApproachFixes = BuildMissedApproachFixes(procedure),
+            MapHold = ExtractMissedApproachHold(procedure),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -205,9 +194,9 @@ public static class ApproachCommandHandler
         return new CommandResult(true, $"{prefix} {procedure.ApproachId} approach, runway {procedure.Runway}");
     }
 
-    public static CommandResult TryPtac(PositionTurnAltitudeClearanceCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
+    public static CommandResult TryPtac(PositionTurnAltitudeClearanceCommand cmd, AircraftState aircraft)
     {
-        var resolved = ResolveApproach(cmd.ApproachId, null, aircraft, navDb);
+        var resolved = ResolveApproach(cmd.ApproachId, null, aircraft);
         if (!resolved.Success)
         {
             return new CommandResult(false, resolved.Error);
@@ -242,8 +231,8 @@ public static class ApproachCommandHandler
             RunwayId = procedure.Runway!,
             FinalApproachCourse = finalCourse,
             Procedure = procedure,
-            MissedApproachFixes = BuildMissedApproachFixes(procedure, navDb),
-            MapHold = ExtractMissedApproachHold(procedure, navDb),
+            MissedApproachFixes = BuildMissedApproachFixes(procedure),
+            MapHold = ExtractMissedApproachHold(procedure),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -269,19 +258,15 @@ public static class ApproachCommandHandler
         );
     }
 
-    public static CommandResult TryClearedVisualApproach(ClearedVisualApproachCommand cmd, AircraftState aircraft, NavigationDatabase? navDb)
+    public static CommandResult TryClearedVisualApproach(ClearedVisualApproachCommand cmd, AircraftState aircraft)
     {
-        if (navDb is null)
-        {
-            return new CommandResult(false, "Runway data not available");
-        }
-
         string airport = cmd.AirportCode ?? CommandDispatcher.ResolveAirport(aircraft);
         if (string.IsNullOrEmpty(airport))
         {
             return new CommandResult(false, "Cannot determine airport for visual approach");
         }
 
+        var navDb = NavigationDatabase.Instance;
         var runway = navDb.GetRunway(airport, cmd.RunwayId);
         if (runway is null)
         {
@@ -385,13 +370,9 @@ public static class ApproachCommandHandler
 
     // --- Shared helpers ---
 
-    internal static ResolvedApproach ResolveApproach(string? approachId, string? airportCode, AircraftState aircraft, NavigationDatabase? navDb)
+    internal static ResolvedApproach ResolveApproach(string? approachId, string? airportCode, AircraftState aircraft)
     {
-        if (navDb is null)
-        {
-            return ResolvedApproach.Fail("Approach data not available");
-        }
-
+        var navDb = NavigationDatabase.Instance;
         string airport = airportCode ?? CommandDispatcher.ResolveAirport(aircraft);
         if (string.IsNullOrEmpty(airport))
         {
@@ -545,8 +526,9 @@ public static class ApproachCommandHandler
         return [.. names];
     }
 
-    internal static List<ApproachFix> BuildMissedApproachFixes(CifpApproachProcedure procedure, NavigationDatabase? navDb)
+    internal static List<ApproachFix> BuildMissedApproachFixes(CifpApproachProcedure procedure)
     {
+        var navDb = NavigationDatabase.Instance;
         var result = new List<ApproachFix>();
         (double Lat, double Lon)? previousFixPos = null;
 
@@ -562,7 +544,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = navDb?.GetFixPosition(leg.FixIdentifier);
+            var pos = navDb.GetFixPosition(leg.FixIdentifier);
             if (pos is null)
             {
                 continue;
@@ -594,7 +576,7 @@ public static class ApproachCommandHandler
                 && previousFixPos is not null
             )
             {
-                var navaidPos = navDb?.GetFixPosition(leg.RecommendedNavaidId);
+                var navaidPos = navDb.GetFixPosition(leg.RecommendedNavaidId);
                 if (navaidPos is not null)
                 {
                     ExpandApproachArcFixes(
@@ -679,8 +661,9 @@ public static class ApproachCommandHandler
     /// Extract holding pattern data from the MAP legs (HA/HF/HM terminator on the last fix).
     /// Returns null if no hold leg exists or the fix position can't be resolved.
     /// </summary>
-    internal static MissedApproachHold? ExtractMissedApproachHold(CifpApproachProcedure procedure, NavigationDatabase? navDb)
+    internal static MissedApproachHold? ExtractMissedApproachHold(CifpApproachProcedure procedure)
     {
+        var navDb = NavigationDatabase.Instance;
         for (int i = procedure.MissedApproachLegs.Count - 1; i >= 0; i--)
         {
             var leg = procedure.MissedApproachLegs[i];
@@ -694,7 +677,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = navDb?.GetFixPosition(leg.FixIdentifier);
+            var pos = navDb.GetFixPosition(leg.FixIdentifier);
             if (pos is null)
             {
                 continue;
@@ -711,7 +694,7 @@ public static class ApproachCommandHandler
         return null;
     }
 
-    internal static CifpTransition? SelectBestTransition(CifpApproachProcedure procedure, AircraftState aircraft, NavigationDatabase? navDb)
+    internal static CifpTransition? SelectBestTransition(CifpApproachProcedure procedure, AircraftState aircraft)
     {
         if (procedure.Transitions.Count == 0)
         {
@@ -786,11 +769,7 @@ public static class ApproachCommandHandler
         }
 
         // Fallback: pick nearest transition IAF ahead of aircraft (within ±90° of heading)
-        if (navDb is null)
-        {
-            return null;
-        }
-
+        var navDb = NavigationDatabase.Instance;
         CifpTransition? bestTransition = null;
         double bestDist = double.MaxValue;
 
@@ -835,14 +814,10 @@ public static class ApproachCommandHandler
         return bestTransition;
     }
 
-    private static List<ApproachFix> BuildApproachFixesWithTransition(
-        CifpTransition transition,
-        CifpApproachProcedure procedure,
-        NavigationDatabase? navDb
-    )
+    private static List<ApproachFix> BuildApproachFixesWithTransition(CifpTransition transition, CifpApproachProcedure procedure)
     {
-        var transitionFixes = BuildFixesFromLegs(transition.Legs, navDb, stopAtMahp: false);
-        var commonFixes = BuildFixesFromLegs(procedure.CommonLegs, navDb, stopAtMahp: true);
+        var transitionFixes = BuildFixesFromLegs(transition.Legs, stopAtMahp: false);
+        var commonFixes = BuildFixesFromLegs(procedure.CommonLegs, stopAtMahp: true);
 
         // Deduplicate boundary: if last transition fix == first common fix, drop the duplicate from common
         if (
@@ -858,13 +833,14 @@ public static class ApproachCommandHandler
         return transitionFixes;
     }
 
-    private static List<ApproachFix> BuildApproachFixes(CifpApproachProcedure procedure, NavigationDatabase? navDb)
+    private static List<ApproachFix> BuildApproachFixes(CifpApproachProcedure procedure)
     {
-        return BuildFixesFromLegs(procedure.CommonLegs, navDb, stopAtMahp: true);
+        return BuildFixesFromLegs(procedure.CommonLegs, stopAtMahp: true);
     }
 
-    private static List<ApproachFix> BuildFixesFromLegs(IReadOnlyList<CifpLeg> legs, NavigationDatabase? navDb, bool stopAtMahp)
+    private static List<ApproachFix> BuildFixesFromLegs(IReadOnlyList<CifpLeg> legs, bool stopAtMahp)
     {
+        var navDb = NavigationDatabase.Instance;
         var result = new List<ApproachFix>();
         (double Lat, double Lon)? previousFixPos = null;
 
@@ -887,7 +863,7 @@ public static class ApproachCommandHandler
                 continue;
             }
 
-            var pos = navDb?.GetFixPosition(leg.FixIdentifier);
+            var pos = navDb.GetFixPosition(leg.FixIdentifier);
             if (pos is null)
             {
                 continue;
@@ -921,7 +897,7 @@ public static class ApproachCommandHandler
                 && previousFixPos is not null
             )
             {
-                var navaidPos = navDb?.GetFixPosition(leg.RecommendedNavaidId);
+                var navaidPos = navDb.GetFixPosition(leg.RecommendedNavaidId);
                 if (navaidPos is not null)
                 {
                     ExpandApproachArcFixes(

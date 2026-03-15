@@ -24,7 +24,6 @@ internal static class RunwayCrossingDetector
         AirportGroundLayout layout,
         CoordinateIndex coordIndex,
         ref int nextNodeId,
-        NavigationDatabase? navDb,
         string? runwayAirportCode
     )
     {
@@ -32,8 +31,9 @@ internal static class RunwayCrossingDetector
 
         // Look up runway width from navdata; fall back to default
         double widthFt = DefaultRunwayWidthFt;
-        if (navDb is not null && runwayAirportCode is not null)
+        if (runwayAirportCode is not null)
         {
+            var navDb = NavigationDatabase.Instance;
             var rwyInfo = navDb.GetRunway(runwayAirportCode, combinedId.End1) ?? navDb.GetRunway(runwayAirportCode, combinedId.End2);
             if (rwyInfo is not null)
             {

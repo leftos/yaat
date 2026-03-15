@@ -20,7 +20,6 @@ internal static class TaxiVariantResolver
         string lastTaxiwayName,
         int segmentCountBeforeLastTw,
         string destinationRunway,
-        NavigationDatabase? navDb,
         string? airportId,
         ref int currentNodeId,
         out string? failReason
@@ -85,7 +84,7 @@ internal static class TaxiVariantResolver
 
         if (variants.Count > 0)
         {
-            return AutoExtendVariant(layout, segments, segmentCountBeforeLastTw, variants, navDb, airportId, destinationRunway, ref currentNodeId);
+            return AutoExtendVariant(layout, segments, segmentCountBeforeLastTw, variants, airportId, destinationRunway, ref currentNodeId);
         }
 
         // The walk went the wrong direction at a fork — the last taxiway does
@@ -141,14 +140,13 @@ internal static class TaxiVariantResolver
         List<TaxiRouteSegment> segments,
         int segmentCountBeforeLastTw,
         List<(GroundNode HsNode, string VariantName)> variants,
-        NavigationDatabase? navDb,
         string? airportId,
         string destinationRunway,
         ref int currentNodeId
     )
     {
         // Pick variant: if multiple distinct names, choose closest to runway threshold
-        string chosenVariant = PickBestVariant(variants, navDb, airportId, destinationRunway);
+        string chosenVariant = PickBestVariant(variants, airportId, destinationRunway);
 
         // Find branch point: scan nodes along the last-taxiway segments
         int branchNodeId = -1;
@@ -213,12 +211,7 @@ internal static class TaxiVariantResolver
         return walked;
     }
 
-    private static string PickBestVariant(
-        List<(GroundNode HsNode, string VariantName)> variants,
-        NavigationDatabase? navDb,
-        string? airportId,
-        string destinationRunway
-    )
+    private static string PickBestVariant(List<(GroundNode HsNode, string VariantName)> variants, string? airportId, string destinationRunway)
     {
         // Collect distinct variant names
         var distinctNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -234,9 +227,9 @@ internal static class TaxiVariantResolver
 
         // Multiple variants: pick closest to runway threshold
         RunwayInfo? rwyInfo = null;
-        if (navDb is not null && airportId is not null)
+        if (airportId is not null)
         {
-            rwyInfo = navDb.GetRunway(airportId, destinationRunway);
+            rwyInfo = NavigationDatabase.Instance.GetRunway(airportId, destinationRunway);
         }
 
         if (rwyInfo is null)

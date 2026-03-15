@@ -174,7 +174,7 @@ public class RunwayCrossingDetectorTests
         coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
         coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
 
-        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null, null);
+        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
         // Original edge should be removed, replaced by 2 new edges through the HS node
         Assert.DoesNotContain(edge, layout.Edges);
@@ -208,7 +208,7 @@ public class RunwayCrossingDetectorTests
         coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
         coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
 
-        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null, null);
+        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
         var hsNode = layout.Nodes.Values.First(n => n.Type == GroundNodeType.RunwayHoldShort);
         Assert.NotNull(hsNode.RunwayId);
@@ -244,7 +244,7 @@ public class RunwayCrossingDetectorTests
         coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
         coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
 
-        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null, null);
+        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
         // No new node should be created — node 2 should be upgraded in place
         Assert.Equal(100, nextNodeId); // unchanged
@@ -274,7 +274,7 @@ public class RunwayCrossingDetectorTests
         coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
         coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
 
-        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null, null);
+        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
         // New node should be created at id 100
         Assert.Equal(101, nextNodeId);
@@ -310,7 +310,7 @@ public class RunwayCrossingDetectorTests
         coordIndex.Add(onNode.Latitude, onNode.Longitude, 1);
         coordIndex.Add(offNode.Latitude, offNode.Longitude, 2);
 
-        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null, null);
+        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
         var hsNode = layout.Nodes[100];
         // HS node should be between on-node and off-node (latitude should be same since E-W edge,
@@ -344,7 +344,7 @@ public class RunwayCrossingDetectorTests
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
 
-        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null, null);
+        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
         // No new nodes created
         Assert.Equal(100, nextNodeId);
@@ -376,7 +376,7 @@ public class RunwayCrossingDetectorTests
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
 
-        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null, null);
+        RunwayCrossingDetector.DetectRunwayCrossings(rwy, layout, coordIndex, ref nextNodeId, null);
 
         Assert.Equal(100, nextNodeId); // no new nodes
         Assert.Single(layout.Edges); // original edge untouched

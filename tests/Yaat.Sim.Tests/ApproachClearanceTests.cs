@@ -206,9 +206,10 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.NotNull(aircraft.Phases);
@@ -223,9 +224,10 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
@@ -239,9 +241,10 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.AssignedRunway);
         Assert.Equal("28R", aircraft.Phases.AssignedRunway.Designator);
@@ -252,9 +255,10 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.CurrentPhase);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases.CurrentPhase);
@@ -266,26 +270,13 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(destination: "OAK");
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("VOR99");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Unknown approach", result.Message);
-    }
-
-    [Fact]
-    public void Jfac_NoApproachLookup_Fails()
-    {
-        var aircraft = MakeAircraft(destination: "OAK");
-        var navDb = TestNavDbFactory.WithRunways(MakeRunway());
-
-        var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
-
-        Assert.False(result.Success);
-        // Fails with "Unknown approach" when navDb has no approaches loaded
-        Assert.False(string.IsNullOrEmpty(result.Message));
     }
 
     [Fact]
@@ -293,9 +284,10 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(destination: "");
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.False(result.Success);
         Assert.Contains("Cannot determine airport", result.Message);
@@ -306,6 +298,7 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         // Set up existing phases
         aircraft.Phases = new PhaseList();
@@ -323,7 +316,7 @@ public class ApproachClearanceTests
         );
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases!.CurrentPhase);
@@ -335,9 +328,10 @@ public class ApproachClearanceTests
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         // ApproachId is "I28R" but user types "ILS28R"
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
         Assert.Contains("I28R", result.Message);
@@ -348,9 +342,10 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "KOAK");
         var navDb = MakeNavDb();
+        NavigationDatabase.SetInstance(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
-        var result = CommandDispatcher.Dispatch(cmd, aircraft, navDb, null, Random.Shared, true);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
     }

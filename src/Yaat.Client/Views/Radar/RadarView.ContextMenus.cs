@@ -422,9 +422,9 @@ public partial class RadarView
 
         // Try to get approach list from CIFP data
         IReadOnlyList<string>? approachIds = null;
-        if (vm.NavDb is not null && ac is not null && !string.IsNullOrEmpty(ac.Destination))
+        if (ac is not null && !string.IsNullOrEmpty(ac.Destination))
         {
-            var approaches = vm.NavDb.GetApproaches(ac.Destination);
+            var approaches = NavigationDatabase.Instance.GetApproaches(ac.Destination);
             if (approaches.Count > 0)
             {
                 approachIds = approaches.Select(a => a.ApproachId).ToList();

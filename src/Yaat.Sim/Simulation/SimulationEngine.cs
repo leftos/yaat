@@ -28,7 +28,6 @@ public sealed class SimulationEngine
 
     private readonly IAirportGroundData _groundData;
 
-    public NavigationDatabase Navigation { get; }
     private readonly ILogger _logger;
     private readonly List<TerminalEntry> _terminalEntries = [];
 
@@ -40,9 +39,8 @@ public sealed class SimulationEngine
     public TowerListTracker TowerListTracker { get; } = new();
     public ConflictAlertState ConflictAlerts { get; } = new();
 
-    public SimulationEngine(NavigationDatabase navDb, IAirportGroundData groundData, ILogger? logger = null)
+    public SimulationEngine(IAirportGroundData groundData, ILogger? logger = null)
     {
-        Navigation = navDb;
         _groundData = groundData;
         _logger = logger ?? SimLog.CreateLogger<SimulationEngine>();
     }
@@ -63,7 +61,7 @@ public sealed class SimulationEngine
         World.Clear();
         World.Rng = new Random(rngSeed);
 
-        var result = ScenarioLoader.Load(json, Navigation, _groundData, World.Rng);
+        var result = ScenarioLoader.Load(json, _groundData, World.Rng);
 
         Scenario = new SimScenarioState
         {
@@ -98,7 +96,7 @@ public sealed class SimulationEngine
         // Initialize generators
         foreach (var genConfig in result.Generators)
         {
-            var runway = Navigation.GetRunway(result.PrimaryAirportId ?? "", genConfig.Runway);
+            var runway = NavigationDatabase.Instance.GetRunway(result.PrimaryAirportId ?? "", genConfig.Runway);
             if (runway is null)
             {
                 result.Warnings.Add($"Generator '{genConfig.Id}': runway {genConfig.Runway} not found");
@@ -283,7 +281,7 @@ public sealed class SimulationEngine
             return new CommandResult(false, $"Aircraft '{callsign}' not found");
         }
 
-        var parseResult = CommandParser.ParseCompound(command, Navigation, aircraft.Route);
+        var parseResult = CommandParser.ParseCompound(command, aircraft.Route);
         if (!parseResult.IsSuccess)
         {
             return new CommandResult(false, $"Failed to parse command: {command} — {parseResult.Reason}");
@@ -293,7 +291,6 @@ public sealed class SimulationEngine
         return CommandDispatcher.DispatchCompound(
             parseResult.Value!,
             aircraft,
-            Navigation,
             groundLayout,
             World.Rng,
             Scenario?.ValidateDctFixes ?? true,
@@ -475,7 +472,6 @@ public sealed class SimulationEngine
                 CommandDispatcher.DispatchCompound(
                     d.Payload,
                     aircraft,
-                    Navigation,
                     groundLayout,
                     World.Rng,
                     Scenario?.ValidateDctFixes ?? true,
@@ -585,7 +581,7 @@ public sealed class SimulationEngine
 
             var existing = World.GetSnapshot();
             var groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
-            var (state, error) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, Navigation, existing, groundLayout, World.Rng);
+            var (state, error) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, existing, groundLayout, World.Rng);
 
             if (state is null)
             {
@@ -695,7 +691,7 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            var timedResult = CommandParser.ParseCompound(preset.Command, Navigation, aircraft.Route);
+            var timedResult = CommandParser.ParseCompound(preset.Command, aircraft.Route);
             if (!timedResult.IsSuccess)
             {
                 _logger.LogWarning(
@@ -717,15 +713,7 @@ public sealed class SimulationEngine
             }
 
             var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-            CommandDispatcher.DispatchCompound(
-                compound,
-                aircraft,
-                Navigation,
-                groundLayout,
-                World.Rng,
-                scenario.ValidateDctFixes,
-                scenario.AutoCrossRunway
-            );
+            CommandDispatcher.DispatchCompound(compound, aircraft, groundLayout, World.Rng, scenario.ValidateDctFixes, scenario.AutoCrossRunway);
 
             EmitTerminal("System", preset.Callsign, $"[Preset] {preset.Command}");
         }
@@ -819,7 +807,7 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            var presetResult = CommandParser.ParseCompound(preset.Command, Navigation, loaded.State.Route);
+            var presetResult = CommandParser.ParseCompound(preset.Command, loaded.State.Route);
             if (!presetResult.IsSuccess)
             {
                 _logger.LogWarning(
@@ -841,15 +829,7 @@ public sealed class SimulationEngine
             }
 
             var groundLayout = loaded.State.GroundLayout ?? ResolveGroundLayout(loaded.State);
-            CommandDispatcher.DispatchCompound(
-                compound,
-                loaded.State,
-                Navigation,
-                groundLayout,
-                World.Rng,
-                scenario.ValidateDctFixes,
-                scenario.AutoCrossRunway
-            );
+            CommandDispatcher.DispatchCompound(compound, loaded.State, groundLayout, World.Rng, scenario.ValidateDctFixes, scenario.AutoCrossRunway);
 
             EmitTerminal("System", loaded.State.Callsign, $"[Preset] {preset.Command}");
         }
@@ -966,7 +946,7 @@ public sealed class SimulationEngine
             return;
         }
 
-        var replayResult = CommandParser.ParseCompound(cmd.Command, Navigation, aircraft.Route);
+        var replayResult = CommandParser.ParseCompound(cmd.Command, aircraft.Route);
         if (!replayResult.IsSuccess)
         {
             return;
@@ -976,7 +956,6 @@ public sealed class SimulationEngine
         CommandDispatcher.DispatchCompound(
             replayResult.Value!,
             aircraft,
-            Navigation,
             groundLayout,
             World.Rng,
             Scenario?.ValidateDctFixes ?? true,
@@ -999,7 +978,7 @@ public sealed class SimulationEngine
 
         var existing = World.GetSnapshot();
         var groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
-        var (state, _) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, Navigation, existing, groundLayout, World.Rng);
+        var (state, _) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, existing, groundLayout, World.Rng);
 
         if (state is null)
         {
