@@ -132,8 +132,7 @@ public static class ScenarioLoader
         double lat,
             lon,
             alt,
-            speed,
-            heading;
+            speed;
 
         var navDb = NavigationDatabase.Instance;
         var departureId = ac.FlightPlan?.Departure;
@@ -151,7 +150,6 @@ public static class ScenarioLoader
                 lon = cond.Coordinates.Lon;
                 alt = cond.Altitude ?? fieldElevation;
                 speed = cond.Altitude is null && cond.Speed is null ? 0 : cond.Speed ?? -1;
-                heading = ResolveHeading(cond, lat, lon, warnings, ac.AircraftId);
                 break;
 
             case "FixOrFrd":
@@ -170,7 +168,6 @@ public static class ScenarioLoader
                 lon = resolved.Longitude;
                 alt = cond.Altitude ?? fieldElevation;
                 speed = cond.Altitude is null && cond.Speed is null ? 0 : cond.Speed ?? -1;
-                heading = ResolveHeading(cond, lat, lon, warnings, ac.AircraftId);
                 break;
 
             case "OnRunway":
@@ -197,8 +194,6 @@ public static class ScenarioLoader
         var state = CreateBaseState(ac, primaryApproach);
         state.Latitude = lat;
         state.Longitude = lon;
-        state.Heading = heading;
-        state.Track = heading;
         state.Altitude = alt;
         state.IndicatedAirspeed = speed;
         var code = SimulationWorld.GenerateBeaconCode(rng);
@@ -220,6 +215,16 @@ public static class ScenarioLoader
         }
 
         PopulateNavigationRoute(state, cond.NavigationPath, warnings);
+
+        // Derive heading: scenario-assigned heading, or bearing to first nav route fix
+        var heading = cond.Heading ?? 0.0;
+        if (cond.Heading is null && state.Targets.NavigationRoute.Count > 0)
+        {
+            var first = state.Targets.NavigationRoute[0];
+            heading = GeoMath.BearingTo(lat, lon, first.Latitude, first.Longitude);
+        }
+        state.Heading = heading;
+        state.Track = heading;
 
         if (ac.OnAltitudeProfile)
         {
@@ -426,42 +431,6 @@ public static class ScenarioLoader
             DeferralReason = reason,
             PresetCommands = ac.PresetCommands,
         };
-    }
-
-    private static double ResolveHeading(StartingConditions cond, double lat, double lon, List<string> warnings, string callsign)
-    {
-        if (cond.Heading is not null)
-        {
-            return cond.Heading.Value;
-        }
-
-        if (cond.NavigationPath is null or "")
-        {
-            return 0;
-        }
-
-        var navDb = NavigationDatabase.Instance;
-        var tokens = cond.NavigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var token in tokens)
-        {
-            var fixName = token.Split('.')[0];
-
-            while (fixName.Length > 2 && char.IsDigit(fixName[^1]))
-            {
-                fixName = fixName[..^1];
-            }
-
-            var targetPos = navDb.GetFixPosition(fixName);
-            if (targetPos is not null)
-            {
-                return GeoMath.BearingTo(lat, lon, targetPos.Value.Lat, targetPos.Value.Lon);
-            }
-
-            warnings.Add($"{callsign}: Could not resolve nav waypoint '{token}', skipping");
-        }
-
-        return 0;
     }
 
     private static void PopulateNavigationRoute(AircraftState state, string? navigationPath, List<string> warnings)
