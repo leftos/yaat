@@ -440,31 +440,28 @@ public static class ScenarioLoader
             return 0;
         }
 
-        var firstWaypoint = cond.NavigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        var navDb = NavigationDatabase.Instance;
+        var tokens = cond.NavigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        if (firstWaypoint is null)
+        foreach (var token in tokens)
         {
-            return 0;
+            var fixName = token.Split('.')[0];
+
+            while (fixName.Length > 2 && char.IsDigit(fixName[^1]))
+            {
+                fixName = fixName[..^1];
+            }
+
+            var targetPos = navDb.GetFixPosition(fixName);
+            if (targetPos is not null)
+            {
+                return GeoMath.BearingTo(lat, lon, targetPos.Value.Lat, targetPos.Value.Lon);
+            }
+
+            warnings.Add($"{callsign}: Could not resolve nav waypoint '{token}', skipping");
         }
 
-        // Strip SID/STAR suffixes like "ALTTA9.29R"
-        var fixName = firstWaypoint.Split('.')[0];
-
-        // Strip trailing digits that might be a SID number
-        // (e.g., "ALTTA9" → "ALTTA")
-        while (fixName.Length > 2 && char.IsDigit(fixName[^1]))
-        {
-            fixName = fixName[..^1];
-        }
-
-        var targetPos = NavigationDatabase.Instance.GetFixPosition(fixName);
-        if (targetPos is null)
-        {
-            warnings.Add($"{callsign}: Could not resolve nav " + $"waypoint '{firstWaypoint}', heading 0");
-            return 0;
-        }
-
-        return GeoMath.BearingTo(lat, lon, targetPos.Value.Lat, targetPos.Value.Lon);
+        return 0;
     }
 
     private static void PopulateNavigationRoute(AircraftState state, string? navigationPath, List<string> warnings)
