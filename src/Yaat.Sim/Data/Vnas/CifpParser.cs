@@ -980,6 +980,64 @@ public static partial class CifpParser
         }
     }
 
+    /// <summary>
+    /// Parses VOR/DME/NDB navaid records (section D, "SUSAD" prefix) from CIFP data.
+    /// Returns a dictionary of navaid identifier → (lat, lon) for supplementing NavData fixes.
+    /// </summary>
+    public static IReadOnlyDictionary<string, (double Lat, double Lon)> ParseNavaids(string cifpFilePath)
+    {
+        var navaids = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var line in File.ReadLines(cifpFilePath))
+        {
+            if (line.Length < 50)
+            {
+                continue;
+            }
+
+            if (!line.StartsWith("SUSAD", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            // Navaid identifier at positions 13-17 (0-indexed)
+            string ident = line[13..18].Trim();
+            if (ident.Length == 0 || navaids.ContainsKey(ident))
+            {
+                continue;
+            }
+
+            // Scan for N/S latitude marker — navaids have coordinates in the VOR/DME position area
+            int latStart = -1;
+            int scanEnd = Math.Min(50, line.Length);
+            for (int i = 28; i < scanEnd; i++)
+            {
+                if (line[i] is 'N' or 'S')
+                {
+                    latStart = i;
+                    break;
+                }
+            }
+
+            if (latStart < 0 || line.Length < latStart + 19)
+            {
+                continue;
+            }
+
+            var lat = ParseArinc424Latitude(line.AsSpan(latStart, 9));
+            var lon = ParseArinc424Longitude(line.AsSpan(latStart + 9, 10));
+
+            if (lat is not null && lon is not null)
+            {
+                navaids[ident] = (lat.Value, lon.Value);
+            }
+        }
+
+        Log.LogInformation("CIFP navaids parsed: {Count}", navaids.Count);
+
+        return navaids;
+    }
+
     internal static double? ParseArinc424Latitude(ReadOnlySpan<char> s)
     {
         if (s.Length < 9)

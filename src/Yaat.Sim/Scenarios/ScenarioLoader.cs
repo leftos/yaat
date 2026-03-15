@@ -624,19 +624,10 @@ public static class ScenarioLoader
         var orderedLegs = new List<CifpLeg>();
         orderedLegs.AddRange(star.CommonLegs);
 
-        if (runwayDesignator is not null)
+        var rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, state.DestinationRunway);
+        if (rwTransitionLegs is not null)
         {
-            var rwKey = "RW" + runwayDesignator;
-            if (!star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
-            {
-                var bothKey = "RW" + runwayDesignator.TrimEnd('L', 'R', 'C') + "B";
-                star.RunwayTransitions.TryGetValue(bothKey, out rwTransition);
-            }
-
-            if (rwTransition is not null)
-            {
-                orderedLegs.AddRange(rwTransition.Legs);
-            }
+            orderedLegs.AddRange(rwTransitionLegs);
         }
 
         if (orderedLegs.Count == 0)
@@ -685,6 +676,60 @@ public static class ScenarioLoader
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// Finds the best runway transition for a STAR procedure. Tries explicit designator first,
+    /// falls back to DestinationRunway, then picks the first available transition.
+    /// Returns the transition legs, or null if none found.
+    /// </summary>
+    private static IReadOnlyList<CifpLeg>? FindRunwayTransition(CifpStarProcedure star, string? explicitDesignator, string? destinationRunway)
+    {
+        if (star.RunwayTransitions.Count == 0)
+        {
+            return null;
+        }
+
+        // Try explicit designator from the nav path token (e.g., "ALWYS3.19L" → "19L")
+        var rwLegs = TryLookupRunwayTransition(star, explicitDesignator);
+        if (rwLegs is not null)
+        {
+            return rwLegs;
+        }
+
+        // Try the aircraft's assigned destination runway
+        rwLegs = TryLookupRunwayTransition(star, destinationRunway);
+        if (rwLegs is not null)
+        {
+            return rwLegs;
+        }
+
+        // No runway known — pick the first available transition.
+        // All transitions lead to the same airport; lateral differences at the STAR level are minimal.
+        return star.RunwayTransitions.Values.First().Legs;
+    }
+
+    private static IReadOnlyList<CifpLeg>? TryLookupRunwayTransition(CifpStarProcedure star, string? designator)
+    {
+        if (designator is null)
+        {
+            return null;
+        }
+
+        var rwKey = "RW" + designator;
+        if (star.RunwayTransitions.TryGetValue(rwKey, out var transition))
+        {
+            return transition.Legs;
+        }
+
+        // Fall back to "both" key (e.g., RW19B for RW19L/RW19R)
+        var bothKey = "RW" + designator.TrimEnd('L', 'R', 'C') + "B";
+        if (star.RunwayTransitions.TryGetValue(bothKey, out transition))
+        {
+            return transition.Legs;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -811,30 +856,28 @@ public static class ScenarioLoader
             AddResolvedFix(resolved, starBody[i], navDb, warnings, callsign, starId);
         }
 
-        // Append runway transition legs from CIFP if available
-        if (runwayDesignator is not null && destination is not null)
+        // Append runway transition fixes from CIFP if available.
+        // Only add transition fixes that aren't already in the route from the NavData body
+        // (NavData body may include both common and transition fixes as a flat list).
+        if (destination is not null)
         {
             var star = navDb.GetStar(destination, starId);
             if (star is not null)
             {
-                var rwKey = "RW" + runwayDesignator;
-                if (!star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+                var rwTransitionLegs = FindRunwayTransition(star, runwayDesignator, destinationRunway: null);
+                if (rwTransitionLegs is not null)
                 {
-                    var bothKey = "RW" + runwayDesignator.TrimEnd('L', 'R', 'C') + "B";
-                    star.RunwayTransitions.TryGetValue(bothKey, out rwTransition);
-                }
-
-                if (rwTransition is not null)
-                {
-                    var rwTargets = Commands.DepartureClearanceHandler.ResolveLegsToTargets(rwTransition.Legs, navDb);
+                    var existingNames = new HashSet<string>(resolved.Select(r => r.Name), StringComparer.OrdinalIgnoreCase);
+                    var rwTargets = Commands.DepartureClearanceHandler.ResolveLegsToTargets(rwTransitionLegs, navDb);
                     foreach (var target in rwTargets)
                     {
-                        if (resolved.Count > 0 && target.Name.Equals(resolved[^1].Name, StringComparison.OrdinalIgnoreCase))
+                        if (existingNames.Contains(target.Name))
                         {
                             continue;
                         }
 
                         resolved.Add(new ResolvedFix(target.Name, target.Latitude, target.Longitude));
+                        existingNames.Add(target.Name);
                     }
                 }
             }

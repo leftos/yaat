@@ -36,6 +36,7 @@ public static class FlightPhysics
         }
 
         UpdateNavigation(aircraft, weather);
+        UpdateDescentPlanning(aircraft, cat);
         UpdateHeading(aircraft, cat, deltaSeconds);
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
@@ -140,6 +141,83 @@ public static class FlightPhysics
 
         aircraft.Targets.TargetHeading = NormalizeHeading(bearing + wca);
         aircraft.Targets.PreferredTurnDirection = null;
+    }
+
+    /// <summary>
+    /// Look-ahead descent planning for STAR via mode. Scans ahead in the navigation
+    /// route to find the next altitude constraint and begins descent early enough
+    /// to meet it, instead of waiting until the aircraft reaches the constrained fix.
+    /// </summary>
+    private static void UpdateDescentPlanning(AircraftState aircraft, AircraftCategory cat)
+    {
+        if (!aircraft.StarViaMode || aircraft.IsOnGround || aircraft.GroundSpeed <= 0)
+        {
+            return;
+        }
+
+        var route = aircraft.Targets.NavigationRoute;
+        if (route.Count == 0)
+        {
+            return;
+        }
+
+        double descentFpm = CategoryPerformance.DescentRate(cat);
+        if (aircraft.IsExpediting)
+        {
+            descentFpm *= 1.5;
+        }
+
+        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, route[0].Latitude, route[0].Longitude);
+
+        for (int i = 0; i < route.Count; i++)
+        {
+            if (i > 0)
+            {
+                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Latitude, route[i - 1].Longitude, route[i].Latitude, route[i].Longitude);
+            }
+
+            if (route[i].AltitudeRestriction is not { } restriction)
+            {
+                continue;
+            }
+
+            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction);
+            if (resolvedAlt is not { } targetAlt)
+            {
+                continue;
+            }
+
+            // Apply STAR via floor
+            if (aircraft.StarViaFloor is { } floor)
+            {
+                targetAlt = Math.Max(targetAlt, floor);
+            }
+
+            double altDelta = aircraft.Altitude - targetAlt;
+            if (altDelta <= 0)
+            {
+                continue;
+            }
+
+            // Required descent distance: (altDelta / descentFpm) minutes × (GS / 60) nm/min
+            double descentMinutes = altDelta / descentFpm;
+            double descentDistNm = descentMinutes * (aircraft.GroundSpeed / 60.0);
+
+            // Add buffer so descent starts slightly early
+            double bufferNm = 2.0;
+
+            if (cumulativeDistNm <= descentDistNm + bufferNm)
+            {
+                // Need to start descending now to meet this constraint.
+                // Only set target if it's lower than current target (don't override a deeper descent).
+                if (aircraft.Targets.TargetAltitude is null || aircraft.Targets.TargetAltitude > targetAlt)
+                {
+                    aircraft.Targets.TargetAltitude = targetAlt;
+                }
+
+                break;
+            }
+        }
     }
 
     /// <summary>

@@ -129,7 +129,23 @@ internal static class NavigationCommandHandler
         // Capture current altitude for revert after fix passage
         double? previousAlt = aircraft.Targets.TargetAltitude;
 
-        // Block 0 (immediate): navigate to fix + set crossing altitude
+        // Block 0 (immediate): navigate to fix + set crossing altitude.
+        // Preserve route fixes that come after the cross fix so the aircraft
+        // continues on its route after reaching the fix (issue #70).
+        var remainingRoute = new List<NavigationTarget>();
+        bool foundCfix = false;
+        foreach (var target in aircraft.Targets.NavigationRoute)
+        {
+            if (foundCfix)
+            {
+                remainingRoute.Add(target);
+            }
+            else if (target.Name.Equals(cmd.FixName, StringComparison.OrdinalIgnoreCase))
+            {
+                foundCfix = true;
+            }
+        }
+
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
@@ -139,6 +155,7 @@ internal static class NavigationCommandHandler
                 Longitude = cmd.FixLon,
             }
         );
+        aircraft.Targets.NavigationRoute.AddRange(remainingRoute);
 
         switch (cmd.AltType)
         {

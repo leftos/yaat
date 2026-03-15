@@ -468,13 +468,25 @@ public sealed class NavigationDatabase
     //  CIFP lookups (lazy-loaded per airport)
     // ──────────────────────────────────────────────
 
-    /// <summary>Sets the CIFP file path after initialization (e.g., after async download). Clears all CIFP caches.</summary>
+    /// <summary>Sets the CIFP file path after initialization (e.g., after async download). Clears all CIFP caches
+    /// and supplements the fix database with VOR/DME/NDB navaids from CIFP.</summary>
     public void SetCifpPath(string path)
     {
         _cifpFilePath = path;
         _sidCache.Clear();
         _starCache.Clear();
         _approachCache.Clear();
+
+        // Supplement the fix database with CIFP navaids (VOR/DME/NDB).
+        // NavData may not include all navaids; CIFP has a comprehensive list.
+        if (File.Exists(path))
+        {
+            var navaids = CifpParser.ParseNavaids(path);
+            foreach (var (ident, pos) in navaids)
+            {
+                _navDb.TryAdd(ident, pos);
+            }
+        }
     }
 
     public CifpSidProcedure? GetSid(string airportCode, string sidId)

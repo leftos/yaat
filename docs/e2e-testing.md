@@ -143,6 +143,8 @@ When writing replay tests for aircraft with WAIT presets:
 | `issue58-jstar-intermediate-fix-recording.json` | S3-NCTC-3 Area C Complete | OAK | JSTAR intermediate fix joining (JARR EMZOH4 SKIZM) |
 | `issue58-star-180-recording.json` | S3-NCTC-2 Area C Sequencing | OAK | NavigationPath STAR expansion (pre-assigned STARs) |
 | `issue67-procedure-version-recording.json` | S3-NCTB-2 Feeder Combined | SFO | Outdated STAR version resolution (BDEGA3 → BDEGA4), descend-via with onAltitudeProfile |
+| `issue67-dvia-recording.json` | S3-NCTB-2 Feeder Combined | SFO | STAR without runway suffix — DVIA constraints, runway-transition inference |
+| `issue70-route-following-recording.json` | S3-NCTB-6 (A) SFO19 | SFO | Fix-to-fix routing (PIRAT SAU), ALWYS STAR descent profile, look-ahead descent planning |
 
 ### How to Add a New Recording
 
