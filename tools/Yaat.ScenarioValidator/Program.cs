@@ -223,15 +223,7 @@ public static class Program
                     foreach (var scenario in withProcIssues)
                     {
                         Console.WriteLine($"  {scenario.ScenarioName}");
-                        foreach (var issue in scenario.ProcedureIssues)
-                        {
-                            string detail =
-                                issue.Kind == ProcedureIssueKind.VersionChanged
-                                    ? $"    {issue.AircraftId}: {issue.ProcedureId} → {issue.ResolvedId}"
-                                    : $"    {issue.AircraftId}: {issue.ProcedureId} not found";
-                            Console.WriteLine(detail);
-                        }
-
+                        PrintProcedureIssuesByProcedure(scenario.ProcedureIssues, "    ");
                         Console.WriteLine();
                     }
                 }
@@ -422,19 +414,28 @@ public static class Program
             foreach (var scenario in procScenarios)
             {
                 Console.WriteLine($"  {scenario.ScenarioName}");
-                foreach (var issue in scenario.ProcedureIssues)
-                {
-                    string detail =
-                        issue.Kind == ProcedureIssueKind.VersionChanged
-                            ? $"    {issue.AircraftId}: {issue.ProcedureId} → {issue.ResolvedId}"
-                            : $"    {issue.AircraftId}: {issue.ProcedureId} not found";
-                    Console.WriteLine(detail);
-                }
+                PrintProcedureIssuesByProcedure(scenario.ProcedureIssues, "    ");
                 Console.WriteLine();
             }
         }
 
         return totalFailures > 0 || totalProcIssues > 0 ? 1 : 0;
+    }
+
+    private static void PrintProcedureIssuesByProcedure(List<ProcedureIssue> issues, string indent)
+    {
+        // Group by (ProcedureId, Kind, ResolvedId) so each unique procedure line appears once with all callsigns
+        var grouped = issues.GroupBy(i => (i.ProcedureId, i.Kind, i.ResolvedId)).OrderBy(g => g.Key.ProcedureId);
+
+        foreach (var group in grouped)
+        {
+            var callsigns = string.Join(", ", group.Select(i => i.AircraftId).OrderBy(id => id));
+            string detail =
+                group.Key.Kind == ProcedureIssueKind.VersionChanged
+                    ? $"{indent}{group.Key.ProcedureId} → {group.Key.ResolvedId}: {callsigns}"
+                    : $"{indent}{group.Key.ProcedureId} not found: {callsigns}";
+            Console.WriteLine(detail);
+        }
     }
 
     private static void PrintUsage()

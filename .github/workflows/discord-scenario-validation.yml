@@ -101,14 +101,18 @@ jobs:
               if not failures and not proc_issues:
                   return f"# {artcc} Scenario Validation\n\n{scenarios} scenarios, {presets} presets \u2014 all commands parsed successfully."
 
-              # Merge failures and procedure issues by scenario → aircraft
-              by_scenario = {}
+              # Group failures by scenario → aircraft, procedure issues by scenario → procedure
+              fail_by_scenario = {}
               for name, acid, cmd, reason in failures:
-                  by_scenario.setdefault(name, {}).setdefault(acid, {"failures": [], "proc_issues": []})
-                  by_scenario[name][acid]["failures"].append((cmd, reason))
+                  fail_by_scenario.setdefault(name, {}).setdefault(acid, [])
+                  fail_by_scenario[name][acid].append((cmd, reason))
+              proc_by_scenario = {}
               for name, acid, proc_id, kind, resolved in proc_issues:
-                  by_scenario.setdefault(name, {}).setdefault(acid, {"failures": [], "proc_issues": []})
-                  by_scenario[name][acid]["proc_issues"].append((proc_id, kind, resolved))
+                  key = (proc_id, kind, resolved)
+                  proc_by_scenario.setdefault(name, {}).setdefault(key, [])
+                  proc_by_scenario[name][key].append(acid)
+
+              all_scenarios = sorted(set(list(fail_by_scenario) + list(proc_by_scenario)))
 
               lines = [f"# {artcc} Scenario Validation\n"]
               summary_parts = [f"{scenarios} scenarios", f"{presets} presets"]
@@ -118,18 +122,21 @@ jobs:
                   summary_parts.append(f"{len(proc_issues)} procedure issue{'s' if len(proc_issues) != 1 else ''}")
               lines.append(", ".join(summary_parts) + "\n")
 
-              for name, aircraft in by_scenario.items():
+              for name in all_scenarios:
                   lines.append(f"**{name}**")
-                  for acid, issues in aircraft.items():
-                      lines.append(f"  {acid}:")
-                      for cmd, reason in issues["failures"]:
-                          suffix = f" — {reason}" if reason else ""
-                          lines.append(f"    `{cmd}`{suffix}")
-                      for proc_id, kind, resolved in issues["proc_issues"]:
+                  if name in fail_by_scenario:
+                      for acid, cmds in fail_by_scenario[name].items():
+                          lines.append(f"  {acid}:")
+                          for cmd, reason in cmds:
+                              suffix = f" — {reason}" if reason else ""
+                              lines.append(f"    `{cmd}`{suffix}")
+                  if name in proc_by_scenario:
+                      for (proc_id, kind, resolved), callsigns in sorted(proc_by_scenario[name].items()):
+                          cs = ", ".join(sorted(callsigns))
                           if kind == 0 or kind == "VersionChanged":
-                              lines.append(f"    Procedure `{proc_id}` implicitly changed to `{resolved}`")
+                              lines.append(f"  `{proc_id}` → `{resolved}`: {cs}")
                           else:
-                              lines.append(f"    Procedure `{proc_id}` not found")
+                              lines.append(f"  `{proc_id}` not found: {cs}")
                   lines.append("")
 
               return "\n".join(lines)
