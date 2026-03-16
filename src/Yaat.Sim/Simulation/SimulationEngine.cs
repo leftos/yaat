@@ -242,6 +242,12 @@ public sealed class SimulationEngine
             TickPostPhysics();
             _terminalEntries.Clear();
 
+            // Advance weather timeline if active
+            if (Scenario!.WeatherTimeline is { } timeline)
+            {
+                World.Weather = timeline.GetWeatherAt(t);
+            }
+
             // Apply actions at this time
             while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= t)
             {
@@ -258,14 +264,7 @@ public sealed class SimulationEngine
         // Apply weather if present
         if (recording.WeatherJson is not null)
         {
-            var profile = JsonSerializer.Deserialize<WeatherProfile>(
-                recording.WeatherJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-            );
-            if (profile is not null)
-            {
-                World.Weather = profile;
-            }
+            ApplyWeatherJson(recording.WeatherJson);
         }
 
         ReplayTo((int)targetSeconds, recording.Actions);
@@ -859,18 +858,15 @@ public sealed class SimulationEngine
             case RecordedWeatherChange weather:
                 if (weather.WeatherJson is not null)
                 {
-                    var profile = JsonSerializer.Deserialize<WeatherProfile>(
-                        weather.WeatherJson,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-                    );
-                    if (profile is not null)
-                    {
-                        World.Weather = profile;
-                    }
+                    ApplyWeatherJson(weather.WeatherJson);
                 }
                 else
                 {
                     World.Weather = null;
+                    if (Scenario is not null)
+                    {
+                        Scenario.WeatherTimeline = null;
+                    }
                 }
                 break;
             case RecordedSettingChange setting:
@@ -1038,6 +1034,27 @@ public sealed class SimulationEngine
                     scenario.AutoCrossRunway = acr;
                 }
                 break;
+        }
+    }
+
+    private void ApplyWeatherJson(string weatherJson)
+    {
+        var parseResult = WeatherTimelineParser.Parse(weatherJson);
+        if (parseResult.IsTimeline)
+        {
+            if (Scenario is not null)
+            {
+                Scenario.WeatherTimeline = parseResult.Timeline;
+            }
+            World.Weather = parseResult.Timeline!.GetWeatherAt(Scenario?.ElapsedSeconds ?? 0);
+        }
+        else if (parseResult.IsProfile)
+        {
+            if (Scenario is not null)
+            {
+                Scenario.WeatherTimeline = null;
+            }
+            World.Weather = parseResult.Profile;
         }
     }
 

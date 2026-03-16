@@ -49,6 +49,8 @@ ViewModels/
   GroundViewModel.cs            # Ground view; loads layout, A* pathfinding, commands
   RadarViewModel.cs             # Radar view; video map loading, toggle items, DCB, persistence
   SettingsViewModel.cs          # Alias editing; preset detection
+  WeatherPeriodViewModel.cs     # Per-period VM: wind layers, METARs, precipitation, start/transition minutes
+  WeatherTimelineEditorViewModel.cs  # Timeline editor VM: period list, BuildJson (v1 if 1 period, v2 if 2+), FromJson
   *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp)
 
 Views/
@@ -62,6 +64,8 @@ Views/
   SettingsWindow.axaml.cs       # Modal settings (Identity/Scenarios/Macros tabs)
   MacroImportWindow.axaml.cs    # Macro import selection dialog
   LoadWeatherWindow.axaml.cs    # Weather profile picker modal (folder scan, name + layer count)
+  WeatherEditorControl.axaml.cs # Per-period weather editing UserControl (precipitation, wind layers grid, METARs)
+  WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
   ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)
   WindowGeometryHelper.cs       # Save/restore window position+size
 
@@ -119,6 +123,12 @@ GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed 
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
                                # GetWeatherForAirport: cached METAR lookup via MetarInterpolator
+WeatherPeriod.cs               # Single weather period in a v2 timeline: startMinutes, transitionMinutes, windLayers, metars, precipitation
+WeatherTimeline.cs             # Time-based weather evolution: list of WeatherPeriods; GetWeatherAt(elapsedSeconds) interpolates wind
+                               # layers during transitions (N/E vector decomposition); METARs/precipitation snap at transition start
+                               # HasMeaningfulChange: rate-limits broadcasts (direction >1°, speed >0.5kt tolerance)
+WeatherTimelineParser.cs       # Static v1/v2 auto-detection parser: checks for "periods" array → WeatherTimeline, else → WeatherProfile
+                               # Returns WeatherParseResult discriminated union (Timeline | Profile | Error)
 WindInterpolator.cs            # Static wind utilities: GetWindAt, GetWindComponents (vector lerp through 0/360), IasToTas (8-point
                                # lookup table), TasToIas, MachToIas (ISA speed-of-sound model), ComputeWindCorrectionAngle
 MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/OVC), visibility (SM); ParsedMetar record

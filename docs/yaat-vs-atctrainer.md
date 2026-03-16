@@ -36,6 +36,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Weather editor | Only via Data Admin | Yes — create/edit profiles with wind layers + METARs; apply live |
 | Save/export weather | — | Scenario > Save Weather As... |
 | Weather display | Only in CRC | Wind/altimeter shown on Ground View and Radar View |
+| Weather timelines | — | Yes — v2 JSON format with time-based periods; wind interpolates during transitions |
 
 ## Aircraft Grid / Main Window
 

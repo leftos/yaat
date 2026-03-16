@@ -23,7 +23,7 @@ public partial class MainWindow : Window
     private DataGridWindow? _dataGridWindow;
     private GroundViewWindow? _groundViewWindow;
     private RadarViewWindow? _radarViewWindow;
-    private WeatherEditorWindow? _weatherEditorWindow;
+    private WeatherTimelineEditorWindow? _weatherEditorWindow;
     private bool _restoringGrid;
     private bool _isConfirmedClose;
     private string? _sortColumnKey;
@@ -1264,7 +1264,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        OpenWeatherEditor(WeatherEditorViewModel.CreateEmpty(vm.Preferences.ArtccId), vm);
+        OpenWeatherEditor(WeatherTimelineEditorViewModel.CreateEmpty(vm.Preferences.ArtccId), vm);
     }
 
     private void OnEditWeatherClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -1274,10 +1274,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        OpenWeatherEditor(WeatherEditorViewModel.FromJson(vm.ActiveWeatherJson), vm);
+        OpenWeatherEditor(WeatherTimelineEditorViewModel.FromJson(vm.ActiveWeatherJson), vm);
     }
 
-    private void OpenWeatherEditor(WeatherEditorViewModel editorVm, MainViewModel vm)
+    private void OpenWeatherEditor(WeatherTimelineEditorViewModel editorVm, MainViewModel vm)
     {
         if (_weatherEditorWindow is not null)
         {
@@ -1285,7 +1285,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _weatherEditorWindow = new WeatherEditorWindow(
+        _weatherEditorWindow = new WeatherTimelineEditorWindow(
             editorVm,
             vm.Preferences,
             async (json, name) =>

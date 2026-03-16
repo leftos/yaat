@@ -1,0 +1,83 @@
+<Window xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Yaat.Client.ViewModels"
+    xmlns:v="using:Yaat.Client.Views"
+    x:Class="Yaat.Client.Views.WeatherTimelineEditorWindow"
+    x:DataType="vm:WeatherTimelineEditorViewModel"
+    Icon="avares://Yaat.Client/Resources/icon.png"
+    Title="Weather Editor"
+    MinWidth="700"
+    MinHeight="500"
+    CanResize="True">
+
+    <DockPanel Margin="12">
+
+        <!-- Bottom: action buttons -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <Button Content="Apply to Sim" x:Name="ApplyButton" />
+            <Button Content="Save As..." x:Name="SaveAsButton" />
+            <Button Content="Close" x:Name="CloseButton" />
+        </StackPanel>
+
+        <!-- Top: Name + ARTCC -->
+        <Grid DockPanel.Dock="Top"
+              ColumnDefinitions="Auto,*,16,Auto,Auto"
+              RowDefinitions="Auto"
+              Margin="0,0,0,12">
+            <TextBlock Grid.Column="0" Text="Name:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox Grid.Column="1" Text="{Binding Name}" />
+            <TextBlock Grid.Column="3" Text="ARTCC:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox Grid.Column="4" Text="{Binding ArtccId}" Width="60" />
+        </Grid>
+
+        <!-- Main: left period list + right period detail -->
+        <Grid ColumnDefinitions="180,12,*">
+
+            <!-- Left: period list -->
+            <DockPanel Grid.Column="0">
+                <TextBlock DockPanel.Dock="Top" Text="Periods" FontWeight="Bold" Margin="0,0,0,4" />
+                <StackPanel DockPanel.Dock="Bottom"
+                            Orientation="Horizontal"
+                            Spacing="4"
+                            Margin="0,4,0,0">
+                    <Button Content="+ Add"
+                            Command="{Binding AddPeriodCommand}"
+                            Padding="8,2" />
+                    <Button Content="- Remove"
+                            Command="{Binding RemovePeriodCommand}"
+                            Padding="8,2" />
+                </StackPanel>
+                <ListBox ItemsSource="{Binding Periods}"
+                         SelectedItem="{Binding SelectedPeriod}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:WeatherPeriodViewModel">
+                            <TextBlock Text="{Binding DisplayLabel}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <!-- Right: selected period detail -->
+            <DockPanel Grid.Column="2">
+                <Grid DockPanel.Dock="Top"
+                      ColumnDefinitions="Auto,80,16,Auto,80"
+                      RowDefinitions="Auto"
+                      Margin="0,0,0,8"
+                      DataContext="{Binding SelectedPeriod}">
+                    <TextBlock Grid.Column="0" Text="Start (min):" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Grid.Column="1" Text="{Binding StartMinutes}" />
+                    <TextBlock Grid.Column="3" Text="Transition (min):" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Grid.Column="4" Text="{Binding TransitionMinutes}" />
+                </Grid>
+
+                <v:WeatherEditorControl DataContext="{Binding SelectedPeriod}" />
+            </DockPanel>
+
+        </Grid>
+
+    </DockPanel>
+</Window>

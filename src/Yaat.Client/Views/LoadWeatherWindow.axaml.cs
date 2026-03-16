@@ -138,7 +138,10 @@ public partial class LoadWeatherWindow : Window
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
-                if (!root.TryGetProperty("windLayers", out var layersProp) || layersProp.ValueKind != JsonValueKind.Array)
+                bool isV2 = root.TryGetProperty("periods", out var periodsProp) && periodsProp.ValueKind == JsonValueKind.Array;
+                bool isV1 = root.TryGetProperty("windLayers", out var layersProp) && layersProp.ValueKind == JsonValueKind.Array;
+
+                if (!isV1 && !isV2)
                 {
                     continue;
                 }
@@ -146,8 +149,9 @@ public partial class LoadWeatherWindow : Window
                 var name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
                 name = string.IsNullOrWhiteSpace(name) ? Path.GetFileNameWithoutExtension(filePath) : name;
 
-                var layerCount = layersProp.GetArrayLength();
-                items.Add(new LocalWeatherItem(filePath, name, layerCount));
+                var layerCount = isV2 ? periodsProp.GetArrayLength() : layersProp.GetArrayLength();
+                var suffix = isV2 ? "periods" : "layers";
+                items.Add(new LocalWeatherItem(filePath, name, layerCount, suffix));
             }
             catch (Exception ex)
             {
@@ -225,7 +229,7 @@ internal sealed record ArtccWeatherItem(string Id, string Name, int LayerCount)
     public string LayerCountText => LayerCount == 1 ? "(1 layer)" : $"({LayerCount} layers)";
 }
 
-internal sealed record LocalWeatherItem(string FilePath, string Name, int LayerCount)
+internal sealed record LocalWeatherItem(string FilePath, string Name, int Count, string Suffix)
 {
-    public string LayerCountText => LayerCount == 1 ? "(1 layer)" : $"({LayerCount} layers)";
+    public string LayerCountText => Count == 1 ? $"(1 {Suffix.TrimEnd('s')})" : $"({Count} {Suffix})";
 }

@@ -269,24 +269,7 @@ public partial class MainViewModel
             }
             else
             {
-                var profile = new WeatherProfile
-                {
-                    Name = dto.Name,
-                    ArtccId = _preferences.ArtccId,
-                    Precipitation = dto.Precipitation,
-                    Metars = dto.Metars ?? [],
-                    WindLayers =
-                        dto.WindLayers?.Select(w => new WindLayer
-                            {
-                                Altitude = w.Altitude,
-                                Direction = w.Direction,
-                                Speed = w.Speed,
-                                Gusts = w.Gusts,
-                            })
-                            .ToList()
-                        ?? [],
-                };
-                SetActiveWeatherJson(JsonSerializer.Serialize(profile));
+                SetActiveWeatherJson(dto.SourceJson);
 
                 var allInfo = ExtractAllWeatherDisplay(dto.Metars);
                 _allWeatherInfo = allInfo;

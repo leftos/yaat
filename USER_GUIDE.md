@@ -190,19 +190,67 @@ Live weather builds wind layers from FAA Winds and Temperatures Aloft (FD) data 
 
 ### Weather Editor
 
-**Scenario > New Weather...** opens a weather editor window to create a new profile from scratch.
+**Scenario > New Weather...** opens the weather editor with a single empty period.
 
-**Scenario > Edit Weather...** opens the editor pre-populated with the active weather profile. Only available when weather is loaded.
+**Scenario > Edit Weather...** opens the editor pre-populated with the active weather. If a timeline is active, all periods are restored.
 
-The editor lets you set the profile name, ARTCC, and precipitation type. Wind layers can be added, edited, and removed via an editable grid (altitude, direction, speed, gusts). METARs can be added and edited as raw text.
+The editor has two panels:
 
-- **Apply to Sim** sends the profile to the server immediately. The editor stays open for further edits.
-- **Save As...** exports the profile to a JSON file without sending it to the server.
+- **Left panel** — period list. Use **+ Add** to create new periods and **- Remove** to delete the selected one (minimum one period). Each period shows its start time.
+- **Right panel** — selected period details: start time (minutes), transition duration (minutes), precipitation type, wind layers grid (altitude, direction, speed, gusts), and METARs list.
+
+**Saving format:** If the editor has a single period, it saves as a v1 weather profile (compatible with ATCTrainer). With two or more periods, it saves as a v2 weather timeline with time-based transitions.
+
+- **Apply to Sim** sends the weather to the server immediately. The editor stays open for further edits.
+- **Save As...** exports to a JSON file without sending it to the server.
 - **Close** closes the editor.
 
 Only one editor window can be open at a time.
 
-Weather profiles use the same JSON format as ATCTrainer standalone weather files.
+### Weather Timelines (V2 Format)
+
+YAAT supports a **v2 weather JSON format** that defines time-based weather evolution with multiple periods. Wind layers interpolate smoothly during transitions while METARs and precipitation change instantly at the period boundary.
+
+**V2 JSON structure:**
+
+```json
+{
+  "name": "SFOW → SFOE transition",
+  "artccId": "ZOA",
+  "periods": [
+    {
+      "startMinutes": 0,
+      "transitionMinutes": 0,
+      "precipitation": "None",
+      "windLayers": [
+        { "altitude": 3000, "direction": 280, "speed": 12 }
+      ],
+      "metars": ["KSFO 031753Z 28012KT 10SM FEW200"]
+    },
+    {
+      "startMinutes": 20,
+      "transitionMinutes": 10,
+      "precipitation": "Rain",
+      "windLayers": [
+        { "altitude": 3000, "direction": 250, "speed": 15 }
+      ],
+      "metars": ["KSFO 031853Z 25015G22KT 6SM -RA"]
+    }
+  ]
+}
+```
+
+**How transitions work:**
+
+- `startMinutes` — simulation elapsed time (in minutes) when this period activates.
+- `transitionMinutes` — duration (in minutes) over which wind layers blend from the previous period to this one.
+- At `startMinutes`, METARs and precipitation snap to this period's values immediately.
+- Wind layers interpolate linearly from the previous period over the transition window, handling the 360°/0° direction boundary correctly.
+- If `transitionMinutes` is 0, all weather changes instantly at `startMinutes`.
+
+**Loading:** Load v2 weather files using **Scenario > Load Weather... > Local Files** — files with a `periods` array are automatically detected. The v1 (single weather profile) format continues to work unchanged.
+
+**Rewind:** Weather timelines are fully compatible with the rewind system. Rewinding past a transition boundary restores the correct interpolated weather for that point in time.
 
 ## Aircraft List
 

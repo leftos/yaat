@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Sim;
@@ -27,13 +26,13 @@ public partial class MetarRow : ObservableObject
     private string _text = "";
 }
 
-public partial class WeatherEditorViewModel : ObservableObject
+public partial class WeatherPeriodViewModel : ObservableObject
 {
     [ObservableProperty]
-    private string _name = "";
+    private double _startMinutes;
 
     [ObservableProperty]
-    private string _artccId = "";
+    private double _transitionMinutes;
 
     [ObservableProperty]
     private string? _precipitation;
@@ -43,6 +42,13 @@ public partial class WeatherEditorViewModel : ObservableObject
     public ObservableCollection<MetarRow> Metars { get; } = [];
 
     public static List<string?> PrecipitationOptions { get; } = [null, "Rain", "Snow"];
+
+    public string DisplayLabel => $"Period ({StartMinutes} min)";
+
+    partial void OnStartMinutesChanged(double value)
+    {
+        OnPropertyChanged(nameof(DisplayLabel));
+    }
 
     [RelayCommand]
     private void AddLayer()
@@ -68,13 +74,12 @@ public partial class WeatherEditorViewModel : ObservableObject
         Metars.Remove(metar);
     }
 
-    public string BuildJson()
+    public WeatherPeriod BuildPeriod()
     {
-        var profile = new WeatherProfile
+        return new WeatherPeriod
         {
-            Id = Guid.NewGuid().ToString(),
-            ArtccId = ArtccId,
-            Name = string.IsNullOrWhiteSpace(Name) ? "Custom Weather" : Name,
+            StartMinutes = StartMinutes,
+            TransitionMinutes = TransitionMinutes,
             Precipitation = Precipitation,
             WindLayers = WindLayers
                 .Select(w => new WindLayer
@@ -88,16 +93,44 @@ public partial class WeatherEditorViewModel : ObservableObject
                 .ToList(),
             Metars = Metars.Where(m => !string.IsNullOrWhiteSpace(m.Text)).Select(m => m.Text.Trim()).ToList(),
         };
-        return JsonSerializer.Serialize(profile);
     }
 
-    public static WeatherEditorViewModel FromJson(string json)
+    public static WeatherPeriodViewModel FromPeriod(WeatherPeriod period)
     {
-        var profile = JsonSerializer.Deserialize<WeatherProfile>(json) ?? new WeatherProfile();
-        var vm = new WeatherEditorViewModel
+        var vm = new WeatherPeriodViewModel
         {
-            Name = profile.Name,
-            ArtccId = profile.ArtccId,
+            StartMinutes = period.StartMinutes,
+            TransitionMinutes = period.TransitionMinutes,
+            Precipitation = period.Precipitation,
+        };
+
+        foreach (var layer in period.WindLayers)
+        {
+            vm.WindLayers.Add(
+                new WindLayerRow
+                {
+                    Altitude = layer.Altitude,
+                    Direction = layer.Direction,
+                    Speed = layer.Speed,
+                    Gusts = layer.Gusts,
+                }
+            );
+        }
+
+        foreach (var metar in period.Metars)
+        {
+            vm.Metars.Add(new MetarRow { Text = metar });
+        }
+
+        return vm;
+    }
+
+    public static WeatherPeriodViewModel FromProfile(WeatherProfile profile)
+    {
+        var vm = new WeatherPeriodViewModel
+        {
+            StartMinutes = 0,
+            TransitionMinutes = 0,
             Precipitation = profile.Precipitation,
         };
 
@@ -120,10 +153,5 @@ public partial class WeatherEditorViewModel : ObservableObject
         }
 
         return vm;
-    }
-
-    public static WeatherEditorViewModel CreateEmpty(string artccId)
-    {
-        return new WeatherEditorViewModel { ArtccId = artccId };
     }
 }

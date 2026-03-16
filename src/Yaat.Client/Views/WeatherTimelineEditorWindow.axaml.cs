@@ -7,21 +7,25 @@ using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
 
-public partial class WeatherEditorWindow : Window
+public partial class WeatherTimelineEditorWindow : Window
 {
-    private static readonly ILogger Log = AppLog.CreateLogger<WeatherEditorWindow>();
+    private static readonly ILogger Log = AppLog.CreateLogger<WeatherTimelineEditorWindow>();
 
     private readonly Func<string, string, Task>? _applyCallback;
 
-    public WeatherEditorWindow()
-        : this(new WeatherEditorViewModel(), new UserPreferences(), null) { }
+    public WeatherTimelineEditorWindow()
+        : this(WeatherTimelineEditorViewModel.CreateEmpty(""), new UserPreferences(), null) { }
 
-    public WeatherEditorWindow(WeatherEditorViewModel viewModel, UserPreferences preferences, Func<string, string, Task>? applyCallback)
+    public WeatherTimelineEditorWindow(
+        WeatherTimelineEditorViewModel viewModel,
+        UserPreferences preferences,
+        Func<string, string, Task>? applyCallback
+    )
     {
         _applyCallback = applyCallback;
         DataContext = viewModel;
         InitializeComponent();
-        new WindowGeometryHelper(this, preferences, "WeatherEditor", 650, 550).Restore();
+        new WindowGeometryHelper(this, preferences, "WeatherTimelineEditor", 800, 600).Restore();
 
         this.FindControl<Button>("ApplyButton")!.Click += OnApplyClick;
         this.FindControl<Button>("SaveAsButton")!.Click += OnSaveAsClick;
@@ -30,7 +34,7 @@ public partial class WeatherEditorWindow : Window
 
     private async void OnApplyClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (DataContext is not WeatherEditorViewModel vm || _applyCallback is null)
+        if (DataContext is not WeatherTimelineEditorViewModel vm || _applyCallback is null)
         {
             return;
         }
@@ -49,7 +53,7 @@ public partial class WeatherEditorWindow : Window
 
     private async void OnSaveAsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (DataContext is not WeatherEditorViewModel vm)
+        if (DataContext is not WeatherTimelineEditorViewModel vm)
         {
             return;
         }

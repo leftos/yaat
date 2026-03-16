@@ -571,7 +571,7 @@ public record FacilityVideoMapsDto(
     List<MapGroupDto> MapGroups
 );
 
-public record WeatherChangedDto(string? Name, List<WindLayerDto>? WindLayers, string? Precipitation, List<string>? Metars);
+public record WeatherChangedDto(string? Name, List<WindLayerDto>? WindLayers, string? Precipitation, List<string>? Metars, string? SourceJson);
 
 public record WindLayerDto(int Altitude, int Direction, int Speed, int? Gusts);
 

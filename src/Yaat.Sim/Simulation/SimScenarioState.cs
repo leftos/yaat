@@ -22,6 +22,9 @@ public sealed class SimScenarioState
     public bool AutoCrossRunway { get; set; }
     public bool ValidateDctFixes { get; set; } = true;
 
+    // Weather timeline (v2 time-based weather evolution)
+    public WeatherTimeline? WeatherTimeline { get; set; }
+
     // Scenario metadata
     public string? InitialWeatherJson { get; set; }
     public List<RecordedAction> ActionLog { get; } = [];

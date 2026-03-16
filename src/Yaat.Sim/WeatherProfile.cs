@@ -53,11 +53,23 @@ public class WeatherProfile
     private readonly Dictionary<string, MetarParser.ParsedMetar?> _metarCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Pre-computed interpolated METAR values populated during weather timeline transitions.
+    /// When set, <see cref="GetWeatherForAirport"/> returns these instead of parsing METAR text.
+    /// </summary>
+    [JsonIgnore]
+    public Dictionary<string, MetarParser.ParsedMetar>? ParsedMetarOverrides { get; set; }
+
+    /// <summary>
     /// Get parsed ceiling/visibility for an airport, with caching.
-    /// Uses exact station match first, then IDW interpolation from nearby stations.
+    /// Checks interpolated overrides first, then exact station match, then IDW interpolation.
     /// </summary>
     public MetarParser.ParsedMetar? GetWeatherForAirport(string airportId)
     {
+        if (ParsedMetarOverrides is not null && ParsedMetarOverrides.TryGetValue(airportId, out var over))
+        {
+            return over;
+        }
+
         if (Metars.Count == 0)
         {
             return null;
