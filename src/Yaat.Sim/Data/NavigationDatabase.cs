@@ -202,6 +202,16 @@ public sealed class NavigationDatabase
         return db;
     }
 
+    private IReadOnlyList<(string Name, double Lat, double Lon)>? _fixTuples;
+
+    /// <summary>
+    /// Returns all fixes as (Name, Lat, Lon) tuples for FRD resolution. Lazily cached.
+    /// </summary>
+    public IReadOnlyList<(string Name, double Lat, double Lon)> GetFixTuples()
+    {
+        return _fixTuples ??= _navDb.Select(kv => (kv.Key, kv.Value.Lat, kv.Value.Lon)).ToArray();
+    }
+
     public int Count => _navDb.Count;
 
     /// <summary>

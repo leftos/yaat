@@ -755,6 +755,9 @@ public static class CommandRegistry
             Bare(SaySpeed, "Say Speed", "Broadcast", false, ["SSPD"]),
             Bare(SayMach, "Say Mach", "Broadcast", false, ["SMACH"]),
             Bare(SayExpectedApproach, "Say Expected Approach", "Broadcast", false, ["SEAPP"]),
+            Bare(SayAltitude, "Say Altitude", "Broadcast", false, ["SALT"]),
+            Bare(SayHeading, "Say Heading", "Broadcast", false, ["SHDG"]),
+            Bare(SayPosition, "Say Position", "Broadcast", false, ["SPOS"]),
         ];
 
     private static CommandDefinition[] ApproachCommands() =>

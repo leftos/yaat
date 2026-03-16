@@ -109,6 +109,12 @@ public record SayMachCommand : ParsedCommand;
 
 public record SayExpectedApproachCommand : ParsedCommand;
 
+public record SayAltitudeCommand : ParsedCommand;
+
+public record SayHeadingCommand : ParsedCommand;
+
+public record SayPositionCommand : ParsedCommand;
+
 public record UnsupportedCommand(string RawText) : ParsedCommand;
 
 // Departure instruction hierarchy for CTO commands

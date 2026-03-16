@@ -535,6 +535,9 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Say speed | `SSPD` | — | Aircraft reports current speed (includes Mach at/above FL240) |
 | Say mach | `SMACH` | — | Aircraft reports current Mach number |
 | Say expected approach | `SEAPP` | — | Aircraft reports expected approach |
+| Say altitude | `SALT` | — | Aircraft reports current and target altitude |
+| Say heading | `SHDG` | — | Aircraft reports heading (includes direct-to fix if navigating) |
+| Say position | `SPOS` | — | Aircraft reports position as fix-radial-distance |
 | Spawn now | `SPAWN` | — | — |
 | Spawn delay | `DELAY 120` | — | — |
 | Wait (seconds) | `WAIT 30` | — | — |
@@ -1277,6 +1280,36 @@ Make an aircraft report its expected approach:
 | `SEAPP` | Aircraft broadcasts its expected approach (or "No expected approach assigned") |
 
 Aliases: `SEAPP`.
+
+### Say Altitude
+
+Make an aircraft report its current altitude:
+
+| Command | Effect |
+|---------|--------|
+| `SALT` | Aircraft broadcasts its altitude and vertical trend (e.g., "12500 ft, climbing to 17000 ft") |
+
+Reports present altitude. If a target altitude is assigned, also reports climbing/descending to target, or "level" if at target. Aliases: `SALT`.
+
+### Say Heading
+
+Make an aircraft report its current heading:
+
+| Command | Effect |
+|---------|--------|
+| `SHDG` | Aircraft broadcasts its heading (includes direct-to fix if navigating a route) |
+
+Reports current heading as three digits. If the aircraft is navigating to a fix, also reports which fix (e.g., "Heading 270, direct SUNOL"). Aliases: `SHDG`.
+
+### Say Position
+
+Make an aircraft report its position:
+
+| Command | Effect |
+|---------|--------|
+| `SPOS` | Aircraft broadcasts its position relative to the nearest fix |
+
+Reports position as natural language relative to the nearest navigation fix (e.g., "15 nm northeast of OAK" or "Over SUNOL"). Falls back to lat/lon if no fix is nearby. Aliases: `SPOS`.
 
 ## Simulation Controls
 

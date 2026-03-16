@@ -134,6 +134,9 @@ public enum CanonicalCommandType
     SaySpeed,
     SayMach,
     SayExpectedApproach,
+    SayAltitude,
+    SayHeading,
+    SayPosition,
 
     // Navigation (continued)
     ForceDirectTo,

@@ -125,6 +125,9 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Say speed | — | `SSPD` | YAAT-only (includes Mach at/above FL240) |
 | Say mach | — | `SMACH` | YAAT-only |
 | Say expected approach | — | `SEAPP` | YAAT-only — broadcasts expected approach |
+| Say altitude | — | `SALT` | YAAT-only — reports altitude and vertical trend |
+| Say heading | — | `SHDG` | YAAT-only — reports heading and direct-to fix |
+| Say position | — | `SPOS` | YAAT-only — reports position relative to nearest fix |
 
 ### Navigation
 
