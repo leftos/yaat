@@ -62,8 +62,8 @@ public sealed class ClimbSpeedScheduleTests
 
         phase.OnStart(ctx);
 
-        // Should set initial climb speed (180 for jet), not DefaultSpeed at target alt
-        Assert.Equal(CategoryPerformance.InitialClimbSpeed(AircraftCategory.Jet), ac.Targets.TargetSpeed);
+        // Should set initial climb speed from profile (165 for B738), not DefaultSpeed at target alt
+        Assert.Equal(AircraftPerformance.InitialClimbSpeed("B738", AircraftCategory.Jet), ac.Targets.TargetSpeed);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class ClimbSpeedScheduleTests
         {
             Callsign = "TEST1",
             AircraftType = "B738",
-            Altitude = 10500,
+            Altitude = 16000,
             IndicatedAirspeed = 250,
             IsOnGround = false,
             Heading = 280,
@@ -97,15 +97,15 @@ public sealed class ClimbSpeedScheduleTests
 
         phase.OnStart(ctx);
 
-        // Simulate reaching 250 kts (initial target speed was set to InitialClimbSpeed)
-        // Now null out TargetSpeed as if UpdateSpeed cleared it
+        // Null out TargetSpeed as if UpdateSpeed cleared it
         ac.Targets.TargetSpeed = null;
 
-        // Above 10k, appropriate speed for jet is 280
+        // At FL160 with B738 profile, climb speed should differ from 250 by > 5 kts
         phase.OnTick(ctx);
 
+        double expected = AircraftPerformance.DefaultSpeed("B738", AircraftCategory.Jet, 16000, ac.Targets.TargetAltitude);
         Assert.NotNull(ac.Targets.TargetSpeed);
-        Assert.Equal(CategoryPerformance.DefaultSpeed(AircraftCategory.Jet, 10500, "B738"), ac.Targets.TargetSpeed);
+        Assert.Equal(expected, ac.Targets.TargetSpeed);
     }
 
     [Fact]

@@ -188,7 +188,7 @@ public static class ScenarioLoader
 
         if (speed < 0)
         {
-            speed = CategoryPerformance.DefaultSpeed(category, alt);
+            speed = AircraftPerformance.DefaultSpeed(ac.AircraftType, category, alt, null);
         }
 
         var state = CreateBaseState(ac, primaryApproach);

@@ -118,7 +118,9 @@ SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, T
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
 CommandQueue.cs                # CommandBlock (trigger + closure + TrackedCommands), BlockTrigger
 AircraftCategory.cs            # Enum + AircraftCategorization (static Init from AircraftSpecs.json)
-                               # CategoryPerformance: all aviation constants (validated by aviation-sim-expert)
+                               # CategoryPerformance: fallback aviation constants (taxi, pattern geometry, flare, etc.)
+AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
+                               # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
 ConflictAlertDetector.cs       # Static STARS CA detection: 3nm/1000ft thresholds, 5s extrapolation, hysteresis, approach suppression
 WeatherProfile.cs              # WeatherProfile + WindLayer; ATCTrainer-compatible JSON; layers sorted by altitude on load
@@ -239,9 +241,14 @@ RunwayCrossingDetector.cs      # Detect taxiway/runway intersections
 RunwayIntersectionCalculator.cs # LAHSO: runway centerline intersection + hold-short distance
 HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes
 
+# Data/
+AircraftProfile.cs             # Per-type performance profile record (from AircraftProfiles.json)
+AircraftProfileDatabase.cs     # Static lookup: Get(aircraftType) → AircraftProfile?; 163 types
+AircraftProfiles.json          # ATCTrainer per-type perf data: altitude-banded climb/descent, Mach speeds
+
 # Data/Faa/
-FaaAircraftRecord.cs           # Full FAA ACD row: wingspan, length, tail height, gear geometry, MTOW, speeds, classifications
-FaaAircraftDatabase.cs         # Static lookup: Get(aircraftType) → FaaAircraftRecord?; strips type prefixes
+FaaAircraftRecord.cs           # Full FAA ACD row: wingspan, length, tail height, gear geometry, MTOW, classifications
+FaaAircraftDatabase.cs         # Static lookup: Get(aircraftType) → FaaAircraftRecord?; used for physical dimensions
 FaaAircraftDataService.cs      # Downloads FAA ACD xlsx, parses all columns, caches per AIRAC cycle
 
 # Data/Vnas/

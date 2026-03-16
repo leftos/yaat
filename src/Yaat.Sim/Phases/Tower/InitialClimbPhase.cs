@@ -45,7 +45,7 @@ public sealed class InitialClimbPhase : Phase
         ctx.Targets.TurnRateOverride = null;
 
         // Start at initial climb speed; tick-based scheduling will ramp up through altitude bands
-        double initialSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);
+        double initialSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetSpeed = initialSpeed;
 
         // Set up navigation for route-based departures
@@ -78,7 +78,7 @@ public sealed class InitialClimbPhase : Phase
     public override bool OnTick(PhaseContext ctx)
     {
         // Update speed target based on current altitude band
-        double appropriateSpeed = CategoryPerformance.DefaultSpeed(ctx.Category, ctx.Aircraft.Altitude, ctx.Aircraft.AircraftType);
+        double appropriateSpeed = AircraftPerformance.DefaultSpeed(ctx.AircraftType, ctx.Category, ctx.Aircraft.Altitude, ctx.Targets.TargetAltitude);
         if (ctx.Targets.TargetSpeed is null && Math.Abs(ctx.Aircraft.IndicatedAirspeed - appropriateSpeed) > 5)
         {
             ctx.Targets.TargetSpeed = appropriateSpeed;

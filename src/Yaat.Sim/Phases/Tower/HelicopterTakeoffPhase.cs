@@ -35,8 +35,8 @@ public sealed class HelicopterTakeoffPhase : Phase
         // Immediate liftoff — no ground roll
         ctx.Aircraft.IsOnGround = false;
 
-        double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
-        double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);
+        double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
+        double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
 
         ctx.Targets.TargetAltitude = _fieldElevation + CompletionAgl;
         ctx.Targets.DesiredVerticalRate = climbRate;

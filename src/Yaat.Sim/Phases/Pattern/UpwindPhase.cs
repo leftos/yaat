@@ -44,10 +44,10 @@ public sealed class UpwindPhase : Phase
 
         // Climb to pattern altitude
         ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
-        ctx.Targets.DesiredVerticalRate = CategoryPerformance.InitialClimbRate(ctx.Category);
+        ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
 
         // Accelerate toward downwind speed
-        ctx.Targets.TargetSpeed = CategoryPerformance.DownwindSpeed(ctx.Category, ctx.Aircraft.AircraftType);
+        ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
 
         ctx.Logger.LogDebug(
             "[Upwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",

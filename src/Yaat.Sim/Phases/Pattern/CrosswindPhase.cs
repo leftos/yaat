@@ -48,7 +48,7 @@ public sealed class CrosswindPhase : Phase
         if (ctx.Aircraft.Altitude < Waypoints.PatternAltitude - 50)
         {
             ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
-            ctx.Targets.DesiredVerticalRate = CategoryPerformance.InitialClimbRate(ctx.Category);
+            ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
 
         ctx.Logger.LogDebug(

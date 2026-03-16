@@ -58,7 +58,7 @@ public sealed class FinalApproachPhase : Phase
         ctx.Targets.NavigationRoute.Clear();
 
         // Set approach speed (per-type if available)
-        double approachSpeed = CategoryPerformance.ApproachSpeed(ctx.Category, ctx.Aircraft.AircraftType);
+        double approachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetSpeed = approachSpeed;
 
         double startDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
@@ -107,7 +107,7 @@ public sealed class FinalApproachPhase : Phase
         // Turn radius in nm: R = V_kts / (ω_deg/s × 20π)
         double turnRate = _isPatternTraffic
             ? CategoryPerformance.PatternTurnRate(ctx.Category)
-            : (ctx.Aircraft.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(ctx.Category));
+            : (ctx.Aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category));
         double turnRadiusNm = ctx.Aircraft.GroundSpeed / (turnRate * 62.832);
 
         // Blend: at large XTE, lead = turnRadius (kinematic intercept arc).

@@ -87,18 +87,6 @@ public sealed class FaaAircraftDataService : IDisposable
     private static void ApplyRecords(Dictionary<string, FaaAircraftRecord> records)
     {
         FaaAircraftDatabase.Initialize(records);
-
-        // Also populate approach speed lookup used by approach phase logic
-        var approachSpeeds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (icao, record) in records)
-        {
-            if (record.ApproachSpeedKnot is { } speed)
-            {
-                approachSpeeds[icao] = speed;
-            }
-        }
-
-        AircraftApproachSpeed.Initialize(approachSpeeds);
     }
 
     private static bool TryLoadFromJson(string path)

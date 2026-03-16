@@ -71,7 +71,7 @@ public sealed class BasePhase : Phase
         ctx.Targets.TargetAltitude = midAlt;
 
         // Slow to base speed
-        ctx.Targets.TargetSpeed = CategoryPerformance.BaseSpeed(ctx.Category, ctx.Aircraft.AircraftType);
+        ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
 
         ctx.Logger.LogDebug(
             "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft, extended={Ext}",

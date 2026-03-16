@@ -89,7 +89,7 @@ public static class AircraftGenerator
 
         // Heading toward the airport
         var heading = ComputeBearing(lat, lon, airportPos.Value.Lat, airportPos.Value.Lon);
-        var speed = CategoryPerformance.DefaultSpeed(category, request.Altitude);
+        var speed = AircraftPerformance.DefaultSpeed(aircraftType, category, request.Altitude, null);
 
         var state = new AircraftState
         {
@@ -139,7 +139,7 @@ public static class AircraftGenerator
             }
         }
 
-        var speed = CategoryPerformance.DefaultSpeed(category, request.Altitude);
+        var speed = AircraftPerformance.DefaultSpeed(aircraftType, category, request.Altitude, null);
 
         var state = new AircraftState
         {

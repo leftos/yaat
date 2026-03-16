@@ -69,7 +69,8 @@ public static class FlightPhysics
             double currentLegBearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
             double nextLegBearing = GeoMath.BearingTo(nav.Latitude, nav.Longitude, route[1].Latitude, route[1].Longitude);
             double turnRate =
-                aircraft.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(AircraftCategorization.Categorize(aircraft.AircraftType));
+                aircraft.Targets.TurnRateOverride
+                ?? AircraftPerformance.TurnRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
             anticipationNm = ComputeAnticipationDistanceNm(aircraft.GroundSpeed, turnRate, currentLegBearing, nextLegBearing);
             threshold = Math.Max(anticipationNm, NavArrivalNm);
         }
@@ -130,7 +131,8 @@ public static class FlightPhysics
             double currentLegBearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude);
             double nextLegBearing = GeoMath.BearingTo(nav.Latitude, nav.Longitude, route[1].Latitude, route[1].Longitude);
             double turnRate =
-                aircraft.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(AircraftCategorization.Categorize(aircraft.AircraftType));
+                aircraft.Targets.TurnRateOverride
+                ?? AircraftPerformance.TurnRate(aircraft.AircraftType, AircraftCategorization.Categorize(aircraft.AircraftType));
             bearing = ComputeArcBlendedHeading(
                 aircraft.Latitude,
                 aircraft.Longitude,
@@ -246,7 +248,7 @@ public static class FlightPhysics
             aircraft.Targets.TargetAltitude = targetAlt;
 
             // Compute the descent rate required to reach targetAlt at the fix
-            double standardRate = CategoryPerformance.DescentRate(cat);
+            double standardRate = AircraftPerformance.DescentRate(aircraft.AircraftType, cat, aircraft.Altitude);
             double timeMinutes = cumulativeDistNm / (aircraft.GroundSpeed / 60.0);
 
             if (timeMinutes > 0.1)
@@ -351,7 +353,7 @@ public static class FlightPhysics
             aircraft.Targets.TargetAltitude = targetAlt;
 
             // Compute the climb rate required to reach targetAlt at the fix
-            double standardRate = CategoryPerformance.ClimbRate(cat, aircraft.Altitude);
+            double standardRate = AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, aircraft.Altitude);
             double timeMinutes = cumulativeDistNm / (aircraft.GroundSpeed / 60.0);
 
             if (timeMinutes > 0.1)
@@ -592,7 +594,7 @@ public static class FlightPhysics
             return;
         }
 
-        double turnRate = aircraft.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(cat);
+        double turnRate = aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(aircraft.AircraftType, cat);
         double maxTurn = turnRate * deltaSeconds;
 
         double direction = ResolveDirection(diff, aircraft.Targets.PreferredTurnDirection);
@@ -645,7 +647,9 @@ public static class FlightPhysics
         }
         else
         {
-            rate = climbing ? CategoryPerformance.ClimbRate(cat, current) : CategoryPerformance.DescentRate(cat);
+            rate = climbing
+                ? AircraftPerformance.ClimbRate(aircraft.AircraftType, cat, current)
+                : AircraftPerformance.DescentRate(aircraft.AircraftType, cat, current);
         }
 
         if (aircraft.IsExpediting)
@@ -672,12 +676,13 @@ public static class FlightPhysics
     private static void UpdateSpeed(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
         bool below10k = !aircraft.IsOnGround && aircraft.Altitude < 10_000;
+        bool speedLimitWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType);
 
         // Mach hold: recompute equivalent IAS each tick so the aircraft maintains constant Mach.
         if (aircraft.Targets.TargetMach is { } targetMach && !aircraft.IsOnGround)
         {
             double machIas = WindInterpolator.MachToIas(targetMach, aircraft.Altitude);
-            if (below10k)
+            if (below10k && !speedLimitWaived)
             {
                 machIas = Math.Min(machIas, 250);
             }
@@ -692,7 +697,7 @@ public static class FlightPhysics
             double effectiveCeiling = aircraft.Targets.SpeedCeiling ?? double.MaxValue;
 
             // 14 CFR 91.117: cap effective floor at 250 below 10,000 ft.
-            if (below10k)
+            if (below10k && !speedLimitWaived)
             {
                 effectiveFloor = Math.Min(effectiveFloor, 250);
                 effectiveCeiling = Math.Min(effectiveCeiling, 250);
@@ -719,7 +724,7 @@ public static class FlightPhysics
             && Math.Abs(aircraft.Altitude - aircraft.Targets.TargetAltitude.Value) > AltitudeSnapFt
         )
         {
-            double defaultSpeed = CategoryPerformance.DefaultSpeed(cat, aircraft.Altitude, aircraft.AircraftType);
+            double defaultSpeed = AircraftPerformance.DefaultSpeed(aircraft.AircraftType, cat, aircraft.Altitude, aircraft.Targets.TargetAltitude);
             if (Math.Abs(aircraft.IndicatedAirspeed - defaultSpeed) > SpeedSnapKts)
             {
                 aircraft.Targets.TargetSpeed = defaultSpeed;
@@ -743,7 +748,7 @@ public static class FlightPhysics
         }
 
         // 14 CFR 91.117: max 250 KIAS below 10,000 ft MSL when airborne.
-        if (below10k)
+        if (below10k && !speedLimitWaived)
         {
             goal = Math.Min(goal, 250);
         }
@@ -758,7 +763,9 @@ public static class FlightPhysics
         }
 
         bool accelerating = diff > 0;
-        double rate = accelerating ? CategoryPerformance.AccelRate(cat) : CategoryPerformance.DecelRate(cat);
+        double rate = accelerating
+            ? AircraftPerformance.AccelRate(aircraft.AircraftType, cat)
+            : AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
 
         double maxChange = rate * deltaSeconds;
         double change = Math.Min(Math.Abs(diff), maxChange);

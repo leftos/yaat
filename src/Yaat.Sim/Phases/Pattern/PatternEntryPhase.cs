@@ -60,11 +60,11 @@ public sealed class PatternEntryPhase : Phase
         }
         else if (ctx.Aircraft.Altitude < PatternAltitude - 100)
         {
-            ctx.Targets.DesiredVerticalRate = CategoryPerformance.InitialClimbRate(ctx.Category);
+            ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
 
         // Decelerate toward pattern speed
-        ctx.Targets.TargetSpeed = CategoryPerformance.DownwindSpeed(ctx.Category, ctx.Aircraft.AircraftType);
+        ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, EntryLat, EntryLon);
         ctx.Logger.LogDebug(

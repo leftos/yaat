@@ -69,6 +69,8 @@ public sealed class VnasDataService : IDisposable
 
         await InitializeFaaAcdAsync();
 
+        InitializeAircraftProfiles();
+
         SaveManifest(config, manifest);
 
         LogSummary();
@@ -325,6 +327,26 @@ public sealed class VnasDataService : IDisposable
         catch (Exception ex)
         {
             Log.LogWarning(ex, "FAA ACD initialization failed; category defaults will be used for approach speeds");
+        }
+    }
+
+    private static void InitializeAircraftProfiles()
+    {
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfiles.json");
+            if (!File.Exists(path))
+            {
+                Log.LogWarning("AircraftProfiles.json not found at {Path}; category defaults will be used", path);
+                return;
+            }
+
+            var profiles = AircraftProfileDatabase.LoadFromFile(path);
+            AircraftProfileDatabase.Initialize(profiles);
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to load aircraft profiles; category defaults will be used");
         }
     }
 

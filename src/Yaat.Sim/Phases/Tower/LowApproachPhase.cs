@@ -39,7 +39,7 @@ public sealed class LowApproachPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
-        double approachSpeed = CategoryPerformance.ApproachSpeed(ctx.Category, ctx.Aircraft.AircraftType);
+        double approachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetSpeed = approachSpeed;
 
         ctx.Logger.LogDebug(
@@ -77,8 +77,8 @@ public sealed class LowApproachPhase : Phase
                 _climbingOut = true;
                 ctx.Logger.LogDebug("[LowApproach] {Callsign}: climbing out at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
 
-                double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
-                double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);
+                double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
+                double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
                 double targetAlt = _fieldElevation + SelfClearAgl;
 
                 ctx.Targets.TargetAltitude = targetAlt;

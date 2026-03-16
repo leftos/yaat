@@ -7,9 +7,9 @@ using Yaat.Sim.Proto;
 namespace Yaat.Sim.Tests;
 
 /// <summary>
-/// Loads AircraftSpecs.json, AircraftCwt.json, FaaAcd.json, and NavData.dat from TestData/ and
-/// initializes <see cref="AircraftCategorization"/>, <see cref="WakeTurbulenceData"/>,
-/// <see cref="AircraftApproachSpeed"/>, and <see cref="NavigationDatabase"/>. Thread-safe; only initializes once per process.
+/// Loads AircraftSpecs.json, AircraftCwt.json, FaaAcd.json, AircraftProfiles.json, and NavData.dat
+/// and initializes <see cref="AircraftCategorization"/>, <see cref="WakeTurbulenceData"/>,
+/// <see cref="AircraftProfileDatabase"/>, and <see cref="NavigationDatabase"/>. Thread-safe; only initializes once per process.
 ///
 /// Call <see cref="EnsureInitialized"/> at the top of any test that needs
 /// accurate aircraft data. Safe to call multiple times.
@@ -126,6 +126,7 @@ internal static class TestVnasData
             LoadAircraftSpecs();
             LoadAircraftCwt();
             LoadFaaAcd();
+            LoadAircraftProfiles();
             _initialized = true;
         }
     }
@@ -213,7 +214,6 @@ internal static class TestVnasData
 
         var json = File.ReadAllText(path);
 
-        // New format: full records keyed by ICAO code
         var records = JsonSerializer.Deserialize<Dictionary<string, FaaAircraftRecord>>(
             json,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
@@ -221,25 +221,18 @@ internal static class TestVnasData
         if (records is { Count: > 0 })
         {
             FaaAircraftDatabase.Initialize(records);
+        }
+    }
 
-            var approachSpeeds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (icao, record) in records)
-            {
-                if (record.ApproachSpeedKnot is { } speed)
-                {
-                    approachSpeeds[icao] = speed;
-                }
-            }
-
-            AircraftApproachSpeed.Initialize(approachSpeeds);
+    private static void LoadAircraftProfiles()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Data", "AircraftProfiles.json");
+        if (!File.Exists(path))
+        {
             return;
         }
 
-        // Legacy format: flat approach speed lookup
-        var legacy = JsonSerializer.Deserialize<Dictionary<string, int>>(json);
-        if (legacy is not null)
-        {
-            AircraftApproachSpeed.Initialize(legacy);
-        }
+        var profiles = AircraftProfileDatabase.LoadFromFile(path);
+        AircraftProfileDatabase.Initialize(profiles);
     }
 }

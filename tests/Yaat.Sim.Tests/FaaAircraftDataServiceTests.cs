@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim.Tests;
 
@@ -10,18 +11,17 @@ public sealed class FaaAircraftDataServiceTests
     }
 
     [Fact]
-    public void GetApproachSpeed_KnownTypes_ReturnExpectedValues()
+    public void FaaAcd_KnownTypes_HaveApproachSpeed()
     {
-        Assert.NotNull(AircraftApproachSpeed.GetApproachSpeed("B738"));
-        Assert.NotNull(AircraftApproachSpeed.GetApproachSpeed("A320"));
-        Assert.NotNull(AircraftApproachSpeed.GetApproachSpeed("C172"));
+        Assert.NotNull(FaaAircraftDatabase.Get("B738")?.ApproachSpeedKnot);
+        Assert.NotNull(FaaAircraftDatabase.Get("A320")?.ApproachSpeedKnot);
+        Assert.NotNull(FaaAircraftDatabase.Get("C172")?.ApproachSpeedKnot);
     }
 
     [Fact]
-    public void NoCacheAvailable_CategoryDefaultsUsed()
+    public void ApproachSpeed_UnknownType_FallsBackToCategory()
     {
-        // Unknown type → approach speed returns null → category default
-        double speed = CategoryPerformance.ApproachSpeed(AircraftCategory.Jet, "ZZZZ");
+        double speed = AircraftPerformance.ApproachSpeed("ZZZZ", AircraftCategory.Jet);
         Assert.Equal(CategoryPerformance.ApproachSpeed(AircraftCategory.Jet), speed);
     }
 }

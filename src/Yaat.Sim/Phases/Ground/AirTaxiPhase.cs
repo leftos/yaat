@@ -45,7 +45,7 @@ public sealed class AirTaxiPhase : Phase
             _liftingOff = true;
             ctx.Aircraft.IsOnGround = false;
             ctx.Targets.TargetAltitude = _targetAltitude;
-            ctx.Targets.DesiredVerticalRate = CategoryPerformance.InitialClimbRate(ctx.Category);
+            ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
         else
         {
@@ -123,7 +123,7 @@ public sealed class AirTaxiPhase : Phase
 
         // Phase 2: navigate toward destination
         double brg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
-        double turnRate = CategoryPerformance.TurnRate(ctx.Category);
+        double turnRate = AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
         double maxTurnAmount = turnRate * ctx.DeltaSeconds;
         ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, brg, maxTurnAmount);
 

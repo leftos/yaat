@@ -55,7 +55,7 @@ public sealed class ApproachNavigationPhase : Phase
             double currentBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, fix.Latitude, fix.Longitude);
             double nextBearing = GeoMath.BearingTo(fix.Latitude, fix.Longitude, nextFix.Latitude, nextFix.Longitude);
             double turnRate =
-                ctx.Targets.TurnRateOverride ?? CategoryPerformance.TurnRate(AircraftCategorization.Categorize(ctx.Aircraft.AircraftType));
+                ctx.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, AircraftCategorization.Categorize(ctx.AircraftType));
             anticipationNm = FlightPhysics.ComputeAnticipationDistanceNm(ctx.Aircraft.GroundSpeed, turnRate, currentBearing, nextBearing);
             threshold = Math.Max(anticipationNm, FixArrivalThresholdNm);
         }

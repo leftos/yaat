@@ -70,7 +70,7 @@ public sealed class DownwindPhase : Phase
         ctx.Targets.DesiredVerticalRate = null;
 
         // Downwind speed (per-type if available)
-        ctx.Targets.TargetSpeed = CategoryPerformance.DownwindSpeed(ctx.Category, ctx.Aircraft.AircraftType);
+        ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);
 
         ctx.Logger.LogDebug(
             "[Downwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
@@ -116,7 +116,7 @@ public sealed class DownwindPhase : Phase
                 _altitudeFloor = thresholdElev + finalApproachDist * GlideSlopeGeometry.FeetPerNm(gsAngle);
 
                 // Begin decelerating toward base speed
-                ctx.Targets.TargetSpeed = CategoryPerformance.BaseSpeed(ctx.Category, ctx.Aircraft.AircraftType);
+                ctx.Targets.TargetSpeed = AircraftPerformance.BaseSpeed(ctx.AircraftType, ctx.Category);
             }
         }
 

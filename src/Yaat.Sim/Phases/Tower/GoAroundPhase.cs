@@ -39,8 +39,8 @@ public sealed class GoAroundPhase : Phase
         ctx.Aircraft.IsOnGround = false;
 
         // TOGA power climb
-        double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
-        double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);
+        double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
+        double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
         double targetAlt = TargetAltitude ?? (_fieldElevation + SelfClearAgl);
 
         ctx.Targets.TargetAltitude = targetAlt;

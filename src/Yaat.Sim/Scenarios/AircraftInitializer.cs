@@ -104,7 +104,7 @@ public static class AircraftInitializer
         }
         else
         {
-            double fas = CategoryPerformance.ApproachSpeed(category, aircraftType);
+            double fas = AircraftPerformance.ApproachSpeed(aircraftType ?? string.Empty, category);
             speed = distNm switch
             {
                 <= 5 => fas,

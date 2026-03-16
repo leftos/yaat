@@ -78,8 +78,8 @@ public sealed class TakeoffPhase : Phase
         double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
         ctx.Targets.TargetHeading = FlightPhysics.NormalizeHeading(_runwayHeading - correction);
 
-        double vr = CategoryPerformance.RotationSpeed(ctx.Category);
-        double accelRate = CategoryPerformance.GroundAccelRate(ctx.Category);
+        double vr = AircraftPerformance.RotationSpeed(ctx.AircraftType, ctx.Category);
+        double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
 
         // Accelerate toward Vr using ground acceleration rate
         double targetSpeed = ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds;
@@ -98,8 +98,8 @@ public sealed class TakeoffPhase : Phase
             ctx.Logger.LogDebug("[Takeoff] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
             // Set climb targets
-            double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
-            double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);
+            double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
+            double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
             ctx.Targets.TargetAltitude = _fieldElevation + CompletionAgl;
             ctx.Targets.DesiredVerticalRate = climbRate;
             ctx.Targets.TargetSpeed = climbSpeed;

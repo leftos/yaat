@@ -68,7 +68,7 @@ public sealed class HoldAtFixPhase : Phase
                 ctx.Logger.LogDebug("[HoldAtFix] {Callsign}: arrived at {Fix}, holding", ctx.Aircraft.Callsign, FixName);
 
                 // Decelerate to holding speed
-                double maxHold = CategoryPerformance.MaxHoldingSpeed(ctx.Aircraft.Altitude);
+                double maxHold = AircraftPerformance.HoldingSpeed(ctx.AircraftType, ctx.Aircraft.Altitude);
                 if (ctx.Targets.TargetSpeed is null || ctx.Targets.TargetSpeed > maxHold)
                 {
                     ctx.Targets.TargetSpeed = maxHold;

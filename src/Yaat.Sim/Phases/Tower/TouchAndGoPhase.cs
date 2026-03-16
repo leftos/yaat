@@ -45,7 +45,7 @@ public sealed class TouchAndGoPhase : Phase
 
         // Decelerate briefly
         double minSpeed =
-            CategoryPerformance.TouchdownSpeed(ctx.Category, ctx.Aircraft.AircraftType)
+            AircraftPerformance.TouchdownSpeed(ctx.AircraftType, ctx.Category)
             - CategoryPerformance.RolloutDecelRate(ctx.Category) * _rolloutDuration;
         ctx.Targets.TargetSpeed = Math.Max(minSpeed, 40);
 
@@ -83,8 +83,8 @@ public sealed class TouchAndGoPhase : Phase
 
         if (_reaccelerating && !_airborne)
         {
-            double vr = CategoryPerformance.RotationSpeed(ctx.Category);
-            double accelRate = CategoryPerformance.GroundAccelRate(ctx.Category);
+            double vr = AircraftPerformance.RotationSpeed(ctx.AircraftType, ctx.Category);
+            double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
 
             double targetSpeed = ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds;
             if (targetSpeed >= vr)
@@ -100,8 +100,8 @@ public sealed class TouchAndGoPhase : Phase
                 ctx.Aircraft.IsOnGround = false;
                 ctx.Logger.LogDebug("[TouchAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
-                double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
-                double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);
+                double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
+                double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
                 double targetAlt = _fieldElevation + LiftoffAgl;
 
                 ctx.Targets.TargetAltitude = targetAlt;

@@ -186,7 +186,7 @@ internal static class FlightCommandHandler
     internal static CommandResult ApplyReduceToFinalApproachSpeed(AircraftState aircraft)
     {
         var rfasCat = AircraftCategorization.Categorize(aircraft.AircraftType);
-        double approachSpeed = CategoryPerformance.ApproachSpeed(rfasCat, aircraft.AircraftType);
+        double approachSpeed = AircraftPerformance.ApproachSpeed(aircraft.AircraftType, rfasCat);
         aircraft.Targets.TargetSpeed = approachSpeed;
         aircraft.Targets.AssignedSpeed = approachSpeed;
         aircraft.Targets.SpeedFloor = null;

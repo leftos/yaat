@@ -95,8 +95,8 @@ public sealed class StopAndGoPhase : Phase
 
         if (!_airborne)
         {
-            double vr = CategoryPerformance.RotationSpeed(ctx.Category);
-            double accelRate = CategoryPerformance.GroundAccelRate(ctx.Category);
+            double vr = AircraftPerformance.RotationSpeed(ctx.AircraftType, ctx.Category);
+            double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
 
             double targetSpeed = ctx.Aircraft.IndicatedAirspeed + accelRate * ctx.DeltaSeconds;
             if (targetSpeed >= vr)
@@ -112,8 +112,8 @@ public sealed class StopAndGoPhase : Phase
                 ctx.Aircraft.IsOnGround = false;
                 ctx.Logger.LogDebug("[StopAndGo] {Callsign}: airborne at Vr={Vr:F0}kts", ctx.Aircraft.Callsign, vr);
 
-                double climbRate = CategoryPerformance.InitialClimbRate(ctx.Category);
-                double climbSpeed = CategoryPerformance.InitialClimbSpeed(ctx.Category);
+                double climbRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
+                double climbSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
                 double targetAlt = _fieldElevation + LiftoffAgl;
 
                 ctx.Targets.TargetAltitude = targetAlt;
