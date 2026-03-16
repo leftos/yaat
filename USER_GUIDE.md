@@ -1693,6 +1693,8 @@ The command bar remembers your last 50 commands. Navigate with Up/Down arrows:
 
 ## Keyboard Shortcuts
 
+> **macOS:** Substitute **⌘ (Cmd)** for **Ctrl** in all shortcuts below.
+
 | Key | Action |
 |-----|--------|
 | Enter | Send command (dismisses suggestions if open) |

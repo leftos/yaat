@@ -45,18 +45,42 @@ No extra dependencies needed. .NET and Avalonia handle everything.
 
 Git is a tool that downloads and tracks code from GitHub.
 
+**Windows:**
+
 1. Go to [https://git-scm.com/downloads/win](https://git-scm.com/downloads/win)
 2. Download the **64-bit Git for Windows Setup** installer
 3. Run the installer — the default options are fine, just click **Next** through each screen
-4. When it finishes, you now have Git installed
 
-To verify it worked, open a new **PowerShell** window (search "PowerShell" in the Start menu) and type:
+**macOS:**
+
+Git is included with the Xcode Command Line Tools. Install them by running:
+
+```bash
+xcode-select --install
+```
+
+Alternatively, install via [Homebrew](https://brew.sh/): `brew install git`
+
+**Linux:**
+
+```bash
+# Debian/Ubuntu
+sudo apt install git
+
+# Fedora
+sudo dnf install git
+
+# Arch
+sudo pacman -S git
+```
+
+**Verify:** Open a terminal (PowerShell on Windows) and run:
 
 ```
 git --version
 ```
 
-You should see something like `git version 2.47.1.windows.1`.
+You should see something like `git version 2.47.1`.
 
 ## Step 2: Install .NET 10 SDK
 
@@ -66,7 +90,7 @@ You should see something like `git version 2.47.1.windows.1`.
 2. Under **SDK**, download the installer for your platform (Windows x64, macOS, or Linux)
 3. Run the installer and follow the prompts (on Linux, you can also install via your package manager — see [Microsoft's instructions](https://learn.microsoft.com/en-us/dotnet/core/install/linux))
 
-To verify, open a new PowerShell window and type:
+To verify, open a terminal and run:
 
 ```
 dotnet --version
@@ -78,29 +102,34 @@ You should see a version starting with `10.`.
 
 You need two repositories (code projects): the client and the server.
 
-1. Open PowerShell
-2. Navigate to a folder where you want to keep the code. For example, to use `C:\dev`:
+1. Open a terminal (PowerShell on Windows, Terminal on macOS/Linux)
+2. Navigate to a folder where you want to keep the code. For example:
 
-```powershell
+```bash
+# Windows (PowerShell)
 mkdir C:\dev
 cd C:\dev
+
+# macOS / Linux
+mkdir -p ~/dev
+cd ~/dev
 ```
 
 3. Download both repositories:
 
-```powershell
+```bash
 git clone https://github.com/leftos/yaat.git
 git clone https://github.com/leftos/yaat-server.git
 ```
 
-This creates two folders: `C:\dev\yaat` and `C:\dev\yaat-server`.
+This creates two folders side by side (`yaat` and `yaat-server`).
 
-**Important:** Both folders must be side by side in the same parent directory. The server references shared code from the client repo, so they need to be next to each other.
+**Important:** Both folders must be in the same parent directory. The server references shared code from the client repo, so they need to be next to each other.
 
 4. Set up git hooks in yaat-server (keeps the `Yaat.Sim` submodule pin in sync automatically):
 
-```powershell
-cd C:\dev\yaat-server
+```bash
+cd yaat-server
 git config core.hooksPath .githooks
 ```
 
@@ -110,20 +139,24 @@ git config core.hooksPath .githooks
 
 The easiest way to run everything is the included start script. It builds and launches both the server and client for you.
 
-1. Open PowerShell
+1. Open a terminal
 2. Navigate to the yaat folder:
 
-```powershell
-cd C:\dev\yaat
+```bash
+cd yaat    # or the full path, e.g. C:\dev\yaat or ~/dev/yaat
 ```
 
 3. Run the start script:
 
-```powershell
+```bash
+# Windows (PowerShell)
 .\start.ps1
+
+# macOS / Linux
+./start.sh
 ```
 
-If you get an error about "execution policies", run this first and try again:
+**Windows only:** If you get an error about "execution policies", run this first and try again:
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
@@ -137,8 +170,8 @@ If you prefer to run each piece separately (useful for troubleshooting):
 
 **Terminal 1 — Server:**
 
-```powershell
-cd C:\dev\yaat-server
+```bash
+cd yaat-server
 dotnet run --project src/Yaat.Server
 ```
 
@@ -146,8 +179,8 @@ Wait until you see it's listening (usually on `http://localhost:5000`).
 
 **Terminal 2 — Client:**
 
-```powershell
-cd C:\dev\yaat
+```bash
+cd yaat
 dotnet run --project src/Yaat.Client
 ```
 
@@ -166,7 +199,7 @@ Once the client window opens:
 
 You're now ready to create a room and load a scenario. See the [User Guide](USER_GUIDE.md) for detailed usage instructions.
 
-## Step 6: Connect CRC (Optional, Windows Only)
+## Step 6: Connect CRC (Optional)
 
 If you want students to connect with [CRC](https://crc.virtualnas.net), you need to configure CRC to point at your YAAT server. See the [User Guide — Connecting CRC](USER_GUIDE.md#connecting-crc-optional) for setup options and connection instructions.
 
@@ -174,18 +207,23 @@ If you want students to connect with [CRC](https://crc.virtualnas.net), you need
 
 When there's a new version available:
 
-```powershell
+```bash
+# Windows (PowerShell)
 cd C:\dev\yaat
 .\start.ps1 -Pull
+
+# macOS / Linux
+cd ~/dev/yaat
+./start.sh -p
 ```
 
-The `-Pull` flag downloads the latest code for both repos before building. Alternatively, you can update manually:
+The `-Pull` / `-p` flag downloads the latest code for both repos before building. Alternatively, you can update manually:
 
-```powershell
-cd C:\dev\yaat
+```bash
+cd yaat
 git pull
 
-cd C:\dev\yaat-server
+cd ../yaat-server
 git pull
 ```
 
@@ -195,17 +233,17 @@ Then build and run as usual.
 
 ### "dotnet" is not recognized
 
-Close and reopen PowerShell after installing .NET. If it still doesn't work, the .NET installer may not have added itself to your PATH — try restarting your computer.
+Close and reopen your terminal after installing .NET. If it still doesn't work, the installer may not have added itself to your PATH — try restarting your computer.
 
 ### "git" is not recognized
 
-Close and reopen PowerShell after installing Git. Same as above — a restart may be needed.
+Close and reopen your terminal after installing Git. Same as above — a restart may be needed.
 
 ### Build errors mentioning .NET version
 
 Make sure you installed the **.NET 10 SDK**, not an older version or just the Runtime. Run `dotnet --list-sdks` to check.
 
-### Execution policy error on start.ps1
+### Execution policy error on start.ps1 (Windows only)
 
 Run this once in PowerShell:
 

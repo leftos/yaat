@@ -26,10 +26,14 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 
 ### Quick Start
 
-The included `start.ps1` / `start.sh` script builds both projects and launches the server and client together. Press Ctrl-C to stop the server.
+The included start script builds both projects and launches the server and client together. Press Ctrl-C to stop the server.
 
 ```powershell
-.\start.ps1
+.\start.ps1          # Windows (PowerShell)
+```
+
+```bash
+./start.sh           # macOS / Linux
 ```
 
 The client auto-connects to the server on startup. Create or join a training room, load a scenario, and start issuing commands.
