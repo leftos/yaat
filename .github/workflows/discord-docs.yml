@@ -84,25 +84,44 @@ jobs:
 
           webhook = sys.argv[2]
           limit = 1900
-          lines = text.split('\n')
-          chunks, current, best_break, prev = [], '', '', ''
 
-          for line in lines:
-              candidate = current + ('\n' if current else '') + line
-              # Track good break points BEFORE adding the line: blank lines, headings, or non-indented non-empty lines
-              stripped = line.strip()
-              is_break = stripped == '' or stripped.startswith('#') or (stripped and not line[0].isspace())
-              if is_break and current:
-                  best_break = current
+          def split_at_blank_lines(text):
+              # Protect fenced code blocks from being split
+              blocks = []
+              def protect(m):
+                  blocks.append(m.group(0))
+                  return f'\x00CB{len(blocks)-1}\x00'
+              fence = chr(96) * 3
+              safe = re.sub(fence + r'.*?' + fence, protect, text, flags=re.DOTALL)
+              parts = re.split(r'(?<=\n\n)', safe)
+              def restore(m):
+                  return blocks[int(m.group(1))]
+              return [re.sub(r'\x00CB(\d+)\x00', restore, p) for p in parts if p.strip()]
+
+          # Split at ## section headers (each piece starts with ## or is the preamble)
+          raw_sections = re.split(r'(?=^## )', text, flags=re.MULTILINE)
+
+          # Sub-split oversized sections at ### headers, then at blank lines
+          pieces = []
+          for sec in raw_sections:
+              if len(sec) <= limit:
+                  pieces.append(sec)
+                  continue
+              subs = re.split(r'(?=^### )', sec, flags=re.MULTILINE)
+              for sub in subs:
+                  if len(sub) <= limit:
+                      pieces.append(sub)
+                      continue
+                  # Last resort: split at blank lines (never inside fenced code blocks)
+                  pieces.extend(split_at_blank_lines(sub))
+
+          # Merge consecutive small pieces into chunks that fit the limit
+          chunks, current = [], ''
+          for piece in pieces:
+              candidate = current + piece
               if len(candidate) > limit and current:
-                  if best_break:
-                      chunks.append(best_break)
-                      remainder = current[len(best_break):].lstrip('\n')
-                      current = remainder + ('\n' if remainder else '') + line if remainder else line
-                  else:
-                      chunks.append(current)
-                      current = line
-                  best_break = ''
+                  chunks.append(current)
+                  current = piece
               else:
                   current = candidate
           if current:
