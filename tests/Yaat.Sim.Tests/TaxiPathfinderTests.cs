@@ -558,23 +558,25 @@ public class TaxiPathfinderTests
         var layout = BuildVariantLayout();
 
         // Runway 30 threshold is further north (37.710)
-        var navDb = TestNavDbFactory.WithRunways(
-            new RunwayInfo
-            {
-                AirportId = "KTEST",
-                Id = new RunwayIdentifier("30", "12"),
-                Designator = "30",
-                Lat1 = 37.710,
-                Lon1 = -122.200,
-                Heading1 = 300,
-                Elevation1Ft = 0,
-                Lat2 = 37.690,
-                Lon2 = -122.200,
-                Heading2 = 120,
-                Elevation2Ft = 0,
-                LengthFt = 5000,
-                WidthFt = 150,
-            }
+        NavigationDatabase.SetInstance(
+            TestNavDbFactory.WithRunways(
+                new RunwayInfo
+                {
+                    AirportId = "KTEST",
+                    Id = new RunwayIdentifier("30", "12"),
+                    Designator = "30",
+                    Lat1 = 37.710,
+                    Lon1 = -122.200,
+                    Heading1 = 300,
+                    Elevation1Ft = 0,
+                    Lat2 = 37.690,
+                    Lon2 = -122.200,
+                    Heading2 = 120,
+                    Elevation2Ft = 0,
+                    LengthFt = 5000,
+                    WidthFt = 150,
+                }
+            )
         );
 
         var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30", airportId: "KTEST");
