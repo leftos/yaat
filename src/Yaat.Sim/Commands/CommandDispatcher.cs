@@ -238,6 +238,8 @@ public static class CommandDispatcher
                 return FlightCommandHandler.ApplyDirectTo(cmd, aircraft, validateDctFixes);
             case ForceDirectToCommand cmd:
                 return FlightCommandHandler.ApplyForceDirectTo(cmd, aircraft);
+            case ConstrainedForceDirectToCommand cmd:
+                return FlightCommandHandler.ApplyConstrainedForceDirectTo(cmd, aircraft);
             case AppendDirectToCommand cmd:
                 return FlightCommandHandler.ApplyAppendDirectTo(cmd, aircraft, validateDctFixes);
             case AppendForceDirectToCommand cmd:
@@ -995,6 +997,7 @@ public static class CommandDispatcher
                     or FlyPresentHeadingCommand
                     or DirectToCommand
                     or ForceDirectToCommand
+                    or ConstrainedForceDirectToCommand
         );
 
         if (!hasHeadingCmd)

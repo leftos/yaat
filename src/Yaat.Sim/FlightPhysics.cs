@@ -93,7 +93,23 @@ public static class FlightPhysics
 
         if (shouldSequence)
         {
+            var sequenced = nav;
             route.RemoveAt(0);
+
+            // Restore altitude/speed from revert fields when sequencing past a constrained fix
+            if (sequenced.RevertAltitude is not null)
+            {
+                aircraft.Targets.TargetAltitude = sequenced.RevertAltitude;
+                aircraft.Targets.AssignedAltitude = sequenced.RevertAssignedAltitude;
+                aircraft.Targets.DesiredVerticalRate = null;
+            }
+
+            if (sequenced.RevertSpeed is not null)
+            {
+                aircraft.Targets.TargetSpeed = sequenced.RevertSpeed;
+                aircraft.Targets.AssignedSpeed = sequenced.RevertAssignedSpeed;
+            }
+
             if (route.Count == 0)
             {
                 aircraft.Targets.TargetHeading = null;
@@ -152,13 +168,35 @@ public static class FlightPhysics
     /// </summary>
     private static void UpdateDescentPlanning(AircraftState aircraft, AircraftCategory cat)
     {
-        if (!aircraft.StarViaMode || aircraft.IsOnGround || aircraft.GroundSpeed <= 0)
+        if (aircraft.IsOnGround || aircraft.GroundSpeed <= 0)
+        {
+            return;
+        }
+
+        // When SidViaMode is active, only climb planning handles constraints
+        if (aircraft.SidViaMode)
         {
             return;
         }
 
         var route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
+        {
+            return;
+        }
+
+        // Activate when via mode is on OR when the route has any altitude constraint
+        bool hasRouteConstraints = false;
+        for (int j = 0; j < route.Count; j++)
+        {
+            if (route[j].AltitudeRestriction is not null)
+            {
+                hasRouteConstraints = true;
+                break;
+            }
+        }
+
+        if (!aircraft.StarViaMode && !hasRouteConstraints)
         {
             return;
         }
@@ -178,14 +216,22 @@ public static class FlightPhysics
                 continue;
             }
 
-            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction, isDescending: true);
+            // When not in via mode, infer direction from current altitude vs constraint
+            bool isDescending = aircraft.StarViaMode || aircraft.Altitude > restriction.Altitude1Ft;
+            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction, isDescending);
             if (resolvedAlt is not { } targetAlt)
             {
                 continue;
             }
 
-            // Apply STAR via floor
-            if (aircraft.StarViaFloor is { } floor)
+            // Only handle descent constraints here; climb is handled by UpdateClimbPlanning
+            if (targetAlt >= aircraft.Altitude)
+            {
+                continue;
+            }
+
+            // Apply STAR via floor (only in via mode)
+            if (aircraft.StarViaMode && aircraft.StarViaFloor is { } floor)
             {
                 targetAlt = Math.Max(targetAlt, floor);
             }
@@ -193,7 +239,6 @@ public static class FlightPhysics
             double altDelta = aircraft.Altitude - targetAlt;
             if (altDelta <= 0)
             {
-                // Already at or below this constraint — skip to see if a deeper one exists
                 continue;
             }
 
@@ -229,13 +274,35 @@ public static class FlightPhysics
     /// </summary>
     private static void UpdateClimbPlanning(AircraftState aircraft, AircraftCategory cat)
     {
-        if (!aircraft.SidViaMode || aircraft.IsOnGround || aircraft.GroundSpeed <= 0)
+        if (aircraft.IsOnGround || aircraft.GroundSpeed <= 0)
+        {
+            return;
+        }
+
+        // When StarViaMode is active, only descent planning handles constraints
+        if (aircraft.StarViaMode)
         {
             return;
         }
 
         var route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
+        {
+            return;
+        }
+
+        // Activate when via mode is on OR when the route has any altitude constraint
+        bool hasRouteConstraints = false;
+        for (int j = 0; j < route.Count; j++)
+        {
+            if (route[j].AltitudeRestriction is not null)
+            {
+                hasRouteConstraints = true;
+                break;
+            }
+        }
+
+        if (!aircraft.SidViaMode && !hasRouteConstraints)
         {
             return;
         }
@@ -254,14 +321,22 @@ public static class FlightPhysics
                 continue;
             }
 
-            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction, isDescending: false);
+            // When not in via mode, infer direction from current altitude vs constraint
+            bool isDescending = !aircraft.SidViaMode && aircraft.Altitude > restriction.Altitude1Ft;
+            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, restriction, isDescending);
             if (resolvedAlt is not { } targetAlt)
             {
                 continue;
             }
 
-            // Apply SID via ceiling
-            if (aircraft.SidViaCeiling is { } ceiling)
+            // Only handle climb constraints here; descent is handled by UpdateDescentPlanning
+            if (targetAlt <= aircraft.Altitude)
+            {
+                continue;
+            }
+
+            // Apply SID via ceiling (only in via mode)
+            if (aircraft.SidViaMode && aircraft.SidViaCeiling is { } ceiling)
             {
                 targetAlt = Math.Min(targetAlt, ceiling);
             }
@@ -269,7 +344,6 @@ public static class FlightPhysics
             double altDelta = targetAlt - aircraft.Altitude;
             if (altDelta <= 0)
             {
-                // Already at or above this constraint — skip to next
                 continue;
             }
 
@@ -382,17 +456,21 @@ public static class FlightPhysics
     {
         bool sidVia = aircraft.SidViaMode;
         bool starVia = aircraft.StarViaMode;
-        if (!sidVia && !starVia)
+        bool hasConstraint = target.AltitudeRestriction is not null || target.SpeedRestriction is not null;
+
+        if (!sidVia && !starVia && !hasConstraint)
         {
             return;
         }
 
         if (target.AltitudeRestriction is { } alt)
         {
-            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, alt, isDescending: starVia);
+            // When not in via mode, infer direction from current altitude vs constraint
+            bool isDescending = starVia || (!sidVia && aircraft.Altitude > alt.Altitude1Ft);
+            double? resolvedAlt = ResolveAltitudeRestriction(aircraft, alt, isDescending);
             if (resolvedAlt is { } targetAlt)
             {
-                // Apply ceiling/floor limits
+                // Apply ceiling/floor limits (only in via mode)
                 if (sidVia && aircraft.SidViaCeiling is { } ceiling)
                 {
                     targetAlt = Math.Min(targetAlt, ceiling);

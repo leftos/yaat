@@ -111,7 +111,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 |---------|-----------|------|------------|
 | Climb/descend | `CM`/`DM` | `CM`/`DM`, `C`/`D`, `CM240` | YAAT adds short aliases + concatenation |
 | AGL altitudes | Not documented | `KOAK+010` format | YAAT-only |
-| Cross fix at alt | `CFIX {fix} {alt}`/`CF` | `CFIX {fix} {alt}`, `CFIX {alt}` | YAAT adds fix-less form (next fix in route) + A/B prefixes |
+| Cross fix at alt | `CFIX {fix} {alt}`/`CF` | `CFIX {fix} {alt}`, `CFIX {alt}` | YAAT adds fix-less form (next fix in route) + A/B prefixes; YAAT uses step-based rate planning |
 | Climb/Descend Via | `CVIA`/`DVIA` | `CVIA`/`DVIA` | Both; YAAT adds altitude cap/floor: `CVIA 190`, `DVIA 240` |
 | DVIA CFIX | `DVIA CFIX {fix} {alt}` | via compound: `DVIA; CFIX {fix} {alt}` | ATCTrainer combines in one command |
 
@@ -135,6 +135,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
 | Append direct to | — | `ADCT {fix}`, `ADCTF {fix}` | YAAT-only |
+| Constrained route | — | `DCTF FIX1/A080 FIX2/050` | YAAT-only: inline altitude constraints with step-based planning |
 | Join airway | `JAWY` | `JAWY` | Parity (YAAT intercepts airway segment, then follows fix sequence) |
 | Join radial out/in | — | `JRADO`/`JRADI` (`JRAD`/`JICRS`) | YAAT-only |
 | Airport/Destination | `APT`/`DEST` | `APT`/`DEST` | Parity |

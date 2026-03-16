@@ -428,6 +428,15 @@ public record DescendViaCommand(int? Altitude, int? Speed = null, string? SpeedF
 
 public record CrossFixCommand(string FixName, double FixLat, double FixLon, int Altitude, CrossFixAltitudeType AltType, int? Speed) : ParsedCommand;
 
+public record ConstrainedFixAltitude(int AltitudeFt, CrossFixAltitudeType AltType);
+
+public record ConstrainedForceDirectToCommand(
+    List<ResolvedFix> Fixes,
+    Dictionary<int, ConstrainedFixAltitude> AltitudeConstraints,
+    Dictionary<int, int>? SpeedConstraints,
+    List<string>? SkippedFixes
+) : ParsedCommand;
+
 public record DepartFixCommand(string FixName, double FixLat, double FixLon, int Heading) : ParsedCommand;
 
 public record ListApproachesCommand(string? AirportCode) : ParsedCommand;

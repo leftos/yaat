@@ -678,7 +678,7 @@ internal static class ApproachCommandParser
     /// The numeric part is in hundreds (e.g., "040" = 4000ft).
     /// Returns (altitude in feet, CrossFixAltitudeType).
     /// </summary>
-    private static (int? Altitude, CrossFixAltitudeType AltType) ParseCfixAltitudeToken(string token)
+    internal static (int? Altitude, CrossFixAltitudeType AltType) ParseCfixAltitudeToken(string token)
     {
         CrossFixAltitudeType altType = CrossFixAltitudeType.At;
         var numericPart = token;

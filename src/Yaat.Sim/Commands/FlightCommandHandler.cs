@@ -1,5 +1,6 @@
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 
@@ -375,6 +376,84 @@ internal static class FlightCommandHandler
         return routeRejoined
             ? CommandDispatcher.Ok($"Proceed direct {fixNames}, then filed route")
             : CommandDispatcher.Ok($"Proceed direct {fixNames}");
+    }
+
+    internal static CommandResult ApplyConstrainedForceDirectTo(ConstrainedForceDirectToCommand cmd, AircraftState aircraft)
+    {
+        ClearActiveProcedure(aircraft);
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.AssignedHeading = null;
+
+        // Capture current altitude/speed for revert on the last constrained fix
+        double? previousAlt = aircraft.Targets.TargetAltitude;
+        double? previousAssignedAlt = aircraft.Targets.AssignedAltitude;
+
+        // Find the last index that has an altitude constraint (for revert)
+        int lastConstrainedIdx = -1;
+        foreach (var (idx, _) in cmd.AltitudeConstraints)
+        {
+            if (idx > lastConstrainedIdx)
+            {
+                lastConstrainedIdx = idx;
+            }
+        }
+
+        for (int i = 0; i < cmd.Fixes.Count; i++)
+        {
+            var fix = cmd.Fixes[i];
+            CifpAltitudeRestriction? altRestriction = null;
+            CifpSpeedRestriction? speedRestriction = null;
+            double? revertAlt = null;
+            double? revertAssignedAlt = null;
+            double? revertSpeed = null;
+            double? revertAssignedSpeed = null;
+
+            if (cmd.AltitudeConstraints.TryGetValue(i, out var alt))
+            {
+                var restrictionType = alt.AltType switch
+                {
+                    CrossFixAltitudeType.AtOrAbove => CifpAltitudeRestrictionType.AtOrAbove,
+                    CrossFixAltitudeType.AtOrBelow => CifpAltitudeRestrictionType.AtOrBelow,
+                    _ => CifpAltitudeRestrictionType.At,
+                };
+                altRestriction = new CifpAltitudeRestriction(restrictionType, alt.AltitudeFt);
+
+                // Only the last constrained fix gets revert
+                if (i == lastConstrainedIdx)
+                {
+                    revertAlt = previousAlt;
+                    revertAssignedAlt = previousAssignedAlt;
+                }
+            }
+
+            if (cmd.SpeedConstraints is not null && cmd.SpeedConstraints.TryGetValue(i, out var spd))
+            {
+                speedRestriction = new CifpSpeedRestriction(spd, true);
+                if (i == lastConstrainedIdx)
+                {
+                    revertSpeed = aircraft.Targets.TargetSpeed;
+                    revertAssignedSpeed = aircraft.Targets.AssignedSpeed;
+                }
+            }
+
+            aircraft.Targets.NavigationRoute.Add(
+                new NavigationTarget
+                {
+                    Name = fix.Name,
+                    Latitude = fix.Lat,
+                    Longitude = fix.Lon,
+                    AltitudeRestriction = altRestriction,
+                    SpeedRestriction = speedRestriction,
+                    RevertAltitude = revertAlt,
+                    RevertAssignedAltitude = revertAssignedAlt,
+                    RevertSpeed = revertSpeed,
+                    RevertAssignedSpeed = revertAssignedSpeed,
+                }
+            );
+        }
+
+        var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+        return CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
     internal static CommandResult ApplyAppendDirectTo(AppendDirectToCommand cmd, AircraftState aircraft, bool validateDctFixes)

@@ -32,6 +32,7 @@ public static class CommandDescriber
             WarpGroundCommand => CanonicalCommandType.WarpGround,
             DirectToCommand => CanonicalCommandType.DirectTo,
             ForceDirectToCommand => CanonicalCommandType.ForceDirectTo,
+            ConstrainedForceDirectToCommand => CanonicalCommandType.ForceDirectTo,
             AppendDirectToCommand => CanonicalCommandType.AppendDirectTo,
             AppendForceDirectToCommand => CanonicalCommandType.AppendForceDirectTo,
             ExpectApproachCommand => CanonicalCommandType.ExpectApproach,
@@ -166,6 +167,7 @@ public static class CommandDescriber
             WarpGroundCommand => TrackedCommandType.Immediate,
             DirectToCommand => TrackedCommandType.Navigation,
             ForceDirectToCommand => TrackedCommandType.Navigation,
+            ConstrainedForceDirectToCommand => TrackedCommandType.Navigation,
             AppendDirectToCommand => TrackedCommandType.Navigation,
             AppendForceDirectToCommand => TrackedCommandType.Navigation,
             ExpectApproachCommand => TrackedCommandType.Immediate,
@@ -224,6 +226,7 @@ public static class CommandDescriber
             : $"WARPG {cmd.Taxiway1} {cmd.Taxiway2}",
             DirectToCommand cmd => $"DCT {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             ForceDirectToCommand cmd => $"DCTF {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
+            ConstrainedForceDirectToCommand cmd => FormatConstrainedDctfCanonical(cmd),
             AppendDirectToCommand cmd => $"ADCT {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             AppendForceDirectToCommand cmd => $"ADCTF {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             ExpectApproachCommand cmd => $"EAPP {cmd.ApproachId}{(cmd.AirportCode is not null ? $" {cmd.AirportCode}" : "")}",
@@ -359,6 +362,7 @@ public static class CommandDescriber
             : $"Warp to {cmd.Taxiway1}/{cmd.Taxiway2} intersection",
             DirectToCommand cmd => $"Proceed direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             ForceDirectToCommand cmd => $"Force direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
+            ConstrainedForceDirectToCommand cmd => $"Force direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))} (constrained)",
             AppendDirectToCommand cmd => $"Then direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             AppendForceDirectToCommand cmd => $"Then direct {string.Join(" ", cmd.Fixes.Select(f => f.Name))}",
             ExpectApproachCommand cmd => $"Expect {cmd.ApproachId} approach{(cmd.AirportCode is not null ? $" at {cmd.AirportCode}" : "")}",
@@ -874,6 +878,27 @@ public static class CommandDescriber
             msg += $", {cmd.Speed} knots";
         }
         return msg;
+    }
+
+    private static string FormatConstrainedDctfCanonical(ConstrainedForceDirectToCommand cmd)
+    {
+        var parts = new List<string>(cmd.Fixes.Count);
+        for (int i = 0; i < cmd.Fixes.Count; i++)
+        {
+            string fixStr = cmd.Fixes[i].Name;
+            if (cmd.AltitudeConstraints.TryGetValue(i, out var alt))
+            {
+                string prefix = alt.AltType switch
+                {
+                    CrossFixAltitudeType.AtOrAbove => "A",
+                    CrossFixAltitudeType.AtOrBelow => "B",
+                    _ => "",
+                };
+                fixStr += $"/{prefix}{alt.AltitudeFt / 100:000}";
+            }
+            parts.Add(fixStr);
+        }
+        return $"DCTF {string.Join(" ", parts)}";
     }
 
     private static string FormatTaxiCanonical(TaxiCommand taxi)

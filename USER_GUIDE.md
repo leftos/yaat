@@ -916,6 +916,7 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 | `DCT SUNOL` | Direct to fix SUNOL |
 | `DCT SUNOL CEDES MYCOB` | Direct to multiple fixes in sequence |
 | `DCTF SJC` | Force direct to — bypasses route validation |
+| `DCTF FIX1/A080 FIX2/050 FIX3` | Force direct to with inline altitude constraints |
 | `ADCT SUNOL` | Append direct to — adds SUNOL to the end of the current route |
 | `ADCTF SUNOL` | Append force direct to — appends without route validation |
 | `JARR OAK.SALI2` | Join STAR: navigate to nearest fix on the SALI2 arrival into OAK |
@@ -940,7 +941,9 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 
 JARR supports CIFP altitude/speed constraints when available. The airport prefix (`OAK.`) is optional — when omitted, the aircraft's destination airport is used. The entry fix specifies where to join the STAR; when omitted, the nearest fix ahead of the aircraft is used.
 
-CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for the next fix in the route, while `CFIX {fix} {altitude}` targets a specific named fix. Altitude prefixes: `A` = at or above, `B` = at or below, no prefix = at exactly.
+CFIX supports two forms: `CFIX {altitude}` modifies the altitude restriction for the next fix in the route, while `CFIX {fix} {altitude}` targets a specific named fix. Altitude prefixes: `A` = at or above, `B` = at or below, no prefix = at exactly. CFIX now uses step-based descent/climb planning — the aircraft computes the exact vertical rate needed to arrive at the constraint altitude precisely at the fix, rather than descending at a fixed rate.
+
+**Constrained DCTF** — `DCTF FIX1/A080 FIX2/050 FIX3` attaches altitude constraints inline. The `/` suffix uses the same CFIX altitude format (`A` = at or above, `B` = at or below, bare = at). All constraints are visible to the planner simultaneously, so the aircraft plans descent across multiple waypoints at once instead of reacting to each fix individually. The altitude reverts to the previous assignment after the last constrained fix is sequenced.
 
 **SID/STAR via mode** — When CIFP procedure data is available, SID and STAR fixes carry published altitude and speed restrictions. Via mode controls whether the aircraft follows those restrictions:
 

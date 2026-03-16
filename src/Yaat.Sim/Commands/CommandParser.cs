@@ -1058,19 +1058,60 @@ public static class CommandParser
         var navDb = NavigationDatabase.Instance;
         var resolved = new List<ResolvedFix>();
         var skipped = new List<string>();
-        foreach (var name in fixNames)
+        var altConstraints = new Dictionary<int, ConstrainedFixAltitude>();
+        bool hasConstraints = false;
+
+        foreach (var token in fixNames)
         {
+            // Check for inline altitude constraint: FIXNAME/altToken
+            string name;
+            string? altToken = null;
+            int slashIdx = token.IndexOf('/');
+            if (slashIdx > 0 && slashIdx < token.Length - 1)
+            {
+                name = token[..slashIdx];
+                altToken = token[(slashIdx + 1)..];
+            }
+            else
+            {
+                name = token;
+            }
+
             var pos = navDb.GetFixPosition(name);
             if (pos is not null)
             {
+                int fixIndex = resolved.Count;
                 resolved.Add(new ResolvedFix(name.ToUpperInvariant(), pos.Value.Lat, pos.Value.Lon));
+
+                if (altToken is not null)
+                {
+                    var (altitude, altType) = ApproachCommandParser.ParseCfixAltitudeToken(altToken);
+                    if (altitude is not null)
+                    {
+                        altConstraints[fixIndex] = new ConstrainedFixAltitude(altitude.Value, altType);
+                        hasConstraints = true;
+                    }
+                }
+
                 continue;
             }
 
             var frd = FrdResolver.Resolve(name, navDb);
             if (frd is not null)
             {
+                int fixIndex = resolved.Count;
                 resolved.Add(new ResolvedFix(name.ToUpperInvariant(), frd.Latitude, frd.Longitude));
+
+                if (altToken is not null)
+                {
+                    var (altitude, altType) = ApproachCommandParser.ParseCfixAltitudeToken(altToken);
+                    if (altitude is not null)
+                    {
+                        altConstraints[fixIndex] = new ConstrainedFixAltitude(altitude.Value, altType);
+                        hasConstraints = true;
+                    }
+                }
+
                 continue;
             }
 
@@ -1080,6 +1121,11 @@ public static class CommandParser
         if (resolved.Count == 0)
         {
             return PR.Fail($"no fixes found (tried: {string.Join(", ", fixNames.Select(n => n.ToUpperInvariant()))})");
+        }
+
+        if (hasConstraints)
+        {
+            return PR.Ok(new ConstrainedForceDirectToCommand(resolved, altConstraints, null, skipped));
         }
 
         if (aircraftRoute is not null)

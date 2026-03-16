@@ -81,7 +81,19 @@ public class NavigationTarget
     public required string Name { get; init; }
     public required double Latitude { get; init; }
     public required double Longitude { get; init; }
-    public CifpAltitudeRestriction? AltitudeRestriction { get; init; }
-    public CifpSpeedRestriction? SpeedRestriction { get; init; }
+    public CifpAltitudeRestriction? AltitudeRestriction { get; set; }
+    public CifpSpeedRestriction? SpeedRestriction { get; set; }
     public bool IsFlyOver { get; init; }
+
+    /// <summary>TargetAltitude to restore after sequencing past this fix (CFIX/drawn-route revert).</summary>
+    public double? RevertAltitude { get; set; }
+
+    /// <summary>AssignedAltitude to restore after sequencing past this fix.</summary>
+    public double? RevertAssignedAltitude { get; set; }
+
+    /// <summary>TargetSpeed to restore after sequencing past this fix.</summary>
+    public double? RevertSpeed { get; set; }
+
+    /// <summary>AssignedSpeed to restore after sequencing past this fix.</summary>
+    public double? RevertAssignedSpeed { get; set; }
 }

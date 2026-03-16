@@ -131,11 +131,12 @@ internal static class NavigationCommandHandler
 
     internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft)
     {
-        // Capture current altitude/assigned for revert after fix passage
+        // Capture current altitude/speed for revert after fix passage
         double? previousAlt = aircraft.Targets.TargetAltitude;
         double? previousAssignedAlt = aircraft.Targets.AssignedAltitude;
+        double? previousSpeed = cmd.Speed is not null ? aircraft.Targets.TargetSpeed : null;
+        double? previousAssignedSpeed = cmd.Speed is not null ? aircraft.Targets.AssignedSpeed : null;
 
-        // Block 0 (immediate): navigate to fix + set crossing altitude.
         // Preserve route fixes that come after the cross fix so the aircraft
         // continues on its route after reaching the fix (issue #70).
         var remainingRoute = new List<NavigationTarget>();
@@ -152,63 +153,39 @@ internal static class NavigationCommandHandler
             }
         }
 
+        // Map CrossFixAltitudeType to CifpAltitudeRestrictionType
+        var restrictionType = cmd.AltType switch
+        {
+            CrossFixAltitudeType.AtOrAbove => CifpAltitudeRestrictionType.AtOrAbove,
+            CrossFixAltitudeType.AtOrBelow => CifpAltitudeRestrictionType.AtOrBelow,
+            _ => CifpAltitudeRestrictionType.At,
+        };
+
+        var cfixTarget = new NavigationTarget
+        {
+            Name = cmd.FixName,
+            Latitude = cmd.FixLat,
+            Longitude = cmd.FixLon,
+            AltitudeRestriction = new CifpAltitudeRestriction(restrictionType, cmd.Altitude),
+            SpeedRestriction = cmd.Speed is { } spd ? new CifpSpeedRestriction(spd, true) : null,
+            RevertAltitude = previousAlt,
+            RevertAssignedAltitude = previousAssignedAlt,
+            RevertSpeed = previousSpeed,
+            RevertAssignedSpeed = previousAssignedSpeed,
+        };
+
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.NavigationRoute.Add(
-            new NavigationTarget
-            {
-                Name = cmd.FixName,
-                Latitude = cmd.FixLat,
-                Longitude = cmd.FixLon,
-            }
-        );
+        aircraft.Targets.NavigationRoute.Add(cfixTarget);
         aircraft.Targets.NavigationRoute.AddRange(remainingRoute);
 
-        switch (cmd.AltType)
-        {
-            case CrossFixAltitudeType.At:
-                aircraft.Targets.TargetAltitude = cmd.Altitude;
-                aircraft.Targets.AssignedAltitude = cmd.Altitude;
-                break;
-            case CrossFixAltitudeType.AtOrAbove when aircraft.Altitude < cmd.Altitude:
-                aircraft.Targets.TargetAltitude = cmd.Altitude;
-                aircraft.Targets.AssignedAltitude = cmd.Altitude;
-                break;
-            case CrossFixAltitudeType.AtOrBelow when aircraft.Altitude > cmd.Altitude:
-                aircraft.Targets.TargetAltitude = cmd.Altitude;
-                aircraft.Targets.AssignedAltitude = cmd.Altitude;
-                break;
-        }
+        // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
+        // But do set AssignedAltitude for the datablock display.
+        aircraft.Targets.AssignedAltitude = cmd.Altitude;
 
         if (cmd.Speed is not null)
         {
-            aircraft.Targets.TargetSpeed = cmd.Speed;
             aircraft.Targets.AssignedSpeed = cmd.Speed;
         }
-
-        // Block 1: on reaching fix, revert to previous altitude target
-        var revertBlock = new CommandBlock
-        {
-            Trigger = new BlockTrigger
-            {
-                Type = BlockTriggerType.ReachFix,
-                FixName = cmd.FixName,
-                FixLat = cmd.FixLat,
-                FixLon = cmd.FixLon,
-            },
-            ApplyAction = ac =>
-            {
-                if (previousAlt is not null)
-                {
-                    ac.Targets.TargetAltitude = previousAlt;
-                }
-                ac.Targets.AssignedAltitude = previousAssignedAlt;
-                return null;
-            },
-            Description = $"at {cmd.FixName}: revert altitude",
-            NaturalDescription = $"At {cmd.FixName}: resume assigned altitude",
-        };
-        revertBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Immediate });
-        aircraft.Queue.Blocks.Add(revertBlock);
 
         var altTypeStr = cmd.AltType switch
         {

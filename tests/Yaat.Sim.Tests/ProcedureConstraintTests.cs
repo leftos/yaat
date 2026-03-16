@@ -195,10 +195,10 @@ public class ProcedureConstraintTests
     }
 
     [Fact]
-    public void NoViaMode_ConstraintsIgnored()
+    public void NoViaMode_ConstraintsStillApplied()
     {
         var aircraft = CreateAircraft(altitude: 3000);
-        // No via mode set
+        // No via mode set — constraints now apply universally for CFIX/drawn routes
 
         var target = MakeTarget(
             alt: new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000),
@@ -206,8 +206,8 @@ public class ProcedureConstraintTests
         );
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
-        Assert.Null(aircraft.Targets.TargetAltitude);
-        Assert.Null(aircraft.Targets.TargetSpeed);
+        Assert.Equal(8000, aircraft.Targets.TargetAltitude);
+        Assert.Equal(210, aircraft.Targets.TargetSpeed);
     }
 
     // --- 14 CFR 91.117: 250 KIAS below 10,000 ft ---

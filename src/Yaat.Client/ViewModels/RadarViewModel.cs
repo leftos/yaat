@@ -1411,35 +1411,47 @@ public partial class RadarViewModel : ObservableObject
 
     private string BuildDrawRouteCommand()
     {
-        var fixes = string.Join(" ", _drawnWaypointsMutable.Select(w => w.ResolvedName));
-        var parts = new List<string> { $"DCTF {fixes}" };
+        // Build inline constrained DCTF: "DCTF FIX1/A080 FIX2/050 FIX3"
+        // Altitude-only conditions become inline tokens; other conditions stay as AT blocks.
+        var fixTokens = new List<string>();
+        var atBlocks = new List<string>();
 
-        foreach (var (index, condition) in _waypointConditions.OrderBy(kv => kv.Key))
+        for (int i = 0; i < _drawnWaypointsMutable.Count; i++)
         {
-            if (index >= _drawnWaypointsMutable.Count)
+            var fixName = _drawnWaypointsMutable[i].ResolvedName;
+            var condition = _waypointConditions.GetValueOrDefault(i);
+
+            if (condition is not null && !string.IsNullOrWhiteSpace(condition.Altitude) && string.IsNullOrWhiteSpace(condition.Commands))
             {
-                continue;
+                // Pure altitude constraint — embed inline
+                fixTokens.Add($"{fixName}/{condition.Altitude}");
             }
-
-            var fixName = _drawnWaypointsMutable[index].ResolvedName;
-            var atParts = new List<string>();
-
-            if (!string.IsNullOrWhiteSpace(condition.Altitude))
+            else
             {
-                atParts.Add($"CFIX {condition.Altitude}");
-            }
+                fixTokens.Add(fixName);
 
-            if (!string.IsNullOrWhiteSpace(condition.Commands))
-            {
-                atParts.Add(condition.Commands);
-            }
-
-            if (atParts.Count > 0)
-            {
-                parts.Add($"AT {fixName} {string.Join(",", atParts)}");
+                // Non-altitude conditions or mixed conditions go into AT blocks
+                if (condition is not null)
+                {
+                    var condParts = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(condition.Altitude))
+                    {
+                        condParts.Add($"CFIX {condition.Altitude}");
+                    }
+                    if (!string.IsNullOrWhiteSpace(condition.Commands))
+                    {
+                        condParts.Add(condition.Commands);
+                    }
+                    if (condParts.Count > 0)
+                    {
+                        atBlocks.Add($"AT {fixName} {string.Join(",", condParts)}");
+                    }
+                }
             }
         }
 
+        var parts = new List<string> { $"DCTF {string.Join(" ", fixTokens)}" };
+        parts.AddRange(atBlocks);
         return string.Join(";", parts);
     }
 

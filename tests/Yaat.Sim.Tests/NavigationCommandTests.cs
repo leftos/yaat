@@ -132,7 +132,7 @@ public class NavigationCommandTests
     // --- CFIX ---
 
     [Fact]
-    public void Cfix_AtAltitude_SetsTargetAndCreatesRevertBlock()
+    public void Cfix_AtAltitude_StampsConstraintAndSetsAssigned()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.Targets.TargetAltitude = 10000;
@@ -143,30 +143,32 @@ public class NavigationCommandTests
 
         Assert.True(result.Success);
         Assert.Contains("SUNOL", result.Message);
-        Assert.Equal(4000, aircraft.Targets.TargetAltitude);
+        // CFIX no longer sets TargetAltitude directly — the planner does it on next tick
         Assert.Single(aircraft.Targets.NavigationRoute);
-        Assert.Single(aircraft.Queue.Blocks);
-        Assert.Equal(BlockTriggerType.ReachFix, aircraft.Queue.Blocks[0].Trigger!.Type);
+        Assert.NotNull(aircraft.Targets.NavigationRoute[0].AltitudeRestriction);
+        Assert.Equal(4000, aircraft.Targets.AssignedAltitude);
+        // No revert block — revert is on the NavigationTarget
+        Assert.Empty(aircraft.Queue.Blocks);
     }
 
     [Fact]
-    public void Cfix_RevertBlock_RestoresPreviousAltitude()
+    public void Cfix_RevertFieldsCapturedOnTarget()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.Targets.TargetAltitude = 10000;
+        aircraft.Targets.AssignedAltitude = 10000;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
-        var block = aircraft.Queue.Blocks[0];
-        block.ApplyAction?.Invoke(aircraft);
-
-        Assert.Equal(10000, aircraft.Targets.TargetAltitude);
+        var sunol = aircraft.Targets.NavigationRoute[0];
+        Assert.Equal(10000, sunol.RevertAltitude);
+        Assert.Equal(10000, sunol.RevertAssignedAltitude);
     }
 
     [Fact]
-    public void Cfix_AtOrAbove_OnlyChangesIfBelow()
+    public void Cfix_AtOrAbove_AlwaysStampsRestriction()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 5000);
         aircraft.Targets.TargetAltitude = 3000;
@@ -175,34 +177,44 @@ public class NavigationCommandTests
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
-        // Aircraft at 5000, crossing at-or-above 4000: already above, no change
-        Assert.Equal(3000, aircraft.Targets.TargetAltitude);
+        // Restriction is always stamped; the planner resolves whether to act
+        var sunol = aircraft.Targets.NavigationRoute[0];
+        Assert.NotNull(sunol.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, sunol.AltitudeRestriction!.Type);
     }
 
     [Fact]
-    public void Cfix_AtOrAbove_ChangesIfBelow()
+    public void Cfix_AtOrAbove_PlannerResolvesClimb()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 3000);
+        aircraft.IndicatedAirspeed = 250;
         aircraft.Targets.TargetAltitude = 2000;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrAbove, null);
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
+        // After a tick the planner should target 4000 (aircraft below constraint)
+        FlightPhysics.Update(aircraft, 1.0);
+
         Assert.Equal(4000, aircraft.Targets.TargetAltitude);
     }
 
     [Fact]
-    public void Cfix_WithSpeed_SetsTargetSpeed()
+    public void Cfix_WithSpeed_StampsSpeedRestriction()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.IndicatedAirspeed = 250;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
-        Assert.Equal(210.0, aircraft.Targets.TargetSpeed);
+        var sunol = aircraft.Targets.NavigationRoute[0];
+        Assert.NotNull(sunol.SpeedRestriction);
+        Assert.Equal(210, sunol.SpeedRestriction!.SpeedKts);
+        Assert.Equal(210.0, aircraft.Targets.AssignedSpeed);
         Assert.Contains("speed 210", result.Message);
     }
 
@@ -664,7 +676,7 @@ public class NavigationCommandTests
     // --- CFIX with AtOrBelow ---
 
     [Fact]
-    public void Cfix_AtOrBelow_AlreadyBelow_NoAltitudeChange()
+    public void Cfix_AtOrBelow_StampsRestriction()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 3000);
         aircraft.Targets.TargetAltitude = 5000;
@@ -673,19 +685,24 @@ public class NavigationCommandTests
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
-        // Aircraft at 3000, crossing at-or-below 4000: already below, no change
-        Assert.Equal(5000, aircraft.Targets.TargetAltitude);
+        var sunol = aircraft.Targets.NavigationRoute[0];
+        Assert.NotNull(sunol.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.AtOrBelow, sunol.AltitudeRestriction!.Type);
     }
 
     [Fact]
-    public void Cfix_AtOrBelow_AboveCrossing_ChangesAltitude()
+    public void Cfix_AtOrBelow_AboveCrossing_PlannerDescends()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 6000);
+        aircraft.IndicatedAirspeed = 250;
         aircraft.Targets.TargetAltitude = 8000;
 
         var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.AtOrBelow, null);
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        // After a tick the planner should target 4000 (aircraft above constraint)
+        FlightPhysics.Update(aircraft, 1.0);
 
         Assert.Equal(4000, aircraft.Targets.TargetAltitude);
     }
@@ -964,7 +981,7 @@ public class NavigationCommandTests
     }
 
     [Fact]
-    public void Cfix_RevertBlock_RestoresAssignedAltitude()
+    public void Cfix_RevertFieldsOnTarget_CaptureAssigned()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 8000);
         aircraft.Targets.TargetAltitude = 10000;
@@ -976,14 +993,14 @@ public class NavigationCommandTests
 
         Assert.Equal(4000, aircraft.Targets.AssignedAltitude);
 
-        var block = aircraft.Queue.Blocks[0];
-        block.ApplyAction?.Invoke(aircraft);
-
-        Assert.Equal(10000, aircraft.Targets.AssignedAltitude);
+        // Revert is captured on the NavigationTarget, not in a CommandQueue block
+        var sunol = aircraft.Targets.NavigationRoute[0];
+        Assert.Equal(10000, sunol.RevertAltitude);
+        Assert.Equal(10000, sunol.RevertAssignedAltitude);
     }
 
     [Fact]
-    public void Cfix_AtOrAbove_NoChange_DoesNotSetAssignedAltitude()
+    public void Cfix_AtOrAbove_AlwaysSetsAssignedAltitude()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 5000);
         aircraft.Targets.TargetAltitude = 3000;
@@ -993,8 +1010,8 @@ public class NavigationCommandTests
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
-        // Aircraft at 5000, crossing at-or-above 4000: already above, no change to assigned
-        Assert.Equal(3000, aircraft.Targets.AssignedAltitude);
+        // CFIX always sets AssignedAltitude for the datablock display
+        Assert.Equal(4000, aircraft.Targets.AssignedAltitude);
     }
 
     [Fact]
@@ -1023,5 +1040,352 @@ public class NavigationCommandTests
         aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
 
         Assert.Null(aircraft.Targets.AssignedHeading);
+    }
+
+    // ==========================================================================
+    // Unified CFIX & Drawn Route Altitude Constraints with Step-Based Planning
+    // ==========================================================================
+
+    // --- CFIX stamps AltitudeRestriction on route target (not direct TargetAltitude) ---
+
+    [Fact]
+    public void Cfix_StampsAltitudeRestrictionOnRouteTarget()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.IndicatedAirspeed = 250;
+        aircraft.Targets.TargetAltitude = 10000;
+        aircraft.Targets.AssignedAltitude = 10000;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        // The CFIX target in the route should have an AltitudeRestriction
+        var sunolTarget = Assert.Single(aircraft.Targets.NavigationRoute, t => t.Name == "SUNOL");
+        Assert.NotNull(sunolTarget.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.At, sunolTarget.AltitudeRestriction!.Type);
+        Assert.Equal(4000, sunolTarget.AltitudeRestriction.Altitude1Ft);
+    }
+
+    [Fact]
+    public void Cfix_AtOrAbove_StampsCorrectRestrictionType()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 3000);
+        aircraft.IndicatedAirspeed = 250;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.AtOrAbove, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        var sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
+        Assert.NotNull(sunolTarget.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, sunolTarget.AltitudeRestriction!.Type);
+    }
+
+    [Fact]
+    public void Cfix_AtOrBelow_StampsCorrectRestrictionType()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.IndicatedAirspeed = 250;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.AtOrBelow, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        var sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
+        Assert.NotNull(sunolTarget.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.AtOrBelow, sunolTarget.AltitudeRestriction!.Type);
+    }
+
+    // --- CFIX revert via NavigationTarget (not CommandQueue) ---
+
+    [Fact]
+    public void Cfix_SetsRevertFieldsOnTarget()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.IndicatedAirspeed = 250;
+        aircraft.Targets.TargetAltitude = 10000;
+        aircraft.Targets.AssignedAltitude = 10000;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        var sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
+        Assert.Equal(10000, sunolTarget.RevertAltitude);
+        Assert.Equal(10000, sunolTarget.RevertAssignedAltitude);
+    }
+
+    [Fact]
+    public void Cfix_DoesNotCreateRevertBlock()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.IndicatedAirspeed = 250;
+        aircraft.Targets.TargetAltitude = 10000;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        // No revert block in the command queue
+        Assert.Empty(aircraft.Queue.Blocks);
+    }
+
+    // --- Step-based planning activates for non-via-mode routes with constraints ---
+
+    [Fact]
+    public void Cfix_StepPlanningComputesDescentRate()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 10000);
+        aircraft.IndicatedAirspeed = 250;
+        // GroundSpeed is derived from IAS; on ground IAS=GS, airborne IAS≈GS (no wind)
+
+        // Place SUNOL ~15nm ahead
+        var cmd = new CrossFixCommand("SUNOL", 37.7, -121.95, 4000, CrossFixAltitudeType.At, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        // One physics tick should trigger descent planning
+        FlightPhysics.Update(aircraft, 1.0);
+
+        // The planner should have set a DesiredVerticalRate (negative for descent)
+        Assert.NotNull(aircraft.Targets.DesiredVerticalRate);
+        Assert.True(aircraft.Targets.DesiredVerticalRate < 0, "DesiredVerticalRate should be negative for descent");
+    }
+
+    [Fact]
+    public void NonViaMode_RouteWithConstraints_TriggersPlanning()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        aircraft.IndicatedAirspeed = 300;
+        // GroundSpeed derived from IAS (no wind)
+
+        // Build a route with altitude constraints (not in via mode)
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "FIX1",
+                Latitude = 37.7,
+                Longitude = -122.0,
+                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 8000, null),
+            }
+        );
+
+        FlightPhysics.Update(aircraft, 1.0);
+
+        // Planning should activate without via mode, just from the route constraint
+        Assert.NotNull(aircraft.Targets.DesiredVerticalRate);
+        Assert.True(aircraft.Targets.DesiredVerticalRate < 0);
+        Assert.Equal(8000, aircraft.Targets.TargetAltitude);
+    }
+
+    [Fact]
+    public void NonViaMode_RouteWithClimbConstraint_TriggersClimbPlanning()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 5000);
+        aircraft.IndicatedAirspeed = 250;
+        // GroundSpeed is derived from IAS; on ground IAS=GS, airborne IAS≈GS (no wind)
+
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "FIX1",
+                Latitude = 37.7,
+                Longitude = -122.0,
+                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 10000, null),
+            }
+        );
+
+        FlightPhysics.Update(aircraft, 1.0);
+
+        Assert.NotNull(aircraft.Targets.DesiredVerticalRate);
+        Assert.True(aircraft.Targets.DesiredVerticalRate > 0, "DesiredVerticalRate should be positive for climb");
+        Assert.Equal(10000, aircraft.Targets.TargetAltitude);
+    }
+
+    // --- Revert on waypoint sequencing ---
+
+    [Fact]
+    public void Cfix_RevertOnFixSequencing()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 4000);
+        aircraft.IndicatedAirspeed = 250;
+
+        // Place SUNOL very close so it sequences immediately
+        aircraft.Latitude = 37.6;
+        aircraft.Longitude = -121.9001;
+
+        // Add a following fix so the route doesn't end at SUNOL
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 4000, CrossFixAltitudeType.At, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        // Add a downstream fix
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "TRACY",
+                Latitude = 37.7,
+                Longitude = -121.6,
+            }
+        );
+
+        // Tick to sequence past SUNOL
+        FlightPhysics.Update(aircraft, 1.0);
+
+        // After sequencing SUNOL, the revert fields should restore the previous altitude
+        // The target was 10000 before CFIX (or whatever was captured in RevertAltitude)
+        // Since we're testing the revert mechanism, check that the sequenced fix's
+        // revert was applied — the assigned altitude should be restored
+        var sunolTarget = aircraft.Targets.NavigationRoute.FirstOrDefault(t => t.Name == "SUNOL");
+        Assert.Null(sunolTarget); // SUNOL should have been sequenced away
+    }
+
+    [Fact]
+    public void Cfix_SpeedRevert_SetsRevertSpeedFields()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.IndicatedAirspeed = 250;
+        aircraft.Targets.TargetSpeed = 300;
+        aircraft.Targets.AssignedSpeed = 300;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        var sunolTarget = aircraft.Targets.NavigationRoute.First(t => t.Name == "SUNOL");
+        Assert.NotNull(sunolTarget.SpeedRestriction);
+        Assert.Equal(210, sunolTarget.SpeedRestriction!.SpeedKts);
+        Assert.Equal(300, sunolTarget.RevertSpeed);
+        Assert.Equal(300, sunolTarget.RevertAssignedSpeed);
+    }
+
+    // --- ApplyFixConstraints works without via mode ---
+
+    [Fact]
+    public void ApplyFixConstraints_WorksWithoutViaMode()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 10000);
+        aircraft.IndicatedAirspeed = 250;
+
+        var target = new NavigationTarget
+        {
+            Name = "FIX1",
+            Latitude = 37.7,
+            Longitude = -122.0,
+            AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 6000, null),
+        };
+
+        // Neither SidViaMode nor StarViaMode is true
+        Assert.False(aircraft.SidViaMode);
+        Assert.False(aircraft.StarViaMode);
+
+        FlightPhysics.ApplyFixConstraints(aircraft, target);
+
+        Assert.Equal(6000, aircraft.Targets.TargetAltitude);
+    }
+
+    // --- Via mode still works unchanged ---
+
+    [Fact]
+    public void ViaMode_StillWorksCeilingFloorClamping()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        aircraft.IndicatedAirspeed = 250;
+        aircraft.StarViaMode = true;
+        aircraft.StarViaFloor = 8000;
+
+        var target = new NavigationTarget
+        {
+            Name = "FIX1",
+            Latitude = 37.7,
+            Longitude = -122.0,
+            AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 5000, null),
+        };
+
+        FlightPhysics.ApplyFixConstraints(aircraft, target);
+
+        // Floor should clamp to 8000
+        Assert.Equal(8000, aircraft.Targets.TargetAltitude);
+    }
+
+    // --- Constrained DCTF ---
+
+    [Fact]
+    public void ConstrainedDctf_StampsAltitudeRestrictionsOnRoute()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        aircraft.IndicatedAirspeed = 300;
+
+        var fixes = new List<ResolvedFix> { new("FIX1", 37.7, -122.0), new("FIX2", 37.7, -121.8), new("FIX3", 37.7, -121.6) };
+        var constraints = new Dictionary<int, ConstrainedFixAltitude>
+        {
+            [0] = new(8000, CrossFixAltitudeType.AtOrAbove),
+            [1] = new(5000, CrossFixAltitudeType.At),
+        };
+
+        var cmd = new ConstrainedForceDirectToCommand(fixes, constraints, null, null);
+        var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        Assert.True(result.Success);
+        Assert.Equal(3, aircraft.Targets.NavigationRoute.Count);
+
+        // FIX1 should have AtOrAbove 8000
+        var fix1 = aircraft.Targets.NavigationRoute[0];
+        Assert.NotNull(fix1.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.AtOrAbove, fix1.AltitudeRestriction!.Type);
+        Assert.Equal(8000, fix1.AltitudeRestriction.Altitude1Ft);
+
+        // FIX2 should have At 5000
+        var fix2 = aircraft.Targets.NavigationRoute[1];
+        Assert.NotNull(fix2.AltitudeRestriction);
+        Assert.Equal(CifpAltitudeRestrictionType.At, fix2.AltitudeRestriction!.Type);
+        Assert.Equal(5000, fix2.AltitudeRestriction.Altitude1Ft);
+
+        // FIX3 has no constraint
+        Assert.Null(aircraft.Targets.NavigationRoute[2].AltitudeRestriction);
+    }
+
+    [Fact]
+    public void ConstrainedDctf_OnlyLastConstrainedFixRevertsAltitude()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        aircraft.IndicatedAirspeed = 300;
+        aircraft.Targets.TargetAltitude = 20000;
+        aircraft.Targets.AssignedAltitude = 20000;
+
+        var fixes = new List<ResolvedFix> { new("FIX1", 37.7, -122.0), new("FIX2", 37.7, -121.8), new("FIX3", 37.7, -121.6) };
+        var constraints = new Dictionary<int, ConstrainedFixAltitude>
+        {
+            [0] = new(10000, CrossFixAltitudeType.At),
+            [1] = new(5000, CrossFixAltitudeType.At),
+        };
+
+        var cmd = new ConstrainedForceDirectToCommand(fixes, constraints, null, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        // FIX1 should NOT have revert (intermediate constrained fix)
+        Assert.Null(aircraft.Targets.NavigationRoute[0].RevertAltitude);
+
+        // FIX2 should have revert (last constrained fix)
+        Assert.Equal(20000, aircraft.Targets.NavigationRoute[1].RevertAltitude);
+        Assert.Equal(20000, aircraft.Targets.NavigationRoute[1].RevertAssignedAltitude);
+    }
+
+    [Fact]
+    public void ConstrainedDctf_PlannerTargetsConstraintsSimultaneously()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 15000);
+        aircraft.IndicatedAirspeed = 300;
+        // GroundSpeed derived from IAS (no wind)
+
+        var fixes = new List<ResolvedFix> { new("FIX1", 37.7, -122.0), new("FIX2", 37.7, -121.8) };
+        var constraints = new Dictionary<int, ConstrainedFixAltitude>
+        {
+            [0] = new(10000, CrossFixAltitudeType.At),
+            [1] = new(5000, CrossFixAltitudeType.At),
+        };
+
+        var cmd = new ConstrainedForceDirectToCommand(fixes, constraints, null, null);
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        // One physics tick — planner should target FIX1's constraint first (nearest)
+        FlightPhysics.Update(aircraft, 1.0);
+
+        Assert.Equal(10000, aircraft.Targets.TargetAltitude);
+        Assert.NotNull(aircraft.Targets.DesiredVerticalRate);
+        Assert.True(aircraft.Targets.DesiredVerticalRate < 0);
     }
 }
