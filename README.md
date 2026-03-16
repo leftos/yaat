@@ -6,6 +6,7 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 
 ## Features
 
+- **Cross-platform** — built to run natively on Windows, MacOS, and Linux
 - **Training rooms** — create or join isolated rooms; multiple concurrent sessions supported
 - **Scenario management** — load predefined traffic scenarios with automatic aircraft spawning
 - **Command input** — text-based ATC commands with autocomplete, macros, and compound syntax
@@ -25,7 +26,7 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 
 ### Quick Start
 
-The included `start.ps1` script builds both projects and launches the server and client together. Press Ctrl-C to stop both.
+The included `start.ps1` / `start.sh` script builds both projects and launches the server and client together. Press Ctrl-C to stop the server.
 
 ```powershell
 .\start.ps1
