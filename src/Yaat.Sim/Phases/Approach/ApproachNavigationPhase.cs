@@ -181,6 +181,7 @@ public sealed class ApproachNavigationPhase : Phase
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             // Speed/altitude adjust targets without leaving the approach
             CanonicalCommandType.Speed => CommandAcceptance.Allowed,
+            CanonicalCommandType.Mach => CommandAcceptance.Allowed,
             CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
             // Everything else (heading, direct-to, etc.) takes the aircraft off the approach

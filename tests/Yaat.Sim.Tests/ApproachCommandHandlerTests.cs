@@ -830,6 +830,47 @@ public class ApproachCommandHandlerTests
         Assert.Null(aircraft.Targets.AssignedHeading);
     }
 
+    // --- HoldingPatternPhase command acceptance ---
+
+    [Theory]
+    [InlineData(CanonicalCommandType.ClimbMaintain)]
+    [InlineData(CanonicalCommandType.DescendMaintain)]
+    [InlineData(CanonicalCommandType.Speed)]
+    [InlineData(CanonicalCommandType.Mach)]
+    public void HoldingPattern_AllowsAltitudeAndSpeedCommands(CanonicalCommandType cmd)
+    {
+        var phase = new HoldingPatternPhase
+        {
+            FixName = "EDDYY",
+            FixLat = 37.5,
+            FixLon = -122.5,
+            InboundCourse = 180,
+            LegLength = 1.0,
+            IsMinuteBased = true,
+            Direction = TurnDirection.Right,
+        };
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
+    }
+
+    [Theory]
+    [InlineData(CanonicalCommandType.FlyHeading)]
+    [InlineData(CanonicalCommandType.DirectTo)]
+    [InlineData(CanonicalCommandType.ClearedToLand)]
+    public void HoldingPattern_OtherCommands_ClearPhase(CanonicalCommandType cmd)
+    {
+        var phase = new HoldingPatternPhase
+        {
+            FixName = "EDDYY",
+            FixLat = 37.5,
+            FixLon = -122.5,
+            InboundCourse = 180,
+            LegLength = 1.0,
+            IsMinuteBased = true,
+            Direction = TurnDirection.Right,
+        };
+        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(cmd));
+    }
+
     private static NavigationDatabase MakeNavDbRunwayAndApproachOnly()
     {
         var procedure = new CifpApproachProcedure("OAK", "I28R", 'I', "ILS", "28R", [], new Dictionary<string, CifpTransition>(), [], false, null);

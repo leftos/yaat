@@ -7,7 +7,7 @@ namespace Yaat.Sim.Phases.Approach;
 /// AIM 5-3-8 holding pattern with inbound course, turn direction, leg timing,
 /// and automatic entry determination (Direct, Teardrop, Parallel).
 /// State machine: Navigate → Entry → Outbound → TurnToInbound → Inbound → TurnToOutbound → repeat.
-/// Never self-completes — any RPO command exits via ClearsPhase.
+/// Never self-completes — most RPO commands exit via ClearsPhase; CM/DM/Speed are allowed without exiting.
 /// </summary>
 public sealed class HoldingPatternPhase : Phase
 {
@@ -398,7 +398,14 @@ public sealed class HoldingPatternPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
-        return CommandAcceptance.ClearsPhase;
+        return cmd switch
+        {
+            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.Speed => CommandAcceptance.Allowed,
+            CanonicalCommandType.Mach => CommandAcceptance.Allowed,
+            _ => CommandAcceptance.ClearsPhase,
+        };
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

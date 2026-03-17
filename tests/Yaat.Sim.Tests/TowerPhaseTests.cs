@@ -597,8 +597,12 @@ public class TowerPhaseTests
         Assert.Null(ac.Targets.PreferredTurnDirection);
     }
 
-    [Fact]
-    public void VfrHold_AtFix_AnyCommand_ClearsPhase()
+    [Theory]
+    [InlineData(CanonicalCommandType.ClimbMaintain)]
+    [InlineData(CanonicalCommandType.DescendMaintain)]
+    [InlineData(CanonicalCommandType.Speed)]
+    [InlineData(CanonicalCommandType.Mach)]
+    public void VfrHold_AtFix_AllowsAltitudeAndSpeedCommands(CanonicalCommandType cmd)
     {
         var phase = new VfrHoldPhase
         {
@@ -607,7 +611,23 @@ public class TowerPhaseTests
             FixLon = 0,
             OrbitDirection = TurnDirection.Left,
         };
-        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
+    }
+
+    [Theory]
+    [InlineData(CanonicalCommandType.FlyHeading)]
+    [InlineData(CanonicalCommandType.DirectTo)]
+    [InlineData(CanonicalCommandType.ClearedToLand)]
+    public void VfrHold_AtFix_OtherCommands_ClearPhase(CanonicalCommandType cmd)
+    {
+        var phase = new VfrHoldPhase
+        {
+            FixName = "X",
+            FixLat = 0,
+            FixLon = 0,
+            OrbitDirection = TurnDirection.Left,
+        };
+        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(cmd));
     }
 
     [Fact]
@@ -723,11 +743,24 @@ public class TowerPhaseTests
         }
     }
 
-    [Fact]
-    public void VfrHold_PresentPosition_AnyCommand_ClearsPhase()
+    [Theory]
+    [InlineData(CanonicalCommandType.ClimbMaintain)]
+    [InlineData(CanonicalCommandType.DescendMaintain)]
+    [InlineData(CanonicalCommandType.Speed)]
+    [InlineData(CanonicalCommandType.Mach)]
+    public void VfrHold_PresentPosition_AllowsAltitudeAndSpeedCommands(CanonicalCommandType cmd)
     {
         var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
-        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Speed));
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(cmd));
+    }
+
+    [Theory]
+    [InlineData(CanonicalCommandType.FlyHeading)]
+    [InlineData(CanonicalCommandType.DirectTo)]
+    public void VfrHold_PresentPosition_OtherCommands_ClearPhase(CanonicalCommandType cmd)
+    {
+        var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
+        Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(cmd));
     }
 
     [Fact]
