@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 10 * * 0"  # Sundays 02:00 PT (10:00 UTC)
   workflow_dispatch:
+    inputs:
+      artcc:
+        description: "Single ARTCC to validate (empty = all)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -53,6 +58,8 @@ jobs:
           cat /tmp/validation.log >&2
 
       - name: Post to Discord
+        env:
+          ARTCC_FILTER: ${{ github.event.inputs.artcc }}
         run: |
           set -euo pipefail
           python3 << 'PYEOF'
@@ -198,7 +205,11 @@ jobs:
                       time.sleep(1)
               print(f"  Posted {len(chunks)} message(s)")
 
+          artcc_filter = os.environ.get("ARTCC_FILTER", "").strip().upper()
+
           for artcc in artccs:
+              if artcc_filter and artcc != artcc_filter:
+                  continue
               channel = os.environ.get(f"{artcc}_CHANNEL", "")
               if not channel:
                   print(f"{artcc}: no channel ID configured, skipping")

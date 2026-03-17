@@ -14,6 +14,30 @@ const MEMBER_ROLE_ID = "1479929042429018192";
 // R2 public URL for uploaded attachments
 const R2_PUBLIC_URL = "https://pub-1f460757f70f46d8b557747a4d0ffe0d.r2.dev";
 
+// Validation channel ID → ARTCC code (from discord-scenario-validation.yml)
+const VALIDATION_CHANNELS = {
+  "1481824000479854756": "ZAB",
+  "1481824003520860220": "ZAU",
+  "1481824006779699251": "ZBW",
+  "1481824009971826891": "ZDC",
+  "1481824013893374043": "ZDV",
+  "1481824017076982003": "ZFW",
+  "1481824020554055751": "ZHU",
+  "1481824024144252968": "ZID",
+  "1481824027298500609": "ZJX",
+  "1481824030372921458": "ZKC",
+  "1481824033518391307": "ZLA",
+  "1481824036907516075": "ZLC",
+  "1481824040153911539": "ZMA",
+  "1481824043211685989": "ZME",
+  "1481824046776848384": "ZMP",
+  "1481824050387882014": "ZNY",
+  "1481824053521285253": "ZOA",
+  "1481824056645783716": "ZOB",
+  "1481824060508864573": "ZSE",
+  "1481824063994462268": "ZTL",
+};
+
 // Cached installation token (valid for ~1 hour, regenerated per worker invocation)
 let cachedInstallationToken = null;
 
@@ -102,6 +126,31 @@ async function handleDiscordInteraction(request, env, ctx) {
   }
 
   if (interaction.type === APPLICATION_COMMAND) {
+    const commandName = interaction.data.name;
+
+    // /validate is channel-scoped (no user ID check) — handle before the admin gate
+    if (commandName === "validate") {
+      const channelId = interaction.channel?.id || interaction.channel_id;
+      const artcc = VALIDATION_CHANNELS[channelId];
+      if (!artcc) {
+        return ephemeral("This command can only be used in a scenario validation channel.");
+      }
+
+      const cooldownKey = `validate-cooldown:${channelId}`;
+      const existing = await env.THREAD_ISSUES.get(cooldownKey);
+      if (existing) {
+        return ephemeral("Validation was triggered recently. Try again in a few minutes.");
+      }
+
+      ctx.waitUntil(
+        triggerValidationWorkflow(artcc, env)
+          .then(() => env.THREAD_ISSUES.put(cooldownKey, "1", { expirationTtl: 300 }))
+          .catch((err) => console.error("Failed to trigger validation workflow:", err)),
+      );
+
+      return ephemeral(`Validation triggered for ${artcc}. Results will appear here shortly.`);
+    }
+
     const userId = interaction.member?.user?.id || interaction.user?.id;
     if (userId !== env.DISCORD_ALLOWED_USER_ID) {
       return ephemeral("You don't have permission to use this command.");
@@ -111,8 +160,6 @@ async function handleDiscordInteraction(request, env, ctx) {
     if (!channel || (channel.type !== 11 && channel.type !== 12)) {
       return ephemeral("This command must be used inside a forum thread.");
     }
-
-    const commandName = interaction.data.name;
 
     ctx.waitUntil(
       processCommand({
@@ -805,6 +852,29 @@ async function grantMemberRole(guildId, userId, env) {
   );
   if (!res.ok) {
     console.error("Failed to grant Member role:", await res.text());
+  }
+}
+
+// --- Validation workflow trigger ---
+
+async function triggerValidationWorkflow(artcc, env) {
+  const token = await getGitHubToken(env);
+  const res = await fetch(
+    `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/discord-scenario-validation.yml/dispatches`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "yaat-discord-bot",
+        Accept: "application/vnd.github.v3+json",
+      },
+      body: JSON.stringify({ ref: "main", inputs: { artcc } }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GitHub workflow dispatch failed (${res.status}): ${text}`);
   }
 }
 

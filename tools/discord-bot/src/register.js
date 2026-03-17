@@ -42,6 +42,11 @@ const commands = [
     description: "Force-sync new thread messages to the linked GitHub issue now",
     type: 1,
   },
+  {
+    name: "validate",
+    description: "Re-run scenario validation for this ARTCC channel",
+    type: 1,
+  },
 ];
 
 const appId = process.env.DISCORD_APP_ID;
