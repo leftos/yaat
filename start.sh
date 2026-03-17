@@ -2,7 +2,7 @@
 # Start yaat-server and yaat-client side by side.
 # Kill both on Ctrl-C.
 # Build sequentially first — both projects share Yaat.Sim.
-# Usage: ./start.sh [--pull] [--docker] [--client-only] [--server-only]
+# Usage: ./start.sh [--pull] [--docker] [--client-only] [--server-only] [--scenario <id>]
 
 set -euo pipefail
 
@@ -10,12 +10,15 @@ PULL=false
 DOCKER=false
 CLIENT_ONLY=false
 SERVER_ONLY=false
-for arg in "$@"; do
-    case "$arg" in
-        --pull) PULL=true ;;
-        --docker) DOCKER=true ;;
-        --client-only) CLIENT_ONLY=true ;;
-        --server-only) SERVER_ONLY=true ;;
+SCENARIO=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --pull) PULL=true; shift ;;
+        --docker) DOCKER=true; shift ;;
+        --client-only) CLIENT_ONLY=true; shift ;;
+        --server-only) SERVER_ONLY=true; shift ;;
+        --scenario) SCENARIO="$2"; shift 2 ;;
+        *) shift ;;
     esac
 done
 
@@ -92,10 +95,17 @@ fi
 
 if ! $SERVER_ONLY; then
     echo "Starting yaat-client..."
-    if $CLIENT_ONLY; then
-        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" &
+    CLIENT_ARGS=()
+    if ! $CLIENT_ONLY; then
+        CLIENT_ARGS+=(--autoconnect "http://localhost:$SERVER_PORT")
+    fi
+    if [[ -n "$SCENARIO" ]]; then
+        CLIENT_ARGS+=(--scenario "$SCENARIO")
+    fi
+    if [[ ${#CLIENT_ARGS[@]} -gt 0 ]]; then
+        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" -- "${CLIENT_ARGS[@]}" &
     else
-        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" -- --autoconnect "http://localhost:$SERVER_PORT" &
+        dotnet run --no-build --project "$CLIENT_DIR/src/Yaat.Client" &
     fi
     PIDS+=($!)
 fi

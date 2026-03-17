@@ -35,6 +35,45 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// Loads a scenario from pre-fetched JSON, auto-selecting the hardest difficulty.
+    /// Used by --scenario CLI argument to skip interactive dialogs.
+    /// </summary>
+    public async Task AutoLoadScenarioFromJsonAsync(string json, string displayName, string apiId)
+    {
+        _pendingScenarioSource = json;
+        _pendingApiScenarioId = apiId;
+        ScenarioFilePath = displayName;
+
+        try
+        {
+            var scenarioJson = json;
+            var difficulties = ScenarioDifficultyHelper.GetAvailableDifficulties(scenarioJson);
+
+            if (difficulties.Count >= 2)
+            {
+                var hardest = difficulties[^1];
+                _log.LogInformation("Auto-selecting difficulty: {Level}", hardest);
+                var (filtered, warnings) = ScenarioDifficultyHelper.FilterByDifficulty(scenarioJson, hardest);
+                foreach (var w in warnings)
+                {
+                    AddWarningEntry($"[WARN] {w}");
+                }
+
+                scenarioJson = filtered;
+            }
+
+            _pendingScenarioSource = null;
+            _pendingApiScenarioId = null;
+            await SendScenarioToServer(scenarioJson, apiId);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Auto-load scenario error");
+            StatusText = $"Load error: {ex.Message}";
+        }
+    }
+
+    /// <summary>
     /// Loads a scenario from pre-fetched JSON (e.g. from the vNAS data API).
     /// </summary>
     public async Task LoadScenarioFromJsonAsync(string json, string displayName, string? apiId = null)

@@ -9,6 +9,7 @@ namespace Yaat.Client;
 public class App : Application
 {
     public static string? AutoConnectTarget { get; set; }
+    public static string? AutoLoadScenarioId { get; set; }
 
     public override void Initialize()
     {

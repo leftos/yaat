@@ -7,6 +7,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
@@ -204,6 +206,8 @@ public partial class MainWindow : Window
 
     private static async Task AutoConnectAsync(MainViewModel vm, string target)
     {
+        var log = AppLog.CreateLogger("AutoConnect");
+
         string url;
         var match = vm.Preferences.SavedServers.FirstOrDefault(s => s.Name.Equals(target, StringComparison.OrdinalIgnoreCase));
         if (match is not null)
@@ -222,11 +226,13 @@ public partial class MainWindow : Window
 
         const int maxAttempts = 30;
         const int delayMs = 2000;
+        bool connected = false;
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
             if (await vm.AttemptConnectAsync(url, CancellationToken.None))
             {
-                return;
+                connected = true;
+                break;
             }
 
             if (!vm.StatusText.StartsWith("Error:"))
@@ -239,6 +245,54 @@ public partial class MainWindow : Window
                 vm.StatusText = $"--autoconnect: waiting for server... ({attempt}/{maxAttempts})";
                 await Task.Delay(delayMs);
             }
+        }
+
+        if (!connected)
+        {
+            return;
+        }
+
+        if (App.AutoLoadScenarioId is not { } scenarioId)
+        {
+            return;
+        }
+
+        await AutoCreateRoomAndLoadScenario(vm, scenarioId, log);
+    }
+
+    private static async Task AutoCreateRoomAndLoadScenario(MainViewModel vm, string scenarioId, ILogger log)
+    {
+        try
+        {
+            log.LogInformation("Auto-creating room for scenario {ScenarioId}", scenarioId);
+            vm.StatusText = "Creating room...";
+            await vm.CreateRoomCommand.ExecuteAsync(null);
+
+            if (!vm.IsInRoom)
+            {
+                log.LogWarning("Auto-create room failed — cannot load scenario");
+                return;
+            }
+
+            log.LogInformation("Fetching scenario {ScenarioId} from vNAS API", scenarioId);
+            vm.StatusText = $"Fetching scenario {scenarioId}...";
+            var dataService = new TrainingDataService();
+            var json = await dataService.GetScenarioJsonAsync(scenarioId);
+
+            if (json is null)
+            {
+                log.LogWarning("Failed to fetch scenario {ScenarioId}", scenarioId);
+                vm.StatusText = $"--scenario: failed to fetch scenario '{scenarioId}'";
+                return;
+            }
+
+            log.LogInformation("Auto-loading scenario {ScenarioId}", scenarioId);
+            await vm.AutoLoadScenarioFromJsonAsync(json, scenarioId, scenarioId);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Auto-load scenario failed");
+            vm.StatusText = $"--scenario: {ex.Message}";
         }
     }
 

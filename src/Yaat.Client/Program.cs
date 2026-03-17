@@ -31,6 +31,14 @@ public static class Program
             App.AutoConnectTarget = args[autoIdx + 1];
         }
 
+        int scenarioIdx = Array.FindIndex(args, a => a.Equals("--scenario", StringComparison.OrdinalIgnoreCase));
+        if (scenarioIdx >= 0 && scenarioIdx + 1 < args.Length)
+        {
+            App.AutoLoadScenarioId = args[scenarioIdx + 1];
+            // --scenario implies --autoconnect to localhost if not already set
+            App.AutoConnectTarget ??= "http://localhost:5000";
+        }
+
         try
         {
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

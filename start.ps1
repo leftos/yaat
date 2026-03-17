@@ -1,13 +1,14 @@
 # Start yaat-server and yaat-client side by side.
 # Kill both on Ctrl-C.
 # Build sequentially first — both projects share Yaat.Sim.
-# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly]
+# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-Scenario <id>]
 
 param(
     [switch]$Pull,
     [switch]$Docker,
     [switch]$ClientOnly,
-    [switch]$ServerOnly
+    [switch]$ServerOnly,
+    [string]$Scenario
 )
 
 $ClientDir = $PSScriptRoot
@@ -79,11 +80,15 @@ if (-not $ClientOnly) {
 
 if (-not $ServerOnly) {
     Write-Host "Starting yaat-client..."
-    if ($ClientOnly) {
-        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ClientDir\src\Yaat.Client`""
-    } else {
-        $procs += Start-Process -PassThru -NoNewWindow dotnet "run --no-build --project `"$ClientDir\src\Yaat.Client`" -- --autoconnect http://localhost:${ServerPort}"
+    $clientArgs = "run --no-build --project `"$ClientDir\src\Yaat.Client`""
+    if (-not $ClientOnly) {
+        $clientArgs += " -- --autoconnect http://localhost:${ServerPort}"
     }
+    if ($Scenario) {
+        if ($ClientOnly) { $clientArgs += " --" }
+        $clientArgs += " --scenario $Scenario"
+    }
+    $procs += Start-Process -PassThru -NoNewWindow dotnet $clientArgs
 }
 
 Write-Host "PIDs: $($procs.Id -join ', ')"
