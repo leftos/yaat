@@ -27,11 +27,6 @@ public static class FlightPhysics
 
     public static void Update(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup, WeatherProfile? weather)
     {
-        if (aircraft.IsUnsupported)
-        {
-            return;
-        }
-
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
         // Backward compat: airborne aircraft without IAS initialized derive it from GS.

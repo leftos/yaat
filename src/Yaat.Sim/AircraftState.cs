@@ -207,6 +207,15 @@ public class AircraftState
     // Unsupported (ghost) track — stationary, no surveillance data
     public bool IsUnsupported { get; set; }
 
+    /// <summary>
+    /// Override display position for ghost tracks overlaying real aircraft.
+    /// When non-null, STARS shows the ghost at this position while the real
+    /// aircraft continues physics at its true lat/lon. Null for pure ghosts
+    /// (where the real position IS the ghost position).
+    /// </summary>
+    public double? UnsupportedLatitude { get; set; }
+    public double? UnsupportedLongitude { get; set; }
+
     // Conflict alert
     public bool IsCaInhibited { get; set; }
 
