@@ -134,6 +134,7 @@ YAAT Client ──SignalR JSON──> yaat-server <──SignalR+MessagePack─�
 - `docs/atctrainer-scenario-examples/` — 9 real ATCTrainer scenario JSON files (all "Easy" difficulty). Use as reference for scenario format when building scenario loading/parsing.
 - `docs/crc/` — CRC (Consolidated Radar Client) controller manual pages scraped from vNAS docs. Covers overview, STARS terminal radar, Tower Cab mode, and vStrips. Use as reference for understanding CRC display behavior and terminology when implementing CRC protocol features.
 - `docs/vnas-artcc-config-examples/` — Real vNAS ARTCC configuration JSON files (e.g., `zoa.json`). Contains facility hierarchy, positions, TCPs, STARS lists with coordination channels, ASDEX/TowerCab configs. Use as reference for parsing ARTCC API responses and understanding coordination channel adaptation.
+- **CRC decompiled sources** (`../yaat-server/docs/crc-decompiled/`, gitignored) — ILSpy-decompiled C# from `CRC.dll`. Use when you need to understand how CRC renders tracks, handles handoffs, processes consolidation, or interprets server DTOs. Key files: `Vatsim.Nas.Crc.Ui.Displays.Stars.Elements/DisplayElementTracks.cs` (FDB/LDB/color/flash), `Vatsim.Nas.Crc.Ui.Displays.Stars.Consolidation/ConsolidationManager.cs` (consolidation state), `Vatsim.Nas.Crc.Ui.Displays.Stars.Tracks/Track.cs` (track properties), `Vatsim.Nas.Common/TrackOwnerExtensions.cs` (position matching). Regenerate with `ilspycmd -p -o <dir> "C:\Users\Leftos\AppData\Local\CRC\Application\CRC.dll"`.
 
 ## Scenario Validation
 
