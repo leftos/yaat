@@ -201,7 +201,7 @@ GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
 MakeTurnPhase.cs               # 360/270 turn tracking (cumulative degrees, exit heading); clones pattern phase for 360s
 STurnPhase.cs                  # S-turn phase: alternating 30° deviations from final heading for spacing
-HoldAtFixPhase.cs / HoldPresentPositionPhase.cs
+VfrHoldPhase.cs                # VFR hold: orbit at current position (HPP) or navigate-then-orbit at fix (HFIX)
 
 # Phases/Approach/
 ApproachNavigationPhase.cs     # Navigate through CIFP fix sequence (IAF→IF→FAF) with alt/speed restrictions

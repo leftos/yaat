@@ -526,7 +526,7 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryHoldPresentPosition(AircraftState aircraft, TurnDirection? orbitDirection)
     {
-        var phase = new HoldPresentPositionPhase { OrbitDirection = orbitDirection };
+        var phase = new VfrHoldPhase { OrbitDirection = orbitDirection };
 
         if (aircraft.Phases is not null)
         {
@@ -554,7 +554,7 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryHoldAtFix(AircraftState aircraft, string fixName, double lat, double lon, TurnDirection? orbitDirection)
     {
-        var phase = new HoldAtFixPhase
+        var phase = new VfrHoldPhase
         {
             FixName = fixName,
             FixLat = lat,

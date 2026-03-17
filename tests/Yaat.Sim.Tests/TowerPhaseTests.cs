@@ -483,14 +483,14 @@ public class TowerPhaseTests
     }
 
     // -------------------------------------------------------------------------
-    // HoldAtFixPhase
+    // VfrHoldPhase — hold at fix
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void HoldAtFix_OnStart_NavigatesToFix()
+    public void VfrHold_AtFix_OnStart_NavigatesToFix()
     {
         var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200);
-        var phase = new HoldAtFixPhase
+        var phase = new VfrHoldPhase
         {
             FixName = "EDDYY",
             FixLat = 37.5,
@@ -506,10 +506,10 @@ public class TowerPhaseTests
     }
 
     [Fact]
-    public void HoldAtFix_ArrivesAtFix_ClearsRouteAndOrbits()
+    public void VfrHold_AtFix_ArrivesAtFix_ClearsRouteAndOrbits()
     {
-        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200);
-        var phase = new HoldAtFixPhase
+        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200, heading: 90);
+        var phase = new VfrHoldPhase
         {
             FixName = "EDDYY",
             FixLat = 37.5,
@@ -523,13 +523,44 @@ public class TowerPhaseTests
 
         Assert.Empty(ac.Targets.NavigationRoute);
         Assert.Equal(TurnDirection.Right, ac.Targets.PreferredTurnDirection);
+        // Target should be 180° ahead of current heading
+        Assert.Equal(270, ac.Targets.TargetHeading);
     }
 
     [Fact]
-    public void HoldAtFix_NeverSelfCompletes()
+    public void VfrHold_AtFix_OrbitTargetStaysAhead_AcrossTicks()
+    {
+        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200, heading: 90);
+        var phase = new VfrHoldPhase
+        {
+            FixName = "EDDYY",
+            FixLat = 37.5,
+            FixLon = -122.5,
+            OrbitDirection = TurnDirection.Left,
+        };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx); // arrive at fix
+
+        // Now simulate heading changes while orbiting
+        double[] headings = [90, 80, 45, 350, 270, 180, 100, 90];
+        foreach (double hdg in headings)
+        {
+            ac.Heading = hdg;
+            phase.OnTick(ctx);
+
+            Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
+            double expected = (hdg + 360 - 180) % 360;
+            Assert.Equal(expected, ac.Targets.TargetHeading);
+        }
+    }
+
+    [Fact]
+    public void VfrHold_AtFix_NeverSelfCompletes()
     {
         var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200);
-        var phase = new HoldAtFixPhase
+        var phase = new VfrHoldPhase
         {
             FixName = "EDDYY",
             FixLat = 37.5,
@@ -540,7 +571,6 @@ public class TowerPhaseTests
 
         phase.OnStart(ctx);
 
-        // Even after many ticks (full orbits), should never complete
         for (int i = 0; i < 500; i++)
         {
             Assert.False(phase.OnTick(ctx));
@@ -548,10 +578,10 @@ public class TowerPhaseTests
     }
 
     [Fact]
-    public void HoldAtFix_HelicopterHover_ZeroSpeed()
+    public void VfrHold_AtFix_HelicopterHover_ZeroSpeed()
     {
         var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 80);
-        var phase = new HoldAtFixPhase
+        var phase = new VfrHoldPhase
         {
             FixName = "EDDYY",
             FixLat = 37.5,
@@ -568,9 +598,9 @@ public class TowerPhaseTests
     }
 
     [Fact]
-    public void HoldAtFix_AnyCommand_ClearsPhase()
+    public void VfrHold_AtFix_AnyCommand_ClearsPhase()
     {
-        var phase = new HoldAtFixPhase
+        var phase = new VfrHoldPhase
         {
             FixName = "X",
             FixLat = 0,
@@ -580,28 +610,96 @@ public class TowerPhaseTests
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.FlyHeading));
     }
 
+    [Fact]
+    public void VfrHold_AtFix_Name_ReflectsState()
+    {
+        var phase = new VfrHoldPhase
+        {
+            FixName = "EDDYY",
+            FixLat = 37.5,
+            FixLon = -122.5,
+            OrbitDirection = TurnDirection.Right,
+        };
+
+        Assert.Equal("ProceedToFix", phase.Name);
+
+        // After arriving, name changes
+        var ac = MakeAircraft(lat: 37.5, lon: -122.5, altitude: 5000, onGround: false, ias: 200);
+        var ctx = Ctx(ac);
+        phase.OnStart(ctx);
+        phase.OnTick(ctx); // arrive
+
+        Assert.Equal("HoldingAtFix", phase.Name);
+    }
+
     // -------------------------------------------------------------------------
-    // HoldPresentPositionPhase
+    // VfrHoldPhase — hold present position
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void HoldPresentPosition_Orbit_SetsPreferredTurn()
+    public void VfrHold_PresentPosition_Orbit_SetsPreferredTurn()
     {
         var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 90);
-        var phase = new HoldPresentPositionPhase { OrbitDirection = TurnDirection.Left };
+        var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Left };
         var ctx = Ctx(ac);
 
         phase.OnStart(ctx);
 
         Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
         Assert.Empty(ac.Targets.NavigationRoute);
+        // Target should be ~180° from current heading in the turn direction (270 for left from 90)
+        Assert.Equal(270, ac.Targets.TargetHeading);
     }
 
     [Fact]
-    public void HoldPresentPosition_HelicopterHover_ZeroSpeed()
+    public void VfrHold_PresentPosition_OrbitTargetStaysAhead_AcrossTicks()
+    {
+        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 90);
+        var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        // Simulate heading changes across ticks — physics turns the aircraft
+        double[] headings = [90, 95, 110, 150, 200, 270, 350, 30, 80, 90];
+        foreach (double hdg in headings)
+        {
+            ac.Heading = hdg;
+            phase.OnTick(ctx);
+
+            // PreferredTurnDirection must never be cleared
+            Assert.Equal(TurnDirection.Right, ac.Targets.PreferredTurnDirection);
+            // Target should always be 180° ahead in the turn direction
+            double expected = (hdg + 180) % 360;
+            Assert.Equal(expected, ac.Targets.TargetHeading);
+        }
+    }
+
+    [Fact]
+    public void VfrHold_PresentPosition_CumulativeTurnTracking()
+    {
+        var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200, heading: 0);
+        var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
+        var ctx = Ctx(ac);
+
+        phase.OnStart(ctx);
+
+        // Simulate a full 360° of right turns in 10° increments
+        for (int i = 1; i <= 36; i++)
+        {
+            ac.Heading = (i * 10) % 360;
+            Assert.False(phase.OnTick(ctx));
+        }
+
+        // Phase should never self-complete regardless of how many orbits
+        Assert.False(phase.OnTick(ctx));
+    }
+
+    [Fact]
+    public void VfrHold_PresentPosition_HelicopterHover_ZeroSpeed()
     {
         var ac = MakeAircraft(altitude: 500, onGround: false, ias: 80, heading: 180);
-        var phase = new HoldPresentPositionPhase { OrbitDirection = null };
+        var phase = new VfrHoldPhase { OrbitDirection = null };
         var ctx = Ctx(ac);
 
         phase.OnStart(ctx);
@@ -611,10 +709,10 @@ public class TowerPhaseTests
     }
 
     [Fact]
-    public void HoldPresentPosition_NeverSelfCompletes()
+    public void VfrHold_PresentPosition_NeverSelfCompletes()
     {
         var ac = MakeAircraft(altitude: 5000, onGround: false, ias: 200);
-        var phase = new HoldPresentPositionPhase { OrbitDirection = TurnDirection.Right };
+        var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
         var ctx = Ctx(ac);
 
         phase.OnStart(ctx);
@@ -626,17 +724,17 @@ public class TowerPhaseTests
     }
 
     [Fact]
-    public void HoldPresentPosition_AnyCommand_ClearsPhase()
+    public void VfrHold_PresentPosition_AnyCommand_ClearsPhase()
     {
-        var phase = new HoldPresentPositionPhase { OrbitDirection = TurnDirection.Right };
+        var phase = new VfrHoldPhase { OrbitDirection = TurnDirection.Right };
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Speed));
     }
 
     [Fact]
-    public void HoldPresentPosition_Name_ReflectsDirection()
+    public void VfrHold_PresentPosition_Name_ReflectsDirection()
     {
-        Assert.Equal("HPP-L", new HoldPresentPositionPhase { OrbitDirection = TurnDirection.Left }.Name);
-        Assert.Equal("HPP-R", new HoldPresentPositionPhase { OrbitDirection = TurnDirection.Right }.Name);
-        Assert.Equal("HPP", new HoldPresentPositionPhase { OrbitDirection = null }.Name);
+        Assert.Equal("HPP-L", new VfrHoldPhase { OrbitDirection = TurnDirection.Left }.Name);
+        Assert.Equal("HPP-R", new VfrHoldPhase { OrbitDirection = TurnDirection.Right }.Name);
+        Assert.Equal("HPP", new VfrHoldPhase { OrbitDirection = null }.Name);
     }
 }
