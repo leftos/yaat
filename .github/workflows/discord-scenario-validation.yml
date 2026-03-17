@@ -150,14 +150,20 @@ jobs:
 
           def get_last_content(channel):
               try:
-                  msgs = api("GET", f"https://discord.com/api/v10/channels/{channel}/messages?limit=1")
-                  return msgs[0].get("content", "") if msgs else ""
+                  msgs = api("GET", f"https://discord.com/api/v10/channels/{channel}/messages?limit=5")
+                  pinned = {m["id"] for m in api("GET", f"https://discord.com/api/v10/channels/{channel}/pins")}
+                  for m in msgs:
+                      if m["id"] not in pinned:
+                          return m.get("content", "")
+                  return ""
               except Exception:
                   return ""
 
           def clear_channel(channel):
+              pinned = {m["id"] for m in api("GET", f"https://discord.com/api/v10/channels/{channel}/pins")}
               while True:
                   msgs = api("GET", f"https://discord.com/api/v10/channels/{channel}/messages?limit=100")
+                  msgs = [m for m in msgs if m["id"] not in pinned]
                   if not msgs:
                       break
                   for m in msgs:
