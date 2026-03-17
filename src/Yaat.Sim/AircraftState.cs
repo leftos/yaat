@@ -204,6 +204,9 @@ public class AircraftState
     public string? ClearanceLocalInfo { get; set; }
     public string? ClearanceDepFreq { get; set; }
 
+    // Unsupported (ghost) track — stationary, no surveillance data
+    public bool IsUnsupported { get; set; }
+
     // Conflict alert
     public bool IsCaInhibited { get; set; }
 
