@@ -130,6 +130,7 @@ public class AircraftState
     public double? PushbackHeading { get; set; }
 
     // Track operations state
+    public bool HasFlightPlan { get; set; }
     public TrackOwner? Owner { get; set; }
     public TrackOwner? HandoffPeer { get; set; }
     public TrackOwner? HandoffRedirectedBy { get; set; }

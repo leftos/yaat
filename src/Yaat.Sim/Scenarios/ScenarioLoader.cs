@@ -116,6 +116,7 @@ public static class ScenarioLoader
             Remarks = ac.FlightPlan?.Remarks ?? "",
             EquipmentSuffix = ExtractSuffix(equipType),
             ExpectedApproach = ac.ExpectedApproach ?? primaryApproach,
+            HasFlightPlan = ac.FlightPlan is not null,
         };
     }
 
