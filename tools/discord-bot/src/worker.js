@@ -181,6 +181,34 @@ async function handleDiscordInteraction(request, env, ctx) {
   }
 
   if (interaction.type === MESSAGE_COMPONENT) {
+    if (interaction.data.custom_id === "run_validation") {
+      const channelId = interaction.channel?.id || interaction.channel_id;
+      const artcc = VALIDATION_CHANNELS[channelId];
+      if (!artcc) {
+        return ephemeral("This button only works in a scenario validation channel.");
+      }
+
+      const cooldownKey = `validate-cooldown:${channelId}`;
+      const existing = await env.THREAD_ISSUES.get(cooldownKey);
+      if (existing) {
+        return ephemeral("Validation was triggered recently. Try again in a few minutes.");
+      }
+
+      ctx.waitUntil(
+        triggerValidationWorkflow(artcc, env)
+          .then(() => env.THREAD_ISSUES.put(cooldownKey, "1", { expirationTtl: 300 }))
+          .catch((err) => console.error("Failed to trigger validation workflow:", err)),
+      );
+
+      return jsonResponse({
+        type: 4,
+        data: {
+          content: `Validation triggered for ${artcc}. Results will appear here shortly.`,
+          flags: 64,
+        },
+      });
+    }
+
     if (interaction.data.custom_id === "accept_rules") {
       const userId = interaction.member?.user?.id;
       const guildId = interaction.guild_id;
