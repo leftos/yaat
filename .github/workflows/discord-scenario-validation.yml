@@ -152,14 +152,14 @@ jobs:
                               suffix = f" — {reason}" if reason else ""
                               lines.append(f"    `{cmd}`{suffix}")
                   if name in proc_by_scenario:
-                      for (proc_id, kind, resolved), callsigns in sorted(proc_by_scenario[name].items()):
+                      for (proc_id, kind, resolved), callsigns in sorted(proc_by_scenario[name].items(), key=lambda x: (x[0][0], str(x[0][2] or ""))):
                           cs = ", ".join(sorted(callsigns))
                           if kind == 0 or kind == "VersionChanged":
                               lines.append(f"  `{proc_id}` → `{resolved}`: {cs}")
                           else:
                               lines.append(f"  `{proc_id}` not found: {cs}")
                   if name in trans_by_scenario:
-                      for (proc_id, old_fix, new_fix), callsigns in sorted(trans_by_scenario[name].items()):
+                      for (proc_id, old_fix, new_fix), callsigns in sorted(trans_by_scenario[name].items(), key=lambda x: (x[0][0], x[0][1], str(x[0][2] or ""))):
                           cs = ", ".join(sorted(callsigns))
                           replacement = f"`{new_fix}`" if new_fix else "no replacement"
                           lines.append(f"  `{proc_id}`: `{old_fix}` → {replacement}: {cs}")
