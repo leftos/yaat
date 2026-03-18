@@ -544,7 +544,7 @@ public static class ScenarioLoader
                                 int beyondIdx = FindNextNonNumericTokenIndex(tokens, nextIdx + 1);
                                 if (beyondIdx >= 0)
                                 {
-                                    var beyondPos = navDb.GetFixPosition(tokens[beyondIdx].Split('.')[0]);
+                                    var beyondPos = ResolveTokenPosition(tokens[beyondIdx], navDb);
                                     if (beyondPos is not null)
                                     {
                                         closest = FindClosestTransitionFixToPosition(beyondPos.Value, transitions, navDb);
@@ -603,7 +603,7 @@ public static class ScenarioLoader
                                 int beforeIdx = FindPrecedingNonNumericTokenIndex(tokens, prevIdx - 1);
                                 if (beforeIdx >= 0)
                                 {
-                                    var beforePos = navDb.GetFixPosition(tokens[beforeIdx].Split('.')[0]);
+                                    var beforePos = ResolveTokenPosition(tokens[beforeIdx], navDb);
                                     if (beforePos is not null)
                                     {
                                         closest = FindClosestTransitionFixToPosition(beforePos.Value, transitions, navDb);
@@ -786,6 +786,87 @@ public static class ScenarioLoader
         }
 
         return closest;
+    }
+
+    /// <summary>
+    /// Resolves a navigation path token to a lat/lon position, trying in order:
+    /// named fix, FRD (fix-radial-distance), lat/lon coordinate (e.g., "3904N/10916W").
+    /// </summary>
+    internal static (double Lat, double Lon)? ResolveTokenPosition(string token, NavigationDatabase navDb)
+    {
+        var rawName = token.Split('.')[0];
+
+        // 1. Named fix
+        var fixPos = navDb.GetFixPosition(rawName);
+        if (fixPos is not null)
+        {
+            return fixPos;
+        }
+
+        // 2. FRD (e.g., "LNK136052")
+        var frd = FrdResolver.Resolve(rawName, navDb);
+        if (frd is not null)
+        {
+            return (frd.Latitude, frd.Longitude);
+        }
+
+        // 3. Lat/lon coordinate (e.g., "3904N/10916W")
+        var coord = ParseNavPathCoordinate(rawName);
+        if (coord is not null)
+        {
+            return coord;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Parses a nav path coordinate in the format "DDMMN/DDDMMW" (e.g., "3904N/10916W").
+    /// Returns null if the token doesn't match this format.
+    /// </summary>
+    internal static (double Lat, double Lon)? ParseNavPathCoordinate(string token)
+    {
+        var slashIdx = token.IndexOf('/');
+        if (slashIdx < 3)
+        {
+            return null;
+        }
+
+        var latPart = token[..slashIdx];
+        var lonPart = token[(slashIdx + 1)..];
+
+        if (latPart.Length < 3 || lonPart.Length < 4)
+        {
+            return null;
+        }
+
+        char latDir = latPart[^1];
+        char lonDir = lonPart[^1];
+
+        if ((latDir != 'N' && latDir != 'S') || (lonDir != 'E' && lonDir != 'W'))
+        {
+            return null;
+        }
+
+        if (!int.TryParse(latPart[..^1], out int latRaw) || !int.TryParse(lonPart[..^1], out int lonRaw))
+        {
+            return null;
+        }
+
+        double latDeg = (latRaw / 100) + ((latRaw % 100) / 60.0);
+        double lonDeg = (lonRaw / 100) + ((lonRaw % 100) / 60.0);
+
+        if (latDir == 'S')
+        {
+            latDeg = -latDeg;
+        }
+
+        if (lonDir == 'W')
+        {
+            lonDeg = -lonDeg;
+        }
+
+        return (latDeg, lonDeg);
     }
 
     private static int FindNextNonNumericTokenIndex(string[] tokens, int startIndex)

@@ -180,7 +180,7 @@ public static class ScenarioValidator
             int beyondIdx = FindNextNonNumericTokenIndex(tokens, nextIdx + 1);
             if (beyondIdx >= 0)
             {
-                var beyondPos = navDb.GetFixPosition(tokens[beyondIdx].Split('.')[0]);
+                var beyondPos = ScenarioLoader.ResolveTokenPosition(tokens[beyondIdx], navDb);
                 if (beyondPos is not null)
                 {
                     closest = ScenarioLoader.FindClosestTransitionFixToPosition(beyondPos.Value, transitions, navDb);
@@ -231,7 +231,7 @@ public static class ScenarioValidator
             int beforeIdx = FindPrecedingNonNumericTokenIndex(tokens, prevIdx - 1);
             if (beforeIdx >= 0)
             {
-                var beforePos = navDb.GetFixPosition(tokens[beforeIdx].Split('.')[0]);
+                var beforePos = ScenarioLoader.ResolveTokenPosition(tokens[beforeIdx], navDb);
                 if (beforePos is not null)
                 {
                     closest = ScenarioLoader.FindClosestTransitionFixToPosition(beforePos.Value, transitions, navDb);
