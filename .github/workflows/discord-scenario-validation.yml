@@ -167,7 +167,7 @@ jobs:
                                   for old_fix, new_fix, sub_cs in sorted(subs_by_resolved[resolved]):
                                       scs = ", ".join(sorted(sub_cs))
                                       replacement = f"`{new_fix}`" if new_fix else "no replacement"
-                                      lines.append(f"    `{old_fix}` → {replacement}: {scs}")
+                                      lines.append(f"        - `{old_fix}` → {replacement}: {scs}")
                                   emitted_resolved.add(resolved)
                           else:
                               lines.append(f"  `{proc_id}` not found: {cs}")

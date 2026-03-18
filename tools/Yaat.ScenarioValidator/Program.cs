@@ -493,7 +493,7 @@ public static class Program
                     {
                         var subCallsigns = string.Join(", ", subGroup.Select(s => s.AircraftId).OrderBy(id => id));
                         var newFix = subGroup.Key.NewFix ?? "no replacement";
-                        Console.WriteLine($"{indent}  {subGroup.Key.OldFix} → {newFix}: {subCallsigns}");
+                        Console.WriteLine($"{indent}      - {subGroup.Key.OldFix} → {newFix}: {subCallsigns}");
                     }
 
                     emittedSubIds.Add(group.Key.ResolvedId);
