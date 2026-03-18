@@ -457,7 +457,9 @@ public record AircraftDto(
     string DestinationRunway = "",
     double IndicatedAirspeed = 0,
     double Mach = 0,
-    double? AssignedMach = null
+    double? AssignedMach = null,
+    int WindDirection = 0,
+    int WindSpeed = 0
 );
 
 public record LoadScenarioResultDto(

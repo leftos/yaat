@@ -185,6 +185,9 @@ public partial class AircraftModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(AssignedSpeedDisplay))]
     private double? _assignedMach;
 
+    [ObservableProperty]
+    private string _wind = "";
+
     public string MachDisplay => Altitude >= 24000 && Mach >= 0.01 ? $"M.{Mach * 100:F0}" : "";
 
     public string AssignedSpeedDisplay =>
@@ -569,6 +572,7 @@ public partial class AircraftModel : ObservableObject
             IndicatedAirspeed = dto.IndicatedAirspeed,
             Mach = dto.Mach,
             AssignedMach = dto.AssignedMach,
+            Wind = dto.WindSpeed > 0 ? $"{dto.WindDirection:D3}{dto.WindSpeed:D2}KT" : "",
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.ComputeSmartStatus();
@@ -630,6 +634,7 @@ public partial class AircraftModel : ObservableObject
         IndicatedAirspeed = dto.IndicatedAirspeed;
         Mach = dto.Mach;
         AssignedMach = dto.AssignedMach;
+        Wind = dto.WindSpeed > 0 ? $"{dto.WindDirection:D3}{dto.WindSpeed:D2}KT" : "";
         DistanceFromFix = computeDistance?.Invoke(this);
         ComputeSmartStatus();
     }

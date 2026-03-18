@@ -143,8 +143,10 @@
             <DataGridTextColumn Header="Squawk" Binding="{Binding BeaconCode, StringFormat=\{0:D4\}}" Width="Auto" />
             <DataGridTextColumn Header="Hdg" Binding="{Binding Heading, StringFormat=\{0:F0\}}" Width="Auto" />
             <DataGridTextColumn Header="Alt" Binding="{Binding Altitude, StringFormat=\{0:F0\}}" Width="Auto" />
-            <DataGridTextColumn Header="Spd" Binding="{Binding GroundSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn Header="IAS" Binding="{Binding IndicatedAirspeed, StringFormat=\{0:F0\}}" Width="Auto" />
             <DataGridTextColumn Header="Mach" Binding="{Binding MachDisplay}" Width="Auto" />
+            <DataGridTextColumn Header="GS" Binding="{Binding GroundSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
+            <DataGridTextColumn Header="Wind" Binding="{Binding Wind}" Width="Auto" />
             <DataGridTextColumn Header="VS" Binding="{Binding VerticalSpeed, StringFormat=\{0:F0\}}" Width="Auto" />
             <DataGridTextColumn Header="AHdg" Binding="{Binding AssignedHeadingDisplay}" Width="Auto" />
             <DataGridTextColumn Header="AAlt" Binding="{Binding AssignedAltitude, StringFormat=\{0:F0\}}" Width="Auto" />
