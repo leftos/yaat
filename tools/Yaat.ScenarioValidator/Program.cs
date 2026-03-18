@@ -177,8 +177,11 @@ public static class Program
 
             int failures = results.Sum(r => r.Failures.Count);
             int procIssues = results.Sum(r => r.ProcedureIssues.Count);
+            int transSubs = results.Sum(r => r.TransitionFixSubstitutions.Count);
             int presets = results.Sum(r => r.TotalPresets);
-            Console.Error.WriteLine($"  [{artcc}] {results.Count} scenarios, {presets} presets, {failures} failures, {procIssues} procedure issues");
+            Console.Error.WriteLine(
+                $"  [{artcc}] {results.Count} scenarios, {presets} presets, {failures} failures, {procIssues} procedure issues, {transSubs} transition fix subs"
+            );
         });
         await Task.WhenAll(tasks);
 
@@ -197,8 +200,25 @@ public static class Program
             int presets = results.Sum(r => r.TotalPresets);
             int failures = results.Sum(r => r.Failures.Count);
             int procIssues = results.Sum(r => r.ProcedureIssues.Count);
-            var status = failures == 0 && procIssues == 0 ? "PASS" : $"FAIL ({failures} parse, {procIssues} procedure)";
-            if (failures > 0 || procIssues > 0)
+            int transSubs = results.Sum(r => r.TransitionFixSubstitutions.Count);
+            var statusParts = new List<string>();
+            if (failures > 0)
+            {
+                statusParts.Add($"{failures} parse");
+            }
+
+            if (procIssues > 0)
+            {
+                statusParts.Add($"{procIssues} procedure");
+            }
+
+            if (transSubs > 0)
+            {
+                statusParts.Add($"{transSubs} transition fix sub{(transSubs != 1 ? "s" : "")}");
+            }
+
+            var status = statusParts.Count == 0 ? "PASS" : $"FAIL ({string.Join(", ", statusParts)})";
+            if (failures > 0 || procIssues > 0 || transSubs > 0)
             {
                 anyFailures = true;
             }
@@ -241,6 +261,18 @@ public static class Program
                     {
                         Console.WriteLine($"  {scenario.ScenarioName}");
                         PrintProcedureIssuesByProcedure(scenario.ProcedureIssues, "    ");
+                        Console.WriteLine();
+                    }
+                }
+
+                var withTransSubs = allResults[artcc].Where(r => r.TransitionFixSubstitutions.Count > 0).ToList();
+                if (withTransSubs.Count > 0)
+                {
+                    Console.WriteLine($"\n=== {artcc} TRANSITION FIX SUBSTITUTIONS ===\n");
+                    foreach (var scenario in withTransSubs)
+                    {
+                        Console.WriteLine($"  {scenario.ScenarioName}");
+                        PrintTransitionFixSubstitutions(scenario.TransitionFixSubstitutions, "    ");
                         Console.WriteLine();
                     }
                 }
@@ -311,6 +343,13 @@ public static class Program
                     if (result.ProcedureIssues.Count > 0)
                     {
                         issues.Add($"{result.ProcedureIssues.Count} procedure issue{(result.ProcedureIssues.Count != 1 ? "s" : "")}");
+                    }
+
+                    if (result.TransitionFixSubstitutions.Count > 0)
+                    {
+                        issues.Add(
+                            $"{result.TransitionFixSubstitutions.Count} transition fix sub{(result.TransitionFixSubstitutions.Count != 1 ? "s" : "")}"
+                        );
                     }
 
                     var status = issues.Count == 0 ? "OK" : string.Join(", ", issues);
@@ -397,10 +436,11 @@ public static class Program
         int totalPresets = results.Sum(r => r.TotalPresets);
         int totalFailures = results.Sum(r => r.Failures.Count);
         int totalProcIssues = results.Sum(r => r.ProcedureIssues.Count);
+        int totalTransSubs = results.Sum(r => r.TransitionFixSubstitutions.Count);
 
         Console.WriteLine($"\n=== RESULTS ===");
         Console.WriteLine(
-            $"{results.Count} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}, {totalProcIssues} procedure issue{(totalProcIssues != 1 ? "s" : "")}"
+            $"{results.Count} scenarios, {totalPresets} presets, {totalFailures} failure{(totalFailures != 1 ? "s" : "")}, {totalProcIssues} procedure issue{(totalProcIssues != 1 ? "s" : "")}, {totalTransSubs} transition fix sub{(totalTransSubs != 1 ? "s" : "")}"
         );
 
         var failedScenarios = results.Where(r => r.Failures.Count > 0).ToList();
@@ -436,7 +476,19 @@ public static class Program
             }
         }
 
-        return totalFailures > 0 || totalProcIssues > 0 ? 1 : 0;
+        var transScenarios = results.Where(r => r.TransitionFixSubstitutions.Count > 0).ToList();
+        if (transScenarios.Count > 0)
+        {
+            Console.WriteLine($"\n=== TRANSITION FIX SUBSTITUTIONS ===\n");
+            foreach (var scenario in transScenarios)
+            {
+                Console.WriteLine($"  {scenario.ScenarioName}");
+                PrintTransitionFixSubstitutions(scenario.TransitionFixSubstitutions, "    ");
+                Console.WriteLine();
+            }
+        }
+
+        return (totalFailures > 0 || totalProcIssues > 0 || totalTransSubs > 0) ? 1 : 0;
     }
 
     private static void PrintProcedureIssuesByProcedure(List<ProcedureIssue> issues, string indent)
@@ -452,6 +504,19 @@ public static class Program
                     ? $"{indent}{group.Key.ProcedureId} → {group.Key.ResolvedId}: {callsigns}"
                     : $"{indent}{group.Key.ProcedureId} not found: {callsigns}";
             Console.WriteLine(detail);
+        }
+    }
+
+    private static void PrintTransitionFixSubstitutions(List<TransitionFixSubstitution> subs, string indent)
+    {
+        // Group by (ProcedureId, OldFix, NewFix) so each unique substitution appears once with all callsigns
+        var grouped = subs.GroupBy(s => (s.ProcedureId, s.OldFix, s.NewFix)).OrderBy(g => g.Key.ProcedureId).ThenBy(g => g.Key.OldFix);
+
+        foreach (var group in grouped)
+        {
+            var callsigns = string.Join(", ", group.Select(s => s.AircraftId).OrderBy(id => id));
+            var newFix = group.Key.NewFix ?? "no replacement";
+            Console.WriteLine($"{indent}{group.Key.ProcedureId}: {group.Key.OldFix} → {newFix}: {callsigns}");
         }
     }
 

@@ -91,6 +91,7 @@ jobs:
               presets = sum(r.get("TotalPresets", r.get("totalPresets", 0)) for r in results)
               failures = []
               proc_issues = []
+              trans_subs = []
               for r in results:
                   name = r.get("ScenarioName", r.get("scenarioName", ""))
                   for fail in r.get("Failures", r.get("failures", [])):
@@ -104,8 +105,14 @@ jobs:
                       kind = issue.get("Kind", issue.get("kind", 0))
                       resolved = issue.get("ResolvedId", issue.get("resolvedId", None))
                       proc_issues.append((name, acid, proc_id, kind, resolved))
+                  for sub in r.get("TransitionFixSubstitutions", r.get("transitionFixSubstitutions", [])):
+                      acid = sub.get("AircraftId", sub.get("aircraftId", ""))
+                      proc_id = sub.get("ProcedureId", sub.get("procedureId", ""))
+                      old_fix = sub.get("OldFix", sub.get("oldFix", ""))
+                      new_fix = sub.get("NewFix", sub.get("newFix", None))
+                      trans_subs.append((name, acid, proc_id, old_fix, new_fix))
 
-              if not failures and not proc_issues:
+              if not failures and not proc_issues and not trans_subs:
                   return f"# {artcc} Scenario Validation\n\n{scenarios} scenarios, {presets} presets \u2014 all commands parsed successfully."
 
               # Group failures by scenario → aircraft, procedure issues by scenario → procedure
@@ -118,8 +125,13 @@ jobs:
                   key = (proc_id, kind, resolved)
                   proc_by_scenario.setdefault(name, {}).setdefault(key, [])
                   proc_by_scenario[name][key].append(acid)
+              trans_by_scenario = {}
+              for name, acid, proc_id, old_fix, new_fix in trans_subs:
+                  key = (proc_id, old_fix, new_fix)
+                  trans_by_scenario.setdefault(name, {}).setdefault(key, [])
+                  trans_by_scenario[name][key].append(acid)
 
-              all_scenarios = sorted(set(list(fail_by_scenario) + list(proc_by_scenario)))
+              all_scenarios = sorted(set(list(fail_by_scenario) + list(proc_by_scenario) + list(trans_by_scenario)))
 
               lines = [f"# {artcc} Scenario Validation\n"]
               summary_parts = [f"{scenarios} scenarios", f"{presets} presets"]
@@ -127,6 +139,8 @@ jobs:
                   summary_parts.append(f"{len(failures)} parse failure{'s' if len(failures) != 1 else ''}")
               if proc_issues:
                   summary_parts.append(f"{len(proc_issues)} procedure issue{'s' if len(proc_issues) != 1 else ''}")
+              if trans_subs:
+                  summary_parts.append(f"{len(trans_subs)} transition fix sub{'s' if len(trans_subs) != 1 else ''}")
               lines.append(", ".join(summary_parts) + "\n")
 
               for name in all_scenarios:
@@ -144,6 +158,11 @@ jobs:
                               lines.append(f"  `{proc_id}` → `{resolved}`: {cs}")
                           else:
                               lines.append(f"  `{proc_id}` not found: {cs}")
+                  if name in trans_by_scenario:
+                      for (proc_id, old_fix, new_fix), callsigns in sorted(trans_by_scenario[name].items()):
+                          cs = ", ".join(sorted(callsigns))
+                          replacement = f"`{new_fix}`" if new_fix else "no replacement"
+                          lines.append(f"  `{proc_id}`: `{old_fix}` → {replacement}: {cs}")
                   lines.append("")
 
               return "\n".join(lines)

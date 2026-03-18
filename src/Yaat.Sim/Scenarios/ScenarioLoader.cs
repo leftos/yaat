@@ -215,7 +215,8 @@ public static class ScenarioLoader
             state.GroundLayout = !string.IsNullOrEmpty(groundAirportId) ? groundData?.GetLayout(groundAirportId) : null;
         }
 
-        PopulateNavigationRoute(state, cond.NavigationPath, warnings);
+        var navigationPath = ResolveVersionChanges(cond.NavigationPath ?? "", state, warnings);
+        PopulateNavigationRoute(state, navigationPath, warnings);
 
         // Derive heading: scenario-assigned heading, or bearing to first nav route fix
         var heading = cond.Heading ?? 0.0;
@@ -229,7 +230,7 @@ public static class ScenarioLoader
 
         if (ac.OnAltitudeProfile)
         {
-            ApplyAltitudeProfile(state, cond.NavigationPath, warnings);
+            ApplyAltitudeProfile(state, navigationPath, warnings);
         }
 
         return new LoadedAircraft
@@ -443,9 +444,6 @@ public static class ScenarioLoader
 
         var navDb = NavigationDatabase.Instance;
 
-        // Emit version-change warnings by comparing input tokens against resolved SID/STAR IDs
-        EmitVersionChangeWarnings(navigationPath, warnings, state.Callsign);
-
         // Expand route tokens into fix names
         var expanded = RouteExpander.Expand(navigationPath);
 
@@ -486,27 +484,334 @@ public static class ScenarioLoader
         }
     }
 
-    private static void EmitVersionChangeWarnings(string navigationPath, List<string> warnings, string callsign)
+    /// <summary>
+    /// Detects SID/STAR version upgrades in the navigation path, emits warnings,
+    /// and substitutes stale transition fixes with the geographically closest valid one.
+    /// Returns the (possibly modified) navigation path. Also updates state.Route in place.
+    /// </summary>
+    private static string ResolveVersionChanges(string navigationPath, AircraftState state, List<string> warnings)
     {
+        if (string.IsNullOrWhiteSpace(navigationPath))
+        {
+            return navigationPath;
+        }
+
         var navDb = NavigationDatabase.Instance;
         var tokens = navigationPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var token in tokens)
-        {
-            var rawName = token.Split('.')[0];
+        var routeTokens = state.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        bool modified = false;
 
-            var resolvedSidId = navDb.ResolveSidId(rawName);
-            if (resolvedSidId is not null && !resolvedSidId.Equals(rawName, StringComparison.OrdinalIgnoreCase))
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            var dotParts = tokens[i].Split('.');
+            var rawName = dotParts[0];
+
+            // Skip numeric tokens (altitude/speed constraints)
+            if (double.TryParse(rawName, out _))
             {
-                warnings.Add($"{callsign}: SID {rawName} not found, using current version {resolvedSidId}");
                 continue;
             }
 
+            // --- SID upgrade ---
+            var resolvedSidId = navDb.ResolveSidId(rawName);
+            if (resolvedSidId is not null && !resolvedSidId.Equals(rawName, StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add($"{state.Callsign}: SID {rawName} not found, using current version {resolvedSidId}");
+
+                // Replace procedure name in tokens and route
+                ReplaceProcedureToken(tokens, i, dotParts, resolvedSidId);
+                ReplaceInRoute(routeTokens, rawName, resolvedSidId);
+                modified = true;
+
+                // Find the next non-numeric token — if it was a transition exit fix on the
+                // old SID version, it may no longer exist on the new one.
+                int nextIdx = FindNextNonNumericTokenIndex(tokens, i + 1);
+                if (nextIdx >= 0)
+                {
+                    var nextFixDotParts = tokens[nextIdx].Split('.');
+                    var nextFixName = nextFixDotParts[0];
+                    if (!IsFixOnSid(nextFixName, resolvedSidId, state.Departure, navDb))
+                    {
+                        var transitions = navDb.GetSidTransitions(resolvedSidId);
+                        if (transitions is not null && transitions.Count > 0)
+                        {
+                            var closest = FindClosestTransitionFix(nextFixName, transitions, navDb);
+
+                            // Fallback: old fix not in navdb — use the fix after it as a
+                            // geographic reference (the aircraft is heading toward that fix).
+                            if (closest is null)
+                            {
+                                int beyondIdx = FindNextNonNumericTokenIndex(tokens, nextIdx + 1);
+                                if (beyondIdx >= 0)
+                                {
+                                    var beyondPos = navDb.GetFixPosition(tokens[beyondIdx].Split('.')[0]);
+                                    if (beyondPos is not null)
+                                    {
+                                        closest = FindClosestTransitionFixToPosition(beyondPos.Value, transitions, navDb);
+                                    }
+                                }
+                            }
+
+                            if (closest is not null)
+                            {
+                                warnings.Add($"{state.Callsign}: SID fix {nextFixName} not on {resolvedSidId}, using closest transition: {closest}");
+                                var newToken = nextFixDotParts.Length > 1 ? closest + "." + nextFixDotParts[1] : closest;
+                                ReplaceInRoute(routeTokens, nextFixName, closest);
+                                tokens[nextIdx] = newToken;
+                                modified = true;
+                            }
+                            else
+                            {
+                                warnings.Add($"{state.Callsign}: SID fix {nextFixName} not on {resolvedSidId} and no suitable replacement found");
+                            }
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            // --- STAR upgrade ---
             var resolvedStarId = navDb.ResolveStarId(rawName);
             if (resolvedStarId is not null && !resolvedStarId.Equals(rawName, StringComparison.OrdinalIgnoreCase))
             {
-                warnings.Add($"{callsign}: STAR {rawName} not found, using current version {resolvedStarId}");
+                warnings.Add($"{state.Callsign}: STAR {rawName} not found, using current version {resolvedStarId}");
+
+                // Replace procedure name in tokens and route
+                ReplaceProcedureToken(tokens, i, dotParts, resolvedStarId);
+                ReplaceInRoute(routeTokens, rawName, resolvedStarId);
+                modified = true;
+
+                // Find the preceding non-numeric token — if it was a transition entry fix
+                // on the old STAR version, it may no longer exist on the new one.
+                int prevIdx = FindPrecedingNonNumericTokenIndex(tokens, i - 1);
+                if (prevIdx >= 0)
+                {
+                    var prevFixDotParts = tokens[prevIdx].Split('.');
+                    var prevFixName = prevFixDotParts[0];
+                    if (!IsFixOnStar(prevFixName, resolvedStarId, state.Destination, navDb))
+                    {
+                        var transitions = navDb.GetStarTransitions(resolvedStarId);
+                        if (transitions is not null && transitions.Count > 0)
+                        {
+                            var closest = FindClosestTransitionFix(prevFixName, transitions, navDb);
+
+                            // Fallback: old fix not in navdb — use the fix before it as a
+                            // geographic reference (the aircraft is coming from that fix).
+                            if (closest is null)
+                            {
+                                int beforeIdx = FindPrecedingNonNumericTokenIndex(tokens, prevIdx - 1);
+                                if (beforeIdx >= 0)
+                                {
+                                    var beforePos = navDb.GetFixPosition(tokens[beforeIdx].Split('.')[0]);
+                                    if (beforePos is not null)
+                                    {
+                                        closest = FindClosestTransitionFixToPosition(beforePos.Value, transitions, navDb);
+                                    }
+                                }
+                            }
+
+                            if (closest is not null)
+                            {
+                                warnings.Add(
+                                    $"{state.Callsign}: STAR fix {prevFixName} not on {resolvedStarId}, using closest transition: {closest}"
+                                );
+                                var newToken = prevFixDotParts.Length > 1 ? closest + "." + prevFixDotParts[1] : closest;
+                                ReplaceInRoute(routeTokens, prevFixName, closest);
+                                tokens[prevIdx] = newToken;
+                                modified = true;
+                            }
+                            else
+                            {
+                                warnings.Add($"{state.Callsign}: STAR fix {prevFixName} not on {resolvedStarId} and no suitable replacement found");
+                            }
+                        }
+                    }
+                }
             }
         }
+
+        if (modified)
+        {
+            state.Route = string.Join(" ", routeTokens);
+            return string.Join(" ", tokens);
+        }
+
+        return navigationPath;
+    }
+
+    private static void ReplaceProcedureToken(string[] tokens, int index, string[] dotParts, string resolvedId)
+    {
+        tokens[index] = dotParts.Length > 1 ? resolvedId + "." + dotParts[1] : resolvedId;
+    }
+
+    private static void ReplaceInRoute(List<string> routeTokens, string oldName, string newName)
+    {
+        for (int i = 0; i < routeTokens.Count; i++)
+        {
+            if (routeTokens[i].Split('.')[0].Equals(oldName, StringComparison.OrdinalIgnoreCase))
+            {
+                var parts = routeTokens[i].Split('.');
+                routeTokens[i] = parts.Length > 1 ? newName + "." + parts[1] : newName;
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns true if the fix appears anywhere on the SID: NavData body, NavData enroute
+    /// transitions (names + fix lists), or CIFP runway transition legs. If true, RouteExpander
+    /// will handle it correctly and no substitution is needed.
+    /// </summary>
+    internal static bool IsFixOnSid(string fixName, string sidId, string airportCode, NavigationDatabase navDb)
+    {
+        var body = navDb.GetSidBody(sidId);
+        if (body is not null && body.Any(f => f.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        var transitions = navDb.GetSidTransitions(sidId);
+        if (
+            transitions is not null
+            && transitions.Any(t =>
+                t.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase) || t.Fixes.Any(f => f.Equals(fixName, StringComparison.OrdinalIgnoreCase))
+            )
+        )
+        {
+            return true;
+        }
+
+        // Check CIFP runway transitions (not in NavData)
+        if (!string.IsNullOrEmpty(airportCode))
+        {
+            var cifpSid = navDb.GetSid(airportCode, sidId);
+            if (cifpSid is not null && HasFixInRunwayTransitions(fixName, cifpSid.RunwayTransitions))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns true if the fix appears anywhere on the STAR: NavData body, NavData enroute
+    /// transitions (names + fix lists), or CIFP runway transition legs. If true, RouteExpander
+    /// will handle it correctly and no substitution is needed.
+    /// </summary>
+    internal static bool IsFixOnStar(string fixName, string starId, string airportCode, NavigationDatabase navDb)
+    {
+        var body = navDb.GetStarBody(starId);
+        if (body is not null && body.Any(f => f.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        var transitions = navDb.GetStarTransitions(starId);
+        if (
+            transitions is not null
+            && transitions.Any(t =>
+                t.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase) || t.Fixes.Any(f => f.Equals(fixName, StringComparison.OrdinalIgnoreCase))
+            )
+        )
+        {
+            return true;
+        }
+
+        // Check CIFP runway transitions (not in NavData)
+        if (!string.IsNullOrEmpty(airportCode))
+        {
+            var cifpStar = navDb.GetStar(airportCode, starId);
+            if (cifpStar is not null && HasFixInRunwayTransitions(fixName, cifpStar.RunwayTransitions))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasFixInRunwayTransitions(string fixName, IReadOnlyDictionary<string, CifpTransition> runwayTransitions)
+    {
+        foreach (var (_, transition) in runwayTransitions)
+        {
+            if (transition.Legs.Any(leg => leg.FixIdentifier.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static string? FindClosestTransitionFix(
+        string oldFixName,
+        IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)> transitions,
+        NavigationDatabase navDb
+    )
+    {
+        var oldPos = navDb.GetFixPosition(oldFixName);
+        if (oldPos is null)
+        {
+            return null;
+        }
+
+        return FindClosestTransitionFixToPosition(oldPos.Value, transitions, navDb);
+    }
+
+    internal static string? FindClosestTransitionFixToPosition(
+        (double Lat, double Lon) referencePosition,
+        IReadOnlyList<(string Name, IReadOnlyList<string> Fixes)> transitions,
+        NavigationDatabase navDb
+    )
+    {
+        string? closest = null;
+        double minDist = double.MaxValue;
+
+        foreach (var trans in transitions)
+        {
+            var pos = navDb.GetFixPosition(trans.Name);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(referencePosition.Lat, referencePosition.Lon, pos.Value.Lat, pos.Value.Lon);
+            if (dist < minDist)
+            {
+                minDist = dist;
+                closest = trans.Name;
+            }
+        }
+
+        return closest;
+    }
+
+    private static int FindNextNonNumericTokenIndex(string[] tokens, int startIndex)
+    {
+        for (int j = startIndex; j < tokens.Length; j++)
+        {
+            if (!double.TryParse(tokens[j].Split('.')[0], out _))
+            {
+                return j;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int FindPrecedingNonNumericTokenIndex(string[] tokens, int startIndex)
+    {
+        for (int j = startIndex; j >= 0; j--)
+        {
+            if (!double.TryParse(tokens[j].Split('.')[0], out _))
+            {
+                return j;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>
@@ -589,11 +894,6 @@ public static class ScenarioLoader
             var resolvedId = navDb.ResolveStarId(rawName);
             if (resolvedId is not null)
             {
-                if (!resolvedId.Equals(rawName, StringComparison.OrdinalIgnoreCase))
-                {
-                    warnings.Add($"{state.Callsign}: STAR {rawName} not found, using current version {resolvedId}");
-                }
-
                 starId = resolvedId;
                 runwayDesignator = parts.Length > 1 ? parts[1] : null;
                 break;

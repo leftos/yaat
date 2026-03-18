@@ -37,9 +37,18 @@ public static class ScenarioValidator
             }
         }
 
-        var procedureIssues = ValidateProcedures(scenario);
+        var (procedureIssues, transitionFixSubs) = ValidateProcedures(scenario);
 
-        return new ScenarioValidationResult(scenario.Id, scenario.Name, scenario.Aircraft.Count, totalPresets, parsedOk, failures, procedureIssues);
+        return new ScenarioValidationResult(
+            scenario.Id,
+            scenario.Name,
+            scenario.Aircraft.Count,
+            totalPresets,
+            parsedOk,
+            failures,
+            procedureIssues,
+            transitionFixSubs
+        );
     }
 
     public static ScenarioValidationResult? Validate(string scenarioJson)
@@ -62,10 +71,11 @@ public static class ScenarioValidator
         return Validate(scenario);
     }
 
-    private static List<ProcedureIssue> ValidateProcedures(Scenario scenario)
+    private static (List<ProcedureIssue>, List<TransitionFixSubstitution>) ValidateProcedures(Scenario scenario)
     {
         var navDb = NavigationDatabase.Instance;
         var issues = new List<ProcedureIssue>();
+        var substitutions = new List<TransitionFixSubstitution>();
 
         foreach (var ac in scenario.Aircraft)
         {
@@ -76,9 +86,9 @@ public static class ScenarioValidator
             }
 
             var tokens = navPath.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var token in tokens)
+            for (int i = 0; i < tokens.Length; i++)
             {
-                var rawName = token.Split('.')[0];
+                var rawName = tokens[i].Split('.')[0];
                 string baseName = NavigationDatabase.StripTrailingDigits(rawName);
                 if (baseName == rawName)
                 {
@@ -100,6 +110,7 @@ public static class ScenarioValidator
                     if (!resolvedSid.Equals(rawName, StringComparison.OrdinalIgnoreCase))
                     {
                         issues.Add(new ProcedureIssue(ac.AircraftId, rawName, ProcedureIssueKind.VersionChanged, resolvedSid));
+                        CheckSidTransitionFix(tokens, i, resolvedSid, ac.AircraftId, ac.FlightPlan?.Departure ?? "", navDb, substitutions);
                     }
 
                     continue;
@@ -111,6 +122,7 @@ public static class ScenarioValidator
                     if (!resolvedStar.Equals(rawName, StringComparison.OrdinalIgnoreCase))
                     {
                         issues.Add(new ProcedureIssue(ac.AircraftId, rawName, ProcedureIssueKind.VersionChanged, resolvedStar));
+                        CheckStarTransitionFix(tokens, i, resolvedStar, ac.AircraftId, ac.FlightPlan?.Destination ?? "", navDb, substitutions);
                     }
 
                     continue;
@@ -125,7 +137,135 @@ public static class ScenarioValidator
             }
         }
 
-        return issues;
+        return (issues, substitutions);
+    }
+
+    private static void CheckSidTransitionFix(
+        string[] tokens,
+        int sidIndex,
+        string resolvedSidId,
+        string aircraftId,
+        string departureAirport,
+        NavigationDatabase navDb,
+        List<TransitionFixSubstitution> substitutions
+    )
+    {
+        int nextIdx = FindNextNonNumericTokenIndex(tokens, sidIndex + 1);
+        if (nextIdx < 0)
+        {
+            return;
+        }
+
+        var nextFixName = tokens[nextIdx].Split('.')[0];
+
+        // Only flag if the fix doesn't appear anywhere on the new SID (body, enroute
+        // transitions, or CIFP runway transition legs). Fixes that are still on the
+        // procedure will be handled correctly by RouteExpander.
+        if (ScenarioLoader.IsFixOnSid(nextFixName, resolvedSidId, departureAirport, navDb))
+        {
+            return;
+        }
+
+        var transitions = navDb.GetSidTransitions(resolvedSidId);
+        if (transitions is null || transitions.Count == 0)
+        {
+            return;
+        }
+
+        var closest = ScenarioLoader.FindClosestTransitionFix(nextFixName, transitions, navDb);
+
+        // Fallback: old fix not in navdb — use the fix after it as geographic reference
+        if (closest is null)
+        {
+            int beyondIdx = FindNextNonNumericTokenIndex(tokens, nextIdx + 1);
+            if (beyondIdx >= 0)
+            {
+                var beyondPos = navDb.GetFixPosition(tokens[beyondIdx].Split('.')[0]);
+                if (beyondPos is not null)
+                {
+                    closest = ScenarioLoader.FindClosestTransitionFixToPosition(beyondPos.Value, transitions, navDb);
+                }
+            }
+        }
+
+        substitutions.Add(new TransitionFixSubstitution(aircraftId, resolvedSidId, nextFixName, closest));
+    }
+
+    private static void CheckStarTransitionFix(
+        string[] tokens,
+        int starIndex,
+        string resolvedStarId,
+        string aircraftId,
+        string destinationAirport,
+        NavigationDatabase navDb,
+        List<TransitionFixSubstitution> substitutions
+    )
+    {
+        int prevIdx = FindPrecedingNonNumericTokenIndex(tokens, starIndex - 1);
+        if (prevIdx < 0)
+        {
+            return;
+        }
+
+        var prevFixName = tokens[prevIdx].Split('.')[0];
+
+        // Only flag if the fix doesn't appear anywhere on the new STAR (body, enroute
+        // transitions, or CIFP runway transition legs). Fixes that are still on the
+        // procedure will be handled correctly by RouteExpander.
+        if (ScenarioLoader.IsFixOnStar(prevFixName, resolvedStarId, destinationAirport, navDb))
+        {
+            return;
+        }
+
+        var transitions = navDb.GetStarTransitions(resolvedStarId);
+        if (transitions is null || transitions.Count == 0)
+        {
+            return;
+        }
+
+        var closest = ScenarioLoader.FindClosestTransitionFix(prevFixName, transitions, navDb);
+
+        // Fallback: old fix not in navdb — use the fix before it as geographic reference
+        if (closest is null)
+        {
+            int beforeIdx = FindPrecedingNonNumericTokenIndex(tokens, prevIdx - 1);
+            if (beforeIdx >= 0)
+            {
+                var beforePos = navDb.GetFixPosition(tokens[beforeIdx].Split('.')[0]);
+                if (beforePos is not null)
+                {
+                    closest = ScenarioLoader.FindClosestTransitionFixToPosition(beforePos.Value, transitions, navDb);
+                }
+            }
+        }
+
+        substitutions.Add(new TransitionFixSubstitution(aircraftId, resolvedStarId, prevFixName, closest));
+    }
+
+    private static int FindNextNonNumericTokenIndex(string[] tokens, int startIndex)
+    {
+        for (int j = startIndex; j < tokens.Length; j++)
+        {
+            if (!double.TryParse(tokens[j].Split('.')[0], out _))
+            {
+                return j;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int FindPrecedingNonNumericTokenIndex(string[] tokens, int startIndex)
+    {
+        for (int j = startIndex; j >= 0; j--)
+        {
+            if (!double.TryParse(tokens[j].Split('.')[0], out _))
+            {
+                return j;
+            }
+        }
+
+        return -1;
     }
 }
 
@@ -136,7 +276,8 @@ public record ScenarioValidationResult(
     int TotalPresets,
     int ParsedOk,
     List<PresetParseFailure> Failures,
-    List<ProcedureIssue> ProcedureIssues
+    List<ProcedureIssue> ProcedureIssues,
+    List<TransitionFixSubstitution> TransitionFixSubstitutions
 );
 
 public record PresetParseFailure(string AircraftId, string Command, string? Reason);
@@ -148,3 +289,9 @@ public enum ProcedureIssueKind
 }
 
 public record ProcedureIssue(string AircraftId, string ProcedureId, ProcedureIssueKind Kind, string? ResolvedId);
+
+/// <summary>
+/// Records a stale transition fix detected during procedure version upgrade.
+/// OldFix is the fix from the scenario; NewFix is the closest valid transition on the new procedure (null if none found).
+/// </summary>
+public record TransitionFixSubstitution(string AircraftId, string ProcedureId, string OldFix, string? NewFix);
