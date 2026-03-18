@@ -265,7 +265,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnAircraftFilterTextChanged(string value)
     {
-        AircraftView.Refresh();
+        RefreshAircraftView();
     }
 
     [ObservableProperty]
@@ -274,7 +274,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnShowOnlyActiveAircraftChanged(bool value)
     {
         _preferences.SetShowOnlyActiveAircraft(value);
-        AircraftView.Refresh();
+        RefreshAircraftView();
     }
 
     private static bool MatchesFilter(AircraftModel ac, string filter)
@@ -625,6 +625,11 @@ public partial class MainViewModel : ObservableObject
         // Try to resolve callsign prefix from the input
         var commandText = text;
         AircraftModel? target = SelectedAircraft;
+        _log.LogDebug(
+            "SendCommand target resolution: SelectedAircraft={Selected}, target={Target}",
+            SelectedAircraft?.Callsign ?? "(none)",
+            target?.Callsign ?? "(none)"
+        );
 
         var resolved = TryResolveCallsignPrefix(text, scheme);
         if (resolved is not null)
@@ -1277,6 +1282,16 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(TapeEndDisplay));
         OnPropertyChanged(nameof(IsTimelineAvailable));
         OnPropertyChanged(nameof(PlayPauseIcon));
+    }
+
+    private void RefreshAircraftView()
+    {
+        var saved = SelectedAircraft;
+        AircraftView.Refresh();
+        if ((saved is not null) && (SelectedAircraft is null) && Aircraft.Contains(saved))
+        {
+            SelectedAircraft = saved;
+        }
     }
 
     private void AddHistory(string entry)

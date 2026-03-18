@@ -77,7 +77,7 @@ public partial class MainViewModel
                 existing.UpdateFromDto(dto, ComputeDistance);
                 if (existing.IsDelayed != wasDelayed)
                 {
-                    AircraftView.Refresh();
+                    RefreshAircraftView();
                 }
             }
             else
@@ -116,7 +116,7 @@ public partial class MainViewModel
                 existing.UpdateFromDto(dto, ComputeDistance);
                 if (existing.IsDelayed != wasDelayed)
                 {
-                    AircraftView.Refresh();
+                    RefreshAircraftView();
                 }
             }
             else
