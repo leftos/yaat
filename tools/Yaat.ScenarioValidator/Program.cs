@@ -253,26 +253,14 @@ public static class Program
                     }
                 }
 
-                var withProcIssues = allResults[artcc].Where(r => r.ProcedureIssues.Count > 0).ToList();
+                var withProcIssues = allResults[artcc].Where(r => (r.ProcedureIssues.Count > 0) || (r.TransitionFixSubstitutions.Count > 0)).ToList();
                 if (withProcIssues.Count > 0)
                 {
                     Console.WriteLine($"\n=== {artcc} PROCEDURE ISSUES ===\n");
                     foreach (var scenario in withProcIssues)
                     {
                         Console.WriteLine($"  {scenario.ScenarioName}");
-                        PrintProcedureIssuesByProcedure(scenario.ProcedureIssues, "    ");
-                        Console.WriteLine();
-                    }
-                }
-
-                var withTransSubs = allResults[artcc].Where(r => r.TransitionFixSubstitutions.Count > 0).ToList();
-                if (withTransSubs.Count > 0)
-                {
-                    Console.WriteLine($"\n=== {artcc} TRANSITION FIX SUBSTITUTIONS ===\n");
-                    foreach (var scenario in withTransSubs)
-                    {
-                        Console.WriteLine($"  {scenario.ScenarioName}");
-                        PrintTransitionFixSubstitutions(scenario.TransitionFixSubstitutions, "    ");
+                        PrintProcedureIssuesWithSubstitutions(scenario.ProcedureIssues, scenario.TransitionFixSubstitutions, "    ");
                         Console.WriteLine();
                     }
                 }
@@ -464,26 +452,14 @@ public static class Program
             }
         }
 
-        var procScenarios = results.Where(r => r.ProcedureIssues.Count > 0).ToList();
+        var procScenarios = results.Where(r => (r.ProcedureIssues.Count > 0) || (r.TransitionFixSubstitutions.Count > 0)).ToList();
         if (procScenarios.Count > 0)
         {
             Console.WriteLine($"\n=== PROCEDURE ISSUES ===\n");
             foreach (var scenario in procScenarios)
             {
                 Console.WriteLine($"  {scenario.ScenarioName}");
-                PrintProcedureIssuesByProcedure(scenario.ProcedureIssues, "    ");
-                Console.WriteLine();
-            }
-        }
-
-        var transScenarios = results.Where(r => r.TransitionFixSubstitutions.Count > 0).ToList();
-        if (transScenarios.Count > 0)
-        {
-            Console.WriteLine($"\n=== TRANSITION FIX SUBSTITUTIONS ===\n");
-            foreach (var scenario in transScenarios)
-            {
-                Console.WriteLine($"  {scenario.ScenarioName}");
-                PrintTransitionFixSubstitutions(scenario.TransitionFixSubstitutions, "    ");
+                PrintProcedureIssuesWithSubstitutions(scenario.ProcedureIssues, scenario.TransitionFixSubstitutions, "    ");
                 Console.WriteLine();
             }
         }
@@ -491,32 +467,58 @@ public static class Program
         return (totalFailures > 0 || totalProcIssues > 0 || totalTransSubs > 0) ? 1 : 0;
     }
 
-    private static void PrintProcedureIssuesByProcedure(List<ProcedureIssue> issues, string indent)
+    private static void PrintProcedureIssuesWithSubstitutions(List<ProcedureIssue> issues, List<TransitionFixSubstitution> subs, string indent)
     {
-        // Group by (ProcedureId, Kind, ResolvedId) so each unique procedure line appears once with all callsigns
+        // Build lookup: resolvedId → grouped transition fix subs
+        var subsByResolvedId = subs.GroupBy(s => (s.ProcedureId, s.OldFix, s.NewFix))
+            .GroupBy(g => g.Key.ProcedureId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var emittedSubIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Group procedure issues by (ProcedureId, Kind, ResolvedId)
         var grouped = issues.GroupBy(i => (i.ProcedureId, i.Kind, i.ResolvedId)).OrderBy(g => g.Key.ProcedureId);
 
         foreach (var group in grouped)
         {
             var callsigns = string.Join(", ", group.Select(i => i.AircraftId).OrderBy(id => id));
-            string detail =
-                group.Key.Kind == ProcedureIssueKind.VersionChanged
-                    ? $"{indent}{group.Key.ProcedureId} → {group.Key.ResolvedId}: {callsigns}"
-                    : $"{indent}{group.Key.ProcedureId} not found: {callsigns}";
-            Console.WriteLine(detail);
+            if (group.Key.Kind == ProcedureIssueKind.VersionChanged)
+            {
+                Console.WriteLine($"{indent}{group.Key.ProcedureId} → {group.Key.ResolvedId}: {callsigns}");
+
+                // Nest transition fix subs under this upgrade
+                if (group.Key.ResolvedId is not null && subsByResolvedId.TryGetValue(group.Key.ResolvedId, out var relatedSubs))
+                {
+                    foreach (var subGroup in relatedSubs.OrderBy(sg => sg.Key.OldFix))
+                    {
+                        var subCallsigns = string.Join(", ", subGroup.Select(s => s.AircraftId).OrderBy(id => id));
+                        var newFix = subGroup.Key.NewFix ?? "no replacement";
+                        Console.WriteLine($"{indent}  {subGroup.Key.OldFix} → {newFix}: {subCallsigns}");
+                    }
+
+                    emittedSubIds.Add(group.Key.ResolvedId);
+                }
+            }
+            else
+            {
+                Console.WriteLine($"{indent}{group.Key.ProcedureId} not found: {callsigns}");
+            }
         }
-    }
 
-    private static void PrintTransitionFixSubstitutions(List<TransitionFixSubstitution> subs, string indent)
-    {
-        // Group by (ProcedureId, OldFix, NewFix) so each unique substitution appears once with all callsigns
-        var grouped = subs.GroupBy(s => (s.ProcedureId, s.OldFix, s.NewFix)).OrderBy(g => g.Key.ProcedureId).ThenBy(g => g.Key.OldFix);
-
-        foreach (var group in grouped)
+        // Emit any orphaned transition fix subs (shouldn't happen, but be safe)
+        foreach (var (resolvedId, subGroups) in subsByResolvedId)
         {
-            var callsigns = string.Join(", ", group.Select(s => s.AircraftId).OrderBy(id => id));
-            var newFix = group.Key.NewFix ?? "no replacement";
-            Console.WriteLine($"{indent}{group.Key.ProcedureId}: {group.Key.OldFix} → {newFix}: {callsigns}");
+            if (emittedSubIds.Contains(resolvedId))
+            {
+                continue;
+            }
+
+            foreach (var subGroup in subGroups.OrderBy(sg => sg.Key.OldFix))
+            {
+                var subCallsigns = string.Join(", ", subGroup.Select(s => s.AircraftId).OrderBy(id => id));
+                var newFix = subGroup.Key.NewFix ?? "no replacement";
+                Console.WriteLine($"{indent}{resolvedId}: {subGroup.Key.OldFix} → {newFix}: {subCallsigns}");
+            }
         }
     }
 
