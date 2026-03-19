@@ -653,9 +653,9 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
 // --- Sync logic ---
 
 async function syncAllThreads(env) {
-  const githubToken = await getGitHubToken(env);
   const keys = await env.THREAD_ISSUES.list();
   let synced = 0;
+  let githubToken = null;
 
   for (const key of keys.keys) {
     if (key.name.startsWith("issue:")) continue;
@@ -673,6 +673,7 @@ async function syncAllThreads(env) {
     }
 
     try {
+      if (!githubToken) githubToken = await getGitHubToken(env);
       const mapping = await env.THREAD_ISSUES.get(key.name, { type: "json" });
       if (!mapping) continue;
       const count = await syncThread(env, key.name, mapping, githubToken);
