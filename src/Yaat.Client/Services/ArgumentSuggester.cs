@@ -115,6 +115,7 @@ internal static class ArgumentSuggester
         bool hasLiterals = false;
         bool hasRunway = false;
         bool hasFix = false;
+        bool hasApproach = false;
 
         foreach (var overload in def.Overloads)
         {
@@ -138,13 +139,17 @@ internal static class ArgumentSuggester
             {
                 hasRunway = true;
             }
+            else if (IsApproachHint(param.TypeHint))
+            {
+                hasApproach = true;
+            }
             else if (IsFixHint(param.TypeHint))
             {
                 hasFix = true;
             }
         }
 
-        if (!hasLiterals && !hasRunway && !hasFix)
+        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach)
         {
             return false;
         }
@@ -159,6 +164,11 @@ internal static class ArgumentSuggester
         if (hasRunway)
         {
             AddRunwaySuggestions(partial, prefix, suggestions, primaryAirportId, maxSuggestions);
+        }
+
+        if (hasApproach)
+        {
+            AddApproachSuggestions(partial, prefix, targetAircraft, suggestions, maxSuggestions);
         }
 
         if (hasFix)
@@ -248,8 +258,12 @@ internal static class ArgumentSuggester
 
     private static bool IsFixHint(string typeHint)
     {
-        return typeHint.Contains("fix name", StringComparison.OrdinalIgnoreCase)
-            || typeHint.Contains("approach ID", StringComparison.OrdinalIgnoreCase);
+        return typeHint.Contains("fix name", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsApproachHint(string typeHint)
+    {
+        return typeHint.Contains("approach ID", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static CommandDefinition? FindCommandDefinition(string verb, CommandScheme scheme)
@@ -313,6 +327,44 @@ internal static class ArgumentSuggester
                     }
                 );
             }
+        }
+    }
+
+    private static void AddApproachSuggestions(
+        string partial,
+        string prefix,
+        AircraftModel? targetAircraft,
+        ObservableCollection<SuggestionItem> suggestions,
+        int maxSuggestions
+    )
+    {
+        if (string.IsNullOrEmpty(targetAircraft?.Destination))
+        {
+            return;
+        }
+
+        var approaches = NavigationDatabase.Instance.GetApproaches(targetAircraft.Destination);
+        foreach (var approach in approaches)
+        {
+            if (suggestions.Count >= maxSuggestions)
+            {
+                return;
+            }
+
+            if (partial.Length > 0 && !approach.ApproachId.StartsWith(partial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Command,
+                    Text = approach.ApproachId,
+                    Description = approach.ApproachTypeName,
+                    InsertText = prefix + approach.ApproachId + " ",
+                }
+            );
         }
     }
 
