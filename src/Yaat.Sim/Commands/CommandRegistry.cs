@@ -674,9 +674,16 @@ public static class CommandRegistry
                 "Data Operations",
                 false,
                 ["SP1", "SP", "SCRATCHPAD"],
-                [O(null, [R("text", "up to 3 chars")], "Set scratchpad 1")]
+                [O(null, [], "Clear scratchpad 1"), O(null, [R("text", "up to 3 chars")], "Set scratchpad 1")]
             ),
-            Cmd(Scratchpad2, "Scratchpad 2", "Data Operations", false, ["SP2"], [O(null, [R("text", "up to 3 chars")], "Set scratchpad 2")]),
+            Cmd(
+                Scratchpad2,
+                "Scratchpad 2",
+                "Data Operations",
+                false,
+                ["SP2"],
+                [O(null, [], "Clear scratchpad 2"), O(null, [R("text", "up to 3 chars")], "Set scratchpad 2")]
+            ),
             Cmd(
                 TemporaryAltitude,
                 "Temporary Altitude",

@@ -137,7 +137,9 @@ public class AircraftState
     public StarsPointout? Pointout { get; set; }
     public string? Scratchpad1 { get; set; }
     public bool WasScratchpad1Cleared { get; set; }
+    public string? PreviousScratchpad1 { get; set; }
     public string? Scratchpad2 { get; set; }
+    public string? PreviousScratchpad2 { get; set; }
     public int? TemporaryAltitude { get; set; }
     public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }

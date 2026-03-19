@@ -654,8 +654,10 @@ public static class CommandParser
             // Data operations
             Annotate when arg is not null => ParseStripAnnotate(arg),
             StripPush when arg is not null => PR.Ok(new StripPushCommand(arg.Trim().ToUpperInvariant())),
-            Scratchpad1 when arg is not null => PR.Ok(new Scratchpad1Command(arg.Trim().ToUpperInvariant())),
-            Scratchpad2 when arg is not null => PR.Ok(new Scratchpad2Command(arg.Trim().ToUpperInvariant())),
+            Scratchpad1 when arg is null => PR.Ok(new Scratchpad1Command("")),
+            Scratchpad1 => PR.Ok(new Scratchpad1Command(arg!.Trim().ToUpperInvariant())),
+            Scratchpad2 when arg is null => PR.Ok(new Scratchpad2Command("")),
+            Scratchpad2 => PR.Ok(new Scratchpad2Command(arg!.Trim().ToUpperInvariant())),
             TemporaryAltitude when arg is null => PR.Ok(new TemporaryAltitudeCommand(0)),
             TemporaryAltitude when int.TryParse(arg, out var taVal) && taVal == 0 => PR.Ok(new TemporaryAltitudeCommand(0)),
             TemporaryAltitude => ParseAltitudeHundreds(arg, h => new TemporaryAltitudeCommand(h)),
@@ -696,8 +698,6 @@ public static class CommandParser
             or ExitTaxiway
             or Annotate
             or StripPush
-            or Scratchpad1
-            or Scratchpad2
             or Say
             or SetRemarks
             or Add when arg is null => PR.Fail($"{type} requires an argument"),

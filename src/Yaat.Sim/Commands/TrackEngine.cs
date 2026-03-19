@@ -121,13 +121,49 @@ public static class TrackEngine
 
     public static CommandResult HandleScratchpad1(AircraftState ac, string text)
     {
+        bool isClearing = string.IsNullOrEmpty(text);
+
+        if (isClearing && ac.WasScratchpad1Cleared)
+        {
+            // Undo: clear again restores previous
+            ac.Scratchpad1 = ac.PreviousScratchpad1;
+            ac.WasScratchpad1Cleared = string.IsNullOrEmpty(ac.PreviousScratchpad1);
+            return new CommandResult(true, $"SP1: {ac.Scratchpad1}");
+        }
+
+        if (!isClearing && text == ac.Scratchpad1)
+        {
+            // Toggle: same value restores previous
+            ac.Scratchpad1 = ac.PreviousScratchpad1;
+            ac.WasScratchpad1Cleared = string.IsNullOrEmpty(ac.PreviousScratchpad1);
+            return new CommandResult(true, $"SP1: {ac.Scratchpad1}");
+        }
+
+        ac.PreviousScratchpad1 = ac.Scratchpad1;
         ac.Scratchpad1 = text;
-        ac.WasScratchpad1Cleared = string.IsNullOrEmpty(text);
+        ac.WasScratchpad1Cleared = isClearing;
         return new CommandResult(true, $"SP1: {text}");
     }
 
     public static CommandResult HandleScratchpad2(AircraftState ac, string text)
     {
+        bool isClearing = string.IsNullOrEmpty(text);
+
+        if (isClearing && string.IsNullOrEmpty(ac.Scratchpad2))
+        {
+            // Undo: clear again restores previous
+            ac.Scratchpad2 = ac.PreviousScratchpad2;
+            return new CommandResult(true, $"SP2: {ac.Scratchpad2}");
+        }
+
+        if (!isClearing && text == ac.Scratchpad2)
+        {
+            // Toggle: same value restores previous
+            ac.Scratchpad2 = ac.PreviousScratchpad2;
+            return new CommandResult(true, $"SP2: {ac.Scratchpad2}");
+        }
+
+        ac.PreviousScratchpad2 = ac.Scratchpad2;
         ac.Scratchpad2 = text;
         return new CommandResult(true, $"SP2: {text}");
     }

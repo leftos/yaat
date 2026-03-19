@@ -545,8 +545,8 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
-| Scratchpad 1 | `SP1 OAK` | — | — |
-| Scratchpad 2 | `SP2 I8R` | — | — |
+| Scratchpad 1 | `SP1 OAK` / `SP1` (clear) | — | — |
+| Scratchpad 2 | `SP2 I8R` / `SP2` (clear) | — | — |
 | Temp altitude | `TEMPALT 120` | `TA`, `TEMP`, `QQ` | — |
 | Cruise | `CRUISE 240` | `QZ` | — |
 | On-handoff | `ONHO` | `ONH` | — |
@@ -1045,7 +1045,12 @@ Changing your active position also updates the radar display:
 | `AN 3` | Clear strip annotation box 3 |
 | `STRIP Ground` | Push flight strip to "Ground" bay in vStrips |
 | `SP1 OAK` | Set scratchpad 1 |
+| `SP1` | Clear scratchpad 1 |
 | `SP2 I8R` | Set scratchpad 2 |
+| `SP2` | Clear scratchpad 2 |
+
+Scratchpads support **undo/toggle**: entering the same value again restores the previous value, and clearing an already-cleared scratchpad restores the previous value. This matches real STARS behavior.
+
 | `TA 120` / `QQ 120` | Set temporary altitude (in hundreds, e.g., 120 = FL120) |
 | `CRUISE 240` / `QZ 240` | Set cruise altitude |
 | `ONHO` / `ONH` | Toggle on-handoff status |
