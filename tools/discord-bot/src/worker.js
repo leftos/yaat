@@ -329,7 +329,7 @@ async function handleIssueEvent(payload, env) {
   } else if (action === "closed") {
     const emoji = issue.state_reason === "not_planned" ? "🚫" : "✅";
     await prefixThreadTitle(env.DISCORD_BOT_TOKEN, threadId, emoji);
-    await env.THREAD_ISSUES.put(`pending-archive:${threadId}`, "1", { expirationTtl: 600 });
+    await env.THREAD_ISSUES.put(`pending-archive:${threadId}`, "1", { expirationTtl: 1800 });
   } else if (action === "reopened") {
     await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
   }
@@ -670,18 +670,11 @@ async function syncAllThreads(env) {
   }
 
   // Sync Discord thread replies → GitHub issue comments.
-  // Budget: Workers free plan allows 50 subrequests per invocation. Each thread sync costs
-  // at least 2 (KV get + Discord API), plus more if there are new messages to post.
-  // Reserve headroom for the pending-archive sweep above and the GitHub token fetch.
-  const SYNC_BUDGET = 20;
   let synced = 0;
   let githubToken = null;
-  let processed = 0;
 
   for (const key of keys.keys) {
     if (key.name.startsWith("issue:") || key.name.startsWith("pending-archive:")) continue;
-    if (processed >= SYNC_BUDGET) break;
-    processed++;
 
     try {
       if (!githubToken) githubToken = await getGitHubToken(env);
