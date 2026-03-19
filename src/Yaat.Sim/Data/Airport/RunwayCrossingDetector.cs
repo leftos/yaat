@@ -136,7 +136,9 @@ internal static class RunwayCrossingDetector
         ref int nextNodeId
     )
     {
-        double crossOff = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(offNode.Latitude, offNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading));
+        double crossOff = Math.Abs(
+            GeoMath.SignedCrossTrackDistanceNm(offNode.Latitude, offNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)
+        );
         double crossOn = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(onNode.Latitude, onNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading));
 
         double distOffToIdeal = Math.Abs(crossOff - rect.HoldShortNm) * GeoMath.FeetPerNm;
@@ -347,7 +349,9 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            double ct = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading));
+            double ct = Math.Abs(
+                GeoMath.SignedCrossTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)
+            );
             if (ct < startCrossTrack)
             {
                 startCrossTrack = ct;

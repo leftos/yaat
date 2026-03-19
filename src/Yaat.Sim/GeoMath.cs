@@ -66,8 +66,8 @@ public static class GeoMath
     /// <summary>
     /// Projects a point from a given lat/lon along a heading for a given distance.
     /// </summary>
-    public static (double Lat, double Lon) ProjectPoint(double lat, double lon, TrueHeading heading, double distanceNm)
-        => ProjectPointRaw(lat, lon, heading.Degrees, distanceNm);
+    public static (double Lat, double Lon) ProjectPoint(double lat, double lon, TrueHeading heading, double distanceNm) =>
+        ProjectPointRaw(lat, lon, heading.Degrees, distanceNm);
 
     /// <summary>Projects a point along a raw bearing angle (not a typed heading). Internal use only.</summary>
     internal static (double Lat, double Lon) ProjectPointRaw(double lat, double lon, double bearingDeg, double distanceNm)
@@ -140,8 +140,8 @@ public static class GeoMath
     /// Signed perpendicular distance from a point to a line defined by
     /// a reference point and heading. Positive = right of heading, negative = left.
     /// </summary>
-    public static double SignedCrossTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, TrueHeading heading)
-        => SignedCrossTrackDistanceNmRaw(pointLat, pointLon, refLat, refLon, heading.Degrees);
+    public static double SignedCrossTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, TrueHeading heading) =>
+        SignedCrossTrackDistanceNmRaw(pointLat, pointLon, refLat, refLon, heading.Degrees);
 
     /// <summary>Signed cross-track distance using a raw bearing angle. Internal use only.</summary>
     internal static double SignedCrossTrackDistanceNmRaw(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
@@ -156,8 +156,8 @@ public static class GeoMath
     /// Signed distance along a heading from a reference point to a target point.
     /// Positive = ahead (in heading direction), negative = behind.
     /// </summary>
-    public static double AlongTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, TrueHeading heading)
-        => AlongTrackDistanceNmRaw(pointLat, pointLon, refLat, refLon, heading.Degrees);
+    public static double AlongTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, TrueHeading heading) =>
+        AlongTrackDistanceNmRaw(pointLat, pointLon, refLat, refLon, heading.Degrees);
 
     /// <summary>Along-track distance using a raw bearing angle. Internal use only.</summary>
     internal static double AlongTrackDistanceNmRaw(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)

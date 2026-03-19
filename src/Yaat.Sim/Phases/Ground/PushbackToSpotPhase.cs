@@ -153,7 +153,12 @@ public sealed class PushbackToSpotPhase : Phase
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
-        ctx.Logger.LogDebug("[PushSpot] {Callsign}: OnEnd ({Status}), hdg={Hdg:F0}", ctx.Aircraft.Callsign, endStatus, ctx.Aircraft.TrueHeading.Degrees);
+        ctx.Logger.LogDebug(
+            "[PushSpot] {Callsign}: OnEnd ({Status}), hdg={Hdg:F0}",
+            ctx.Aircraft.Callsign,
+            endStatus,
+            ctx.Aircraft.TrueHeading.Degrees
+        );
 
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;

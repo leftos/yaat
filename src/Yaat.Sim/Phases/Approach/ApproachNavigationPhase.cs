@@ -68,7 +68,13 @@ public sealed class ApproachNavigationPhase : Phase
         {
             var nextFix = Fixes[_currentFixIndex + 1];
             double nextBearing = GeoMath.BearingTo(fix.Latitude, fix.Longitude, nextFix.Latitude, nextFix.Longitude);
-            double alongTrack = GeoMath.AlongTrackDistanceNmRaw(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, fix.Latitude, fix.Longitude, nextBearing);
+            double alongTrack = GeoMath.AlongTrackDistanceNmRaw(
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                fix.Latitude,
+                fix.Longitude,
+                nextBearing
+            );
             shouldSequence = alongTrack >= 0;
         }
         else

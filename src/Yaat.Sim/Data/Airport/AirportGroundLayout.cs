@@ -590,5 +590,4 @@ public sealed class AirportGroundLayout
 
         return false;
     }
-
 }

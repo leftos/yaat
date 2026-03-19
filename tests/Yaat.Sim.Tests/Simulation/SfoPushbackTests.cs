@@ -106,7 +106,9 @@ public class SfoPushbackTests(ITestOutputHelper output)
             double distFt = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
             double pushHdg = ac.PushbackTrueHeading?.Degrees ?? -1;
-            _output.WriteLine($"{tick + 13, 5}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {pushHdg, 8:F0}  {ac.TrueHeading.Degrees, 8:F0}  {phase, -24}");
+            _output.WriteLine(
+                $"{tick + 13, 5}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {pushHdg, 8:F0}  {ac.TrueHeading.Degrees, 8:F0}  {phase, -24}"
+            );
 
             if (ac.Phases?.CurrentPhase is AtParkingPhase)
             {

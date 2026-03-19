@@ -126,7 +126,9 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
             if (t % 30 == 0)
             {
                 var nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
-                output.WriteLine($"  t={t}: hdg={aircraft.TrueHeading.Degrees:F1} lat={aircraft.Latitude:F4} lon={aircraft.Longitude:F4} next={nextFix}");
+                output.WriteLine(
+                    $"  t={t}: hdg={aircraft.TrueHeading.Degrees:F1} lat={aircraft.Latitude:F4} lon={aircraft.Longitude:F4} next={nextFix}"
+                );
             }
         }
 

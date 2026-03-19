@@ -954,7 +954,6 @@ public sealed class SimulationEngine
 
     private static bool IsCoordinationCommand(ParsedCommand cmd) => TrackEngine.IsCoordinationCommand(cmd);
 
-
     private void HandleSpawnNow(string callsign)
     {
         var scenario = Scenario!;

@@ -112,7 +112,12 @@ public class InterceptDetectionTests
     private static (AircraftState Aircraft, PhaseList PhaseList) CreateAircraftOnFinal(double distanceNm, double heading)
     {
         // Project aircraft position along reciprocal of runway heading
-        var (lat, lon) = GeoMath.ProjectPoint(TestRunway.ThresholdLatitude, TestRunway.ThresholdLongitude, TestRunway.TrueHeading.ToReciprocal(), distanceNm);
+        var (lat, lon) = GeoMath.ProjectPoint(
+            TestRunway.ThresholdLatitude,
+            TestRunway.ThresholdLongitude,
+            TestRunway.TrueHeading.ToReciprocal(),
+            distanceNm
+        );
 
         var phaseList = new PhaseList { AssignedRunway = TestRunway };
 

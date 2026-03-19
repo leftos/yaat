@@ -53,10 +53,7 @@ internal static class PatternCommandHandler
         if (entryLeg is PatternEntryLeg.Downwind or PatternEntryLeg.Base)
         {
             // Crosswind heading points toward the pattern side
-            TrueHeading crosswindHdg =
-                direction == PatternDirection.Right
-                    ? runway.TrueHeading + 90.0
-                    : runway.TrueHeading - 90.0;
+            TrueHeading crosswindHdg = direction == PatternDirection.Right ? runway.TrueHeading + 90.0 : runway.TrueHeading - 90.0;
 
             // Positive = pattern side, negative = wrong side
             double patternSideOffset = GeoMath.AlongTrackDistanceNm(

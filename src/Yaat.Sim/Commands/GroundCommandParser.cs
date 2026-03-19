@@ -40,11 +40,7 @@ internal static class GroundCommandParser
                     facingTwy = tokens[1].ToUpperInvariant();
                 }
 
-                return PR.Ok(
-                    isSpot
-                        ? new PushbackCommand(hdg, null, facingTwy, null, name)
-                        : new PushbackCommand(hdg, null, facingTwy, name, null)
-                );
+                return PR.Ok(isSpot ? new PushbackCommand(hdg, null, facingTwy, null, name) : new PushbackCommand(hdg, null, facingTwy, name, null));
             }
 
             return PR.Ok(isSpot ? new PushbackCommand(null, null, null, null, name) : new PushbackCommand(null, null, null, name, null));
