@@ -1510,8 +1510,7 @@ public partial class RadarViewModel : ObservableObject
                 continue;
             }
 
-            var fingerprint =
-                $"{ac.Route}|{ac.ActiveSidId}|{ac.ActiveStarId}|{ac.ActiveApproachId}|{ac.ExpectedApproach}|{ac.DepartureRunway}|{ac.DestinationRunway}";
+            var fingerprint = ac.NavigationRoute;
             if (_pathCache.TryGetValue(callsign, out var cached) && cached.Fingerprint == fingerprint)
             {
                 entries.Add(new ShownPathEntry(callsign, cached.Waypoints, PathColors[_pathColorIndices[callsign]], ac.Latitude, ac.Longitude));
@@ -1533,13 +1532,13 @@ public partial class RadarViewModel : ObservableObject
 
     private IReadOnlyList<DrawnWaypoint> ResolveFlightPathWaypoints(AircraftModel ac)
     {
-        if (!_navDbReady)
+        if (!_navDbReady || string.IsNullOrEmpty(ac.NavigationRoute))
         {
             return [];
         }
 
-        var fixNames = ResolveCifpAwareRoute(ac);
-        var result = new List<DrawnWaypoint>(fixNames.Count + 10);
+        var fixNames = ac.NavigationRoute.Split(" > ", StringSplitOptions.RemoveEmptyEntries);
+        var result = new List<DrawnWaypoint>(fixNames.Length);
 
         foreach (var name in fixNames)
         {
@@ -1547,243 +1546,6 @@ public partial class RadarViewModel : ObservableObject
             if (pos.HasValue)
             {
                 result.Add(new DrawnWaypoint(name, pos.Value.Lat, pos.Value.Lon));
-            }
-        }
-
-        // Append approach fixes if an approach is active
-        if (_navDbReady && !string.IsNullOrEmpty(ac.ActiveApproachId) && !string.IsNullOrEmpty(ac.Destination))
-        {
-            var procedure = NavigationDatabase.Instance.GetApproach(ac.Destination, ac.ActiveApproachId);
-            if (procedure is not null)
-            {
-                var approachFixNames = ApproachCommandHandler.GetApproachFixNames(procedure);
-                var seen = new HashSet<string>(result.Select(w => w.ResolvedName), StringComparer.OrdinalIgnoreCase);
-                foreach (var name in approachFixNames)
-                {
-                    if (!seen.Add(name))
-                    {
-                        continue;
-                    }
-
-                    var pos = NavigationDatabase.Instance.GetFixPosition(name);
-                    if (pos.HasValue)
-                    {
-                        result.Add(new DrawnWaypoint(name, pos.Value.Lat, pos.Value.Lon));
-                    }
-                }
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Resolves the route fix names using CIFP data for the correct SID/STAR transitions
-    /// when available, falling back to <see cref="NavigationDatabase.ExpandRoute"/> otherwise.
-    /// </summary>
-    private IReadOnlyList<string> ResolveCifpAwareRoute(AircraftModel ac)
-    {
-        if (string.IsNullOrWhiteSpace(ac.Route))
-        {
-            return [];
-        }
-
-        var routeTokens = ac.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        // Try to resolve SID fixes from CIFP
-        IReadOnlyList<string>? sidFixes = null;
-        int sidTokensConsumed = 0;
-        if (_navDbReady && !string.IsNullOrEmpty(ac.ActiveSidId) && !string.IsNullOrEmpty(ac.Departure))
-        {
-            (sidFixes, sidTokensConsumed) = ResolveSidFixes(ac, routeTokens);
-        }
-
-        // Try to resolve STAR fixes from CIFP
-        IReadOnlyList<string>? starFixes = null;
-        string? starToken = null;
-        if (_navDbReady && !string.IsNullOrEmpty(ac.ActiveStarId) && !string.IsNullOrEmpty(ac.Destination))
-        {
-            (starFixes, starToken) = ResolveStarFixes(ac, routeTokens);
-        }
-
-        // If neither CIFP resolution succeeded, fall back entirely
-        if (sidFixes is null && starFixes is null)
-        {
-            return NavigationDatabase.Instance.ExpandRoute(ac.Route);
-        }
-
-        // Build combined fix list: SID fixes → middle route tokens → STAR fixes
-        var result = new List<string>();
-
-        if (sidFixes is not null)
-        {
-            result.AddRange(sidFixes);
-        }
-
-        // Add middle route tokens (between SID and STAR)
-        for (int i = sidFixes is not null ? sidTokensConsumed : 0; i < routeTokens.Length; i++)
-        {
-            var token = routeTokens[i];
-            if (double.TryParse(token, out _))
-            {
-                continue;
-            }
-
-            // Skip the STAR token and any transition token before it
-            if (starToken is not null && string.Equals(token, starToken, StringComparison.OrdinalIgnoreCase))
-            {
-                break;
-            }
-
-            // Skip tokens already consumed as SID name or enroute transition
-            if (sidFixes is not null && i < sidTokensConsumed)
-            {
-                continue;
-            }
-
-            // Skip SID/STAR names that NavigationDatabase would expand
-            if (NavigationDatabase.Instance.IsSidOrStar(token))
-            {
-                continue;
-            }
-
-            result.Add(token);
-        }
-
-        if (starFixes is not null)
-        {
-            result.AddRange(starFixes);
-        }
-
-        // Deduplicate adjacent identical fix names
-        var deduped = new List<string>(result.Count);
-        foreach (var name in result)
-        {
-            if (deduped.Count == 0 || !string.Equals(deduped[^1], name, StringComparison.OrdinalIgnoreCase))
-            {
-                deduped.Add(name);
-            }
-        }
-
-        return deduped;
-    }
-
-    private (IReadOnlyList<string>? Fixes, int TokensConsumed) ResolveSidFixes(AircraftModel ac, string[] routeTokens)
-    {
-        if (routeTokens.Length == 0)
-        {
-            return (null, 0);
-        }
-
-        var sid = NavigationDatabase.Instance.GetSid(ac.Departure, ac.ActiveSidId);
-        if (sid is null)
-        {
-            return (null, 0);
-        }
-
-        var orderedLegs = new List<CifpLeg>();
-
-        if (!string.IsNullOrEmpty(ac.DepartureRunway))
-        {
-            var rwKey = "RW" + ac.DepartureRunway;
-            if (sid.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
-            {
-                orderedLegs.AddRange(rwTransition.Legs);
-            }
-        }
-
-        orderedLegs.AddRange(sid.CommonLegs);
-
-        // Enroute transition (second route token)
-        int tokensConsumed = 1; // SID name token
-        if (routeTokens.Length > 1)
-        {
-            var enrouteKey = routeTokens[1].ToUpperInvariant();
-            if (sid.EnrouteTransitions.TryGetValue(enrouteKey, out var enTransition))
-            {
-                orderedLegs.AddRange(enTransition.Legs);
-                tokensConsumed = 2;
-            }
-        }
-
-        if (orderedLegs.Count == 0)
-        {
-            return (null, 0);
-        }
-
-        var fixes = ExtractFixNames(orderedLegs);
-        return fixes.Count > 0 ? (fixes, tokensConsumed) : (null, 0);
-    }
-
-    private (IReadOnlyList<string>? Fixes, string? StarToken) ResolveStarFixes(AircraftModel ac, string[] routeTokens)
-    {
-        var star = NavigationDatabase.Instance.GetStar(ac.Destination, ac.ActiveStarId);
-        if (star is null)
-        {
-            return (null, null);
-        }
-
-        var orderedLegs = new List<CifpLeg>();
-
-        // Find the STAR token and possible transition in the route
-        string? starToken = null;
-        string? transitionName = null;
-        for (int i = 0; i < routeTokens.Length; i++)
-        {
-            if (string.Equals(routeTokens[i], ac.ActiveStarId, StringComparison.OrdinalIgnoreCase))
-            {
-                starToken = routeTokens[i];
-                // Check if preceding token is an enroute transition
-                if (i > 0)
-                {
-                    var prevToken = routeTokens[i - 1].ToUpperInvariant();
-                    if (star.EnrouteTransitions.ContainsKey(prevToken))
-                    {
-                        transitionName = prevToken;
-                        starToken = routeTokens[i - 1]; // Include transition token so middle-route loop stops before it
-                    }
-                }
-
-                break;
-            }
-        }
-
-        // Enroute transition
-        if (transitionName is not null && star.EnrouteTransitions.TryGetValue(transitionName, out var enTransition))
-        {
-            orderedLegs.AddRange(enTransition.Legs);
-        }
-
-        orderedLegs.AddRange(star.CommonLegs);
-
-        // Runway transition
-        if (!string.IsNullOrEmpty(ac.DestinationRunway))
-        {
-            var rwKey = "RW" + ac.DestinationRunway;
-            if (star.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
-            {
-                orderedLegs.AddRange(rwTransition.Legs);
-            }
-        }
-
-        if (orderedLegs.Count == 0)
-        {
-            return (null, null);
-        }
-
-        var fixes = ExtractFixNames(orderedLegs);
-        return fixes.Count > 0 ? (fixes, starToken) : (null, null);
-    }
-
-    private static List<string> ExtractFixNames(List<CifpLeg> legs)
-    {
-        var result = new List<string>(legs.Count);
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var leg in legs)
-        {
-            if (!string.IsNullOrEmpty(leg.FixIdentifier) && seen.Add(leg.FixIdentifier))
-            {
-                result.Add(leg.FixIdentifier);
             }
         }
 
