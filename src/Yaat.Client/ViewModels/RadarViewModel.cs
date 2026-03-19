@@ -173,6 +173,12 @@ public partial class RadarViewModel : ObservableObject
     private bool _isAdjustingPtlLength;
 
     [ObservableProperty]
+    private int _historyCount;
+
+    [ObservableProperty]
+    private bool _isAdjustingHistory;
+
+    [ObservableProperty]
     private DcbMenuMode _dcbMode = DcbMenuMode.Main;
 
     [ObservableProperty]
@@ -644,6 +650,12 @@ public partial class RadarViewModel : ObservableObject
         SaveSettings();
     }
 
+    public void AdjustHistoryCount(int delta)
+    {
+        HistoryCount = Math.Clamp(HistoryCount + delta, 0, 10);
+        SaveSettings();
+    }
+
     [RelayCommand]
     private void TogglePtlOwn()
     {
@@ -809,6 +821,7 @@ public partial class RadarViewModel : ObservableObject
             PtlOwn = PtlOwn,
             PtlAll = PtlAll,
             BrightnessValues = brightnessDict,
+            HistoryCount = HistoryCount,
         };
 
         _preferences.SetRadarSettings(_activeScenarioId, settings);
@@ -877,6 +890,7 @@ public partial class RadarViewModel : ObservableObject
         PtlLengthMinutes = saved.PtlLengthMinutes;
         PtlOwn = saved.PtlOwn;
         PtlAll = saved.PtlAll;
+        HistoryCount = saved.HistoryCount;
 
         if (saved.BrightnessValues is { Count: > 0 })
         {

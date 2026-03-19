@@ -170,7 +170,9 @@ public partial class RadarView : UserControl
         {
             vm.IsAdjustingRangeRingSize = false;
             vm.IsAdjustingPtlLength = false;
+            vm.IsAdjustingHistory = false;
             this.FindControl<Button>("PtlLnthButton")?.Classes.Set("active", false);
+            this.FindControl<Button>("HistoryButton")?.Classes.Set("active", false);
             var btn = this.FindControl<Button>("RangeButton");
             btn?.Classes.Set("active", true);
         }
@@ -193,9 +195,11 @@ public partial class RadarView : UserControl
         {
             vm.IsAdjustingRange = false;
             vm.IsAdjustingPtlLength = false;
+            vm.IsAdjustingHistory = false;
             var rangeBtn = this.FindControl<Button>("RangeButton");
             rangeBtn?.Classes.Set("active", false);
             this.FindControl<Button>("PtlLnthButton")?.Classes.Set("active", false);
+            this.FindControl<Button>("HistoryButton")?.Classes.Set("active", false);
             _canvas?.Focus();
         }
 
@@ -215,11 +219,34 @@ public partial class RadarView : UserControl
         {
             vm.IsAdjustingRange = false;
             vm.IsAdjustingRangeRingSize = false;
+            vm.IsAdjustingHistory = false;
             this.FindControl<Button>("RangeButton")?.Classes.Set("active", false);
             this.FindControl<Button>("RrButton")?.Classes.Set("active", false);
+            this.FindControl<Button>("HistoryButton")?.Classes.Set("active", false);
         }
 
         this.FindControl<Button>("PtlLnthButton")?.Classes.Set("active", vm.IsAdjustingPtlLength);
+    }
+
+    private void OnHistoryClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RadarViewModel vm)
+        {
+            return;
+        }
+
+        vm.IsAdjustingHistory = !vm.IsAdjustingHistory;
+        if (vm.IsAdjustingHistory)
+        {
+            vm.IsAdjustingRange = false;
+            vm.IsAdjustingRangeRingSize = false;
+            vm.IsAdjustingPtlLength = false;
+            this.FindControl<Button>("RangeButton")?.Classes.Set("active", false);
+            this.FindControl<Button>("RrButton")?.Classes.Set("active", false);
+            this.FindControl<Button>("PtlLnthButton")?.Classes.Set("active", false);
+        }
+
+        this.FindControl<Button>("HistoryButton")?.Classes.Set("active", vm.IsAdjustingHistory);
     }
 
     private void OnPtlOwnClick(object? sender, RoutedEventArgs e)
@@ -348,6 +375,7 @@ public partial class RadarView : UserControl
             _canvas.BrightnessA = vm.MapBrightnessA;
             _canvas.BrightnessB = vm.MapBrightnessB;
             _canvas.RangeRingBrightness = vm.RangeRingBrightness;
+            _canvas.HistoryBrightness = vm.GetBrightnessPercent(BriteTarget.Hst) / 100f;
         }
     }
 
@@ -408,6 +436,11 @@ public partial class RadarView : UserControl
         else if (vm.IsAdjustingPtlLength)
         {
             vm.AdjustPtlLength(delta);
+            e.Handled = true;
+        }
+        else if (vm.IsAdjustingHistory)
+        {
+            vm.AdjustHistoryCount(delta);
             e.Handled = true;
         }
         else if (vm.ActiveBriteTarget is { } briteTarget)

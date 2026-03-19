@@ -215,6 +215,12 @@ public sealed class RadarRenderer : IDisposable
         }
     }
 
+    public float HistoryBrightness
+    {
+        get => _targetRenderer.HistoryBrightness;
+        set => _targetRenderer.HistoryBrightness = value;
+    }
+
     public void Render(
         SKCanvas canvas,
         MapViewport vp,
@@ -245,7 +251,8 @@ public sealed class RadarRenderer : IDisposable
         IReadOnlySet<string>? minifiedCallsigns = null,
         bool showTopDown = false,
         IReadOnlyList<WeatherDisplayInfo>? weatherInfo = null,
-        IReadOnlyList<ShownPathEntry>? shownPaths = null
+        IReadOnlyList<ShownPathEntry>? shownPaths = null,
+        int historyCount = 0
     )
     {
         canvas.Clear(BackgroundColor);
@@ -285,7 +292,8 @@ public sealed class RadarRenderer : IDisposable
             ptlOwn,
             ptlAll,
             minifiedCallsigns,
-            showTopDown
+            showTopDown,
+            historyCount
         );
 
         // Drawn route overlay

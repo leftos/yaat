@@ -1512,6 +1512,7 @@ A simplified STARS-style radar display showing aircraft targets, video maps, and
 - **LOCK**: lock/unlock pan and zoom (prevents accidental map movement). Defaults to unlocked for new scenarios
 - **TOP-DN**: toggle top-down display mode
 - **PTL**: predicted track lines — adjust length (in minutes) with the spinner; **PTL OWN** shows lines for your tracked aircraft, **PTL ALL** shows lines for all aircraft
+- **HISTORY**: history trail dots — click to activate spinner, scroll to set count (0-10). Shows past radar return positions behind each target at ~5-second intervals. Brightness adjustable via **HST** in the BRITE menu
 - **BRITE**: open brightness controls to adjust intensity per video map category
 - Range display shows current range in NM
 

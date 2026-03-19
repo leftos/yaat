@@ -498,6 +498,8 @@ public partial class AircraftModel : ObservableObject
     public string TempAltDisplay =>
         TemporaryAltitude.HasValue ? (TemporaryAltitude.Value >= 180 ? $"FL{TemporaryAltitude.Value}" : $"{TemporaryAltitude.Value}") : "";
 
+    public IReadOnlyList<double[]>? PositionHistory { get; set; }
+
     [ObservableProperty]
     private string? _assignedTo;
 
@@ -573,6 +575,7 @@ public partial class AircraftModel : ObservableObject
             Mach = dto.Mach,
             AssignedMach = dto.AssignedMach,
             Wind = dto.WindSpeed > 0 ? $"{dto.WindDirection:D3}{dto.WindSpeed:D2}KT" : "",
+            PositionHistory = dto.PositionHistory,
         };
         model.DistanceFromFix = computeDistance?.Invoke(model);
         model.ComputeSmartStatus();
@@ -635,6 +638,7 @@ public partial class AircraftModel : ObservableObject
         Mach = dto.Mach;
         AssignedMach = dto.AssignedMach;
         Wind = dto.WindSpeed > 0 ? $"{dto.WindDirection:D3}{dto.WindSpeed:D2}KT" : "";
+        PositionHistory = dto.PositionHistory;
         DistanceFromFix = computeDistance?.Invoke(this);
         ComputeSmartStatus();
     }

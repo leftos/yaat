@@ -72,13 +72,14 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 ## Radar View (YAAT-only)
 
 - STARS-style display with video maps from vNAS data API
-- DCB bar: RNG, MAP, map shortcuts, RR, FIX, LOCK, TOP-DN, PTL, BRITE
+- DCB bar: RNG, MAP, map shortcuts, RR, FIX, LOCK, TOP-DN, PTL, HISTORY, BRITE
 - Right-click context menus on aircraft and map
 - Draw route; click on map to set waypoints, with optional altitude crossings and commands to be executed at waypoint
 - Datablocks: callsign, altitude, ground speed, owner, scratchpad
 - Per-scenario settings persistence
 - Predicted track lines (PTL) — own or all aircraft
-- Brightness controls per video map category
+- History trails — configurable 0-10 dots showing past positions at ~5-second intervals
+- Brightness controls per video map category (including HST for history trails)
 - Copy View Settings From... to reuse settings across scenarios
 
 ## Command Input

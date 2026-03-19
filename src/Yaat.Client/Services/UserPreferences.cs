@@ -847,6 +847,7 @@ public sealed class SavedRadarSettings
     public bool PtlOwn { get; set; }
     public bool PtlAll { get; set; }
     public Dictionary<string, int>? BrightnessValues { get; set; }
+    public int HistoryCount { get; set; }
 }
 
 public sealed class SavedGroundSettings

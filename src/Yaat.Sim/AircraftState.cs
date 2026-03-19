@@ -233,6 +233,9 @@ public class AircraftState
     // Per-TCP shared state (per-track, per-controller display overrides)
     public Dictionary<string, StarsTrackSharedState> SharedState { get; set; } = [];
 
+    // Position history for STARS radar trails (recorded every ~5 sim-seconds)
+    public List<(double Lat, double Lon)> PositionHistory { get; } = new(10);
+
     // Sequence state
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }

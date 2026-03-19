@@ -265,8 +265,13 @@
                 <!-- Col 0: VOL (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Content="VOL" IsEnabled="False" />
 
-                <!-- Col 1: HISTORY (disabled, spans 2 rows) -->
-                <Button Classes="dcb" Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Content="HISTORY" IsEnabled="False" />
+                <!-- Col 1: HISTORY spinner (spans 2 rows) -->
+                <Button x:Name="HistoryButton" Classes="dcb" Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Click="OnHistoryClick">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="HISTORY" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                        <TextBlock Text="{Binding HistoryCount}" HorizontalAlignment="Center" FontFamily="{StaticResource MonoFont}" FontSize="11" />
+                    </StackPanel>
+                </Button>
 
                 <!-- Col 2: H_RATE (disabled, spans 2 rows) -->
                 <Button Classes="dcb" Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Content="H_RATE" IsEnabled="False" />
@@ -395,8 +400,8 @@
                     <TextBlock x:Name="BritePriText" Text="PRI 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
 
-                <!-- Col 7: HST / WX (not wired) -->
-                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="7" IsEnabled="False">
+                <!-- Col 7: HST / WX -->
+                <Button Classes="dcb-half" Grid.Row="0" Grid.Column="7" Tag="{x:Static vm:BriteTarget.Hst}" Click="OnBriteButtonClick">
                     <TextBlock x:Name="BriteHstText" Text="HST 100" FontFamily="{StaticResource MonoFont}" FontSize="11" />
                 </Button>
                 <Button Classes="dcb-half" Grid.Row="1" Grid.Column="7" IsEnabled="False">
@@ -443,7 +448,8 @@
                                DrawnWaypoints="{Binding DrawnWaypoints}"
                                WaypointConditions="{Binding WaypointConditionsSnapshot}"
                                WeatherInfo="{Binding WeatherInfo}"
-                               ShownPaths="{Binding ShownPaths}" />
+                               ShownPaths="{Binding ShownPaths}"
+                               HistoryCount="{Binding HistoryCount}" />
 
             <!-- MAP popup (shared by GEO MAPS button in Maps submenu) -->
             <Popup x:Name="MapPopup"

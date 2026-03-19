@@ -73,6 +73,9 @@ public sealed class TargetRenderer : IDisposable
     /// <summary>When non-null, overrides the hardcoded white for selected aircraft.</summary>
     public SKColor? SelectedOverrideColor { get; set; }
 
+    /// <summary>Brightness factor (0-1) for history trail dots. Driven by BRITE HST control.</summary>
+    public float HistoryBrightness { get; set; } = 1.0f;
+
     private const float SymbolSize = 5f;
 
     public void Render(
@@ -85,9 +88,16 @@ public sealed class TargetRenderer : IDisposable
         bool ptlOwn = false,
         bool ptlAll = false,
         IReadOnlySet<string>? minifiedCallsigns = null,
-        bool showTopDown = false
+        bool showTopDown = false,
+        int historyCount = 0
     )
     {
+        // Draw history trails first (behind position symbols)
+        if (historyCount > 0)
+        {
+            DrawHistoryTrails(canvas, vp, aircraft, historyCount);
+        }
+
         foreach (var ac in aircraft)
         {
             var (sx, sy) = vp.LatLonToScreen(ac.Latitude, ac.Longitude);
@@ -322,6 +332,28 @@ public sealed class TargetRenderer : IDisposable
         }
 
         return new SKPoint(Math.Clamp(pointX, rect.Left, rect.Right), Math.Clamp(pointY, rect.Top, rect.Bottom));
+    }
+
+    private void DrawHistoryTrails(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, int historyCount)
+    {
+        _historyPaint.Color = HistoryColor.WithAlpha((byte)(255 * HistoryBrightness));
+
+        foreach (var ac in aircraft)
+        {
+            if (ac.PositionHistory is not { Count: > 0 })
+            {
+                continue;
+            }
+
+            var dots = ac.PositionHistory;
+            int start = Math.Max(0, dots.Count - historyCount);
+            for (int i = start; i < dots.Count; i++)
+            {
+                var dot = dots[i];
+                var (hx, hy) = vp.LatLonToScreen(dot[0], dot[1]);
+                canvas.DrawCircle(hx, hy, 2f, _historyPaint);
+            }
+        }
     }
 
     public void Dispose()
