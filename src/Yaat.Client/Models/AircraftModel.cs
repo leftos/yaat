@@ -690,6 +690,7 @@ public partial class AircraftModel : ObservableObject
             && string.IsNullOrEmpty(ActiveSidId)
             && string.IsNullOrEmpty(ActiveStarId)
             && !AssignedAltitude.HasValue
+            && !AssignedHeading.HasValue
             && string.IsNullOrEmpty(NavigationRoute)
             && !IsDelayed
         )
@@ -755,10 +756,6 @@ public partial class AircraftModel : ObservableObject
         if (!string.IsNullOrEmpty(ActiveSidId))
         {
             return $"{text}, {ActiveSidId}";
-        }
-        if (AssignedHeading.HasValue)
-        {
-            return $"{text}, hdg {AssignedHeadingDisplay}";
         }
         return text;
     }
