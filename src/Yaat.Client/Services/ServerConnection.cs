@@ -271,6 +271,12 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<string?>("ExportRecording");
     }
 
+    public async Task<string?> GetServerLogPathAsync()
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<string?>("GetServerLogPath");
+    }
+
     public async Task<RewindResultDto?> LoadRecordingAsync(string recordingJson)
     {
         EnsureConnected();

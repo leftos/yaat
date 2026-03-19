@@ -1,7 +1,9 @@
 using System.IO;
+using System.IO.Compression;
 using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 
 namespace Yaat.Client.ViewModels;
@@ -160,6 +162,98 @@ public partial class MainViewModel
             _log.LogError(ex, "Save recording failed");
             StatusText = $"Save recording error: {ex.Message}";
         }
+    }
+
+    [RelayCommand]
+    private async Task SaveBugReportBundle()
+    {
+        try
+        {
+            var json = await _connection.ExportRecordingAsync();
+            if (json is null)
+            {
+                StatusText = "No recording available";
+                return;
+            }
+
+            var window = Avalonia.Application.Current?.ApplicationLifetime
+                is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+
+            if (window is null)
+            {
+                return;
+            }
+
+            var file = await window.StorageProvider.SaveFilePickerAsync(
+                new FilePickerSaveOptions
+                {
+                    Title = "Save Bug Report Bundle",
+                    DefaultExtension = "yaat-bug-report-bundle.zip",
+                    FileTypeChoices = [new FilePickerFileType("YAAT Bug Report Bundle") { Patterns = ["*.yaat-bug-report-bundle.zip"] }],
+                    SuggestedFileName = $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-bug-report-bundle.zip",
+                }
+            );
+
+            if (file is null)
+            {
+                return;
+            }
+
+            await using var stream = await file.OpenWriteAsync();
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
+
+            var recordingEntry = archive.CreateEntry("recording.yaat-recording.json");
+            await using (var entryStream = recordingEntry.Open())
+            await using (var writer = new StreamWriter(entryStream))
+            {
+                await writer.WriteAsync(json);
+            }
+
+            AddFileToArchive(archive, AppLog.LogPath, "yaat-client.log");
+
+            if (IsLocalServer(_connectedServerUrl))
+            {
+                try
+                {
+                    var serverLogPath = await _connection.GetServerLogPathAsync();
+                    if (serverLogPath is not null && File.Exists(serverLogPath))
+                    {
+                        AddFileToArchive(archive, serverLogPath, "yaat-server.log");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, "Could not retrieve server log path");
+                }
+            }
+
+            StatusText = "Bug report bundle saved";
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Save bug report bundle failed");
+            StatusText = $"Save bug report bundle error: {ex.Message}";
+        }
+    }
+
+    private static bool IsLocalServer(string url)
+    {
+        return url.Contains("localhost", StringComparison.OrdinalIgnoreCase) || url.Contains("127.0.0.1", StringComparison.Ordinal);
+    }
+
+    private static void AddFileToArchive(ZipArchive archive, string filePath, string entryName)
+    {
+        if (!File.Exists(filePath))
+        {
+            return;
+        }
+
+        var entry = archive.CreateEntry(entryName);
+        using var entryStream = entry.Open();
+        using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        fileStream.CopyTo(entryStream);
     }
 
     [RelayCommand]

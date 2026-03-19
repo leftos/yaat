@@ -28,6 +28,19 @@ A `SessionRecording` contains everything needed to reproduce a session from scra
 
 Actions include commands (`RecordedCommand`), spawns, deletes, warps, flight plan amendments, weather changes, and setting changes. Replay applies them in timestamp order, ticking physics 4x/second between them.
 
+## Bug Report Bundles
+
+A `.yaat-bug-report-bundle.zip` packages a recording with client and server logs into a single file. Created via **Scenario > Save Bug Report Bundle...** in the client.
+
+**Contents:**
+| Entry | Description |
+|-------|-------------|
+| `recording.yaat-recording.json` | The session recording (same format as standalone `.yaat-recording.json`) |
+| `yaat-client.log` | Client log at the time of the report |
+| `yaat-server.log` | Server log (only included when connected to a local server) |
+
+**Using bundles in tests:** Extract the `.yaat-recording.json` from the zip and place it in TestData as a standalone file — this gives better git diffs and smaller file size. If you want to use the zip directly, `RecordingLoader.Load()` in `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` handles both `.json` and `.zip` formats transparently.
+
 ## Step-by-Step: From Issue to Test
 
 ### 1. Get the recording into TestData
@@ -37,6 +50,8 @@ Download the recording from the issue and rename it:
 ```
 tests/Yaat.Sim.Tests/TestData/issue77-alwys-descent-recording.json
 ```
+
+If the attachment is a `.yaat-bug-report-bundle.zip`, extract `recording.yaat-recording.json` from it and rename to the convention below. The zip also contains logs which may help diagnose the issue but don't need to go into TestData.
 
 Convention: `issue{N}-{short-description}-recording.json`. Including the issue number makes it easy to trace back to the GitHub thread.
 
@@ -397,6 +412,7 @@ curl -o tests/Yaat.Sim.Tests/TestData/mia.geojson \
 
 | Class | Location | Purpose |
 |-------|----------|---------|
+| `RecordingLoader` | `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` | Loads `SessionRecording` from `.json` or `.yaat-bug-report-bundle.zip` |
 | `TestVnasData` | `tests/Yaat.Sim.Tests/TestVnasData.cs` | Thread-safe singleton loader for NavData + CIFP + aircraft specs |
 | `TestAirportGroundData` | `tests/Yaat.Sim.Tests/Helpers/TestAirportGroundData.cs` | `IAirportGroundData` impl that loads from TestData GeoJSON |
 | `SimLog` | `src/Yaat.Sim/SimLog.cs` | Static logger facade — wire to xunit output via `SimLog.Initialize(loggerFactory)` |
