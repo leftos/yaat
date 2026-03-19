@@ -125,22 +125,15 @@ public partial class RadarView
 
     private static MenuItem? BuildRouteSummaryItem(AircraftModel ac)
     {
-        if (string.IsNullOrEmpty(ac.NavigationRoute))
+        if (ac.NavigationRoute.Count == 0)
         {
             return null;
         }
 
-        var parts = ac.NavigationRoute.Split(" > ");
         var fixes = new List<string>();
         var started = string.IsNullOrEmpty(ac.NavigatingTo);
-        foreach (var part in parts)
+        foreach (var fix in ac.NavigationRoute)
         {
-            var fix = part.Trim();
-            if (string.IsNullOrEmpty(fix))
-            {
-                continue;
-            }
-
             if (!started && fix == ac.NavigatingTo)
             {
                 started = true;

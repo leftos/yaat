@@ -151,7 +151,8 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNavigationRoute))]
     [NotifyPropertyChangedFor(nameof(ShowNavRoute))]
-    private string _navigationRoute = "";
+    [NotifyPropertyChangedFor(nameof(NavigationRouteDisplay))]
+    private List<string> _navigationRoute = [];
 
     [ObservableProperty]
     private string _equipmentSuffix = "";
@@ -290,7 +291,9 @@ public partial class AircraftModel : ObservableObject
 
     public string PatternDisplay => string.IsNullOrEmpty(PatternDirection) ? "" : $"{PatternDirection} traffic";
 
-    public bool HasNavigationRoute => !string.IsNullOrEmpty(NavigationRoute);
+    public bool HasNavigationRoute => NavigationRoute.Count > 0;
+
+    public string NavigationRouteDisplay => string.Join(" ", NavigationRoute);
 
     public bool HasFlightPlan => !string.IsNullOrEmpty(Route) || !string.IsNullOrEmpty(Departure) || !string.IsNullOrEmpty(Destination);
 
@@ -334,7 +337,7 @@ public partial class AircraftModel : ObservableObject
 
     private bool IsNavRouteOnFiledRoute()
     {
-        if (string.IsNullOrEmpty(NavigationRoute) || string.IsNullOrEmpty(Route))
+        if (NavigationRoute.Count == 0 || string.IsNullOrEmpty(Route))
         {
             return false;
         }
@@ -349,8 +352,7 @@ public partial class AircraftModel : ObservableObject
             routeFixes.Add(token);
         }
 
-        var navFixes = NavigationRoute.Split(" > ", StringSplitOptions.RemoveEmptyEntries);
-        foreach (var fix in navFixes)
+        foreach (var fix in NavigationRoute)
         {
             if (!routeFixes.Contains(fix))
             {
@@ -548,7 +550,7 @@ public partial class AircraftModel : ObservableObject
             LandingClearance = dto.LandingClearance,
             ClearedRunway = dto.ClearedRunway,
             PatternDirection = dto.PatternDirection,
-            NavigationRoute = dto.NavigationRoute,
+            NavigationRoute = dto.NavigationRoute ?? [],
             EquipmentSuffix = dto.EquipmentSuffix,
             CruiseAltitude = dto.CruiseAltitude,
             CruiseSpeed = dto.CruiseSpeed,
@@ -611,7 +613,7 @@ public partial class AircraftModel : ObservableObject
         LandingClearance = dto.LandingClearance;
         ClearedRunway = dto.ClearedRunway;
         PatternDirection = dto.PatternDirection;
-        NavigationRoute = dto.NavigationRoute;
+        NavigationRoute = dto.NavigationRoute ?? [];
         EquipmentSuffix = dto.EquipmentSuffix;
         CruiseAltitude = dto.CruiseAltitude;
         CruiseSpeed = dto.CruiseSpeed;
@@ -691,7 +693,7 @@ public partial class AircraftModel : ObservableObject
             && string.IsNullOrEmpty(ActiveStarId)
             && !AssignedAltitude.HasValue
             && !AssignedHeading.HasValue
-            && string.IsNullOrEmpty(NavigationRoute)
+            && NavigationRoute.Count == 0
             && !IsDelayed
         )
         {
@@ -763,9 +765,9 @@ public partial class AircraftModel : ObservableObject
     private string FormatApproachNavStatus()
     {
         var text = ActiveApproachId ?? "";
-        if (!string.IsNullOrEmpty(NavigationRoute))
+        if (NavigationRoute.Count > 0)
         {
-            text = $"{text} → {NavigationRoute.Replace(" > ", " ")}";
+            text = $"{text} → {NavigationRouteDisplay}";
         }
         return text;
     }
@@ -820,9 +822,9 @@ public partial class AircraftModel : ObservableObject
 
         if (!IsOnGround)
         {
-            if (!string.IsNullOrEmpty(NavigationRoute))
+            if (NavigationRoute.Count > 0)
             {
-                return ($"\u2192 {NavigationRoute.Replace(" > ", " ")}", SmartStatusSeverity.Normal);
+                return ($"\u2192 {NavigationRouteDisplay}", SmartStatusSeverity.Normal);
             }
             if (!string.IsNullOrEmpty(NavigatingTo))
             {
@@ -855,9 +857,9 @@ public partial class AircraftModel : ObservableObject
             text = verb;
         }
 
-        if (!string.IsNullOrEmpty(NavigationRoute))
+        if (NavigationRoute.Count > 0)
         {
-            text = $"{text} \u2192 {NavigationRoute.Replace(" > ", " ")}";
+            text = $"{text} \u2192 {NavigationRouteDisplay}";
         }
         return text;
     }

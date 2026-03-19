@@ -93,7 +93,7 @@ public class SmartStatusTests
         ac.ActiveSidId = "";
         ac.ActiveStarId = "";
         ac.AssignedAltitude = null;
-        ac.NavigationRoute = "";
+        ac.NavigationRoute = [];
         ac.Status = "Active";
         ac.VerticalSpeed = 0;
         ac.ComputeSmartStatus();
@@ -110,7 +110,7 @@ public class SmartStatusTests
         ac.CurrentPhase = "";
         ac.ActiveSidId = "OAK5";
         ac.AssignedAltitude = null;
-        ac.NavigationRoute = "";
+        ac.NavigationRoute = [];
         ac.VerticalSpeed = 500;
         ac.ComputeSmartStatus();
 
@@ -127,7 +127,7 @@ public class SmartStatusTests
         ac.ActiveSidId = "";
         ac.ActiveStarId = "";
         ac.AssignedAltitude = null;
-        ac.NavigationRoute = "";
+        ac.NavigationRoute = [];
         ac.Status = "Delayed (120s)";
         ac.VerticalSpeed = 0;
         ac.ComputeSmartStatus();
@@ -263,7 +263,7 @@ public class SmartStatusTests
         var ac = CreateModel();
         ac.CurrentPhase = "ApproachNav";
         ac.ActiveApproachId = "ILS28R";
-        ac.NavigationRoute = "CEPIN > DUMBA > AXMUL";
+        ac.NavigationRoute = ["CEPIN", "DUMBA", "AXMUL"];
         ac.ComputeSmartStatus();
 
         Assert.Equal("ILS28R → CEPIN DUMBA AXMUL", ac.SmartStatus);
@@ -348,7 +348,7 @@ public class SmartStatusTests
         ac.IsOnGround = false;
         ac.VerticalSpeed = 1500;
         ac.AssignedAltitude = 10000;
-        ac.NavigationRoute = "";
+        ac.NavigationRoute = [];
         ac.ActiveSidId = "OAK5";
         ac.ComputeSmartStatus();
 
@@ -363,7 +363,7 @@ public class SmartStatusTests
         ac.IsOnGround = false;
         ac.VerticalSpeed = 1500;
         ac.AssignedAltitude = null;
-        ac.NavigationRoute = "";
+        ac.NavigationRoute = [];
         ac.ActiveSidId = "OAK5";
         ac.ComputeSmartStatus();
 
@@ -378,7 +378,7 @@ public class SmartStatusTests
         ac.IsOnGround = false;
         ac.VerticalSpeed = 1500;
         ac.AssignedAltitude = 24000;
-        ac.NavigationRoute = "OAK > SFO";
+        ac.NavigationRoute = ["OAK", "SFO"];
         ac.ActiveSidId = "OAK5";
         ac.ComputeSmartStatus();
 
@@ -393,7 +393,7 @@ public class SmartStatusTests
         ac.IsOnGround = false;
         ac.VerticalSpeed = -1500;
         ac.AssignedAltitude = 5000;
-        ac.NavigationRoute = "";
+        ac.NavigationRoute = [];
         ac.ActiveStarId = "STAR1";
         ac.ComputeSmartStatus();
 
@@ -407,7 +407,7 @@ public class SmartStatusTests
         ac.CurrentPhase = "";
         ac.IsOnGround = false;
         ac.VerticalSpeed = 0;
-        ac.NavigationRoute = "OAK > SFO > LAX";
+        ac.NavigationRoute = ["OAK", "SFO", "LAX"];
         ac.ActiveSidId = "OAK5";
         ac.ComputeSmartStatus();
 
@@ -421,7 +421,7 @@ public class SmartStatusTests
         ac.CurrentPhase = "";
         ac.IsOnGround = false;
         ac.VerticalSpeed = 0;
-        ac.NavigationRoute = "";
+        ac.NavigationRoute = [];
         ac.NavigatingTo = "CEPIN";
         ac.ActiveSidId = "OAK5";
         ac.ComputeSmartStatus();
@@ -436,7 +436,7 @@ public class SmartStatusTests
         ac.CurrentPhase = "";
         ac.IsOnGround = false;
         ac.VerticalSpeed = 0;
-        ac.NavigationRoute = "";
+        ac.NavigationRoute = [];
         ac.NavigatingTo = "";
         ac.Altitude = 35000;
         ac.ActiveSidId = "OAK5";
@@ -452,7 +452,7 @@ public class SmartStatusTests
         ac.CurrentPhase = "";
         ac.IsOnGround = false;
         ac.VerticalSpeed = 0;
-        ac.NavigationRoute = "";
+        ac.NavigationRoute = [];
         ac.NavigatingTo = "";
         ac.Altitude = 35000;
         ac.AssignedHeading = 270;

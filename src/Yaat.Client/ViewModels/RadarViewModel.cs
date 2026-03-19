@@ -1510,7 +1510,7 @@ public partial class RadarViewModel : ObservableObject
                 continue;
             }
 
-            var fingerprint = ac.NavigationRoute;
+            var fingerprint = string.Join(">", ac.NavigationRoute);
             if (_pathCache.TryGetValue(callsign, out var cached) && cached.Fingerprint == fingerprint)
             {
                 entries.Add(new ShownPathEntry(callsign, cached.Waypoints, PathColors[_pathColorIndices[callsign]], ac.Latitude, ac.Longitude));
@@ -1532,15 +1532,14 @@ public partial class RadarViewModel : ObservableObject
 
     private IReadOnlyList<DrawnWaypoint> ResolveFlightPathWaypoints(AircraftModel ac)
     {
-        if (!_navDbReady || string.IsNullOrEmpty(ac.NavigationRoute))
+        if (!_navDbReady || ac.NavigationRoute.Count == 0)
         {
             return [];
         }
 
-        var fixNames = ac.NavigationRoute.Split(" > ", StringSplitOptions.RemoveEmptyEntries);
-        var result = new List<DrawnWaypoint>(fixNames.Length);
+        var result = new List<DrawnWaypoint>(ac.NavigationRoute.Count);
 
-        foreach (var name in fixNames)
+        foreach (var name in ac.NavigationRoute)
         {
             var pos = NavigationDatabase.Instance.GetFixPosition(name);
             if (pos.HasValue)

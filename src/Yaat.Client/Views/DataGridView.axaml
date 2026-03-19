@@ -92,7 +92,7 @@
                                        Width="80"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="12" />
-                            <TextBlock Text="{Binding NavigationRoute}"
+                            <TextBlock Text="{Binding NavigationRouteDisplay}"
                                        FontFamily="{StaticResource MonoFont}"
                                        Foreground="SkyBlue"
                                        FontSize="12" />

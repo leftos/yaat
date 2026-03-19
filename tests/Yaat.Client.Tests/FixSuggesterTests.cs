@@ -95,7 +95,7 @@ public class FixSuggesterTests
         {
             Departure = "OAK",
             Destination = "LAX",
-            NavigationRoute = "BDEGA > CORKK > BRIXX",
+            NavigationRoute = ["BDEGA", "CORKK", "BRIXX"],
         };
 
         var fixes = FixSuggester.CollectRouteFixNames(aircraft);
@@ -110,7 +110,7 @@ public class FixSuggesterTests
         {
             Departure = "OAK",
             Destination = "LAX",
-            NavigationRoute = "OAK > BDEGA > CORKK",
+            NavigationRoute = ["OAK", "BDEGA", "CORKK"],
         };
 
         var fixes = FixSuggester.CollectRouteFixNames(aircraft);

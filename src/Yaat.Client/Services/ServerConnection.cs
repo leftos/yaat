@@ -438,7 +438,7 @@ public record AircraftDto(
     string LandingClearance = "",
     string ClearedRunway = "",
     string PatternDirection = "",
-    string NavigationRoute = "",
+    List<string>? NavigationRoute = null,
     string EquipmentSuffix = "",
     int CruiseAltitude = 0,
     int CruiseSpeed = 0,

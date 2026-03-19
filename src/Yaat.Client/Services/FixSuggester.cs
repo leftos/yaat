@@ -167,13 +167,9 @@ internal static class FixSuggester
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(aircraft.NavigationRoute))
+        foreach (var fix in aircraft.NavigationRoute)
         {
-            var navFixes = aircraft.NavigationRoute.Split(" > ", StringSplitOptions.RemoveEmptyEntries);
-            foreach (var fix in navFixes)
-            {
-                TryAdd(fix);
-            }
+            TryAdd(fix);
         }
 
         if (!string.IsNullOrWhiteSpace(aircraft.Route))
