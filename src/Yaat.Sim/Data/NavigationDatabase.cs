@@ -972,7 +972,7 @@ public sealed class NavigationDatabase
 
     private void LoadCustomFixes(string? baseDir)
     {
-        baseDir ??= Path.Combine(AppContext.BaseDirectory, "data", "custom_fixes");
+        baseDir ??= Path.Combine(AppContext.BaseDirectory, "Data", "custom_fixes");
 
         var loadResult = CustomFixLoader.LoadAll(baseDir);
 
