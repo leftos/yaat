@@ -389,16 +389,56 @@ public static class ApproachCommandHandler
             }
         }
 
-        string? resolvedId = navDb.ResolveApproachId(airport, approachId);
-        if (resolvedId is null)
+        var candidates = navDb.ResolveApproachCandidates(airport, approachId);
+        if (candidates.Count == 0)
         {
             return ResolvedApproach.Fail($"Unknown approach: {approachId} at {airport}");
         }
 
-        var procedure = navDb.GetApproach(airport, resolvedId);
+        // Single candidate — no ambiguity
+        if (candidates.Count == 1)
+        {
+            return BuildResolved(navDb, airport, candidates[0]);
+        }
+
+        // Multiple candidates — disambiguate via route connectivity.
+        // Build known fixes from the aircraft's route + active nav route.
+        var knownFixes = BuildKnownFixes(aircraft);
+
+        // Priority 1: ExpectedApproach, if it matches one of the candidates and connects
+        if (aircraft.ExpectedApproach is not null)
+        {
+            var expMatch = candidates.FirstOrDefault(c => c.Equals(aircraft.ExpectedApproach, StringComparison.OrdinalIgnoreCase));
+            if (expMatch is not null)
+            {
+                var expProc = navDb.GetApproach(airport, expMatch);
+                if (expProc is not null && HasRouteConnectivity(expProc, knownFixes))
+                {
+                    return BuildResolved(navDb, airport, expMatch);
+                }
+            }
+        }
+
+        // Priority 2: first candidate whose fixes overlap with the aircraft's route
+        foreach (string candidateId in candidates)
+        {
+            var proc = navDb.GetApproach(airport, candidateId);
+            if (proc is not null && HasRouteConnectivity(proc, knownFixes))
+            {
+                return BuildResolved(navDb, airport, candidateId);
+            }
+        }
+
+        // No connectivity match — fall back to first candidate (preserves prior behavior)
+        return BuildResolved(navDb, airport, candidates[0]);
+    }
+
+    private static ResolvedApproach BuildResolved(NavigationDatabase navDb, string airport, string approachId)
+    {
+        var procedure = navDb.GetApproach(airport, approachId);
         if (procedure?.Runway is null)
         {
-            return ResolvedApproach.Fail($"No runway for approach {resolvedId}");
+            return ResolvedApproach.Fail($"No runway for approach {approachId}");
         }
 
         var runway = navDb.GetRunway(airport, procedure.Runway);
@@ -412,6 +452,63 @@ public static class ApproachCommandHandler
             : runway.ForApproach(procedure.Runway);
 
         return new ResolvedApproach(procedure, approachRunway, airport);
+    }
+
+    /// <summary>
+    /// Builds the set of fix names from the aircraft's flight plan route and active nav route.
+    /// Used for approach connectivity disambiguation.
+    /// </summary>
+    private static HashSet<string> BuildKnownFixes(AircraftState aircraft)
+    {
+        var fixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrEmpty(aircraft.Route))
+        {
+            foreach (var token in aircraft.Route.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var dotIdx = token.IndexOf('.');
+                var fixName = dotIdx >= 0 ? token[..dotIdx] : token;
+                if (!string.IsNullOrEmpty(fixName))
+                {
+                    fixes.Add(fixName);
+                }
+            }
+        }
+
+        foreach (var navTarget in aircraft.Targets.NavigationRoute)
+        {
+            fixes.Add(navTarget.Name);
+        }
+
+        return fixes;
+    }
+
+    /// <summary>
+    /// Checks whether an approach procedure has any fix (in transitions or common legs) that
+    /// overlaps with the aircraft's known route fixes. Used for disambiguation when multiple
+    /// approach variants match the same shorthand (e.g. I17RX vs I17RZ).
+    /// </summary>
+    private static bool HasRouteConnectivity(CifpApproachProcedure procedure, HashSet<string> knownFixes)
+    {
+        foreach (var transition in procedure.Transitions.Values)
+        {
+            foreach (var leg in transition.Legs)
+            {
+                if (!string.IsNullOrEmpty(leg.FixIdentifier) && knownFixes.Contains(leg.FixIdentifier))
+                {
+                    return true;
+                }
+            }
+        }
+
+        foreach (var leg in procedure.CommonLegs)
+        {
+            if (!string.IsNullOrEmpty(leg.FixIdentifier) && knownFixes.Contains(leg.FixIdentifier))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal static CommandResult? ValidateInterceptAngle(AircraftState aircraft, RunwayInfo runway)
@@ -1003,6 +1100,11 @@ public static class ApproachCommandHandler
             var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
             aircraft.Phases.Clear(ctx);
         }
+
+        // Clear STAR state so stale descent logic doesn't conflict with approach phases
+        aircraft.ActiveStarId = null;
+        aircraft.StarViaMode = false;
+        aircraft.StarViaFloor = null;
 
         // Clear visual approach state
         aircraft.HasReportedFieldInSight = false;

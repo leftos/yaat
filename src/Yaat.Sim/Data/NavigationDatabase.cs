@@ -595,6 +595,99 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
+    /// Returns all matching approach IDs for an ambiguous shorthand (e.g. "I17R" may match
+    /// both I17RX and I17RZ). Used by <see cref="ApproachCommandHandler"/> to apply
+    /// connectivity-based disambiguation when multiple variants match.
+    /// </summary>
+    public List<string> ResolveApproachCandidates(string airportCode, string shorthand)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrWhiteSpace(shorthand))
+        {
+            return result;
+        }
+
+        var approaches = GetApproaches(airportCode);
+        if (approaches.Count == 0)
+        {
+            return result;
+        }
+
+        string upper = shorthand.ToUpperInvariant();
+
+        // Exact match — unambiguous
+        var exact = approaches.FirstOrDefault(a => a.ApproachId.Equals(upper, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            result.Add(exact.ApproachId);
+            return result;
+        }
+
+        var parsed = ParseShorthand(upper);
+        if (parsed is null)
+        {
+            return result;
+        }
+
+        var (typeCode, runway, variant) = parsed.Value;
+
+        if (typeCode is not null)
+        {
+            var matches = approaches
+                .Where(a =>
+                    a.TypeCode == typeCode
+                    && a.Runway is not null
+                    && a.Runway.Equals(runway, StringComparison.OrdinalIgnoreCase)
+                    && (variant is null || a.ApproachId.EndsWith(variant, StringComparison.OrdinalIgnoreCase))
+                )
+                .ToList();
+
+            if (matches.Count > 0)
+            {
+                result.AddRange(matches.Select(m => m.ApproachId));
+                return result;
+            }
+
+            // Try alternate type code (H↔R for RNAV variants)
+            char? altCode = typeCode switch
+            {
+                'H' => 'R',
+                'R' => 'H',
+                _ => null,
+            };
+
+            if (altCode is not null)
+            {
+                matches = approaches
+                    .Where(a =>
+                        a.TypeCode == altCode
+                        && a.Runway is not null
+                        && a.Runway.Equals(runway, StringComparison.OrdinalIgnoreCase)
+                        && (variant is null || a.ApproachId.EndsWith(variant, StringComparison.OrdinalIgnoreCase))
+                    )
+                    .ToList();
+
+                if (matches.Count > 0)
+                {
+                    result.AddRange(matches.Select(m => m.ApproachId));
+                    return result;
+                }
+            }
+        }
+        else if (runway is not null)
+        {
+            var candidates = approaches
+                .Where(a => a.Runway is not null && a.Runway.Equals(runway, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(a => GetTypePriority(a.TypeCode))
+                .ToList();
+
+            result.AddRange(candidates.Select(c => c.ApproachId));
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Returns the CIFP STAR runway transition fix names for a given airport/STAR/runway.
     /// These are the fixes in the runway-specific transition segment (e.g., EMZOH4 RW30 transition).
     /// </summary>
