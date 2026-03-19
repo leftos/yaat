@@ -179,6 +179,167 @@ public class InterceptCoursePhaseTests
     }
 
     /// <summary>
+    /// 20° intercept: aircraft heading 260, course 280 — crosses centerline and
+    /// captures because 20° ≤ 30° threshold. Phase completes (hands off to FinalApproachPhase).
+    /// </summary>
+    [Fact]
+    public void Capture_20DegIntercept_CompletesOnCrossing()
+    {
+        // Aircraft heading 260 on course 280 = 20° intercept
+        var aircraft = MakeAircraft(heading: 260, lat: 37.74, lon: -122.23);
+        aircraft.Phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
+            },
+        };
+
+        var phase = MakePhase();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        // First tick — establish initial cross-track
+        bool complete = phase.OnTick(ctx);
+        Assert.False(complete);
+
+        // Move aircraft across the course line
+        aircraft.Latitude -= 0.02;
+        aircraft.Longitude -= 0.03;
+
+        // Second tick — cross-track sign flips, 20° ≤ 30° → capture
+        complete = phase.OnTick(ctx);
+        Assert.True(complete);
+        Assert.Empty(aircraft.PendingNotifications);
+        Assert.NotNull(aircraft.Phases.ActiveApproach);
+        Assert.Equal(RunwayHeading, ctx.Targets.TargetTrueHeading!.Value.Degrees);
+    }
+
+    /// <summary>
+    /// 30° intercept (at boundary): heading 250, course 280 — captures because
+    /// 30° ≤ 30° threshold.
+    /// </summary>
+    [Fact]
+    public void Capture_30DegIntercept_CompletesOnCrossing()
+    {
+        var aircraft = MakeAircraft(heading: 250, lat: 37.74, lon: -122.23);
+        aircraft.Phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
+            },
+        };
+
+        var phase = MakePhase();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        phase.OnTick(ctx);
+
+        aircraft.Latitude -= 0.02;
+        aircraft.Longitude -= 0.03;
+
+        bool complete = phase.OnTick(ctx);
+        Assert.True(complete);
+        Assert.Empty(aircraft.PendingNotifications);
+        Assert.NotNull(aircraft.Phases.ActiveApproach);
+    }
+
+    /// <summary>
+    /// 35° intercept: heading 245, course 280 — bust-through because 35° > 30°.
+    /// </summary>
+    [Fact]
+    public void BustThrough_35DegIntercept_DetectsOnCrossing()
+    {
+        var aircraft = MakeAircraft(heading: 245, lat: 37.74, lon: -122.23);
+        aircraft.Phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
+            },
+        };
+
+        var phase = MakePhase();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        phase.OnTick(ctx);
+
+        aircraft.Latitude -= 0.02;
+        aircraft.Longitude -= 0.03;
+
+        bool complete = phase.OnTick(ctx);
+        Assert.True(complete);
+        Assert.Single(aircraft.PendingNotifications);
+        Assert.Contains("localizer", aircraft.PendingNotifications[0], StringComparison.OrdinalIgnoreCase);
+        Assert.Null(aircraft.Phases.ActiveApproach);
+    }
+
+    /// <summary>
+    /// 5° shallow intercept: heading 275, course 280 — captures quickly.
+    /// </summary>
+    [Fact]
+    public void Capture_5DegShallowIntercept_CompletesOnCrossing()
+    {
+        var aircraft = MakeAircraft(heading: 275, lat: 37.74, lon: -122.23);
+        aircraft.Phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
+            },
+        };
+
+        var phase = MakePhase();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        phase.OnTick(ctx);
+
+        aircraft.Latitude -= 0.02;
+        aircraft.Longitude -= 0.03;
+
+        bool complete = phase.OnTick(ctx);
+        Assert.True(complete);
+        Assert.Empty(aircraft.PendingNotifications);
+        Assert.NotNull(aircraft.Phases.ActiveApproach);
+    }
+
+    /// <summary>
     /// Verify that ApproachId appears in the bust-through notification message.
     /// </summary>
     [Fact]

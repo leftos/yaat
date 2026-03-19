@@ -5,23 +5,36 @@ using Yaat.Sim.Commands;
 namespace Yaat.Sim.Phases.Approach;
 
 /// <summary>
-/// Flies the aircraft on its current heading until it intercepts the
-/// final approach course. Completes when the aircraft is aligned with
-/// the course and within cross-track tolerance.
+/// Flies the aircraft on its assigned intercept heading until it intercepts the
+/// final approach course, then hands off to FinalApproachPhase.
 ///
-/// Detects bust-through: if the aircraft crosses the course but its heading
-/// is too far off to capture, the phase clears the approach and notifies the RPO.
-/// Also times out after <see cref="MaxElapsedSeconds"/> as a safety net.
+/// The phase anticipates the turn: it computes the aircraft's turn radius and
+/// begins turning onto the FAC when the cross-track distance is within that
+/// lead distance, provided the intercept angle is legal (≤ 30°). This avoids
+/// lateral overshoot and lets FinalApproachPhase begin glideslope descent
+/// immediately.
+///
+/// If the aircraft is still turning toward its assigned heading (intercept angle
+/// not yet legal), the phase keeps checking each tick until either the angle
+/// becomes legal or the aircraft crosses the centerline.
+///
+/// Bust-through: if the aircraft crosses the centerline with heading > 30° off,
+/// the approach is cleared and the RPO is notified.
+///
+/// Times out after <see cref="MaxElapsedSeconds"/> if the aircraft never
+/// reaches the centerline (e.g., flying parallel).
 /// </summary>
 public sealed partial class InterceptCoursePhase : Phase
 {
-    private const double CrossTrackThresholdNm = 0.15;
-    private const double HeadingAlignmentDeg = 15.0;
+    private const double AlreadyOnCourseThresholdNm = 0.15;
+    private const double SpeedAnticipationThresholdNm = 2.0;
+    private const double InterceptSpeedFasMultiplier = 1.3;
     private const double BustThroughAlignmentDeg = 30.0;
     private const double MaxElapsedSeconds = 180.0;
 
     private double? _previousSignedCrossTrack;
     private TrueHeading? _runwayHeadingCache;
+    private bool _approachSpeedSet;
 
     /// <summary>Final approach course heading (true).</summary>
     public required TrueHeading FinalApproachCourse { get; init; }
@@ -61,40 +74,93 @@ public sealed partial class InterceptCoursePhase : Phase
 
         double crossTrack = Math.Abs(signedCrossTrack);
         TrueHeading aircraftHeading = ctx.Aircraft.TrueHeading;
-        double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
 
-        // Normal intercept: within cross-track and heading tolerances
-        if ((crossTrack < CrossTrackThresholdNm) && (headingDiff < HeadingAlignmentDeg))
+        // Speed anticipation: decelerate to intercept speed as the aircraft nears the
+        // localizer. At 250kts the turn radius is large, causing overshoot. Target 1.3× FAS
+        // (not FAS itself — that's too slow this far from the threshold). FAS is set later
+        // by FinalApproachPhase when the aircraft is closer in.
+        if ((crossTrack < SpeedAnticipationThresholdNm) && !_approachSpeedSet && !ctx.Targets.HasExplicitSpeedCommand)
         {
-            ctx.Targets.TargetTrueHeading = FinalApproachCourse;
-            ctx.Targets.PreferredTurnDirection = null;
-            ctx.Targets.NavigationRoute.Clear();
+            double fas = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            double interceptSpeed = fas * InterceptSpeedFasMultiplier;
+            ctx.Targets.TargetSpeed = interceptSpeed;
+            _approachSpeedSet = true;
             ctx.Logger.LogDebug(
-                "[InterceptCourse] {Callsign}: established, crossTrack={XT:F3}nm, hdgDiff={HD:F1}°",
+                "[InterceptCourse] {Callsign}: slowing to {Spd:F0}kts (1.3×FAS {Fas:F0}, crossTrack={XT:F1}nm)",
                 ctx.Aircraft.Callsign,
-                crossTrack,
-                headingDiff
+                interceptSpeed,
+                fas,
+                crossTrack
             );
-            return true;
         }
 
-        // Bust-through: cross-track sign flipped but heading too far off to capture.
-        // Use the smaller of the diff from FAC vs runway-number heading, since controllers
-        // assign intercept headings based on the runway number (e.g. 120° for rwy 12)
-        // which can differ from the actual FAC (e.g. 130°) by up to ~10°.
-        TrueHeading rwyHdg = GetRunwayHeading();
-        double runwayHeadingDiff = aircraftHeading.AbsAngleTo(rwyHdg);
-        double effectiveHeadingDiff = Math.Min(headingDiff, runwayHeadingDiff);
+        // Already on the centerline with heading roughly aligned — complete immediately.
+        if ((crossTrack < AlreadyOnCourseThresholdNm) && (ComputeEffectiveHeadingDiff(ctx, aircraftHeading) <= BustThroughAlignmentDeg))
+        {
+            return Capture(ctx, aircraftHeading, crossTrack, "already on course");
+        }
 
+        // Anticipation: compute the turn radius and begin turning before crossing the
+        // centerline. This prevents overshoot and lets FinalApproachPhase start GS descent
+        // immediately. Turn radius = GS / (turnRate × 20π) in nm.
+        // Check current heading diff first. If that's > 30° (can happen due to magnetic
+        // variation), also check the assigned heading vs runway heading — but only once the
+        // aircraft has settled onto its assigned heading (within 5°). This handles cases like
+        // 150° mag for rwy 12: true heading ~163° vs FAC 130° = 33° (fails), but assigned
+        // 150° vs rwy 120° = 30° (passes, and the aircraft is on the heading the controller gave).
+        double turnRate = ctx.Aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
+        double turnRadiusNm = ctx.Aircraft.GroundSpeed / (turnRate * 62.832);
+        double leadDistNm = turnRadiusNm;
+
+        if (crossTrack <= leadDistNm)
+        {
+            double currentDiff = ComputeCurrentHeadingDiff(aircraftHeading);
+            bool legalIntercept = currentDiff <= BustThroughAlignmentDeg;
+
+            // If current true heading diff fails, check assigned magnetic heading —
+            // but only when the aircraft has actually reached it (not mid-turn).
+            if (!legalIntercept && (ctx.Targets.AssignedMagneticHeading is { } assignedHdg))
+            {
+                TrueHeading assignedTrue = assignedHdg.ToTrue(ctx.Aircraft.Declination);
+                bool onAssignedHeading = aircraftHeading.AbsAngleTo(assignedTrue) < 5.0;
+                if (onAssignedHeading)
+                {
+                    double assignedDiff = Math.Abs(assignedHdg.Degrees - GetRunwayHeading().Degrees);
+                    if (assignedDiff > 180)
+                    {
+                        assignedDiff = 360 - assignedDiff;
+                    }
+
+                    legalIntercept = assignedDiff <= BustThroughAlignmentDeg;
+                }
+            }
+
+            if (legalIntercept)
+            {
+                return Capture(ctx, aircraftHeading, crossTrack, $"anticipated (lead={leadDistNm:F2}nm)");
+            }
+        }
+
+        // Check for actual centerline crossing (sign flip).
         if (_previousSignedCrossTrack is { } prev)
         {
-            bool signFlipped = (prev > 0 && signedCrossTrack < 0) || (prev < 0 && signedCrossTrack > 0);
-            if (signFlipped && (effectiveHeadingDiff >= BustThroughAlignmentDeg))
+            bool signFlipped = ((prev > 0) && (signedCrossTrack <= 0)) || ((prev < 0) && (signedCrossTrack >= 0));
+            if (signFlipped)
             {
+                double effectiveDiff = ComputeEffectiveHeadingDiff(ctx, aircraftHeading);
+                if (effectiveDiff <= BustThroughAlignmentDeg)
+                {
+                    return Capture(ctx, aircraftHeading, crossTrack, "centerline crossing");
+                }
+
+                // Bust-through: heading too far off to capture
+                TrueHeading rwyHdg = GetRunwayHeading();
+                double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
+                double runwayHeadingDiff = aircraftHeading.AbsAngleTo(rwyHdg);
                 ctx.Logger.LogInformation(
                     "[InterceptCourse] {Callsign}: bust-through detected — hdgDiff={HD:F1}° (fac={FacDiff:F1}°, rwy={RwyDiff:F1}°), crossTrack flipped {Prev:F3}→{Now:F3}",
                     ctx.Aircraft.Callsign,
-                    effectiveHeadingDiff,
+                    effectiveDiff,
                     headingDiff,
                     runwayHeadingDiff,
                     prev,
@@ -120,6 +186,63 @@ public sealed partial class InterceptCoursePhase : Phase
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Heading diff using current aircraft heading only — for anticipation decisions
+    /// where the aircraft must actually be on a legal intercept heading.
+    /// </summary>
+    private double ComputeCurrentHeadingDiff(TrueHeading aircraftHeading)
+    {
+        double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
+        double runwayHeadingDiff = aircraftHeading.AbsAngleTo(GetRunwayHeading());
+        return Math.Min(headingDiff, runwayHeadingDiff);
+    }
+
+    /// <summary>
+    /// Computes the effective heading diff for capture/bust-through decisions at crossing.
+    /// Takes the minimum of: diff from FAC, diff from runway-number heading,
+    /// and the controller's assigned magnetic heading vs runway-number heading.
+    /// </summary>
+    private double ComputeEffectiveHeadingDiff(PhaseContext ctx, TrueHeading aircraftHeading)
+    {
+        double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
+        TrueHeading rwyHdg = GetRunwayHeading();
+        double runwayHeadingDiff = aircraftHeading.AbsAngleTo(rwyHdg);
+        double effectiveDiff = Math.Min(headingDiff, runwayHeadingDiff);
+
+        // Also check controller's intended intercept angle: assigned magnetic heading
+        // vs runway-number heading (both magnetic). Accounts for magnetic variation.
+        if (ctx.Targets.AssignedMagneticHeading is { } assignedHdg)
+        {
+            double assignedDiff = Math.Abs(assignedHdg.Degrees - rwyHdg.Degrees);
+            if (assignedDiff > 180)
+            {
+                assignedDiff = 360 - assignedDiff;
+            }
+
+            effectiveDiff = Math.Min(effectiveDiff, assignedDiff);
+        }
+
+        return effectiveDiff;
+    }
+
+    private bool Capture(PhaseContext ctx, TrueHeading aircraftHeading, double crossTrack, string reason)
+    {
+        ctx.Targets.TargetTrueHeading = FinalApproachCourse;
+        ctx.Targets.AssignedMagneticHeading = null;
+        ctx.Targets.PreferredTurnDirection = null;
+        ctx.Targets.NavigationRoute.Clear();
+
+        double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
+        ctx.Logger.LogDebug(
+            "[InterceptCourse] {Callsign}: captured ({Reason}) — hdgDiff={HD:F1}°, crossTrack={XT:F3}nm",
+            ctx.Aircraft.Callsign,
+            reason,
+            headingDiff,
+            crossTrack
+        );
+        return true;
     }
 
     /// <summary>

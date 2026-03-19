@@ -805,10 +805,12 @@ public static class FlightPhysics
         // Auto speed schedule: when no explicit speed target exists and aircraft is
         // climbing or descending without an explicit SPD command, set speed based on
         // current altitude band. This gives natural speed transitions through climb/descent.
+        // Skip during approach phases — approach/intercept phases manage their own speed.
         if (
             aircraft.Targets.TargetSpeed is null
             && !aircraft.IsOnGround
             && !aircraft.Targets.HasExplicitSpeedCommand
+            && aircraft.Phases?.ActiveApproach is null
             && aircraft.Targets.TargetAltitude is not null
             && Math.Abs(aircraft.Altitude - aircraft.Targets.TargetAltitude.Value) > AltitudeSnapFt
         )
