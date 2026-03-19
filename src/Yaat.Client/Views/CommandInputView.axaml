@@ -69,10 +69,10 @@
                                                     <Setter Property="Foreground" Value="#D4D4D4" />
                                                 </Style>
                                                 <Style Selector="TextBlock.sigParam">
-                                                    <Setter Property="Foreground" Value="#9CDCFE" />
+                                                    <Setter Property="Foreground" Value="#569CD6" />
                                                 </Style>
                                                 <Style Selector="TextBlock.sigActive">
-                                                    <Setter Property="Foreground" Value="#569CD6" />
+                                                    <Setter Property="Foreground" Value="#9CDCFE" />
                                                     <Setter Property="FontWeight" Value="Bold" />
                                                 </Style>
                                             </TextBlock.Styles>
