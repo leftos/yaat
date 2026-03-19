@@ -70,6 +70,7 @@ public partial class MainViewModel
             IsPlaybackMode = false;
             PlaybackTapeEnd = 0;
             OnPropertyChanged(nameof(TapeEndDisplay));
+            OnPropertyChanged(nameof(TimelineMaximum));
             StatusText = "Took control";
         }
         catch (Exception ex)
@@ -104,6 +105,7 @@ public partial class MainViewModel
 
                 ScenarioElapsedSeconds = targetSeconds;
                 OnPropertyChanged(nameof(ElapsedTimeDisplay));
+                OnPropertyChanged(nameof(TimelineMaximum));
                 StatusText = $"Rewound to {FormatTime(targetSeconds)}";
             });
         }

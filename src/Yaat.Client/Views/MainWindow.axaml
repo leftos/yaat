@@ -131,7 +131,7 @@
                 <Button Grid.Column="5" Content="30⏩" ToolTip.Tip="Forward 30s" FontSize="11" Padding="4,2" Margin="0,0,2,0" Command="{Binding SkipForward30Command}" />
                 <Button Grid.Column="6" Content="⏭" ToolTip.Tip="Jump to end" FontSize="11" Padding="4,2" Margin="0,0,4,0" Command="{Binding JumpToEndCommand}" />
                 <TextBlock Grid.Column="7" Text="{Binding ElapsedTimeDisplay}" VerticalAlignment="Center" FontSize="12" FontFamily="{StaticResource MonoFont}" Margin="4,0" />
-                <Slider Grid.Column="9" x:Name="TimelineSlider" Minimum="0" Maximum="{Binding PlaybackTapeEnd}" VerticalAlignment="Center" />
+                <Slider Grid.Column="9" x:Name="TimelineSlider" Minimum="0" Maximum="{Binding TimelineMaximum}" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="11" Text="{Binding TapeEndDisplay}" VerticalAlignment="Center" FontSize="12" FontFamily="{StaticResource MonoFont}" Margin="0,0,4,0" IsVisible="{Binding IsPlaybackMode}" />
                 <Border Grid.Column="12" Background="#553A8C" CornerRadius="3" Padding="6,1" IsVisible="{Binding IsPlaybackMode}" VerticalAlignment="Center">
                     <TextBlock Text="PLAYBACK" FontSize="11" Foreground="White" />

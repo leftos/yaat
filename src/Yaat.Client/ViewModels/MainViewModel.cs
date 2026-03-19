@@ -83,6 +83,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private double _playbackTapeEnd;
 
+    public double TimelineMaximum => IsPlaybackMode ? PlaybackTapeEnd : ScenarioElapsedSeconds;
+
     public bool IsTimelineAvailable => ActiveScenarioName is not null && ShowTimelineBar;
 
     public string PlayPauseIcon => IsPaused ? "▶" : "⏸";
@@ -1287,6 +1289,7 @@ public partial class MainViewModel : ObservableObject
         PlaybackTapeEnd = tapeEnd;
         OnPropertyChanged(nameof(ElapsedTimeDisplay));
         OnPropertyChanged(nameof(TapeEndDisplay));
+        OnPropertyChanged(nameof(TimelineMaximum));
         OnPropertyChanged(nameof(IsTimelineAvailable));
         OnPropertyChanged(nameof(PlayPauseIcon));
     }
