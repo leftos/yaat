@@ -226,11 +226,13 @@ public class ProcedureCommandTests
         var aircraft = CreateAircraft();
         aircraft.ActiveSidId = "PORTE3";
         aircraft.SidViaMode = true;
+        aircraft.Targets.TargetAltitude = 10000;
 
         CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(270)), aircraft, null, Random.Shared, true);
 
         Assert.Single(aircraft.PendingWarnings);
         Assert.Contains("without an altitude", aircraft.PendingWarnings[0]);
+        Assert.Null(aircraft.Targets.TargetAltitude);
     }
 
     [Fact]
@@ -256,11 +258,13 @@ public class ProcedureCommandTests
         var aircraft = CreateAircraft();
         aircraft.ActiveStarId = "BDEGA3";
         aircraft.StarViaMode = true;
+        aircraft.Targets.TargetAltitude = 5000;
 
         CommandDispatcher.Dispatch(new TurnLeftCommand(new MagneticHeading(270)), aircraft, null, Random.Shared, true);
 
         Assert.Single(aircraft.PendingWarnings);
         Assert.Contains("without an altitude", aircraft.PendingWarnings[0]);
+        Assert.Null(aircraft.Targets.TargetAltitude);
     }
 
     [Fact]

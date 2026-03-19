@@ -327,6 +327,14 @@ internal static class FlightCommandHandler
             }
         }
 
+        var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+
+        if (cmd.Fixes.Count == 1 && TryPreserveProcedure(aircraft, cmd.Fixes[0].Name))
+        {
+            aircraft.Targets.AssignedMagneticHeading = null;
+            return CommandDispatcher.Ok($"Proceed direct {fixNames}");
+        }
+
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -344,7 +352,6 @@ internal static class FlightCommandHandler
                 }
             );
         }
-        var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
         bool routeRejoined = resolved.Count > originalCount;
         return routeRejoined
             ? CommandDispatcher.Ok($"Proceed direct {fixNames}, then filed route")
@@ -373,6 +380,16 @@ internal static class FlightCommandHandler
             }
         }
 
+        var dirLabel = direction == TurnDirection.Left ? "Turn left, direct" : "Turn right, direct";
+        var fixNames = string.Join(" ", fixes.Select(f => f.Name));
+
+        if (fixes.Count == 1 && TryPreserveProcedure(aircraft, fixes[0].Name))
+        {
+            aircraft.Targets.AssignedMagneticHeading = null;
+            aircraft.Targets.PreferredTurnDirection = direction;
+            return CommandDispatcher.Ok($"{dirLabel} {fixNames}");
+        }
+
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -391,14 +408,20 @@ internal static class FlightCommandHandler
                 }
             );
         }
-        var dirLabel = direction == TurnDirection.Left ? "Turn left, direct" : "Turn right, direct";
-        var fixNames = string.Join(" ", fixes.Select(f => f.Name));
         bool routeRejoined = resolved.Count > originalCount;
         return routeRejoined ? CommandDispatcher.Ok($"{dirLabel} {fixNames}, then filed route") : CommandDispatcher.Ok($"{dirLabel} {fixNames}");
     }
 
     internal static CommandResult ApplyForceDirectTo(ForceDirectToCommand cmd, AircraftState aircraft)
     {
+        var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
+
+        if (cmd.Fixes.Count == 1 && TryPreserveProcedure(aircraft, cmd.Fixes[0].Name))
+        {
+            aircraft.Targets.AssignedMagneticHeading = null;
+            return CommandDispatcher.Ok($"Proceed direct {fixNames}");
+        }
+
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.AssignedMagneticHeading = null;
@@ -416,7 +439,6 @@ internal static class FlightCommandHandler
                 }
             );
         }
-        var fixNames = string.Join(" ", cmd.Fixes.Select(f => f.Name));
         bool routeRejoined = resolved.Count > originalCount;
         return routeRejoined
             ? CommandDispatcher.Ok($"Proceed direct {fixNames}, then filed route")
@@ -702,6 +724,51 @@ internal static class FlightCommandHandler
         aircraft.Phases.Start(CommandDispatcher.BuildMinimalContext(aircraft));
 
         return CommandDispatcher.Ok($"Warped to {description}");
+    }
+
+    internal static void LevelOff(AircraftState aircraft)
+    {
+        aircraft.Targets.TargetAltitude = null;
+        aircraft.Targets.DesiredVerticalRate = null;
+        aircraft.IsExpediting = false;
+    }
+
+    internal static bool TryPreserveProcedure(AircraftState aircraft, string firstFixName)
+    {
+        if (aircraft.ActiveSidId is null && aircraft.ActiveStarId is null)
+        {
+            return false;
+        }
+
+        var route = aircraft.Targets.NavigationRoute;
+        int matchIndex = -1;
+        for (int i = 0; i < route.Count; i++)
+        {
+            if (string.Equals(route[i].Name, firstFixName, StringComparison.OrdinalIgnoreCase))
+            {
+                matchIndex = i;
+                break;
+            }
+        }
+
+        if (matchIndex < 0)
+        {
+            return false;
+        }
+
+        // Truncate: remove fixes before the matched one
+        if (matchIndex > 0)
+        {
+            route.RemoveRange(0, matchIndex);
+        }
+
+        // Disable via-mode but keep procedure ID
+        aircraft.SidViaMode = false;
+        aircraft.StarViaMode = false;
+        aircraft.SidViaCeiling = null;
+        aircraft.StarViaFloor = null;
+
+        return true;
     }
 
     private static void ClearActiveProcedure(AircraftState aircraft)

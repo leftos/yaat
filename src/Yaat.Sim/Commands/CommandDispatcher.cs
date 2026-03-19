@@ -147,8 +147,9 @@ public static class CommandDispatcher
         aircraft.Queue.CurrentBlockIndex = 0;
 
         bool hadProcedure = aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null;
+        bool hadViaMode = aircraft.SidViaMode || aircraft.StarViaMode;
         var result = ApplyCommand(command, aircraft, rng, validateDctFixes);
-        CheckVectoringWarning(aircraft, [command], hadProcedure);
+        CheckVectoringWarning(aircraft, [command], hadProcedure, hadViaMode);
         return result;
     }
 
@@ -1007,6 +1008,7 @@ public static class CommandDispatcher
         return ac =>
         {
             bool hadProcedure = ac.ActiveSidId is not null || ac.ActiveStarId is not null;
+            bool hadViaMode = ac.SidViaMode || ac.StarViaMode;
             var messages = new List<string>();
 
             foreach (var cmd in captured)
@@ -1023,53 +1025,63 @@ public static class CommandDispatcher
                 }
             }
 
-            CheckVectoringWarning(ac, captured, hadProcedure);
+            CheckVectoringWarning(ac, captured, hadProcedure, hadViaMode);
             var msg = messages.Count > 0 ? string.Join(", ", messages) : null;
             return new CommandResult(true, msg);
         };
     }
 
     /// <summary>
-    /// Warns when an aircraft is vectored off a procedure (SID/STAR) without both
-    /// a heading and an altitude assignment in the same block.
+    /// Warns and levels off when an aircraft is vectored off a procedure (SID/STAR)
+    /// without an altitude assignment in the same block. Handles two cases:
+    /// 1. Procedure fully cleared (heading/DCT off-procedure without altitude)
+    /// 2. Procedure preserved but via-mode disabled (DCT on-procedure without altitude/DVIA/CVIA)
     /// </summary>
-    private static void CheckVectoringWarning(AircraftState aircraft, List<ParsedCommand> commands, bool hadProcedure)
+    private static void CheckVectoringWarning(AircraftState aircraft, List<ParsedCommand> commands, bool hadProcedure, bool hadViaMode)
     {
         if (!hadProcedure)
         {
             return;
         }
 
-        // Procedure was cleared if all SID/STAR identifiers are now null
-        if (aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null)
-        {
-            return;
-        }
-
-        bool hasHeadingCmd = commands.Any(c =>
-            c
-                is FlyHeadingCommand
-                    or TurnLeftCommand
-                    or TurnRightCommand
-                    or LeftTurnCommand
-                    or RightTurnCommand
-                    or FlyPresentHeadingCommand
-                    or DirectToCommand
-                    or ForceDirectToCommand
-                    or ConstrainedForceDirectToCommand
-                    or TurnLeftDirectToCommand
-                    or TurnRightDirectToCommand
-        );
-
-        if (!hasHeadingCmd)
-        {
-            return;
-        }
-
         bool hasAltCmd = commands.Any(c => c is ClimbMaintainCommand or DescendMaintainCommand);
-        if (!hasAltCmd)
+        bool procedureCleared = aircraft.ActiveSidId is null && aircraft.ActiveStarId is null;
+
+        if (procedureCleared)
         {
-            aircraft.PendingWarnings.Add("Vectored off procedure without an altitude assignment");
+            bool hasHeadingCmd = commands.Any(c =>
+                c
+                    is FlyHeadingCommand
+                        or TurnLeftCommand
+                        or TurnRightCommand
+                        or LeftTurnCommand
+                        or RightTurnCommand
+                        or FlyPresentHeadingCommand
+                        or DirectToCommand
+                        or ForceDirectToCommand
+                        or ConstrainedForceDirectToCommand
+                        or TurnLeftDirectToCommand
+                        or TurnRightDirectToCommand
+            );
+
+            if (hasHeadingCmd && !hasAltCmd)
+            {
+                aircraft.PendingWarnings.Add("Vectored off procedure without an altitude assignment");
+                FlightCommandHandler.LevelOff(aircraft);
+            }
+
+            return;
+        }
+
+        // Procedure preserved (DCT to on-procedure fix) but via-mode was disabled
+        if (hadViaMode && !aircraft.SidViaMode && !aircraft.StarViaMode)
+        {
+            bool hasViaCmd = commands.Any(c => c is ClimbViaCommand or DescendViaCommand);
+            if (!hasAltCmd && !hasViaCmd)
+            {
+                aircraft.PendingWarnings.Add("Vectored off procedure without an altitude assignment");
+                FlightCommandHandler.LevelOff(aircraft);
+            }
         }
     }
 
