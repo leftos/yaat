@@ -600,12 +600,19 @@ public partial class MainViewModel : ObservableObject
 
         var scheme = _preferences.CommandScheme;
 
-        // Check for global commands first (no callsign needed)
+        // Check for global commands first (no callsign needed).
+        // SetActivePosition ("AS {tcp}") is global only when it's a standalone
+        // command. The prefix form "AS {tcp} {track_command}" is per-aircraft
+        // (server's ExtractAsPrefix strips the prefix and resolves RPO identity).
         var globalParsed = CommandSchemeParser.Parse(text, scheme);
         if (globalParsed is not null && IsGlobalCommand(globalParsed.Type))
         {
-            await HandleGlobalCommand(globalParsed);
-            return;
+            bool isAsPrefix = (globalParsed.Type == CanonicalCommandType.SetActivePosition) && (globalParsed.Argument?.Contains(' ') == true);
+            if (!isAsPrefix)
+            {
+                await HandleGlobalCommand(globalParsed);
+                return;
+            }
         }
 
         // If the input is a single token that matches a callsign, just select it
