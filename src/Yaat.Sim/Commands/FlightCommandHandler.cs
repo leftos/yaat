@@ -227,7 +227,7 @@ internal static class FlightCommandHandler
                     {
                         ac.IsExpediting = false;
                         ac.Targets.DesiredVerticalRate = null;
-                        return null;
+                        return new CommandResult(true);
                     },
                     Description = $"NORM at {cmd.UntilAltitude}",
                     NaturalDescription = $"Resume normal rate at {cmd.UntilAltitude:N0}",

@@ -35,8 +35,12 @@ public static class CommandDispatcher
         }
 
         // Phase interaction: check if aircraft has active phases
+        PhaseList? savedPhases = null;
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
+            // Save phases before DispatchWithPhase may clear them (ClearsPhase path).
+            // If the subsequent dispatch fails, we restore them.
+            savedPhases = aircraft.Phases;
             var result = DispatchWithPhase(compound, aircraft, currentPhase, groundLayout, autoCrossRunway);
             if (result is not null)
             {
@@ -93,7 +97,22 @@ public static class CommandDispatcher
         {
             if (firstBlock.Trigger is null)
             {
-                ApplyBlock(firstBlock, aircraft);
+                var applyResult = ApplyBlock(firstBlock, aircraft);
+                if (!applyResult.Success)
+                {
+                    // First block failed — clear the queue and propagate the failure
+                    aircraft.Queue.Blocks.Clear();
+                    aircraft.Queue.CurrentBlockIndex = 0;
+
+                    // Restore phases if they were cleared by DispatchWithPhase (ClearsPhase)
+                    if (savedPhases is not null && aircraft.Phases is null)
+                    {
+                        aircraft.Phases = savedPhases;
+                    }
+
+                    return applyResult;
+                }
+
                 // ApplyBlock may update NaturalDescription (e.g. implied CAPP resolving approach ID)
                 if (messages.Count > 0)
                 {
@@ -883,13 +902,19 @@ public static class CommandDispatcher
         return new CommandResult(true, message);
     }
 
-    private static void ApplyBlock(CommandBlock block, AircraftState aircraft)
+    private static CommandResult ApplyBlock(CommandBlock block, AircraftState aircraft)
     {
         block.IsApplied = true;
-        var handlerMessage = block.ApplyAction?.Invoke(aircraft);
-        if (handlerMessage is not null)
+        var result = block.ApplyAction?.Invoke(aircraft);
+
+        if (result is not null && !result.Success)
         {
-            block.NaturalDescription = handlerMessage;
+            return result;
+        }
+
+        if (result?.Message is not null)
+        {
+            block.NaturalDescription = result.Message;
         }
 
         foreach (var cmd in block.Commands)
@@ -899,6 +924,8 @@ public static class CommandDispatcher
                 cmd.IsComplete = true;
             }
         }
+
+        return result ?? new CommandResult(true);
     }
 
     /// <summary>
@@ -969,7 +996,7 @@ public static class CommandDispatcher
     /// Builds a deferred action that applies all commands in a block to the aircraft.
     /// This is stored on the CommandBlock and executed when the block becomes active.
     /// </summary>
-    private static Func<AircraftState, string?> BuildApplyAction(List<ParsedCommand> commands, Random rng, bool validateDctFixes)
+    private static Func<AircraftState, CommandResult> BuildApplyAction(List<ParsedCommand> commands, Random rng, bool validateDctFixes)
     {
         // Capture the parsed commands; they'll be applied when the block activates
         var captured = commands.ToList();
@@ -981,18 +1008,20 @@ public static class CommandDispatcher
             foreach (var cmd in captured)
             {
                 var result = ApplyCommand(cmd, ac, rng, validateDctFixes);
-                if (result.Success && result.Message is not null)
+                if (!result.Success)
+                {
+                    return result;
+                }
+
+                if (result.Message is not null)
                 {
                     messages.Add(result.Message);
-                }
-                else if (!result.Success)
-                {
-                    Log.LogWarning("Command {Command} failed during block apply: {Message}", CommandDescriber.DescribeCommand(cmd), result.Message);
                 }
             }
 
             CheckVectoringWarning(ac, captured, hadProcedure);
-            return messages.Count > 0 ? string.Join(", ", messages) : null;
+            var msg = messages.Count > 0 ? string.Join(", ", messages) : null;
+            return new CommandResult(true, msg);
         };
     }
 

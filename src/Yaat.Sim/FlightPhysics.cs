@@ -1,9 +1,12 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim;
 
 public static class FlightPhysics
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("FlightPhysics");
+
     private const double HeadingSnapDeg = 0.5;
     private const double AltitudeSnapFt = 10.0;
     private const double SpeedSnapKts = 2.0;
@@ -1217,10 +1220,16 @@ public static class FlightPhysics
     private static void ApplyBlock(AircraftState aircraft, CommandBlock block)
     {
         block.IsApplied = true;
-        var handlerMessage = block.ApplyAction?.Invoke(aircraft);
-        if (handlerMessage is not null)
+        var result = block.ApplyAction?.Invoke(aircraft);
+
+        if (result is not null && !result.Success)
         {
-            block.NaturalDescription = handlerMessage;
+            Log.LogWarning("Triggered block failed during apply: {Message}", result.Message);
+        }
+
+        if (result is { Success: true, Message: not null })
+        {
+            block.NaturalDescription = result.Message;
         }
 
         foreach (var cmd in block.Commands)

@@ -551,6 +551,7 @@ public static class CommandParser
             ClearedToLand when arg is null or "NODEL" => PR.Ok(
                 new ClearedToLandCommand(arg?.Equals("NODEL", StringComparison.OrdinalIgnoreCase) == true)
             ),
+            ClearedToLand => PR.Fail("CL does not accept a runway argument; assign runway first with a pattern entry command"),
             LandAndHoldShort when arg is not null => PR.Ok(new LandAndHoldShortCommand(arg.Trim().ToUpperInvariant())),
             CancelLandingClearance when arg is null => PR.Ok(new CancelLandingClearanceCommand()),
             Sequence => ParseSequence(arg),

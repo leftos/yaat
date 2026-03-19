@@ -297,7 +297,7 @@ public static class CommandRegistry
                 "Tower",
                 false,
                 ["CLAND", "CL", "FS"],
-                [O(null, [], "Cleared to land current runway"), O("Runway", [R("runway", "runway designator")], "Cleared to land runway")],
+                [O(null, [], "Cleared to land")],
                 [Mod("NODEL", null, false)]
             ),
             Cmd(

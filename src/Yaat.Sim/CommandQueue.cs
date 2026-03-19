@@ -78,9 +78,9 @@ public class CommandBlock
     /// <summary>
     /// Deferred action that applies this block's commands to the aircraft.
     /// Set by the CommandDispatcher when building the queue.
-    /// Returns a handler message (e.g. resolved approach readback) or null.
+    /// Returns a CommandResult with success/failure and optional message.
     /// </summary>
-    public Func<AircraftState, string?>? ApplyAction { get; init; }
+    public Func<AircraftState, Commands.CommandResult>? ApplyAction { get; init; }
 }
 
 public class CommandQueue

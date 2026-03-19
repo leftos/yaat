@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 
 namespace Yaat.Sim.Tests;
 
@@ -23,10 +24,10 @@ public class CommandQueueTests
         };
     }
 
-    private static CommandBlock ImmediateBlock(Func<AircraftState, string?>? applyAction = null) =>
+    private static CommandBlock ImmediateBlock(Func<AircraftState, CommandResult>? applyAction = null) =>
         new() { Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }], ApplyAction = applyAction };
 
-    private static CommandBlock TriggeredBlock(BlockTrigger trigger, Func<AircraftState, string?>? applyAction = null) =>
+    private static CommandBlock TriggeredBlock(BlockTrigger trigger, Func<AircraftState, CommandResult>? applyAction = null) =>
         new()
         {
             Trigger = trigger,
@@ -436,7 +437,7 @@ public class CommandQueueTests
             ApplyAction = a =>
             {
                 a.Heading = 270;
-                return null;
+                return new CommandResult(true);
             },
         };
         ac.Queue.Blocks.Add(block);
