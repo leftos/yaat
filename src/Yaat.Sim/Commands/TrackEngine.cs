@@ -8,7 +8,20 @@ public static class TrackEngine
 {
     public static string FormatOwner(TrackOwner owner)
     {
-        var tcp = owner.Subset is not null && owner.SectorId is not null ? $"{owner.Subset}{owner.SectorId}" : "";
+        string tcp;
+        if ((owner.OwnerType == TrackOwnerType.Eram) && owner.SectorId is not null)
+        {
+            tcp = $"C{owner.SectorId}";
+        }
+        else if (owner.Subset is not null && owner.SectorId is not null)
+        {
+            tcp = $"{owner.Subset}{owner.SectorId}";
+        }
+        else
+        {
+            tcp = "";
+        }
+
         return string.IsNullOrEmpty(tcp) ? owner.Callsign : $"{owner.Callsign} ({tcp})";
     }
 

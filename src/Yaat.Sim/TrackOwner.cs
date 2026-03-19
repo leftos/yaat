@@ -9,5 +9,8 @@ public record TrackOwner(string Callsign, string? FacilityId, int? Subset, strin
     public static TrackOwner CreateStars(string callsign, string facilityId, int subset, string sectorId) =>
         new(callsign, facilityId, subset, sectorId, TrackOwnerType.Stars);
 
+    public static TrackOwner CreateEram(string callsign, string facilityId, string sectorId) =>
+        new(callsign, facilityId, null, sectorId, TrackOwnerType.Eram);
+
     public static TrackOwner CreateNonNas(string callsign) => new(callsign, null, null, null, TrackOwnerType.Other);
 }

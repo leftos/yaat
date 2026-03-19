@@ -1010,7 +1010,7 @@ Any heading, altitude, or speed command clears the hold.
 
 ### Track Operations
 
-Track operations control aircraft ownership, handoffs, and coordination. These commands use STARS-style TCP codes (e.g., "2B" = subset 2, sector B).
+Track operations control aircraft ownership, handoffs, and coordination. These commands use STARS-style TCP codes (e.g., "2B" = subset 2, sector B) or ERAM center codes (e.g., "C44" = center sector 44).
 
 #### Active Position
 
@@ -1034,6 +1034,7 @@ Changing your active position also updates the radar display:
 | `TRACK` | Initiate control — take ownership of the aircraft |
 | `DROP` | Terminate control — release ownership |
 | `HO 3Y` | Handoff to TCP 3Y (must own the aircraft) |
+| `HO C44` | Handoff to ERAM center sector 44 (must own the aircraft) |
 | `HOF 3Y` | Force handoff to TCP 3Y (transfers ownership regardless of current owner) |
 | `ACCEPT` / `A` | Accept a pending inbound handoff |
 | `CANCEL` | Retract a pending outbound handoff |
