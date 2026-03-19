@@ -59,6 +59,17 @@ public sealed class ApproachClearance
     public double? InterceptCaptureAngleDeg { get; set; }
 }
 
+/// <summary>
+/// Approach clearance issued while the aircraft is still on a STAR en route to the
+/// approach connecting fix. Activated when the aircraft reaches the connecting fix via
+/// normal navigation. Analogous to DepartureClearanceInfo for pre-issued departure clearances.
+/// </summary>
+public sealed class PendingApproachInfo
+{
+    public required ApproachClearance Clearance { get; init; }
+    public required RunwayInfo AssignedRunway { get; init; }
+}
+
 /// <summary>Holding pattern parameters extracted from a missed approach HA/HF/HM leg.</summary>
 public sealed record MissedApproachHold(
     string FixName,

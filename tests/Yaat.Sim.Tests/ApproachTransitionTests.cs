@@ -3,6 +3,7 @@ using Xunit.Abstractions;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 
 namespace Yaat.Sim.Tests;
@@ -117,6 +118,332 @@ public class ApproachTransitionTests(ITestOutputHelper output)
 
         output.WriteLine($"Selected: {result?.Name ?? "(none)"}");
         Assert.Null(result);
+    }
+
+    [Fact]
+    public void SelectBestTransition_NavRouteContainsTransitionOnlyFix_ReturnsTransition()
+    {
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        NavigationDatabase.SetInstance(navDb);
+        // OAK H12-Z has a HIRMO transition. HIRMO is a transition-only fix (not in CommonLegs).
+        // An aircraft with HIRMO in its NavigationRoute (from EMZOH4 STAR) should match
+        // the HIRMO transition so the full fix sequence is built.
+        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        if (procedure is null)
+        {
+            output.WriteLine("H12-Z not found at KOAK, skipping");
+            return;
+        }
+
+        Assert.True(procedure.Transitions.Count > 0, "H12-Z should have transitions");
+        output.WriteLine($"H12-Z transitions: {string.Join(", ", procedure.Transitions.Keys)}");
+
+        var commonFixNames = procedure
+            .CommonLegs.Where(l => !string.IsNullOrEmpty(l.FixIdentifier))
+            .Select(l => l.FixIdentifier!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        output.WriteLine($"Common legs: {string.Join(", ", commonFixNames)}");
+
+        // Find HIRMO — should be in a transition but NOT in common legs
+        string transitionName = "HIRMO";
+        Assert.True(procedure.Transitions.ContainsKey(transitionName), $"H12-Z should have {transitionName} transition");
+        Assert.DoesNotContain(transitionName, commonFixNames);
+
+        var hirmoPos = navDb.GetFixPosition(transitionName);
+        Assert.NotNull(hirmoPos);
+
+        // Aircraft on EMZOH4 STAR with HIRMO in nav route
+        var aircraft = MakeAircraft(route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK", destination: "KOAK", heading: 320, lat: 37.5, lon: -121.8);
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = transitionName,
+                Latitude = hirmoPos.Value.Lat,
+                Longitude = hirmoPos.Value.Lon,
+            }
+        );
+
+        var result = ApproachCommandHandler.SelectBestTransition(procedure, aircraft);
+
+        output.WriteLine($"Selected: {result?.Name ?? "(none)"}");
+        Assert.NotNull(result);
+        Assert.Equal(transitionName, result.Name);
+    }
+
+    [Fact]
+    public void Capp_WithNavRouteTransitionFix_DefersApproachAndAppendsFixesToRoute()
+    {
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        NavigationDatabase.SetInstance(navDb);
+        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        if (procedure is null)
+        {
+            output.WriteLine("H12-Z not found at KOAK, skipping");
+            return;
+        }
+
+        // Resolve positions for STAR fixes preceding HIRMO
+        var emzohPos = navDb.GetFixPosition("EMZOH");
+        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        Assert.NotNull(emzohPos);
+        Assert.NotNull(hirmoPos);
+
+        // Aircraft on EMZOH4 STAR with remaining STAR fixes + HIRMO in nav route
+        var aircraft = MakeAircraft(
+            route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK",
+            destination: "KOAK",
+            destinationRunway: "12",
+            heading: 320,
+            lat: 37.5,
+            lon: -121.8
+        );
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "EMZOH",
+                Latitude = emzohPos.Value.Lat,
+                Longitude = emzohPos.Value.Lon,
+            }
+        );
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "HIRMO",
+                Latitude = hirmoPos.Value.Lat,
+                Longitude = hirmoPos.Value.Lon,
+            }
+        );
+        aircraft.ExpectedApproach = "H12-Z";
+
+        var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+
+        output.WriteLine($"CAPP result: {result.Success} — {result.Message}");
+        Assert.True(result.Success, result.Message);
+
+        // Phases should NOT be started — approach is deferred
+        Assert.Null(aircraft.Phases);
+
+        // PendingApproachClearance should be set
+        Assert.NotNull(aircraft.PendingApproachClearance);
+        Assert.Equal("H12-Z", aircraft.PendingApproachClearance.Clearance.ApproachId);
+
+        // NavigationRoute should contain STAR fixes + approach fixes after HIRMO
+        var routeNames = aircraft.Targets.NavigationRoute.Select(t => t.Name).ToList();
+        output.WriteLine($"Nav route: {string.Join(" → ", routeNames)}");
+
+        // STAR fix EMZOH should still be there
+        Assert.Contains("EMZOH", routeNames);
+        // HIRMO should still be there (connecting fix)
+        Assert.Contains("HIRMO", routeNames);
+
+        // Approach fixes should be appended after HIRMO
+        int hirmoIdx = routeNames.IndexOf("HIRMO");
+        Assert.True(routeNames.Count > hirmoIdx + 1, "Expected approach fixes after HIRMO in nav route");
+
+        // DestinationRunway should be set
+        Assert.Equal("12", aircraft.DestinationRunway);
+    }
+
+    [Fact]
+    public void Capp_OnAssignedHeading_ActivatesImmediately()
+    {
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        NavigationDatabase.SetInstance(navDb);
+        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        if (procedure is null)
+        {
+            output.WriteLine("H12-Z not found at KOAK, skipping");
+            return;
+        }
+
+        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        Assert.NotNull(hirmoPos);
+
+        // Aircraft on assigned heading with HIRMO in nav route
+        var aircraft = MakeAircraft(
+            route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK",
+            destination: "KOAK",
+            destinationRunway: "12",
+            heading: 320,
+            lat: 37.5,
+            lon: -121.8
+        );
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(320);
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "HIRMO",
+                Latitude = hirmoPos.Value.Lat,
+                Longitude = hirmoPos.Value.Lon,
+            }
+        );
+
+        var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, null, null, null, null, null);
+        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+
+        Assert.True(result.Success, result.Message);
+        // On assigned heading → immediate activation via intercept
+        Assert.NotNull(aircraft.Phases);
+        Assert.Null(aircraft.PendingApproachClearance);
+    }
+
+    [Fact]
+    public void Capp_WithAtConnectingFix_DefersLikeBareCapp()
+    {
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        NavigationDatabase.SetInstance(navDb);
+        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        if (procedure is null)
+        {
+            output.WriteLine("H12-Z not found at KOAK, skipping");
+            return;
+        }
+
+        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        Assert.NotNull(hirmoPos);
+
+        var aircraft = MakeAircraft(
+            route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK",
+            destination: "KOAK",
+            destinationRunway: "12",
+            heading: 320,
+            lat: 37.5,
+            lon: -121.8
+        );
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "HIRMO",
+                Latitude = hirmoPos.Value.Lat,
+                Longitude = hirmoPos.Value.Lon,
+            }
+        );
+
+        // AT HIRMO CAPP H12-Z — AT fix matches the connecting fix in the nav route,
+        // so it defers just like a bare CAPP (the AT is redundant).
+        var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, "HIRMO", hirmoPos.Value.Lat, hirmoPos.Value.Lon, null, null, null, null, null);
+        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+
+        Assert.True(result.Success, result.Message);
+        // AT fix matches connecting fix → deferred, same as bare CAPP
+        Assert.Null(aircraft.Phases);
+        Assert.NotNull(aircraft.PendingApproachClearance);
+        Assert.Equal("H12-Z", aircraft.PendingApproachClearance.Clearance.ApproachId);
+    }
+
+    [Fact]
+    public void Capp_WithDctFix_ActivatesImmediately()
+    {
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        NavigationDatabase.SetInstance(navDb);
+        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        if (procedure is null)
+        {
+            output.WriteLine("H12-Z not found at KOAK, skipping");
+            return;
+        }
+
+        var hirmoPos = navDb.GetFixPosition("HIRMO");
+        Assert.NotNull(hirmoPos);
+
+        var aircraft = MakeAircraft(
+            route: "KBUR.OROSZ2.COREZ..RGOOD.EMZOH4.KOAK",
+            destination: "KOAK",
+            destinationRunway: "12",
+            heading: 320,
+            lat: 37.5,
+            lon: -121.8
+        );
+        aircraft.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "HIRMO",
+                Latitude = hirmoPos.Value.Lat,
+                Longitude = hirmoPos.Value.Lon,
+            }
+        );
+
+        // DCT HIRMO CAPP → immediate (DCT implies leaving the STAR route)
+        var cmd = new ClearedApproachCommand("H12-Z", "KOAK", false, null, null, null, "HIRMO", hirmoPos.Value.Lat, hirmoPos.Value.Lon, null, null);
+        var result = ApproachCommandHandler.TryClearedApproach(cmd, aircraft);
+
+        Assert.True(result.Success, result.Message);
+        Assert.NotNull(aircraft.Phases);
+        Assert.Null(aircraft.PendingApproachClearance);
+    }
+
+    [Fact]
+    public void PendingApproach_ActivatesWhenRouteEmpties()
+    {
+        var navDb = GetNavDb();
+        if (navDb is null)
+        {
+            return;
+        }
+
+        NavigationDatabase.SetInstance(navDb);
+        var procedure = navDb.GetApproach("KOAK", "H12-Z");
+        if (procedure is null)
+        {
+            output.WriteLine("H12-Z not found at KOAK, skipping");
+            return;
+        }
+
+        var runway = navDb.GetRunway("KOAK", "12");
+        Assert.NotNull(runway);
+
+        var clearance = new ApproachClearance
+        {
+            ApproachId = "H12-Z",
+            AirportCode = "KOAK",
+            RunwayId = "12",
+            FinalApproachCourse = runway.TrueHeading,
+            Procedure = procedure,
+        };
+
+        var aircraft = MakeAircraft(destination: "KOAK", heading: 120, lat: 37.73, lon: -122.22);
+        aircraft.PendingApproachClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = runway };
+
+        // Simulate route emptying by calling Update with an empty route
+        Assert.Empty(aircraft.Targets.NavigationRoute);
+        FlightPhysics.Update(aircraft, 1.0);
+
+        // Pending approach should be activated
+        Assert.Null(aircraft.PendingApproachClearance);
+        Assert.NotNull(aircraft.Phases);
+        Assert.Equal("H12-Z", aircraft.Phases.ActiveApproach?.ApproachId);
+
+        // Should have FinalApproachPhase + LandingPhase
+        var phaseTypes = aircraft.Phases.Phases.Select(p => p.GetType().Name).ToList();
+        output.WriteLine($"Phases: {string.Join(" → ", phaseTypes)}");
+        Assert.Contains("FinalApproachPhase", phaseTypes);
+        Assert.Contains("LandingPhase", phaseTypes);
     }
 
     [Fact]

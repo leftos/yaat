@@ -27,32 +27,54 @@ public static class ApproachCommandHandler
         var transition = SelectBestTransition(procedure, aircraft);
         var approachFixes = transition is not null ? BuildApproachFixesWithTransition(transition, procedure) : BuildApproachFixes(procedure);
 
+        // Check conditions for deferred vs immediate approach activation
+        bool hasDctFix = cmd.DctFix is not null;
+        bool isOnAssignedHeading = aircraft.Targets.AssignedMagneticHeading is not null;
+
+        // Deferred approach: when the STAR delivers to a transition connecting fix,
+        // store the clearance as pending and append approach fixes to the nav route.
+        // The aircraft continues flying its STAR; approach phases activate when the
+        // route empties (aircraft reaches the last approach fix via normal navigation).
+        // "AT <fix> CAPP" defers the same way when the AT fix is already in the nav route
+        // — the AT is redundant since the STAR already delivers there.
+        // DCT always activates immediately (it implies leaving the STAR route).
+        if (transition is not null && !hasDctFix && !isOnAssignedHeading)
+        {
+            var trimmedFixes = TrimToNavRouteConnection(approachFixes, aircraft);
+            string connectingFix = trimmedFixes.Count > 0 ? trimmedFixes[0].Name : "";
+
+            // AT fix must match the connecting fix (or no AT fix at all) for deferred path
+            bool atFixMatchesConnection = cmd.AtFix is null || connectingFix.Equals(cmd.AtFix, StringComparison.OrdinalIgnoreCase);
+
+            if (trimmedFixes.Count > 0 && atFixMatchesConnection && NavRouteContainsFix(aircraft, connectingFix))
+            {
+                var clearance = BuildClearance(procedure, airport, finalCourse, approachRunway);
+                aircraft.PendingApproachClearance = new PendingApproachInfo { Clearance = clearance, AssignedRunway = approachRunway };
+                aircraft.DestinationRunway = approachRunway.Designator;
+
+                // Append approach fixes after the connecting fix in the NavigationRoute
+                AppendApproachFixesToNavRoute(aircraft, trimmedFixes);
+
+                return new CommandResult(true, $"Cleared {procedure.ApproachId} approach, runway {procedure.Runway}");
+            }
+        }
+
+        // --- Immediate approach activation ---
+
         // Clear existing phases
         ClearExistingPhases(aircraft);
 
-        var clearance = new ApproachClearance
-        {
-            ApproachId = procedure.ApproachId,
-            AirportCode = airport,
-            RunwayId = procedure.Runway!,
-            FinalApproachCourse = finalCourse,
-            Procedure = procedure,
-            MissedApproachFixes = BuildMissedApproachFixes(procedure),
-            MapHold = ExtractMissedApproachHold(procedure),
-            MapAltitudeFt = ExtractMapAltitude(procedure),
-            MapDistanceNm = ExtractMapDistance(procedure, approachRunway),
-        };
+        var immClearance = BuildClearance(procedure, airport, finalCourse, approachRunway);
 
-        aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
+        aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = immClearance };
         aircraft.DestinationRunway = approachRunway.Designator;
-
-        // Implied PTAC: no AT/DCT fix and aircraft was on an assigned heading → intercept on present heading
-        bool hasAtOrDctFix = cmd.AtFix is not null || cmd.DctFix is not null;
-        bool isOnAssignedHeading = aircraft.Targets.AssignedMagneticHeading is not null;
 
         // Clear assigned heading — approach takes over steering
         aircraft.Targets.AssignedMagneticHeading = null;
 
+        bool hasAtOrDctFix = cmd.AtFix is not null || hasDctFix;
+
+        // Implied PTAC: no AT/DCT fix and aircraft was on an assigned heading → intercept on present heading
         if (!hasAtOrDctFix && isOnAssignedHeading)
         {
             aircraft.Targets.NavigationRoute.Clear();
@@ -69,7 +91,7 @@ public static class ApproachCommandHandler
                     FinalApproachCourse = finalCourse,
                     ThresholdLat = approachRunway.ThresholdLatitude,
                     ThresholdLon = approachRunway.ThresholdLongitude,
-                    ApproachId = clearance.ApproachId,
+                    ApproachId = immClearance.ApproachId,
                 }
             );
             aircraft.Phases.Add(new FinalApproachPhase());
@@ -890,14 +912,38 @@ public static class ApproachCommandHandler
             }
         }
 
-        // If the aircraft's active NavigationRoute already contains an approach fix,
-        // it's heading there via its current path (e.g. a STAR delivering to the approach
-        // entry point). No transition needed — the aircraft will connect at that fix.
+        // If the aircraft's active NavigationRoute contains an approach fix, check where
+        // it lives: CommonLegs fix → no transition needed (aircraft heading into common segment);
+        // transition-only fix → return that transition (aircraft needs its legs to reach CommonLegs).
         foreach (var navTarget in aircraft.Targets.NavigationRoute)
         {
-            if (approachFixes.Contains(navTarget.Name))
+            if (!approachFixes.Contains(navTarget.Name))
+            {
+                continue;
+            }
+
+            // CommonLegs first: boundary fixes (e.g. BERKS in both CCR transition and CommonLegs)
+            // must NOT trigger transition selection — aircraft is already heading to the common segment.
+            bool isInCommonLegs = procedure.CommonLegs.Any(leg =>
+                !string.IsNullOrEmpty(leg.FixIdentifier) && leg.FixIdentifier.Equals(navTarget.Name, StringComparison.OrdinalIgnoreCase)
+            );
+
+            if (isInCommonLegs)
             {
                 return null;
+            }
+
+            // Fix is only in a transition (e.g. HIRMO) — return that transition so the full
+            // fix sequence (transition legs + common legs) is built.
+            foreach (var transition in procedure.Transitions.Values)
+            {
+                foreach (var leg in transition.Legs)
+                {
+                    if (!string.IsNullOrEmpty(leg.FixIdentifier) && leg.FixIdentifier.Equals(navTarget.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return transition;
+                    }
+                }
             }
         }
 
@@ -1097,6 +1143,134 @@ public static class ApproachCommandHandler
         {
             result.Add(new ApproachFix($"ARC{i + 1:D2}", arcPoints[i].Lat, arcPoints[i].Lon));
         }
+    }
+
+    private static List<ApproachFix> TrimToNavRouteConnection(List<ApproachFix> fixes, AircraftState aircraft)
+    {
+        if (fixes.Count == 0)
+        {
+            return fixes;
+        }
+
+        var navNames = new HashSet<string>(aircraft.Targets.NavigationRoute.Select(t => t.Name), StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 0; i < fixes.Count; i++)
+        {
+            if (navNames.Contains(fixes[i].Name))
+            {
+                return fixes.GetRange(i, fixes.Count - i);
+            }
+        }
+
+        return fixes;
+    }
+
+    private static ApproachClearance BuildClearance(
+        CifpApproachProcedure procedure,
+        string airport,
+        TrueHeading finalCourse,
+        RunwayInfo approachRunway
+    )
+    {
+        return new ApproachClearance
+        {
+            ApproachId = procedure.ApproachId,
+            AirportCode = airport,
+            RunwayId = procedure.Runway!,
+            FinalApproachCourse = finalCourse,
+            Procedure = procedure,
+            MissedApproachFixes = BuildMissedApproachFixes(procedure),
+            MapHold = ExtractMissedApproachHold(procedure),
+            MapAltitudeFt = ExtractMapAltitude(procedure),
+            MapDistanceNm = ExtractMapDistance(procedure, approachRunway),
+        };
+    }
+
+    private static bool NavRouteContainsFix(AircraftState aircraft, string fixName)
+    {
+        foreach (var target in aircraft.Targets.NavigationRoute)
+        {
+            if (target.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Appends approach fixes to the NavigationRoute after the connecting fix.
+    /// The first fix in approachFixes is the connecting fix (already in the route),
+    /// so we skip it and insert the remaining fixes after it.
+    /// </summary>
+    private static void AppendApproachFixesToNavRoute(AircraftState aircraft, List<ApproachFix> approachFixes)
+    {
+        if (approachFixes.Count == 0)
+        {
+            return;
+        }
+
+        string connectingFix = approachFixes[0].Name;
+        var route = aircraft.Targets.NavigationRoute;
+
+        // Find the connecting fix in the route
+        int insertAfter = -1;
+        for (int i = 0; i < route.Count; i++)
+        {
+            if (route[i].Name.Equals(connectingFix, StringComparison.OrdinalIgnoreCase))
+            {
+                insertAfter = i;
+                break;
+            }
+        }
+
+        if (insertAfter < 0)
+        {
+            return;
+        }
+
+        // Convert approach fixes after the connecting fix to NavigationTargets and insert
+        var newTargets = new List<NavigationTarget>();
+        for (int i = 1; i < approachFixes.Count; i++)
+        {
+            var fix = approachFixes[i];
+            newTargets.Add(
+                new NavigationTarget
+                {
+                    Name = fix.Name,
+                    Latitude = fix.Latitude,
+                    Longitude = fix.Longitude,
+                    AltitudeRestriction = fix.Altitude,
+                    SpeedRestriction = fix.SpeedKts is { } kts ? new CifpSpeedRestriction(kts, IsMaximum: true) : null,
+                    IsFlyOver = fix.IsFlyOver,
+                }
+            );
+        }
+
+        route.InsertRange(insertAfter + 1, newTargets);
+    }
+
+    /// <summary>
+    /// Activates a pending approach clearance. Called from FlightPhysics when the
+    /// NavigationRoute empties and a PendingApproachClearance exists.
+    /// </summary>
+    public static void ActivatePendingApproach(AircraftState aircraft, PendingApproachInfo pending)
+    {
+        aircraft.PendingApproachClearance = null;
+
+        // Clear STAR state so stale descent logic doesn't conflict with approach phases
+        aircraft.ActiveStarId = null;
+        aircraft.StarViaMode = false;
+        aircraft.StarViaFloor = null;
+
+        aircraft.Phases = new PhaseList { AssignedRunway = pending.AssignedRunway, ActiveApproach = pending.Clearance };
+        aircraft.Phases.Add(new FinalApproachPhase());
+        var isHeli = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
+        aircraft.Phases.Add(isHeli ? new HelicopterLandingPhase() : new LandingPhase());
+
+        var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
+        aircraft.Phases.Start(ctx);
     }
 
     private static List<ApproachFix> TrimToNearestEntry(List<ApproachFix> fixes, AircraftState aircraft)

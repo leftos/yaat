@@ -81,8 +81,11 @@ public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
         );
 
         Assert.True(result.Success, $"Bare CAPP should succeed with ExpectedApproach set. Got: {result.Message}");
-        Assert.NotNull(aircraft.Phases?.ActiveApproach);
-        Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
+
+        // May be immediate (Phases.ActiveApproach) or deferred (PendingApproachClearance)
+        string? approachId = aircraft.Phases?.ActiveApproach?.ApproachId ?? aircraft.PendingApproachClearance?.Clearance.ApproachId;
+        Assert.NotNull(approachId);
+        Assert.Equal("I28R", approachId);
         Assert.Equal("28R", aircraft.DestinationRunway);
     }
 

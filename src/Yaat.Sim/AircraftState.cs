@@ -160,6 +160,13 @@ public class AircraftState
     // Approach expectation
     public string? ExpectedApproach { get; set; }
 
+    /// <summary>
+    /// Approach clearance issued while the aircraft is still on a STAR en route to the
+    /// approach connecting fix. Activated when the aircraft reaches the connecting fix
+    /// via normal navigation. Null when no deferred approach is pending.
+    /// </summary>
+    public PendingApproachInfo? PendingApproachClearance { get; set; }
+
     // Procedure state (SID/STAR)
     public string? ActiveSidId { get; set; }
     public string? ActiveStarId { get; set; }

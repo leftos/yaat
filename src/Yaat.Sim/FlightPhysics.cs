@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases;
 
 namespace Yaat.Sim;
 
@@ -59,6 +61,11 @@ public static class FlightPhysics
         var route = aircraft.Targets.NavigationRoute;
         if (route.Count == 0)
         {
+            if (aircraft.PendingApproachClearance is { } pendingEarly)
+            {
+                ApproachCommandHandler.ActivatePendingApproach(aircraft, pendingEarly);
+            }
+
             return;
         }
 
@@ -120,6 +127,12 @@ public static class FlightPhysics
 
             if (route.Count == 0)
             {
+                if (aircraft.PendingApproachClearance is { } pending)
+                {
+                    ApproachCommandHandler.ActivatePendingApproach(aircraft, pending);
+                    return;
+                }
+
                 aircraft.Targets.TargetTrueHeading = null;
                 aircraft.Targets.PreferredTurnDirection = null;
                 ClearProcedureState(aircraft);
