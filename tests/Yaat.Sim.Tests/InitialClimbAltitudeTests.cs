@@ -203,6 +203,143 @@ public class InitialClimbAltitudeTests
         Assert.Equal("TRACY", targets.NavigationRoute[1].Name);
     }
 
+    // ── OnTick completion tests ──
+
+    private static (InitialClimbPhase phase, AircraftState aircraft, PhaseContext ctx) SetUpPhase(
+        DepartureInstruction departure,
+        int? assignedAltitude,
+        int cruiseAltitude,
+        bool isVfr = false
+    )
+    {
+        var phase = new InitialClimbPhase
+        {
+            Departure = departure,
+            AssignedAltitude = assignedAltitude,
+            IsVfr = isVfr,
+            CruiseAltitude = cruiseAltitude,
+        };
+
+        var runway = MakeRunway();
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST001",
+            AircraftType = "B738",
+            Heading = 280,
+            Altitude = FieldElevation + 400,
+            Phases = phaseList,
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnStart(ctx);
+        return (phase, aircraft, ctx);
+    }
+
+    [Fact]
+    public void MR270_NoAltitude_CompletesOnHeadingReached()
+    {
+        // Runway heading 280 + 270 right = 190 (normalized)
+        var (phase, ac, ctx) = SetUpPhase(new RelativeTurnDeparture(270, TurnDirection.Right), assignedAltitude: null, cruiseAltitude: 35000);
+
+        // Aircraft well below cruise, heading not yet reached
+        ac.Altitude = 2000;
+        ac.Heading = 280;
+        Assert.False(phase.OnTick(ctx), "Should not complete — heading not reached");
+
+        // Heading reached, altitude still well below cruise
+        ac.Heading = 190;
+        Assert.True(phase.OnTick(ctx), "Should complete — heading reached (altitude irrelevant for heading-only CTO)");
+    }
+
+    [Fact]
+    public void MR270_WithAltitude_RequiresBothHeadingAndAltitude()
+    {
+        var (phase, ac, ctx) = SetUpPhase(new RelativeTurnDeparture(270, TurnDirection.Right), assignedAltitude: 3000, cruiseAltitude: 35000);
+
+        // Neither met
+        ac.Altitude = 2000;
+        ac.Heading = 280;
+        Assert.False(phase.OnTick(ctx), "Neither heading nor altitude met");
+
+        // Only heading met
+        ac.Heading = 190;
+        ac.Altitude = 2000;
+        Assert.False(phase.OnTick(ctx), "Only heading met, not altitude");
+
+        // Only altitude met
+        ac.Heading = 280;
+        ac.Altitude = 3000;
+        Assert.False(phase.OnTick(ctx), "Only altitude met, not heading");
+
+        // Both met
+        ac.Heading = 190;
+        ac.Altitude = 3000;
+        Assert.True(phase.OnTick(ctx), "Both heading and altitude met");
+    }
+
+    [Fact]
+    public void FlyHeading_NoAltitude_CompletesOnHeadingReached()
+    {
+        var (phase, ac, ctx) = SetUpPhase(new FlyHeadingDeparture(180, null), assignedAltitude: null, cruiseAltitude: 35000);
+
+        ac.Altitude = 1500;
+        ac.Heading = 280;
+        Assert.False(phase.OnTick(ctx), "Heading not reached");
+
+        ac.Heading = 180;
+        Assert.True(phase.OnTick(ctx), "Heading reached");
+    }
+
+    [Fact]
+    public void DefaultDeparture_NoAltitude_CompletesAtSelfClear()
+    {
+        var (phase, ac, ctx) = SetUpPhase(new DefaultDeparture(), assignedAltitude: null, cruiseAltitude: 35000);
+
+        // Below self-clear (field + 1500 = 1600)
+        ac.Altitude = 1000;
+        Assert.False(phase.OnTick(ctx), "Below self-clear altitude");
+
+        // At self-clear
+        ac.Altitude = FieldElevation + 1500;
+        Assert.True(phase.OnTick(ctx), "At self-clear altitude");
+    }
+
+    [Fact]
+    public void DefaultDeparture_WithAltitude_CompletesAtAssignedAltitude()
+    {
+        var (phase, ac, ctx) = SetUpPhase(new DefaultDeparture(), assignedAltitude: 5000, cruiseAltitude: 35000);
+
+        ac.Altitude = 4000;
+        Assert.False(phase.OnTick(ctx), "Below assigned altitude");
+
+        ac.Altitude = 5000;
+        Assert.True(phase.OnTick(ctx), "At assigned altitude");
+    }
+
+    [Fact]
+    public void RunwayHeading_CompletesAtSelfClear()
+    {
+        var (phase, ac, ctx) = SetUpPhase(new RunwayHeadingDeparture(), assignedAltitude: null, cruiseAltitude: 35000);
+
+        ac.Altitude = 1000;
+        Assert.False(phase.OnTick(ctx), "Below self-clear");
+
+        ac.Altitude = FieldElevation + 1500;
+        Assert.True(phase.OnTick(ctx), "At self-clear altitude");
+    }
+
+    // ── Navigation route tests ──
+
     [Fact]
     public void NoNavigationRoute_LeavesEmpty()
     {

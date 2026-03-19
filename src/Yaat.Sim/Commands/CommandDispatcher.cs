@@ -40,6 +40,23 @@ public static class CommandDispatcher
             var result = DispatchWithPhase(compound, aircraft, currentPhase, groundLayout, autoCrossRunway);
             if (result is not null)
             {
+                // Tower command handled the first block. Enqueue remaining blocks
+                // so they execute after phases complete (UpdateCommandQueue picks them
+                // up once CurrentPhase becomes null).
+                if (result.Success && compound.Blocks.Count > 1)
+                {
+                    aircraft.Queue.Blocks.Clear();
+                    aircraft.Queue.CurrentBlockIndex = 0;
+                    aircraft.DeferredDispatches.Clear();
+
+                    var remainingMessages = EnqueueBlocks(compound, 1, aircraft, rng, validateDctFixes);
+                    if (remainingMessages.Count > 0)
+                    {
+                        var combined = result.Message + " ; " + string.Join(" ; ", remainingMessages);
+                        return new CommandResult(true, combined);
+                    }
+                }
+
                 return result;
             }
             // result is null means phases were cleared, fall through to normal dispatch
@@ -68,62 +85,7 @@ public static class CommandDispatcher
         aircraft.Queue.CurrentBlockIndex = 0;
         aircraft.DeferredDispatches.Clear();
 
-        var messages = new List<string>();
-
-        for (int i = 0; i < compound.Blocks.Count; i++)
-        {
-            var parsedBlock = compound.Blocks[i];
-
-            // Terse description for block tracking
-            var blockDesc = string.Join(", ", parsedBlock.Commands.Select(CommandDescriber.DescribeCommand));
-
-            // Natural language for response message
-            var blockMsg = string.Join(", ", parsedBlock.Commands.Select(CommandDescriber.DescribeNatural));
-
-            if (parsedBlock.Condition is LevelCondition lv)
-            {
-                blockDesc = $"at {lv.Altitude}ft: {blockDesc}";
-                blockMsg = $"At {lv.Altitude:N0} ft: {blockMsg}";
-            }
-            else if (parsedBlock.Condition is AtFixCondition at)
-            {
-                var atLabel = FormatAtLabel(at);
-                blockDesc = $"at {atLabel}: {blockDesc}";
-                blockMsg = $"At {atLabel}: {blockMsg}";
-            }
-            else if (parsedBlock.Condition is GiveWayCondition gw)
-            {
-                blockDesc = $"giveway {gw.TargetCallsign}: {blockDesc}";
-                blockMsg = $"After {gw.TargetCallsign} passes: {blockMsg}";
-            }
-            else if (parsedBlock.Condition is DistanceFinalCondition df)
-            {
-                blockDesc = $"at {df.DistanceNm}nm final: {blockDesc}";
-                blockMsg = $"At {df.DistanceNm}nm final: {blockMsg}";
-            }
-
-            var waitTime = parsedBlock.Commands.OfType<WaitCommand>().FirstOrDefault();
-            var waitDist = parsedBlock.Commands.OfType<WaitDistanceCommand>().FirstOrDefault();
-            bool isWait = waitTime is not null || waitDist is not null;
-            var commandBlock = new CommandBlock
-            {
-                Trigger = ConvertCondition(parsedBlock.Condition),
-                ApplyAction = BuildApplyAction(parsedBlock.Commands, rng, validateDctFixes),
-                Description = blockDesc,
-                NaturalDescription = blockMsg,
-                IsWaitBlock = isWait,
-                WaitRemainingSeconds = waitTime?.Seconds ?? 0,
-                WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
-            };
-
-            foreach (var cmd in parsedBlock.Commands)
-            {
-                commandBlock.Commands.Add(new TrackedCommand { Type = CommandDescriber.ClassifyCommand(cmd) });
-            }
-
-            aircraft.Queue.Blocks.Add(commandBlock);
-            messages.Add(blockMsg);
-        }
+        var messages = EnqueueBlocks(compound, 0, aircraft, rng, validateDctFixes);
 
         // Apply the first block immediately (if no trigger or trigger already met)
         var firstBlock = aircraft.Queue.CurrentBlock;
@@ -937,6 +899,70 @@ public static class CommandDispatcher
                 cmd.IsComplete = true;
             }
         }
+    }
+
+    /// <summary>
+    /// Builds CommandBlocks from parsed blocks starting at <paramref name="startIndex"/>
+    /// and appends them to the aircraft's command queue. Returns natural-language messages
+    /// for each enqueued block.
+    /// </summary>
+    private static List<string> EnqueueBlocks(CompoundCommand compound, int startIndex, AircraftState aircraft, Random rng, bool validateDctFixes)
+    {
+        var messages = new List<string>();
+
+        for (int i = startIndex; i < compound.Blocks.Count; i++)
+        {
+            var parsedBlock = compound.Blocks[i];
+
+            var blockDesc = string.Join(", ", parsedBlock.Commands.Select(CommandDescriber.DescribeCommand));
+            var blockMsg = string.Join(", ", parsedBlock.Commands.Select(CommandDescriber.DescribeNatural));
+
+            if (parsedBlock.Condition is LevelCondition lv)
+            {
+                blockDesc = $"at {lv.Altitude}ft: {blockDesc}";
+                blockMsg = $"At {lv.Altitude:N0} ft: {blockMsg}";
+            }
+            else if (parsedBlock.Condition is AtFixCondition at)
+            {
+                var atLabel = FormatAtLabel(at);
+                blockDesc = $"at {atLabel}: {blockDesc}";
+                blockMsg = $"At {atLabel}: {blockMsg}";
+            }
+            else if (parsedBlock.Condition is GiveWayCondition gw)
+            {
+                blockDesc = $"giveway {gw.TargetCallsign}: {blockDesc}";
+                blockMsg = $"After {gw.TargetCallsign} passes: {blockMsg}";
+            }
+            else if (parsedBlock.Condition is DistanceFinalCondition df)
+            {
+                blockDesc = $"at {df.DistanceNm}nm final: {blockDesc}";
+                blockMsg = $"At {df.DistanceNm}nm final: {blockMsg}";
+            }
+
+            var waitTime = parsedBlock.Commands.OfType<WaitCommand>().FirstOrDefault();
+            var waitDist = parsedBlock.Commands.OfType<WaitDistanceCommand>().FirstOrDefault();
+            bool isWait = waitTime is not null || waitDist is not null;
+            var commandBlock = new CommandBlock
+            {
+                Trigger = ConvertCondition(parsedBlock.Condition),
+                ApplyAction = BuildApplyAction(parsedBlock.Commands, rng, validateDctFixes),
+                Description = blockDesc,
+                NaturalDescription = blockMsg,
+                IsWaitBlock = isWait,
+                WaitRemainingSeconds = waitTime?.Seconds ?? 0,
+                WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
+            };
+
+            foreach (var cmd in parsedBlock.Commands)
+            {
+                commandBlock.Commands.Add(new TrackedCommand { Type = CommandDescriber.ClassifyCommand(cmd) });
+            }
+
+            aircraft.Queue.Blocks.Add(commandBlock);
+            messages.Add(blockMsg);
+        }
+
+        return messages;
     }
 
     /// <summary>

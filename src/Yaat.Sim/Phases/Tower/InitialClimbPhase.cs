@@ -11,9 +11,13 @@ namespace Yaat.Sim.Phases.Tower;
 public sealed class InitialClimbPhase : Phase
 {
     private const double DefaultSelfClearAgl = 1500.0;
+    private const double HeadingToleranceDeg = 1.0;
 
     private double _fieldElevation;
     private double _targetAltitude;
+    private double? _departureHeading;
+    private double? _phaseCompletionAltitude;
+    private double _selfClearAltitude;
 
     public override string Name => "InitialClimb";
 
@@ -38,7 +42,10 @@ public sealed class InitialClimbPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
+        _selfClearAltitude = _fieldElevation + DefaultSelfClearAgl;
         _targetAltitude = ResolveTargetAltitude(ctx);
+        _departureHeading = ResolveDepartureHeading(ctx);
+        _phaseCompletionAltitude = AssignedAltitude.HasValue ? (double)AssignedAltitude.Value : null;
 
         ctx.Targets.TargetAltitude = _targetAltitude;
         ctx.Targets.DesiredVerticalRate = null;
@@ -84,13 +91,25 @@ public sealed class InitialClimbPhase : Phase
             ctx.Targets.TargetSpeed = appropriateSpeed;
         }
 
-        bool complete = ctx.Aircraft.Altitude >= _targetAltitude;
+        bool headingDone =
+            _departureHeading is null || Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - _departureHeading.Value)) < HeadingToleranceDeg;
+
+        bool altitudeDone = _phaseCompletionAltitude is null || ctx.Aircraft.Altitude >= _phaseCompletionAltitude.Value;
+
+        // If heading or altitude was explicitly specified, complete when those are met.
+        // Otherwise fall back to self-clear at 1500 AGL.
+        bool complete =
+            (_departureHeading is not null || _phaseCompletionAltitude is not null)
+                ? (headingDone && altitudeDone)
+                : ctx.Aircraft.Altitude >= _selfClearAltitude;
+
         if (complete)
         {
             ctx.Logger.LogDebug(
-                "[InitialClimb] {Callsign}: reached target alt {Alt:F0}ft, IAS={Ias:F0}kts",
+                "[InitialClimb] {Callsign}: phase complete (hdg={Hdg}, alt={Alt:F0}ft, IAS={Ias:F0}kts)",
                 ctx.Aircraft.Callsign,
-                _targetAltitude,
+                _departureHeading?.ToString("F0") ?? "n/a",
+                ctx.Aircraft.Altitude,
                 ctx.Aircraft.IndicatedAirspeed
             );
         }
@@ -102,6 +121,19 @@ public sealed class InitialClimbPhase : Phase
     {
         // All standard RPO commands exit the phase
         return CommandAcceptance.ClearsPhase;
+    }
+
+    private double? ResolveDepartureHeading(PhaseContext ctx)
+    {
+        double runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        return Departure switch
+        {
+            RelativeTurnDeparture rel => rel.Direction == TurnDirection.Right
+                ? FlightPhysics.NormalizeHeadingInt(runwayHeading + rel.Degrees)
+                : FlightPhysics.NormalizeHeadingInt(runwayHeading - rel.Degrees),
+            FlyHeadingDeparture fh => fh.Heading,
+            _ => null,
+        };
     }
 
     private double ResolveTargetAltitude(PhaseContext ctx)
