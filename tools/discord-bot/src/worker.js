@@ -328,7 +328,11 @@ async function handleIssueEvent(payload, env) {
     }
   } else if (action === "closed") {
     const emoji = issue.state_reason === "not_planned" ? "🚫" : "✅";
-    await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId, emoji);
+    await env.THREAD_ISSUES.put(
+      `pending-archive:${threadId}`,
+      JSON.stringify({ emoji }),
+      { expirationTtl: 600 },
+    );
   } else if (action === "reopened") {
     await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
   }
@@ -353,6 +357,14 @@ async function handleIssueCommentEvent(payload, env) {
 
   const message = `💬 **${author}** commented on ${issueLink} (${commentLink}):\n\n${shortBody}`;
   await postToDiscordThread(env.DISCORD_BOT_TOKEN, threadId, message);
+
+  // If the issue was just closed, the archive was deferred so this comment could be posted first.
+  // Now that the comment is visible, trigger the archive.
+  const pendingArchive = await env.THREAD_ISSUES.get(`pending-archive:${threadId}`, { type: "json" });
+  if (pendingArchive) {
+    await env.THREAD_ISSUES.delete(`pending-archive:${threadId}`);
+    await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId, pendingArchive.emoji);
+  }
 }
 
 async function findThreadForIssue(env, issueNumber) {
@@ -647,6 +659,22 @@ async function syncAllThreads(env) {
 
   for (const key of keys.keys) {
     if (key.name.startsWith("issue:")) continue;
+
+    // Sweep deferred archives from closes without a closing comment
+    if (key.name.startsWith("pending-archive:")) {
+      const threadId = key.name.slice("pending-archive:".length);
+      try {
+        const data = await env.THREAD_ISSUES.get(key.name, { type: "json" });
+        if (data) {
+          await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId, data.emoji);
+          await env.THREAD_ISSUES.delete(key.name);
+        }
+      } catch (err) {
+        console.error(`Failed to sweep pending archive for ${threadId}:`, err);
+      }
+      continue;
+    }
+
     try {
       const mapping = await env.THREAD_ISSUES.get(key.name, { type: "json" });
       if (!mapping) continue;
