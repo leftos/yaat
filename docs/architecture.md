@@ -106,7 +106,8 @@ AircraftState.cs               # Mutable entity: position, flight plan, identity
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
                                # NavigationTarget: optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
                                # TargetMach: when set, UpdateSpeed recomputes equivalent IAS each tick (Mach hold)
-FlightPhysics.cs               # Static 6-step Update: navigation→heading→altitude→speed→position→queue
+FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue
+                               # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
                                # 14 CFR 91.117: 250 KIAS cap below 10,000 ft in UpdateSpeed() and ApplyFixConstraints()
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
                                # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
@@ -204,7 +205,7 @@ STurnPhase.cs                  # S-turn phase: alternating 30° deviations from 
 VfrHoldPhase.cs                # VFR hold: orbit at current position (HPP) or navigate-then-orbit at fix (HFIX)
 
 # Phases/Approach/
-ApproachNavigationPhase.cs     # Navigate through CIFP fix sequence (IAF→IF→FAF) with alt/speed restrictions
+ApproachNavigationPhase.cs     # Navigate through CIFP fix sequence (IAF→IF→FAF) with alt/speed restrictions + next-fix speed look-ahead
 InterceptCoursePhase.cs        # Fly current heading until intercepting final approach course
 HoldingPatternPhase.cs         # AIM 5-3-8 holding with entry determination; MaxCircuits for hold-in-lieu
 ApproachClearance.cs           # Record on PhaseList storing active approach state + pre-built MAP fixes

@@ -38,6 +38,7 @@ public static class FlightPhysics
         UpdateNavigation(aircraft, weather);
         UpdateDescentPlanning(aircraft, cat);
         UpdateClimbPlanning(aircraft, cat);
+        UpdateSpeedPlanning(aircraft, cat);
         UpdateHeading(aircraft, cat, deltaSeconds);
         UpdateAltitude(aircraft, cat, deltaSeconds);
         UpdateSpeed(aircraft, cat, deltaSeconds);
@@ -371,6 +372,89 @@ public static class FlightPhysics
             }
 
             break; // Step climb: only target the next constraint
+        }
+    }
+
+    /// <summary>
+    /// Speed look-ahead planning for procedure fixes. Scans the navigation route for the
+    /// first fix with a speed restriction, computes time-to-fix vs acceleration/deceleration
+    /// time, and sets TargetSpeed proactively so the aircraft meets the constraint at the fix
+    /// rather than reacting after sequencing past it.
+    /// </summary>
+    private static void UpdateSpeedPlanning(AircraftState aircraft, AircraftCategory cat)
+    {
+        if (aircraft.IsOnGround || aircraft.GroundSpeed <= 0)
+        {
+            return;
+        }
+
+        // Don't override controller-issued speed commands or Mach hold
+        if (aircraft.Targets.HasExplicitSpeedCommand || aircraft.SpeedRestrictionsDeleted || (aircraft.Targets.TargetMach is not null))
+        {
+            return;
+        }
+
+        var route = aircraft.Targets.NavigationRoute;
+        if (route.Count == 0)
+        {
+            return;
+        }
+
+        bool speedLimitWaived = AircraftPerformance.IsSpeedLimitWaived(aircraft.AircraftType);
+        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, route[0].Latitude, route[0].Longitude);
+
+        for (int i = 0; i < route.Count; i++)
+        {
+            if (i > 0)
+            {
+                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Latitude, route[i - 1].Longitude, route[i].Latitude, route[i].Longitude);
+            }
+
+            if (route[i].SpeedRestriction is not { } restriction)
+            {
+                continue;
+            }
+
+            double constraintSpeed = restriction.SpeedKts;
+
+            // 14 CFR 91.117: cap at 250 KIAS below 10,000 ft MSL
+            if (aircraft.Altitude < 10_000 && !speedLimitWaived)
+            {
+                constraintSpeed = Math.Min(constraintSpeed, 250);
+            }
+
+            // Clamp to active floor/ceiling
+            if (aircraft.Targets.SpeedFloor is { } floor)
+            {
+                constraintSpeed = Math.Max(constraintSpeed, floor);
+            }
+
+            if (aircraft.Targets.SpeedCeiling is { } ceiling)
+            {
+                constraintSpeed = Math.Min(constraintSpeed, ceiling);
+            }
+
+            double speedDelta = Math.Abs(aircraft.IndicatedAirspeed - constraintSpeed);
+            if (speedDelta < SpeedSnapKts)
+            {
+                break; // Already at constraint speed
+            }
+
+            bool needsDecel = aircraft.IndicatedAirspeed > constraintSpeed;
+            double rate = needsDecel
+                ? AircraftPerformance.DecelRate(aircraft.AircraftType, cat)
+                : AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
+
+            double changeTimeSeconds = speedDelta / rate;
+            double timeToFixSeconds = cumulativeDistNm / (aircraft.GroundSpeed / 3600.0);
+
+            // Start speed change with 10% margin to ensure constraint is met at the fix
+            if (timeToFixSeconds <= changeTimeSeconds * 1.1)
+            {
+                aircraft.Targets.TargetSpeed = constraintSpeed;
+            }
+
+            break; // Step planning: only target the first speed-constrained fix
         }
     }
 
