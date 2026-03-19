@@ -13,6 +13,32 @@ const commands = [
     type: 1,
   },
   {
+    name: "track-issue",
+    description: "Create a Discord thread to track an existing GitHub bug issue",
+    type: 1,
+    options: [
+      {
+        name: "issue_number",
+        description: "The GitHub issue number to track",
+        type: 4, // INTEGER
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "track-feature-request",
+    description: "Create a Discord thread to track an existing GitHub feature request",
+    type: 1,
+    options: [
+      {
+        name: "issue_number",
+        description: "The GitHub issue number to track",
+        type: 4, // INTEGER
+        required: true,
+      },
+    ],
+  },
+  {
     name: "recreate-issue",
     description: "Re-fetch thread, reupload attachments, and replace the linked GitHub issue body",
     type: 1,

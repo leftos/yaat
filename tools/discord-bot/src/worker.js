@@ -14,6 +14,12 @@ const MEMBER_ROLE_ID = "1479929042429018192";
 // R2 public URL for uploaded attachments
 const R2_PUBLIC_URL = "https://pub-1f460757f70f46d8b557747a4d0ffe0d.r2.dev";
 
+// Forum channel IDs for tracking GitHub issues as Discord threads
+const TRACKING_FORUMS = {
+  "track-issue": "1479888529222795355",
+  "track-feature-request": "1479890009153605724",
+};
+
 // Validation channel ID → ARTCC code (from discord-scenario-validation.yml)
 const VALIDATION_CHANNELS = {
   "1481824000479854756": "ZAB",
@@ -154,6 +160,27 @@ async function handleDiscordInteraction(request, env, ctx) {
     const userId = interaction.member?.user?.id || interaction.user?.id;
     if (userId !== env.DISCORD_ALLOWED_USER_ID) {
       return ephemeral("You don't have permission to use this command.");
+    }
+
+    // track-issue / track-feature-request: create a Discord thread from an existing GitHub issue
+    if (TRACKING_FORUMS[commandName]) {
+      const issueNumber = interaction.data.options?.find((o) => o.name === "issue_number")?.value;
+      if (!issueNumber) {
+        return ephemeral("You must provide an issue number.");
+      }
+
+      ctx.waitUntil(
+        processTrackCommand({
+          commandName,
+          issueNumber,
+          guildId: interaction.guild_id,
+          token: interaction.token,
+          appId: interaction.application_id,
+          env,
+        }).catch((err) => console.error("Track command processing failed:", err)),
+      );
+
+      return jsonResponse({ type: DEFERRED_CHANNEL_MESSAGE, data: { flags: 64 } });
     }
 
     const channel = interaction.channel;
@@ -650,6 +677,103 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
   }
 }
 
+// --- Track command: create Discord thread from existing GitHub issue ---
+
+async function processTrackCommand({ commandName, issueNumber, guildId, token, appId, env }) {
+  try {
+    // Check if this issue is already linked to a thread
+    const existingThreadId = await findThreadForIssue(env, issueNumber);
+    if (existingThreadId) {
+      const threadUrl = `https://discord.com/channels/${guildId}/${existingThreadId}`;
+      await editOriginalResponse(appId, token, {
+        content: `Issue #${issueNumber} is already linked to a thread: ${threadUrl}`,
+      });
+      return;
+    }
+
+    const githubToken = await getGitHubToken(env);
+    const issue = await fetchGitHubIssue(githubToken, env.GITHUB_REPO, issueNumber);
+
+    const forumChannelId = TRACKING_FORUMS[commandName];
+
+    // Resolve GitHub labels → forum tags
+    const forumChannel = await discordApi(`/channels/${forumChannelId}`, env.DISCORD_BOT_TOKEN);
+    const appliedTags = [];
+    if (forumChannel.available_tags?.length) {
+      if (issue.labels?.length) {
+        const tagMap = new Map(forumChannel.available_tags.map((t) => [t.name.toLowerCase(), t.id]));
+        for (const label of issue.labels) {
+          const labelName = (typeof label === "string" ? label : label.name).toLowerCase();
+          const tagId = tagMap.get(labelName);
+          if (tagId) appliedTags.push(tagId);
+        }
+      }
+      // Forum requires at least one tag — fall back to the first available tag
+      if (appliedTags.length === 0) {
+        appliedTags.push(forumChannel.available_tags[0].id);
+      }
+    }
+
+    // Truncate issue body for the first message (Discord limit: 2000 chars)
+    const issueLink = `[#${issueNumber}](${issue.html_url})`;
+    let firstMessageContent = `> Tracking GitHub issue ${issueLink}\n\n${issue.body || "*No description provided.*"}`;
+    if (firstMessageContent.length > 2000) {
+      firstMessageContent = firstMessageContent.slice(0, 1997) + "…";
+    }
+
+    // Create forum thread
+    const threadPayload = {
+      name: issue.title,
+      message: { content: firstMessageContent },
+      applied_tags: appliedTags,
+    };
+
+    const thread = await discordPost(
+      `/channels/${forumChannelId}/threads`,
+      env.DISCORD_BOT_TOKEN,
+      threadPayload,
+    );
+
+    // Store both KV mappings
+    const mapping = {
+      issueNumber: issue.number,
+      issueUrl: issue.html_url,
+      guildId,
+      lastSyncedMessageId: thread.id,
+    };
+    await env.THREAD_ISSUES.put(thread.id, JSON.stringify(mapping));
+    await env.THREAD_ISSUES.put(`issue:${issue.number}`, thread.id);
+
+    // Post existing GitHub comments into the thread
+    const comments = await fetchGitHubComments(githubToken, env.GITHUB_REPO, issueNumber);
+    for (const comment of comments) {
+      const author = comment.user?.login || "Unknown";
+      const commentLink = `[comment](${comment.html_url})`;
+      const shortBody =
+        comment.body?.length > 1800 ? comment.body.slice(0, 1800) + "…" : (comment.body || "");
+      const msg = `💬 **${author}** commented on ${issueLink} (${commentLink}):\n\n${shortBody}`;
+      await postToDiscordThread(env.DISCORD_BOT_TOKEN, thread.id, msg);
+    }
+
+    // If the issue is already closed, mark the thread accordingly
+    if (issue.state === "closed") {
+      const emoji = issue.state_reason === "not_planned" ? "🚫" : "✅";
+      await markThreadResolved(env.DISCORD_BOT_TOKEN, thread.id, emoji);
+    }
+
+    const threadUrl = `https://discord.com/channels/${guildId}/${thread.id}`;
+    const commentNote = comments.length > 0 ? ` (synced ${comments.length} comment(s))` : "";
+    await editOriginalResponse(appId, token, {
+      content: `Created thread for issue #${issueNumber}: ${threadUrl}${commentNote}`,
+    });
+  } catch (err) {
+    console.error("Error processing track command:", err);
+    await editOriginalResponse(appId, token, {
+      content: `Failed to track issue: ${err.message}`,
+    });
+  }
+}
+
 // --- Sync logic ---
 
 async function syncAllThreads(env) {
@@ -799,6 +923,22 @@ async function discordApi(path, botToken) {
   return res.json();
 }
 
+async function discordPost(path, botToken, body) {
+  const res = await fetch(`https://discord.com/api/v10${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bot ${botToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Discord POST ${path} failed (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
 async function discordPatch(path, botToken, body) {
   const res = await fetch(`https://discord.com/api/v10${path}`, {
     method: "PATCH",
@@ -812,6 +952,45 @@ async function discordPatch(path, botToken, body) {
     const text = await res.text();
     console.error(`Discord PATCH ${path} failed (${res.status}): ${text}`);
   }
+}
+
+async function fetchGitHubIssue(token, repo, issueNumber) {
+  const res = await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "User-Agent": "yaat-discord-bot",
+      Accept: "application/vnd.github.v3+json",
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GitHub issue #${issueNumber} not found (${res.status}): ${text}`);
+  }
+  return res.json();
+}
+
+async function fetchGitHubComments(token, repo, issueNumber) {
+  const comments = [];
+  let page = 1;
+  while (true) {
+    const res = await fetch(
+      `https://api.github.com/repos/${repo}/issues/${issueNumber}/comments?per_page=100&page=${page}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "User-Agent": "yaat-discord-bot",
+          Accept: "application/vnd.github.v3+json",
+        },
+      },
+    );
+    if (!res.ok) break;
+    const batch = await res.json();
+    if (batch.length === 0) break;
+    comments.push(...batch);
+    if (batch.length < 100) break;
+    page++;
+  }
+  return comments;
 }
 
 async function createGitHubIssue(token, repo, { title, body, labels }) {
