@@ -88,6 +88,36 @@ public class FixSuggesterTests
         Assert.Contains("OAK", fixes);
     }
 
+    [Fact]
+    public void CollectRouteFixNames_NavigationRoute_IncludedInRouteOrder()
+    {
+        var aircraft = new AircraftModel
+        {
+            Departure = "OAK",
+            Destination = "LAX",
+            NavigationRoute = "BDEGA > CORKK > BRIXX",
+        };
+
+        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+
+        Assert.Equal(["BDEGA", "CORKK", "BRIXX", "OAK", "LAX"], fixes);
+    }
+
+    [Fact]
+    public void CollectRouteFixNames_NavigationRoute_DedupedWithDeparture()
+    {
+        var aircraft = new AircraftModel
+        {
+            Departure = "OAK",
+            Destination = "LAX",
+            NavigationRoute = "OAK > BDEGA > CORKK",
+        };
+
+        var fixes = FixSuggester.CollectRouteFixNames(aircraft);
+
+        Assert.Equal(["OAK", "BDEGA", "CORKK", "LAX"], fixes);
+    }
+
     // -------------------------------------------------------------------------
     // TryAddFixSuggestions
     // -------------------------------------------------------------------------

@@ -154,18 +154,26 @@ internal static class FixSuggester
         }
     }
 
-    internal static SortedSet<string> CollectRouteFixNames(AircraftModel aircraft)
+    internal static List<string> CollectRouteFixNames(AircraftModel aircraft)
     {
-        var fixes = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var fixes = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (!string.IsNullOrWhiteSpace(aircraft.Departure))
+        void TryAdd(string fix)
         {
-            fixes.Add(aircraft.Departure);
+            if (seen.Add(fix))
+            {
+                fixes.Add(fix);
+            }
         }
 
-        if (!string.IsNullOrWhiteSpace(aircraft.Destination))
+        if (!string.IsNullOrWhiteSpace(aircraft.NavigationRoute))
         {
-            fixes.Add(aircraft.Destination);
+            var navFixes = aircraft.NavigationRoute.Split(" > ", StringSplitOptions.RemoveEmptyEntries);
+            foreach (var fix in navFixes)
+            {
+                TryAdd(fix);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(aircraft.Route))
@@ -173,8 +181,18 @@ internal static class FixSuggester
             var expanded = NavigationDatabase.Instance.ExpandRoute(aircraft.Route);
             foreach (var fix in expanded)
             {
-                fixes.Add(fix);
+                TryAdd(fix);
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(aircraft.Departure))
+        {
+            TryAdd(aircraft.Departure);
+        }
+
+        if (!string.IsNullOrWhiteSpace(aircraft.Destination))
+        {
+            TryAdd(aircraft.Destination);
         }
 
         return fixes;
