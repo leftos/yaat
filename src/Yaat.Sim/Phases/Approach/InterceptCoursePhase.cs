@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 
@@ -12,7 +13,7 @@ namespace Yaat.Sim.Phases.Approach;
 /// is too far off to capture, the phase clears the approach and notifies the RPO.
 /// Also times out after <see cref="MaxElapsedSeconds"/> as a safety net.
 /// </summary>
-public sealed class InterceptCoursePhase : Phase
+public sealed partial class InterceptCoursePhase : Phase
 {
     private const double CrossTrackThresholdNm = 0.15;
     private const double HeadingAlignmentDeg = 15.0;
@@ -20,6 +21,7 @@ public sealed class InterceptCoursePhase : Phase
     private const double MaxElapsedSeconds = 180.0;
 
     private double? _previousSignedCrossTrack;
+    private double? _runwayHeadingCache;
 
     /// <summary>Final approach course heading (true).</summary>
     public required double FinalApproachCourse { get; init; }
@@ -75,16 +77,25 @@ public sealed class InterceptCoursePhase : Phase
             return true;
         }
 
-        // Bust-through: cross-track sign flipped but heading too far off to capture
+        // Bust-through: cross-track sign flipped but heading too far off to capture.
+        // Use the smaller of the diff from FAC vs runway-number heading, since controllers
+        // assign intercept headings based on the runway number (e.g. 120° for rwy 12)
+        // which can differ from the actual FAC (e.g. 130°) by up to ~10°.
+        double rwyHdg = GetRunwayHeading();
+        double runwayHeadingDiff = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - rwyHdg));
+        double effectiveHeadingDiff = Math.Min(headingDiff, runwayHeadingDiff);
+
         if (_previousSignedCrossTrack is { } prev)
         {
             bool signFlipped = (prev > 0 && signedCrossTrack < 0) || (prev < 0 && signedCrossTrack > 0);
-            if (signFlipped && (headingDiff >= BustThroughAlignmentDeg))
+            if (signFlipped && (effectiveHeadingDiff >= BustThroughAlignmentDeg))
             {
                 ctx.Logger.LogInformation(
-                    "[InterceptCourse] {Callsign}: bust-through detected — hdgDiff={HD:F1}°, crossTrack flipped {Prev:F3}→{Now:F3}",
+                    "[InterceptCourse] {Callsign}: bust-through detected — hdgDiff={HD:F1}° (fac={FacDiff:F1}°, rwy={RwyDiff:F1}°), crossTrack flipped {Prev:F3}→{Now:F3}",
                     ctx.Aircraft.Callsign,
+                    effectiveHeadingDiff,
                     headingDiff,
+                    runwayHeadingDiff,
                     prev,
                     signedCrossTrack
                 );
@@ -109,6 +120,36 @@ public sealed class InterceptCoursePhase : Phase
 
         return false;
     }
+
+    /// <summary>
+    /// Derives the runway-number heading from the <see cref="ApproachId"/>.
+    /// E.g. "I12" → 120°, "ILS28R" → 280°, "L04L" → 40°.
+    /// Falls back to <see cref="FinalApproachCourse"/> if the designator can't be parsed.
+    /// </summary>
+    private double GetRunwayHeading()
+    {
+        if (_runwayHeadingCache is { } cached)
+        {
+            return cached;
+        }
+
+        double result = FinalApproachCourse;
+
+        if (ApproachId is not null)
+        {
+            var match = RunwayDesignatorRegex().Match(ApproachId);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int rwyNum) && (rwyNum >= 1) && (rwyNum <= 36))
+            {
+                result = rwyNum * 10.0;
+            }
+        }
+
+        _runwayHeadingCache = result;
+        return result;
+    }
+
+    [GeneratedRegex(@"(\d{1,2})[LRC]?$")]
+    private static partial Regex RunwayDesignatorRegex();
 
     private void HandleBustThrough(PhaseContext ctx)
     {
