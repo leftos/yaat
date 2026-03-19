@@ -654,23 +654,34 @@ async function processCommand({ threadId, guildId, commandName, token, appId, en
 
 async function syncAllThreads(env) {
   const keys = await env.THREAD_ISSUES.list();
+
+  // Sweep deferred archives first — these are time-sensitive and cheap (1 Discord PATCH + 1 KV delete each).
+  // KV keys are lexicographically ordered, so pending-archive:* keys sort after numeric thread IDs;
+  // we must not let thread syncs exhaust the subrequest budget before reaching them.
+  const pendingKeys = keys.keys.filter((k) => k.name.startsWith("pending-archive:"));
+  for (const key of pendingKeys) {
+    const threadId = key.name.slice("pending-archive:".length);
+    try {
+      await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, { archived: true });
+      await env.THREAD_ISSUES.delete(key.name);
+    } catch (err) {
+      console.error(`Failed to sweep pending archive for ${threadId}:`, err);
+    }
+  }
+
+  // Sync Discord thread replies → GitHub issue comments.
+  // Budget: Workers free plan allows 50 subrequests per invocation. Each thread sync costs
+  // at least 2 (KV get + Discord API), plus more if there are new messages to post.
+  // Reserve headroom for the pending-archive sweep above and the GitHub token fetch.
+  const SYNC_BUDGET = 20;
   let synced = 0;
   let githubToken = null;
+  let processed = 0;
 
   for (const key of keys.keys) {
-    if (key.name.startsWith("issue:")) continue;
-
-    // Sweep deferred archives from closes without a closing comment
-    if (key.name.startsWith("pending-archive:")) {
-      const threadId = key.name.slice("pending-archive:".length);
-      try {
-        await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, { archived: true });
-        await env.THREAD_ISSUES.delete(key.name);
-      } catch (err) {
-        console.error(`Failed to sweep pending archive for ${threadId}:`, err);
-      }
-      continue;
-    }
+    if (key.name.startsWith("issue:") || key.name.startsWith("pending-archive:")) continue;
+    if (processed >= SYNC_BUDGET) break;
+    processed++;
 
     try {
       if (!githubToken) githubToken = await getGitHubToken(env);
@@ -684,7 +695,7 @@ async function syncAllThreads(env) {
   }
 
   if (synced > 0) {
-    console.log(`Cron sync: posted ${synced} comment(s) across ${keys.keys.length} thread(s)`);
+    console.log(`Cron sync: posted ${synced} comment(s) across ${processed} thread(s)`);
   }
 }
 
