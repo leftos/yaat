@@ -311,6 +311,8 @@ The **Info** column shows a single contextual summary of what each aircraft is d
 
 **No-phase fallback** (white text, when no phase is active): Shows climb/descent arrows with assigned altitude if set (e.g., "↑ FL350", "↓ 5,000"), navigation route if set (e.g., "→ OAK SFO LAX"), or "On ground" / "FL350, on course" as a last resort.
 
+If the aircraft has an assigned heading, ", hdg {heading}" is always appended to the Info text (both phase-based and no-phase), e.g., "↑ FL350, hdg 270".
+
 The Info column is searchable — type status text in the search box to filter aircraft (e.g., "landing", "taxi", "holding").
 
 ### Aircraft Detail Panel

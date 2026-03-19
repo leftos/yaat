@@ -117,7 +117,7 @@
             <DataGridTemplateColumn Header="Info" Width="Auto" SortMemberPath="SmartStatus">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding SmartStatus}" Foreground="{Binding SmartStatusSeverity, Converter={x:Static vm:SmartStatusSeverityBrushConverter.Instance}}" Margin="4,0" VerticalAlignment="Center" MaxWidth="250" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding SmartStatus}" Foreground="{Binding SmartStatusSeverity, Converter={x:Static vm:SmartStatusSeverityBrushConverter.Instance}}" Margin="4,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>

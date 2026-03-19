@@ -446,6 +446,35 @@ public class SmartStatusTests
     }
 
     [Fact]
+    public void NoPhase_Level_AssignedHeading()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "";
+        ac.IsOnGround = false;
+        ac.VerticalSpeed = 0;
+        ac.NavigationRoute = "";
+        ac.NavigatingTo = "";
+        ac.Altitude = 35000;
+        ac.AssignedHeading = 270;
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("FL350, on course, hdg 270", ac.SmartStatus);
+    }
+
+    [Fact]
+    public void Phase_AssignedHeading_AppendsHeading()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "Downwind";
+        ac.PatternDirection = "Left";
+        ac.AssignedRunway = "28R";
+        ac.AssignedHeading = 90;
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Left downwind 28R, hdg 90", ac.SmartStatus);
+    }
+
+    [Fact]
     public void FormatAltitudeCompact_Below18000()
     {
         Assert.Equal("10,000", AircraftModel.FormatAltitudeCompact(10000));

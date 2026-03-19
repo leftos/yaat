@@ -656,13 +656,13 @@ public partial class AircraftModel : ObservableObject
         if (!string.IsNullOrEmpty(CurrentPhase))
         {
             var (text, severity) = ComputePhaseStatus();
-            SmartStatus = text;
+            SmartStatus = AppendHeadingIfAssigned(text);
             SmartStatusSeverity = severity;
             return;
         }
 
         var noPhase = ComputeNoPhaseStatus();
-        SmartStatus = noPhase.Text;
+        SmartStatus = AppendHeadingIfAssigned(noPhase.Text);
         SmartStatusSeverity = noPhase.Severity;
     }
 
@@ -835,6 +835,15 @@ public partial class AircraftModel : ObservableObject
         }
 
         return ("Taxiing", SmartStatusSeverity.Normal);
+    }
+
+    private string AppendHeadingIfAssigned(string text)
+    {
+        if (AssignedHeading.HasValue)
+        {
+            return $"{text}, hdg {AssignedHeadingDisplay}";
+        }
+        return text;
     }
 
     private string FormatClimbDescentStatus(string verb, string arrow)
