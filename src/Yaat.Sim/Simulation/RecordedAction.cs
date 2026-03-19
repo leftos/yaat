@@ -3,22 +3,12 @@ using System.Text.Json.Serialization;
 namespace Yaat.Sim.Simulation;
 
 [JsonDerivedType(typeof(RecordedCommand), "Command")]
-[JsonDerivedType(typeof(RecordedSpawn), "Spawn")]
-[JsonDerivedType(typeof(RecordedDelete), "Delete")]
-[JsonDerivedType(typeof(RecordedWarp), "Warp")]
 [JsonDerivedType(typeof(RecordedAmendFlightPlan), "AmendFlightPlan")]
 [JsonDerivedType(typeof(RecordedWeatherChange), "WeatherChange")]
 [JsonDerivedType(typeof(RecordedSettingChange), "SettingChange")]
 public abstract record RecordedAction(double ElapsedSeconds);
 
 public sealed record RecordedCommand(double ElapsedSeconds, string Callsign, string Command, string Initials, string ConnectionId)
-    : RecordedAction(ElapsedSeconds);
-
-public sealed record RecordedSpawn(double ElapsedSeconds, string Args) : RecordedAction(ElapsedSeconds);
-
-public sealed record RecordedDelete(double ElapsedSeconds, string Callsign) : RecordedAction(ElapsedSeconds);
-
-public sealed record RecordedWarp(double ElapsedSeconds, string Callsign, double Latitude, double Longitude, TrueHeading TrueHeading)
     : RecordedAction(ElapsedSeconds);
 
 public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment) : RecordedAction(ElapsedSeconds);

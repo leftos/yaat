@@ -9,9 +9,9 @@ The replay tape currently captures instructor/RPO commands sent through `SendCom
 | Source | Mutation | Captured? |
 |--------|----------|-----------|
 | Instructor (YAAT) | Aircraft commands (via SendCommand) | Yes — `RecordedCommand` |
-| Instructor (YAAT) | Spawn (ADD) | Yes — `RecordedSpawn` |
-| Instructor (YAAT) | Delete (DEL) | Yes — `RecordedDelete` |
-| Instructor (YAAT) | Warp | Yes — `RecordedWarp` |
+| Instructor (YAAT) | Spawn (ADD) | Yes — `RecordedCommand` |
+| Instructor (YAAT) | Delete (DEL) | Yes — `RecordedCommand` |
+| Instructor (YAAT) | Warp | Yes — `RecordedCommand` |
 | Instructor (YAAT) | Weather change | Yes — `RecordedWeatherChange` |
 | Instructor (YAAT) | Settings change | Yes — `RecordedSettingChange` |
 | Instructor (YAAT) | PAUSE/UNPAUSE/SIMRATE | Yes — `RecordedCommand` (after Phase 1.6) |

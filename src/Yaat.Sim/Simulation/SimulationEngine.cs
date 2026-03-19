@@ -843,15 +843,6 @@ public sealed class SimulationEngine
             case RecordedCommand cmd:
                 ReplayCommand(cmd);
                 break;
-            case RecordedSpawn spawn:
-                ReplaySpawn(spawn.Args);
-                break;
-            case RecordedDelete del:
-                World.RemoveAircraft(del.Callsign);
-                break;
-            case RecordedWarp warp:
-                WarpAircraft(warp.Callsign, warp.Latitude, warp.Longitude, warp.TrueHeading);
-                break;
             case RecordedAmendFlightPlan amend:
                 AmendFlightPlan(amend.Callsign, amend.Amendment);
                 break;
@@ -963,28 +954,6 @@ public sealed class SimulationEngine
 
     private static bool IsCoordinationCommand(ParsedCommand cmd) => TrackEngine.IsCoordinationCommand(cmd);
 
-    private void ReplaySpawn(string args)
-    {
-        var scenario = Scenario!;
-        var (request, _) = SpawnParser.Parse(args);
-        if (request is null)
-        {
-            return;
-        }
-
-        var existing = World.GetSnapshot();
-        var groundLayout = scenario.PrimaryAirportId is not null ? _groundData.GetLayout(scenario.PrimaryAirportId) : null;
-        var (state, _) = AircraftGenerator.Generate(request, scenario.PrimaryAirportId, existing, groundLayout, World.Rng);
-
-        if (state is null)
-        {
-            return;
-        }
-
-        state.ScenarioId = scenario.ScenarioId;
-        state.GroundLayout = groundLayout;
-        World.AddAircraft(state);
-    }
 
     private void HandleSpawnNow(string callsign)
     {
