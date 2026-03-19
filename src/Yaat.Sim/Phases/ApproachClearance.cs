@@ -28,6 +28,35 @@ public sealed class ApproachClearance
 
     /// <summary>Hold parameters for the final MAP fix (from HA/HF/HM leg), or null if no hold.</summary>
     public MissedApproachHold? MapHold { get; init; }
+
+    /// <summary>
+    /// Altitude (MSL) at the missed approach point, extracted from the MAHP leg's
+    /// altitude restriction. Represents DA for precision approaches, MDA for non-precision.
+    /// Null for visual approaches and non-CIFP cases; FinalApproachPhase falls back
+    /// to threshold elevation + 200ft when null.
+    /// </summary>
+    public int? MapAltitudeFt { get; init; }
+
+    /// <summary>
+    /// Distance (nm) from the MAHP fix to the runway threshold. Derived from the MAHP
+    /// fix position in CIFP data. Null when CIFP data is unavailable or the MAHP fix
+    /// can't be resolved; FinalApproachPhase falls back to 0.5nm.
+    /// </summary>
+    public double? MapDistanceNm { get; init; }
+
+    /// <summary>
+    /// Distance from threshold (nm) at which InterceptCoursePhase captured the localizer.
+    /// Set by InterceptCoursePhase.Capture(); used by FinalApproachPhase to record the
+    /// true intercept distance instead of the stricter establishment distance.
+    /// </summary>
+    public double? InterceptCaptureDistanceNm { get; set; }
+
+    /// <summary>
+    /// Intercept angle (degrees) at the moment InterceptCoursePhase captured the localizer.
+    /// At establishment time the aircraft is already aligned (< 15°), making the heading diff
+    /// meaningless for scoring. This records the true intercept angle.
+    /// </summary>
+    public double? InterceptCaptureAngleDeg { get; set; }
 }
 
 /// <summary>Holding pattern parameters extracted from a missed approach HA/HF/HM leg.</summary>

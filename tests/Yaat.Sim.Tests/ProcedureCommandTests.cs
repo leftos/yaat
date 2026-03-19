@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
@@ -176,6 +177,8 @@ public class ProcedureCommandTests
     [Fact]
     public void Dct_ClearsEntireProcedure()
     {
+        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixNames("SUNOL"));
+
         var aircraft = CreateAircraft();
         aircraft.ActiveSidId = "PORTE3";
         aircraft.SidViaMode = true;

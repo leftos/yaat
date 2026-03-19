@@ -30,6 +30,8 @@ public sealed class FinalApproachPhase : Phase
     private bool _noClearanceWarningIssued;
     private bool _interceptChecked;
     private bool _isPatternTraffic;
+    private bool _tooHighGoAroundChecked;
+    private double _mapDistNm;
 
     /// <summary>
     /// When true, skips the illegal intercept distance check.
@@ -52,6 +54,7 @@ public sealed class FinalApproachPhase : Phase
         _runwayHeading = ctx.Runway.TrueHeading;
         _gsAngleDeg = GlideSlopeGeometry.AngleForCategory(ctx.Category);
         _isPatternTraffic = ctx.Aircraft.Phases?.TrafficDirection is not null;
+        _mapDistNm = ctx.Aircraft.Phases?.ActiveApproach?.MapDistanceNm ?? AutoGoAroundDistNm;
 
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
@@ -129,27 +132,55 @@ public sealed class FinalApproachPhase : Phase
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation, _gsAngleDeg);
         ctx.Targets.TargetAltitude = gsAltitude;
 
-        // Descent rate: standard GS rate, scaled by deviation to converge
+        // Descent rate: geometry-based convergence when above GS, gentle recovery when below
         double standardFpm = GlideSlopeGeometry.RequiredDescentRate(ctx.Aircraft.GroundSpeed, _gsAngleDeg);
         double deviation = ctx.Aircraft.Altitude - gsAltitude;
-        // Scale: 1.0 on path, up to 1.5× when 500ft+ high, down to 0.5× when 500ft+ low
-        double scale = Math.Clamp(1.0 + deviation / 1000.0, 0.5, 1.5);
-        double fpm = standardFpm * scale;
-        double maxFpm = distNm > 2.0 ? 2500 : 1500;
+        double maxFpm = distNm > 2.0 ? Math.Max(Math.Min(2500, standardFpm * 2.0), 200) : 1500;
+
+        double fpm;
+        if (deviation > 50)
+        {
+            // Above GS: compute FPM needed to reach GS altitude at a convergence point ahead.
+            // Convergence point = min(distNm - 1.0, distNm × 0.7) nm from threshold, floored at 0.5nm.
+            double convergeDistNm = Math.Max(Math.Min(distNm - 1.0, distNm * 0.7), 0.5);
+            double convergeGsAlt = GlideSlopeGeometry.AltitudeAtDistance(convergeDistNm, _thresholdElevation, _gsAngleDeg);
+            double altToLose = ctx.Aircraft.Altitude - convergeGsAlt;
+            double distToConverge = distNm - convergeDistNm;
+
+            // Time to convergence point at current groundspeed (minutes)
+            double gs = Math.Max(ctx.Aircraft.GroundSpeed, 60);
+            double minutesToConverge = (distToConverge / gs) * 60.0;
+
+            if (minutesToConverge > 0.01)
+            {
+                fpm = altToLose / minutesToConverge;
+            }
+            else
+            {
+                fpm = maxFpm;
+            }
+        }
+        else
+        {
+            // On or below GS: gentle scaling (0.5–1.0×)
+            double scale = Math.Clamp(1.0 + deviation / 1000.0, 0.5, 1.0);
+            fpm = standardFpm * scale;
+        }
+
         ctx.Targets.DesiredVerticalRate = -Math.Clamp(fpm, 200, maxFpm);
 
         // Check landing clearance from PhaseList (set earlier by CTL command)
         bool hasLandingClearance = HasLandingClearance(ctx);
 
         // Warn at 1nm if no landing clearance (only when auto-CTL is off)
-        if (distNm <= NoClearanceWarningDistNm && !hasLandingClearance && !ctx.AutoClearedToLand && !_noClearanceWarningIssued)
+        if ((distNm <= NoClearanceWarningDistNm) && !hasLandingClearance && !ctx.AutoClearedToLand && !_noClearanceWarningIssued)
         {
             _noClearanceWarningIssued = true;
             ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance");
         }
 
-        // Auto go-around if no landing clearance by 0.5nm
-        if (distNm <= AutoGoAroundDistNm && !hasLandingClearance)
+        // Auto go-around if no landing clearance by 0.5nm from threshold
+        if ((distNm <= AutoGoAroundDistNm) && !hasLandingClearance)
         {
             _goAroundTriggered = true;
             ctx.Logger.LogDebug(
@@ -157,8 +188,28 @@ public sealed class FinalApproachPhase : Phase
                 ctx.Aircraft.Callsign,
                 distNm
             );
-            TriggerGoAround(ctx);
+            TriggerGoAround(ctx, "no landing clearance");
             return false;
+        }
+
+        // Go-around if too high at the MAP to make it down safely
+        if ((distNm <= _mapDistNm) && !_tooHighGoAroundChecked && hasLandingClearance)
+        {
+            _tooHighGoAroundChecked = true;
+            int mapAlt = ctx.Aircraft.Phases?.ActiveApproach?.MapAltitudeFt ?? (int)(_thresholdElevation + 200);
+            if (ctx.Aircraft.Altitude > mapAlt + 200)
+            {
+                _goAroundTriggered = true;
+                ctx.Logger.LogDebug(
+                    "[FinalApproach] {Callsign}: go-around triggered (too high at MAP: {Alt:F0}ft, MAP alt {MapAlt}ft, at {Dist:F2}nm)",
+                    ctx.Aircraft.Callsign,
+                    ctx.Aircraft.Altitude,
+                    mapAlt,
+                    distNm
+                );
+                TriggerGoAround(ctx, "too high at missed approach point");
+                return false;
+            }
         }
 
         // Phase complete at threshold
@@ -206,24 +257,29 @@ public sealed class FinalApproachPhase : Phase
         // Aircraft is established on the localizer — check distance
         _interceptChecked = true;
 
+        // Use the capture distance (when InterceptCoursePhase recorded it) for distance-based
+        // checks. The capture moment is when the aircraft actually turned onto the localizer;
+        // FinalApproachPhase's stricter establishment criteria fire later, closer in.
+        double captureDistNm = ctx.Aircraft.Phases?.ActiveApproach?.InterceptCaptureDistanceNm ?? distNm;
+
         // Visual approaches are not subject to 7110.65 §5-9-1 intercept rules
         bool isVisualApproach = ctx.Aircraft.Phases?.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.Ordinal) == true;
 
         double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(ctx.Runway.AirportId, ctx.Runway.Designator);
-        double interceptAngle = ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading);
 
-        bool isDistanceLegal = isVisualApproach || distNm >= minIntercept;
-        if (!isDistanceLegal && !_isPatternTraffic)
-        {
-            ctx.Aircraft.PendingWarnings.Add(
-                $"Illegal intercept: turned on final {distNm:F1}nm " + $"from threshold (min {minIntercept:F1}nm) " + "[7110.65 §5-9-1]"
-            );
-        }
+        // Use the capture angle (recorded at the actual intercept moment) when available.
+        // At establishment time the aircraft is already aligned (< 15°), making the current
+        // heading diff meaningless for scoring.
+        double interceptAngle = ctx.Aircraft.Phases?.ActiveApproach?.InterceptCaptureAngleDeg ?? ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading);
+
+        // Distance legality is checked at capture time (InterceptCoursePhase.Capture),
+        // but recorded on the score for the approach report.
+        bool isDistanceLegal = isVisualApproach || captureDistNm >= minIntercept;
 
         // TBL 5-9-1: max intercept angle depends on distance to approach gate
         // Approach gate = minIntercept - 2nm (the 2nm padding is from gate to min intercept)
         double approachGate = minIntercept - 2.0;
-        double distToGate = distNm - approachGate;
+        double distToGate = captureDistNm - approachGate;
         double maxAngle = distToGate < 2.0 ? 20.0 : 30.0;
         bool isAngleLegal = isVisualApproach || interceptAngle <= maxAngle;
 
@@ -249,7 +305,7 @@ public sealed class FinalApproachPhase : Phase
             RunwayId = ctx.Runway.Designator,
             AirportCode = airportCode,
             InterceptAngleDeg = interceptAngle,
-            InterceptDistanceNm = distNm,
+            InterceptDistanceNm = captureDistNm,
             MinInterceptDistanceNm = minIntercept,
             GlideSlopeDeviationFt = gsDeviation,
             SpeedAtInterceptKts = speedAtIntercept,
@@ -288,14 +344,14 @@ public sealed class FinalApproachPhase : Phase
                 or ClearanceType.ClearedLowApproach;
     }
 
-    private void TriggerGoAround(PhaseContext ctx)
+    private void TriggerGoAround(PhaseContext ctx, string reason)
     {
         if (ctx.Aircraft.Phases is null)
         {
             return;
         }
 
-        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is going around (no landing clearance)");
+        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is going around ({reason})");
 
         // VFR aircraft without a pattern direction default to left traffic
         if (ctx.Aircraft.IsVfr && ctx.Aircraft.Phases.TrafficDirection is null)

@@ -887,6 +887,8 @@ internal static class NavigationCommandHandler
             RunwayId = procedure.Runway,
             FinalApproachCourse = finalCourse,
             Procedure = procedure,
+            MapAltitudeFt = ApproachCommandHandler.ExtractMapAltitude(procedure),
+            MapDistanceNm = ApproachCommandHandler.ExtractMapDistance(procedure, approachRunway),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };

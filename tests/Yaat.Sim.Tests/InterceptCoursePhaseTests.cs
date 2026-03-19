@@ -340,6 +340,50 @@ public class InterceptCoursePhaseTests
     }
 
     /// <summary>
+    /// Verify that Capture() records InterceptCaptureDistanceNm on the ActiveApproach clearance.
+    /// </summary>
+    [Fact]
+    public void Capture_RecordsCaptureDistance()
+    {
+        // Aircraft heading 270 on course 280 (10° off) — will capture
+        // Place aircraft ~8nm from threshold, slightly off course
+        var reciprocal = new TrueHeading(RunwayHeading).ToReciprocal();
+        var onCourse = GeoMath.ProjectPoint(ThresholdLat, ThresholdLon, reciprocal, 8.0);
+
+        var aircraft = MakeAircraft(heading: 270, lat: onCourse.Lat, lon: onCourse.Lon);
+        aircraft.Phases = new PhaseList
+        {
+            ActiveApproach = new ApproachClearance
+            {
+                ApproachId = "I28R",
+                AirportCode = "OAK",
+                RunwayId = "28R",
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
+            },
+        };
+
+        var phase = MakePhase();
+        aircraft.Phases.Add(phase);
+        aircraft.Phases.Add(new FinalApproachPhase());
+        aircraft.Phases.Add(new LandingPhase());
+
+        var ctx = MakeContext(aircraft);
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+
+        // Should capture on first tick (already on course, heading close)
+        bool complete = phase.OnTick(ctx);
+        Assert.True(complete, "Phase should complete (capture)");
+
+        // ActiveApproach should have capture distance and angle recorded
+        Assert.NotNull(aircraft.Phases.ActiveApproach);
+        Assert.NotNull(aircraft.Phases.ActiveApproach.InterceptCaptureDistanceNm);
+        Assert.InRange(aircraft.Phases.ActiveApproach.InterceptCaptureDistanceNm!.Value, 7.0, 9.0);
+        Assert.NotNull(aircraft.Phases.ActiveApproach.InterceptCaptureAngleDeg);
+        Assert.InRange(aircraft.Phases.ActiveApproach.InterceptCaptureAngleDeg!.Value, 5.0, 15.0);
+    }
+
+    /// <summary>
     /// Verify that ApproachId appears in the bust-through notification message.
     /// </summary>
     [Fact]

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Phases.Approach;
 
@@ -234,6 +235,17 @@ public sealed partial class InterceptCoursePhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
+        // Record the capture distance for approach scoring and check intercept legality
+        // at the actual capture point (not at FinalApproachPhase's stricter establishment).
+        if (ctx.Aircraft.Phases?.ActiveApproach is { } clearance)
+        {
+            double captureDistNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, ThresholdLat, ThresholdLon);
+            clearance.InterceptCaptureDistanceNm = captureDistNm;
+            clearance.InterceptCaptureAngleDeg = aircraftHeading.AbsAngleTo(FinalApproachCourse);
+
+            CheckInterceptLegality(ctx, clearance, captureDistNm, aircraftHeading);
+        }
+
         double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
         ctx.Logger.LogDebug(
             "[InterceptCourse] {Callsign}: captured ({Reason}) — hdgDiff={HD:F1}°, crossTrack={XT:F3}nm",
@@ -243,6 +255,43 @@ public sealed partial class InterceptCoursePhase : Phase
             crossTrack
         );
         return true;
+    }
+
+    private void CheckInterceptLegality(PhaseContext ctx, ApproachClearance clearance, double captureDistNm, TrueHeading aircraftHeading)
+    {
+        // VFR and visual approaches are not subject to 7110.65 §5-9-1
+        if (ctx.Aircraft.IsVfr)
+        {
+            return;
+        }
+
+        bool isVisualApproach = clearance.ApproachId.StartsWith("VIS", StringComparison.Ordinal);
+        if (isVisualApproach)
+        {
+            return;
+        }
+
+        // Pattern traffic is not vectored — skip intercept legality
+        bool isPatternTraffic = ctx.Aircraft.Phases?.TrafficDirection is not null;
+        if (isPatternTraffic)
+        {
+            return;
+        }
+
+        var runway = ctx.Aircraft.Phases?.AssignedRunway;
+        if (runway is null)
+        {
+            return;
+        }
+
+        double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(runway.AirportId, runway.Designator);
+
+        if (captureDistNm < minIntercept)
+        {
+            ctx.Aircraft.PendingWarnings.Add(
+                $"Illegal intercept: turned on final {captureDistNm:F1}nm " + $"from threshold (min {minIntercept:F1}nm) " + "[7110.65 §5-9-1]"
+            );
+        }
     }
 
     /// <summary>

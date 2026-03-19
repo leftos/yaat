@@ -39,6 +39,8 @@ public static class ApproachCommandHandler
             Procedure = procedure,
             MissedApproachFixes = BuildMissedApproachFixes(procedure),
             MapHold = ExtractMissedApproachHold(procedure),
+            MapAltitudeFt = ExtractMapAltitude(procedure),
+            MapDistanceNm = ExtractMapDistance(procedure, approachRunway),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -151,6 +153,8 @@ public static class ApproachCommandHandler
             Procedure = procedure,
             MissedApproachFixes = BuildMissedApproachFixes(procedure),
             MapHold = ExtractMissedApproachHold(procedure),
+            MapAltitudeFt = ExtractMapAltitude(procedure),
+            MapDistanceNm = ExtractMapDistance(procedure, approachRunway),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -234,6 +238,8 @@ public static class ApproachCommandHandler
             Procedure = procedure,
             MissedApproachFixes = BuildMissedApproachFixes(procedure),
             MapHold = ExtractMissedApproachHold(procedure),
+            MapAltitudeFt = ExtractMapAltitude(procedure),
+            MapDistanceNm = ExtractMapDistance(procedure, approachRunway),
         };
 
         aircraft.Phases = new PhaseList { AssignedRunway = approachRunway, ActiveApproach = clearance };
@@ -623,6 +629,49 @@ public static class ApproachCommandHandler
         }
 
         return [.. names];
+    }
+
+    /// <summary>
+    /// Extracts the altitude at the missed approach point (DA for precision, MDA for non-precision)
+    /// from the MAHP-role leg in CommonLegs. Returns null if no MAHP with altitude found.
+    /// </summary>
+    public static int? ExtractMapAltitude(CifpApproachProcedure procedure)
+    {
+        foreach (var leg in procedure.CommonLegs)
+        {
+            if (leg.FixRole == CifpFixRole.MAHP && leg.Altitude is not null)
+            {
+                return leg.Altitude.Altitude1Ft;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Computes the distance (nm) from the MAHP fix to the runway threshold.
+    /// Returns null if no MAHP fix found or its position can't be resolved.
+    /// </summary>
+    public static double? ExtractMapDistance(CifpApproachProcedure procedure, RunwayInfo runway)
+    {
+        var navDb = NavigationDatabase.Instance;
+        foreach (var leg in procedure.CommonLegs)
+        {
+            if (leg.FixRole != CifpFixRole.MAHP || string.IsNullOrEmpty(leg.FixIdentifier))
+            {
+                continue;
+            }
+
+            var pos = navDb.GetFixPosition(leg.FixIdentifier);
+            if (pos is null)
+            {
+                continue;
+            }
+
+            return GeoMath.DistanceNm(pos.Value.Lat, pos.Value.Lon, runway.ThresholdLatitude, runway.ThresholdLongitude);
+        }
+
+        return null;
     }
 
     internal static List<ApproachFix> BuildMissedApproachFixes(CifpApproachProcedure procedure)

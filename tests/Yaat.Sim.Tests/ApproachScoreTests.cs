@@ -648,6 +648,81 @@ public class ApproachScoreTests
     }
 
     [Fact]
+    public void InterceptDistance_UsesCaptureDistance()
+    {
+        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.2);
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.ActiveApproach = new ApproachClearance
+        {
+            ApproachId = "I28R",
+            AirportCode = "OAK",
+            RunwayId = "28R",
+            FinalApproachCourse = new TrueHeading(280),
+            InterceptCaptureDistanceNm = 5.7,
+        };
+
+        var phase = new FinalApproachPhase();
+        var ctx = MakeContext(aircraft);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        var score = aircraft.PendingApproachScores[0];
+        Assert.Equal(5.7, score.InterceptDistanceNm, precision: 1);
+    }
+
+    [Fact]
+    public void InterceptDistance_FallsBackWhenNoCapture()
+    {
+        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.2);
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.ActiveApproach = new ApproachClearance
+        {
+            ApproachId = "I28R",
+            AirportCode = "OAK",
+            RunwayId = "28R",
+            FinalApproachCourse = new TrueHeading(280),
+            // No InterceptCaptureDistanceNm set
+        };
+
+        var phase = new FinalApproachPhase();
+        var ctx = MakeContext(aircraft);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        var score = aircraft.PendingApproachScores[0];
+        // Should use establishment distance (~4.2nm)
+        Assert.InRange(score.InterceptDistanceNm, 3.8, 4.6);
+    }
+
+    [Fact]
+    public void InterceptDistanceLegal_UsesCaptureDistance()
+    {
+        // Capture at 6nm (legal), establish at 4nm (would be illegal with default 7nm min)
+        var aircraft = MakeEstablishedAircraft(distFromThresholdNm: 4.0);
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.ActiveApproach = new ApproachClearance
+        {
+            ApproachId = "I28R",
+            AirportCode = "OAK",
+            RunwayId = "28R",
+            FinalApproachCourse = new TrueHeading(280),
+            InterceptCaptureDistanceNm = 8.0,
+        };
+
+        var phase = new FinalApproachPhase();
+        var ctx = MakeContext(aircraft);
+
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        var score = aircraft.PendingApproachScores[0];
+        // Capture at 8nm is well above 7nm min → legal
+        Assert.True(score.IsInterceptDistanceLegal, "Intercept should be legal using capture distance of 8nm");
+    }
+
+    [Fact]
     public void GlideSlopeGeometry_AltitudeAtDistance_CorrectValues()
     {
         // Standard 3° glideslope: ~318 ft/nm

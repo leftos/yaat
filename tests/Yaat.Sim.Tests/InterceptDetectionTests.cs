@@ -1,7 +1,7 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using Yaat.Sim.Data;
-using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
@@ -24,16 +24,25 @@ public class InterceptDetectionTests
     public void InterceptTooClose_TriggersWarning()
     {
         // Approach gate database not initialized → uses 7nm default
-        // Place aircraft 5nm from threshold on the extended centerline
-        // (5nm < 7nm default → should warn)
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 280);
+        // Place aircraft 5nm from threshold, slightly off course so InterceptCoursePhase captures.
+        // (5nm < 7nm default → should warn at capture)
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 275);
 
-        var phase = new FinalApproachPhase();
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = TestRunway.TrueHeading,
+            ThresholdLat = TestRunway.ThresholdLatitude,
+            ThresholdLon = TestRunway.ThresholdLongitude,
+            ApproachId = "I28L",
+        };
         phaseList.Add(phase);
+        phaseList.Add(new FinalApproachPhase());
+        phaseList.Add(new LandingPhase());
         var ctx = CreateContext(aircraft);
 
+        phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
-        phase.OnTick(ctx);
+        phase.OnTick(ctx); // Should capture and warn
 
         Assert.Single(aircraft.PendingWarnings);
         Assert.Contains("Illegal intercept", aircraft.PendingWarnings[0]);
@@ -44,12 +53,21 @@ public class InterceptDetectionTests
     public void InterceptFarEnough_NoWarning()
     {
         // Place aircraft 8nm from threshold (8 > 7nm default → no warning)
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 8.0, heading: 280);
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 8.0, heading: 275);
 
-        var phase = new FinalApproachPhase();
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = TestRunway.TrueHeading,
+            ThresholdLat = TestRunway.ThresholdLatitude,
+            ThresholdLon = TestRunway.ThresholdLongitude,
+            ApproachId = "I28L",
+        };
         phaseList.Add(phase);
+        phaseList.Add(new FinalApproachPhase());
+        phaseList.Add(new LandingPhase());
         var ctx = CreateContext(aircraft);
 
+        phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
@@ -60,13 +78,22 @@ public class InterceptDetectionTests
     public void PatternTraffic_ExemptFromWarning()
     {
         // Pattern traffic (TrafficDirection set) should never warn
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 3.0, heading: 280);
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 3.0, heading: 275);
         phaseList.TrafficDirection = PatternDirection.Left;
 
-        var phase = new FinalApproachPhase();
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = TestRunway.TrueHeading,
+            ThresholdLat = TestRunway.ThresholdLatitude,
+            ThresholdLon = TestRunway.ThresholdLongitude,
+            ApproachId = "I28L",
+        };
         phaseList.Add(phase);
+        phaseList.Add(new FinalApproachPhase());
+        phaseList.Add(new LandingPhase());
         var ctx = CreateContext(aircraft);
 
+        phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
@@ -76,27 +103,63 @@ public class InterceptDetectionTests
     [Fact]
     public void InterceptCheck_FiresOnlyOnce()
     {
-        // Place aircraft 5nm from threshold → triggers warning on first tick
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 280);
+        // Capture fires once → warning fires once. After capture, phase completes.
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 275);
 
-        var phase = new FinalApproachPhase();
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = TestRunway.TrueHeading,
+            ThresholdLat = TestRunway.ThresholdLatitude,
+            ThresholdLon = TestRunway.ThresholdLongitude,
+            ApproachId = "I28L",
+        };
         phaseList.Add(phase);
+        phaseList.Add(new FinalApproachPhase());
+        phaseList.Add(new LandingPhase());
         var ctx = CreateContext(aircraft);
 
+        phase.Status = PhaseStatus.Active;
         phase.OnStart(ctx);
-        phase.OnTick(ctx);
-        phase.OnTick(ctx); // Second tick should not add another warning
-        phase.OnTick(ctx); // Third tick too
+        bool complete = phase.OnTick(ctx);
 
+        // InterceptCoursePhase completes on capture — only one warning
+        Assert.True(complete);
         Assert.Single(aircraft.PendingWarnings);
     }
 
     [Fact]
-    public void AircraftNotEstablished_NoWarningUntilEstablished()
+    public void AircraftNotEstablished_NoWarningUntilCapture()
     {
         // Aircraft at 5nm but heading 45° off runway heading →
-        // not established → no warning on first tick
-        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 325); // 280 + 45 = 325
+        // not aligned → InterceptCoursePhase does not capture
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 5.0, heading: 325); // 280 + 45
+
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = TestRunway.TrueHeading,
+            ThresholdLat = TestRunway.ThresholdLatitude,
+            ThresholdLon = TestRunway.ThresholdLongitude,
+            ApproachId = "I28L",
+        };
+        phaseList.Add(phase);
+        phaseList.Add(new FinalApproachPhase());
+        phaseList.Add(new LandingPhase());
+        var ctx = CreateContext(aircraft);
+
+        phase.Status = PhaseStatus.Active;
+        phase.OnStart(ctx);
+        phase.OnTick(ctx);
+
+        // Should not warn because aircraft hasn't captured yet
+        Assert.Empty(aircraft.PendingWarnings);
+    }
+
+    [Fact]
+    public void ScoreDistanceLegal_NoWarning_WhenFarEnough()
+    {
+        // Aircraft directly on final at 8nm — no InterceptCoursePhase involved.
+        // FinalApproachPhase scores distance as legal but no warning (warnings are at capture).
+        var (aircraft, phaseList) = CreateAircraftOnFinal(distanceNm: 8.0, heading: 280);
 
         var phase = new FinalApproachPhase();
         phaseList.Add(phase);
@@ -105,8 +168,9 @@ public class InterceptDetectionTests
         phase.OnStart(ctx);
         phase.OnTick(ctx);
 
-        // Should not warn because aircraft is not aligned with runway
         Assert.Empty(aircraft.PendingWarnings);
+        Assert.NotNull(aircraft.ActiveApproachScore);
+        Assert.True(aircraft.ActiveApproachScore.IsInterceptDistanceLegal);
     }
 
     private static (AircraftState Aircraft, PhaseList PhaseList) CreateAircraftOnFinal(double distanceNm, double heading)
@@ -119,7 +183,15 @@ public class InterceptDetectionTests
             distanceNm
         );
 
-        var phaseList = new PhaseList { AssignedRunway = TestRunway };
+        var clearance = new ApproachClearance
+        {
+            ApproachId = "I28L",
+            AirportCode = "OAK",
+            RunwayId = "28L",
+            FinalApproachCourse = TestRunway.TrueHeading,
+        };
+
+        var phaseList = new PhaseList { AssignedRunway = TestRunway, ActiveApproach = clearance };
 
         var aircraft = new AircraftState
         {
@@ -145,7 +217,7 @@ public class InterceptDetectionTests
             DeltaSeconds = 1.0,
             Runway = TestRunway,
             FieldElevation = TestRunway.ElevationFt,
-            Logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance,
+            Logger = NullLogger.Instance,
         };
     }
 }
