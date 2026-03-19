@@ -108,31 +108,13 @@ public partial class RadarView
         }
 
         // Always-visible groups
-        AddTrackItems(menu, vm, callsign, initials);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(BuildTrackSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildDataBlockSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildSquawkSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
-
+        menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
         menu.Items.Add(new Separator());
-        var isMinified = _canvas?.IsMinified(callsign) ?? false;
-        menu.Items.Add(
-            CreateMenuItem(
-                isMinified ? "Full datablock" : "Mini datablock",
-                () =>
-                {
-                    _canvas?.ToggleMinifiedDataBlock(callsign);
-                    return Task.CompletedTask;
-                }
-            )
-        );
-        var isPathShown = vm.IsPathShown(callsign);
-        menu.Items.Add(
-            new MenuItem
-            {
-                Header = isPathShown ? "Hide flight path" : "Show flight path",
-                Command = new RelayCommand(() => vm.ToggleShowPath(callsign)),
-            }
-        );
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
 
         // RPO control
@@ -359,16 +341,19 @@ public partial class RadarView
         return menu;
     }
 
-    private void AddTrackItems(ContextMenu menu, RadarViewModel vm, string cs, string init)
+    private MenuItem BuildTrackSubmenu(RadarViewModel vm, string cs, string init)
     {
-        menu.Items.Add(new Separator());
+        var menu = new MenuItem { Header = "Track" };
         menu.Items.Add(CreateMenuItem("Track", () => vm.TrackAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Drop track", () => vm.DropTrackAsync(cs, init)));
+        menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("Accept handoff", () => vm.AcceptHandoffAsync(cs, init)));
         menu.Items.Add(CreateInputMenuItem("Initiate handoff...", "Position ID", input => vm.InitiateHandoffAsync(cs, init, input)));
         menu.Items.Add(CreateMenuItem("Cancel handoff", () => vm.CancelHandoffAsync(cs, init)));
+        menu.Items.Add(new Separator());
         menu.Items.Add(CreateInputMenuItem("Point out...", "Position ID", input => vm.PointOutAsync(cs, init, input)));
         menu.Items.Add(CreateMenuItem("Acknowledge pointout", () => vm.AcknowledgeAsync(cs, init)));
+        return menu;
     }
 
     private MenuItem BuildDataBlockSubmenu(RadarViewModel vm, string cs, string init)
@@ -400,6 +385,31 @@ public partial class RadarView
         menu.Items.Add(CreateMenuItem("Hold", () => vm.CoordinationHoldAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Recall", () => vm.CoordinationRecallAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Acknowledge release", () => vm.CoordinationAcknowledgeAsync(cs, init)));
+        return menu;
+    }
+
+    private MenuItem BuildDisplaySubmenu(RadarViewModel vm, string callsign)
+    {
+        var menu = new MenuItem { Header = "Display" };
+        var isMinified = _canvas?.IsMinified(callsign) ?? false;
+        menu.Items.Add(
+            CreateMenuItem(
+                isMinified ? "Full datablock" : "Mini datablock",
+                () =>
+                {
+                    _canvas?.ToggleMinifiedDataBlock(callsign);
+                    return Task.CompletedTask;
+                }
+            )
+        );
+        var isPathShown = vm.IsPathShown(callsign);
+        menu.Items.Add(
+            new MenuItem
+            {
+                Header = isPathShown ? "Hide flight path" : "Show flight path",
+                Command = new RelayCommand(() => vm.ToggleShowPath(callsign)),
+            }
+        );
         return menu;
     }
 
