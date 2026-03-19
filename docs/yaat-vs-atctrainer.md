@@ -135,6 +135,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
+| Turn left/right DCT | — | `TLDCT {fix}`, `TRDCT {fix}` | YAAT-only: direct to fix with turn direction preference |
 | Append direct to | — | `ADCT {fix}`, `ADCTF {fix}` | YAAT-only |
 | Constrained route | — | `DCTF FIX1/A080 FIX2/050` | YAAT-only: inline altitude constraints with step-based planning |
 | Join airway | `JAWY` | `JAWY` | Parity (YAAT intercepts airway segment, then follows fix sequence) |
@@ -170,6 +171,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | 45-degree & 270-degree turn departures | `CTO MR45`, `CTO ML270` | Any degree turn from runway heading |
 | On course | `CTO OC` | Direct to destination |
 | Direct to fix | `CTO DCT SUNOL` | Direct to named fix after liftoff |
+| Turn left/right DCT | `CTO TLDCT SUNOL`, `CTO TRDCT OAK` | YAAT-only: direct to fix with turn direction preference |
 | Cross-runway pattern | `CTO MRT 28R` | Pattern for different runway than takeoff |
 | Altitude suffix | `CTO 270 050` | Any modifier + altitude |
 

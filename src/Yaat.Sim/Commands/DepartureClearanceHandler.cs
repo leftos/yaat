@@ -443,6 +443,8 @@ internal static class DepartureClearanceHandler
             FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left => $", turn left heading {fh.MagneticHeading.ToDisplayInt():000}",
             FlyHeadingDeparture fh => $", fly heading {fh.MagneticHeading.ToDisplayInt():000}",
             OnCourseDeparture => ", on course",
+            DirectFixDeparture { Direction: TurnDirection.Left } dfd => $", turn left direct {dfd.FixName}",
+            DirectFixDeparture { Direction: TurnDirection.Right } dfd => $", turn right direct {dfd.FixName}",
             DirectFixDeparture dfd => $", direct {dfd.FixName}",
             ClosedTrafficDeparture ct when ct.RunwayId is not null =>
                 $", make {(ct.Direction == PatternDirection.Left ? "left" : "right")} traffic runway {ct.RunwayId}",

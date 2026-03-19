@@ -533,6 +533,8 @@ public static class CommandParser
             ForceDirectTo => ParseForceDirectTo(arg, aircraftRoute),
             AppendDirectTo => ParseAppendDirectTo(arg, aircraftRoute),
             AppendForceDirectTo => ParseAppendForceDirectTo(arg, aircraftRoute),
+            TurnLeftDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Left),
+            TurnRightDirectTo => ParseTurnDirectTo(arg, aircraftRoute, TurnDirection.Right),
             // Sim control
             Delete when arg is null => PR.Ok(new DeleteCommand()),
             Pause when arg is null => PR.Ok(new PauseCommand()),
@@ -778,6 +780,8 @@ public static class CommandParser
                 or Add
                 or DirectTo
                 or AppendDirectTo
+                or TurnLeftDirectTo
+                or TurnRightDirectTo
                 or HoldAtFixLeft
                 or HoldAtFixRight
                 or HoldAtFixHover
@@ -1135,6 +1139,57 @@ public static class CommandParser
         }
 
         return PR.Ok(new ForceDirectToCommand(resolved, skipped));
+    }
+
+    private static PR ParseTurnDirectTo(string? arg, string? aircraftRoute, TurnDirection direction)
+    {
+        var label = direction == TurnDirection.Left ? "TLDCT" : "TRDCT";
+        if (arg is null)
+        {
+            return PR.Fail($"{label} requires at least one fix name");
+        }
+
+        var fixNames = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (fixNames.Length == 0)
+        {
+            return PR.Fail($"{label} requires at least one fix name");
+        }
+
+        var navDb = NavigationDatabase.Instance;
+        var resolved = new List<ResolvedFix>();
+        var skipped = new List<string>();
+        foreach (var name in fixNames)
+        {
+            var pos = navDb.GetFixPosition(name);
+            if (pos is not null)
+            {
+                resolved.Add(new ResolvedFix(name.ToUpperInvariant(), pos.Value.Lat, pos.Value.Lon));
+                continue;
+            }
+
+            var frd = FrdResolver.Resolve(name, navDb);
+            if (frd is not null)
+            {
+                resolved.Add(new ResolvedFix(name.ToUpperInvariant(), frd.Latitude, frd.Longitude));
+                continue;
+            }
+
+            skipped.Add(name.ToUpperInvariant());
+        }
+
+        if (resolved.Count == 0)
+        {
+            return PR.Fail($"no fixes found (tried: {string.Join(", ", fixNames.Select(n => n.ToUpperInvariant()))})");
+        }
+
+        if (aircraftRoute is not null)
+        {
+            RouteChainer.AppendRouteRemainder(resolved, aircraftRoute);
+        }
+
+        return direction == TurnDirection.Left
+            ? PR.Ok(new TurnLeftDirectToCommand(resolved, skipped))
+            : PR.Ok(new TurnRightDirectToCommand(resolved, skipped));
     }
 
     private static PR ParseExpectApproach(string? arg)

@@ -65,7 +65,8 @@ public record ForceAltitudeCommand(int Altitude) : ParsedCommand;
 
 public record ForceSpeedCommand(int Speed) : ParsedCommand;
 
-public record WarpCommand(string PositionLabel, double Latitude, double Longitude, MagneticHeading MagneticHeading, int Altitude, int Speed) : ParsedCommand;
+public record WarpCommand(string PositionLabel, double Latitude, double Longitude, MagneticHeading MagneticHeading, int Altitude, int Speed)
+    : ParsedCommand;
 
 public record WarpGroundCommand(string Taxiway1, string Taxiway2, int? NodeId = null, string? ParkingName = null) : ParsedCommand;
 
@@ -96,6 +97,10 @@ public record ForceDirectToCommand(List<ResolvedFix> Fixes, List<string> Skipped
 public record AppendDirectToCommand(List<ResolvedFix> Fixes, List<string> SkippedFixes) : ParsedCommand;
 
 public record AppendForceDirectToCommand(List<ResolvedFix> Fixes, List<string> SkippedFixes) : ParsedCommand;
+
+public record TurnLeftDirectToCommand(List<ResolvedFix> Fixes, List<string> SkippedFixes) : ParsedCommand;
+
+public record TurnRightDirectToCommand(List<ResolvedFix> Fixes, List<string> SkippedFixes) : ParsedCommand;
 
 public record ExpectApproachCommand(string ApproachId, string? AirportCode) : ParsedCommand;
 
@@ -135,8 +140,8 @@ public record FlyHeadingDeparture(MagneticHeading MagneticHeading, TurnDirection
 /// <summary>On course: fly direct to destination airport.</summary>
 public record OnCourseDeparture : DepartureInstruction;
 
-/// <summary>Direct to a named fix after takeoff.</summary>
-public record DirectFixDeparture(string FixName, double Lat, double Lon) : DepartureInstruction;
+/// <summary>Direct to a named fix after takeoff, with optional turn direction preference.</summary>
+public record DirectFixDeparture(string FixName, double Lat, double Lon, TurnDirection? Direction) : DepartureInstruction;
 
 /// <summary>Closed traffic: re-enter the pattern after takeoff.</summary>
 /// <param name="Direction">Left or right traffic pattern.</param>

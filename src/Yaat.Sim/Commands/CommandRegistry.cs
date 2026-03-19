@@ -252,6 +252,22 @@ public static class CommandRegistry
                 ["ADCTF"],
                 [O(null, [R("fix", "fix name")], "Append force direct-to after current route")]
             ),
+            Cmd(
+                TurnLeftDirectTo,
+                "Turn Left Direct To",
+                "Navigation",
+                false,
+                ["TLDCT"],
+                [O(null, [R("fix", "fix name")], "Turn left, proceed direct to fix")]
+            ),
+            Cmd(
+                TurnRightDirectTo,
+                "Turn Right Direct To",
+                "Navigation",
+                false,
+                ["TRDCT"],
+                [O(null, [R("fix", "fix name")], "Turn right, proceed direct to fix")]
+            ),
         ];
 
     private static CommandDefinition[] TowerCommands() =>
@@ -273,6 +289,8 @@ public static class CommandRegistry
                     O("MLT", [L("MLT")], "Make left traffic on departure"),
                     O("MRT", [L("MRT")], "Make right traffic on departure"),
                     O("DCT", [L("DCT"), R("fix", "fix name")], "Proceed direct to fix on departure"),
+                    O("TLDCT", [L("TLDCT"), R("fix", "fix name")], "Turn left direct to fix on departure"),
+                    O("TRDCT", [L("TRDCT"), R("fix", "fix name")], "Turn right direct to fix on departure"),
                     O("MRC", [L("MRC")], "Turn right crosswind on departure"),
                     O("MRD", [L("MRD")], "Turn right downwind on departure"),
                     O("MLC", [L("MLC")], "Turn left crosswind on departure"),

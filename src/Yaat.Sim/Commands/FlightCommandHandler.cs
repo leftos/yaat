@@ -351,6 +351,52 @@ internal static class FlightCommandHandler
             : CommandDispatcher.Ok($"Proceed direct {fixNames}");
     }
 
+    internal static CommandResult ApplyTurnDirectTo(
+        List<ResolvedFix> fixes,
+        List<string> skippedFixes,
+        AircraftState aircraft,
+        bool validateDctFixes,
+        TurnDirection direction
+    )
+    {
+        if (validateDctFixes)
+        {
+            var programmed = aircraft.GetProgrammedFixes();
+            if (programmed.Count > 0)
+            {
+                var unprogrammed = fixes.Where(f => !programmed.Contains(f.Name)).ToList();
+                if (unprogrammed.Count > 0)
+                {
+                    var names = string.Join(", ", unprogrammed.Select(f => f.Name));
+                    return new CommandResult(false, $"Fix {names} not programmed — use DCTF to override");
+                }
+            }
+        }
+
+        ClearActiveProcedure(aircraft);
+        aircraft.Targets.NavigationRoute.Clear();
+        aircraft.Targets.AssignedMagneticHeading = null;
+        aircraft.Targets.PreferredTurnDirection = direction;
+        var resolved = fixes.ToList();
+        int originalCount = resolved.Count;
+        RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
+        foreach (var fix in resolved)
+        {
+            aircraft.Targets.NavigationRoute.Add(
+                new NavigationTarget
+                {
+                    Name = fix.Name,
+                    Latitude = fix.Lat,
+                    Longitude = fix.Lon,
+                }
+            );
+        }
+        var dirLabel = direction == TurnDirection.Left ? "Turn left, direct" : "Turn right, direct";
+        var fixNames = string.Join(" ", fixes.Select(f => f.Name));
+        bool routeRejoined = resolved.Count > originalCount;
+        return routeRejoined ? CommandDispatcher.Ok($"{dirLabel} {fixNames}, then filed route") : CommandDispatcher.Ok($"{dirLabel} {fixNames}");
+    }
+
     internal static CommandResult ApplyForceDirectTo(ForceDirectToCommand cmd, AircraftState aircraft)
     {
         ClearActiveProcedure(aircraft);
@@ -584,7 +630,9 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.IsOnGround = false;
-        return CommandDispatcher.Ok($"Warped to {cmd.PositionLabel}, heading {cmd.MagneticHeading.Degrees:000}, {cmd.Altitude:N0} ft, {cmd.Speed} kts");
+        return CommandDispatcher.Ok(
+            $"Warped to {cmd.PositionLabel}, heading {cmd.MagneticHeading.Degrees:000}, {cmd.Altitude:N0} ft, {cmd.Speed} kts"
+        );
     }
 
     internal static CommandResult ApplyWarpGround(WarpGroundCommand cmd, AircraftState aircraft)

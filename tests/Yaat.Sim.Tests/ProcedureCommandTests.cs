@@ -241,7 +241,9 @@ public class ProcedureCommandTests
         aircraft.StarViaMode = true;
 
         // FH 070, DM 050 — parallel block with heading + altitude
-        var compound = new CompoundCommand([new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(70)), new DescendMaintainCommand(5000)])]);
+        var compound = new CompoundCommand([
+            new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(70)), new DescendMaintainCommand(5000)]),
+        ]);
 
         CommandDispatcher.DispatchCompound(compound, aircraft, null, Random.Shared, true);
 

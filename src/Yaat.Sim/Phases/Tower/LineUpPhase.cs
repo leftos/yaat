@@ -138,6 +138,8 @@ public sealed class LineUpPhase : Phase
     {
         return cmd switch
         {
+            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.CancelTakeoffClearance => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,

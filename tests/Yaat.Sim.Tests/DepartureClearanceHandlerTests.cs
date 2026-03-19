@@ -446,7 +446,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void FormatDepartureInstructionSuffix_DirectFix()
     {
-        var dep = new DirectFixDeparture("EDDYY", 37.0, -122.0);
+        var dep = new DirectFixDeparture("EDDYY", 37.0, -122.0, null);
         Assert.Equal(", direct EDDYY", DepartureClearanceHandler.FormatDepartureInstructionSuffix(dep));
     }
 

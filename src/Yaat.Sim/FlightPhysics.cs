@@ -166,7 +166,10 @@ public static class FlightPhysics
         }
 
         aircraft.Targets.TargetTrueHeading = new TrueHeading(bearing + wca);
-        aircraft.Targets.PreferredTurnDirection = null;
+        // PreferredTurnDirection is NOT cleared here. It is cleared when the heading
+        // is reached (UpdateHeading snap) or when the route is exhausted. Clearing it
+        // every tick would stomp on direction preferences set by departure phases
+        // (e.g., TRDCT/TLDCT) before the initial turn completes.
     }
 
     /// <summary>

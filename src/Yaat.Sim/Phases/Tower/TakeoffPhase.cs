@@ -127,8 +127,12 @@ public sealed class TakeoffPhase : Phase
                 ctx.Targets.PreferredTurnDirection = fh.Direction;
                 break;
 
+            case DirectFixDeparture { Direction: not null } dfd:
+                ctx.Targets.PreferredTurnDirection = dfd.Direction;
+                break;
+
             // DefaultDeparture, RunwayHeadingDeparture, OnCourseDeparture,
-            // DirectFixDeparture, ClosedTrafficDeparture: keep runway heading.
+            // DirectFixDeparture (no direction), ClosedTrafficDeparture: keep runway heading.
             // Navigation is set up by InitialClimbPhase.
         }
     }
@@ -140,6 +144,13 @@ public sealed class TakeoffPhase : Phase
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
+        // CM/DM set an interim altitude ceiling without interrupting the takeoff phase.
+        // The altitude is stored in Targets.AssignedAltitude and picked up by InitialClimbPhase.
+        if ((cmd is CanonicalCommandType.ClimbMaintain) || (cmd is CanonicalCommandType.DescendMaintain))
+        {
+            return CommandAcceptance.Allowed;
+        }
+
         if (!_airborne)
         {
             // During ground roll, reject most commands

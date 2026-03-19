@@ -28,10 +28,20 @@ internal static class DepartureCommandParser
         var mod = tokens[0].ToUpperInvariant();
         var secondToken = tokens.Length > 1 ? tokens[1] : null;
 
-        // Special case: DCT requires a fix name (and optional altitude after)
+        // Special case: TLDCT/TRDCT/DCT require a fix name (and optional altitude after)
+        if (mod == "TLDCT")
+        {
+            return ParseCtoDct(tokens, TurnDirection.Left);
+        }
+
+        if (mod == "TRDCT")
+        {
+            return ParseCtoDct(tokens, TurnDirection.Right);
+        }
+
         if (mod == "DCT")
         {
-            return ParseCtoDct(tokens);
+            return ParseCtoDct(tokens, null);
         }
 
         // Try to parse as a named modifier (MRC, MRD, RH, OC, H270, etc.)
@@ -146,11 +156,11 @@ internal static class DepartureCommandParser
     }
 
     /// <summary>
-    /// Parses CTO DCT {fix} [altitude].
+    /// Parses CTO DCT/TLDCT/TRDCT {fix} [altitude].
     /// </summary>
-    internal static ParsedCommand ParseCtoDct(string[] tokens)
+    internal static ParsedCommand ParseCtoDct(string[] tokens, TurnDirection? direction)
     {
-        // tokens[0] = "DCT", tokens[1] = fix name, tokens[2] = optional altitude
+        // tokens[0] = "DCT"/"TLDCT"/"TRDCT", tokens[1] = fix name, tokens[2] = optional altitude
         if (tokens.Length < 2)
         {
             return new ClearedForTakeoffCommand(new DefaultDeparture());
@@ -170,7 +180,7 @@ internal static class DepartureCommandParser
         }
 
         int? alt = tokens.Length > 2 ? AltitudeResolver.Resolve(tokens[2]) : null;
-        return new ClearedForTakeoffCommand(new DirectFixDeparture(fixName, pos.Value.Lat, pos.Value.Lon), alt);
+        return new ClearedForTakeoffCommand(new DirectFixDeparture(fixName, pos.Value.Lat, pos.Value.Lon, direction), alt);
     }
 
     /// <summary>

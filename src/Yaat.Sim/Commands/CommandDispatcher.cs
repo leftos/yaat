@@ -225,6 +225,10 @@ public static class CommandDispatcher
                 return FlightCommandHandler.ApplyAppendDirectTo(cmd, aircraft, validateDctFixes);
             case AppendForceDirectToCommand cmd:
                 return FlightCommandHandler.ApplyAppendForceDirectTo(cmd, aircraft);
+            case TurnLeftDirectToCommand cmd:
+                return FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, cmd.SkippedFixes, aircraft, validateDctFixes, TurnDirection.Left);
+            case TurnRightDirectToCommand cmd:
+                return FlightCommandHandler.ApplyTurnDirectTo(cmd.Fixes, cmd.SkippedFixes, aircraft, validateDctFixes, TurnDirection.Right);
 
             // --- Warp ---
             case WarpCommand cmd:
@@ -1053,6 +1057,8 @@ public static class CommandDispatcher
                     or DirectToCommand
                     or ForceDirectToCommand
                     or ConstrainedForceDirectToCommand
+                    or TurnLeftDirectToCommand
+                    or TurnRightDirectToCommand
         );
 
         if (!hasHeadingCmd)

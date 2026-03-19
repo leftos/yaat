@@ -408,6 +408,8 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Direct to fix | `DCT SUNOL` | — | — |
+| Turn left direct to | `TLDCT SUNOL` | — | — |
+| Turn right direct to | `TRDCT OAK` | — | — |
 | Force direct to | `DCTF SJC` | — | — |
 | Append direct to | `ADCT SUNOL` | — | — |
 | Append force DCT | `ADCTF SUNOL` | — | — |
@@ -711,6 +713,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `CTO LH270` / `LT270` | Cleared for takeoff, turn left heading 270 |
 | `CTO OC` | Cleared for takeoff, on course (direct to destination) |
 | `CTO DCT SUNOL` | Cleared for takeoff, direct to fix SUNOL |
+| `CTO TLDCT SUNOL` | Cleared for takeoff, turn left direct to fix SUNOL |
+| `CTO TRDCT OAK` | Cleared for takeoff, turn right direct to fix OAK |
 | `CTO MRT` / `CTOMRT` | Cleared for takeoff, make right traffic (closed pattern) |
 | `CTO MRT 28R` | Cleared for takeoff, make right traffic runway 28R (cross-runway pattern) |
 | `CTO MLT` / `CTOMLT` | Cleared for takeoff, make left traffic (closed pattern) |
@@ -751,6 +755,8 @@ All CTO modifiers accept an optional altitude suffix using the same format as CM
 | `MR{N}` / `ML{N}` | Right/left turn of N degrees (1-359) from runway heading | VFR only |
 | `OC` | On course — navigate direct to destination airport | VFR only |
 | `DCT {fix}` | Direct to named fix | VFR only |
+| `TLDCT {fix}` | Turn left direct to named fix | VFR only |
+| `TRDCT {fix}` | Turn right direct to named fix | VFR only |
 | `MRT` / `MLT` | Make right/left closed traffic (enter pattern) | VFR only |
 | `MRT {rwy}` / `MLT {rwy}` | Cross-runway closed traffic (pattern for a different runway) | VFR only |
 
@@ -919,6 +925,8 @@ If the last fix in the list appears in the aircraft's filed route, the aircraft 
 |---------|--------|
 | `DCT SUNOL` | Direct to fix SUNOL |
 | `DCT SUNOL CEDES MYCOB` | Direct to multiple fixes in sequence |
+| `TLDCT SUNOL` | Turn left, direct to fix SUNOL |
+| `TRDCT OAK` | Turn right, direct to fix OAK |
 | `DCTF SJC` | Force direct to — bypasses route validation |
 | `DCTF FIX1/A080 FIX2/050 FIX3` | Force direct to with inline altitude constraints |
 | `ADCT SUNOL` | Append direct to — adds SUNOL to the end of the current route |

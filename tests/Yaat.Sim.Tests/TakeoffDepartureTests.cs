@@ -25,10 +25,7 @@ public class TakeoffDepartureTests
     /// runs OnStart + ticks until airborne, and returns the resulting
     /// TargetHeading and PreferredTurnDirection.
     /// </summary>
-    private static (double? TargetHeading, TurnDirection? TurnDir) RunTakeoff(
-        DepartureInstruction departure,
-        double runwayHeading = RunwayHeading
-    )
+    private static (double? TargetHeading, TurnDirection? TurnDir) RunTakeoff(DepartureInstruction departure, double runwayHeading = RunwayHeading)
     {
         var runway = MakeRunway(runwayHeading);
         var phase = new TakeoffPhase();
@@ -173,7 +170,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void DirectFixDeparture_KeepsRunwayHeading()
     {
-        var (hdg, dir) = RunTakeoff(new DirectFixDeparture("SUNOL", 37.5, -121.8));
+        var (hdg, dir) = RunTakeoff(new DirectFixDeparture("SUNOL", 37.5, -121.8, null));
         Assert.Equal(RunwayHeading, hdg);
         Assert.Null(dir);
     }
@@ -246,5 +243,246 @@ public class TakeoffDepartureTests
     {
         var phase = new TakeoffPhase();
         Assert.Equal(CommandAcceptance.ClearsPhase, phase.CanAcceptCommand(CanonicalCommandType.Delete));
+    }
+
+    // --- Bug fix: TRDCT turn direction must survive into InitialClimbPhase ---
+
+    [Fact]
+    public void DirectFixDeparture_RightTurn_AircraftTurnsRightThroughPhysicsTicks()
+    {
+        // CTO TRDCT OAK30NUM — aircraft on RWY 28R (heading 280) should turn RIGHT
+        // to reach a fix at bearing ~200. Shortest-path would go left (280→200 = -80°),
+        // but TRDCT means turn right (280→360→200 = +280°).
+        double runwayHdg = 280;
+        var runway = TestRunwayFactory.Make(designator: "28R", airportId: "KOAK", heading: runwayHdg, elevationFt: FieldElevation);
+        // Fix positioned so bearing from threshold is ~200° (south-southwest)
+        double fixLat = 37.6;
+        double fixLon = -122.3;
+
+        var departure = new DirectFixDeparture("OAK30NUM", fixLat, fixLon, TurnDirection.Right);
+        var departureRoute = new List<NavigationTarget>
+        {
+            new()
+            {
+                Name = "OAK30NUM",
+                Latitude = fixLat,
+                Longitude = fixLon,
+            },
+        };
+
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
+            TrueHeading = new TrueHeading(runwayHdg),
+            Altitude = FieldElevation + 500, // already airborne, past takeoff phase
+            IndicatedAirspeed = 90,
+            Phases = phaseList,
+        };
+        var targets = aircraft.Targets;
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        // Start InitialClimbPhase with departure route
+        var climbPhase = new InitialClimbPhase { Departure = departure, DepartureRoute = departureRoute };
+        climbPhase.OnStart(ctx);
+
+        // Verify direction was set
+        Assert.Equal(TurnDirection.Right, targets.PreferredTurnDirection);
+
+        // Run FlightPhysics ticks and verify the aircraft turns RIGHT (heading increases
+        // from 280 through 300, 350, 0, etc.) rather than LEFT (280→260→240→200).
+        double prevHeading = aircraft.TrueHeading.Degrees;
+        bool turnedRight = false;
+        bool turnedLeft = false;
+
+        for (int tick = 0; tick < 120; tick++)
+        {
+            FlightPhysics.Update(aircraft, 1.0, null, null);
+
+            double curHeading = aircraft.TrueHeading.Degrees;
+
+            // Detect turn direction: if heading went from 280→290, that's right.
+            // If heading went from 280→270, that's left.
+            // Use signed angle difference to handle wrap-around.
+            double delta = NormalizeAngle(curHeading - prevHeading);
+            if (delta > 0.5)
+            {
+                turnedRight = true;
+            }
+
+            if (delta < -0.5)
+            {
+                turnedLeft = true;
+            }
+
+            prevHeading = curHeading;
+        }
+
+        Assert.True(turnedRight, "Aircraft should have turned right at some point");
+        Assert.False(turnedLeft, "Aircraft should NOT have turned left — TRDCT means right turn");
+    }
+
+    private static double NormalizeAngle(double angle)
+    {
+        while (angle > 180)
+        {
+            angle -= 360;
+        }
+
+        while (angle < -180)
+        {
+            angle += 360;
+        }
+
+        return angle;
+    }
+
+    // --- Bug fix: CM/DM accepted during takeoff ---
+
+    [Fact]
+    public void TakeoffPhase_DuringGroundRoll_AllowsClimbMaintain()
+    {
+        var phase = new TakeoffPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
+    }
+
+    [Fact]
+    public void TakeoffPhase_DuringGroundRoll_AllowsDescendMaintain()
+    {
+        var phase = new TakeoffPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
+    }
+
+    [Fact]
+    public void TakeoffPhase_Airborne_AllowsClimbMaintain()
+    {
+        // Need to get the phase to airborne state
+        var runway = MakeRunway();
+        var phase = new TakeoffPhase();
+        phase.SetAssignedDeparture(new DefaultDeparture());
+
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "TEST001",
+            AircraftType = "B738",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
+            TrueHeading = new TrueHeading(RunwayHeading),
+            Altitude = FieldElevation,
+            Phases = phaseList,
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Jet,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnStart(ctx);
+
+        // Tick until airborne
+        for (int i = 0; i < 300; i++)
+        {
+            phase.OnTick(ctx);
+            if (!aircraft.IsOnGround)
+            {
+                break;
+            }
+        }
+
+        Assert.False(aircraft.IsOnGround, "Aircraft should be airborne");
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
+    }
+
+    // --- Bug fix: CM/DM accepted during line-up phases ---
+
+    [Fact]
+    public void LineUpPhase_AllowsClimbMaintain()
+    {
+        var phase = new LineUpPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
+    }
+
+    [Fact]
+    public void LineUpPhase_AllowsDescendMaintain()
+    {
+        var phase = new LineUpPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
+    }
+
+    [Fact]
+    public void LinedUpAndWaitingPhase_AllowsClimbMaintain()
+    {
+        var phase = new LinedUpAndWaitingPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain));
+    }
+
+    [Fact]
+    public void LinedUpAndWaitingPhase_AllowsDescendMaintain()
+    {
+        var phase = new LinedUpAndWaitingPhase();
+        Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
+    }
+
+    [Fact]
+    public void InitialClimbPhase_UsesTargetsAssignedAltitude_WhenSetDuringTakeoff()
+    {
+        // Simulates CM 014 issued during takeoff: Targets.AssignedAltitude = 1400
+        var runway = MakeRunway();
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
+            TrueHeading = new TrueHeading(RunwayHeading),
+            Altitude = FieldElevation + 400, // post-takeoff
+            Phases = phaseList,
+        };
+        var targets = aircraft.Targets;
+
+        // CM 014 was applied during takeoff — sets AssignedAltitude on targets
+        targets.AssignedAltitude = 1400;
+
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        // InitialClimbPhase with NO explicit AssignedAltitude init property
+        var climbPhase = new InitialClimbPhase
+        {
+            Departure = new DefaultDeparture(),
+            IsVfr = true,
+            CruiseAltitude = 4500,
+        };
+        climbPhase.OnStart(ctx);
+
+        // Should use targets.AssignedAltitude (1400) not VFR cruise (4500)
+        Assert.Equal(1400, targets.TargetAltitude);
     }
 }

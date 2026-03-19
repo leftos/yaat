@@ -47,6 +47,8 @@ public sealed class LinedUpAndWaitingPhase : Phase
     {
         return cmd switch
         {
+            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForTakeoff => CommandAcceptance.Allowed,
             CanonicalCommandType.CancelTakeoffClearance => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,

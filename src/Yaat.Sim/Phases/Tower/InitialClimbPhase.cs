@@ -63,6 +63,18 @@ public sealed class InitialClimbPhase : Phase
             {
                 ctx.Targets.NavigationRoute.Add(target);
             }
+
+            // For DirectFixDeparture with a turn direction (TRDCT/TLDCT), pre-set the
+            // heading toward the first nav target with the preferred direction. Without
+            // this, FlightPhysics.UpdateNavigation clears PreferredTurnDirection on its
+            // first tick, losing the controller's turn instruction.
+            if (Departure is DirectFixDeparture { Direction: not null } dfd)
+            {
+                var first = DepartureRoute[0];
+                double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, first.Latitude, first.Longitude);
+                ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
+                ctx.Targets.PreferredTurnDirection = dfd.Direction;
+            }
         }
 
         // Activate SID procedure state (via mode ON by default for departures)
@@ -91,8 +103,7 @@ public sealed class InitialClimbPhase : Phase
             ctx.Targets.TargetSpeed = appropriateSpeed;
         }
 
-        bool headingDone =
-            _departureHeading is null || ctx.Aircraft.TrueHeading.AbsAngleTo(_departureHeading.Value) < HeadingToleranceDeg;
+        bool headingDone = _departureHeading is null || ctx.Aircraft.TrueHeading.AbsAngleTo(_departureHeading.Value) < HeadingToleranceDeg;
 
         bool altitudeDone = _phaseCompletionAltitude is null || ctx.Aircraft.Altitude >= _phaseCompletionAltitude.Value;
 
@@ -138,6 +149,13 @@ public sealed class InitialClimbPhase : Phase
 
     private double ResolveTargetAltitude(PhaseContext ctx)
     {
+        // 0. Controller-assigned altitude from CM/DM issued during takeoff
+        // (stored in Targets.AssignedAltitude by FlightCommandHandler, survives TakeoffPhase)
+        if (ctx.Aircraft.Targets.AssignedAltitude is { } targetAssigned)
+        {
+            return targetAssigned;
+        }
+
         // 1. Explicit altitude from CTO command
         if (AssignedAltitude is { } assigned)
         {
