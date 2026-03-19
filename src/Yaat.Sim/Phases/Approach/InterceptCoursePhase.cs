@@ -7,11 +7,19 @@ namespace Yaat.Sim.Phases.Approach;
 /// Flies the aircraft on its current heading until it intercepts the
 /// final approach course. Completes when the aircraft is aligned with
 /// the course and within cross-track tolerance.
+///
+/// Detects bust-through: if the aircraft crosses the course but its heading
+/// is too far off to capture, the phase clears the approach and notifies the RPO.
+/// Also times out after <see cref="MaxElapsedSeconds"/> as a safety net.
 /// </summary>
 public sealed class InterceptCoursePhase : Phase
 {
     private const double CrossTrackThresholdNm = 0.15;
     private const double HeadingAlignmentDeg = 15.0;
+    private const double BustThroughAlignmentDeg = 30.0;
+    private const double MaxElapsedSeconds = 180.0;
+
+    private double? _previousSignedCrossTrack;
 
     /// <summary>Final approach course heading (true).</summary>
     public required double FinalApproachCourse { get; init; }
@@ -21,6 +29,9 @@ public sealed class InterceptCoursePhase : Phase
 
     /// <summary>Runway threshold longitude (course target point).</summary>
     public required double ThresholdLon { get; init; }
+
+    /// <summary>Approach procedure ID for notification messages.</summary>
+    public string? ApproachId { get; init; }
 
     public override string Name => "InterceptCourse";
 
@@ -38,15 +49,20 @@ public sealed class InterceptCoursePhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
-        double crossTrack = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, ThresholdLat, ThresholdLon, FinalApproachCourse)
+        double signedCrossTrack = GeoMath.SignedCrossTrackDistanceNm(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            ThresholdLat,
+            ThresholdLon,
+            FinalApproachCourse
         );
 
+        double crossTrack = Math.Abs(signedCrossTrack);
         double headingDiff = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - FinalApproachCourse));
 
-        if (crossTrack < CrossTrackThresholdNm && headingDiff < HeadingAlignmentDeg)
+        // Normal intercept: within cross-track and heading tolerances
+        if ((crossTrack < CrossTrackThresholdNm) && (headingDiff < HeadingAlignmentDeg))
         {
-            // Established — turn onto the final approach course
             ctx.Targets.TargetHeading = FinalApproachCourse;
             ctx.Targets.PreferredTurnDirection = null;
             ctx.Targets.NavigationRoute.Clear();
@@ -59,7 +75,52 @@ public sealed class InterceptCoursePhase : Phase
             return true;
         }
 
+        // Bust-through: cross-track sign flipped but heading too far off to capture
+        if (_previousSignedCrossTrack is { } prev)
+        {
+            bool signFlipped = (prev > 0 && signedCrossTrack < 0) || (prev < 0 && signedCrossTrack > 0);
+            if (signFlipped && (headingDiff >= BustThroughAlignmentDeg))
+            {
+                ctx.Logger.LogInformation(
+                    "[InterceptCourse] {Callsign}: bust-through detected — hdgDiff={HD:F1}°, crossTrack flipped {Prev:F3}→{Now:F3}",
+                    ctx.Aircraft.Callsign,
+                    headingDiff,
+                    prev,
+                    signedCrossTrack
+                );
+                HandleBustThrough(ctx);
+                return true;
+            }
+        }
+
+        _previousSignedCrossTrack = signedCrossTrack;
+
+        // Safety timeout
+        if (ElapsedSeconds >= MaxElapsedSeconds)
+        {
+            ctx.Logger.LogInformation(
+                "[InterceptCourse] {Callsign}: timeout after {Elapsed:F0}s — never captured course",
+                ctx.Aircraft.Callsign,
+                ElapsedSeconds
+            );
+            HandleBustThrough(ctx);
+            return true;
+        }
+
         return false;
+    }
+
+    private void HandleBustThrough(PhaseContext ctx)
+    {
+        string label = ApproachId ?? "approach";
+        ctx.Aircraft.PendingNotifications.Add($"Unable, passing through localizer — {label}");
+
+        // Clear remaining approach phases and approach clearance
+        ctx.Aircraft.Phases?.Clear(ctx);
+        if (ctx.Aircraft.Phases is not null)
+        {
+            ctx.Aircraft.Phases.ActiveApproach = null;
+        }
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

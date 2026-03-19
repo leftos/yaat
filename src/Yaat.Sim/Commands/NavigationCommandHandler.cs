@@ -875,6 +875,7 @@ internal static class NavigationCommandHandler
             FinalApproachCourse = finalCourse,
             ThresholdLat = approachRunway.ThresholdLatitude,
             ThresholdLon = approachRunway.ThresholdLongitude,
+            ApproachId = resolvedId,
         };
 
         var finalPhase = new FinalApproachPhase();

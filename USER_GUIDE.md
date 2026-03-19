@@ -860,6 +860,8 @@ Approach clearances use FAA CIFP procedure data. Approach IDs can be full CIFP i
 
 **Intercept angle validation:** Approach clearances validate the intercept angle per 7110.65 §5-9-2 — max 20° within 2nm of the approach gate, max 30° beyond. Use force variants (`CAPPF`/`JAPPF`) to override.
 
+**Localizer bust-through detection:** When an aircraft on a heading intercept crosses the final approach course but its heading is too far off to capture (>30°), the approach is cancelled automatically. The aircraft continues on its current heading and a terminal broadcast notifies the RPO: "Unable, passing through localizer — {approach}". A 3-minute timeout also cancels the intercept if the aircraft never crosses the course.
+
 **Hold-in-lieu:** When a procedure includes a hold-in-lieu of procedure turn (e.g., at an IAF), `JAPP` automatically executes one holding circuit before proceeding. Use `CAPPSI`/`JAPPSI` to skip it.
 
 **Expect approach:** `EAPP I28R` tells the pilot to expect the ILS 28R approach. This sets the expected approach on the aircraft state (visible in the data grid) and programs the approach fix names for display. Does not clear the aircraft for the approach.

@@ -67,6 +67,7 @@ public static class ApproachCommandHandler
                     FinalApproachCourse = finalCourse,
                     ThresholdLat = approachRunway.ThresholdLatitude,
                     ThresholdLon = approachRunway.ThresholdLongitude,
+                    ApproachId = clearance.ApproachId,
                 }
             );
             aircraft.Phases.Add(new FinalApproachPhase());
@@ -244,6 +245,7 @@ public static class ApproachCommandHandler
                 FinalApproachCourse = finalCourse,
                 ThresholdLat = approachRunway.ThresholdLatitude,
                 ThresholdLon = approachRunway.ThresholdLongitude,
+                ApproachId = clearance.ApproachId,
             }
         );
         aircraft.Phases.Add(new FinalApproachPhase());
