@@ -328,11 +328,8 @@ async function handleIssueEvent(payload, env) {
     }
   } else if (action === "closed") {
     const emoji = issue.state_reason === "not_planned" ? "🚫" : "✅";
-    await env.THREAD_ISSUES.put(
-      `pending-archive:${threadId}`,
-      JSON.stringify({ emoji }),
-      { expirationTtl: 600 },
-    );
+    await prefixThreadTitle(env.DISCORD_BOT_TOKEN, threadId, emoji);
+    await env.THREAD_ISSUES.put(`pending-archive:${threadId}`, "1", { expirationTtl: 600 });
   } else if (action === "reopened") {
     await unmarkThreadResolved(env.DISCORD_BOT_TOKEN, threadId);
   }
@@ -359,11 +356,11 @@ async function handleIssueCommentEvent(payload, env) {
   await postToDiscordThread(env.DISCORD_BOT_TOKEN, threadId, message);
 
   // If the issue was just closed, the archive was deferred so this comment could be posted first.
-  // Now that the comment is visible, trigger the archive.
-  const pendingArchive = await env.THREAD_ISSUES.get(`pending-archive:${threadId}`, { type: "json" });
+  // Title was already updated on close; now that the comment is visible, archive the thread.
+  const pendingArchive = await env.THREAD_ISSUES.get(`pending-archive:${threadId}`);
   if (pendingArchive) {
     await env.THREAD_ISSUES.delete(`pending-archive:${threadId}`);
-    await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId, pendingArchive.emoji);
+    await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, { archived: true });
   }
 }
 
@@ -403,7 +400,7 @@ async function postToDiscordThread(botToken, threadId, content) {
 // Known resolution emojis used as title prefixes
 const RESOLUTION_EMOJIS = ["✅", "🚫", "❌", "♻️"];
 
-async function markThreadResolved(botToken, threadId, emoji = "✅") {
+async function prefixThreadTitle(botToken, threadId, emoji) {
   const thread = await discordApi(`/channels/${threadId}`, botToken);
 
   // Strip any existing resolution emoji prefix before adding the new one
@@ -416,9 +413,7 @@ async function markThreadResolved(botToken, threadId, emoji = "✅") {
   }
   const newName = `${emoji} ${name}`;
   if (thread.name !== newName) {
-    await discordPatch(`/channels/${threadId}`, botToken, { name: newName, archived: true });
-  } else if (!thread.archived) {
-    await discordPatch(`/channels/${threadId}`, botToken, { archived: true });
+    await discordPatch(`/channels/${threadId}`, botToken, { name: newName });
   }
 
   // Add reaction matching the resolution type
@@ -427,6 +422,11 @@ async function markThreadResolved(botToken, threadId, emoji = "✅") {
     `https://discord.com/api/v10/channels/${threadId}/messages/${threadId}/reactions/${encodedEmoji}/@me`,
     { method: "PUT", headers: { Authorization: `Bot ${botToken}` } },
   );
+}
+
+async function markThreadResolved(botToken, threadId, emoji = "✅") {
+  await prefixThreadTitle(botToken, threadId, emoji);
+  await discordPatch(`/channels/${threadId}`, botToken, { archived: true });
 }
 
 async function unmarkThreadResolved(botToken, threadId) {
@@ -664,11 +664,8 @@ async function syncAllThreads(env) {
     if (key.name.startsWith("pending-archive:")) {
       const threadId = key.name.slice("pending-archive:".length);
       try {
-        const data = await env.THREAD_ISSUES.get(key.name, { type: "json" });
-        if (data) {
-          await markThreadResolved(env.DISCORD_BOT_TOKEN, threadId, data.emoji);
-          await env.THREAD_ISSUES.delete(key.name);
-        }
+        await discordPatch(`/channels/${threadId}`, env.DISCORD_BOT_TOKEN, { archived: true });
+        await env.THREAD_ISSUES.delete(key.name);
       } catch (err) {
         console.error(`Failed to sweep pending archive for ${threadId}:`, err);
       }
