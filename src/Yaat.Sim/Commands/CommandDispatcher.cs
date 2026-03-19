@@ -56,7 +56,7 @@ public static class CommandDispatcher
                     var remainingMessages = EnqueueBlocks(compound, 1, aircraft, rng, validateDctFixes);
                     if (remainingMessages.Count > 0)
                     {
-                        var combined = result.Message + " ; " + string.Join(" ; ", remainingMessages);
+                        var combined = result.Message + "; then " + string.Join("; then ", remainingMessages);
                         return new CommandResult(true, combined);
                     }
                 }
@@ -122,7 +122,7 @@ public static class CommandDispatcher
             // If there's a trigger, the physics tick will check and apply when met
         }
 
-        var fullMessage = string.Join(" ; ", messages);
+        var fullMessage = string.Join(" ; then ", messages);
         return new CommandResult(true, fullMessage);
     }
 
@@ -464,7 +464,7 @@ public static class CommandDispatcher
         }
 
         // Build a description of the deferred payload
-        var payloadDesc = string.Join(" ; ", payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
+        var payloadDesc = string.Join(" ; then ", payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
 
         DeferredDispatch deferred;
         string timerDesc;
