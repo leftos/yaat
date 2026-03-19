@@ -14,7 +14,7 @@ public class BankAngleTests
     {
         // 250 KIAS at 10,000ft → TAS ~291kts; 2.5°/sec → bank ~33.7°
         var ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
-        ac.Targets.TargetHeading = 180; // Right turn
+        ac.Targets.TargetTrueHeading = new TrueHeading(180); // Right turn
 
         FlightPhysics.Update(ac, 1.0);
 
@@ -28,7 +28,7 @@ public class BankAngleTests
         var ac = MakeAircraft(heading: 90, ias: 90, altitude: 2000);
         ac.AircraftType = "C172";
 
-        ac.Targets.TargetHeading = 180; // Right turn
+        ac.Targets.TargetTrueHeading = new TrueHeading(180); // Right turn
 
         FlightPhysics.Update(ac, 1.0);
 
@@ -52,7 +52,7 @@ public class BankAngleTests
     public void BankAngle_HeadingReached_Zero()
     {
         var ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
-        ac.Targets.TargetHeading = 90.1; // Almost there
+        ac.Targets.TargetTrueHeading = new TrueHeading(90.1); // Almost there
 
         FlightPhysics.Update(ac, 1.0);
 
@@ -64,7 +64,7 @@ public class BankAngleTests
     public void BankAngle_LeftTurn_NegativeBank()
     {
         var ac = MakeAircraft(heading: 180, ias: 250, altitude: 10000);
-        ac.Targets.TargetHeading = 90; // Left turn
+        ac.Targets.TargetTrueHeading = new TrueHeading(90); // Left turn
 
         FlightPhysics.Update(ac, 1.0);
 
@@ -76,7 +76,7 @@ public class BankAngleTests
     public void BankAngle_RightTurn_PositiveBank()
     {
         var ac = MakeAircraft(heading: 90, ias: 250, altitude: 10000);
-        ac.Targets.TargetHeading = 180; // Right turn
+        ac.Targets.TargetTrueHeading = new TrueHeading(180); // Right turn
 
         FlightPhysics.Update(ac, 1.0);
 
@@ -91,8 +91,8 @@ public class BankAngleTests
             AircraftType = "B738",
             Latitude = 37.721,
             Longitude = -122.221,
-            Heading = heading,
-            Track = heading,
+            TrueHeading = new TrueHeading(heading),
+            TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
         };

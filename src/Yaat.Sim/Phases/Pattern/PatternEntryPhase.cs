@@ -48,7 +48,7 @@ public sealed class PatternEntryPhase : Phase
                 Name = "PTN-ENTRY",
             }
         );
-        ctx.Targets.TargetHeading = null;
+        ctx.Targets.TargetTrueHeading = null;
         ctx.Targets.TurnRateOverride = null;
         ctx.Targets.PreferredTurnDirection = null;
 

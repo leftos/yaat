@@ -52,7 +52,7 @@ internal static class DepartureCommandParser
         if (int.TryParse(mod, out var bareNum) && bareNum >= 1 && bareNum <= 360)
         {
             int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
-            return new ClearedForTakeoffCommand(new FlyHeadingDeparture(bareNum, null), alt);
+            return new ClearedForTakeoffCommand(new FlyHeadingDeparture(new MagneticHeading(bareNum), null), alt);
         }
 
         // Unrecognized — treat as default
@@ -118,28 +118,28 @@ internal static class DepartureCommandParser
         // Fly heading: H{N}, RH{N}, LH{N}, RT{N}, LT{N}
         if (mod.StartsWith("H", StringComparison.Ordinal) && mod.Length > 1 && int.TryParse(mod[1..], out var hHdg) && hHdg >= 1 && hHdg <= 360)
         {
-            return new FlyHeadingDeparture(hHdg, null);
+            return new FlyHeadingDeparture(new MagneticHeading(hHdg), null);
         }
 
         // RH{digits} — must have digits to distinguish from bare RH (runway heading)
         if (mod.StartsWith("RH", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out var rhHdg) && rhHdg >= 1 && rhHdg <= 360)
         {
-            return new FlyHeadingDeparture(rhHdg, TurnDirection.Right);
+            return new FlyHeadingDeparture(new MagneticHeading(rhHdg), TurnDirection.Right);
         }
 
         if (mod.StartsWith("LH", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out var lhHdg) && lhHdg >= 1 && lhHdg <= 360)
         {
-            return new FlyHeadingDeparture(lhHdg, TurnDirection.Left);
+            return new FlyHeadingDeparture(new MagneticHeading(lhHdg), TurnDirection.Left);
         }
 
         if (mod.StartsWith("RT", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out var rtHdg) && rtHdg >= 1 && rtHdg <= 360)
         {
-            return new FlyHeadingDeparture(rtHdg, TurnDirection.Right);
+            return new FlyHeadingDeparture(new MagneticHeading(rtHdg), TurnDirection.Right);
         }
 
         if (mod.StartsWith("LT", StringComparison.Ordinal) && mod.Length > 2 && int.TryParse(mod[2..], out var ltHdg) && ltHdg >= 1 && ltHdg <= 360)
         {
-            return new FlyHeadingDeparture(ltHdg, TurnDirection.Left);
+            return new FlyHeadingDeparture(new MagneticHeading(ltHdg), TurnDirection.Left);
         }
 
         return null;

@@ -89,7 +89,7 @@ public class MissedApproachTests
         {
             Callsign = "N123",
             AircraftType = "B738",
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 200,
             Latitude = 37.0,
             Longitude = -122.0,
@@ -168,7 +168,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = mapFixes,
         };
@@ -193,7 +193,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = [],
         };
@@ -213,7 +213,7 @@ public class MissedApproachTests
             ApproachId = "VIS28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = MakeProcedure(),
             MissedApproachFixes = [new ApproachFix("MAPWP", 37.02, -122.08)],
         };
@@ -233,7 +233,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = null,
         };
 
@@ -280,7 +280,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = mapFixes,
         };
@@ -290,7 +290,7 @@ public class MissedApproachTests
         var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand();
+        var ga = new GoAroundCommand(null, null, null);
         var result = PatternCommandHandler.TryGoAround(ga, aircraft);
 
         Assert.True(result.Success);
@@ -315,7 +315,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = mapFixes,
         };
@@ -325,7 +325,7 @@ public class MissedApproachTests
         aircraft.Phases.Start(startCtx);
 
         // ATC override: explicit heading
-        var ga = new GoAroundCommand(AssignedHeading: 090);
+        var ga = new GoAroundCommand(new MagneticHeading(090), null, null);
         var result = PatternCommandHandler.TryGoAround(ga, aircraft);
 
         Assert.True(result.Success);
@@ -349,7 +349,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = mapFixes,
         };
@@ -358,7 +358,7 @@ public class MissedApproachTests
         var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand(TargetAltitude: 5000);
+        var ga = new GoAroundCommand(null, 5000, null);
         var result = PatternCommandHandler.TryGoAround(ga, aircraft);
 
         Assert.True(result.Success);
@@ -381,7 +381,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = mapFixes,
         };
@@ -390,7 +390,7 @@ public class MissedApproachTests
         var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand();
+        var ga = new GoAroundCommand(null, null, null);
         var result = PatternCommandHandler.TryGoAround(ga, aircraft);
 
         Assert.True(result.Success);
@@ -413,7 +413,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = mapFixes,
         };
@@ -422,7 +422,7 @@ public class MissedApproachTests
         var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand();
+        var ga = new GoAroundCommand(null, null, null);
         PatternCommandHandler.TryGoAround(ga, aircraft);
 
         var goAroundPhase = aircraft.Phases.Phases.OfType<GoAroundPhase>().FirstOrDefault();
@@ -480,7 +480,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = mapFixes,
             MapHold = mapHold,
@@ -510,7 +510,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = mapFixes,
             MapHold = null,
@@ -537,7 +537,7 @@ public class MissedApproachTests
             ApproachId = "I28",
             AirportCode = "KTEST",
             RunwayId = "28",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Procedure = procedure,
             MissedApproachFixes = mapFixes,
             MapHold = mapHold,
@@ -547,7 +547,7 @@ public class MissedApproachTests
         var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.Start(startCtx);
 
-        var ga = new GoAroundCommand();
+        var ga = new GoAroundCommand(null, null, null);
         PatternCommandHandler.TryGoAround(ga, aircraft);
 
         var phaseTypes = aircraft.Phases.Phases.Select(p => p.GetType()).ToList();

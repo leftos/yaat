@@ -33,10 +33,10 @@ public class FinalApproachLateralTests
         var rwy = TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 6);
 
         // Place aircraft: offset perpendicular to centerline at given along-track distance
-        double reciprocal = FlightPhysics.NormalizeHeading(rwy.TrueHeading + 180.0);
+        var reciprocal = rwy.TrueHeading.ToReciprocal();
         var alongPoint = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, reciprocal, alongTrackNm);
         double perpSign = patternDir == PatternDirection.Left ? -90.0 : 90.0;
-        double perpHeading = FlightPhysics.NormalizeHeading(rwy.TrueHeading + perpSign);
+        var perpHeading = rwy.TrueHeading + perpSign;
         var startPos = GeoMath.ProjectPoint(alongPoint.Lat, alongPoint.Lon, perpHeading, offsetNm);
 
         var ac = new AircraftState
@@ -45,7 +45,7 @@ public class FinalApproachLateralTests
             AircraftType = category == AircraftCategory.Piston ? "C172" : "B738",
             Latitude = startPos.Lat,
             Longitude = startPos.Lon,
-            Heading = startHeading,
+            TrueHeading = new TrueHeading(startHeading),
             Altitude = startAltitude,
             IndicatedAirspeed = startSpeed,
             IsOnGround = false,
@@ -94,7 +94,7 @@ public class FinalApproachLateralTests
             double dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, rwy.ThresholdLatitude, rwy.ThresholdLongitude);
 
             _output.WriteLine(
-                $"{tick},{ac.Latitude:F6},{ac.Longitude:F6},{ac.Heading:F1},{ac.Targets.TargetHeading:F1},{xte:F4},{dist:F3},{ac.GroundSpeed:F1}"
+                $"{tick},{ac.Latitude:F6},{ac.Longitude:F6},{ac.TrueHeading.Degrees:F1},{ac.Targets.TargetTrueHeading?.Degrees:F1},{xte:F4},{dist:F3},{ac.GroundSpeed:F1}"
             );
 
             bool done = phase.OnTick(ctx);
@@ -110,7 +110,7 @@ public class FinalApproachLateralTests
         double finalXte = Math.Abs(
             GeoMath.SignedCrossTrackDistanceNm(ac.Latitude, ac.Longitude, rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading)
         );
-        double finalHdgDiff = Math.Abs(FlightPhysics.NormalizeAngle(ac.Heading - rwy.TrueHeading));
+        double finalHdgDiff = Math.Abs(ac.TrueHeading.SignedAngleTo(rwy.TrueHeading));
 
         _output.WriteLine($"# {label}: XTE={finalXte:F4}nm, hdgDiff={finalHdgDiff:F1}°, tick={completeTick}");
         _output.WriteLine("");
@@ -133,7 +133,7 @@ public class FinalApproachLateralTests
             "VFR Pattern 1nm",
             alongTrackNm: 1.0,
             offsetNm: 0.8,
-            startHeading: waypoints.BaseHeading,
+            startHeading: waypoints.BaseHeading.Degrees,
             startAltitude: 500,
             startSpeed: 80,
             AircraftCategory.Piston,
@@ -157,7 +157,7 @@ public class FinalApproachLateralTests
             "VFR Pattern 3nm",
             alongTrackNm: 3.0,
             offsetNm: 0.8,
-            startHeading: waypoints.BaseHeading,
+            startHeading: waypoints.BaseHeading.Degrees,
             startAltitude: 1200,
             startSpeed: 80,
             AircraftCategory.Piston,
@@ -181,7 +181,7 @@ public class FinalApproachLateralTests
             "VFR Right Pattern 1nm",
             alongTrackNm: 1.0,
             offsetNm: 0.8,
-            startHeading: waypoints.BaseHeading,
+            startHeading: waypoints.BaseHeading.Degrees,
             startAltitude: 500,
             startSpeed: 80,
             AircraftCategory.Piston,

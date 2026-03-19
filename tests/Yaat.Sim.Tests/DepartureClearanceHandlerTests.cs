@@ -28,7 +28,7 @@ public class DepartureClearanceHandlerTests
             AircraftType = "B738",
             Latitude = 37.728,
             Longitude = -122.218,
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,

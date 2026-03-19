@@ -94,7 +94,7 @@ public sealed class AirTaxiPhase : Phase
                 // Still climbing — don't navigate yet, just point toward destination
                 double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
                 double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-                ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
+                ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
                 return false;
             }
         }
@@ -125,7 +125,7 @@ public sealed class AirTaxiPhase : Phase
         double brg = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
         double turnRate = AircraftPerformance.TurnRate(ctx.AircraftType, ctx.Category);
         double maxTurnAmount = turnRate * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, brg, maxTurnAmount);
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, brg, maxTurnAmount);
 
         // Maintain target altitude
         ctx.Targets.TargetAltitude = _targetAltitude;
@@ -139,7 +139,7 @@ public sealed class AirTaxiPhase : Phase
                 "[AirTaxi] {Callsign}: dist={Dist:F3}nm, hdg={Hdg:F0}, brg={Brg:F0}, alt={Alt:F0}, gs={Gs:F0}",
                 ctx.Aircraft.Callsign,
                 dist,
-                ctx.Aircraft.Heading,
+                ctx.Aircraft.TrueHeading.Degrees,
                 brg,
                 ctx.Aircraft.Altitude,
                 ctx.Aircraft.GroundSpeed

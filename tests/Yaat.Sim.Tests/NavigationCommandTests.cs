@@ -19,7 +19,7 @@ public class NavigationCommandTests
         {
             Callsign = "N123",
             AircraftType = "B738",
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             Latitude = lat,
             Longitude = lon,
@@ -39,7 +39,7 @@ public class NavigationCommandTests
         Assert.True(result.Success);
         Assert.Contains("180", result.Message);
         Assert.Contains("outbound", result.Message);
-        Assert.Equal(090, aircraft.Targets.TargetHeading);
+        Assert.Equal(090, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Single(aircraft.Queue.Blocks);
         Assert.Equal(BlockTriggerType.InterceptRadial, aircraft.Queue.Blocks[0].Trigger!.Type);
         Assert.Equal(180, aircraft.Queue.Blocks[0].Trigger!.Radial);
@@ -57,7 +57,7 @@ public class NavigationCommandTests
         var block = aircraft.Queue.Blocks[0];
         block.ApplyAction?.Invoke(aircraft);
 
-        Assert.Equal(270, aircraft.Targets.TargetHeading);
+        Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Empty(aircraft.Targets.NavigationRoute);
     }
 
@@ -73,7 +73,7 @@ public class NavigationCommandTests
 
         Assert.True(result.Success);
         Assert.Contains("inbound", result.Message);
-        Assert.Equal(270, aircraft.Targets.TargetHeading);
+        Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Single(aircraft.Queue.Blocks);
         Assert.Equal(BlockTriggerType.InterceptRadial, aircraft.Queue.Blocks[0].Trigger!.Type);
     }
@@ -101,7 +101,7 @@ public class NavigationCommandTests
     public void Depart_NavigatesToFixThenHeading()
     {
         var aircraft = MakeAircraft(heading: 090);
-        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, 270);
+        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, new MagneticHeading(270));
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
@@ -118,14 +118,14 @@ public class NavigationCommandTests
     public void Depart_TriggerBlockSetsHeading()
     {
         var aircraft = MakeAircraft(heading: 090);
-        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, 270);
+        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, new MagneticHeading(270));
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         var block = aircraft.Queue.Blocks[0];
         block.ApplyAction?.Invoke(aircraft);
 
-        Assert.Equal(270, aircraft.Targets.TargetHeading);
+        Assert.Equal(270, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Empty(aircraft.Targets.NavigationRoute);
     }
 
@@ -574,11 +574,11 @@ public class NavigationCommandTests
             Lat1 = 37.72,
             Lon1 = -122.22,
             Elevation1Ft = 6,
-            Heading1 = 280,
+            TrueHeading1 = new TrueHeading(280),
             Lat2 = 37.73,
             Lon2 = -122.25,
             Elevation2Ft = 6,
-            Heading2 = 100,
+            TrueHeading2 = new TrueHeading(100),
             LengthFt = 10000,
             WidthFt = 150,
         };
@@ -670,7 +670,7 @@ public class NavigationCommandTests
 
         Assert.Equal(["FIXA", "FIXB", "FIXC"], passedFixes);
         Assert.Empty(aircraft.Targets.NavigationRoute);
-        Assert.Null(aircraft.Targets.TargetHeading);
+        Assert.Null(aircraft.Targets.TargetTrueHeading?.Degrees);
     }
 
     // --- CFIX with AtOrBelow ---
@@ -796,7 +796,7 @@ public class NavigationCommandTests
         Assert.True(result.Success);
         Assert.Contains("V25", result.Message);
         // Should set present heading and create intercept block
-        Assert.Equal(090, aircraft.Targets.TargetHeading);
+        Assert.Equal(090, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Single(aircraft.Queue.Blocks);
         Assert.Equal(BlockTriggerType.InterceptRadial, aircraft.Queue.Blocks[0].Trigger!.Type);
 
@@ -886,7 +886,7 @@ public class NavigationCommandTests
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
-        Assert.Equal(090, aircraft.Targets.AssignedHeading);
+        Assert.Equal(090, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 
     [Fact]
@@ -900,7 +900,7 @@ public class NavigationCommandTests
         var block = aircraft.Queue.Blocks[0];
         block.ApplyAction?.Invoke(aircraft);
 
-        Assert.Equal(270, aircraft.Targets.AssignedHeading);
+        Assert.Equal(270, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 
     [Fact]
@@ -911,7 +911,7 @@ public class NavigationCommandTests
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
-        Assert.Equal(270, aircraft.Targets.AssignedHeading);
+        Assert.Equal(270, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 
     [Fact]
@@ -925,33 +925,33 @@ public class NavigationCommandTests
         var block = aircraft.Queue.Blocks[0];
         block.ApplyAction?.Invoke(aircraft);
 
-        Assert.Null(aircraft.Targets.AssignedHeading);
+        Assert.Null(aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 
     [Fact]
     public void Dfix_ClearsAssignedHeading_Immediately()
     {
         var aircraft = MakeAircraft(heading: 090);
-        aircraft.Targets.AssignedHeading = 090;
-        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, 270);
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(090);
+        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, new MagneticHeading(270));
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
-        Assert.Null(aircraft.Targets.AssignedHeading);
+        Assert.Null(aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 
     [Fact]
     public void Dfix_TriggerBlock_SetsAssignedHeading()
     {
         var aircraft = MakeAircraft(heading: 090);
-        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, 270);
+        var cmd = new DepartFixCommand("SUNOL", 37.6, -121.9, new MagneticHeading(270));
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         var block = aircraft.Queue.Blocks[0];
         block.ApplyAction?.Invoke(aircraft);
 
-        Assert.Equal(270, aircraft.Targets.AssignedHeading);
+        Assert.Equal(270, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 
     [Fact]
@@ -1024,7 +1024,7 @@ public class NavigationCommandTests
 
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
-        Assert.Equal(090, aircraft.Targets.AssignedHeading);
+        Assert.Equal(090, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 
     [Fact]
@@ -1039,7 +1039,7 @@ public class NavigationCommandTests
 
         aircraft.Queue.Blocks[0].ApplyAction!(aircraft);
 
-        Assert.Null(aircraft.Targets.AssignedHeading);
+        Assert.Null(aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 
     // ==========================================================================

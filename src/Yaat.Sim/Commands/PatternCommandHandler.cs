@@ -53,10 +53,10 @@ internal static class PatternCommandHandler
         if (entryLeg is PatternEntryLeg.Downwind or PatternEntryLeg.Base)
         {
             // Crosswind heading points toward the pattern side
-            double crosswindHdg =
+            TrueHeading crosswindHdg =
                 direction == PatternDirection.Right
-                    ? FlightPhysics.NormalizeHeading(runway.TrueHeading + 90.0)
-                    : FlightPhysics.NormalizeHeading(runway.TrueHeading - 90.0);
+                    ? runway.TrueHeading + 90.0
+                    : runway.TrueHeading - 90.0;
 
             // Positive = pattern side, negative = wrong side
             double patternSideOffset = GeoMath.AlongTrackDistanceNm(
@@ -90,7 +90,7 @@ internal static class PatternCommandHandler
         // navigating directly to the downwind abeam point at the wrong heading.
         if (!aircraft.IsOnGround && !isOnWrongSide && effectiveEntryLeg == PatternEntryLeg.Downwind && waypoints is not null)
         {
-            double hdgDiff = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - runway.TrueHeading));
+            double hdgDiff = aircraft.TrueHeading.AbsAngleTo(runway.TrueHeading);
             double distToDepEnd = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.EndLatitude, runway.EndLongitude);
             double distToDownwindEntry = GeoMath.DistanceNm(
                 aircraft.Latitude,
@@ -141,7 +141,7 @@ internal static class PatternCommandHandler
                 // along the reverse downwind track, so the aircraft arrives aligned.
                 if (effectiveEntryLeg == PatternEntryLeg.Downwind)
                 {
-                    double reverseDownwind = FlightPhysics.NormalizeHeading(waypoints.DownwindHeading + 180.0);
+                    TrueHeading reverseDownwind = waypoints.DownwindHeading.ToReciprocal();
                     var leadIn = GeoMath.ProjectPoint(entryLat, entryLon, reverseDownwind, 1.5);
                     leadInLat = leadIn.Lat;
                     leadInLon = leadIn.Lon;
@@ -598,12 +598,12 @@ internal static class PatternCommandHandler
         if (leg == PatternEntryLeg.Base && finalDistanceNm is not null)
         {
             // Compute a base entry point at the custom final distance
-            double reciprocal = ((wp.FinalHeading + 180.0) % 360.0 + 360.0) % 360.0;
+            TrueHeading reciprocal = wp.FinalHeading.ToReciprocal();
             var finalPoint = GeoMath.ProjectPoint(wp.ThresholdLat, wp.ThresholdLon, reciprocal, finalDistanceNm.Value);
             // Offset laterally by the pattern width (same direction as BaseTurn from threshold)
             double baseOffset = GeoMath.DistanceNm(wp.ThresholdLat, wp.ThresholdLon, wp.BaseTurnLat, wp.BaseTurnLon);
             double lateralBearing = GeoMath.BearingTo(wp.ThresholdLat, wp.ThresholdLon, wp.BaseTurnLat, wp.BaseTurnLon);
-            var entryPoint = GeoMath.ProjectPoint(finalPoint.Lat, finalPoint.Lon, lateralBearing, baseOffset);
+            var entryPoint = GeoMath.ProjectPointRaw(finalPoint.Lat, finalPoint.Lon, lateralBearing, baseOffset);
             return (entryPoint.Lat, entryPoint.Lon);
         }
 
@@ -664,7 +664,7 @@ internal static class PatternCommandHandler
         bool isGaPattern = aircraft.Phases.TrafficDirection is not null;
         var gaCtx = CommandDispatcher.BuildMinimalContext(aircraft);
         int? gaTargetAlt = ga.TargetAltitude;
-        bool hasAtcOverride = ga.AssignedHeading is not null || ga.TargetAltitude is not null;
+        bool hasAtcOverride = ga.AssignedMagneticHeading is not null || ga.TargetAltitude is not null;
 
         // Build MAP phases for instrument approaches without ATC override
         var mapPhases = (!isGaPattern && !hasAtcOverride) ? ApproachCommandHandler.BuildMissedApproachPhases(aircraft) : [];
@@ -683,7 +683,7 @@ internal static class PatternCommandHandler
 
         var goAround = new GoAroundPhase
         {
-            AssignedHeading = ga.AssignedHeading,
+            AssignedMagneticHeading = ga.AssignedMagneticHeading,
             TargetAltitude = gaTargetAlt,
             ReenterPattern = isGaPattern,
         };
@@ -703,9 +703,9 @@ internal static class PatternCommandHandler
         {
             gaMsg += ", make right traffic";
         }
-        if (ga.AssignedHeading is not null)
+        if (ga.AssignedMagneticHeading is not null)
         {
-            gaMsg += $", fly heading {ga.AssignedHeading:000}";
+            gaMsg += $", fly heading {ga.AssignedMagneticHeading.Value.ToDisplayInt():000}";
         }
         if (ga.TargetAltitude is not null)
         {

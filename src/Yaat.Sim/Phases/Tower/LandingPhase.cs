@@ -20,7 +20,7 @@ public sealed class LandingPhase : Phase
     private const double MaxDecelRateKtsPerSec = 10.0;
 
     private double _fieldElevation;
-    private double _runwayHeading;
+    private TrueHeading _runwayHeading;
     private double _thresholdLat;
     private double _thresholdLon;
     private bool _touchedDown;
@@ -40,7 +40,7 @@ public sealed class LandingPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
-        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
         _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Latitude;
         _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Longitude;
 
@@ -120,7 +120,7 @@ public sealed class LandingPhase : Phase
             _runwayHeading
         );
         double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
-        ctx.Targets.TargetHeading = FlightPhysics.NormalizeHeading(_runwayHeading - correction);
+        ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeading.Degrees - correction);
 
         // Re-resolve exit if preference changed mid-rollout
         var currentPref = ctx.Aircraft.Phases?.RequestedExit;

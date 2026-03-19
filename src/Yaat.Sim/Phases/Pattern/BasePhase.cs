@@ -14,7 +14,7 @@ public sealed class BasePhase : Phase
 
     private double _thresholdLat;
     private double _thresholdLon;
-    private double _finalHeading;
+    private TrueHeading _finalHeading;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -43,7 +43,7 @@ public sealed class BasePhase : Phase
 
         if (FinalDistanceNm is not null)
         {
-            double reciprocal = ((Waypoints.FinalHeading + 180.0) % 360.0 + 360.0) % 360.0;
+            TrueHeading reciprocal = Waypoints.FinalHeading.ToReciprocal();
             var target = GeoMath.ProjectPoint(Waypoints.ThresholdLat, Waypoints.ThresholdLon, reciprocal, FinalDistanceNm.Value);
             _thresholdLat = target.Lat;
             _thresholdLon = target.Lon;
@@ -56,7 +56,7 @@ public sealed class BasePhase : Phase
 
         var turnDir = Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
 
-        ctx.Targets.TargetHeading = Waypoints.BaseHeading;
+        ctx.Targets.TargetTrueHeading = Waypoints.BaseHeading;
         ctx.Targets.PreferredTurnDirection = turnDir;
         ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         ctx.Targets.NavigationRoute.Clear();
@@ -76,7 +76,7 @@ public sealed class BasePhase : Phase
         ctx.Logger.LogDebug(
             "[Base] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft, extended={Ext}",
             ctx.Aircraft.Callsign,
-            Waypoints.BaseHeading,
+            Waypoints.BaseHeading.Degrees,
             ctx.Aircraft.Altitude,
             IsExtended
         );

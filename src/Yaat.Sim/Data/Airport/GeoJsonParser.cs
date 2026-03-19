@@ -173,7 +173,7 @@ public static class GeoJsonParser
                 Longitude = pkg.Lon,
                 Type = GroundNodeType.Parking,
                 Name = pkg.Name,
-                Heading = pkg.Heading,
+                TrueHeading = new TrueHeading(pkg.Heading),
             };
             layout.Nodes[id] = node;
 
@@ -191,7 +191,7 @@ public static class GeoJsonParser
                 Longitude = hp.Lon,
                 Type = GroundNodeType.Helipad,
                 Name = hp.Name,
-                Heading = hp.Heading,
+                TrueHeading = new TrueHeading(hp.Heading),
             };
             layout.Nodes[id] = node;
 

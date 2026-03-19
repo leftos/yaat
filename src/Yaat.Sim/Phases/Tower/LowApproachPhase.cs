@@ -14,7 +14,7 @@ public sealed class LowApproachPhase : Phase
     private const double SelfClearAgl = 1500.0;
 
     private double _fieldElevation;
-    private double _runwayHeading;
+    private TrueHeading _runwayHeading;
     private double _goAroundAgl;
     private double _thresholdLat;
     private double _thresholdLon;
@@ -25,7 +25,7 @@ public sealed class LowApproachPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
-        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
         _goAroundAgl = CategoryPerformance.LowApproachAltitudeAgl(ctx.Category);
 
         if (ctx.Runway is not null)
@@ -35,7 +35,7 @@ public sealed class LowApproachPhase : Phase
         }
 
         // Continue on glideslope toward threshold
-        ctx.Targets.TargetHeading = _runwayHeading;
+        ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
@@ -46,7 +46,7 @@ public sealed class LowApproachPhase : Phase
             "[LowApproach] {Callsign}: started, goAroundAgl={Agl:F0}ft, rwyHdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             _goAroundAgl,
-            _runwayHeading
+            _runwayHeading.Degrees
         );
     }
 
@@ -84,7 +84,7 @@ public sealed class LowApproachPhase : Phase
                 ctx.Targets.TargetAltitude = targetAlt;
                 ctx.Targets.DesiredVerticalRate = climbRate;
                 ctx.Targets.TargetSpeed = climbSpeed;
-                ctx.Targets.TargetHeading = _runwayHeading;
+                ctx.Targets.TargetTrueHeading = _runwayHeading;
             }
 
             return false;

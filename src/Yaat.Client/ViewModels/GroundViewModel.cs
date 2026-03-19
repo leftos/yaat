@@ -1188,7 +1188,7 @@ public partial class GroundViewModel : ObservableObject
                 Longitude = nodeDto.Longitude,
                 Type = type,
                 Name = nodeDto.Name,
-                Heading = nodeDto.Heading,
+                TrueHeading = nodeDto.Heading.HasValue ? new TrueHeading(nodeDto.Heading.Value) : null,
                 RunwayId = nodeDto.RunwayId is not null ? RunwayIdentifier.Parse(nodeDto.RunwayId) : null,
             };
             layout.Nodes[node.Id] = node;

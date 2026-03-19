@@ -13,7 +13,7 @@ public sealed class HelicopterTakeoffPhase : Phase
     private const double CompletionAgl = 400.0;
 
     private double _fieldElevation;
-    private double _runwayHeading;
+    private TrueHeading _runwayHeading;
     private DepartureInstruction? _departure;
 
     public override string Name => "Takeoff-H";
@@ -29,7 +29,7 @@ public sealed class HelicopterTakeoffPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
-        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
         _departure = Departure;
 
         // Immediate liftoff — no ground roll
@@ -41,7 +41,7 @@ public sealed class HelicopterTakeoffPhase : Phase
         ctx.Targets.TargetAltitude = _fieldElevation + CompletionAgl;
         ctx.Targets.DesiredVerticalRate = climbRate;
         ctx.Targets.TargetSpeed = climbSpeed;
-        ctx.Targets.TargetHeading = _runwayHeading;
+        ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
 
         ApplyDepartureHeading(ctx);
@@ -66,16 +66,15 @@ public sealed class HelicopterTakeoffPhase : Phase
         switch (_departure)
         {
             case RelativeTurnDeparture rel:
-                int relHdg =
+                ctx.Targets.TargetTrueHeading =
                     rel.Direction == TurnDirection.Right
-                        ? FlightPhysics.NormalizeHeadingInt(_runwayHeading + rel.Degrees)
-                        : FlightPhysics.NormalizeHeadingInt(_runwayHeading - rel.Degrees);
-                ctx.Targets.TargetHeading = relHdg;
+                        ? new TrueHeading(_runwayHeading.Degrees + rel.Degrees)
+                        : new TrueHeading(_runwayHeading.Degrees - rel.Degrees);
                 ctx.Targets.PreferredTurnDirection = rel.Direction;
                 break;
 
             case FlyHeadingDeparture fh:
-                ctx.Targets.TargetHeading = fh.Heading;
+                ctx.Targets.TargetTrueHeading = fh.MagneticHeading.ToTrue(ctx.Aircraft.Declination);
                 ctx.Targets.PreferredTurnDirection = fh.Direction;
                 break;
         }

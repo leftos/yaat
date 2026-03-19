@@ -37,4 +37,14 @@ public static class MagneticDeclination
         double magnetic = trueDeg - declination;
         return ((magnetic % 360.0) + 360.0) % 360.0;
     }
+
+    /// <summary>
+    /// Converts a magnetic heading to true heading using position-based declination.
+    /// </summary>
+    public static double MagneticToTrue(double magneticDeg, double lat, double lon)
+    {
+        double declination = GetDeclination(lat, lon);
+        double trueDeg = magneticDeg + declination;
+        return ((trueDeg % 360.0) + 360.0) % 360.0;
+    }
 }

@@ -15,7 +15,7 @@ public sealed class AtParkingPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.TargetSpeed = 0;
-        ctx.Targets.TargetHeading = null;
+        ctx.Targets.TargetTrueHeading = null;
         ctx.Targets.TargetAltitude = null;
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;

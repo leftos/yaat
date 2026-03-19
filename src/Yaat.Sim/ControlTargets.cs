@@ -10,8 +10,8 @@ public enum TurnDirection
 
 public class ControlTargets
 {
-    /// <summary>Target heading in degrees magnetic.</summary>
-    public double? TargetHeading { get; set; }
+    /// <summary>Target heading in degrees true. Physics steers toward this value.</summary>
+    public TrueHeading? TargetTrueHeading { get; set; }
 
     /// <summary>
     /// Left/Right override; null means shortest path.
@@ -45,8 +45,8 @@ public class ControlTargets
     /// <summary>Maximum IAS in knots (speed ceiling, "do not exceed X"). Enforced continuously.</summary>
     public double? SpeedCeiling { get; set; }
 
-    /// <summary>Controller-assigned heading (FH/TL/TR/FPH/PTAC). Null when not explicitly vectored.</summary>
-    public double? AssignedHeading { get; set; }
+    /// <summary>Controller-assigned heading in magnetic (FH/TL/TR/FPH/PTAC). Null when not explicitly vectored.</summary>
+    public MagneticHeading? AssignedMagneticHeading { get; set; }
 
     /// <summary>Controller-assigned altitude (CM/DM). Null when not explicitly assigned.</summary>
     public double? AssignedAltitude { get; set; }

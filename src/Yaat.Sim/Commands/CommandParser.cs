@@ -465,9 +465,9 @@ public static class CommandParser
             case "CTORH" when arg is null:
                 return PR.Ok(new ClearedForTakeoffCommand(new RunwayHeadingDeparture()));
             case "GAMRT" when arg is null:
-                return PR.Ok(new GoAroundCommand(TrafficPattern: PatternDirection.Right));
+                return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Right));
             case "GAMLT" when arg is null:
-                return PR.Ok(new GoAroundCommand(TrafficPattern: PatternDirection.Left));
+                return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Left));
             case "T" when arg is not null:
                 return ParseTurnWithDirection(arg);
         }
@@ -496,9 +496,9 @@ public static class CommandParser
         return type switch
         {
             // Heading
-            FlyHeading => ParseHeading(arg, h => new FlyHeadingCommand(h)),
-            TurnLeft => ParseHeading(arg, h => new TurnLeftCommand(h)),
-            TurnRight => ParseHeading(arg, h => new TurnRightCommand(h)),
+            FlyHeading => ParseHeading(arg, h => new FlyHeadingCommand(new MagneticHeading(h))),
+            TurnLeft => ParseHeading(arg, h => new TurnLeftCommand(new MagneticHeading(h))),
+            TurnRight => ParseHeading(arg, h => new TurnRightCommand(new MagneticHeading(h))),
             RelativeLeft => ParseDegrees(arg, d => new LeftTurnCommand(d)),
             RelativeRight => ParseDegrees(arg, d => new RightTurnCommand(d)),
             FlyPresentHeading when arg is null => PR.Ok(new FlyPresentHeadingCommand()),
@@ -513,7 +513,7 @@ public static class CommandParser
             NormalRate when arg is null => PR.Ok(new NormalRateCommand()),
             Mach when arg is not null => ParseMach(arg),
             // Force commands
-            ForceHeading => ParseHeading(arg, h => new ForceHeadingCommand(h)),
+            ForceHeading => ParseHeading(arg, h => new ForceHeadingCommand(new MagneticHeading(h))),
             ForceAltitude => ParseAltitude(arg, a => new ForceAltitudeCommand(a)),
             ForceSpeed => ParseForceSpeed(arg),
             Warp => ParseWarp(arg),
@@ -1164,17 +1164,17 @@ public static class CommandParser
     {
         if (arg is null)
         {
-            return PR.Ok(new GoAroundCommand());
+            return PR.Ok(new GoAroundCommand(null, null, null));
         }
 
         if (arg.Equals("MRT", StringComparison.OrdinalIgnoreCase))
         {
-            return PR.Ok(new GoAroundCommand(TrafficPattern: PatternDirection.Right));
+            return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Right));
         }
 
         if (arg.Equals("MLT", StringComparison.OrdinalIgnoreCase))
         {
-            return PR.Ok(new GoAroundCommand(TrafficPattern: PatternDirection.Left));
+            return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Left));
         }
 
         var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -1200,7 +1200,7 @@ public static class CommandParser
             return PR.Fail($"invalid go-around altitude '{parts[1]}'");
         }
 
-        return PR.Ok(new GoAroundCommand(heading, altitude));
+        return PR.Ok(new GoAroundCommand(heading is not null ? new MagneticHeading(heading.Value) : null, altitude, null));
     }
 
     private static PR ParseHoldAtFix(string? arg, TurnDirection direction)
@@ -1418,7 +1418,7 @@ public static class CommandParser
             return PR.Fail($"invalid warp speed '{parts[3]}'");
         }
 
-        return PR.Ok(new WarpCommand(posToken, lat, lon, heading, altitude.Value, speed));
+        return PR.Ok(new WarpCommand(posToken, lat, lon, new MagneticHeading(heading), altitude.Value, speed));
     }
 
     private static PR ParseWarpGround(string arg)

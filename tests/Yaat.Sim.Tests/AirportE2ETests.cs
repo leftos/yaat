@@ -40,7 +40,7 @@ public class AirportE2ETests
             AircraftType = "B738",
             Latitude = lat,
             Longitude = lon,
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -271,11 +271,11 @@ public class AirportE2ETests
             Lat1 = 0,
             Lon1 = 0,
             Elevation1Ft = 0,
-            Heading1 = 0,
+            TrueHeading1 = new TrueHeading(0),
             Lat2 = 0,
             Lon2 = 0,
             Elevation2Ft = 0,
-            Heading2 = 0,
+            TrueHeading2 = new TrueHeading(0),
             LengthFt = 0,
             WidthFt = widthFt,
         };
@@ -294,7 +294,7 @@ public class AirportE2ETests
 
         var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
 
-        var push = new PushbackCommand(FacingTaxiway: "D");
+        var push = new PushbackCommand(null, null, "D", null, null);
         var result = GroundCommandHandler.TryPushback(ac, push, layout);
 
         Assert.True(result.Success, $"Pushback should succeed: {result.Message}");
@@ -436,7 +436,7 @@ public class AirportE2ETests
         var ac = MakeGroundAircraft(lat: parking.Latitude, lon: parking.Longitude);
 
         // Step 1: Pushback facing D
-        var push = new PushbackCommand(FacingTaxiway: "D");
+        var push = new PushbackCommand(null, null, "D", null, null);
         var pushResult = GroundCommandHandler.TryPushback(ac, push, layout);
         Assert.True(pushResult.Success, $"Pushback failed: {pushResult.Message}");
         Assert.IsType<PushbackPhase>(ac.Phases!.CurrentPhase);
@@ -1194,7 +1194,7 @@ public class AirportE2ETests
         }
 
         double distNm = ac.GroundSpeed / 3600.0 * deltaSeconds;
-        double hdgRad = ac.Heading * Math.PI / 180.0;
+        double hdgRad = ac.TrueHeading.Degrees * Math.PI / 180.0;
         ac.Latitude += distNm / 60.0 * Math.Cos(hdgRad);
         ac.Longitude += distNm / 60.0 * Math.Sin(hdgRad) / Math.Cos(ac.Latitude * Math.PI / 180.0);
     }
@@ -1257,9 +1257,9 @@ public class AirportE2ETests
         Assert.NotNull(a9);
 
         var ac = MakeGroundAircraft("SFO", a4.Latitude, a4.Longitude);
-        ac.Heading = a4.Heading ?? 104;
+        ac.TrueHeading = new TrueHeading(a4.TrueHeading?.Degrees ?? 104);
 
-        var cmd = new PushbackCommand(DestinationParking: "A9");
+        var cmd = new PushbackCommand(null, null, null, "A9", null);
         var result = GroundCommandHandler.TryPushback(ac, cmd, layout);
 
         Assert.True(result.Success, $"PUSH @A9 should succeed: {result.Message}");

@@ -304,7 +304,7 @@ public sealed class SimulationEngine
 
     // --- Public mutations ---
 
-    public void WarpAircraft(string callsign, double latitude, double longitude, double heading)
+    public void WarpAircraft(string callsign, double latitude, double longitude, TrueHeading trueHeading)
     {
         var aircraft = FindAircraft(callsign);
         if (aircraft is null)
@@ -325,8 +325,8 @@ public sealed class SimulationEngine
         // Place on ground
         aircraft.Latitude = latitude;
         aircraft.Longitude = longitude;
-        aircraft.Heading = heading;
-        aircraft.Track = heading;
+        aircraft.TrueHeading = trueHeading;
+        aircraft.TrueTrack = trueHeading;
         aircraft.IndicatedAirspeed = 0;
         aircraft.IsOnGround = true;
         aircraft.Targets.TargetSpeed = 0;
@@ -850,7 +850,7 @@ public sealed class SimulationEngine
                 World.RemoveAircraft(del.Callsign);
                 break;
             case RecordedWarp warp:
-                WarpAircraft(warp.Callsign, warp.Latitude, warp.Longitude, warp.Heading);
+                WarpAircraft(warp.Callsign, warp.Latitude, warp.Longitude, warp.TrueHeading);
                 break;
             case RecordedAmendFlightPlan amend:
                 AmendFlightPlan(amend.Callsign, amend.Amendment);

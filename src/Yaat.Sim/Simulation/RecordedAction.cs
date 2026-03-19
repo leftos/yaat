@@ -18,7 +18,7 @@ public sealed record RecordedSpawn(double ElapsedSeconds, string Args) : Recorde
 
 public sealed record RecordedDelete(double ElapsedSeconds, string Callsign) : RecordedAction(ElapsedSeconds);
 
-public sealed record RecordedWarp(double ElapsedSeconds, string Callsign, double Latitude, double Longitude, double Heading)
+public sealed record RecordedWarp(double ElapsedSeconds, string Callsign, double Latitude, double Longitude, TrueHeading TrueHeading)
     : RecordedAction(ElapsedSeconds);
 
 public sealed record RecordedAmendFlightPlan(double ElapsedSeconds, string Callsign, FlightPlanAmendment Amendment) : RecordedAction(ElapsedSeconds);

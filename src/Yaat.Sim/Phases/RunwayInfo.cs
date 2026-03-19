@@ -17,11 +17,11 @@ public sealed class RunwayInfo
     public required double Lat1 { get; init; }
     public required double Lon1 { get; init; }
     public required double Elevation1Ft { get; init; }
-    public required double Heading1 { get; init; }
+    public required TrueHeading TrueHeading1 { get; init; }
     public required double Lat2 { get; init; }
     public required double Lon2 { get; init; }
     public required double Elevation2Ft { get; init; }
-    public required double Heading2 { get; init; }
+    public required TrueHeading TrueHeading2 { get; init; }
 
     public required double LengthFt { get; init; }
     public required double WidthFt { get; init; }
@@ -29,7 +29,7 @@ public sealed class RunwayInfo
     // Backward-compatible directional properties
     public double ThresholdLatitude => IsEnd1 ? Lat1 : Lat2;
     public double ThresholdLongitude => IsEnd1 ? Lon1 : Lon2;
-    public double TrueHeading => IsEnd1 ? Heading1 : Heading2;
+    public TrueHeading TrueHeading => IsEnd1 ? TrueHeading1 : TrueHeading2;
     public double ElevationFt => IsEnd1 ? Elevation1Ft : Elevation2Ft;
     public double EndLatitude => IsEnd1 ? Lat2 : Lat1;
     public double EndLongitude => IsEnd1 ? Lon2 : Lon1;
@@ -49,11 +49,11 @@ public sealed class RunwayInfo
             Lat1 = Lat1,
             Lon1 = Lon1,
             Elevation1Ft = Elevation1Ft,
-            Heading1 = Heading1,
+            TrueHeading1 = TrueHeading1,
             Lat2 = Lat2,
             Lon2 = Lon2,
             Elevation2Ft = Elevation2Ft,
-            Heading2 = Heading2,
+            TrueHeading2 = TrueHeading2,
             LengthFt = LengthFt,
             WidthFt = WidthFt,
         };

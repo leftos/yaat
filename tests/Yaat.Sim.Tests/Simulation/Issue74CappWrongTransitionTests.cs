@@ -120,7 +120,7 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"Before CAPP: lat={aircraft.Latitude:F4} lon={aircraft.Longitude:F4} hdg={aircraft.Heading:F1}");
+        output.WriteLine($"Before CAPP: lat={aircraft.Latitude:F4} lon={aircraft.Longitude:F4} hdg={aircraft.TrueHeading.Degrees:F1}");
 
         var result = engine.SendCommand("UAL238", "CAPP");
         output.WriteLine($"CAPP result: Success={result.Success} Message={result.Message}");

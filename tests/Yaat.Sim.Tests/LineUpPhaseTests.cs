@@ -114,14 +114,14 @@ public class LineUpPhaseTests
     /// </summary>
     private (double BacktrackNm, bool Completed, double HeadingDiff) RunLineUpFromNode(GroundNode node, RunwayInfo runway, AirportGroundLayout layout)
     {
-        double perpHeading = (runway.TrueHeading + 90) % 360;
+        var perpHeading = new TrueHeading(runway.TrueHeading.Degrees + 90);
         var aircraft = new AircraftState
         {
             Callsign = "TEST1",
             AircraftType = "B738",
             Latitude = node.Latitude,
             Longitude = node.Longitude,
-            Heading = perpHeading,
+            TrueHeading = perpHeading,
             IsOnGround = true,
             Departure = "OAK",
         };
@@ -179,7 +179,7 @@ public class LineUpPhaseTests
         }
 
         double backtrackNm = initialAlong - minAlongTrack;
-        double headingDiff = Math.Abs(FlightPhysics.NormalizeAngle(runway.TrueHeading - aircraft.Heading));
+        double headingDiff = Math.Abs(runway.TrueHeading.SignedAngleTo(aircraft.TrueHeading));
         return (backtrackNm, completed, headingDiff);
     }
 
@@ -194,7 +194,7 @@ public class LineUpPhaseTests
         }
 
         var runway = MakeOakRunway30();
-        _out.WriteLine($"RWY 30: heading={runway.TrueHeading:F1}");
+        _out.WriteLine($"RWY 30: heading={runway.TrueHeading.Degrees:F1}");
 
         var intersections = FindAllRunwayTaxiwayIntersections(layout, "30");
         _out.WriteLine($"Found {intersections.Count} intersection nodes for RWY 30");

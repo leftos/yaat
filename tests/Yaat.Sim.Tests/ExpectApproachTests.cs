@@ -14,7 +14,7 @@ public class ExpectApproachTests
         {
             Callsign = "N123",
             AircraftType = "B738",
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 5000,
             Latitude = 37.75,
             Longitude = -122.35,

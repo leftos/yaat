@@ -20,7 +20,7 @@ public class InterceptCoursePhaseTests
         {
             Callsign = "N123",
             AircraftType = "B738",
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             Altitude = 3000,
             Latitude = lat,
             Longitude = lon,
@@ -44,7 +44,7 @@ public class InterceptCoursePhaseTests
     {
         return new InterceptCoursePhase
         {
-            FinalApproachCourse = RunwayHeading,
+            FinalApproachCourse = new TrueHeading(RunwayHeading),
             ThresholdLat = ThresholdLat,
             ThresholdLon = ThresholdLon,
             ApproachId = approachId,
@@ -69,7 +69,7 @@ public class InterceptCoursePhaseTests
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
-                FinalApproachCourse = RunwayHeading,
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
             },
         };
 
@@ -123,7 +123,7 @@ public class InterceptCoursePhaseTests
         // Move aircraft to be within cross-track and heading thresholds
         aircraft.Latitude = 37.72;
         aircraft.Longitude = -122.24;
-        aircraft.Heading = 278;
+        aircraft.TrueHeading = new TrueHeading(278);
 
         bool complete = phase.OnTick(ctx);
         // May or may not be complete depending on exact geometry,
@@ -147,7 +147,7 @@ public class InterceptCoursePhaseTests
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
-                FinalApproachCourse = RunwayHeading,
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
             },
         };
 
@@ -192,7 +192,7 @@ public class InterceptCoursePhaseTests
                 ApproachId = "ILS10R",
                 AirportCode = "OAK",
                 RunwayId = "10R",
-                FinalApproachCourse = RunwayHeading,
+                FinalApproachCourse = new TrueHeading(RunwayHeading),
             },
         };
 

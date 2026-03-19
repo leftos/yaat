@@ -75,7 +75,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("SWA11");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"Before CAPP: alt={aircraft.Altitude:F0} hdg={aircraft.Heading:F1}");
+        output.WriteLine($"Before CAPP: alt={aircraft.Altitude:F0} hdg={aircraft.TrueHeading.Degrees:F1}");
         output.WriteLine($"Route: {aircraft.Route}");
         output.WriteLine($"NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
         output.WriteLine($"StarViaMode: {aircraft.StarViaMode} ActiveStarId: {aircraft.ActiveStarId}");

@@ -104,13 +104,13 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
         var interceptPhase = aircraft.Phases?.Phases.OfType<InterceptCoursePhase>().FirstOrDefault();
 
         output.WriteLine($"=== SWA1850 state at t={replayTime} (immediately after {label}) ===");
-        output.WriteLine($"  Heading:          {aircraft.Heading:F2}");
-        output.WriteLine($"  AssignedHeading:  {aircraft.Targets.AssignedHeading}");
-        output.WriteLine($"  TargetHeading:    {aircraft.Targets.TargetHeading}");
+        output.WriteLine($"  Heading:          {aircraft.TrueHeading.Degrees:F2}");
+        output.WriteLine($"  AssignedHeading:  {aircraft.Targets.AssignedMagneticHeading}");
+        output.WriteLine($"  TargetHeading:    {aircraft.Targets.TargetTrueHeading}");
         output.WriteLine($"  Altitude:         {aircraft.Altitude:F0}");
         output.WriteLine($"  Position:         ({aircraft.Latitude:F6}, {aircraft.Longitude:F6})");
         output.WriteLine($"  ActiveApproach:   {approach?.ApproachId ?? "null"}");
-        output.WriteLine($"  FAC:              {approach?.FinalApproachCourse.ToString("F1") ?? "null"}");
+        output.WriteLine($"  FAC:              {approach?.FinalApproachCourse.Degrees.ToString("F1") ?? "null"}");
         output.WriteLine($"  Phases:           {FormatPhases(aircraft)}");
         output.WriteLine($"  Notifications:    {FormatNotifications(aircraft)}");
 
@@ -127,7 +127,7 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
             interceptPhase.ThresholdLon,
             interceptPhase.FinalApproachCourse
         );
-        double hdgDiff = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - interceptPhase.FinalApproachCourse));
+        double hdgDiff = aircraft.TrueHeading.AbsAngleTo(interceptPhase.FinalApproachCourse);
         output.WriteLine($"  SignedCrossTrack: {signedXT:F4} nm");
         output.WriteLine($"  CrossTrack:       {Math.Abs(signedXT):F4} nm");
         output.WriteLine($"  HeadingDiff:      {hdgDiff:F1}°");
@@ -159,13 +159,13 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
                 interceptPhase.FinalApproachCourse
             );
             double currentXT = Math.Abs(currentSignedXT);
-            double currentHdgDiff = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - interceptPhase.FinalApproachCourse));
+            double currentHdgDiff = aircraft.TrueHeading.AbsAngleTo(interceptPhase.FinalApproachCourse);
 
             bool signFlipped = (prevSignedXT > 0 && currentSignedXT < 0) || (prevSignedXT < 0 && currentSignedXT > 0);
             string marker = signFlipped ? " <<<SIGN FLIP>>>" : "";
 
             output.WriteLine(
-                $"{t, 4} | {aircraft.Heading, 8:F2} | {aircraft.Targets.TargetHeading?.ToString("F2") ?? "null", 8} | {currentSignedXT, 10:F4} | {currentXT, 10:F4} | {currentHdgDiff, 7:F1} | {FormatPhases(aircraft), -31} | {FormatNotifications(aircraft)}{marker}"
+                $"{t, 4} | {aircraft.TrueHeading.Degrees, 8:F2} | {aircraft.Targets.TargetTrueHeading?.Degrees.ToString("F2") ?? "null", 8} | {currentSignedXT, 10:F4} | {currentXT, 10:F4} | {currentHdgDiff, 7:F1} | {FormatPhases(aircraft), -31} | {FormatNotifications(aircraft)}{marker}"
             );
 
             prevSignedXT = currentSignedXT;
@@ -199,7 +199,7 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
         Assert.NotNull(aircraft);
 
         output.WriteLine("=== SWA1850 overview from t=1280 through all three CAPP attempts ===");
-        output.WriteLine($"  Initial heading: {aircraft.Heading:F1}");
+        output.WriteLine($"  Initial heading: {aircraft.TrueHeading.Degrees:F1}");
         output.WriteLine($"  Initial position: ({aircraft.Latitude:F6}, {aircraft.Longitude:F6})");
         output.WriteLine($"  Initial altitude: {aircraft.Altitude:F0}");
         output.WriteLine("");
@@ -237,7 +237,7 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
             if (t % 2 == 0 || event_.Length > 0)
             {
                 output.WriteLine(
-                    $"{currentTime, 5} | {aircraft.Heading, 8:F2} | {aircraft.Targets.TargetHeading?.ToString("F2") ?? "null", 8} | {aircraft.Targets.AssignedHeading?.ToString("F0") ?? "null", 9} | {aircraft.Phases?.ActiveApproach?.ApproachId ?? "null", 8} | {FormatPhases(aircraft), -31} | {FormatNotifications(aircraft), -20} | {event_}"
+                    $"{currentTime, 5} | {aircraft.TrueHeading.Degrees, 8:F2} | {aircraft.Targets.TargetTrueHeading?.Degrees.ToString("F2") ?? "null", 8} | {aircraft.Targets.AssignedMagneticHeading?.Degrees.ToString("F0") ?? "null", 9} | {aircraft.Phases?.ActiveApproach?.ApproachId ?? "null", 8} | {FormatPhases(aircraft), -31} | {FormatNotifications(aircraft), -20} | {event_}"
                 );
             }
         }

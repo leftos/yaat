@@ -36,7 +36,7 @@ public class PatternPhaseTests
             AircraftType = "B738",
             Latitude = lat,
             Longitude = lon,
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
             IsOnGround = onGround,
@@ -75,7 +75,7 @@ public class PatternPhaseTests
 
         phase.OnStart(ctx);
 
-        Assert.Equal(wp.UpwindHeading, ac.Targets.TargetHeading);
+        Assert.Equal(wp.UpwindHeading, ac.Targets.TargetTrueHeading);
         Assert.Equal(wp.PatternAltitude, ac.Targets.TargetAltitude);
         Assert.True(ac.Targets.DesiredVerticalRate > 0);
     }
@@ -136,7 +136,7 @@ public class PatternPhaseTests
 
         phase.OnStart(ctx);
 
-        Assert.Equal(wp.CrosswindHeading, ac.Targets.TargetHeading);
+        Assert.Equal(wp.CrosswindHeading, ac.Targets.TargetTrueHeading);
         Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
     }
 
@@ -207,7 +207,7 @@ public class PatternPhaseTests
 
         phase.OnStart(ctx);
 
-        Assert.Equal(wp.DownwindHeading, ac.Targets.TargetHeading);
+        Assert.Equal(wp.DownwindHeading, ac.Targets.TargetTrueHeading);
         Assert.Equal(wp.PatternAltitude, ac.Targets.TargetAltitude);
         Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
     }
@@ -264,7 +264,7 @@ public class PatternPhaseTests
 
         phase.OnStart(ctx);
 
-        Assert.Equal(wp.BaseHeading, ac.Targets.TargetHeading);
+        Assert.Equal(wp.BaseHeading, ac.Targets.TargetTrueHeading);
         Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
         Assert.True(ac.Targets.DesiredVerticalRate < 0); // descending
     }
@@ -322,7 +322,7 @@ public class PatternPhaseTests
 
         // Target altitude should be pattern + 500ft
         Assert.Equal(wp.PatternAltitude + 500, ac.Targets.TargetAltitude);
-        Assert.NotNull(ac.Targets.TargetHeading);
+        Assert.NotNull(ac.Targets.TargetTrueHeading);
     }
 
     [Fact]
@@ -375,7 +375,7 @@ public class PatternPhaseTests
 
         // Runway heading 280, left crosswind = 280 - 90 = 190
         double expected = (280.0 - 90.0 + 360.0) % 360.0;
-        Assert.Equal(expected, wp.CrosswindHeading, precision: 1);
+        Assert.Equal(expected, wp.CrosswindHeading.Degrees, precision: 1);
     }
 
     [Fact]
@@ -385,7 +385,7 @@ public class PatternPhaseTests
 
         // Runway heading 280, right crosswind = 280 + 90 = 370 → 10
         double expected = (280.0 + 90.0) % 360.0;
-        Assert.Equal(expected, wp.CrosswindHeading, precision: 1);
+        Assert.Equal(expected, wp.CrosswindHeading.Degrees, precision: 1);
     }
 
     [Fact]
@@ -394,7 +394,7 @@ public class PatternPhaseTests
         var wp = DefaultWaypoints();
 
         double expected = (280.0 + 180.0) % 360.0;
-        Assert.Equal(expected, wp.DownwindHeading, precision: 1);
+        Assert.Equal(expected, wp.DownwindHeading.Degrees, precision: 1);
     }
 
     [Fact]

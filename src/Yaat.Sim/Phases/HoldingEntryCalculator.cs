@@ -11,12 +11,12 @@ public static class HoldingEntryCalculator
     /// <summary>
     /// Compute the recommended holding entry type.
     /// </summary>
-    /// <param name="aircraftHeading">Current aircraft heading (degrees true).</param>
+    /// <param name="aircraftHeading">Current aircraft heading (true).</param>
     /// <param name="inboundCourse">Published inbound course to the fix (degrees true).</param>
     /// <param name="holdDirection">Holding turn direction (Right = standard, Left = nonstandard).</param>
-    public static HoldingEntry ComputeEntry(double aircraftHeading, double inboundCourse, TurnDirection holdDirection)
+    public static HoldingEntry ComputeEntry(TrueHeading aircraftHeading, double inboundCourse, TurnDirection holdDirection)
     {
-        double theta = ((aircraftHeading - inboundCourse) % 360 + 360) % 360;
+        double theta = ((aircraftHeading.Degrees - inboundCourse) % 360 + 360) % 360;
 
         if (holdDirection == TurnDirection.Right)
         {

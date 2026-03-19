@@ -14,7 +14,7 @@ public sealed class VfrHoldPhase : Phase
 
     private bool _atFix;
     private double _cumulativeTurn;
-    private double _lastHeading;
+    private TrueHeading _lastHeading;
 
     /// <summary>Fix name (for display). Null = hold present position.</summary>
     public string? FixName { get; init; }
@@ -48,7 +48,7 @@ public sealed class VfrHoldPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        _lastHeading = ctx.Aircraft.Heading;
+        _lastHeading = ctx.Aircraft.TrueHeading;
 
         if (FixName is not null)
         {
@@ -78,7 +78,7 @@ public sealed class VfrHoldPhase : Phase
             if (OrbitDirection is null)
             {
                 ctx.Targets.TargetSpeed = 0;
-                ctx.Targets.TargetHeading = ctx.Aircraft.Heading;
+                ctx.Targets.TargetTrueHeading = ctx.Aircraft.TrueHeading;
                 ctx.Targets.PreferredTurnDirection = null;
             }
             else
@@ -117,7 +117,7 @@ public sealed class VfrHoldPhase : Phase
                 if (OrbitDirection is null)
                 {
                     ctx.Targets.TargetSpeed = 0;
-                    ctx.Targets.TargetHeading = ctx.Aircraft.Heading;
+                    ctx.Targets.TargetTrueHeading = ctx.Aircraft.TrueHeading;
                     ctx.Targets.PreferredTurnDirection = null;
                 }
                 else
@@ -138,18 +138,10 @@ public sealed class VfrHoldPhase : Phase
         SetOrbitTarget(ctx);
 
         // Track cumulative turn for orbit counting
-        double currentHeading = ctx.Aircraft.Heading;
-        double delta = currentHeading - _lastHeading;
-        if (delta > 180)
-        {
-            delta -= 360;
-        }
-        if (delta < -180)
-        {
-            delta += 360;
-        }
+        TrueHeading current = ctx.Aircraft.TrueHeading;
+        double delta = _lastHeading.SignedAngleTo(current);
         _cumulativeTurn += Math.Abs(delta);
-        _lastHeading = currentHeading;
+        _lastHeading = current;
 
         if (_cumulativeTurn >= 350)
         {
@@ -162,9 +154,7 @@ public sealed class VfrHoldPhase : Phase
     private void SetOrbitTarget(PhaseContext ctx)
     {
         double offset = OrbitDirection == TurnDirection.Left ? -180 : 180;
-        double targetHdg = ((ctx.Aircraft.Heading + offset) % 360 + 360) % 360;
-
-        ctx.Targets.TargetHeading = targetHdg;
+        ctx.Targets.TargetTrueHeading = ctx.Aircraft.TrueHeading + offset;
         ctx.Targets.PreferredTurnDirection = OrbitDirection;
     }
 

@@ -28,7 +28,7 @@ public class PatternCommandHandlerTests
             AircraftType = "B738",
             Latitude = lat,
             Longitude = lon,
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = altitude,
             IndicatedAirspeed = groundSpeed,
             IsOnGround = onGround,
@@ -48,7 +48,7 @@ public class PatternCommandHandlerTests
         var rwy = DefaultRunway();
         // Left pattern: crosswind heading = 280-90 = 190. Pattern is south of runway.
         // Put aircraft NORTH of threshold (wrong side for left pattern).
-        var (northLat, northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, 10.0, 2.0);
+        var (northLat, northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(10.0), 2.0);
         var ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500);
 
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
@@ -64,7 +64,7 @@ public class PatternCommandHandlerTests
     {
         var rwy = DefaultRunway();
         // Left pattern south of runway. Put aircraft south.
-        var (southLat, southLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, 190.0, 2.0);
+        var (southLat, southLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(190.0), 2.0);
         var ac = MakeAircraft(lat: southLat, lon: southLon, altitude: 1500);
 
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);
@@ -78,7 +78,7 @@ public class PatternCommandHandlerTests
     public void TryEnterPattern_WrongSideBase_InsertsMidfieldCrossing()
     {
         var rwy = DefaultRunway();
-        var (northLat, northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, 10.0, 2.0);
+        var (northLat, northLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(10.0), 2.0);
         var ac = MakeAircraft(lat: northLat, lon: northLon, altitude: 1500);
 
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Base, null, null);
@@ -96,7 +96,7 @@ public class PatternCommandHandlerTests
     {
         var rwy = DefaultRunway();
         // Place aircraft far south (correct side for left pattern, but >1nm from entry point)
-        var (farLat, farLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, 190.0, 10.0);
+        var (farLat, farLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, new TrueHeading(190.0), 10.0);
         var ac = MakeAircraft(lat: farLat, lon: farLon, altitude: 3000);
 
         var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Downwind, null, null);

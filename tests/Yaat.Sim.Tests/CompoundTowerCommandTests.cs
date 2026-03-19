@@ -43,7 +43,7 @@ public class CompoundTowerCommandTests
             AircraftType = "B738",
             Latitude = runway.ThresholdLatitude,
             Longitude = runway.ThresholdLongitude,
-            Heading = runway.TrueHeading,
+            TrueHeading = runway.TrueHeading,
             Altitude = runway.ElevationFt,
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -161,7 +161,7 @@ public class CompoundTowerCommandTests
             if (tick % 10 == 0 || isPhaseTransition || !phasesCompleted)
             {
                 _output.WriteLine(
-                    $"t={tick, 4}: phase={phaseName, -20} hdg={ac.Heading:F0} alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0} "
+                    $"t={tick, 4}: phase={phaseName, -20} hdg={ac.TrueHeading.Degrees:F0} alt={ac.Altitude:F0} ias={ac.IndicatedAirspeed:F0} "
                         + $"onGround={ac.IsOnGround} navRoute={ac.Targets.NavigationRoute.Count} queueBlocks={ac.Queue.Blocks.Count} "
                         + $"queueIdx={ac.Queue.CurrentBlockIndex} queueDone={ac.Queue.IsComplete}"
                 );

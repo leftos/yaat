@@ -22,7 +22,7 @@ public sealed class GroundNode
     /// <summary>
     /// Parking heading (nose-in direction, degrees true). Only set for Parking nodes.
     /// </summary>
-    public double? Heading { get; init; }
+    public TrueHeading? TrueHeading { get; init; }
 
     /// <summary>
     /// Runway ID that this hold-short node protects. Only set for RunwayHoldShort nodes.
@@ -137,7 +137,7 @@ public sealed class AirportGroundLayout
     /// Find the nearest taxiway node suitable as a runway exit, considering aircraft heading.
     /// Prefers exits that don't require turns greater than 90 degrees.
     /// </summary>
-    public GroundNode? FindNearestExit(double lat, double lon, double runwayHeading, double maxSearchNm = 0.5)
+    public GroundNode? FindNearestExit(double lat, double lon, TrueHeading runwayHeading, double maxSearchNm = 0.5)
     {
         GroundNode? best = null;
         double bestScore = double.MaxValue;
@@ -178,7 +178,7 @@ public sealed class AirportGroundLayout
             }
 
             double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
-            double turnAngle = Math.Abs(NormalizeAngle(bearing - runwayHeading));
+            double turnAngle = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
             double score = dist + (turnAngle > 90 ? 10.0 : 0.0);
 
             if (score < bestScore)
@@ -195,7 +195,7 @@ public sealed class AirportGroundLayout
     /// Find the nearest exit on the specified side of the runway heading.
     /// Falls back to FindNearestExit if no exits match the requested side.
     /// </summary>
-    public GroundNode? FindExitBySide(double lat, double lon, double runwayHeading, ExitSide side, double maxSearchNm = 0.5)
+    public GroundNode? FindExitBySide(double lat, double lon, TrueHeading runwayHeading, ExitSide side, double maxSearchNm = 0.5)
     {
         GroundNode? best = null;
         double bestScore = double.MaxValue;
@@ -234,7 +234,7 @@ public sealed class AirportGroundLayout
             }
 
             double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
-            double relative = NormalizeAngle(bearing - runwayHeading);
+            double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
 
             // Left = negative relative angle, Right = positive
             bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
@@ -315,9 +315,9 @@ public sealed class AirportGroundLayout
     /// direction closest to <paramref name="preferredBearing"/>.
     /// Returns null if no matching taxiway edge exists at the node.
     /// </summary>
-    public double? GetEdgeHeadingForTaxiway(GroundNode node, string taxiwayName, double preferredBearing)
+    public double? GetEdgeBearingForTaxiway(GroundNode node, string taxiwayName, double preferredBearing)
     {
-        double? bestHeading = null;
+        double? bestBearing = null;
         double bestDiff = double.MaxValue;
 
         foreach (var edge in node.Edges)
@@ -338,17 +338,17 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            double heading = GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
-            double diff = Math.Abs(NormalizeAngle(heading - preferredBearing));
+            double bearing = GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double diff = GeoMath.AbsBearingDifference(bearing, preferredBearing);
 
             if (diff < bestDiff)
             {
                 bestDiff = diff;
-                bestHeading = heading;
+                bestBearing = bearing;
             }
         }
 
-        return bestHeading;
+        return bestBearing;
     }
 
     /// <summary>
@@ -389,7 +389,7 @@ public sealed class AirportGroundLayout
     /// aircraft can roll clear of the runway surface. Follows the non-runway edge
     /// whose heading is closest to the aircraft's exit bearing.
     /// </summary>
-    public GroundNode? FindClearNode(GroundNode exitNode, string taxiwayName, double runwayHeading)
+    public GroundNode? FindClearNode(GroundNode exitNode, string taxiwayName, TrueHeading runwayHeading)
     {
         GroundNode? best = null;
         double bestDiff = double.MaxValue;
@@ -413,8 +413,8 @@ public sealed class AirportGroundLayout
             }
 
             // Prefer the direction that doesn't require turning back toward the runway
-            double heading = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
-            double diff = Math.Abs(NormalizeAngle(heading - runwayHeading));
+            double bearing = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double diff = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
 
             if (diff < bestDiff)
             {
@@ -431,7 +431,7 @@ public sealed class AirportGroundLayout
     /// Returns the absolute angle in degrees (0 = aligned with runway, 90 = perpendicular).
     /// Returns null if no taxiway edge heading can be determined.
     /// </summary>
-    public double? ComputeExitAngle(GroundNode exitNode, string taxiwayName, double runwayHeading)
+    public double? ComputeExitAngle(GroundNode exitNode, string taxiwayName, TrueHeading runwayHeading)
     {
         // Use the taxiway heading that diverges most from the runway — this represents
         // the exit direction, not the direction back along the runway.
@@ -455,8 +455,8 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            double heading = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
-            double angle = Math.Abs(NormalizeAngle(heading - runwayHeading));
+            double bearing = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
+            double angle = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
 
             if (bestAngle is null || angle > bestAngle.Value)
             {
@@ -475,7 +475,7 @@ public sealed class AirportGroundLayout
     public (GroundNode Node, string Taxiway)? FindExitAheadOnRunway(
         double lat,
         double lon,
-        double runwayHeading,
+        TrueHeading runwayHeading,
         ExitPreference? preference,
         double maxSearchNm = 1.5
     )
@@ -542,7 +542,7 @@ public sealed class AirportGroundLayout
             if (preference?.Side is { } side)
             {
                 double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
-                double relative = NormalizeAngle(bearing - runwayHeading);
+                double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
                 bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
                 if (!isOnRequestedSide)
                 {
@@ -591,19 +591,4 @@ public sealed class AirportGroundLayout
         return false;
     }
 
-    private static double NormalizeAngle(double angle)
-    {
-        angle %= 360.0;
-        if (angle > 180.0)
-        {
-            angle -= 360.0;
-        }
-
-        if (angle < -180.0)
-        {
-            angle += 360.0;
-        }
-
-        return angle;
-    }
 }

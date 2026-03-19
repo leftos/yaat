@@ -22,7 +22,7 @@ public static class AtpaVolumeGeometry
         }
 
         // Heading deviation check
-        var hdgDiff = Math.Abs(HeadingDelta(ac.Track, volume.MagneticHeading));
+        var hdgDiff = Math.Abs(HeadingDelta(ac.TrueTrack.Degrees, volume.MagneticHeading));
         if (hdgDiff > volume.MaximumHeadingDeviation)
         {
             return false;

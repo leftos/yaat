@@ -38,8 +38,8 @@ public sealed class HoldingPatternPhase : Phase
 
     private HoldState _state = HoldState.NavigatingToFix;
     private HoldingEntry _entry;
-    private double _outboundHeading;
-    private double _correctedOutboundHeading;
+    private TrueHeading _outboundHeading;
+    private TrueHeading _correctedOutboundHeading;
     private double _legTimerSeconds;
     private int _circuitsCompleted;
 
@@ -47,7 +47,7 @@ public sealed class HoldingPatternPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        _outboundHeading = (InboundCourse + 180) % 360;
+        _outboundHeading = new TrueHeading(InboundCourse + 180);
 
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.NavigationRoute.Add(
@@ -59,7 +59,7 @@ public sealed class HoldingPatternPhase : Phase
             }
         );
 
-        _entry = Entry ?? HoldingEntryCalculator.ComputeEntry(ctx.Aircraft.Heading, InboundCourse, Direction);
+        _entry = Entry ?? HoldingEntryCalculator.ComputeEntry(ctx.Aircraft.TrueHeading, InboundCourse, Direction);
 
         ctx.Logger.LogDebug(
             "[HoldingPattern] {Callsign}: started at {Fix}, inbound={Crs:000}, {Dir}, entry={Entry}, maxCircuits={Max}",
@@ -150,7 +150,7 @@ public sealed class HoldingPatternPhase : Phase
 
     private void TickTurnToOutbound(PhaseContext ctx)
     {
-        if (IsHeadingClose(ctx.Aircraft.Heading, _correctedOutboundHeading))
+        if (IsHeadingClose(ctx.Aircraft.TrueHeading.Degrees, _correctedOutboundHeading.Degrees))
         {
             StartOutbound(ctx);
         }
@@ -178,7 +178,7 @@ public sealed class HoldingPatternPhase : Phase
 
     private void TickTurnToInbound(PhaseContext ctx)
     {
-        if (IsHeadingClose(ctx.Aircraft.Heading, InboundCourse))
+        if (IsHeadingClose(ctx.Aircraft.TrueHeading.Degrees, InboundCourse))
         {
             StartInbound(ctx);
         }
@@ -211,10 +211,10 @@ public sealed class HoldingPatternPhase : Phase
         _legTimerSeconds = GetLegTimerSeconds(ctx);
 
         double offset = Direction == TurnDirection.Right ? -TeardropOffsetDeg : TeardropOffsetDeg;
-        double teardropHeading = ((_outboundHeading + offset) % 360 + 360) % 360;
+        TrueHeading teardropHeading = new TrueHeading(_outboundHeading.Degrees + offset);
 
         ctx.Targets.NavigationRoute.Clear();
-        ctx.Targets.TargetHeading = teardropHeading;
+        ctx.Targets.TargetTrueHeading = teardropHeading;
         ctx.Targets.PreferredTurnDirection = null;
     }
 
@@ -224,7 +224,7 @@ public sealed class HoldingPatternPhase : Phase
         _legTimerSeconds = GetLegTimerSeconds(ctx);
 
         ctx.Targets.NavigationRoute.Clear();
-        ctx.Targets.TargetHeading = _outboundHeading;
+        ctx.Targets.TargetTrueHeading = _outboundHeading;
         ctx.Targets.PreferredTurnDirection = null;
     }
 
@@ -252,7 +252,7 @@ public sealed class HoldingPatternPhase : Phase
     {
         _state = HoldState.TurnToOutbound;
         _correctedOutboundHeading = ComputeOutboundHeading(ctx);
-        ctx.Targets.TargetHeading = _correctedOutboundHeading;
+        ctx.Targets.TargetTrueHeading = _correctedOutboundHeading;
         ctx.Targets.PreferredTurnDirection = Direction;
     }
 
@@ -260,14 +260,14 @@ public sealed class HoldingPatternPhase : Phase
     {
         _state = HoldState.Outbound;
         _legTimerSeconds = ComputeOutboundSeconds(ctx);
-        ctx.Targets.TargetHeading = _correctedOutboundHeading;
+        ctx.Targets.TargetTrueHeading = _correctedOutboundHeading;
         ctx.Targets.PreferredTurnDirection = null;
     }
 
     private void StartTurnToInbound(PhaseContext ctx)
     {
         _state = HoldState.TurnToInbound;
-        ctx.Targets.TargetHeading = InboundCourse;
+        ctx.Targets.TargetTrueHeading = new TrueHeading(InboundCourse);
         ctx.Targets.PreferredTurnDirection = Direction;
     }
 
@@ -354,7 +354,7 @@ public sealed class HoldingPatternPhase : Phase
     /// Applies 3× the inbound WCA in the opposite sense to pre-compensate for crosswind
     /// on the outbound leg, so the inbound track stays close to the inbound course.
     /// </summary>
-    private double ComputeOutboundHeading(PhaseContext ctx)
+    private TrueHeading ComputeOutboundHeading(PhaseContext ctx)
     {
         if (ctx.Weather is null)
         {
@@ -368,7 +368,7 @@ public sealed class HoldingPatternPhase : Phase
         // Triple-drift outbound: subtract 3× WCA from the outbound heading
         // (correcting in the opposite sense, tripled — AIM 5-3-8(j)(8)(c)).
         double inboundWca = WindInterpolator.ComputeWindCorrectionAngle(InboundCourse, tas, wind.DirectionDeg, wind.SpeedKts);
-        return ((_outboundHeading - TripleDriftFactor * inboundWca) % 360 + 360) % 360;
+        return new TrueHeading(_outboundHeading.Degrees - (TripleDriftFactor * inboundWca));
     }
 
     private bool AtFix(PhaseContext ctx)

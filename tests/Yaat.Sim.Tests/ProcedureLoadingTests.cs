@@ -67,8 +67,8 @@ public class ProcedureLoadingTests
             AircraftType = "B738",
             Latitude = 37.619,
             Longitude = -122.375,
-            Heading = 280,
-            Track = 280,
+            TrueHeading = new TrueHeading(280),
+            TrueTrack = new TrueHeading(280),
             Altitude = 0,
             IndicatedAirspeed = 0,
             Route = route,
@@ -237,8 +237,8 @@ public class ProcedureLoadingTests
         aircraft.Latitude = 38.5;
         aircraft.Longitude = -123.5;
         aircraft.Altitude = 20000;
-        aircraft.Heading = 150;
-        aircraft.Track = 150;
+        aircraft.TrueHeading = new TrueHeading(150);
+        aircraft.TrueTrack = new TrueHeading(150);
 
         var navDb = CreateNavDb(star: CreateTestStar());
         NavigationDatabase.SetInstance(navDb);
@@ -617,8 +617,8 @@ public class ProcedureLoadingTests
         var centerLat = 37.0;
         var centerLon = -122.0;
         double radius = 3.0;
-        var startPt = GeoMath.ProjectPoint(centerLat, centerLon, 0, radius);
-        var endPt = GeoMath.ProjectPoint(centerLat, centerLon, 90, radius);
+        var startPt = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(0), radius);
+        var endPt = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(90), radius);
 
         var navDb = CreateNavDb(extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["FIX1"] = startPt, ["FIX2"] = endPt });
         NavigationDatabase.SetInstance(navDb);
@@ -664,8 +664,8 @@ public class ProcedureLoadingTests
         var navaidLat = 37.0;
         var navaidLon = -122.0;
         double rho = 10.0;
-        var startPt = GeoMath.ProjectPoint(navaidLat, navaidLon, 180, rho);
-        var endPt = GeoMath.ProjectPoint(navaidLat, navaidLon, 270, rho);
+        var startPt = GeoMath.ProjectPoint(navaidLat, navaidLon, new TrueHeading(180), rho);
+        var endPt = GeoMath.ProjectPoint(navaidLat, navaidLon, new TrueHeading(270), rho);
 
         var navDb = CreateNavDb(
             extraFixes: new Dictionary<string, (double Lat, double Lon)>
@@ -862,8 +862,8 @@ public class ProcedureLoadingTests
         aircraft.Latitude = 38.5;
         aircraft.Longitude = -123.5;
         aircraft.Altitude = 20000;
-        aircraft.Heading = 150;
-        aircraft.Track = 150;
+        aircraft.TrueHeading = new TrueHeading(150);
+        aircraft.TrueTrack = new TrueHeading(150);
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28L") };
 
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");

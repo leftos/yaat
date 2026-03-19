@@ -16,7 +16,7 @@ public sealed class DownwindPhase : Phase
     private double _abeamAlongTrack;
     private double _thresholdLat;
     private double _thresholdLon;
-    private double _downwindHeading;
+    private TrueHeading _downwindHeading;
     private bool _pastAbeam;
     private double _altitudeFloor;
 
@@ -40,6 +40,7 @@ public sealed class DownwindPhase : Phase
         _thresholdLat = Waypoints.ThresholdLat;
         _thresholdLon = Waypoints.ThresholdLon;
         _downwindHeading = Waypoints.DownwindHeading;
+
         _pastAbeam = false;
 
         _abeamAlongTrack = GeoMath.AlongTrackDistanceNm(
@@ -60,7 +61,7 @@ public sealed class DownwindPhase : Phase
 
         var turnDir = Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
 
-        ctx.Targets.TargetHeading = Waypoints.DownwindHeading;
+        ctx.Targets.TargetTrueHeading = Waypoints.DownwindHeading;
         ctx.Targets.PreferredTurnDirection = turnDir;
         ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         ctx.Targets.NavigationRoute.Clear();
@@ -75,7 +76,7 @@ public sealed class DownwindPhase : Phase
         ctx.Logger.LogDebug(
             "[Downwind] {Callsign}: started, hdg={Hdg:F0}, patternAlt={Alt:F0}ft, extended={Ext}",
             ctx.Aircraft.Callsign,
-            Waypoints.DownwindHeading,
+            Waypoints.DownwindHeading.Degrees,
             Waypoints.PatternAltitude,
             IsExtended
         );

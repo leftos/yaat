@@ -29,10 +29,19 @@ public class AircraftState
     public string Cid { get; set; } = "";
     public double Latitude { get; set; }
     public double Longitude { get; set; }
-    public double Heading { get; set; }
+    public TrueHeading TrueHeading { get; set; }
 
-    /// <summary>Ground track direction in degrees. Equals Heading when there is no wind.</summary>
-    public double Track { get; set; }
+    /// <summary>Ground track direction in degrees true. Equals TrueHeading when there is no wind.</summary>
+    public TrueHeading TrueTrack { get; set; }
+
+    /// <summary>Cached magnetic declination at this aircraft's position. Updated each tick by FlightPhysics.</summary>
+    public double Declination { get; set; }
+
+    /// <summary>Magnetic heading derived from TrueHeading and Declination.</summary>
+    public MagneticHeading MagneticHeading => TrueHeading.ToMagnetic(Declination);
+
+    /// <summary>Magnetic track derived from TrueTrack and Declination.</summary>
+    public MagneticHeading MagneticTrack => TrueTrack.ToMagnetic(Declination);
 
     public double Altitude { get; set; }
 
@@ -57,7 +66,7 @@ public class AircraftState
             }
 
             double tasKts = WindInterpolator.IasToTas(IndicatedAirspeed, Altitude);
-            double hdgRad = Heading * (Math.PI / 180.0);
+            double hdgRad = TrueHeading.Degrees * (Math.PI / 180.0);
             double gsN = tasKts * Math.Cos(hdgRad) + WindComponents.N;
             double gsE = tasKts * Math.Sin(hdgRad) + WindComponents.E;
             return Math.Sqrt(gsN * gsN + gsE * gsE);
@@ -124,10 +133,10 @@ public class AircraftState
 
     /// <summary>
     /// When set, FlightPhysics uses this heading for ground position updates
-    /// instead of <see cref="Heading"/>. Used by pushback (aircraft nose stays
+    /// instead of <see cref="TrueHeading"/>. Used by pushback (aircraft nose stays
     /// forward while tug pushes it backward along this direction).
     /// </summary>
-    public double? PushbackHeading { get; set; }
+    public TrueHeading? PushbackTrueHeading { get; set; }
 
     // Track operations state
     public bool HasFlightPlan { get; set; }

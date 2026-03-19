@@ -14,13 +14,13 @@ public sealed class GoAroundPhase : Phase
     private const double SelfClearAgl = 2000.0;
 
     private double _fieldElevation;
-    private double _runwayHeading;
+    private TrueHeading _runwayTrueHeading;
     private bool _headingAssigned;
 
     public override string Name => "GoAround";
 
-    /// <summary>Heading to fly (null = runway heading).</summary>
-    public int? AssignedHeading { get; init; }
+    /// <summary>Heading to fly in magnetic (null = runway heading).</summary>
+    public MagneticHeading? AssignedMagneticHeading { get; init; }
 
     /// <summary>Altitude to climb to (null = self-clear at 2000 AGL).</summary>
     public int? TargetAltitude { get; init; }
@@ -34,7 +34,7 @@ public sealed class GoAroundPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
-        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        _runwayTrueHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
 
         ctx.Aircraft.IsOnGround = false;
 
@@ -46,7 +46,7 @@ public sealed class GoAroundPhase : Phase
         ctx.Targets.TargetAltitude = targetAlt;
         ctx.Targets.DesiredVerticalRate = climbRate;
         ctx.Targets.TargetSpeed = climbSpeed;
-        ctx.Targets.TargetHeading = _runwayHeading;
+        ctx.Targets.TargetTrueHeading = _runwayTrueHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
@@ -58,9 +58,9 @@ public sealed class GoAroundPhase : Phase
         ctx.Logger.LogDebug(
             "[GoAround] {Callsign}: started, rwyHdg={Hdg:F0}, targetAlt={Alt:F0}ft, assignedHdg={AssHdg}",
             ctx.Aircraft.Callsign,
-            _runwayHeading,
+            _runwayTrueHeading.Degrees,
             targetAlt,
-            AssignedHeading?.ToString() ?? "none"
+            AssignedMagneticHeading?.ToString() ?? "none"
         );
     }
 
@@ -68,14 +68,14 @@ public sealed class GoAroundPhase : Phase
     {
         double agl = ctx.Aircraft.Altitude - _fieldElevation;
 
-        if (!_headingAssigned && AssignedHeading is not null && agl >= NoTurnAgl)
+        if (!_headingAssigned && AssignedMagneticHeading is not null && agl >= NoTurnAgl)
         {
             _headingAssigned = true;
-            ctx.Targets.TargetHeading = AssignedHeading.Value;
+            ctx.Targets.TargetTrueHeading = AssignedMagneticHeading.Value.ToTrue(ctx.Aircraft.Declination);
             ctx.Logger.LogDebug(
                 "[GoAround] {Callsign}: turning to assigned heading {Hdg} at {Agl:F0}ft AGL",
                 ctx.Aircraft.Callsign,
-                AssignedHeading.Value,
+                AssignedMagneticHeading.Value.Degrees,
                 agl
             );
         }

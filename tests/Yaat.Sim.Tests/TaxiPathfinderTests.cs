@@ -63,7 +63,7 @@ public class TaxiPathfinderTests
             Longitude = -122.201,
             Type = GroundNodeType.Parking,
             Name = "P1",
-            Heading = 90,
+            TrueHeading = new TrueHeading(90),
         };
 
         layout.Nodes[0] = nodeA;
@@ -567,11 +567,11 @@ public class TaxiPathfinderTests
                     Designator = "30",
                     Lat1 = 37.710,
                     Lon1 = -122.200,
-                    Heading1 = 300,
+                    TrueHeading1 = new TrueHeading(300),
                     Elevation1Ft = 0,
                     Lat2 = 37.690,
                     Lon2 = -122.200,
-                    Heading2 = 120,
+                    TrueHeading2 = new TrueHeading(120),
                     Elevation2Ft = 0,
                     LengthFt = 5000,
                     WidthFt = 150,
@@ -1779,7 +1779,7 @@ public class TaxiPathfinderTests
         double acLon = -122.209536;
         double rwyHeading = 292.0;
 
-        var exitNode = layout.FindNearestExit(acLat, acLon, rwyHeading);
+        var exitNode = layout.FindNearestExit(acLat, acLon, new TrueHeading(rwyHeading));
         Assert.NotNull(exitNode);
 
         double distToExit = GeoMath.DistanceNm(acLat, acLon, exitNode.Latitude, exitNode.Longitude);
@@ -1824,11 +1824,11 @@ public class TaxiPathfinderTests
         double acLon = -122.209536;
         double rwyHeading = 292.0;
 
-        var exitNode = layout.FindNearestExit(acLat, acLon, rwyHeading);
+        var exitNode = layout.FindNearestExit(acLat, acLon, new TrueHeading(rwyHeading));
         Assert.NotNull(exitNode);
 
         string exitTaxiway = layout.GetExitTaxiwayName(exitNode) ?? "?";
-        var clearNode = layout.FindClearNode(exitNode, exitTaxiway, rwyHeading);
+        var clearNode = layout.FindClearNode(exitNode, exitTaxiway, new TrueHeading(rwyHeading));
         Assert.NotNull(clearNode);
 
         // The clear node is at hold-short distance — it should NOT have

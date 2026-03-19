@@ -101,7 +101,7 @@ internal static class RunwayCrossingDetector
 
     internal static RunwayRectangle BuildRunwayRectangle(GeoJsonParser.RunwayFeature rwy, double widthFt, RunwayIdentifier combinedId)
     {
-        double heading = GeoMath.BearingTo(rwy.Coords[0].Lat, rwy.Coords[0].Lon, rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
+        double bearing = GeoMath.BearingTo(rwy.Coords[0].Lat, rwy.Coords[0].Lon, rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
         double lengthNm = GeoMath.DistanceNm(rwy.Coords[0].Lat, rwy.Coords[0].Lon, rwy.Coords[^1].Lat, rwy.Coords[^1].Lon);
         double halfWidthNm = (widthFt / 2.0) / GeoMath.FeetPerNm;
         double holdShortNm = HoldShortDistanceForWidth(widthFt) / GeoMath.FeetPerNm;
@@ -110,7 +110,7 @@ internal static class RunwayCrossingDetector
         {
             RefLat = rwy.Coords[0].Lat,
             RefLon = rwy.Coords[0].Lon,
-            Heading = heading,
+            TrueHeading = new TrueHeading(bearing),
             LengthNm = lengthNm,
             HalfWidthNm = halfWidthNm,
             HoldShortNm = holdShortNm,
@@ -120,8 +120,8 @@ internal static class RunwayCrossingDetector
 
     internal static bool IsOnRunway(double lat, double lon, in RunwayRectangle rect)
     {
-        double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(lat, lon, rect.RefLat, rect.RefLon, rect.Heading));
-        double alongTrack = GeoMath.AlongTrackDistanceNm(lat, lon, rect.RefLat, rect.RefLon, rect.Heading);
+        double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(lat, lon, rect.RefLat, rect.RefLon, rect.TrueHeading));
+        double alongTrack = GeoMath.AlongTrackDistanceNm(lat, lon, rect.RefLat, rect.RefLon, rect.TrueHeading);
 
         return crossTrack <= rect.HalfWidthNm + RunwayTolerance && alongTrack >= -RunwayTolerance && alongTrack <= rect.LengthNm + RunwayTolerance;
     }
@@ -136,8 +136,8 @@ internal static class RunwayCrossingDetector
         ref int nextNodeId
     )
     {
-        double crossOff = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(offNode.Latitude, offNode.Longitude, rect.RefLat, rect.RefLon, rect.Heading));
-        double crossOn = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(onNode.Latitude, onNode.Longitude, rect.RefLat, rect.RefLon, rect.Heading));
+        double crossOff = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(offNode.Latitude, offNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading));
+        double crossOn = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(onNode.Latitude, onNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading));
 
         double distOffToIdeal = Math.Abs(crossOff - rect.HoldShortNm) * GeoMath.FeetPerNm;
 
@@ -244,7 +244,7 @@ internal static class RunwayCrossingDetector
             if (bestId != -1 && seen.Add(bestId))
             {
                 var bestNode = layout.Nodes[bestId];
-                double at = GeoMath.AlongTrackDistanceNm(bestNode.Latitude, bestNode.Longitude, rect.RefLat, rect.RefLon, rect.Heading);
+                double at = GeoMath.AlongTrackDistanceNm(bestNode.Latitude, bestNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading);
                 onRunwayNodes.Add((bestId, at));
             }
         }
@@ -347,7 +347,7 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            double ct = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.Heading));
+            double ct = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(neighbor.Latitude, neighbor.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading));
             if (ct < startCrossTrack)
             {
                 startCrossTrack = ct;
@@ -400,7 +400,7 @@ internal static class RunwayCrossingDetector
 
                 var nextNode = layout.Nodes[nextId];
                 double ct = Math.Abs(
-                    GeoMath.SignedCrossTrackDistanceNm(nextNode.Latitude, nextNode.Longitude, rect.RefLat, rect.RefLon, rect.Heading)
+                    GeoMath.SignedCrossTrackDistanceNm(nextNode.Latitude, nextNode.Longitude, rect.RefLat, rect.RefLon, rect.TrueHeading)
                 );
 
                 if (ct < bestCrossTrack)
@@ -490,7 +490,7 @@ internal readonly struct RunwayRectangle
 {
     public required double RefLat { get; init; }
     public required double RefLon { get; init; }
-    public required double Heading { get; init; }
+    public required TrueHeading TrueHeading { get; init; }
     public required double LengthNm { get; init; }
     public required double HalfWidthNm { get; init; }
     public required double HoldShortNm { get; init; }

@@ -27,8 +27,8 @@ public class ConflictAlertDetectorTests
             Latitude = lat,
             Longitude = lon,
             Altitude = altitude,
-            Heading = heading,
-            Track = heading,
+            TrueHeading = new TrueHeading(heading),
+            TrueTrack = new TrueHeading(heading),
             IndicatedAirspeed = groundSpeed,
             VerticalSpeed = verticalSpeed,
             TransponderMode = transponderMode,
@@ -269,7 +269,7 @@ public class ConflictAlertDetectorTests
         onFinal.Phases = MakeFinalApproachPhaseList();
 
         // Other aircraft 1nm ahead along course, same altitude
-        var (aheadLat, aheadLon) = GeoMath.ProjectPoint(BaseLat, BaseLon, 284, 1.0);
+        var (aheadLat, aheadLon) = GeoMath.ProjectPoint(BaseLat, BaseLon, new TrueHeading(284), 1.0);
         var other = MakeAircraft("UAL200", aheadLat, aheadLon, altitude: 3000, heading: 284, groundSpeed: 140);
 
         var result = ConflictAlertDetector.Detect([onFinal, other]);
@@ -285,7 +285,7 @@ public class ConflictAlertDetectorTests
         onFinal.Phases = MakeFinalApproachPhaseList();
 
         // Other aircraft 1nm BEHIND (opposite of approach course) — behind has negative along-track
-        var (behindLat, behindLon) = GeoMath.ProjectPoint(BaseLat, BaseLon, 284 + 180, 1.0);
+        var (behindLat, behindLon) = GeoMath.ProjectPoint(BaseLat, BaseLon, new TrueHeading(284 + 180), 1.0);
         var other = MakeAircraft("UAL200", behindLat, behindLon, altitude: 3000, heading: 284, groundSpeed: 200);
 
         var result = ConflictAlertDetector.Detect([onFinal, other]);
@@ -365,7 +365,7 @@ public class ConflictAlertDetectorTests
         var leader = MakeAircraft("AAL100", BaseLat, BaseLon, altitude: 3000, heading: 284, groundSpeed: 140);
         leader.Phases = MakeFinalApproachPhaseList();
 
-        var (aheadLat, aheadLon) = GeoMath.ProjectPoint(BaseLat, BaseLon, 284, 1.5);
+        var (aheadLat, aheadLon) = GeoMath.ProjectPoint(BaseLat, BaseLon, new TrueHeading(284), 1.5);
         var follower = MakeAircraft("UAL200", aheadLat, aheadLon, altitude: 3200, heading: 284, groundSpeed: 140);
         follower.Phases = MakeFinalApproachPhaseList();
 

@@ -73,7 +73,7 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("EVA18");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"EVA18: hdg={aircraft.Heading:F1} alt={aircraft.Altitude:F0}");
+        output.WriteLine($"EVA18: hdg={aircraft.TrueHeading.Degrees:F1} alt={aircraft.Altitude:F0}");
 
         var route = aircraft.Targets.NavigationRoute;
         output.WriteLine($"  Route ({route.Count} fixes):");
@@ -109,7 +109,7 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("EVA18");
         Assert.NotNull(aircraft);
 
-        double initialHdg = aircraft.Heading;
+        double initialHdg = aircraft.TrueHeading.Degrees;
         output.WriteLine($"EVA18 at spawn+2s: hdg={initialHdg:F1} alt={aircraft.Altitude:F0}");
         output.WriteLine($"  Route: [{string.Join(", ", aircraft.Targets.NavigationRoute.Select(t => t.Name))}]");
 
@@ -126,7 +126,7 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
             if (t % 30 == 0)
             {
                 var nextFix = aircraft.Targets.NavigationRoute.Count > 0 ? aircraft.Targets.NavigationRoute[0].Name : "(none)";
-                output.WriteLine($"  t={t}: hdg={aircraft.Heading:F1} lat={aircraft.Latitude:F4} lon={aircraft.Longitude:F4} next={nextFix}");
+                output.WriteLine($"  t={t}: hdg={aircraft.TrueHeading.Degrees:F1} lat={aircraft.Latitude:F4} lon={aircraft.Longitude:F4} next={nextFix}");
             }
         }
 
@@ -134,9 +134,9 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
 
         // After 120 seconds, the aircraft should be navigating (have a target heading set)
         // and the route should still have fixes (not empty/going straight)
-        bool hasRoute = aircraft.Targets.NavigationRoute.Count > 0 || aircraft.Targets.TargetHeading is not null;
+        bool hasRoute = aircraft.Targets.NavigationRoute.Count > 0 || aircraft.Targets.TargetTrueHeading is not null;
         output.WriteLine(
-            $"  Final: hdg={aircraft.Heading:F1} targetHdg={aircraft.Targets.TargetHeading} routeCount={aircraft.Targets.NavigationRoute.Count}"
+            $"  Final: hdg={aircraft.TrueHeading.Degrees:F1} targetHdg={aircraft.Targets.TargetTrueHeading} routeCount={aircraft.Targets.NavigationRoute.Count}"
         );
         Assert.True(hasRoute, "Aircraft should still have navigation targets or a target heading, not fly straight with no guidance");
     }

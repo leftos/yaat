@@ -14,7 +14,7 @@ public sealed class PhaseInitResult
     public required PhaseList Phases { get; init; }
     public double Latitude { get; init; }
     public double Longitude { get; init; }
-    public double Heading { get; init; }
+    public TrueHeading TrueHeading { get; init; }
     public double Altitude { get; init; }
     public double Speed { get; init; }
     public bool IsOnGround { get; init; }
@@ -39,7 +39,7 @@ public static class AircraftInitializer
             Phases = phases,
             Latitude = runway.ThresholdLatitude,
             Longitude = runway.ThresholdLongitude,
-            Heading = runway.TrueHeading,
+            TrueHeading = runway.TrueHeading,
             Altitude = runway.ElevationFt,
             Speed = 0,
             IsOnGround = true,
@@ -60,7 +60,7 @@ public static class AircraftInitializer
             Phases = phases,
             Latitude = parkingNode.Latitude,
             Longitude = parkingNode.Longitude,
-            Heading = parkingNode.Heading ?? 0,
+            TrueHeading = parkingNode.TrueHeading ?? new TrueHeading(0),
             Altitude = fieldElevation,
             Speed = 0,
             IsOnGround = true,
@@ -114,8 +114,8 @@ public static class AircraftInitializer
         }
 
         // Position aircraft on extended centerline
-        double reciprocalHeading = (runway.TrueHeading + 180.0) % 360.0;
-        double reciprocalRad = reciprocalHeading * Math.PI / 180.0;
+        TrueHeading reciprocal = runway.TrueHeading.ToReciprocal();
+        double reciprocalRad = reciprocal.ToRadians();
         double latRad = runway.ThresholdLatitude * Math.PI / 180.0;
         double nmPerDegLat = 60.0;
 
@@ -132,7 +132,7 @@ public static class AircraftInitializer
             Phases = phases,
             Latitude = lat,
             Longitude = lon,
-            Heading = runway.TrueHeading,
+            TrueHeading = runway.TrueHeading,
             Altitude = alt,
             Speed = speed,
             IsOnGround = false,

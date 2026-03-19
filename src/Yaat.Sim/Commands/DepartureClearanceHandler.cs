@@ -439,9 +439,9 @@ internal static class DepartureClearanceHandler
             RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } => ", right downwind departure",
             RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } => ", left downwind departure",
             RelativeTurnDeparture rel => $", turn {(rel.Direction == TurnDirection.Right ? "right" : "left")} {rel.Degrees} degrees",
-            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right => $", turn right heading {fh.Heading:000}",
-            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left => $", turn left heading {fh.Heading:000}",
-            FlyHeadingDeparture fh => $", fly heading {fh.Heading:000}",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right => $", turn right heading {fh.MagneticHeading.ToDisplayInt():000}",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left => $", turn left heading {fh.MagneticHeading.ToDisplayInt():000}",
+            FlyHeadingDeparture fh => $", fly heading {fh.MagneticHeading.ToDisplayInt():000}",
             OnCourseDeparture => ", on course",
             DirectFixDeparture dfd => $", direct {dfd.FixName}",
             ClosedTrafficDeparture ct when ct.RunwayId is not null =>

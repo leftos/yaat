@@ -42,9 +42,9 @@ public static class GeoMath
     /// Turn current heading toward target bearing by at most maxTurnDeg.
     /// Returns the new heading (0-360).
     /// </summary>
-    public static double TurnHeadingToward(double currentHeading, double targetBearing, double maxTurnDeg)
+    public static TrueHeading TurnHeadingToward(TrueHeading current, double targetBearing, double maxTurnDeg)
     {
-        double diff = targetBearing - currentHeading;
+        double diff = targetBearing - current.Degrees;
         while (diff > 180)
         {
             diff -= 360;
@@ -57,18 +57,22 @@ public static class GeoMath
 
         if (Math.Abs(diff) <= maxTurnDeg)
         {
-            return targetBearing;
+            return new TrueHeading(targetBearing);
         }
 
-        return (currentHeading + Math.Sign(diff) * maxTurnDeg + 360) % 360;
+        return new TrueHeading(current.Degrees + Math.Sign(diff) * maxTurnDeg);
     }
 
     /// <summary>
     /// Projects a point from a given lat/lon along a heading for a given distance.
     /// </summary>
-    public static (double Lat, double Lon) ProjectPoint(double lat, double lon, double headingDeg, double distanceNm)
+    public static (double Lat, double Lon) ProjectPoint(double lat, double lon, TrueHeading heading, double distanceNm)
+        => ProjectPointRaw(lat, lon, heading.Degrees, distanceNm);
+
+    /// <summary>Projects a point along a raw bearing angle (not a typed heading). Internal use only.</summary>
+    internal static (double Lat, double Lon) ProjectPointRaw(double lat, double lon, double bearingDeg, double distanceNm)
     {
-        double headingRad = headingDeg * DegToRad;
+        double headingRad = bearingDeg * DegToRad;
         double latRad = lat * DegToRad;
 
         double newLat = lat + (distanceNm * Math.Cos(headingRad) / NmPerDegLat);
@@ -121,12 +125,12 @@ public static class GeoMath
             current = turnRight ? startBearingDeg + swept : startBearingDeg - swept;
             current = ((current % 360.0) + 360.0) % 360.0;
 
-            var pt = ProjectPoint(centerLat, centerLon, current, radiusNm);
+            var pt = ProjectPointRaw(centerLat, centerLon, current, radiusNm);
             points.Add(pt);
         }
 
         // Always include the end point at exact end bearing
-        var endPt = ProjectPoint(centerLat, centerLon, endBearingDeg, radiusNm);
+        var endPt = ProjectPointRaw(centerLat, centerLon, endBearingDeg, radiusNm);
         points.Add(endPt);
 
         return points;
@@ -136,7 +140,11 @@ public static class GeoMath
     /// Signed perpendicular distance from a point to a line defined by
     /// a reference point and heading. Positive = right of heading, negative = left.
     /// </summary>
-    public static double SignedCrossTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
+    public static double SignedCrossTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, TrueHeading heading)
+        => SignedCrossTrackDistanceNmRaw(pointLat, pointLon, refLat, refLon, heading.Degrees);
+
+    /// <summary>Signed cross-track distance using a raw bearing angle. Internal use only.</summary>
+    internal static double SignedCrossTrackDistanceNmRaw(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
     {
         double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
         double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
@@ -148,11 +156,39 @@ public static class GeoMath
     /// Signed distance along a heading from a reference point to a target point.
     /// Positive = ahead (in heading direction), negative = behind.
     /// </summary>
-    public static double AlongTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
+    public static double AlongTrackDistanceNm(double pointLat, double pointLon, double refLat, double refLon, TrueHeading heading)
+        => AlongTrackDistanceNmRaw(pointLat, pointLon, refLat, refLon, heading.Degrees);
+
+    /// <summary>Along-track distance using a raw bearing angle. Internal use only.</summary>
+    internal static double AlongTrackDistanceNmRaw(double pointLat, double pointLon, double refLat, double refLon, double headingDeg)
     {
         double bearing = BearingTo(refLat, refLon, pointLat, pointLon);
         double dist = DistanceNm(refLat, refLon, pointLat, pointLon);
         double angleDiff = (bearing - headingDeg) * DegToRad;
         return dist * Math.Cos(angleDiff);
     }
+
+    /// <summary>
+    /// Signed angle difference between two raw bearing angles, normalized to [-180, 180).
+    /// Use for pure geometry (taxiway/runway bearing comparisons). For headings, use
+    /// TrueHeading.SignedAngleTo() or MagneticHeading.SignedAngleTo() instead.
+    /// </summary>
+    public static double SignedBearingDifference(double fromDeg, double toDeg)
+    {
+        double diff = (toDeg - fromDeg) % 360.0;
+        if (diff > 180.0)
+        {
+            diff -= 360.0;
+        }
+
+        if (diff < -180.0)
+        {
+            diff += 360.0;
+        }
+
+        return diff;
+    }
+
+    /// <summary>Absolute bearing difference in [0, 180].</summary>
+    public static double AbsBearingDifference(double a, double b) => Math.Abs(SignedBearingDifference(a, b));
 }

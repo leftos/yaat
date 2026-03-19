@@ -88,7 +88,7 @@ public static class AircraftGenerator
         var (lat, lon) = ComputePosition(airportPos.Value.Lat, airportPos.Value.Lon, request.Bearing, request.DistanceNm);
 
         // Heading toward the airport
-        var heading = ComputeBearing(lat, lon, airportPos.Value.Lat, airportPos.Value.Lon);
+        TrueHeading trueHeading = new(ComputeBearing(lat, lon, airportPos.Value.Lat, airportPos.Value.Lon));
         var speed = AircraftPerformance.DefaultSpeed(aircraftType, category, request.Altitude, null);
 
         var state = new AircraftState
@@ -97,8 +97,8 @@ public static class AircraftGenerator
             AircraftType = aircraftType,
             Latitude = lat,
             Longitude = lon,
-            Heading = heading,
-            Track = heading,
+            TrueHeading = trueHeading,
+            TrueTrack = trueHeading,
             Altitude = request.Altitude,
             IndicatedAirspeed = speed,
             AssignedBeaconCode = beaconCode,
@@ -129,13 +129,13 @@ public static class AircraftGenerator
         }
 
         // If primary airport is known, head toward it; otherwise head north
-        double heading = 0;
+        TrueHeading trueHeading = new(0);
         if (!string.IsNullOrEmpty(primaryAirportId))
         {
             var airportPos = navDb.GetFixPosition(primaryAirportId);
             if (airportPos is not null)
             {
-                heading = ComputeBearing(resolved.Latitude, resolved.Longitude, airportPos.Value.Lat, airportPos.Value.Lon);
+                trueHeading = new TrueHeading(ComputeBearing(resolved.Latitude, resolved.Longitude, airportPos.Value.Lat, airportPos.Value.Lon));
             }
         }
 
@@ -147,8 +147,8 @@ public static class AircraftGenerator
             AircraftType = aircraftType,
             Latitude = resolved.Latitude,
             Longitude = resolved.Longitude,
-            Heading = heading,
-            Track = heading,
+            TrueHeading = trueHeading,
+            TrueTrack = trueHeading,
             Altitude = request.Altitude,
             IndicatedAirspeed = speed,
             AssignedBeaconCode = beaconCode,
@@ -191,8 +191,8 @@ public static class AircraftGenerator
             AircraftType = aircraftType,
             Latitude = init.Latitude,
             Longitude = init.Longitude,
-            Heading = init.Heading,
-            Track = init.Heading,
+            TrueHeading = init.TrueHeading,
+            TrueTrack = init.TrueHeading,
             Altitude = init.Altitude,
             IndicatedAirspeed = init.Speed,
             IsOnGround = init.IsOnGround,
@@ -240,8 +240,8 @@ public static class AircraftGenerator
             AircraftType = aircraftType,
             Latitude = init.Latitude,
             Longitude = init.Longitude,
-            Heading = init.Heading,
-            Track = init.Heading,
+            TrueHeading = init.TrueHeading,
+            TrueTrack = init.TrueHeading,
             Altitude = init.Altitude,
             IndicatedAirspeed = init.Speed,
             IsOnGround = init.IsOnGround,
@@ -287,8 +287,8 @@ public static class AircraftGenerator
             AircraftType = aircraftType,
             Latitude = init.Latitude,
             Longitude = init.Longitude,
-            Heading = init.Heading,
-            Track = init.Heading,
+            TrueHeading = init.TrueHeading,
+            TrueTrack = init.TrueHeading,
             Altitude = init.Altitude,
             IndicatedAirspeed = init.Speed,
             IsOnGround = init.IsOnGround,

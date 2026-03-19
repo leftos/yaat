@@ -21,7 +21,7 @@ public static class ApproachCommandHandler
         // Cancel existing speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
 
-        double finalCourse = approachRunway.TrueHeading;
+        TrueHeading finalCourse = approachRunway.TrueHeading;
 
         // Build approach fix sequence, selecting best transition if available
         var transition = SelectBestTransition(procedure, aircraft);
@@ -46,10 +46,10 @@ public static class ApproachCommandHandler
 
         // Implied PTAC: no AT/DCT fix and aircraft was on an assigned heading → intercept on present heading
         bool hasAtOrDctFix = cmd.AtFix is not null || cmd.DctFix is not null;
-        bool isOnAssignedHeading = aircraft.Targets.AssignedHeading is not null;
+        bool isOnAssignedHeading = aircraft.Targets.AssignedMagneticHeading is not null;
 
         // Clear assigned heading — approach takes over steering
-        aircraft.Targets.AssignedHeading = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
 
         if (!hasAtOrDctFix && isOnAssignedHeading)
         {
@@ -123,7 +123,7 @@ public static class ApproachCommandHandler
         // Cancel existing speed restrictions per 7110.65 §5-7-4
         aircraft.Targets.TargetSpeed = null;
 
-        double finalCourse = approachRunway.TrueHeading;
+        TrueHeading finalCourse = approachRunway.TrueHeading;
 
         // Build approach fix sequence, selecting best transition if available
         var transition = SelectBestTransition(procedure, aircraft);
@@ -136,7 +136,7 @@ public static class ApproachCommandHandler
         bool needsHold = procedure.HasHoldInLieu && !straightIn;
 
         // Clear assigned heading — approach takes over steering
-        aircraft.Targets.AssignedHeading = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
 
         // Clear existing phases
         ClearExistingPhases(aircraft);
@@ -162,7 +162,7 @@ public static class ApproachCommandHandler
             var holdFix = trimmedFixes.FirstOrDefault(f => f.Name.Equals(holdLeg.FixIdentifier, StringComparison.OrdinalIgnoreCase));
             if (holdFix is not null)
             {
-                int inboundCourse = holdLeg.OutboundCourse.HasValue ? (int)((holdLeg.OutboundCourse.Value + 180) % 360) : (int)finalCourse;
+                int inboundCourse = holdLeg.OutboundCourse.HasValue ? (int)((holdLeg.OutboundCourse.Value + 180) % 360) : (int)finalCourse.Degrees;
 
                 aircraft.Phases.Add(
                     new HoldingPatternPhase
@@ -205,10 +205,10 @@ public static class ApproachCommandHandler
 
         var (procedure, approachRunway, airport) = resolved;
 
-        double finalCourse = approachRunway.TrueHeading;
+        TrueHeading finalCourse = approachRunway.TrueHeading;
 
         // Resolve heading: explicit or present
-        int heading = cmd.Heading ?? (int)Math.Round(aircraft.Heading);
+        int heading = (int)Math.Round(cmd.MagneticHeading?.Degrees ?? aircraft.MagneticHeading.Degrees);
         // Resolve altitude: explicit or present
         int altitude = cmd.Altitude ?? (int)(aircraft.Targets.TargetAltitude ?? aircraft.Altitude);
 
@@ -217,8 +217,8 @@ public static class ApproachCommandHandler
 
         // Set heading and altitude immediately
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = heading;
-        aircraft.Targets.AssignedHeading = heading;
+        aircraft.Targets.TargetTrueHeading = new MagneticHeading(heading).ToTrue(aircraft.Declination);
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(heading);
         aircraft.Targets.PreferredTurnDirection = null;
         aircraft.Targets.TargetAltitude = altitude;
 
@@ -281,7 +281,7 @@ public static class ApproachCommandHandler
         aircraft.Targets.TargetSpeed = null;
 
         // Clear assigned heading — approach takes over steering
-        aircraft.Targets.AssignedHeading = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
 
         // Clear existing phases
         ClearExistingPhases(aircraft);
@@ -299,8 +299,8 @@ public static class ApproachCommandHandler
         aircraft.DestinationRunway = approachRunway.Designator;
 
         // Determine execution path based on aircraft position
-        double finalCourse = approachRunway.TrueHeading;
-        double angleOff = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - finalCourse));
+        TrueHeading finalCourse = approachRunway.TrueHeading;
+        double angleOff = aircraft.TrueHeading.AbsAngleTo(finalCourse);
 
         if (cmd.FollowCallsign is not null)
         {
@@ -351,7 +351,7 @@ public static class ApproachCommandHandler
     private static (double Lat, double Lon) ComputeInterceptPoint(RunwayInfo runway, double distanceNm)
     {
         // Project back from threshold along the reciprocal of the runway heading
-        double reciprocal = (runway.TrueHeading + 180.0) % 360.0;
+        TrueHeading reciprocal = runway.TrueHeading.ToReciprocal();
         return GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, distanceNm);
     }
 
@@ -515,8 +515,8 @@ public static class ApproachCommandHandler
 
     internal static CommandResult? ValidateInterceptAngle(AircraftState aircraft, RunwayInfo runway)
     {
-        double finalCourse = runway.TrueHeading;
-        double interceptAngle = Math.Abs(FlightPhysics.NormalizeAngle(aircraft.Heading - finalCourse));
+        TrueHeading finalCourse = runway.TrueHeading;
+        double interceptAngle = aircraft.TrueHeading.AbsAngleTo(finalCourse);
 
         // Helicopters: 45° max intercept angle per §5-9-2
         bool isHelicopter = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;
@@ -533,7 +533,7 @@ public static class ApproachCommandHandler
         // Fixed-wing: distance-based angle limits per TBL 5-9-1
         // Compute where aircraft's track intersects the final approach course.
         // The FAC extends from the threshold along the reciprocal of the runway heading.
-        double facReciprocalDeg = (finalCourse + 180) % 360;
+        TrueHeading facReciprocal = finalCourse.ToReciprocal();
 
         // Along-track distance of aircraft position relative to threshold on the FAC.
         // Positive = on the approach side (away from airport along reciprocal).
@@ -542,7 +542,7 @@ public static class ApproachCommandHandler
             aircraft.Longitude,
             runway.ThresholdLatitude,
             runway.ThresholdLongitude,
-            facReciprocalDeg
+            facReciprocal
         );
 
         double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
@@ -550,13 +550,13 @@ public static class ApproachCommandHandler
             aircraft.Longitude,
             runway.ThresholdLatitude,
             runway.ThresholdLongitude,
-            facReciprocalDeg
+            facReciprocal
         );
 
         // Compute along-track distance of the interception point from the threshold.
         // Using trig: the aircraft is at (crossTrack, alongTrack) in the FAC frame.
         // Its heading relative to the FAC determines where it crosses.
-        double relativeAngleRad = FlightPhysics.NormalizeAngle(aircraft.Heading - finalCourse) * Math.PI / 180.0;
+        double relativeAngleRad = finalCourse.SignedAngleTo(aircraft.TrueHeading) * Math.PI / 180.0;
         double tanAngle = Math.Tan(relativeAngleRad);
 
         double interceptAlongTrack;
@@ -896,7 +896,7 @@ public static class ApproachCommandHandler
             }
 
             double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
-            double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - aircraft.Heading));
+            double angleDiff = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
             if (angleDiff > 90)
             {
                 continue;
@@ -1070,7 +1070,7 @@ public static class ApproachCommandHandler
             }
 
             double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, fix.Latitude, fix.Longitude);
-            double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - aircraft.Heading));
+            double angleDiff = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
 
             // Only consider fixes within ±90° of current heading
             if (angleDiff > 90)

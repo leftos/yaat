@@ -22,11 +22,11 @@ public readonly struct ParseResult<T>
 
 public abstract record ParsedCommand;
 
-public record FlyHeadingCommand(int Heading) : ParsedCommand;
+public record FlyHeadingCommand(MagneticHeading MagneticHeading) : ParsedCommand;
 
-public record TurnLeftCommand(int Heading) : ParsedCommand;
+public record TurnLeftCommand(MagneticHeading MagneticHeading) : ParsedCommand;
 
-public record TurnRightCommand(int Heading) : ParsedCommand;
+public record TurnRightCommand(MagneticHeading MagneticHeading) : ParsedCommand;
 
 public record LeftTurnCommand(int Degrees) : ParsedCommand;
 
@@ -59,13 +59,13 @@ public record NormalRateCommand : ParsedCommand;
 
 public record MachCommand(double MachNumber) : ParsedCommand;
 
-public record ForceHeadingCommand(int Heading) : ParsedCommand;
+public record ForceHeadingCommand(MagneticHeading MagneticHeading) : ParsedCommand;
 
 public record ForceAltitudeCommand(int Altitude) : ParsedCommand;
 
 public record ForceSpeedCommand(int Speed) : ParsedCommand;
 
-public record WarpCommand(string PositionLabel, double Latitude, double Longitude, int Heading, int Altitude, int Speed) : ParsedCommand;
+public record WarpCommand(string PositionLabel, double Latitude, double Longitude, MagneticHeading MagneticHeading, int Altitude, int Speed) : ParsedCommand;
 
 public record WarpGroundCommand(string Taxiway1, string Taxiway2, int? NodeId = null, string? ParkingName = null) : ParsedCommand;
 
@@ -130,7 +130,7 @@ public record RunwayHeadingDeparture : DepartureInstruction;
 public record RelativeTurnDeparture(int Degrees, TurnDirection Direction) : DepartureInstruction;
 
 /// <summary>Fly a specific heading after takeoff, with optional turn direction.</summary>
-public record FlyHeadingDeparture(int Heading, TurnDirection? Direction) : DepartureInstruction;
+public record FlyHeadingDeparture(MagneticHeading MagneticHeading, TurnDirection? Direction) : DepartureInstruction;
 
 /// <summary>On course: fly direct to destination airport.</summary>
 public record OnCourseDeparture : DepartureInstruction;
@@ -153,7 +153,7 @@ public record ClearedForTakeoffCommand(DepartureInstruction Departure, int? Assi
 
 public record CancelTakeoffClearanceCommand : ParsedCommand;
 
-public record GoAroundCommand(int? AssignedHeading = null, int? TargetAltitude = null, PatternDirection? TrafficPattern = null) : ParsedCommand;
+public record GoAroundCommand(MagneticHeading? AssignedMagneticHeading, int? TargetAltitude, PatternDirection? TrafficPattern) : ParsedCommand;
 
 public record ClearedToLandCommand(bool NoDelete = false) : ParsedCommand;
 
@@ -246,11 +246,11 @@ public record ClearedTakeoffPresentCommand : ParsedCommand;
 
 // Ground commands
 public record PushbackCommand(
-    int? Heading = null,
-    string? Taxiway = null,
-    string? FacingTaxiway = null,
-    string? DestinationParking = null,
-    string? DestinationSpot = null
+    MagneticHeading? MagneticHeading,
+    string? Taxiway,
+    string? FacingTaxiway,
+    string? DestinationParking,
+    string? DestinationSpot
 ) : ParsedCommand;
 
 public record TaxiCommand(
@@ -419,7 +419,7 @@ public record HoldingPatternCommand(
     HoldingEntry? Entry
 ) : ParsedCommand;
 
-public record PositionTurnAltitudeClearanceCommand(int? Heading, int? Altitude, string? ApproachId) : ParsedCommand;
+public record PositionTurnAltitudeClearanceCommand(MagneticHeading? MagneticHeading, int? Altitude, string? ApproachId) : ParsedCommand;
 
 public record ClimbViaCommand(int? Altitude) : ParsedCommand;
 
@@ -437,7 +437,7 @@ public record ConstrainedForceDirectToCommand(
     List<string>? SkippedFixes
 ) : ParsedCommand;
 
-public record DepartFixCommand(string FixName, double FixLat, double FixLon, int Heading) : ParsedCommand;
+public record DepartFixCommand(string FixName, double FixLat, double FixLon, MagneticHeading MagneticHeading) : ParsedCommand;
 
 public record ListApproachesCommand(string? AirportCode) : ParsedCommand;
 

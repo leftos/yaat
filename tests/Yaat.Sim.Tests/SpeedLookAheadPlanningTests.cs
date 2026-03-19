@@ -41,8 +41,8 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
             AircraftType = type,
             Latitude = lat,
             Longitude = lon,
-            Heading = 360,
-            Track = 360,
+            TrueHeading = new TrueHeading(360),
+            TrueTrack = new TrueHeading(360),
             Altitude = altitude,
             IndicatedAirspeed = ias,
         };

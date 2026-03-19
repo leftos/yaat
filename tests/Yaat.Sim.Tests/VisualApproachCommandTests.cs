@@ -42,8 +42,8 @@ public class VisualApproachCommandTests
         {
             Callsign = "N123",
             AircraftType = "B738",
-            Heading = heading,
-            Track = heading,
+            TrueHeading = new TrueHeading(heading),
+            TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = 180,
             Latitude = lat,

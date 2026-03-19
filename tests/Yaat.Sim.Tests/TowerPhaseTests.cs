@@ -31,7 +31,7 @@ public class TowerPhaseTests
             AircraftType = type,
             Latitude = lat,
             Longitude = lon,
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
             IsOnGround = onGround,
@@ -71,7 +71,7 @@ public class TowerPhaseTests
         phase.OnStart(ctx);
 
         Assert.Equal(0, ac.Targets.TargetSpeed);
-        Assert.Equal(280, ac.Targets.TargetHeading);
+        Assert.Equal(280, ac.Targets.TargetTrueHeading?.Degrees);
         Assert.True(ac.IsOnGround);
     }
 
@@ -120,7 +120,7 @@ public class TowerPhaseTests
         phase.OnStart(ctx);
 
         Assert.False(ac.IsOnGround);
-        Assert.Equal(280, ac.Targets.TargetHeading);
+        Assert.Equal(280, ac.Targets.TargetTrueHeading?.Degrees);
         // Target altitude = field elevation + 2000ft AGL
         Assert.Equal(2100, ac.Targets.TargetAltitude);
         Assert.True(ac.Targets.DesiredVerticalRate > 0);
@@ -150,21 +150,21 @@ public class TowerPhaseTests
     {
         var rwy = DefaultRunway(100);
         var ac = MakeAircraft(altitude: 100, onGround: false);
-        var phase = new GoAroundPhase { AssignedHeading = 360 };
+        var phase = new GoAroundPhase { AssignedMagneticHeading = new MagneticHeading(360) };
         var ctx = Ctx(ac, rwy);
 
         phase.OnStart(ctx);
-        Assert.Equal(280, ac.Targets.TargetHeading); // runway heading initially
+        Assert.Equal(280, ac.Targets.TargetTrueHeading?.Degrees); // runway heading initially
 
         // Below 400 AGL — still runway heading
         ac.Altitude = 400;
         phase.OnTick(ctx);
-        Assert.Equal(280, ac.Targets.TargetHeading);
+        Assert.Equal(280, ac.Targets.TargetTrueHeading?.Degrees);
 
         // Above 400 AGL — turns to assigned heading
         ac.Altitude = 550;
         phase.OnTick(ctx);
-        Assert.Equal(360, ac.Targets.TargetHeading);
+        Assert.True(ac.Targets.TargetTrueHeading?.IsCloseTo(new TrueHeading(360), 0.1));
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class TowerPhaseTests
         phase.OnStart(ctx);
 
         Assert.True(ac.IsOnGround);
-        Assert.Equal(280, ac.Targets.TargetHeading);
+        Assert.Equal(280, ac.Targets.TargetTrueHeading?.Degrees);
         Assert.NotNull(ac.Targets.TargetSpeed);
     }
 
@@ -373,7 +373,7 @@ public class TowerPhaseTests
 
         phase.OnStart(ctx);
 
-        Assert.Equal(280, ac.Targets.TargetHeading);
+        Assert.Equal(280, ac.Targets.TargetTrueHeading?.Degrees);
         Assert.NotNull(ac.Targets.TargetSpeed);
     }
 
@@ -524,7 +524,7 @@ public class TowerPhaseTests
         Assert.Empty(ac.Targets.NavigationRoute);
         Assert.Equal(TurnDirection.Right, ac.Targets.PreferredTurnDirection);
         // Target should be 180° ahead of current heading
-        Assert.Equal(270, ac.Targets.TargetHeading);
+        Assert.Equal(270, ac.Targets.TargetTrueHeading?.Degrees);
     }
 
     [Fact]
@@ -547,12 +547,12 @@ public class TowerPhaseTests
         double[] headings = [90, 80, 45, 350, 270, 180, 100, 90];
         foreach (double hdg in headings)
         {
-            ac.Heading = hdg;
+            ac.TrueHeading = new TrueHeading(hdg);
             phase.OnTick(ctx);
 
             Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
             double expected = (hdg + 360 - 180) % 360;
-            Assert.Equal(expected, ac.Targets.TargetHeading);
+            Assert.Equal(expected, ac.Targets.TargetTrueHeading?.Degrees);
         }
     }
 
@@ -668,7 +668,7 @@ public class TowerPhaseTests
         Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
         Assert.Empty(ac.Targets.NavigationRoute);
         // Target should be ~180° from current heading in the turn direction (270 for left from 90)
-        Assert.Equal(270, ac.Targets.TargetHeading);
+        Assert.Equal(270, ac.Targets.TargetTrueHeading?.Degrees);
     }
 
     [Fact]
@@ -684,14 +684,14 @@ public class TowerPhaseTests
         double[] headings = [90, 95, 110, 150, 200, 270, 350, 30, 80, 90];
         foreach (double hdg in headings)
         {
-            ac.Heading = hdg;
+            ac.TrueHeading = new TrueHeading(hdg);
             phase.OnTick(ctx);
 
             // PreferredTurnDirection must never be cleared
             Assert.Equal(TurnDirection.Right, ac.Targets.PreferredTurnDirection);
             // Target should always be 180° ahead in the turn direction
             double expected = (hdg + 180) % 360;
-            Assert.Equal(expected, ac.Targets.TargetHeading);
+            Assert.Equal(expected, ac.Targets.TargetTrueHeading?.Degrees);
         }
     }
 
@@ -707,7 +707,7 @@ public class TowerPhaseTests
         // Simulate a full 360° of right turns in 10° increments
         for (int i = 1; i <= 36; i++)
         {
-            ac.Heading = (i * 10) % 360;
+            ac.TrueHeading = new TrueHeading((i * 10) % 360);
             Assert.False(phase.OnTick(ctx));
         }
 

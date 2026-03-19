@@ -85,7 +85,7 @@ public sealed class RunwayExitPhase : Phase
         // Turn toward target node
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
         // Check arrival — use a capture radius that accounts for the distance
         // the aircraft can travel in one tick to prevent overshooting at low speeds.
@@ -98,7 +98,7 @@ public sealed class RunwayExitPhase : Phase
             // Snap position to the target node to prevent drift/overshoot
             ctx.Aircraft.Latitude = target.Latitude;
             ctx.Aircraft.Longitude = target.Longitude;
-            ctx.Aircraft.Heading = bearing;
+            ctx.Aircraft.TrueHeading = new TrueHeading(bearing);
 
             if (!_reachedExitNode)
             {
@@ -123,7 +123,7 @@ public sealed class RunwayExitPhase : Phase
                 ctx.Aircraft.Callsign,
                 dist,
                 ctx.Aircraft.GroundSpeed,
-                ctx.Aircraft.Heading
+                ctx.Aircraft.TrueHeading.Degrees
             );
         }
 
@@ -143,10 +143,10 @@ public sealed class RunwayExitPhase : Phase
             var stopNode = _reachedExitNode && _clearNode is not null ? _clearNode : _exitNode;
             if (stopNode is not null && _exitTaxiway is not null && ctx.GroundLayout is not null)
             {
-                var taxiwayHdg = ctx.GroundLayout.GetEdgeHeadingForTaxiway(stopNode, _exitTaxiway, ctx.Aircraft.Heading);
-                if (taxiwayHdg is not null)
+                var taxiwayBearing = ctx.GroundLayout.GetEdgeBearingForTaxiway(stopNode, _exitTaxiway, ctx.Aircraft.TrueHeading.Degrees);
+                if (taxiwayBearing is not null)
                 {
-                    ctx.Aircraft.Heading = taxiwayHdg.Value;
+                    ctx.Aircraft.TrueHeading = new TrueHeading(taxiwayBearing.Value);
                 }
             }
 
@@ -162,7 +162,7 @@ public sealed class RunwayExitPhase : Phase
         var requested = ctx.Aircraft.Phases?.RequestedExit;
         _lastResolvedPreference = requested;
         _reachedExitNode = false;
-        double heading = ctx.Aircraft.Heading;
+        TrueHeading trueHeading = ctx.Aircraft.TrueHeading;
 
         if (requested?.Taxiway is { } taxiway)
         {
@@ -170,11 +170,11 @@ public sealed class RunwayExitPhase : Phase
         }
         else if (requested?.Side is { } side)
         {
-            _exitNode = ctx.GroundLayout!.FindExitBySide(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, heading, side);
+            _exitNode = ctx.GroundLayout!.FindExitBySide(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, trueHeading, side);
         }
         else
         {
-            _exitNode = ctx.GroundLayout!.FindNearestExit(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, heading);
+            _exitNode = ctx.GroundLayout!.FindNearestExit(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, trueHeading);
         }
 
         _exitTaxiway = _exitNode is not null ? ctx.GroundLayout!.GetExitTaxiwayName(_exitNode) : null;
@@ -183,7 +183,7 @@ public sealed class RunwayExitPhase : Phase
         double? exitAngle = null;
         if (_exitNode is not null && _exitTaxiway is not null)
         {
-            exitAngle = ctx.GroundLayout!.ComputeExitAngle(_exitNode, _exitTaxiway, heading);
+            exitAngle = ctx.GroundLayout!.ComputeExitAngle(_exitNode, _exitTaxiway, trueHeading);
         }
         _exitSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
 
@@ -192,7 +192,7 @@ public sealed class RunwayExitPhase : Phase
         _clearNode = null;
         if (_exitNode is not null && _exitTaxiway is not null)
         {
-            _clearNode = ctx.GroundLayout!.FindClearNode(_exitNode, _exitTaxiway, heading);
+            _clearNode = ctx.GroundLayout!.FindClearNode(_exitNode, _exitTaxiway, trueHeading);
         }
     }
 

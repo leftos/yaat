@@ -22,8 +22,8 @@ public class AtAltitudeConditionTests
             AircraftType = "B738",
             Latitude = 37.7,
             Longitude = -122.2,
-            Heading = heading,
-            Track = heading,
+            TrueHeading = new TrueHeading(heading),
+            TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
             IsOnGround = false,
@@ -171,7 +171,7 @@ public class AtAltitudeConditionTests
         FlightPhysics.Update(aircraft, 1.0, null, null);
 
         Assert.True(aircraft.Queue.Blocks[0].IsApplied);
-        Assert.Equal(270.0, aircraft.Targets.TargetHeading);
+        Assert.Equal(270.0, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 
     [Fact]
@@ -195,12 +195,12 @@ public class AtAltitudeConditionTests
         aircraft.Altitude = 5000;
         FlightPhysics.Update(aircraft, 1.0, null, null);
         Assert.True(aircraft.Queue.Blocks[0].IsApplied);
-        Assert.Equal(180.0, aircraft.Targets.TargetHeading);
+        Assert.Equal(180.0, aircraft.Targets.AssignedMagneticHeading?.Degrees);
         Assert.False(aircraft.Queue.Blocks[1].IsApplied);
 
         // Simulate heading reaching target so block 0 completes
-        aircraft.Heading = 180;
-        aircraft.Targets.TargetHeading = null;
+        aircraft.TrueHeading = new TrueHeading(180);
+        aircraft.Targets.TargetTrueHeading = null;
         FlightPhysics.Update(aircraft, 1.0, null, null);
         Assert.Equal(1, aircraft.Queue.CurrentBlockIndex);
 
@@ -211,6 +211,6 @@ public class AtAltitudeConditionTests
         aircraft.Altitude = 9000;
         FlightPhysics.Update(aircraft, 1.0, null, null);
         Assert.True(aircraft.Queue.Blocks[1].IsApplied);
-        Assert.Equal(270.0, aircraft.Targets.TargetHeading);
+        Assert.Equal(270.0, aircraft.Targets.AssignedMagneticHeading?.Degrees);
     }
 }

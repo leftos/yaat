@@ -374,14 +374,14 @@ internal static class ApproachCommandParser
         }
 
         // Token 0: heading — integer 1-360 or PH
-        int? heading;
+        MagneticHeading? heading;
         if (tokens[0].Equals("PH", StringComparison.OrdinalIgnoreCase))
         {
             heading = null;
         }
         else if (int.TryParse(tokens[0], out var h) && h >= 1 && h <= 360)
         {
-            heading = h;
+            heading = new MagneticHeading(h);
         }
         else
         {
@@ -567,7 +567,7 @@ internal static class ApproachCommandParser
             return PR.Fail($"invalid DEPART heading '{tokens[1]}'");
         }
 
-        return PR.Ok(new DepartFixCommand(fixName, pos.Value.Lat, pos.Value.Lon, heading));
+        return PR.Ok(new DepartFixCommand(fixName, pos.Value.Lat, pos.Value.Lon, new MagneticHeading(heading)));
     }
 
     /// <summary>

@@ -34,7 +34,7 @@ public class ApproachTransitionTests(ITestOutputHelper output)
         {
             Callsign = callsign,
             AircraftType = aircraftType,
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             Altitude = 5000,
             Latitude = lat,
             Longitude = lon,

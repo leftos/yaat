@@ -22,7 +22,7 @@ public class RunwayCrossingDetectorTests
     private static GeoJsonParser.RunwayFeature DiagonalRunway(double startLat = 37.0, double startLon = -122.0)
     {
         // Project ~1nm at 45 degrees
-        var (endLat, endLon) = GeoMath.ProjectPoint(startLat, startLon, 45.0, 1.0);
+        var (endLat, endLon) = GeoMath.ProjectPoint(startLat, startLon, new TrueHeading(45.0), 1.0);
         return new GeoJsonParser.RunwayFeature("4/22", [(startLat, startLon), (endLat, endLon)]);
     }
 
@@ -85,7 +85,7 @@ public class RunwayCrossingDetectorTests
         double midLon = (rwy.Coords[0].Lon + rwy.Coords[1].Lon) / 2.0;
 
         // Offset perpendicular to 45° heading (i.e., at 135°) by ~500ft
-        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, midLon, 135.0, 500.0 / FeetPerNm);
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, midLon, new TrueHeading(135.0), 500.0 / FeetPerNm);
 
         Assert.False(RunwayCrossingDetector.IsOnRunway(offLat, offLon, rect));
     }
@@ -97,7 +97,7 @@ public class RunwayCrossingDetectorTests
         var rect = RunwayCrossingDetector.BuildRunwayRectangle(rwy, 150.0, RunwayIdentifier.Parse("4/22"));
 
         // Project past the far end
-        var (beyondLat, beyondLon) = GeoMath.ProjectPoint(rwy.Coords[1].Lat, rwy.Coords[1].Lon, 45.0, 0.1);
+        var (beyondLat, beyondLon) = GeoMath.ProjectPoint(rwy.Coords[1].Lat, rwy.Coords[1].Lon, new TrueHeading(45.0), 0.1);
 
         Assert.False(RunwayCrossingDetector.IsOnRunway(beyondLat, beyondLon, rect));
     }
@@ -110,7 +110,7 @@ public class RunwayCrossingDetectorTests
 
         // 50ft east of centerline (within 75ft half-width)
         double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
-        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 50.0 / FeetPerNm);
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), 50.0 / FeetPerNm);
 
         Assert.True(RunwayCrossingDetector.IsOnRunway(offLat, offLon, rect));
     }
@@ -160,7 +160,7 @@ public class RunwayCrossingDetectorTests
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
 
         // Node 2: well off the runway (~1000ft east)
-        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 1000.0 / FeetPerNm);
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), 1000.0 / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
         layout.Nodes[1] = onNode;
@@ -196,7 +196,7 @@ public class RunwayCrossingDetectorTests
 
         double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
-        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 1000.0 / FeetPerNm);
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), 1000.0 / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
         layout.Nodes[1] = onNode;
@@ -232,7 +232,7 @@ public class RunwayCrossingDetectorTests
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
 
         // Place the off-node within 50ft of the ideal hold-short distance (at 140ft, 10ft short)
-        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, (holdShortFt - 10.0) / FeetPerNm);
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), (holdShortFt - 10.0) / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
         layout.Nodes[1] = onNode;
@@ -262,7 +262,7 @@ public class RunwayCrossingDetectorTests
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
 
         // Place off-node at 600ft from centerline (450ft away from ideal 150ft HS point — well beyond 50ft reuse)
-        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 600.0 / FeetPerNm);
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), 600.0 / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
         layout.Nodes[1] = onNode;
@@ -298,7 +298,7 @@ public class RunwayCrossingDetectorTests
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
 
         // Off-node at 800ft east — HS should be interpolated at ~150ft
-        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 800.0 / FeetPerNm);
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), 800.0 / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
         layout.Nodes[1] = onNode;
@@ -332,7 +332,7 @@ public class RunwayCrossingDetectorTests
 
         double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
         var onNode = MakeNode(1, midLat, rwy.Coords[0].Lon);
-        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 1000.0 / FeetPerNm);
+        var (offLat, offLon) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), 1000.0 / FeetPerNm);
         var offNode = MakeNode(2, offLat, offLon);
 
         layout.Nodes[1] = onNode;
@@ -364,8 +364,8 @@ public class RunwayCrossingDetectorTests
         double midLat = (rwy.Coords[0].Lat + rwy.Coords[1].Lat) / 2.0;
 
         // Both nodes far east of runway
-        var (lat1, lon1) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 500.0 / FeetPerNm);
-        var (lat2, lon2) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, 90.0, 800.0 / FeetPerNm);
+        var (lat1, lon1) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), 500.0 / FeetPerNm);
+        var (lat2, lon2) = GeoMath.ProjectPoint(midLat, rwy.Coords[0].Lon, new TrueHeading(90.0), 800.0 / FeetPerNm);
         var node1 = MakeNode(1, lat1, lon1);
         var node2 = MakeNode(2, lat2, lon2);
 

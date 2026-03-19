@@ -15,7 +15,7 @@ public sealed class InitialClimbPhase : Phase
 
     private double _fieldElevation;
     private double _targetAltitude;
-    private double? _departureHeading;
+    private TrueHeading? _departureHeading;
     private double? _phaseCompletionAltitude;
     private double _selfClearAltitude;
 
@@ -92,7 +92,7 @@ public sealed class InitialClimbPhase : Phase
         }
 
         bool headingDone =
-            _departureHeading is null || Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - _departureHeading.Value)) < HeadingToleranceDeg;
+            _departureHeading is null || ctx.Aircraft.TrueHeading.AbsAngleTo(_departureHeading.Value) < HeadingToleranceDeg;
 
         bool altitudeDone = _phaseCompletionAltitude is null || ctx.Aircraft.Altitude >= _phaseCompletionAltitude.Value;
 
@@ -108,7 +108,7 @@ public sealed class InitialClimbPhase : Phase
             ctx.Logger.LogDebug(
                 "[InitialClimb] {Callsign}: phase complete (hdg={Hdg}, alt={Alt:F0}ft, IAS={Ias:F0}kts)",
                 ctx.Aircraft.Callsign,
-                _departureHeading?.ToString("F0") ?? "n/a",
+                _departureHeading?.Degrees.ToString("F0") ?? "n/a",
                 ctx.Aircraft.Altitude,
                 ctx.Aircraft.IndicatedAirspeed
             );
@@ -123,15 +123,15 @@ public sealed class InitialClimbPhase : Phase
         return CommandAcceptance.ClearsPhase;
     }
 
-    private double? ResolveDepartureHeading(PhaseContext ctx)
+    private TrueHeading? ResolveDepartureHeading(PhaseContext ctx)
     {
-        double runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        TrueHeading runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
         return Departure switch
         {
             RelativeTurnDeparture rel => rel.Direction == TurnDirection.Right
-                ? FlightPhysics.NormalizeHeadingInt(runwayHeading + rel.Degrees)
-                : FlightPhysics.NormalizeHeadingInt(runwayHeading - rel.Degrees),
-            FlyHeadingDeparture fh => fh.Heading,
+                ? new TrueHeading(runwayHeading.Degrees + rel.Degrees)
+                : new TrueHeading(runwayHeading.Degrees - rel.Degrees),
+            FlyHeadingDeparture fh => fh.MagneticHeading.ToTrue(ctx.Aircraft.Declination),
             _ => null,
         };
     }

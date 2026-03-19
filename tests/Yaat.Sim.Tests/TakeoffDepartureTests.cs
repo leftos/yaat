@@ -25,7 +25,10 @@ public class TakeoffDepartureTests
     /// runs OnStart + ticks until airborne, and returns the resulting
     /// TargetHeading and PreferredTurnDirection.
     /// </summary>
-    private static (double? TargetHeading, TurnDirection? TurnDir) RunTakeoff(DepartureInstruction departure, double runwayHeading = RunwayHeading)
+    private static (double? TargetHeading, TurnDirection? TurnDir) RunTakeoff(
+        DepartureInstruction departure,
+        double runwayHeading = RunwayHeading
+    )
     {
         var runway = MakeRunway(runwayHeading);
         var phase = new TakeoffPhase();
@@ -38,7 +41,7 @@ public class TakeoffDepartureTests
             AircraftType = "B738",
             Latitude = runway.ThresholdLatitude,
             Longitude = runway.ThresholdLongitude,
-            Heading = runwayHeading,
+            TrueHeading = new TrueHeading(runwayHeading),
             Altitude = FieldElevation,
             Phases = phaseList,
         };
@@ -71,7 +74,7 @@ public class TakeoffDepartureTests
             }
         }
 
-        return (targets.TargetHeading, targets.PreferredTurnDirection);
+        return (targets.TargetTrueHeading?.Degrees, targets.PreferredTurnDirection);
     }
 
     [Fact]
@@ -138,7 +141,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void FlyHeading_NoDirection()
     {
-        var (hdg, dir) = RunTakeoff(new FlyHeadingDeparture(270, null));
+        var (hdg, dir) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(270), null));
         Assert.Equal(270, hdg);
         Assert.Null(dir);
     }
@@ -146,7 +149,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void FlyHeading_RightTurn()
     {
-        var (hdg, dir) = RunTakeoff(new FlyHeadingDeparture(090, TurnDirection.Right));
+        var (hdg, dir) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(090), TurnDirection.Right));
         Assert.Equal(90, hdg);
         Assert.Equal(TurnDirection.Right, dir);
     }
@@ -154,7 +157,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void FlyHeading_LeftTurn()
     {
-        var (hdg, dir) = RunTakeoff(new FlyHeadingDeparture(180, TurnDirection.Left));
+        var (hdg, dir) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(180), TurnDirection.Left));
         Assert.Equal(180, hdg);
         Assert.Equal(TurnDirection.Left, dir);
     }

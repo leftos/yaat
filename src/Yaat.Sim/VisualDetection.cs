@@ -50,7 +50,7 @@ public static class VisualDetection
         double airportElevation,
         int? ceilingAgl,
         double? visibilitySm,
-        double runwayHeading,
+        TrueHeading runwayHeading,
         double bankAngleDeg = 0.0
     )
     {
@@ -86,14 +86,14 @@ public static class VisualDetection
 
         // Forward hemisphere check
         double bearing = GeoMath.BearingTo(ownship.Latitude, ownship.Longitude, target.Latitude, target.Longitude);
-        double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - ownship.Heading));
+        double angleDiff = ownship.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
         if (angleDiff > 90.0)
         {
             return false;
         }
 
         // Bank angle occlusion: high wing blocks view of targets on that side at/below altitude
-        if (IsOccludedByBank(bankAngleDeg, ownship.Heading, bearing, ownship.Altitude, target.Altitude))
+        if (IsOccludedByBank(bankAngleDeg, ownship.TrueHeading, new TrueHeading(bearing), ownship.Altitude, target.Altitude))
         {
             return false;
         }
@@ -117,8 +117,8 @@ public static class VisualDetection
     /// </summary>
     public static bool IsOccludedByBank(
         double bankAngleDeg,
-        double ownshipHeading,
-        double bearingToTarget,
+        TrueHeading ownshipHeading,
+        TrueHeading bearingToTarget,
         double ownshipAltitude,
         double targetAltitude
     )
@@ -130,7 +130,7 @@ public static class VisualDetection
         }
 
         // Signed angle from nose to target: positive = right of nose, negative = left
-        double signedAngle = FlightPhysics.NormalizeAngle(bearingToTarget - ownshipHeading);
+        double signedAngle = ownshipHeading.SignedAngleTo(bearingToTarget);
 
         // Target near the nose (within windscreen cone) → always visible
         if (Math.Abs(signedAngle) < NoseConeDeg)
@@ -159,7 +159,7 @@ public static class VisualDetection
         double airportElevation,
         int? ceilingAgl,
         double? visibilitySm,
-        double? runwayHeading,
+        TrueHeading? runwayHeading,
         double bankAngleDeg
     )
     {
@@ -181,14 +181,14 @@ public static class VisualDetection
 
         // Forward hemisphere check: bearing to airport within ±90° of heading
         double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, airportLat, airportLon);
-        double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - aircraft.Heading));
+        double angleDiff = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
         if (angleDiff > 90.0)
         {
             return false;
         }
 
         // Bank angle occlusion: airport is always below the aircraft
-        if (IsOccludedByBank(bankAngleDeg, aircraft.Heading, bearing, aircraft.Altitude, airportElevation))
+        if (IsOccludedByBank(bankAngleDeg, aircraft.TrueHeading, new TrueHeading(bearing), aircraft.Altitude, airportElevation))
         {
             return false;
         }
@@ -207,9 +207,9 @@ public static class VisualDetection
         // approach side or on a downwind/crosswind that can reasonably join.
         if (runwayHeading is { } rwyHdg)
         {
-            double approachSide = (rwyHdg + 180.0) % 360.0;
+            TrueHeading approachSide = rwyHdg.ToReciprocal();
             double bearingFromAirport = GeoMath.BearingTo(airportLat, airportLon, aircraft.Latitude, aircraft.Longitude);
-            double sideAngle = Math.Abs(FlightPhysics.NormalizeAngle(bearingFromAirport - approachSide));
+            double sideAngle = approachSide.AbsAngleTo(new TrueHeading(bearingFromAirport));
             if (sideAngle > 120.0)
             {
                 return false;

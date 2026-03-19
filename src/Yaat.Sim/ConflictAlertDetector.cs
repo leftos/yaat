@@ -125,7 +125,7 @@ public static class ConflictAlertDetector
     private static bool IsInApproachCorridor(AircraftState approachAircraft, AircraftState other)
     {
         // Use approach course if available, otherwise aircraft heading
-        double course = approachAircraft.Phases?.ActiveApproach?.FinalApproachCourse ?? approachAircraft.Heading;
+        TrueHeading course = approachAircraft.Phases?.ActiveApproach?.FinalApproachCourse ?? approachAircraft.TrueHeading;
 
         double crossTrack = Math.Abs(
             GeoMath.SignedCrossTrackDistanceNm(other.Latitude, other.Longitude, approachAircraft.Latitude, approachAircraft.Longitude, course)

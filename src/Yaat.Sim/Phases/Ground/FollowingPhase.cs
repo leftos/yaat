@@ -74,7 +74,7 @@ public sealed class FollowingPhase : Phase
         // Turn toward the target
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
         // Speed: match target with distance-based adjustment
         double accelRate = CategoryPerformance.TaxiAccelRate(ctx.Category);
@@ -165,7 +165,7 @@ public sealed class FollowingPhase : Phase
 
             // Check approach angle: aircraft heading should point toward the node
             double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, node.Latitude, node.Longitude);
-            double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - bearing));
+            double angleDiff = Math.Abs(GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, bearing));
             if (angleDiff > HoldShortAngleThreshold)
             {
                 continue;

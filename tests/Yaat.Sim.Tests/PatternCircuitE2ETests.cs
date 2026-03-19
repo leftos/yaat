@@ -22,8 +22,8 @@ public class PatternCircuitE2ETests
             AircraftType = "B738",
             Latitude = rwy.ThresholdLatitude,
             Longitude = rwy.ThresholdLongitude,
-            Heading = heading,
-            Track = heading,
+            TrueHeading = new TrueHeading(heading),
+            TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
             IsOnGround = false,
@@ -99,7 +99,7 @@ public class PatternCircuitE2ETests
     public void FullCircuit_FromUpwind_CompletesAllPhases()
     {
         var rwy = DefaultRunway();
-        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 200, heading: rwy.TrueHeading, ias: 180);
+        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 200, heading: rwy.TrueHeading.Degrees, ias: 180);
 
         // Build a non-touch-and-go circuit (landing)
         var phases = PatternBuilder.BuildCircuit(rwy, AircraftCategory.Jet, PatternDirection.Left, PatternEntryLeg.Upwind, false);
@@ -127,7 +127,7 @@ public class PatternCircuitE2ETests
     {
         var rwy = DefaultRunway();
         var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left);
-        var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading);
+        var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
         ac.Latitude = wp.DownwindAbeamLat;
         ac.Longitude = wp.DownwindAbeamLon;
 
@@ -159,7 +159,7 @@ public class PatternCircuitE2ETests
     {
         var rwy = DefaultRunway();
         var wp = PatternGeometry.Compute(rwy, AircraftCategory.Jet, PatternDirection.Left);
-        var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading);
+        var ac = MakeAircraft(rwy, altitude: wp.PatternAltitude, heading: wp.DownwindHeading.Degrees);
         ac.Latitude = wp.DownwindAbeamLat;
         ac.Longitude = wp.DownwindAbeamLon;
 
@@ -218,10 +218,10 @@ public class PatternCircuitE2ETests
     public void GoAround_FromFinal_ClearsPhases()
     {
         var rwy = DefaultRunway();
-        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 800, heading: rwy.TrueHeading, ias: 150);
+        var ac = MakeAircraft(rwy, altitude: rwy.ElevationFt + 800, heading: rwy.TrueHeading.Degrees, ias: 150);
 
         // Set up on final (close to runway)
-        var (approachLat, approachLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, (rwy.TrueHeading + 180) % 360, 3.0);
+        var (approachLat, approachLon) = GeoMath.ProjectPoint(rwy.ThresholdLatitude, rwy.ThresholdLongitude, rwy.TrueHeading.ToReciprocal(), 3.0);
         ac.Latitude = approachLat;
         ac.Longitude = approachLon;
 
@@ -243,7 +243,7 @@ public class PatternCircuitE2ETests
         }
 
         // Issue go-around command via DispatchCompound (phase interaction path)
-        var compound = new CompoundCommand([new ParsedBlock(null, [new GoAroundCommand()])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new GoAroundCommand(null, null, null)])]);
         var result = CommandDispatcher.DispatchCompound(compound, ac, null, Random.Shared, true);
 
         // Go-around should succeed (clears phase, sets up GoAroundPhase)

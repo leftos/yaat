@@ -11,13 +11,12 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchJrado(JoinRadialOutboundCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): fly present heading
-        double jradoPresentHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = jradoPresentHeading;
-        aircraft.Targets.AssignedHeading = jradoPresentHeading;
+        aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
+        aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
 
-        // Block 1: on radial intercept, fly outbound heading
+        // Block 1: on radial intercept, fly outbound heading (radial is magnetic)
         var interceptBlock = new CommandBlock
         {
             Trigger = new BlockTrigger
@@ -30,9 +29,10 @@ internal static class NavigationCommandHandler
             },
             ApplyAction = ac =>
             {
+                var magneticHdg = new MagneticHeading(cmd.Radial);
                 ac.Targets.NavigationRoute.Clear();
-                ac.Targets.TargetHeading = cmd.Radial;
-                ac.Targets.AssignedHeading = cmd.Radial;
+                ac.Targets.TargetTrueHeading = magneticHdg.ToTrue(ac.Declination);
+                ac.Targets.AssignedMagneticHeading = magneticHdg;
                 ac.Targets.PreferredTurnDirection = null;
                 return new CommandResult(true);
             },
@@ -48,10 +48,9 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchJradi(JoinRadialInboundCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): fly present heading
-        double jradiPresentHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = jradiPresentHeading;
-        aircraft.Targets.AssignedHeading = jradiPresentHeading;
+        aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
+        aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
 
         // Block 1: on radial intercept, navigate inbound to fix
@@ -67,7 +66,7 @@ internal static class NavigationCommandHandler
             },
             ApplyAction = ac =>
             {
-                ac.Targets.AssignedHeading = null;
+                ac.Targets.AssignedMagneticHeading = null;
                 ac.Targets.NavigationRoute.Clear();
                 ac.Targets.NavigationRoute.Add(
                     new NavigationTarget
@@ -91,7 +90,7 @@ internal static class NavigationCommandHandler
     internal static CommandResult DispatchDepartFix(DepartFixCommand cmd, AircraftState aircraft)
     {
         // Block 0 (immediate): navigate to fix (navigation phase — clear assigned heading)
-        aircraft.Targets.AssignedHeading = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
@@ -115,18 +114,18 @@ internal static class NavigationCommandHandler
             ApplyAction = ac =>
             {
                 ac.Targets.NavigationRoute.Clear();
-                ac.Targets.TargetHeading = cmd.Heading;
-                ac.Targets.AssignedHeading = cmd.Heading;
+                ac.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(ac.Declination);
+                ac.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
                 ac.Targets.PreferredTurnDirection = null;
                 return new CommandResult(true);
             },
-            Description = $"at {cmd.FixName}: FH {cmd.Heading:D3}",
-            NaturalDescription = $"At {cmd.FixName}: fly heading {cmd.Heading:D3}",
+            Description = $"at {cmd.FixName}: FH {cmd.MagneticHeading.ToDisplayInt():000}",
+            NaturalDescription = $"At {cmd.FixName}: fly heading {cmd.MagneticHeading.ToDisplayInt():000}",
         };
         departBlock.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
         aircraft.Queue.Blocks.Add(departBlock);
 
-        return CommandDispatcher.Ok($"Proceed direct {cmd.FixName}, depart heading {cmd.Heading:D3}");
+        return CommandDispatcher.Ok($"Proceed direct {cmd.FixName}, depart heading {cmd.MagneticHeading.ToDisplayInt():000}");
     }
 
     internal static CommandResult DispatchCrossFix(CrossFixCommand cmd, AircraftState aircraft)
@@ -257,7 +256,7 @@ internal static class NavigationCommandHandler
         if (cifpResult is not null)
         {
             aircraft.Targets.NavigationRoute.Clear();
-            aircraft.Targets.AssignedHeading = null;
+            aircraft.Targets.AssignedMagneticHeading = null;
             foreach (var target in cifpResult)
             {
                 aircraft.Targets.NavigationRoute.Add(target);
@@ -322,7 +321,7 @@ internal static class NavigationCommandHandler
         }
 
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.AssignedHeading = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
         foreach (var fixName in deduped)
         {
             var pos = navDb.GetFixPosition(fixName);
@@ -456,7 +455,7 @@ internal static class NavigationCommandHandler
         for (int i = 0; i < targets.Count; i++)
         {
             double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, targets[i].Latitude, targets[i].Longitude);
-            double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+            double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
             if (angleDiff > 180)
             {
                 angleDiff = 360 - angleDiff;
@@ -502,7 +501,7 @@ internal static class NavigationCommandHandler
             }
 
             double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, pos.Value.Lat, pos.Value.Lon);
-            double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+            double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
             if (angleDiff > 180)
             {
                 angleDiff = 360 - angleDiff;
@@ -619,10 +618,9 @@ internal static class NavigationCommandHandler
         }
 
         // Block 0 (immediate): fly present heading (to allow intercept)
-        double jawyPresentHeading = FlightPhysics.NormalizeHeading(aircraft.Heading);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = jawyPresentHeading;
-        aircraft.Targets.AssignedHeading = jawyPresentHeading;
+        aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
+        aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
 
         // Block 1: on segment intercept, navigate the airway fix sequence
@@ -638,7 +636,7 @@ internal static class NavigationCommandHandler
             },
             ApplyAction = ac =>
             {
-                ac.Targets.AssignedHeading = null;
+                ac.Targets.AssignedMagneticHeading = null;
                 ac.Targets.NavigationRoute.Clear();
                 foreach (var target in navTargets)
                 {
@@ -687,7 +685,7 @@ internal static class NavigationCommandHandler
             }
 
             double bearing = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, positions[i]!.Value.Lat, positions[i]!.Value.Lon);
-            double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+            double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
             if (angleDiff > 180)
             {
                 angleDiff = 360 - angleDiff;
@@ -739,7 +737,7 @@ internal static class NavigationCommandHandler
                         positions[candidateBefore]!.Value.Lat,
                         positions[candidateBefore]!.Value.Lon
                     );
-                    double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+                    double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
                     if (angleDiff > 180)
                     {
                         angleDiff = 360 - angleDiff;
@@ -759,7 +757,7 @@ internal static class NavigationCommandHandler
                         positions[candidateAfter]!.Value.Lat,
                         positions[candidateAfter]!.Value.Lon
                     );
-                    double angleDiff = ((bearing - aircraft.Heading) % 360 + 360) % 360;
+                    double angleDiff = ((bearing - aircraft.TrueHeading.Degrees) % 360 + 360) % 360;
                     if (angleDiff > 180)
                     {
                         angleDiff = 360 - angleDiff;
@@ -851,7 +849,7 @@ internal static class NavigationCommandHandler
             ? runway
             : runway.ForApproach(procedure.Runway);
 
-        double finalCourse = approachRunway.TrueHeading;
+        TrueHeading finalCourse = approachRunway.TrueHeading;
 
         // Cancel existing speed restrictions per 7110.65 §5-7-1.a.4
         aircraft.Targets.TargetSpeed = null;
@@ -860,7 +858,7 @@ internal static class NavigationCommandHandler
         aircraft.Targets.SpeedCeiling = null;
 
         // Clear assigned heading — approach takes over steering
-        aircraft.Targets.AssignedHeading = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
 
         // Clear existing phases
         if (aircraft.Phases is not null)

@@ -15,7 +15,7 @@ public sealed class HoldingAfterPushbackPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.TargetSpeed = 0;
-        ctx.Targets.TargetHeading = null;
+        ctx.Targets.TargetTrueHeading = null;
         ctx.Targets.TargetAltitude = null;
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
@@ -25,7 +25,7 @@ public sealed class HoldingAfterPushbackPhase : Phase
             ctx.Aircraft.Callsign,
             ctx.Aircraft.Latitude,
             ctx.Aircraft.Longitude,
-            ctx.Aircraft.Heading
+            ctx.Aircraft.TrueHeading.Degrees
         );
     }
 

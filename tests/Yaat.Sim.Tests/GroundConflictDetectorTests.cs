@@ -31,10 +31,10 @@ public class GroundConflictDetectorTests
             AircraftType = "B738",
             Latitude = lat,
             Longitude = lon,
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             IsOnGround = true,
             IndicatedAirspeed = gs,
-            PushbackHeading = pushbackHeading,
+            PushbackTrueHeading = pushbackHeading.HasValue ? new TrueHeading(pushbackHeading.Value) : null,
             AssignedTaxiRoute = taxiRoute,
         };
 

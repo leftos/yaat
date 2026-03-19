@@ -24,7 +24,7 @@ public sealed class FinalApproachPhase : Phase
     private double _thresholdLat;
     private double _thresholdLon;
     private double _thresholdElevation;
-    private double _runwayHeading;
+    private TrueHeading _runwayHeading;
     private double _gsAngleDeg;
     private bool _goAroundTriggered;
     private bool _noClearanceWarningIssued;
@@ -53,7 +53,7 @@ public sealed class FinalApproachPhase : Phase
         _gsAngleDeg = GlideSlopeGeometry.AngleForCategory(ctx.Category);
         _isPatternTraffic = ctx.Aircraft.Phases?.TrafficDirection is not null;
 
-        ctx.Targets.TargetHeading = _runwayHeading;
+        ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
@@ -72,7 +72,7 @@ public sealed class FinalApproachPhase : Phase
         ctx.Logger.LogDebug(
             "[FinalApproach] {Callsign}: started, rwy hdg={Hdg:F0}, dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, xte={Xte:F3}nm",
             ctx.Aircraft.Callsign,
-            _runwayHeading,
+            _runwayHeading.Degrees,
             startDist,
             ctx.Aircraft.Altitude,
             approachSpeed,
@@ -120,10 +120,10 @@ public sealed class FinalApproachPhase : Phase
         double alongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading);
         double aimAlongTrack = Math.Min(alongTrack + leadNm, 0.0);
 
-        double reciprocal = FlightPhysics.NormalizeHeading(_runwayHeading + 180.0);
+        TrueHeading reciprocal = _runwayHeading.ToReciprocal();
         var aimPoint = GeoMath.ProjectPoint(_thresholdLat, _thresholdLon, reciprocal, Math.Abs(aimAlongTrack));
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, aimPoint.Lat, aimPoint.Lon);
-        ctx.Targets.TargetHeading = bearing;
+        ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
 
         // Target: glideslope altitude at current distance (true 3°/6° path)
         double gsAltitude = GlideSlopeGeometry.AltitudeAtDistance(distNm, _thresholdElevation, _gsAngleDeg);
@@ -196,7 +196,7 @@ public sealed class FinalApproachPhase : Phase
             GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon, _runwayHeading)
         );
 
-        double headingDiff = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - _runwayHeading));
+        double headingDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading);
 
         if (crossTrack >= InterceptCrossTrackThresholdNm || headingDiff >= InterceptHeadingThresholdDeg)
         {
@@ -210,7 +210,7 @@ public sealed class FinalApproachPhase : Phase
         bool isVisualApproach = ctx.Aircraft.Phases?.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.Ordinal) == true;
 
         double minIntercept = ApproachGateDatabase.GetMinInterceptDistanceNm(ctx.Runway.AirportId, ctx.Runway.Designator);
-        double interceptAngle = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - _runwayHeading));
+        double interceptAngle = ctx.Aircraft.TrueHeading.AbsAngleTo(_runwayHeading);
 
         bool isDistanceLegal = isVisualApproach || distNm >= minIntercept;
         if (!isDistanceLegal && !_isPatternTraffic)

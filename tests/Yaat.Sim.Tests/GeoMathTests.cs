@@ -83,7 +83,7 @@ public class GeoMathTests
     [Fact]
     public void TurnHeadingToward_CurrentEqualsTarget_ReturnsTarget()
     {
-        double result = GeoMath.TurnHeadingToward(270.0, 270.0, 30.0);
+        double result = GeoMath.TurnHeadingToward(new TrueHeading(270.0), 270.0, 30.0).Degrees;
         Assert.Equal(270.0, result, precision: 5);
     }
 
@@ -91,7 +91,7 @@ public class GeoMathTests
     public void TurnHeadingToward_DiffWithinMax_ReturnsTarget()
     {
         // 350 → 10: shortest path is right 20°, max 30° → snaps to target
-        double result = GeoMath.TurnHeadingToward(350.0, 10.0, 30.0);
+        double result = GeoMath.TurnHeadingToward(new TrueHeading(350.0), 10.0, 30.0).Degrees;
         Assert.Equal(10.0, result, precision: 5);
     }
 
@@ -99,7 +99,7 @@ public class GeoMathTests
     public void TurnHeadingToward_DiffExceedsMax_TurnsRightByMax()
     {
         // 350 → 10: shortest path is right 20°... wait, 20 > 5, so turn right 5° → 355
-        double result = GeoMath.TurnHeadingToward(350.0, 10.0, 5.0);
+        double result = GeoMath.TurnHeadingToward(new TrueHeading(350.0), 10.0, 5.0).Degrees;
         Assert.Equal(355.0, result, precision: 5);
     }
 
@@ -107,7 +107,7 @@ public class GeoMathTests
     public void TurnHeadingToward_LeftTurnAcross360_TurnsLeftByMax()
     {
         // 10 → 350: shortest path is left 20°, max 5° → turn left → 5
-        double result = GeoMath.TurnHeadingToward(10.0, 350.0, 5.0);
+        double result = GeoMath.TurnHeadingToward(new TrueHeading(10.0), 350.0, 5.0).Degrees;
         Assert.Equal(5.0, result, precision: 5);
     }
 
@@ -115,7 +115,7 @@ public class GeoMathTests
     public void TurnHeadingToward_180DegreeDiff_TurnsRightByMax()
     {
         // 0 → 180: diff = 180, sign(180) = +1, turns right
-        double result = GeoMath.TurnHeadingToward(0.0, 180.0, 10.0);
+        double result = GeoMath.TurnHeadingToward(new TrueHeading(0.0), 180.0, 10.0).Degrees;
         Assert.Equal(10.0, result, precision: 5);
     }
 
@@ -123,7 +123,7 @@ public class GeoMathTests
     public void TurnHeadingToward_OppositeViaLeft_TurnsLeftByMax()
     {
         // 180 → 0: diff = -180, sign(-180) = -1, turns left
-        double result = GeoMath.TurnHeadingToward(180.0, 0.0, 10.0);
+        double result = GeoMath.TurnHeadingToward(new TrueHeading(180.0), 0.0, 10.0).Degrees;
         Assert.Equal(170.0, result, precision: 5);
     }
 
@@ -131,7 +131,7 @@ public class GeoMathTests
     public void TurnHeadingToward_ResultAlwaysIn0To360Range()
     {
         // Turning from near 0 leftward should not produce negative result
-        double result = GeoMath.TurnHeadingToward(2.0, 350.0, 10.0);
+        double result = GeoMath.TurnHeadingToward(new TrueHeading(2.0), 350.0, 10.0).Degrees;
         Assert.InRange(result, 0.0, 360.0);
     }
 
@@ -142,7 +142,7 @@ public class GeoMathTests
     [Fact]
     public void ProjectPoint_DueNorth60Nm_LatIncreasesBy1Degree()
     {
-        var (lat, lon) = GeoMath.ProjectPoint(0.0, 0.0, 0.0, 60.0);
+        var (lat, lon) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(0.0), 60.0);
         Assert.InRange(lat, 0.99, 1.01);
         Assert.Equal(0.0, lon, precision: 5);
     }
@@ -150,7 +150,7 @@ public class GeoMathTests
     [Fact]
     public void ProjectPoint_DueEast60NmAtEquator_LonIncreasesBy1Degree()
     {
-        var (lat, lon) = GeoMath.ProjectPoint(0.0, 0.0, 90.0, 60.0);
+        var (lat, lon) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(90.0), 60.0);
         Assert.Equal(0.0, lat, precision: 5);
         Assert.InRange(lon, 0.99, 1.01);
     }
@@ -158,14 +158,14 @@ public class GeoMathTests
     [Fact]
     public void ProjectPoint_DueSouth60Nm_LatDecreases()
     {
-        var (lat, _) = GeoMath.ProjectPoint(0.0, 0.0, 180.0, 60.0);
+        var (lat, _) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(180.0), 60.0);
         Assert.InRange(lat, -1.01, -0.99);
     }
 
     [Fact]
     public void ProjectPoint_DueWest60NmAtEquator_LonDecreases()
     {
-        var (_, lon) = GeoMath.ProjectPoint(0.0, 0.0, 270.0, 60.0);
+        var (_, lon) = GeoMath.ProjectPoint(0.0, 0.0, new TrueHeading(270.0), 60.0);
         Assert.InRange(lon, -1.01, -0.99);
     }
 
@@ -177,7 +177,7 @@ public class GeoMathTests
         double headingDeg = 045.0;
         double distanceNm = 25.0;
 
-        var (newLat, newLon) = GeoMath.ProjectPoint(startLat, startLon, headingDeg, distanceNm);
+        var (newLat, newLon) = GeoMath.ProjectPoint(startLat, startLon, new TrueHeading(headingDeg), distanceNm);
         double roundTripDist = GeoMath.DistanceNm(startLat, startLon, newLat, newLon);
 
         Assert.InRange(roundTripDist, 24.9, 25.1);
@@ -228,7 +228,7 @@ public class GeoMathTests
         double endBearing = 90.0;
 
         var pts = GeoMath.GenerateArcPoints(centerLat, centerLon, radiusNm, 0.0, endBearing, turnRight: true, stepDeg: 30.0);
-        var expectedEnd = GeoMath.ProjectPoint(centerLat, centerLon, endBearing, radiusNm);
+        var expectedEnd = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(endBearing), radiusNm);
 
         Assert.Equal(expectedEnd.Lat, pts[^1].Lat, precision: 10);
         Assert.Equal(expectedEnd.Lon, pts[^1].Lon, precision: 10);
@@ -250,7 +250,7 @@ public class GeoMathTests
     public void SignedCrossTrackDistanceNm_PointOnHeadingLine_ReturnsNearZero()
     {
         // Heading north; point directly ahead on the same meridian → cross-track ≈ 0
-        double xtk = GeoMath.SignedCrossTrackDistanceNm(1.0, 0.0, 0.0, 0.0, 0.0);
+        double xtk = GeoMath.SignedCrossTrackDistanceNm(1.0, 0.0, 0.0, 0.0, new TrueHeading(0.0));
         Assert.InRange(xtk, -0.01, 0.01);
     }
 
@@ -258,7 +258,7 @@ public class GeoMathTests
     public void SignedCrossTrackDistanceNm_PointToRight_ReturnsPositive()
     {
         // Heading north (0°), point shifted east (+lon) → right of track → positive
-        double xtk = GeoMath.SignedCrossTrackDistanceNm(0.0, 1.0, 0.0, 0.0, 0.0);
+        double xtk = GeoMath.SignedCrossTrackDistanceNm(0.0, 1.0, 0.0, 0.0, new TrueHeading(0.0));
         Assert.True(xtk > 0, $"Expected positive cross-track for point east of northbound heading, got {xtk}");
     }
 
@@ -266,15 +266,15 @@ public class GeoMathTests
     public void SignedCrossTrackDistanceNm_PointToLeft_ReturnsNegative()
     {
         // Heading north (0°), point shifted west (-lon) → left of track → negative
-        double xtk = GeoMath.SignedCrossTrackDistanceNm(0.0, -1.0, 0.0, 0.0, 0.0);
+        double xtk = GeoMath.SignedCrossTrackDistanceNm(0.0, -1.0, 0.0, 0.0, new TrueHeading(0.0));
         Assert.True(xtk < 0, $"Expected negative cross-track for point west of northbound heading, got {xtk}");
     }
 
     [Fact]
     public void SignedCrossTrackDistanceNm_Symmetry_OppositeSignsForMirroredPoints()
     {
-        double xtkRight = GeoMath.SignedCrossTrackDistanceNm(0.0, 0.5, 0.0, 0.0, 0.0);
-        double xtkLeft = GeoMath.SignedCrossTrackDistanceNm(0.0, -0.5, 0.0, 0.0, 0.0);
+        double xtkRight = GeoMath.SignedCrossTrackDistanceNm(0.0, 0.5, 0.0, 0.0, new TrueHeading(0.0));
+        double xtkLeft = GeoMath.SignedCrossTrackDistanceNm(0.0, -0.5, 0.0, 0.0, new TrueHeading(0.0));
         Assert.Equal(xtkRight, -xtkLeft, precision: 5);
     }
 
@@ -286,7 +286,7 @@ public class GeoMathTests
     public void AlongTrackDistanceNm_PointAhead_ReturnsPositive()
     {
         // Heading north, point north of reference → positive
-        double atd = GeoMath.AlongTrackDistanceNm(1.0, 0.0, 0.0, 0.0, 0.0);
+        double atd = GeoMath.AlongTrackDistanceNm(1.0, 0.0, 0.0, 0.0, new TrueHeading(0.0));
         Assert.True(atd > 0, $"Expected positive along-track for point ahead, got {atd}");
     }
 
@@ -294,7 +294,7 @@ public class GeoMathTests
     public void AlongTrackDistanceNm_PointBehind_ReturnsNegative()
     {
         // Heading north, point south of reference → negative
-        double atd = GeoMath.AlongTrackDistanceNm(-1.0, 0.0, 0.0, 0.0, 0.0);
+        double atd = GeoMath.AlongTrackDistanceNm(-1.0, 0.0, 0.0, 0.0, new TrueHeading(0.0));
         Assert.True(atd < 0, $"Expected negative along-track for point behind, got {atd}");
     }
 
@@ -302,7 +302,7 @@ public class GeoMathTests
     public void AlongTrackDistanceNm_PointAt90Degrees_ReturnsNearZero()
     {
         // Heading north, point due east → 90° off heading → along-track ≈ 0
-        double atd = GeoMath.AlongTrackDistanceNm(0.0, 1.0, 0.0, 0.0, 0.0);
+        double atd = GeoMath.AlongTrackDistanceNm(0.0, 1.0, 0.0, 0.0, new TrueHeading(0.0));
         Assert.InRange(atd, -0.01, 0.01);
     }
 
@@ -311,7 +311,7 @@ public class GeoMathTests
     {
         // Heading north; point 1° north (≈ 60 nm); along-track should ≈ DistanceNm
         double dist = GeoMath.DistanceNm(0.0, 0.0, 1.0, 0.0);
-        double atd = GeoMath.AlongTrackDistanceNm(1.0, 0.0, 0.0, 0.0, 0.0);
+        double atd = GeoMath.AlongTrackDistanceNm(1.0, 0.0, 0.0, 0.0, new TrueHeading(0.0));
         Assert.InRange(atd, dist - 0.01, dist + 0.01);
     }
 }

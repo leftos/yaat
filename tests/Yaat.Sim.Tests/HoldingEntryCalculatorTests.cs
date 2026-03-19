@@ -20,7 +20,7 @@ public class HoldingEntryCalculatorTests
     [InlineData(359, 0, TurnDirection.Right, HoldingEntry.Parallel)]
     public void RightTurns_CorrectEntry(double heading, double inboundCourse, TurnDirection dir, HoldingEntry expected)
     {
-        var result = HoldingEntryCalculator.ComputeEntry(heading, inboundCourse, dir);
+        var result = HoldingEntryCalculator.ComputeEntry(new TrueHeading(heading), inboundCourse, dir);
         Assert.Equal(expected, result);
     }
 
@@ -38,7 +38,7 @@ public class HoldingEntryCalculatorTests
     [InlineData(359, 0, TurnDirection.Left, HoldingEntry.Direct)]
     public void LeftTurns_CorrectEntry(double heading, double inboundCourse, TurnDirection dir, HoldingEntry expected)
     {
-        var result = HoldingEntryCalculator.ComputeEntry(heading, inboundCourse, dir);
+        var result = HoldingEntryCalculator.ComputeEntry(new TrueHeading(heading), inboundCourse, dir);
         Assert.Equal(expected, result);
     }
 
@@ -48,7 +48,7 @@ public class HoldingEntryCalculatorTests
     [InlineData(045, 090, TurnDirection.Right, HoldingEntry.Parallel)]
     public void NonZeroInboundCourse_CorrectEntry(double heading, double inboundCourse, TurnDirection dir, HoldingEntry expected)
     {
-        var result = HoldingEntryCalculator.ComputeEntry(heading, inboundCourse, dir);
+        var result = HoldingEntryCalculator.ComputeEntry(new TrueHeading(heading), inboundCourse, dir);
         Assert.Equal(expected, result);
     }
 
@@ -56,7 +56,7 @@ public class HoldingEntryCalculatorTests
     public void WraparoundHeading_CorrectEntry()
     {
         // Heading 350, inbound 010 → theta = (350-10) = 340 → Parallel (right turns)
-        var result = HoldingEntryCalculator.ComputeEntry(350, 10, TurnDirection.Right);
+        var result = HoldingEntryCalculator.ComputeEntry(new TrueHeading(350), 10, TurnDirection.Right);
         Assert.Equal(HoldingEntry.Parallel, result);
     }
 }

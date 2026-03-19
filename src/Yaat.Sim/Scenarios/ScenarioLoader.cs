@@ -218,15 +218,27 @@ public static class ScenarioLoader
         var navigationPath = ResolveVersionChanges(cond.NavigationPath ?? "", state, warnings);
         PopulateNavigationRoute(state, navigationPath, warnings);
 
-        // Derive heading: scenario-assigned heading, or bearing to first nav route fix
-        var heading = cond.Heading ?? 0.0;
-        if (cond.Heading is null && state.Targets.NavigationRoute.Count > 0)
+        // Derive heading: scenario-assigned heading (magnetic) or bearing to first nav route fix (already true)
+        if (cond.Heading is not null)
         {
-            var first = state.Targets.NavigationRoute[0];
-            heading = GeoMath.BearingTo(lat, lon, first.Latitude, first.Longitude);
+            // Scenario headings are in the magnetic (controller/pilot) reference frame
+            double trueHeadingDeg = MagneticDeclination.MagneticToTrue(cond.Heading.Value, lat, lon);
+            state.TrueHeading = new TrueHeading(trueHeadingDeg);
+            state.TrueTrack = state.TrueHeading;
         }
-        state.Heading = heading;
-        state.Track = heading;
+        else if (state.Targets.NavigationRoute.Count > 0)
+        {
+            // BearingTo returns a true bearing
+            var first = state.Targets.NavigationRoute[0];
+            double bearingDeg = GeoMath.BearingTo(lat, lon, first.Latitude, first.Longitude);
+            state.TrueHeading = new TrueHeading(bearingDeg);
+            state.TrueTrack = state.TrueHeading;
+        }
+        else
+        {
+            state.TrueHeading = new TrueHeading(0.0);
+            state.TrueTrack = state.TrueHeading;
+        }
 
         if (ac.OnAltitudeProfile)
         {
@@ -272,8 +284,8 @@ public static class ScenarioLoader
         var state = CreateBaseState(ac, primaryApproach);
         state.Latitude = init.Latitude;
         state.Longitude = init.Longitude;
-        state.Heading = init.Heading;
-        state.Track = init.Heading;
+        state.TrueHeading = init.TrueHeading;
+        state.TrueTrack = init.TrueHeading;
         state.Altitude = init.Altitude;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
@@ -329,8 +341,8 @@ public static class ScenarioLoader
         var state = CreateBaseState(ac, primaryApproach);
         state.Latitude = init.Latitude;
         state.Longitude = init.Longitude;
-        state.Heading = init.Heading;
-        state.Track = init.Heading;
+        state.TrueHeading = init.TrueHeading;
+        state.TrueTrack = init.TrueHeading;
         state.Altitude = init.Altitude;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;
@@ -404,8 +416,8 @@ public static class ScenarioLoader
         var state = CreateBaseState(ac, primaryApproach);
         state.Latitude = init.Latitude;
         state.Longitude = init.Longitude;
-        state.Heading = init.Heading;
-        state.Track = init.Heading;
+        state.TrueHeading = init.TrueHeading;
+        state.TrueTrack = init.TrueHeading;
         state.Altitude = init.Altitude;
         state.IndicatedAirspeed = init.Speed;
         state.IsOnGround = init.IsOnGround;

@@ -19,7 +19,7 @@ public class LahsoTests
     /// </summary>
     private static RunwayInfo MakeLandingRunway()
     {
-        var end = GeoMath.ProjectPoint(37.0, -122.0, 280, 1.0);
+        var end = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 1.0);
         return TestRunwayFactory.Make(
             designator: "28R",
             airportId: "KOAK",
@@ -42,7 +42,7 @@ public class LahsoTests
         var layout = new AirportGroundLayout { AirportId = "KOAK" };
 
         // Landing runway 28R/10L: ~1nm long, heading 280
-        var rwy28End = GeoMath.ProjectPoint(37.0, -122.0, 280, 1.0);
+        var rwy28End = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 1.0);
         layout.Runways.Add(
             new GroundRunway
             {
@@ -54,9 +54,9 @@ public class LahsoTests
 
         // Crossing runway 33/15: crosses the landing runway near midpoint
         // Place it so centerlines actually intersect
-        var midpoint = GeoMath.ProjectPoint(37.0, -122.0, 280, 0.5);
-        var cross33Start = GeoMath.ProjectPoint(midpoint.Lat, midpoint.Lon, 150, 0.5); // south end
-        var cross33End = GeoMath.ProjectPoint(midpoint.Lat, midpoint.Lon, 330, 0.5); // north end
+        var midpoint = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 0.5);
+        var cross33Start = GeoMath.ProjectPoint(midpoint.Lat, midpoint.Lon, new TrueHeading(150), 0.5); // south end
+        var cross33End = GeoMath.ProjectPoint(midpoint.Lat, midpoint.Lon, new TrueHeading(330), 0.5); // north end
         layout.Runways.Add(
             new GroundRunway
             {
@@ -77,7 +77,7 @@ public class LahsoTests
             AircraftType = "B738",
             Latitude = 37.0,
             Longitude = -121.98,
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 1000,
             IndicatedAirspeed = 140,
             IsOnGround = false,
@@ -133,7 +133,7 @@ public class LahsoTests
             AircraftType = "B738",
             Latitude = 37.0,
             Longitude = -122.0,
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 1000,
             IndicatedAirspeed = 140,
             IsOnGround = false,
@@ -170,7 +170,7 @@ public class LahsoTests
 
         // Build layout with a parallel runway (same heading, offset laterally)
         var layout = new AirportGroundLayout { AirportId = "KOAK" };
-        var rwy28End = GeoMath.ProjectPoint(37.0, -122.0, 280, 1.0);
+        var rwy28End = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(280), 1.0);
         layout.Runways.Add(
             new GroundRunway
             {
@@ -181,8 +181,8 @@ public class LahsoTests
         );
 
         // Parallel runway offset 0.1nm to the south, same heading
-        var parallelStart = GeoMath.ProjectPoint(37.0, -122.0, 190, 0.1);
-        var parallelEnd = GeoMath.ProjectPoint(parallelStart.Lat, parallelStart.Lon, 280, 1.0);
+        var parallelStart = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(190), 0.1);
+        var parallelEnd = GeoMath.ProjectPoint(parallelStart.Lat, parallelStart.Lon, new TrueHeading(280), 1.0);
         layout.Runways.Add(
             new GroundRunway
             {
@@ -255,9 +255,9 @@ public class LahsoTests
     public void FindIntersection_ParallelRunways_ReturnsNull()
     {
         var start1 = (Lat: 37.0, Lon: -122.0);
-        var end1 = GeoMath.ProjectPoint(start1.Lat, start1.Lon, 280, 1.0);
-        var start2 = GeoMath.ProjectPoint(start1.Lat, start1.Lon, 190, 0.1);
-        var end2 = GeoMath.ProjectPoint(start2.Lat, start2.Lon, 280, 1.0);
+        var end1 = GeoMath.ProjectPoint(start1.Lat, start1.Lon, new TrueHeading(280), 1.0);
+        var start2 = GeoMath.ProjectPoint(start1.Lat, start1.Lon, new TrueHeading(190), 0.1);
+        var end2 = GeoMath.ProjectPoint(start2.Lat, start2.Lon, new TrueHeading(280), 1.0);
 
         var rwy1 = new GroundRunway
         {

@@ -22,12 +22,12 @@ public sealed class ClimbSpeedScheduleTests
             Altitude = altitude,
             IndicatedAirspeed = ias,
             IsOnGround = false,
-            Heading = 90,
-            Track = 90,
+            TrueHeading = new TrueHeading(90),
+            TrueTrack = new TrueHeading(90),
             Departure = "KTEST",
         };
         ac.Targets.TargetAltitude = targetAlt;
-        ac.Targets.TargetHeading = 90;
+        ac.Targets.TargetTrueHeading = new TrueHeading(90);
         return ac;
     }
 
@@ -42,8 +42,8 @@ public sealed class ClimbSpeedScheduleTests
             Altitude = 500,
             IndicatedAirspeed = 180,
             IsOnGround = false,
-            Heading = 280,
-            Track = 280,
+            TrueHeading = new TrueHeading(280),
+            TrueTrack = new TrueHeading(280),
             Departure = "KTEST",
         };
         ac.Phases = new PhaseList { AssignedRunway = runway };
@@ -77,8 +77,8 @@ public sealed class ClimbSpeedScheduleTests
             Altitude = 16000,
             IndicatedAirspeed = 250,
             IsOnGround = false,
-            Heading = 280,
-            Track = 280,
+            TrueHeading = new TrueHeading(280),
+            TrueTrack = new TrueHeading(280),
             Departure = "KTEST",
         };
         ac.Phases = new PhaseList { AssignedRunway = runway };

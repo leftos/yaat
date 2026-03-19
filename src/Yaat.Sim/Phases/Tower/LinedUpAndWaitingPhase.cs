@@ -24,7 +24,7 @@ public sealed class LinedUpAndWaitingPhase : Phase
         ctx.Targets.TargetSpeed = 0;
         if (ctx.Runway is not null)
         {
-            ctx.Targets.TargetHeading = ctx.Runway.TrueHeading;
+            ctx.Targets.TargetTrueHeading = ctx.Runway.TrueHeading;
         }
 
         ctx.Logger.LogDebug(

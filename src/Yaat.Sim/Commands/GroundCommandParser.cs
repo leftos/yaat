@@ -12,7 +12,7 @@ internal static class GroundCommandParser
     {
         if (arg is null)
         {
-            return PR.Ok(new PushbackCommand());
+            return PR.Ok(new PushbackCommand(null, null, null, null, null));
         }
 
         var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -24,16 +24,16 @@ internal static class GroundCommandParser
             string name = tokens[0][1..].ToUpperInvariant();
             if (tokens.Length == 1)
             {
-                return PR.Ok(isSpot ? new PushbackCommand(DestinationSpot: name) : new PushbackCommand(DestinationParking: name));
+                return PR.Ok(isSpot ? new PushbackCommand(null, null, null, null, name) : new PushbackCommand(null, null, null, name, null));
             }
 
             if (tokens.Length == 2)
             {
-                int? hdg = null;
+                MagneticHeading? hdg = null;
                 string? facingTwy = null;
                 if (int.TryParse(tokens[1], out var h) && h >= 1 && h <= 360)
                 {
-                    hdg = h;
+                    hdg = new MagneticHeading(h);
                 }
                 else
                 {
@@ -42,22 +42,22 @@ internal static class GroundCommandParser
 
                 return PR.Ok(
                     isSpot
-                        ? new PushbackCommand(Heading: hdg, FacingTaxiway: facingTwy, DestinationSpot: name)
-                        : new PushbackCommand(Heading: hdg, FacingTaxiway: facingTwy, DestinationParking: name)
+                        ? new PushbackCommand(hdg, null, facingTwy, null, name)
+                        : new PushbackCommand(hdg, null, facingTwy, name, null)
                 );
             }
 
-            return PR.Ok(isSpot ? new PushbackCommand(DestinationSpot: name) : new PushbackCommand(DestinationParking: name));
+            return PR.Ok(isSpot ? new PushbackCommand(null, null, null, null, name) : new PushbackCommand(null, null, null, name, null));
         }
 
         if (tokens.Length == 1)
         {
             if (int.TryParse(tokens[0], out var heading) && heading >= 1 && heading <= 360)
             {
-                return PR.Ok(new PushbackCommand(heading));
+                return PR.Ok(new PushbackCommand(new MagneticHeading(heading), null, null, null, null));
             }
 
-            return PR.Ok(new PushbackCommand(Taxiway: tokens[0].ToUpperInvariant()));
+            return PR.Ok(new PushbackCommand(null, tokens[0].ToUpperInvariant(), null, null, null));
         }
 
         if (tokens.Length == 2 && !int.TryParse(tokens[0], out _))
@@ -65,15 +65,15 @@ internal static class GroundCommandParser
             string taxiway = tokens[0].ToUpperInvariant();
             if (int.TryParse(tokens[1], out var hdg) && hdg >= 1 && hdg <= 360)
             {
-                return PR.Ok(new PushbackCommand(hdg, taxiway));
+                return PR.Ok(new PushbackCommand(new MagneticHeading(hdg), taxiway, null, null, null));
             }
 
             // Two non-numeric tokens: PUSH TE T → push onto TE facing toward T
-            return PR.Ok(new PushbackCommand(Taxiway: taxiway, FacingTaxiway: tokens[1].ToUpperInvariant()));
+            return PR.Ok(new PushbackCommand(null, taxiway, tokens[1].ToUpperInvariant(), null, null));
         }
 
         // Fallback: treat whole arg as taxiway name
-        return PR.Ok(new PushbackCommand(Taxiway: arg.Trim().ToUpperInvariant()));
+        return PR.Ok(new PushbackCommand(null, arg.Trim().ToUpperInvariant(), null, null, null));
     }
 
     /// <summary>

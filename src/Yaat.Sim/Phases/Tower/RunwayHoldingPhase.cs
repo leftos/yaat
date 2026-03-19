@@ -23,7 +23,7 @@ public sealed class RunwayHoldingPhase : Phase
     {
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
-        ctx.Targets.TargetHeading = null;
+        ctx.Targets.TargetTrueHeading = null;
 
         ctx.Logger.LogDebug("[LAHSO] {Callsign}: holding short of runway {CrossRwy}", ctx.Aircraft.Callsign, _crossingRunwayId);
 

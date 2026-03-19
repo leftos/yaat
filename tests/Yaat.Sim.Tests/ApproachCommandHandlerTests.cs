@@ -25,7 +25,7 @@ public class ApproachCommandHandlerTests
         {
             Callsign = "N123",
             AircraftType = "B738",
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             Latitude = lat,
             Longitude = lon,
@@ -169,8 +169,8 @@ public class ApproachCommandHandlerTests
     public void Capp_WithAssignedHeading_UsesInterceptPhase()
     {
         var aircraft = MakeAircraft();
-        aircraft.Targets.TargetHeading = 340;
-        aircraft.Targets.AssignedHeading = 340;
+        aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
         var navDb = MakeNavDb();
         NavigationDatabase.SetInstance(navDb);
 
@@ -183,7 +183,7 @@ public class ApproachCommandHandlerTests
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases.Phases[0]);
         Assert.IsType<FinalApproachPhase>(aircraft.Phases.Phases[1]);
         Assert.IsType<LandingPhase>(aircraft.Phases.Phases[2]);
-        Assert.Equal(340, aircraft.Targets.TargetHeading);
+        Assert.Equal(340, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Empty(aircraft.Targets.NavigationRoute);
     }
 
@@ -191,8 +191,8 @@ public class ApproachCommandHandlerTests
     public void Capp_WithAssignedHeadingAndCrossFixAlt_AppliesCrossAlt()
     {
         var aircraft = MakeAircraft(altitude: 5000);
-        aircraft.Targets.TargetHeading = 340;
-        aircraft.Targets.AssignedHeading = 340;
+        aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
         var navDb = MakeNavDb();
         NavigationDatabase.SetInstance(navDb);
 
@@ -208,8 +208,8 @@ public class ApproachCommandHandlerTests
     public void Capp_WithAssignedHeadingAndAtFix_UsesFixNavigation()
     {
         var aircraft = MakeAircraft();
-        aircraft.Targets.TargetHeading = 340;
-        aircraft.Targets.AssignedHeading = 340;
+        aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
         var navDb = MakeNavDb();
         NavigationDatabase.SetInstance(navDb);
 
@@ -225,8 +225,8 @@ public class ApproachCommandHandlerTests
     public void Capp_WithAssignedHeadingAndDctFix_UsesFixNavigation()
     {
         var aircraft = MakeAircraft();
-        aircraft.Targets.TargetHeading = 340;
-        aircraft.Targets.AssignedHeading = 340;
+        aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
         var navDb = MakeNavDb();
         NavigationDatabase.SetInstance(navDb);
 
@@ -242,7 +242,7 @@ public class ApproachCommandHandlerTests
     public void Capp_WithoutAssignedHeading_UsesFixNavigation()
     {
         var aircraft = MakeAircraft();
-        Assert.Null(aircraft.Targets.TargetHeading);
+        Assert.Null(aircraft.Targets.TargetTrueHeading);
         var navDb = MakeNavDb();
         NavigationDatabase.SetInstance(navDb);
 
@@ -260,8 +260,8 @@ public class ApproachCommandHandlerTests
         // but AssignedHeading is null because no controller heading command was issued.
         // CAPP must use fix navigation, not intercept.
         var aircraft = MakeAircraft();
-        aircraft.Targets.TargetHeading = 280;
-        Assert.Null(aircraft.Targets.AssignedHeading);
+        aircraft.Targets.TargetTrueHeading = new TrueHeading(280);
+        Assert.Null(aircraft.Targets.AssignedMagneticHeading);
         var navDb = MakeNavDb();
         NavigationDatabase.SetInstance(navDb);
 
@@ -277,8 +277,8 @@ public class ApproachCommandHandlerTests
     public void Capp_WithAssignedHeading_ClearsSpeedRestriction()
     {
         var aircraft = MakeAircraft(speed: 210);
-        aircraft.Targets.TargetHeading = 340;
-        aircraft.Targets.AssignedHeading = 340;
+        aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
         var navDb = MakeNavDb();
         NavigationDatabase.SetInstance(navDb);
 
@@ -394,11 +394,11 @@ public class ApproachCommandHandlerTests
         var navDb = MakeNavDbRunwayAndApproachOnly();
         NavigationDatabase.SetInstance(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R");
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
-        Assert.Equal(340, aircraft.Targets.TargetHeading);
+        Assert.Equal(340, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Equal(2500, aircraft.Targets.TargetAltitude);
     }
 
@@ -409,7 +409,7 @@ public class ApproachCommandHandlerTests
         var navDb = MakeNavDbRunwayAndApproachOnly();
         NavigationDatabase.SetInstance(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R");
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases);
@@ -426,7 +426,7 @@ public class ApproachCommandHandlerTests
         var navDb = MakeNavDbRunwayAndApproachOnly();
         NavigationDatabase.SetInstance(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R");
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.Null(aircraft.Targets.TargetSpeed);
@@ -439,7 +439,7 @@ public class ApproachCommandHandlerTests
         var navDb = MakeNavDbRunwayAndApproachOnly();
         NavigationDatabase.SetInstance(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R");
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.NotNull(aircraft.Phases?.ActiveApproach);
@@ -459,7 +459,7 @@ public class ApproachCommandHandlerTests
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
-        Assert.Equal(195, aircraft.Targets.TargetHeading);
+        Assert.Equal(195, aircraft.Targets.TargetTrueHeading?.Degrees);
     }
 
     [Fact]
@@ -469,7 +469,7 @@ public class ApproachCommandHandlerTests
         var navDb = MakeNavDbRunwayAndApproachOnly();
         NavigationDatabase.SetInstance(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(280, null, "ILS28R");
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(280), null, "ILS28R");
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
@@ -484,7 +484,7 @@ public class ApproachCommandHandlerTests
         var navDb = MakeNavDbRunwayAndApproachOnly();
         NavigationDatabase.SetInstance(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(280, 2500, null);
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(280), 2500, null);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
@@ -504,7 +504,7 @@ public class ApproachCommandHandlerTests
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
-        Assert.Equal(310, aircraft.Targets.TargetHeading);
+        Assert.Equal(310, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Equal(3500, aircraft.Targets.TargetAltitude);
         Assert.IsType<InterceptCoursePhase>(aircraft.Phases!.Phases[0]);
     }
@@ -516,11 +516,11 @@ public class ApproachCommandHandlerTests
         var navDb = MakeNavDbRunwayAndApproachOnly();
         NavigationDatabase.SetInstance(navDb);
 
-        var cmd = new PositionTurnAltitudeClearanceCommand(340, 2500, "ILS28R");
+        var cmd = new PositionTurnAltitudeClearanceCommand(new MagneticHeading(340), 2500, "ILS28R");
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
         Assert.True(result.Success);
-        Assert.Equal(340, aircraft.Targets.TargetHeading);
+        Assert.Equal(340, aircraft.Targets.TargetTrueHeading?.Degrees);
         Assert.Equal(2500, aircraft.Targets.TargetAltitude);
     }
 
@@ -608,7 +608,7 @@ public class ApproachCommandHandlerTests
     {
         var phase = new InterceptCoursePhase
         {
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
         };
@@ -620,7 +620,7 @@ public class ApproachCommandHandlerTests
     {
         var phase = new InterceptCoursePhase
         {
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
         };
@@ -801,8 +801,8 @@ public class ApproachCommandHandlerTests
     public void Capp_WithAssignedHeadingAndCrossFixAlt_SetsAssignedAltitude()
     {
         var aircraft = MakeAircraft(altitude: 5000);
-        aircraft.Targets.TargetHeading = 340;
-        aircraft.Targets.AssignedHeading = 340;
+        aircraft.Targets.TargetTrueHeading = new TrueHeading(340);
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
         var navDb = MakeNavDb();
         NavigationDatabase.SetInstance(navDb);
 
@@ -818,7 +818,7 @@ public class ApproachCommandHandlerTests
         var aircraft = MakeAircraft();
         aircraft.Targets.TargetSpeed = 210;
         aircraft.Targets.AssignedSpeed = 210;
-        aircraft.Targets.AssignedHeading = 340;
+        aircraft.Targets.AssignedMagneticHeading = new MagneticHeading(340);
         var navDb = MakeNavDb();
         NavigationDatabase.SetInstance(navDb);
 
@@ -827,7 +827,7 @@ public class ApproachCommandHandlerTests
 
         Assert.True(result.Success);
         Assert.Null(aircraft.Targets.AssignedSpeed);
-        Assert.Null(aircraft.Targets.AssignedHeading);
+        Assert.Null(aircraft.Targets.AssignedMagneticHeading);
     }
 
     // --- HoldingPatternPhase command acceptance ---

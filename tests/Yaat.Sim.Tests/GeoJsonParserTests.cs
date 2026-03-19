@@ -64,13 +64,13 @@ public class GeoJsonParserTests
         var spot25 = layout.FindParkingByName("25");
         Assert.NotNull(spot25);
         Assert.Equal(GroundNodeType.Parking, spot25.Type);
-        Assert.Equal(68, spot25.Heading);
+        Assert.Equal(68, spot25.TrueHeading?.Degrees);
         Assert.InRange(spot25.Latitude, 37.710, 37.711);
         Assert.InRange(spot25.Longitude, -122.213, -122.211);
 
         var spot32 = layout.FindParkingByName("32");
         Assert.NotNull(spot32);
-        Assert.Equal(85, spot32.Heading);
+        Assert.Equal(85, spot32.TrueHeading?.Degrees);
     }
 
     [Fact]

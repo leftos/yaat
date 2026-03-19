@@ -33,7 +33,7 @@ public sealed class MidfieldCrossingPhase : Phase
 
         // Set heading toward midfield target
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
-        ctx.Targets.TargetHeading = bearing;
+        ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
@@ -55,7 +55,7 @@ public sealed class MidfieldCrossingPhase : Phase
     {
         // Continuously update heading toward the midfield target
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
-        ctx.Targets.TargetHeading = bearing;
+        ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 

@@ -59,7 +59,7 @@ public class PatternEntryTests
             Latitude = lat,
             Longitude = lon,
             Altitude = alt,
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             IndicatedAirspeed = 120,
             IsOnGround = false,
             Phases = new PhaseList(),
@@ -691,11 +691,11 @@ public class PatternEntryTests
 
         // For left pattern on runway heading 292:
         // Upwind = 292, Crosswind = 292 - 90 = 202, Downwind = 112, Base = 112 - 90 = 22
-        Assert.Equal(292, wp.UpwindHeading);
-        Assert.Equal(202, wp.CrosswindHeading);
-        Assert.Equal(112, wp.DownwindHeading);
-        Assert.Equal(22, wp.BaseHeading);
-        Assert.Equal(292, wp.FinalHeading);
+        Assert.Equal(292, wp.UpwindHeading.Degrees);
+        Assert.Equal(202, wp.CrosswindHeading.Degrees);
+        Assert.Equal(112, wp.DownwindHeading.Degrees);
+        Assert.Equal(22, wp.BaseHeading.Degrees);
+        Assert.Equal(292, wp.FinalHeading.Degrees);
         Assert.Equal(PatternDirection.Left, wp.Direction);
     }
 
@@ -707,11 +707,11 @@ public class PatternEntryTests
 
         // For right pattern on runway heading 292:
         // Upwind = 292, Crosswind = 292 + 90 = 22, Downwind = 112, Base = 112 + 90 = 202
-        Assert.Equal(292, wp.UpwindHeading);
-        Assert.Equal(22, wp.CrosswindHeading);
-        Assert.Equal(112, wp.DownwindHeading);
-        Assert.Equal(202, wp.BaseHeading);
-        Assert.Equal(292, wp.FinalHeading);
+        Assert.Equal(292, wp.UpwindHeading.Degrees);
+        Assert.Equal(22, wp.CrosswindHeading.Degrees);
+        Assert.Equal(112, wp.DownwindHeading.Degrees);
+        Assert.Equal(202, wp.BaseHeading.Degrees);
+        Assert.Equal(292, wp.FinalHeading.Degrees);
         Assert.Equal(PatternDirection.Right, wp.Direction);
     }
 
@@ -820,7 +820,7 @@ public class PatternEntryTests
             runway.ThresholdLatitude,
             runway.ThresholdLongitude
         );
-        var nearEntry = GeoMath.ProjectPoint(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon, bearingToThreshold, 0.3);
+        var nearEntry = GeoMath.ProjectPoint(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon, new TrueHeading(bearingToThreshold), 0.3);
         var aircraft = MakeAircraft(nearEntry.Lat, nearEntry.Lon, waypoints.PatternAltitude, 112);
         aircraft.Phases!.AssignedRunway = runway;
 

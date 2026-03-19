@@ -17,7 +17,7 @@ public class CommandQueueTests
             AircraftType = "B738",
             Latitude = lat,
             Longitude = lon,
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = 250,
             IsOnGround = false,
@@ -220,7 +220,7 @@ public class CommandQueueTests
         // Both heading 090. Target is due west (behind us) → bearingDiff = 270° → diffToTarget = 180° > 90° → NOT met.
         // GS=0 so aircraft does not move during the update, keeping the target within 0.1nm.
         var ac = MakeAircraft(lat: 37.7, lon: -122.2);
-        ac.Heading = 090;
+        ac.TrueHeading = new TrueHeading(090);
         ac.IndicatedAirspeed = 0;
         ac.IsOnGround = true;
 
@@ -228,7 +228,7 @@ public class CommandQueueTests
         double lonOffset = 0.05 / (60.0 * Math.Cos(37.7 * Math.PI / 180.0));
         var target = MakeAircraft(lat: 37.7, lon: -122.2 - lonOffset);
         target.Callsign = "OTHER";
-        target.Heading = 090;
+        target.TrueHeading = new TrueHeading(090);
         target.IsOnGround = true;
 
         var lookup = new Dictionary<string, AircraftState> { ["OTHER"] = target };
@@ -246,7 +246,7 @@ public class CommandQueueTests
         // Both heading 090. Target is due east (ahead of us) → bearingDiff = 090° → diffToTarget = 0° < 90° → met.
         // GS=0 so aircraft does not move during the update, keeping the target within 0.1nm.
         var ac = MakeAircraft(lat: 37.7, lon: -122.2);
-        ac.Heading = 090;
+        ac.TrueHeading = new TrueHeading(090);
         ac.IndicatedAirspeed = 0;
         ac.IsOnGround = true;
 
@@ -254,7 +254,7 @@ public class CommandQueueTests
         double lonOffset = 0.05 / (60.0 * Math.Cos(37.7 * Math.PI / 180.0));
         var target = MakeAircraft(lat: 37.7, lon: -122.2 + lonOffset);
         target.Callsign = "OTHER";
-        target.Heading = 090;
+        target.TrueHeading = new TrueHeading(090);
         target.IsOnGround = true;
 
         var lookup = new Dictionary<string, AircraftState> { ["OTHER"] = target };
@@ -300,7 +300,7 @@ public class CommandQueueTests
     {
         // Block is applied on tick 1; completion is evaluated on tick 2.
         var ac = MakeAircraft();
-        ac.Targets.TargetHeading = null;
+        ac.Targets.TargetTrueHeading = null;
         var cmd = new TrackedCommand { Type = TrackedCommandType.Heading };
         ac.Queue.Blocks.Add(new CommandBlock { Commands = [cmd] });
 
@@ -384,8 +384,8 @@ public class CommandQueueTests
     {
         var ac = MakeAircraft();
         // Give the aircraft an active heading target so HeadingCommand stays incomplete
-        ac.Targets.TargetHeading = 180.0;
-        ac.Heading = 090;
+        ac.Targets.TargetTrueHeading = new TrueHeading(180.0);
+        ac.TrueHeading = new TrueHeading(090);
 
         var immediateCmd = new TrackedCommand { Type = TrackedCommandType.Immediate };
         var headingCmd = new TrackedCommand { Type = TrackedCommandType.Heading };
@@ -436,7 +436,7 @@ public class CommandQueueTests
             Commands = [new TrackedCommand { Type = TrackedCommandType.Immediate }],
             ApplyAction = a =>
             {
-                a.Heading = 270;
+                a.TrueHeading = new TrueHeading(270);
                 return new CommandResult(true);
             },
         };
@@ -444,7 +444,7 @@ public class CommandQueueTests
 
         FlightPhysics.Update(ac, 1.0, null, null);
 
-        Assert.Equal(270, ac.Heading);
+        Assert.Equal(270, ac.TrueHeading.Degrees);
         Assert.True(block.IsApplied);
     }
 }

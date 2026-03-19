@@ -31,14 +31,14 @@ public class ApproachScoreTests
         var runway = MakeRunway();
 
         // Position the aircraft on the runway extended centerline at the specified distance
-        double bearing = (runway.TrueHeading + 180) % 360;
-        var (lat, lon) = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, bearing, distFromThresholdNm);
+        var reciprocal = runway.TrueHeading.ToReciprocal();
+        var (lat, lon) = GeoMath.ProjectPoint(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, distFromThresholdNm);
 
         return new AircraftState
         {
             Callsign = "UAL123",
             AircraftType = "B738",
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = ias,
             Latitude = lat,
@@ -78,7 +78,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -107,7 +107,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -144,7 +144,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -172,7 +172,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -201,7 +201,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -224,7 +224,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             Force = true,
         };
 
@@ -249,7 +249,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -272,7 +272,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -296,7 +296,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -321,7 +321,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -345,7 +345,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -369,7 +369,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase { SkipInterceptCheck = true };
@@ -408,7 +408,7 @@ public class ApproachScoreTests
         // Put aircraft on the runway threshold
         aircraft.Latitude = runway.ThresholdLatitude;
         aircraft.Longitude = runway.ThresholdLongitude;
-        aircraft.Heading = runway.TrueHeading;
+        aircraft.TrueHeading = runway.TrueHeading;
 
         var landingPhase = new LandingPhase();
         aircraft.Phases.Phases.Add(landingPhase);
@@ -447,7 +447,7 @@ public class ApproachScoreTests
         var runway = MakeRunway();
         aircraft.Latitude = runway.ThresholdLatitude;
         aircraft.Longitude = runway.ThresholdLongitude;
-        aircraft.Heading = runway.TrueHeading;
+        aircraft.TrueHeading = runway.TrueHeading;
         aircraft.Altitude = 9;
         aircraft.IndicatedAirspeed = 15;
 
@@ -483,7 +483,7 @@ public class ApproachScoreTests
         {
             Callsign = "AAL100",
             AircraftType = "B738",
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 3000,
             Latitude = 37.75,
             Longitude = -122.35,
@@ -492,7 +492,7 @@ public class ApproachScoreTests
         {
             Callsign = "UAL200",
             AircraftType = "A320",
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 3000,
             Latitude = 37.76,
             Longitude = -122.36,
@@ -537,7 +537,7 @@ public class ApproachScoreTests
         {
             Callsign = "AAL100",
             AircraftType = "B738",
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 3000,
             Latitude = 37.75,
             Longitude = -122.35,
@@ -559,7 +559,7 @@ public class ApproachScoreTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -602,7 +602,7 @@ public class ApproachScoreTests
             ApproachId = "VIS28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();
@@ -626,7 +626,7 @@ public class ApproachScoreTests
             ApproachId = "VIS28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phase = new FinalApproachPhase();

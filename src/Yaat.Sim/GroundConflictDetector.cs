@@ -11,7 +11,7 @@ namespace Yaat.Sim;
 /// Movement state classification:
 ///   Stationary — gs=0 or parked/holding phase. No direction. Just an obstacle.
 ///   Taxiing    — has AssignedTaxiRoute with CurrentSegment. Direction from graph.
-///   Pushing    — PushbackHeading is set. Direction = PushbackHeading.
+///   Pushing    — PushbackTrueHeading is set. Direction = PushbackTrueHeading.
 ///   Following  — FollowingPhase. Exempt (manages own separation).
 ///   Untracked  — moving on ground, no route, no pushback. Direction = Heading (fallback).
 /// </summary>
@@ -228,10 +228,10 @@ public static class GroundConflictDetector
             return (MovementState.Stationary, null);
         }
 
-        // Pushing: has PushbackHeading
-        if (ac.PushbackHeading is { } pushHdg)
+        // Pushing: has PushbackTrueHeading
+        if (ac.PushbackTrueHeading is { } pushHdg)
         {
-            return (MovementState.Pushing, pushHdg);
+            return (MovementState.Pushing, pushHdg.Degrees);
         }
 
         // Taxiing: has route with current segment (even if GS=0 due to prior speed limit)
@@ -248,7 +248,7 @@ public static class GroundConflictDetector
         }
 
         // Untracked: moving but no route or pushback
-        return (MovementState.Untracked, ac.Heading);
+        return (MovementState.Untracked, ac.TrueHeading.Degrees);
     }
 
     private static double GetSegmentDirection(AircraftState ac)
@@ -265,7 +265,7 @@ public static class GroundConflictDetector
         // We need node positions — but we only have node IDs on the segment.
         // Since we don't have the layout reference here, fall back to heading.
         // The layout-aware checks (same-edge, convergence) use node IDs directly.
-        return ac.Heading;
+        return ac.TrueHeading.Degrees;
     }
 
     // --- Conflict resolution ---

@@ -6,6 +6,25 @@ namespace Yaat.Sim.Tests;
 
 public class TurnAnticipationTests
 {
+    // NormalizeAngle and NormalizeHeading are private — inline equivalents.
+    private static double NormalizeAngle(double angle)
+    {
+        angle %= 360.0;
+        if (angle > 180.0)
+        {
+            angle -= 360.0;
+        }
+
+        if (angle < -180.0)
+        {
+            angle += 360.0;
+        }
+
+        return angle;
+    }
+
+    private static double NormalizeHeading(double h) => ((h % 360.0) + 360.0) % 360.0;
+
     private static AircraftState CreateAircraft(
         double lat = 37.0,
         double lon = -122.0,
@@ -20,8 +39,8 @@ public class TurnAnticipationTests
             AircraftType = "B738",
             Latitude = lat,
             Longitude = lon,
-            Heading = heading,
-            Track = heading,
+            TrueHeading = new TrueHeading(heading),
+            TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = groundSpeed,
         };
@@ -68,8 +87,8 @@ public class TurnAnticipationTests
     public void UpdateNav_FlyBy_SequencesEarly()
     {
         // Two waypoints forming a 90° right turn, aircraft approaching first waypoint
-        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, 0, 5.0); // 5nm north
-        var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, 90, 5.0); // then 5nm east
+        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 5.0); // 5nm north
+        var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, new TrueHeading(90), 5.0); // then 5nm east
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250);
         aircraft.Targets.NavigationRoute.Add(
@@ -91,7 +110,7 @@ public class TurnAnticipationTests
 
         // Move aircraft close to WP1 but beyond NavArrivalNm (0.5nm)
         // Anticipation for 250kts/2.5deg is ~1.59nm, so place at ~1.0nm
-        var pos = GeoMath.ProjectPoint(37.0, -122.0, 0, 4.0);
+        var pos = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 4.0);
         aircraft.Latitude = pos.Lat;
         aircraft.Longitude = pos.Lon;
 
@@ -104,14 +123,14 @@ public class TurnAnticipationTests
 
         // The aircraft should still have route (haven't passed abeam yet at distance ~1nm)
         // but heading should be blending toward the next leg
-        Assert.NotNull(aircraft.Targets.TargetHeading);
+        Assert.NotNull(aircraft.Targets.TargetTrueHeading);
     }
 
     [Fact]
     public void UpdateNav_FlyOver_SequencesAtHalfNm()
     {
-        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, 0, 0.4); // 0.4nm north (within 0.5nm)
-        var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, 90, 5.0);
+        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 0.4); // 0.4nm north (within 0.5nm)
+        var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, new TrueHeading(90), 5.0);
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250);
         aircraft.Targets.NavigationRoute.Add(
@@ -142,7 +161,7 @@ public class TurnAnticipationTests
     [Fact]
     public void UpdateNav_LastWaypoint_SequencesAtHalfNm()
     {
-        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, 0, 0.4); // 0.4nm north
+        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 0.4); // 0.4nm north
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250);
         aircraft.Targets.NavigationRoute.Add(
@@ -158,15 +177,15 @@ public class TurnAnticipationTests
 
         // Single waypoint, no anticipation — should sequence at 0.5nm
         Assert.Empty(aircraft.Targets.NavigationRoute);
-        Assert.Null(aircraft.Targets.TargetHeading);
+        Assert.Null(aircraft.Targets.TargetTrueHeading);
     }
 
     [Fact]
     public void UpdateNav_StraightLeg_NoAnticipation()
     {
         // Two waypoints on same heading — no turn needed
-        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, 0, 2.0);
-        var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, 0, 5.0);
+        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 2.0);
+        var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, new TrueHeading(0), 5.0);
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250);
         aircraft.Targets.NavigationRoute.Add(
@@ -187,7 +206,7 @@ public class TurnAnticipationTests
         );
 
         // Place aircraft 0.8nm from WP1 — beyond NavArrivalNm but within potential anticipation range
-        var pos = GeoMath.ProjectPoint(37.0, -122.0, 0, 1.2);
+        var pos = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 1.2);
         aircraft.Latitude = pos.Lat;
         aircraft.Longitude = pos.Lon;
 
@@ -203,8 +222,8 @@ public class TurnAnticipationTests
     {
         // SID via mode: constraint should apply when waypoint is sequenced
         // Place WP1 close enough to sequence (within 0.5nm), no turn → sequences via NavArrivalNm
-        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, 0, 0.3);
-        var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, 0, 5.0); // same heading, no turn
+        var wp1 = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 0.3);
+        var wp2 = GeoMath.ProjectPoint(wp1.Lat, wp1.Lon, new TrueHeading(0), 5.0); // same heading, no turn
 
         var aircraft = CreateAircraft(heading: 0, groundSpeed: 250, altitude: 5000);
         aircraft.SidViaMode = true;
@@ -243,8 +262,8 @@ public class TurnAnticipationTests
         double nextLeg = 90; // then eastbound
 
         // Place aircraft just south of waypoint on northbound course
-        var wp = GeoMath.ProjectPoint(37.0, -122.0, 0, 2.0);
-        var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, 180, 1.5); // 1.5nm south of waypoint
+        var wp = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 2.0);
+        var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, new TrueHeading(180), 1.5); // 1.5nm south of waypoint
 
         double heading = FlightPhysics.ComputeArcBlendedHeading(pos.Lat, pos.Lon, 250, 2.5, wp.Lat, wp.Lon, currentLeg, nextLeg);
 
@@ -261,7 +280,7 @@ public class TurnAnticipationTests
         double currentLeg = 0; // northbound
         double nextLeg = 90; // then eastbound
 
-        var wp = GeoMath.ProjectPoint(37.0, -122.0, 0, 5.0);
+        var wp = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 5.0);
         double anticipation = FlightPhysics.ComputeAnticipationDistanceNm(250, 2.5, currentLeg, nextLeg);
 
         // Sample at entry (anticipation distance), midpoint, and near-exit
@@ -270,9 +289,9 @@ public class TurnAnticipationTests
 
         foreach (double dist in distances)
         {
-            var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, 180, dist); // south of waypoint on inbound course
+            var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, new TrueHeading(180),dist); // south of waypoint on inbound course
             double heading = FlightPhysics.ComputeArcBlendedHeading(pos.Lat, pos.Lon, 250, 2.5, wp.Lat, wp.Lon, currentLeg, nextLeg);
-            heading = FlightPhysics.NormalizeHeading(heading);
+            heading = NormalizeHeading(heading);
 
             // Right turn: heading should increase monotonically (0° → 90°)
             if (previousHeading >= 0)
@@ -297,16 +316,16 @@ public class TurnAnticipationTests
         double currentLeg = 0;
         double nextLeg = 90;
 
-        var wp = GeoMath.ProjectPoint(37.0, -122.0, 0, 5.0);
+        var wp = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 5.0);
         double anticipation = FlightPhysics.ComputeAnticipationDistanceNm(250, 2.5, currentLeg, nextLeg);
 
         // Place aircraft at the anticipation entry point
-        var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, 180, anticipation);
+        var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, new TrueHeading(180),anticipation);
         double heading = FlightPhysics.ComputeArcBlendedHeading(pos.Lat, pos.Lon, 250, 2.5, wp.Lat, wp.Lon, currentLeg, nextLeg);
 
         // Heading should be close to the inbound leg bearing (0°) — within ~10° tolerance
         // for the flat-earth projection approximation
-        double diff = Math.Abs(FlightPhysics.NormalizeAngle(heading - currentLeg));
+        double diff = Math.Abs(NormalizeAngle(heading - currentLeg));
         Assert.True(diff < 10.0, $"At entry, heading should be near inbound ({currentLeg}°), got {heading:F1}° (diff={diff:F1}°)");
     }
 
@@ -319,14 +338,14 @@ public class TurnAnticipationTests
         double nextLeg = 90;
         double bisector = 45; // midpoint of 0→90
 
-        var wp = GeoMath.ProjectPoint(37.0, -122.0, 0, 5.0);
+        var wp = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 5.0);
 
         // Place aircraft very close to the waypoint (past the tangent point, near abeam)
-        var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, 180, 0.05);
+        var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, new TrueHeading(180),0.05);
         double heading = FlightPhysics.ComputeArcBlendedHeading(pos.Lat, pos.Lon, 250, 2.5, wp.Lat, wp.Lon, currentLeg, nextLeg);
 
         // Heading should be near the bisector (45°) — within ~15° tolerance
-        double diff = Math.Abs(FlightPhysics.NormalizeAngle(heading - bisector));
+        double diff = Math.Abs(NormalizeAngle(heading - bisector));
         Assert.True(diff < 15.0, $"Near waypoint, heading should be near bisector ({bisector}°), got {heading:F1}° (diff={diff:F1}°)");
     }
 
@@ -337,20 +356,20 @@ public class TurnAnticipationTests
         double currentLeg = 0;
         double nextLeg = 270; // 90° left turn
 
-        var wp = GeoMath.ProjectPoint(37.0, -122.0, 0, 5.0);
+        var wp = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 5.0);
         double anticipation = FlightPhysics.ComputeAnticipationDistanceNm(250, 2.5, currentLeg, nextLeg);
 
         // Sample at entry and near-exit
-        var entryPos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, 180, anticipation);
-        var nearPos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, 180, anticipation * 0.1);
+        var entryPos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, new TrueHeading(180),anticipation);
+        var nearPos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, new TrueHeading(180),anticipation * 0.1);
 
         double entryHeading = FlightPhysics.ComputeArcBlendedHeading(entryPos.Lat, entryPos.Lon, 250, 2.5, wp.Lat, wp.Lon, currentLeg, nextLeg);
         double nearHeading = FlightPhysics.ComputeArcBlendedHeading(nearPos.Lat, nearPos.Lon, 250, 2.5, wp.Lat, wp.Lon, currentLeg, nextLeg);
 
         // Left turn: heading should go from ~360° down toward 270°
         // Use NormalizeAngle to handle the 360/0 wrap correctly
-        double entryDiff = FlightPhysics.NormalizeAngle(entryHeading - currentLeg);
-        double nearDiff = FlightPhysics.NormalizeAngle(nearHeading - currentLeg);
+        double entryDiff = NormalizeAngle(entryHeading - currentLeg);
+        double nearDiff = NormalizeAngle(nearHeading - currentLeg);
         Assert.True(
             nearDiff < entryDiff,
             $"Left turn heading should decrease: entry={entryHeading:F1}° (diff={entryDiff:F1}), near={nearHeading:F1}° (diff={nearDiff:F1})"
@@ -368,27 +387,27 @@ public class TurnAnticipationTests
         double gs = 250;
         double turnRate = 2.5;
 
-        var wp = GeoMath.ProjectPoint(37.0, -122.0, 0, 5.0);
+        var wp = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 5.0);
 
         // Compute turn center (same math as the implementation)
         double turnRateRad = turnRate * Math.PI / 180.0;
         double gsNmPerSec = gs / 3600.0;
         double radius = gsNmPerSec / turnRateRad;
-        double courseChange = FlightPhysics.NormalizeAngle(nextLeg - currentLeg);
-        double bisector = FlightPhysics.NormalizeHeading(currentLeg + courseChange / 2.0);
+        double courseChange = NormalizeAngle(nextLeg - currentLeg);
+        double bisector = NormalizeHeading(currentLeg + courseChange / 2.0);
         double perpBearing = bisector + 90.0; // right turn
         double halfAngleRad = Math.Abs(courseChange) * Math.PI / 360.0;
         double offsetNm = radius / Math.Cos(halfAngleRad);
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(wp.Lat, wp.Lon, perpBearing, offsetNm);
+        var (centerLat, centerLon) = GeoMath.ProjectPoint(wp.Lat, wp.Lon, new TrueHeading(perpBearing), offsetNm);
 
         // At the tangent point (entry), verify heading ⊥ radial from center
         double anticipation = FlightPhysics.ComputeAnticipationDistanceNm(gs, turnRate, currentLeg, nextLeg);
-        var entryPos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, 180, anticipation);
+        var entryPos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, new TrueHeading(180),anticipation);
 
         double heading = FlightPhysics.ComputeArcBlendedHeading(entryPos.Lat, entryPos.Lon, gs, turnRate, wp.Lat, wp.Lon, currentLeg, nextLeg);
 
         double radial = GeoMath.BearingTo(centerLat, centerLon, entryPos.Lat, entryPos.Lon);
-        double angleBetween = Math.Abs(FlightPhysics.NormalizeAngle(heading - radial));
+        double angleBetween = Math.Abs(NormalizeAngle(heading - radial));
 
         // For a right turn, heading = radial + 90°. Allow 5° tolerance.
         Assert.InRange(angleBetween, 85, 95);
@@ -399,16 +418,16 @@ public class TurnAnticipationTests
     {
         // A 60° right turn and a 60° left turn should produce headings that are
         // symmetric reflections about the inbound leg bearing.
-        var wp = GeoMath.ProjectPoint(37.0, -122.0, 0, 5.0);
+        var wp = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 5.0);
         double anticipation = FlightPhysics.ComputeAnticipationDistanceNm(250, 2.5, 0, 60);
-        var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, 180, anticipation * 0.5);
+        var pos = GeoMath.ProjectPoint(wp.Lat, wp.Lon, new TrueHeading(180),anticipation * 0.5);
 
         double rightHeading = FlightPhysics.ComputeArcBlendedHeading(pos.Lat, pos.Lon, 250, 2.5, wp.Lat, wp.Lon, 0, 60);
         double leftHeading = FlightPhysics.ComputeArcBlendedHeading(pos.Lat, pos.Lon, 250, 2.5, wp.Lat, wp.Lon, 0, 300);
 
         // Right turn deflects clockwise from 0°, left turn deflects counter-clockwise by same amount
-        double rightDeflection = FlightPhysics.NormalizeAngle(rightHeading - 0);
-        double leftDeflection = FlightPhysics.NormalizeAngle(leftHeading - 0);
+        double rightDeflection = NormalizeAngle(rightHeading - 0);
+        double leftDeflection = NormalizeAngle(leftHeading - 0);
 
         // Deflections should be approximately equal magnitude, opposite sign
         Assert.True(rightDeflection > 0, $"Right turn deflection should be positive, got {rightDeflection:F1}°");
@@ -496,8 +515,8 @@ public class TurnAnticipationTests
     public void ApproachNav_FlyByIAF_SequencesEarly()
     {
         // Create a fly-by IAF followed by IF with a turn
-        var iaf = GeoMath.ProjectPoint(37.0, -122.0, 0, 0.4); // within 0.5nm
-        var ifFix = GeoMath.ProjectPoint(iaf.Lat, iaf.Lon, 90, 5.0);
+        var iaf = GeoMath.ProjectPoint(37.0, -122.0, new TrueHeading(0), 0.4); // within 0.5nm
+        var ifFix = GeoMath.ProjectPoint(iaf.Lat, iaf.Lon, new TrueHeading(90), 5.0);
 
         var fix1 = new ApproachFix("IAF", iaf.Lat, iaf.Lon, Role: CifpFixRole.IAF);
 

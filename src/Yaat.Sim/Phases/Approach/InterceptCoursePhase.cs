@@ -21,10 +21,10 @@ public sealed partial class InterceptCoursePhase : Phase
     private const double MaxElapsedSeconds = 180.0;
 
     private double? _previousSignedCrossTrack;
-    private double? _runwayHeadingCache;
+    private TrueHeading? _runwayHeadingCache;
 
     /// <summary>Final approach course heading (true).</summary>
-    public required double FinalApproachCourse { get; init; }
+    public required TrueHeading FinalApproachCourse { get; init; }
 
     /// <summary>Runway threshold latitude (course target point).</summary>
     public required double ThresholdLat { get; init; }
@@ -44,8 +44,8 @@ public sealed partial class InterceptCoursePhase : Phase
         ctx.Logger.LogDebug(
             "[InterceptCourse] {Callsign}: started, hdg={Hdg:F0}, course={Crs:F0}",
             ctx.Aircraft.Callsign,
-            ctx.Aircraft.Heading,
-            FinalApproachCourse
+            ctx.Aircraft.TrueHeading.Degrees,
+            FinalApproachCourse.Degrees
         );
     }
 
@@ -60,12 +60,13 @@ public sealed partial class InterceptCoursePhase : Phase
         );
 
         double crossTrack = Math.Abs(signedCrossTrack);
-        double headingDiff = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - FinalApproachCourse));
+        TrueHeading aircraftHeading = ctx.Aircraft.TrueHeading;
+        double headingDiff = aircraftHeading.AbsAngleTo(FinalApproachCourse);
 
         // Normal intercept: within cross-track and heading tolerances
         if ((crossTrack < CrossTrackThresholdNm) && (headingDiff < HeadingAlignmentDeg))
         {
-            ctx.Targets.TargetHeading = FinalApproachCourse;
+            ctx.Targets.TargetTrueHeading = FinalApproachCourse;
             ctx.Targets.PreferredTurnDirection = null;
             ctx.Targets.NavigationRoute.Clear();
             ctx.Logger.LogDebug(
@@ -81,8 +82,8 @@ public sealed partial class InterceptCoursePhase : Phase
         // Use the smaller of the diff from FAC vs runway-number heading, since controllers
         // assign intercept headings based on the runway number (e.g. 120° for rwy 12)
         // which can differ from the actual FAC (e.g. 130°) by up to ~10°.
-        double rwyHdg = GetRunwayHeading();
-        double runwayHeadingDiff = Math.Abs(FlightPhysics.NormalizeAngle(ctx.Aircraft.Heading - rwyHdg));
+        TrueHeading rwyHdg = GetRunwayHeading();
+        double runwayHeadingDiff = aircraftHeading.AbsAngleTo(rwyHdg);
         double effectiveHeadingDiff = Math.Min(headingDiff, runwayHeadingDiff);
 
         if (_previousSignedCrossTrack is { } prev)
@@ -126,26 +127,26 @@ public sealed partial class InterceptCoursePhase : Phase
     /// E.g. "I12" → 120°, "ILS28R" → 280°, "L04L" → 40°.
     /// Falls back to <see cref="FinalApproachCourse"/> if the designator can't be parsed.
     /// </summary>
-    private double GetRunwayHeading()
+    private TrueHeading GetRunwayHeading()
     {
         if (_runwayHeadingCache is { } cached)
         {
             return cached;
         }
 
-        double result = FinalApproachCourse;
+        TrueHeading result = FinalApproachCourse;
 
         if (ApproachId is not null)
         {
             var match = RunwayDesignatorRegex().Match(ApproachId);
             if (match.Success && int.TryParse(match.Groups[1].Value, out int rwyNum) && (rwyNum >= 1) && (rwyNum <= 36))
             {
-                result = rwyNum * 10.0;
+                result = new TrueHeading(rwyNum * 10.0);
             }
         }
 
         _runwayHeadingCache = result;
-        return result;
+        return _runwayHeadingCache.Value;
     }
 
     [GeneratedRegex(@"(\d{1,2})[LRC]?$")]

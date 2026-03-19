@@ -313,7 +313,7 @@ internal static class GroundCommandHandler
 
         double? targetLat = null;
         double? targetLon = null;
-        int? resolvedHeading = push.Heading;
+        int? resolvedHeading = push.MagneticHeading?.ToDisplayInt();
 
         if (push.Taxiway is not null)
         {
@@ -352,11 +352,11 @@ internal static class GroundCommandHandler
                     double bearingToFacing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, facingNode.Latitude, facingNode.Longitude);
 
                     // Pick the push-taxiway edge direction closest to the facing taxiway
-                    double? edgeHeading = groundLayout.GetEdgeHeadingForTaxiway(targetNode, push.Taxiway!, bearingToFacing);
+                    double? edgeBearing = groundLayout.GetEdgeBearingForTaxiway(targetNode, push.Taxiway!, bearingToFacing);
 
-                    if (edgeHeading is not null)
+                    if (edgeBearing is not null)
                     {
-                        resolvedHeading = FlightPhysics.NormalizeHeadingInt(edgeHeading.Value);
+                        resolvedHeading = FlightPhysics.BearingToDisplayInt(edgeBearing.Value);
                         Log.LogDebug(
                             "[Pushback] {Callsign}: facing {FTwy} → heading {Hdg:000} (along {PTwy}, bearingToFacing={Brg:F0})",
                             aircraft.Callsign,
@@ -461,21 +461,21 @@ internal static class GroundCommandHandler
         }
 
         // Resolve final heading: explicit heading, facing taxiway, or parking node's heading
-        int? resolvedHeading = push.Heading;
+        int? resolvedHeading = push.MagneticHeading?.ToDisplayInt();
         if (resolvedHeading is null && push.FacingTaxiway is not null)
         {
             var facingNode = groundLayout.FindExitByTaxiway(destNode.Latitude, destNode.Longitude, push.FacingTaxiway);
             if (facingNode is not null)
             {
                 double bearingToFacing = GeoMath.BearingTo(destNode.Latitude, destNode.Longitude, facingNode.Latitude, facingNode.Longitude);
-                double? edgeHeading = groundLayout.GetEdgeHeadingForTaxiway(destNode, push.FacingTaxiway, bearingToFacing);
-                resolvedHeading = edgeHeading is not null
-                    ? FlightPhysics.NormalizeHeadingInt(edgeHeading.Value)
-                    : FlightPhysics.NormalizeHeadingInt(bearingToFacing);
+                double? edgeBearing = groundLayout.GetEdgeBearingForTaxiway(destNode, push.FacingTaxiway, bearingToFacing);
+                resolvedHeading = edgeBearing is not null
+                    ? FlightPhysics.BearingToDisplayInt(edgeBearing.Value)
+                    : FlightPhysics.BearingToDisplayInt(bearingToFacing);
             }
         }
 
-        resolvedHeading ??= destNode.Heading is not null ? FlightPhysics.NormalizeHeadingInt(destNode.Heading.Value) : null;
+        resolvedHeading ??= destNode.TrueHeading is not null ? destNode.TrueHeading.Value.ToDisplayInt() : null;
 
         Log.LogDebug(
             "[Pushback] {Callsign}: push to {DestLabel} via {SegCount} segments, finalHdg={Hdg}",
@@ -501,9 +501,9 @@ internal static class GroundCommandHandler
         {
             msg += $" facing {push.FacingTaxiway}";
         }
-        else if (push.Heading is not null)
+        else if (push.MagneticHeading is not null)
         {
-            msg += $", heading {push.Heading:000}";
+            msg += $", heading {push.MagneticHeading.Value.ToDisplayInt():000}";
         }
 
         return CommandDispatcher.Ok(msg);

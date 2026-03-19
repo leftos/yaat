@@ -16,7 +16,7 @@ public sealed class StopAndGoPhase : Phase
     private const double MaxCenterlineCorrectionDeg = 10.0;
 
     private double _fieldElevation;
-    private double _runwayHeading;
+    private TrueHeading _runwayHeading;
     private double _thresholdLat;
     private double _thresholdLon;
     private double _pauseDuration;
@@ -31,13 +31,13 @@ public sealed class StopAndGoPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
-        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
         _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Latitude;
         _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Longitude;
         _pauseDuration = CategoryPerformance.StopAndGoPauseSeconds(ctx.Category);
 
         ctx.Aircraft.IsOnGround = true;
-        ctx.Targets.TargetHeading = _runwayHeading;
+        ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.TargetAltitude = _fieldElevation;
@@ -50,7 +50,7 @@ public sealed class StopAndGoPhase : Phase
             "[StopAndGo] {Callsign}: started, pause={Pause:F1}s, rwyHdg={Hdg:F0}",
             ctx.Aircraft.Callsign,
             _pauseDuration,
-            _runwayHeading
+            _runwayHeading.Degrees
         );
     }
 
@@ -67,7 +67,7 @@ public sealed class StopAndGoPhase : Phase
                 _runwayHeading
             );
             double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
-            ctx.Targets.TargetHeading = FlightPhysics.NormalizeHeading(_runwayHeading - correction);
+            ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeading.Degrees - correction);
         }
 
         if (!_stopped)

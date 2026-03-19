@@ -58,7 +58,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
 
         LogAircraftState(aircraft, "KFB7 after JARR EMZOH4 SKIZM (t=1)");
         AssertFirstFixAhead(aircraft);
-        AssertNoHeadingReversal(engine, "KFB7", aircraft.Heading, 30);
+        AssertNoHeadingReversal(engine, "KFB7", aircraft.TrueHeading.Degrees, 30);
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         );
 
         // Also tick for 60 seconds to verify no 180 turn as aircraft progresses
-        AssertNoHeadingReversal(engine, "SWA797", aircraft.Heading, 60);
+        AssertNoHeadingReversal(engine, "SWA797", aircraft.TrueHeading.Degrees, 60);
     }
 
     private void LogAircraftState(AircraftState aircraft, string header)
@@ -119,7 +119,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         var log = new StringBuilder();
         log.AppendLine($"=== {header} ===");
         log.AppendLine($"Position: {aircraft.Latitude:F4}, {aircraft.Longitude:F4}");
-        log.AppendLine($"Heading: {aircraft.Heading:F1}");
+        log.AppendLine($"Heading: {aircraft.TrueHeading.Degrees:F1}");
         log.AppendLine($"Altitude: {aircraft.Altitude:F0}");
         log.AppendLine($"Nav route ({navRoute.Count} fixes):");
         foreach (var fix in navRoute)
@@ -130,7 +130,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         if (navRoute.Count > 0)
         {
             double bearingToFirst = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, navRoute[0].Latitude, navRoute[0].Longitude);
-            double angleDiff = NormalizeAngleDiff(bearingToFirst - aircraft.Heading);
+            double angleDiff = NormalizeAngleDiff(bearingToFirst - aircraft.TrueHeading.Degrees);
             log.AppendLine($"Bearing to first fix ({navRoute[0].Name}): {bearingToFirst:F1}°, {angleDiff:F1}° off nose");
         }
 
@@ -146,7 +146,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         }
 
         double bearingToFirst = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, navRoute[0].Latitude, navRoute[0].Longitude);
-        double angleDiff = NormalizeAngleDiff(bearingToFirst - aircraft.Heading);
+        double angleDiff = NormalizeAngleDiff(bearingToFirst - aircraft.TrueHeading.Degrees);
         Assert.True(angleDiff < 90, $"First nav fix {navRoute[0].Name} is {angleDiff:F0}° off nose — behind the aircraft, will cause 180° reversal.");
     }
 
@@ -165,15 +165,15 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
             Assert.NotNull(ac);
 
             string nextFix = ac.Targets.NavigationRoute.Count > 0 ? ac.Targets.NavigationRoute[0].Name : "(none)";
-            log.AppendLine($"  {t, 3} | {ac.Heading, 7:F1} | {ac.Latitude:F4} | {ac.Longitude:F4} | {nextFix}");
+            log.AppendLine($"  {t, 3} | {ac.TrueHeading.Degrees, 7:F1} | {ac.Latitude:F4} | {ac.Longitude:F4} | {nextFix}");
 
-            double delta = NormalizeAngleDiff(ac.Heading - prevHeading);
+            double delta = NormalizeAngleDiff(ac.TrueHeading.Degrees - prevHeading);
             if (delta > maxDelta)
             {
                 maxDelta = delta;
             }
 
-            prevHeading = ac.Heading;
+            prevHeading = ac.TrueHeading.Degrees;
         }
 
         log.AppendLine($"Max single-tick heading change: {maxDelta:F1}°");
@@ -182,7 +182,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft(callsign);
         Assert.NotNull(aircraft);
 
-        double totalChange = NormalizeAngleDiff(aircraft.Heading - initialHeading);
+        double totalChange = NormalizeAngleDiff(aircraft.TrueHeading.Degrees - initialHeading);
         Assert.True(totalChange < 120, $"{callsign} made a {totalChange:F0}° turn — likely a 180° reversal. See test output.");
     }
 

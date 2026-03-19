@@ -94,7 +94,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
             AircraftType = "B738",
             Latitude = 37.7 + index * 0.01,
             Longitude = -122.2 + index * 0.01,
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 5000 + index * 100,
             IndicatedAirspeed = 250,
             IsOnGround = false,
@@ -105,7 +105,7 @@ public class TickBenchmarkTests(ITestOutputHelper output)
     {
         var ac = MakeAircraft(callsign, index);
         ac.Phases = new PhaseList();
-        ac.Targets.TargetHeading = 350;
+        ac.Targets.TargetTrueHeading = new TrueHeading(350);
         ac.Targets.TargetAltitude = 8000;
         ac.Targets.TargetSpeed = 300;
         return ac;

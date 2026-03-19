@@ -81,7 +81,7 @@ public class VisualDetectionTests
         // Runway heading 284° → approach from ~104° (east side)
         // Aircraft to the east of airport, heading west toward airport
         var ac = MakeAircraft(37.721, -122.15, heading: 270, altitude: 3000);
-        Assert.True(VisualDetection.CanSeeAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, 284.0));
+        Assert.True(VisualDetection.CanSeeAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, new TrueHeading(284.0)));
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class VisualDetectionTests
     {
         // Aircraft to the west of airport (departure end for Rwy 28R), looking east at airport
         var ac = MakeAircraft(37.721, -122.30, heading: 90, altitude: 3000);
-        Assert.False(VisualDetection.CanSeeAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, 284.0));
+        Assert.False(VisualDetection.CanSeeAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, new TrueHeading(284.0)));
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class VisualDetectionTests
         // bearing from airport to aircraft is roughly south (~180°), approach side reciprocal is 104°
         // 180-104 = 76° < 120° → should pass approach-side check
         var ac = MakeAircraft(37.69, -122.221, heading: 350, altitude: 3000);
-        Assert.True(VisualDetection.CanSeeAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, 284.0));
+        Assert.True(VisualDetection.CanSeeAirportForRunway(ac, AptLat, AptLon, AptElev, null, 10.0, new TrueHeading(284.0)));
     }
 
     // -------------------------------------------------------------------------
@@ -166,56 +166,56 @@ public class VisualDetectionTests
     public void BankOcclusion_RightTurn_TargetLeftAndBelow_Occluded()
     {
         // Right bank +25°, target on left (high-wing side) at same altitude
-        Assert.True(VisualDetection.IsOccludedByBank(25.0, 360, 315, 3000, 3000));
+        Assert.True(VisualDetection.IsOccludedByBank(25.0, new TrueHeading(360), new TrueHeading(315), 3000, 3000));
     }
 
     [Fact]
     public void BankOcclusion_RightTurn_TargetLeftAndAbove_NotOccluded()
     {
         // Right bank +25°, target on left but well above (above 1000ft buffer)
-        Assert.False(VisualDetection.IsOccludedByBank(25.0, 360, 315, 3000, 4500));
+        Assert.False(VisualDetection.IsOccludedByBank(25.0, new TrueHeading(360), new TrueHeading(315), 3000, 4500));
     }
 
     [Fact]
     public void BankOcclusion_RightTurn_TargetRightAndBelow_NotOccluded()
     {
         // Right bank +25°, target on right (low-wing side)
-        Assert.False(VisualDetection.IsOccludedByBank(25.0, 360, 45, 3000, 3000));
+        Assert.False(VisualDetection.IsOccludedByBank(25.0, new TrueHeading(360), new TrueHeading(45), 3000, 3000));
     }
 
     [Fact]
     public void BankOcclusion_RightTurn_TargetAhead_NotOccluded()
     {
         // Right bank +25°, target ahead (within 10° nose cone)
-        Assert.False(VisualDetection.IsOccludedByBank(25.0, 360, 5, 3000, 3000));
+        Assert.False(VisualDetection.IsOccludedByBank(25.0, new TrueHeading(360), new TrueHeading(5), 3000, 3000));
     }
 
     [Fact]
     public void BankOcclusion_LeftTurn_TargetRightAndBelow_Occluded()
     {
         // Left bank -25°, target on right (high-wing side) at same altitude
-        Assert.True(VisualDetection.IsOccludedByBank(-25.0, 360, 45, 3000, 3000));
+        Assert.True(VisualDetection.IsOccludedByBank(-25.0, new TrueHeading(360), new TrueHeading(45), 3000, 3000));
     }
 
     [Fact]
     public void BankOcclusion_ShallowBank_NotOccluded()
     {
         // Bank only 12° → below threshold
-        Assert.False(VisualDetection.IsOccludedByBank(12.0, 360, 315, 3000, 3000));
+        Assert.False(VisualDetection.IsOccludedByBank(12.0, new TrueHeading(360), new TrueHeading(315), 3000, 3000));
     }
 
     [Fact]
     public void BankOcclusion_ModerateBank_SameAltitude_Occluded()
     {
         // Bank 20° (moderate), target at same altitude (within 500ft buffer)
-        Assert.True(VisualDetection.IsOccludedByBank(20.0, 360, 315, 3000, 3000));
+        Assert.True(VisualDetection.IsOccludedByBank(20.0, new TrueHeading(360), new TrueHeading(315), 3000, 3000));
     }
 
     [Fact]
     public void BankOcclusion_ModerateBank_Target600Above_NotOccluded()
     {
         // Bank 20° (moderate), target 600ft above → above 500ft buffer for moderate bank
-        Assert.False(VisualDetection.IsOccludedByBank(20.0, 360, 315, 3000, 3600));
+        Assert.False(VisualDetection.IsOccludedByBank(20.0, new TrueHeading(360), new TrueHeading(315), 3000, 3600));
     }
 
     // -------------------------------------------------------------------------
@@ -283,8 +283,8 @@ public class VisualDetectionTests
             AircraftType = "B738",
             Latitude = lat,
             Longitude = lon,
-            Heading = heading,
-            Track = heading,
+            TrueHeading = new TrueHeading(heading),
+            TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = 250,
         };

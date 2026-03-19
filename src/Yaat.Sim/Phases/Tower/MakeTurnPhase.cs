@@ -13,9 +13,9 @@ public sealed class MakeTurnPhase : Phase
     private const double CompletionToleranceDeg = 5.0;
     private const double ExitAlignmentDeg = 10.0;
 
-    private double _startHeading;
+    private TrueHeading _startHeading;
     private double _cumulativeTurn;
-    private double _lastHeading;
+    private TrueHeading _lastHeading;
     private bool _exiting;
 
     public required TurnDirection Direction { get; init; }
@@ -25,14 +25,12 @@ public sealed class MakeTurnPhase : Phase
 
     public override void OnStart(PhaseContext ctx)
     {
-        _startHeading = ctx.Aircraft.Heading;
-        _lastHeading = ctx.Aircraft.Heading;
+        _startHeading = ctx.Aircraft.TrueHeading;
+        _lastHeading = ctx.Aircraft.TrueHeading;
 
         // Set initial turn target 1° past start in the turn direction
         double offset = Direction == TurnDirection.Left ? -1 : 1;
-        double targetHdg = ((_startHeading + offset) % 360 + 360) % 360;
-
-        ctx.Targets.TargetHeading = targetHdg;
+        ctx.Targets.TargetTrueHeading = _startHeading + offset;
         ctx.Targets.PreferredTurnDirection = Direction;
         ctx.Targets.NavigationRoute.Clear();
 
@@ -41,30 +39,21 @@ public sealed class MakeTurnPhase : Phase
             ctx.Aircraft.Callsign,
             Direction == TurnDirection.Left ? "L" : "R",
             TargetDegrees,
-            _startHeading
+            _startHeading.Degrees
         );
     }
 
     public override bool OnTick(PhaseContext ctx)
     {
-        double currentHeading = ctx.Aircraft.Heading;
-        double delta = currentHeading - _lastHeading;
-        if (delta > 180)
-        {
-            delta -= 360;
-        }
-        if (delta < -180)
-        {
-            delta += 360;
-        }
+        TrueHeading current = ctx.Aircraft.TrueHeading;
+        double delta = _lastHeading.SignedAngleTo(current);
         _cumulativeTurn += Math.Abs(delta);
-        _lastHeading = currentHeading;
+        _lastHeading = current;
 
         if (!_exiting && _cumulativeTurn >= TargetDegrees - ExitAlignmentDeg)
         {
             _exiting = true;
-            double exitHeading = ComputeExitHeading();
-            ctx.Targets.TargetHeading = exitHeading;
+            ctx.Targets.TargetTrueHeading = ComputeExitHeading();
             ctx.Targets.PreferredTurnDirection = Direction;
         }
 
@@ -77,7 +66,7 @@ public sealed class MakeTurnPhase : Phase
         return complete;
     }
 
-    private double ComputeExitHeading()
+    private TrueHeading ComputeExitHeading()
     {
         if (Math.Abs(TargetDegrees - 360) < 1)
         {
@@ -86,7 +75,7 @@ public sealed class MakeTurnPhase : Phase
 
         // 270° turn: exit heading is 90° opposite to turn direction
         double offset = Direction == TurnDirection.Left ? 90 : -90;
-        return ((_startHeading + offset) % 360 + 360) % 360;
+        return _startHeading + offset;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

@@ -108,7 +108,7 @@ public sealed class TaxiingPhase : Phase
         TurnToward(ctx, bearing);
 
         // Speed scales with current heading error: straight = full, turning = crawl
-        double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - ctx.Aircraft.Heading));
+        double angleDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
         double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
         double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.15, 1.0);
         double targetSpeed = maxSpeed * speedFraction;
@@ -166,7 +166,7 @@ public sealed class TaxiingPhase : Phase
                 _targetNodeId,
                 dist,
                 ctx.Aircraft.GroundSpeed,
-                ctx.Aircraft.Heading,
+                ctx.Aircraft.TrueHeading.Degrees,
                 bearing,
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude
@@ -246,7 +246,7 @@ public sealed class TaxiingPhase : Phase
                             targetNode.Latitude,
                             targetNode.Longitude
                         );
-                        double turnAngle = Math.Abs(FlightPhysics.NormalizeAngle(segBearing - inboundBearing));
+                        double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, segBearing);
                         double frac = Math.Clamp((turnAngle - 30.0) / 60.0, 0.0, 1.0);
                         _currentNodeRequiredSpeed = maxSpeed - (maxSpeed - cornerSpeed) * frac;
                     }
@@ -299,7 +299,7 @@ public sealed class TaxiingPhase : Phase
                     {
                         double inBearing = GeoMath.BearingTo(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
                         double outBearing = GeoMath.BearingTo(toNode.Latitude, toNode.Longitude, nextNextNode.Latitude, nextNextNode.Longitude);
-                        double turnAngle = Math.Abs(FlightPhysics.NormalizeAngle(outBearing - inBearing));
+                        double turnAngle = GeoMath.AbsBearingDifference(inBearing, outBearing);
                         double frac = Math.Clamp((turnAngle - 30.0) / 60.0, 0.0, 1.0);
                         reqSpeed = maxSpeed - (maxSpeed - cornerSpeed) * frac;
                     }
@@ -540,7 +540,7 @@ public sealed class TaxiingPhase : Phase
     private static void TurnToward(PhaseContext ctx, double targetBearing)
     {
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, targetBearing, maxTurn);
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, targetBearing, maxTurn);
     }
 
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)

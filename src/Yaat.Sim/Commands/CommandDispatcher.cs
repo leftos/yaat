@@ -1097,7 +1097,7 @@ public static class CommandDispatcher
 
     private static BlockTrigger ConvertFrdCondition(AtFixCondition at, int radial, int dist)
     {
-        var (targetLat, targetLon) = GeoMath.ProjectPoint(at.Lat, at.Lon, radial, dist);
+        var (targetLat, targetLon) = GeoMath.ProjectPointRaw(at.Lat, at.Lon, radial, dist);
         return new BlockTrigger
         {
             Type = BlockTriggerType.ReachFrdPoint,

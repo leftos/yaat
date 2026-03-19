@@ -19,7 +19,7 @@ public class WaitCommandDispatchTests
             AircraftType = "B738",
             Latitude = 37.620,
             Longitude = -122.380,
-            Heading = 180,
+            TrueHeading = new TrueHeading(180),
             Altitude = 13,
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -35,7 +35,7 @@ public class WaitCommandDispatchTests
             AircraftType = "B738",
             Latitude = 37.7,
             Longitude = -122.2,
-            Heading = 090,
+            TrueHeading = new TrueHeading(090),
             Altitude = 3000,
             IndicatedAirspeed = 200,
             IsOnGround = false,
@@ -155,7 +155,7 @@ public class WaitCommandDispatchTests
         var ac = MakeAirborneAircraft();
 
         // "WAIT 10, FH 270" — single block with parallel WAIT + FH 270
-        var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10), new FlyHeadingCommand(270)])]);
+        var compound = new CompoundCommand([new ParsedBlock(null, [new WaitCommand(10), new FlyHeadingCommand(new MagneticHeading(270))])]);
 
         var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), true);
 
@@ -177,7 +177,7 @@ public class WaitCommandDispatchTests
         var compound = new CompoundCommand([
             new ParsedBlock(null, [new WaitCommand(5)]),
             new ParsedBlock(null, [new WaitCommand(10)]),
-            new ParsedBlock(null, [new FlyHeadingCommand(270)]),
+            new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(270))]),
         ]);
 
         var result = CommandDispatcher.DispatchCompound(compound, ac, null, new Random(42), true);

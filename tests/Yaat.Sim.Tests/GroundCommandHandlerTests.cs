@@ -26,7 +26,7 @@ public class GroundCommandHandlerTests
             AircraftType = "B738",
             Latitude = lat,
             Longitude = lon,
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 6,
             IndicatedAirspeed = 0,
             IsOnGround = true,
@@ -213,7 +213,7 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         // Phases empty (no AtParkingPhase)
-        var cmd = new PushbackCommand();
+        var cmd = new PushbackCommand(null, null, null, null, null);
 
         var result = GroundCommandHandler.TryPushback(ac, cmd, null);
 
@@ -225,7 +225,7 @@ public class GroundCommandHandlerTests
     public void TryPushback_AtParking_NoArgs_Succeeds()
     {
         var ac = MakeAircraftAtParking();
-        var cmd = new PushbackCommand();
+        var cmd = new PushbackCommand(null, null, null, null, null);
 
         var result = GroundCommandHandler.TryPushback(ac, cmd, null);
 
@@ -238,7 +238,7 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeAircraftAtParking();
         var layout = MakeSimpleLayout();
-        var cmd = new PushbackCommand(Taxiway: "A");
+        var cmd = new PushbackCommand(null, "A", null, null, null);
 
         var result = GroundCommandHandler.TryPushback(ac, cmd, layout);
 
@@ -250,7 +250,7 @@ public class GroundCommandHandlerTests
     public void TryPushback_WithHeading_IncludesInMessage()
     {
         var ac = MakeAircraftAtParking();
-        var cmd = new PushbackCommand(Heading: 180);
+        var cmd = new PushbackCommand(new MagneticHeading(180), null, null, null, null);
 
         var result = GroundCommandHandler.TryPushback(ac, cmd, null);
 

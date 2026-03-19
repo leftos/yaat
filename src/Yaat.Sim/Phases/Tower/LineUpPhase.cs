@@ -20,7 +20,7 @@ public sealed class LineUpPhase : Phase
 
     private readonly int? _holdShortNodeId;
 
-    private double _runwayHeading;
+    private TrueHeading _runwayHeading;
     private bool _initialized;
     private double _timeSinceLastLog;
 
@@ -114,23 +114,23 @@ public sealed class LineUpPhase : Phase
         }
 
         // Align with runway heading
-        double headingDiff = Math.Abs(FlightPhysics.NormalizeAngle(_runwayHeading - ctx.Aircraft.Heading));
+        double headingDiff = _runwayHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
 
         if (headingDiff > HeadingToleranceDeg)
         {
             double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-            ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, _runwayHeading, maxTurn);
+            ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, _runwayHeading.Degrees, maxTurn);
             AdjustSpeed(ctx, CategoryPerformance.TaxiSpeed(ctx.Category) * 0.5);
             LogPeriodic(ctx);
             return false;
         }
 
         // Aligned — snap heading and stop
-        ctx.Aircraft.Heading = _runwayHeading;
+        ctx.Aircraft.TrueHeading = _runwayHeading;
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
 
-        ctx.Logger.LogDebug("[LineUp] {Callsign}: aligned on runway, heading {Hdg:F0}", ctx.Aircraft.Callsign, _runwayHeading);
+        ctx.Logger.LogDebug("[LineUp] {Callsign}: aligned on runway, heading {Hdg:F0}", ctx.Aircraft.Callsign, _runwayHeading.Degrees);
         return true;
     }
 
@@ -151,7 +151,7 @@ public sealed class LineUpPhase : Phase
         {
             _timeSinceLastLog = 0;
             double clDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _centerlineLat, _centerlineLon);
-            double hdgDiff = Math.Abs(FlightPhysics.NormalizeAngle(_runwayHeading - ctx.Aircraft.Heading));
+            double hdgDiff = _runwayHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
             ctx.Logger.LogDebug(
                 "[LineUp] {Callsign}: clDist={Dist:F4}nm, hdgDiff={Diff:F1}, gs={Gs:F1}kts",
                 ctx.Aircraft.Callsign,
@@ -284,23 +284,23 @@ public sealed class LineUpPhase : Phase
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, targetLat, targetLon);
 
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        double diff = FlightPhysics.NormalizeAngle(bearing - ctx.Aircraft.Heading);
+        double diff = ctx.Aircraft.TrueHeading.SignedAngleTo(new TrueHeading(bearing));
 
         if (Math.Abs(diff) > 90)
         {
             // Large turn needed — prefer the direction that passes through the
             // runway heading first, avoiding backtracking toward the threshold.
-            double rwyDiff = FlightPhysics.NormalizeAngle(_runwayHeading - ctx.Aircraft.Heading);
+            double rwyDiff = ctx.Aircraft.TrueHeading.SignedAngleTo(_runwayHeading);
             double turnDir = rwyDiff >= 0 ? 1.0 : -1.0;
-            ctx.Aircraft.Heading = FlightPhysics.NormalizeHeading(ctx.Aircraft.Heading + turnDir * maxTurn);
+            ctx.Aircraft.TrueHeading = new TrueHeading(ctx.Aircraft.TrueHeading.Degrees + turnDir * maxTurn);
         }
         else
         {
-            ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, bearing, maxTurn);
+            ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
         }
 
         // Near-normal taxi speed, reduced during sharp turns
-        double angleDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearing - ctx.Aircraft.Heading));
+        double angleDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
         double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category) * 0.8;
         double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.4, 1.0);
         AdjustSpeed(ctx, maxSpeed * speedFraction);

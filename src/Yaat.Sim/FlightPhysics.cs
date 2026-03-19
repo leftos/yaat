@@ -32,6 +32,9 @@ public static class FlightPhysics
     {
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
 
+        // Cache magnetic declination at current position for this tick.
+        aircraft.Declination = MagneticDeclination.GetDeclination(aircraft.Latitude, aircraft.Longitude);
+
         // Backward compat: airborne aircraft without IAS initialized derive it from GS.
         if (!aircraft.IsOnGround && aircraft.IndicatedAirspeed <= 0 && aircraft.GroundSpeed > 0)
         {
@@ -88,7 +91,7 @@ public static class FlightPhysics
         if (inAnticipationZone && route.Count >= 2)
         {
             double nextLegBearing = GeoMath.BearingTo(nav.Latitude, nav.Longitude, route[1].Latitude, route[1].Longitude);
-            double alongTrack = GeoMath.AlongTrackDistanceNm(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude, nextLegBearing);
+            double alongTrack = GeoMath.AlongTrackDistanceNmRaw(aircraft.Latitude, aircraft.Longitude, nav.Latitude, nav.Longitude, nextLegBearing);
             shouldSequence = alongTrack >= 0;
         }
         else
@@ -117,7 +120,7 @@ public static class FlightPhysics
 
             if (route.Count == 0)
             {
-                aircraft.Targets.TargetHeading = null;
+                aircraft.Targets.TargetTrueHeading = null;
                 aircraft.Targets.PreferredTurnDirection = null;
                 ClearProcedureState(aircraft);
                 return;
@@ -162,7 +165,7 @@ public static class FlightPhysics
             wca = WindInterpolator.ComputeWindCorrectionAngle(bearing, tas, wind.DirectionDeg, wind.SpeedKts);
         }
 
-        aircraft.Targets.TargetHeading = NormalizeHeading(bearing + wca);
+        aircraft.Targets.TargetTrueHeading = new TrueHeading(bearing + wca);
         aircraft.Targets.PreferredTurnDirection = null;
     }
 
@@ -518,23 +521,23 @@ public static class FlightPhysics
 
         // Turn center: offset perpendicular to the bisector of the two legs
         bool turnRight = courseChange > 0;
-        double bisector = NormalizeHeading(currentLegBearing + courseChange / 2.0);
+        double bisector = NormalizeBearing(currentLegBearing + courseChange / 2.0);
         double perpBearing = turnRight ? bisector + 90.0 : bisector - 90.0;
-        perpBearing = NormalizeHeading(perpBearing);
+        perpBearing = NormalizeBearing(perpBearing);
 
         // Offset distance from waypoint to turn center
         double halfAngleRad = Math.Abs(courseChange) * Math.PI / 360.0;
         double cosHalf = Math.Cos(halfAngleRad);
         double offsetNm = cosHalf > 0.01 ? radiusNm / cosHalf : radiusNm;
 
-        var (centerLat, centerLon) = GeoMath.ProjectPoint(waypointLat, waypointLon, perpBearing, offsetNm);
+        var (centerLat, centerLon) = GeoMath.ProjectPointRaw(waypointLat, waypointLon, perpBearing, offsetNm);
 
         // Aircraft's bearing from turn center
         double radialFromCenter = GeoMath.BearingTo(centerLat, centerLon, aircraftLat, aircraftLon);
 
         // Tangent heading = perpendicular to radial, in turn direction
         double tangent = turnRight ? radialFromCenter + 90.0 : radialFromCenter - 90.0;
-        return NormalizeHeading(tangent);
+        return NormalizeBearing(tangent);
     }
 
     /// <summary>
@@ -654,24 +657,20 @@ public static class FlightPhysics
 
     private static void UpdateHeading(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)
     {
-        var target = aircraft.Targets.TargetHeading;
+        var target = aircraft.Targets.TargetTrueHeading;
         if (target is null)
         {
             aircraft.BankAngle = 0;
             return;
         }
 
-        double current = aircraft.Heading;
-        double goal = target.Value;
+        double current = aircraft.TrueHeading.Degrees;
+        double goal = target.Value.Degrees;
 
         double diff = NormalizeAngle(goal - current);
         if (Math.Abs(diff) < HeadingSnapDeg)
         {
-            aircraft.Heading = goal % 360.0;
-            if (aircraft.Heading < 0)
-            {
-                aircraft.Heading += 360.0;
-            }
+            aircraft.TrueHeading = new TrueHeading(goal);
 
             // Heading reached — clear turn direction bias but keep the
             // assigned heading so it persists in the UI and autopilot
@@ -688,7 +687,7 @@ public static class FlightPhysics
 
         double turnAmount = Math.Min(Math.Abs(diff), maxTurn) * direction;
 
-        aircraft.Heading = NormalizeHeading(current + turnAmount);
+        aircraft.TrueHeading = new TrueHeading(current + turnAmount);
 
         // Compute bank angle: atan(TAS_kts × turnRate_deg/s × coeff)
         double tasKts = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
@@ -873,20 +872,20 @@ public static class FlightPhysics
             }
 
             double speedNmPerSec = aircraft.IndicatedAirspeed / 3600.0;
-            double moveHeading = aircraft.PushbackHeading ?? aircraft.Heading;
-            double headingRad = moveHeading * DegToRad;
+            double moveDir = aircraft.PushbackTrueHeading?.Degrees ?? aircraft.TrueHeading.Degrees;
+            double headingRad = moveDir * DegToRad;
 
             aircraft.Latitude += speedNmPerSec * deltaSeconds * Math.Cos(headingRad) / NmPerDegLat;
             aircraft.Longitude += speedNmPerSec * deltaSeconds * Math.Sin(headingRad) / (NmPerDegLat * Math.Cos(latRad));
 
             // On the ground: Track follows Heading directly (GS is derived from IAS).
-            aircraft.Track = aircraft.Heading;
+            aircraft.TrueTrack = aircraft.TrueHeading;
         }
         else
         {
             // Airborne: derive ground speed vector from TAS + wind.
             double tasKts = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
-            double headingRad = aircraft.Heading * DegToRad;
+            double headingRad = aircraft.TrueHeading.Degrees * DegToRad;
             var (windNKts, windEKts) = WindInterpolator.GetWindComponents(weather, aircraft.Altitude);
 
             // Cache wind so AircraftState.GroundSpeed can derive the correct value without weather context.
@@ -902,7 +901,7 @@ public static class FlightPhysics
                 trackDeg += 360.0;
             }
 
-            aircraft.Track = trackDeg;
+            aircraft.TrueTrack = new TrueHeading(trackDeg);
 
             // Displace using the full ground speed vector.
             aircraft.Latitude += (gsNKts / 3600.0) * deltaSeconds / NmPerDegLat;
@@ -1032,12 +1031,12 @@ public static class FlightPhysics
             return false;
         }
 
-        if (aircraft.Targets.TargetHeading is not { } target)
+        if (aircraft.Targets.TargetTrueHeading is not { } target)
         {
             return true;
         }
 
-        double diff = NormalizeAngle(aircraft.Heading - target);
+        double diff = NormalizeAngle(aircraft.TrueHeading.Degrees - target.Degrees);
         return Math.Abs(diff) < HeadingSnapDeg;
     }
 
@@ -1104,14 +1103,14 @@ public static class FlightPhysics
         }
 
         // Check if they're still conflicting based on heading
-        double headingDiff = Math.Abs(aircraft.Heading - target.Heading);
+        double headingDiff = Math.Abs(aircraft.TrueHeading.Degrees - target.TrueHeading.Degrees);
         if (headingDiff > 180)
         {
             headingDiff = 360 - headingDiff;
         }
 
         double bearingToTarget = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, target.Latitude, target.Longitude);
-        double diffToTarget = Math.Abs(aircraft.Heading - bearingToTarget);
+        double diffToTarget = Math.Abs(aircraft.TrueHeading.Degrees - bearingToTarget);
         if (diffToTarget > 180)
         {
             diffToTarget = 360 - diffToTarget;
@@ -1264,7 +1263,7 @@ public static class FlightPhysics
         return diff > 0 ? 1.0 : -1.0;
     }
 
-    internal static double NormalizeAngle(double angle)
+    private static double NormalizeAngle(double angle)
     {
         angle %= 360.0;
         if (angle > 180.0)
@@ -1280,15 +1279,17 @@ public static class FlightPhysics
         return angle;
     }
 
-    internal static double NormalizeHeading(double heading)
+    /// <summary>Normalize a raw angle to [0,360). For headings, prefer constructing TrueHeading/MagneticHeading directly.</summary>
+    private static double NormalizeBearing(double bearing)
     {
-        heading = ((heading % 360.0) + 360.0) % 360.0;
-        return heading;
+        bearing = ((bearing % 360.0) + 360.0) % 360.0;
+        return bearing;
     }
 
-    internal static int NormalizeHeadingInt(double heading)
+    /// <summary>Display-format a raw bearing angle as 001..360. For headings, use TrueHeading/MagneticHeading.ToDisplayInt().</summary>
+    internal static int BearingToDisplayInt(double bearing)
     {
-        var normalized = ((heading % 360.0) + 360.0) % 360.0;
+        var normalized = ((bearing % 360.0) + 360.0) % 360.0;
         return normalized < 0.5 ? 360 : (int)Math.Round(normalized);
     }
 }

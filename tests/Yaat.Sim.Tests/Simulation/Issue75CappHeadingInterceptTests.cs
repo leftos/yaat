@@ -81,13 +81,13 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"TargetHeading: {aircraft.Targets.TargetHeading}");
-        output.WriteLine($"AssignedHeading: {aircraft.Targets.AssignedHeading}");
+        output.WriteLine($"TargetHeading: {aircraft.Targets.TargetTrueHeading}");
+        output.WriteLine($"AssignedHeading: {aircraft.Targets.AssignedMagneticHeading?.Degrees}");
         output.WriteLine($"NavRoute: {string.Join(" → ", aircraft.Targets.NavigationRoute.Select(n => n.Name))}");
 
         // TargetHeading is set by physics, but no controller heading was issued
-        Assert.NotNull(aircraft.Targets.TargetHeading);
-        Assert.Null(aircraft.Targets.AssignedHeading);
+        Assert.NotNull(aircraft.Targets.TargetTrueHeading);
+        Assert.Null(aircraft.Targets.AssignedMagneticHeading);
 
         var result = engine.SendCommand("UAL238", "CAPP");
         output.WriteLine($"CAPP result: Success={result.Success} Message={result.Message}");
@@ -127,11 +127,12 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
         var aircraft = engine.FindAircraft("UAL238");
         Assert.NotNull(aircraft);
 
-        output.WriteLine($"TargetHeading: {aircraft.Targets.TargetHeading}");
-        output.WriteLine($"AssignedHeading: {aircraft.Targets.AssignedHeading}");
+        output.WriteLine($"TargetHeading: {aircraft.Targets.TargetTrueHeading}");
+        output.WriteLine($"AssignedHeading: {aircraft.Targets.AssignedMagneticHeading?.Degrees}");
 
         // FH 240 was applied by replay — AssignedHeading should be set
-        Assert.Equal(240.0, aircraft.Targets.AssignedHeading);
+        Assert.NotNull(aircraft.Targets.AssignedMagneticHeading);
+        Assert.Equal(240.0, aircraft.Targets.AssignedMagneticHeading.Value.Degrees);
 
         // Issue CAPP — should use intercept since aircraft was explicitly vectored
         var cappResult = engine.SendCommand("UAL238", "CAPP");

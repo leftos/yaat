@@ -42,11 +42,11 @@ public sealed class PatternWaypoints
     public double ThresholdLon { get; init; }
 
     /// <summary>Headings for each leg.</summary>
-    public double UpwindHeading { get; init; }
-    public double CrosswindHeading { get; init; }
-    public double DownwindHeading { get; init; }
-    public double BaseHeading { get; init; }
-    public double FinalHeading { get; init; }
+    public TrueHeading UpwindHeading { get; init; }
+    public TrueHeading CrosswindHeading { get; init; }
+    public TrueHeading DownwindHeading { get; init; }
+    public TrueHeading BaseHeading { get; init; }
+    public TrueHeading FinalHeading { get; init; }
 
     /// <summary>Pattern altitude MSL.</summary>
     public double PatternAltitude { get; init; }
@@ -62,17 +62,16 @@ public static class PatternGeometry
 {
     public static PatternWaypoints Compute(RunwayInfo runway, AircraftCategory category, PatternDirection direction, double? sizeOverrideNm = null)
     {
-        double rwyHdg = runway.TrueHeading;
-        double reciprocal = NormalizeHeading(rwyHdg + 180.0);
+        TrueHeading rwyHdg = runway.TrueHeading;
 
         // Turn offset: +90 for left pattern, -90 for right pattern
         double turnOffset = direction == PatternDirection.Left ? -90.0 : 90.0;
 
-        double upwindHdg = rwyHdg;
-        double crosswindHdg = NormalizeHeading(rwyHdg + turnOffset);
-        double downwindHdg = reciprocal;
-        double baseHdg = NormalizeHeading(reciprocal + turnOffset);
-        double finalHdg = rwyHdg;
+        TrueHeading upwindHdg = rwyHdg;
+        TrueHeading crosswindHdg = new TrueHeading(rwyHdg.Degrees + turnOffset);
+        TrueHeading downwindHdg = rwyHdg.ToReciprocal();
+        TrueHeading baseHdg = new TrueHeading(downwindHdg.Degrees + turnOffset);
+        TrueHeading finalHdg = rwyHdg;
 
         double defaultSize = CategoryPerformance.PatternSizeNm(category);
         double patternSize = sizeOverrideNm ?? defaultSize;
@@ -121,10 +120,5 @@ public static class PatternGeometry
             PatternAltitude = patternAlt,
             Direction = direction,
         };
-    }
-
-    private static double NormalizeHeading(double heading)
-    {
-        return ((heading % 360.0) + 360.0) % 360.0;
     }
 }

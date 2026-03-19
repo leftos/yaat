@@ -17,8 +17,8 @@ public class WindPhysicsTests
         {
             Callsign = "TEST01",
             AircraftType = "B738",
-            Heading = heading,
-            Track = heading,
+            TrueHeading = new TrueHeading(heading),
+            TrueTrack = new TrueHeading(heading),
             Altitude = altitude,
             IndicatedAirspeed = onGround ? 0 : speed,
             IsOnGround = onGround,
@@ -70,7 +70,7 @@ public class WindPhysicsTests
         var ac = MakeAircraft(200, 090, 10_000);
         var weather = new WeatherProfile(); // no wind layers
         FlightPhysics.Update(ac, 1.0, null, weather);
-        Assert.Equal(ac.Heading, ac.Track, Tolerance);
+        Assert.Equal(ac.TrueHeading.Degrees, ac.TrueTrack.Degrees, Tolerance);
     }
 
     // -------------------------------------------------------------------------
@@ -88,7 +88,7 @@ public class WindPhysicsTests
         // GS should be less than IAS (headwind reduces GS)
         Assert.True(ac.GroundSpeed < 200 - 10, $"Expected GS significantly < 200, got {ac.GroundSpeed}");
         // Track and Heading should be equal (headwind/tailwind → no drift)
-        Assert.Equal(090, ac.Track, 2.0);
+        Assert.Equal(090, ac.TrueTrack.Degrees, 2.0);
     }
 
     // -------------------------------------------------------------------------
@@ -106,7 +106,7 @@ public class WindPhysicsTests
         // GS should be greater than IAS (tailwind adds to GS)
         Assert.True(ac.GroundSpeed > 210, $"Expected GS > 210, got {ac.GroundSpeed}");
         // Track should still match heading (pure tailwind, no crosswind)
-        Assert.Equal(090, ac.Track, 2.0);
+        Assert.Equal(090, ac.TrueTrack.Degrees, 2.0);
     }
 
     // -------------------------------------------------------------------------
@@ -122,13 +122,13 @@ public class WindPhysicsTests
         FlightPhysics.Update(ac, 1.0, null, weather);
 
         // Track should differ from heading due to wind drift
-        double trackDiff = Math.Abs(ac.Track - 000);
+        double trackDiff = Math.Abs(ac.TrueTrack.Degrees - 000);
         if (trackDiff > 180)
         {
             trackDiff = 360 - trackDiff;
         }
 
-        Assert.True(trackDiff > 3, $"Expected track to differ from heading, got track={ac.Track}, hdg={ac.Heading}");
+        Assert.True(trackDiff > 3, $"Expected track to differ from heading, got track={ac.TrueTrack.Degrees}, hdg={ac.TrueHeading.Degrees}");
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class WindPhysicsTests
 
         // On ground: GS and IAS stay equal; Track follows Heading
         Assert.Equal(ac.GroundSpeed, ac.IndicatedAirspeed, Tolerance);
-        Assert.Equal(ac.Heading, ac.Track, Tolerance);
+        Assert.Equal(ac.TrueHeading.Degrees, ac.TrueTrack.Degrees, Tolerance);
     }
 
     // -------------------------------------------------------------------------
@@ -186,7 +186,7 @@ public class WindPhysicsTests
     {
         var ac = MakeAircraft(200, 135, 10_000);
         FlightPhysics.Update(ac, 1.0, null, null);
-        Assert.Equal(ac.Heading, ac.Track, Tolerance);
+        Assert.Equal(ac.TrueHeading.Degrees, ac.TrueTrack.Degrees, Tolerance);
     }
 
     // -------------------------------------------------------------------------
@@ -217,12 +217,12 @@ public class WindPhysicsTests
         }
 
         // Track should be near 090 (east) because WCA corrects the heading
-        double trackDiff = Math.Abs(ac.Track - 090);
+        double trackDiff = Math.Abs(ac.TrueTrack.Degrees - 090);
         if (trackDiff > 180)
         {
             trackDiff = 360 - trackDiff;
         }
 
-        Assert.True(trackDiff < 5, $"Expected track near 090°, got {ac.Track}°");
+        Assert.True(trackDiff < 5, $"Expected track near 090°, got {ac.TrueTrack.Degrees}°");
     }
 }

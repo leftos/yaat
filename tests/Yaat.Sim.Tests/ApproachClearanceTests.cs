@@ -22,7 +22,7 @@ public class ApproachClearanceTests
         {
             Callsign = "N123",
             AircraftType = "B738",
-            Heading = heading,
+            TrueHeading = new TrueHeading(heading),
             Altitude = altitude,
             Latitude = lat,
             Longitude = lon,
@@ -78,7 +78,7 @@ public class ApproachClearanceTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         var phases = new PhaseList { ActiveApproach = clearance };
@@ -86,7 +86,7 @@ public class ApproachClearanceTests
         Assert.NotNull(phases.ActiveApproach);
         Assert.Equal("I28R", phases.ActiveApproach.ApproachId);
         Assert.Equal("28R", phases.ActiveApproach.RunwayId);
-        Assert.Equal(280, phases.ActiveApproach.FinalApproachCourse);
+        Assert.Equal(280, phases.ActiveApproach.FinalApproachCourse.Degrees);
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class ApproachClearanceTests
             ApproachId = "I28R",
             AirportCode = "OAK",
             RunwayId = "28R",
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
         };
 
         Assert.False(clearance.StraightIn);
@@ -114,7 +114,7 @@ public class ApproachClearanceTests
         // is along the same longitude as the threshold.
         var phase = new InterceptCoursePhase
         {
-            FinalApproachCourse = 360,
+            FinalApproachCourse = new TrueHeading(360),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
         };
@@ -127,7 +127,7 @@ public class ApproachClearanceTests
         bool done = phase.OnTick(ctx);
 
         Assert.True(done);
-        Assert.Equal(360, aircraft.Targets.TargetHeading);
+        Assert.True(aircraft.Targets.TargetTrueHeading?.IsCloseTo(new TrueHeading(360), 0.1));
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class ApproachClearanceTests
     {
         var phase = new InterceptCoursePhase
         {
-            FinalApproachCourse = 360,
+            FinalApproachCourse = new TrueHeading(360),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
         };
@@ -155,7 +155,7 @@ public class ApproachClearanceTests
     {
         var phase = new InterceptCoursePhase
         {
-            FinalApproachCourse = 360,
+            FinalApproachCourse = new TrueHeading(360),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
         };
@@ -175,7 +175,7 @@ public class ApproachClearanceTests
     {
         var phase = new InterceptCoursePhase
         {
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
         };
@@ -189,7 +189,7 @@ public class ApproachClearanceTests
     {
         var phase = new InterceptCoursePhase
         {
-            FinalApproachCourse = 280,
+            FinalApproachCourse = new TrueHeading(280),
             ThresholdLat = 37.72,
             ThresholdLon = -122.22,
         };
@@ -233,7 +233,7 @@ public class ApproachClearanceTests
         Assert.Equal("I28R", aircraft.Phases.ActiveApproach.ApproachId);
         Assert.Equal("OAK", aircraft.Phases.ActiveApproach.AirportCode);
         Assert.Equal("28R", aircraft.Phases.ActiveApproach.RunwayId);
-        Assert.Equal(280, aircraft.Phases.ActiveApproach.FinalApproachCourse);
+        Assert.Equal(280, aircraft.Phases.ActiveApproach.FinalApproachCourse.Degrees);
     }
 
     [Fact]

@@ -76,12 +76,12 @@ public class RngDeterminismTests
             Latitude = 37.8,
             Longitude = -122.3,
             Altitude = 5000,
-            Heading = 270,
+            TrueHeading = new TrueHeading(270),
             IndicatedAirspeed = 250,
-            Track = 270,
+            TrueTrack = new TrueHeading(270),
             Targets =
             {
-                TargetHeading = 270,
+                TargetTrueHeading = new TrueHeading(270),
                 TargetAltitude = 5000,
                 TargetSpeed = 250,
             },
@@ -94,12 +94,12 @@ public class RngDeterminismTests
             Latitude = 37.8,
             Longitude = -122.3,
             Altitude = 5000,
-            Heading = 270,
+            TrueHeading = new TrueHeading(270),
             IndicatedAirspeed = 250,
-            Track = 270,
+            TrueTrack = new TrueHeading(270),
             Targets =
             {
-                TargetHeading = 270,
+                TargetTrueHeading = new TrueHeading(270),
                 TargetAltitude = 5000,
                 TargetSpeed = 250,
             },
@@ -117,6 +117,6 @@ public class RngDeterminismTests
         Assert.Equal(ac1.Latitude, ac2.Latitude, 10);
         Assert.Equal(ac1.Longitude, ac2.Longitude, 10);
         Assert.Equal(ac1.Altitude, ac2.Altitude, 4);
-        Assert.Equal(ac1.Heading, ac2.Heading, 4);
+        Assert.Equal(ac1.TrueHeading.Degrees, ac2.TrueHeading.Degrees, 4);
     }
 }

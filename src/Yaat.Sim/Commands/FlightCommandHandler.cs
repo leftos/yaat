@@ -12,40 +12,40 @@ internal static class FlightCommandHandler
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = cmd.Heading;
-        aircraft.Targets.AssignedHeading = cmd.Heading;
+        aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
+        aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
-        return CommandDispatcher.Ok($"Fly heading {cmd.Heading:000}");
+        return CommandDispatcher.Ok($"Fly heading {cmd.MagneticHeading.Degrees:000}");
     }
 
     internal static CommandResult ApplyTurnLeft(TurnLeftCommand cmd, AircraftState aircraft)
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = cmd.Heading;
-        aircraft.Targets.AssignedHeading = cmd.Heading;
+        aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
+        aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
-        return CommandDispatcher.Ok($"Turn left heading {cmd.Heading:000}");
+        return CommandDispatcher.Ok($"Turn left heading {cmd.MagneticHeading.Degrees:000}");
     }
 
     internal static CommandResult ApplyTurnRight(TurnRightCommand cmd, AircraftState aircraft)
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.TargetHeading = cmd.Heading;
-        aircraft.Targets.AssignedHeading = cmd.Heading;
+        aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
+        aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
-        return CommandDispatcher.Ok($"Turn right heading {cmd.Heading:000}");
+        return CommandDispatcher.Ok($"Turn right heading {cmd.MagneticHeading.Degrees:000}");
     }
 
     internal static CommandResult ApplyLeftTurn(LeftTurnCommand cmd, AircraftState aircraft)
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        var leftHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading - cmd.Degrees);
-        aircraft.Targets.TargetHeading = leftHdg;
-        aircraft.Targets.AssignedHeading = leftHdg;
+        aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading - cmd.Degrees;
+        aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading - cmd.Degrees;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
+        int leftHdg = (aircraft.MagneticHeading - cmd.Degrees).ToDisplayInt();
         return CommandDispatcher.Ok($"Turn {cmd.Degrees} degrees left, heading {leftHdg:000}");
     }
 
@@ -53,10 +53,10 @@ internal static class FlightCommandHandler
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        var rightHdg = FlightPhysics.NormalizeHeadingInt(aircraft.Heading + cmd.Degrees);
-        aircraft.Targets.TargetHeading = rightHdg;
-        aircraft.Targets.AssignedHeading = rightHdg;
+        aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading + cmd.Degrees;
+        aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading + cmd.Degrees;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
+        int rightHdg = (aircraft.MagneticHeading + cmd.Degrees).ToDisplayInt();
         return CommandDispatcher.Ok($"Turn {cmd.Degrees} degrees right, heading {rightHdg:000}");
     }
 
@@ -64,9 +64,8 @@ internal static class FlightCommandHandler
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        var hdg = FlightPhysics.NormalizeHeading(aircraft.Heading);
-        aircraft.Targets.TargetHeading = hdg;
-        aircraft.Targets.AssignedHeading = hdg;
+        aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
+        aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
         return CommandDispatcher.Ok("Fly present heading");
     }
@@ -75,12 +74,12 @@ internal static class FlightCommandHandler
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Heading = cmd.Heading;
-        aircraft.Track = cmd.Heading;
-        aircraft.Targets.TargetHeading = cmd.Heading;
-        aircraft.Targets.AssignedHeading = cmd.Heading;
+        aircraft.TrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
+        aircraft.TrueTrack = cmd.MagneticHeading.ToTrue(aircraft.Declination);
+        aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
+        aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
-        return CommandDispatcher.Ok($"Force heading {cmd.Heading:000}");
+        return CommandDispatcher.Ok($"Force heading {cmd.MagneticHeading.Degrees:000}");
     }
 
     internal static CommandResult ApplyClimbMaintain(ClimbMaintainCommand cmd, AircraftState aircraft)
@@ -330,7 +329,7 @@ internal static class FlightCommandHandler
 
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.AssignedHeading = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
         RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
@@ -356,7 +355,7 @@ internal static class FlightCommandHandler
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.AssignedHeading = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
         var resolved = cmd.Fixes.ToList();
         int originalCount = resolved.Count;
         RouteChainer.AppendRouteRemainder(resolved, aircraft.Route);
@@ -382,7 +381,7 @@ internal static class FlightCommandHandler
     {
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
-        aircraft.Targets.AssignedHeading = null;
+        aircraft.Targets.AssignedMagneticHeading = null;
 
         // Capture current altitude/speed for revert on the last constrained fix
         double? previousAlt = aircraft.Targets.TargetAltitude;
@@ -570,13 +569,13 @@ internal static class FlightCommandHandler
         aircraft.Targets.TurnRateOverride = null;
         aircraft.Latitude = cmd.Latitude;
         aircraft.Longitude = cmd.Longitude;
-        aircraft.Heading = cmd.Heading;
-        aircraft.Track = cmd.Heading;
+        aircraft.TrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
+        aircraft.TrueTrack = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Altitude = cmd.Altitude;
         aircraft.VerticalSpeed = 0;
         aircraft.IndicatedAirspeed = cmd.Speed;
-        aircraft.Targets.TargetHeading = cmd.Heading;
-        aircraft.Targets.AssignedHeading = cmd.Heading;
+        aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
+        aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
@@ -585,7 +584,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.SpeedFloor = null;
         aircraft.Targets.SpeedCeiling = null;
         aircraft.IsOnGround = false;
-        return CommandDispatcher.Ok($"Warped to {cmd.PositionLabel}, heading {cmd.Heading:000}, {cmd.Altitude:N0} ft, {cmd.Speed} kts");
+        return CommandDispatcher.Ok($"Warped to {cmd.PositionLabel}, heading {cmd.MagneticHeading.Degrees:000}, {cmd.Altitude:N0} ft, {cmd.Speed} kts");
     }
 
     internal static CommandResult ApplyWarpGround(WarpGroundCommand cmd, AircraftState aircraft)
@@ -645,9 +644,9 @@ internal static class FlightCommandHandler
         aircraft.IsOnGround = true;
         aircraft.Targets.TargetSpeed = 0;
 
-        double heading = PickBestEdgeHeading(layout, node, aircraft.Heading);
-        aircraft.Heading = heading;
-        aircraft.Track = heading;
+        TrueHeading bestHeading = PickBestEdgeHeading(layout, node, aircraft.TrueHeading);
+        aircraft.TrueHeading = bestHeading;
+        aircraft.TrueTrack = bestHeading;
 
         // Install ground-idle phase so subsequent commands (TAXI, LUAW, etc.) have phase context
         aircraft.Phases = new PhaseList();
@@ -674,24 +673,23 @@ internal static class FlightCommandHandler
         return aircraft.Altitude > targetAltitude ? "Descend and maintain" : "Climb and maintain";
     }
 
-    private static double PickBestEdgeHeading(AirportGroundLayout layout, GroundNode node, double currentHeading)
+    private static TrueHeading PickBestEdgeHeading(AirportGroundLayout layout, GroundNode node, TrueHeading currentHeading)
     {
-        double bestHeading = currentHeading;
+        TrueHeading best = currentHeading;
         double bestDelta = 360;
 
         foreach (var edge in node.Edges)
         {
-            double bearing = EdgeBearing(layout, node, edge);
-            double delta = ((bearing - currentHeading) % 360 + 540) % 360 - 180;
-            delta = Math.Abs(delta);
+            var bearing = new TrueHeading(EdgeBearing(layout, node, edge));
+            double delta = currentHeading.AbsAngleTo(bearing);
             if (delta < bestDelta)
             {
                 bestDelta = delta;
-                bestHeading = bearing;
+                best = bearing;
             }
         }
 
-        return bestHeading;
+        return best;
     }
 
     private static double EdgeBearing(AirportGroundLayout layout, GroundNode node, GroundEdge edge)

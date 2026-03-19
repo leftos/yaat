@@ -14,7 +14,7 @@ public sealed class CrosswindPhase : Phase
 
     private double _targetLat;
     private double _targetLon;
-    private double _crosswindHeading;
+    private TrueHeading _crosswindHeading;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -39,7 +39,7 @@ public sealed class CrosswindPhase : Phase
 
         var turnDir = Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
 
-        ctx.Targets.TargetHeading = Waypoints.CrosswindHeading;
+        ctx.Targets.TargetTrueHeading = Waypoints.CrosswindHeading;
         ctx.Targets.PreferredTurnDirection = turnDir;
         ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         ctx.Targets.NavigationRoute.Clear();
@@ -54,7 +54,7 @@ public sealed class CrosswindPhase : Phase
         ctx.Logger.LogDebug(
             "[Crosswind] {Callsign}: started, hdg={Hdg:F0}, alt={Alt:F0}ft",
             ctx.Aircraft.Callsign,
-            Waypoints.CrosswindHeading,
+            Waypoints.CrosswindHeading.Degrees,
             ctx.Aircraft.Altitude
         );
     }
@@ -72,7 +72,7 @@ public sealed class CrosswindPhase : Phase
         // Detect by checking if the bearing to the target is behind us
         // (more than 90° off our crosswind heading).
         double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
-        double bearingDiff = Math.Abs(FlightPhysics.NormalizeAngle(bearingToTarget - _crosswindHeading));
+        double bearingDiff = Math.Abs(GeoMath.SignedBearingDifference(bearingToTarget, _crosswindHeading.Degrees));
         bool targetIsBehind = bearingDiff > 90.0;
 
         bool complete = dist < ArrivalNm || targetIsBehind;

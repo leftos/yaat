@@ -73,7 +73,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         var ac = engine.FindAircraft("SWA1360");
         Assert.NotNull(ac);
         _output.WriteLine(
-            $"SWA1360 spawned: phase={ac.Phases?.CurrentPhase?.Name ?? "null"} pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.Heading:F0}"
+            $"SWA1360 spawned: phase={ac.Phases?.CurrentPhase?.Name ?? "null"} pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.TrueHeading.Degrees:F0}"
         );
 
         // Get B13 parking position for distance checks
@@ -81,7 +81,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         Assert.NotNull(layout);
         var b13 = layout.FindSpotByName("B13");
         Assert.NotNull(b13);
-        _output.WriteLine($"B13 target: ({b13.Latitude:F6},{b13.Longitude:F6}) hdg={b13.Heading}");
+        _output.WriteLine($"B13 target: ({b13.Latitude:F6},{b13.Longitude:F6}) hdg={b13.TrueHeading?.Degrees}");
 
         double startDist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
         _output.WriteLine($"Start distance to B13: {startDist:F0}ft");
@@ -105,8 +105,8 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
             double distFt = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
-            double pushHdg = ac.PushbackHeading ?? -1;
-            _output.WriteLine($"{tick + 13, 5}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {pushHdg, 8:F0}  {ac.Heading, 8:F0}  {phase, -24}");
+            double pushHdg = ac.PushbackTrueHeading?.Degrees ?? -1;
+            _output.WriteLine($"{tick + 13, 5}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {pushHdg, 8:F0}  {ac.TrueHeading.Degrees, 8:F0}  {phase, -24}");
 
             if (ac.Phases?.CurrentPhase is AtParkingPhase)
             {
@@ -177,7 +177,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
             double distFt = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
-            _output.WriteLine($"{tick + 13, 5}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {ac.Heading, 8:F0}  {phase, -24}");
+            _output.WriteLine($"{tick + 13, 5}  {ac.GroundSpeed, 8:F2}  {distFt, 9:F1}  {ac.TrueHeading.Degrees, 8:F0}  {phase, -24}");
 
             if (ac.Phases?.CurrentPhase is AtParkingPhase)
             {
@@ -194,14 +194,31 @@ public class SfoPushbackTests(ITestOutputHelper output)
         Assert.True(reachedParking, $"Pushback should complete to AtParkingPhase, got: {ac.Phases?.CurrentPhase?.Name ?? "null"}");
 
         // Verify final heading is near 180
-        double hdgDiff = Math.Abs(FlightPhysics.NormalizeAngle(ac.Heading - 180.0));
-        _output.WriteLine($"Final heading: {ac.Heading:F0} (diff from 180: {hdgDiff:F1})");
-        Assert.True(hdgDiff < 5.0, $"Aircraft should face ~180 after pushback, got {ac.Heading:F0} (diff={hdgDiff:F1})");
+        double hdgDiff = Math.Abs(NormalizeAngle(ac.TrueHeading.Degrees - 180.0));
+        _output.WriteLine($"Final heading: {ac.TrueHeading.Degrees:F0} (diff from 180: {hdgDiff:F1})");
+        Assert.True(hdgDiff < 5.0, $"Aircraft should face ~180 after pushback, got {ac.TrueHeading.Degrees:F0} (diff={hdgDiff:F1})");
 
         // Verify near B13
         double finalDist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
         _output.WriteLine($"Final distance to B13: {finalDist:F0}ft");
         Assert.True(finalDist < 200, $"Aircraft should be near B13: dist={finalDist:F0}ft");
+    }
+
+    // NormalizeAngle is private in FlightPhysics — inline equivalent.
+    private static double NormalizeAngle(double angle)
+    {
+        angle %= 360.0;
+        if (angle > 180.0)
+        {
+            angle -= 360.0;
+        }
+
+        if (angle < -180.0)
+        {
+            angle += 360.0;
+        }
+
+        return angle;
     }
 
     /// <summary>
@@ -237,8 +254,8 @@ public class SfoPushbackTests(ITestOutputHelper output)
         Assert.NotNull(b12);
         Assert.NotNull(b13);
 
-        _output.WriteLine($"B12: ({b12.Latitude:F6},{b12.Longitude:F6}) hdg={b12.Heading}");
-        _output.WriteLine($"B13: ({b13.Latitude:F6},{b13.Longitude:F6}) hdg={b13.Heading}");
+        _output.WriteLine($"B12: ({b12.Latitude:F6},{b12.Longitude:F6}) hdg={b12.TrueHeading?.Degrees}");
+        _output.WriteLine($"B13: ({b13.Latitude:F6},{b13.Longitude:F6}) hdg={b13.TrueHeading?.Degrees}");
         _output.WriteLine(
             $"Distance B12→B13: {GeoMath.DistanceNm(b12.Latitude, b12.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm:F0}ft"
         );
@@ -246,7 +263,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         _output.WriteLine("");
 
         _output.WriteLine(
-            $"Aircraft before command: pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.Heading:F0} gs={ac.GroundSpeed:F1} phase={ac.Phases?.CurrentPhase?.Name ?? "null"}"
+            $"Aircraft before command: pos=({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.TrueHeading.Degrees:F0} gs={ac.GroundSpeed:F1} phase={ac.Phases?.CurrentPhase?.Name ?? "null"}"
         );
 
         var result = engine.SendCommand("SWA1360", "PUSH @B13");
@@ -284,11 +301,11 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
             double distFt = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, b13.Latitude, b13.Longitude) * GeoMath.FeetPerNm;
             string phase = ac.Phases?.CurrentPhase?.Name ?? "complete";
-            double pushHdg = ac.PushbackHeading ?? -1;
+            double pushHdg = ac.PushbackTrueHeading?.Degrees ?? -1;
             int segIdx = ac.AssignedTaxiRoute?.CurrentSegmentIndex ?? -1;
 
             _output.WriteLine(
-                $"{tick + 13, 5}  {ac.Latitude, 12:F6}  {ac.Longitude, 13:F6}  {ac.GroundSpeed, 8:F2}  {ac.IndicatedAirspeed, 5:F1}  {pushHdg, 8:F0}  {ac.Heading, 8:F0}  {distFt, 12:F1}  {segIdx, 6}  {phase, -24}"
+                $"{tick + 13, 5}  {ac.Latitude, 12:F6}  {ac.Longitude, 13:F6}  {ac.GroundSpeed, 8:F2}  {ac.IndicatedAirspeed, 5:F1}  {pushHdg, 8:F0}  {ac.TrueHeading.Degrees, 8:F0}  {distFt, 12:F1}  {segIdx, 6}  {phase, -24}"
             );
 
             if (ac.Phases?.CurrentPhase is AtParkingPhase or null)

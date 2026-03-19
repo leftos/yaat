@@ -14,7 +14,7 @@ public class AppendDirectToTests
             AircraftType = "B738",
             Latitude = 37.62,
             Longitude = -122.38,
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 10000,
             Route = route,
         };

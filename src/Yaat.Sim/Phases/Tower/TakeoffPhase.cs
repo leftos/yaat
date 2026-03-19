@@ -15,7 +15,7 @@ public sealed class TakeoffPhase : Phase
 
     private bool _airborne;
     private double _fieldElevation;
-    private double _runwayHeading;
+    private TrueHeading _runwayHeading;
     private double _thresholdLat;
     private double _thresholdLon;
     private DepartureInstruction? _departure;
@@ -36,19 +36,19 @@ public sealed class TakeoffPhase : Phase
     public override void OnStart(PhaseContext ctx)
     {
         _fieldElevation = ctx.FieldElevation;
-        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.Heading;
+        _runwayHeading = ctx.Runway?.TrueHeading ?? ctx.Aircraft.TrueHeading;
         _thresholdLat = ctx.Runway?.ThresholdLatitude ?? ctx.Aircraft.Latitude;
         _thresholdLon = ctx.Runway?.ThresholdLongitude ?? ctx.Aircraft.Longitude;
         _departure = Departure;
 
         ctx.Aircraft.IsOnGround = true;
-        ctx.Targets.TargetHeading = _runwayHeading;
+        ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
 
         ctx.Logger.LogDebug(
             "[Takeoff] {Callsign}: started, rwy hdg={Hdg:F0}, fieldElev={Elev:F0}ft",
             ctx.Aircraft.Callsign,
-            _runwayHeading,
+            _runwayHeading.Degrees,
             _fieldElevation
         );
     }
@@ -76,7 +76,7 @@ public sealed class TakeoffPhase : Phase
             _runwayHeading
         );
         double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
-        ctx.Targets.TargetHeading = FlightPhysics.NormalizeHeading(_runwayHeading - correction);
+        ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeading.Degrees - correction);
 
         double vr = AircraftPerformance.RotationSpeed(ctx.AircraftType, ctx.Category);
         double accelRate = AircraftPerformance.GroundAccelRate(ctx.AircraftType, ctx.Category);
@@ -115,16 +115,15 @@ public sealed class TakeoffPhase : Phase
         switch (_departure)
         {
             case RelativeTurnDeparture rel:
-                int relHdg =
+                ctx.Targets.TargetTrueHeading =
                     rel.Direction == TurnDirection.Right
-                        ? FlightPhysics.NormalizeHeadingInt(_runwayHeading + rel.Degrees)
-                        : FlightPhysics.NormalizeHeadingInt(_runwayHeading - rel.Degrees);
-                ctx.Targets.TargetHeading = relHdg;
+                        ? new TrueHeading(_runwayHeading.Degrees + rel.Degrees)
+                        : new TrueHeading(_runwayHeading.Degrees - rel.Degrees);
                 ctx.Targets.PreferredTurnDirection = rel.Direction;
                 break;
 
             case FlyHeadingDeparture fh:
-                ctx.Targets.TargetHeading = fh.Heading;
+                ctx.Targets.TargetTrueHeading = fh.MagneticHeading.ToTrue(ctx.Aircraft.Declination);
                 ctx.Targets.PreferredTurnDirection = fh.Direction;
                 break;
 

@@ -39,7 +39,7 @@ public sealed class PushbackPhase : Phase
         _startLat = ctx.Aircraft.Latitude;
         _startLon = ctx.Aircraft.Longitude;
 
-        ctx.Targets.TargetHeading = null;
+        ctx.Targets.TargetTrueHeading = null;
         ctx.Aircraft.IsOnGround = true;
 
         if (TargetLatitude is not null && TargetLongitude is not null)
@@ -47,27 +47,27 @@ public sealed class PushbackPhase : Phase
             _totalDistToTarget = GeoMath.DistanceNm(_startLat, _startLon, TargetLatitude.Value, TargetLongitude.Value);
         }
 
-        double? alignmentHeading = ComputeAlignmentHeading(ctx);
+        TrueHeading? alignmentHeading = ComputeAlignmentHeading(ctx);
         if (alignmentHeading is null)
         {
             // Simple pushback with no heading — no alignment needed
             _isAligned = true;
-            ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
+            ctx.Aircraft.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
             ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
         }
         else
         {
-            double diff = Math.Abs(FlightPhysics.NormalizeAngle(alignmentHeading.Value - ctx.Aircraft.Heading));
+            double diff = alignmentHeading.Value.AbsAngleTo(ctx.Aircraft.TrueHeading);
             if (diff <= AlignmentThresholdDeg)
             {
                 _isAligned = true;
-                ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
+                ctx.Aircraft.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
                 ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
             }
             else
             {
                 _isAligned = false;
-                ctx.Aircraft.PushbackHeading = null;
+                ctx.Aircraft.PushbackTrueHeading = null;
                 ctx.Targets.TargetSpeed = 0;
             }
         }
@@ -76,8 +76,8 @@ public sealed class PushbackPhase : Phase
             "[Push] {Callsign}: started, aligned={Aligned}, pushHdg={PushHdg}, noseHdg={NoseHdg:F0}, targetHdg={TargetHdg}, pos=({Lat:F6},{Lon:F6})",
             ctx.Aircraft.Callsign,
             _isAligned,
-            ctx.Aircraft.PushbackHeading?.ToString("F0") ?? "null",
-            ctx.Aircraft.Heading,
+            ctx.Aircraft.PushbackTrueHeading?.Degrees.ToString("F0") ?? "null",
+            ctx.Aircraft.TrueHeading.Degrees,
             TargetHeading?.ToString() ?? "none",
             _startLat,
             _startLon
@@ -108,17 +108,17 @@ public sealed class PushbackPhase : Phase
         // Alignment stage: rotate in place before pushing
         if (!_isAligned)
         {
-            double? alignmentHeading = ComputeAlignmentHeading(ctx);
+            TrueHeading? alignmentHeading = ComputeAlignmentHeading(ctx);
             if (alignmentHeading is not null)
             {
                 ctx.Targets.TargetSpeed = 0;
-                ctx.Aircraft.PushbackHeading = null;
+                ctx.Aircraft.PushbackTrueHeading = null;
                 TurnNoseToward(ctx, alignmentHeading.Value, turnRate);
-                double diff = Math.Abs(FlightPhysics.NormalizeAngle(alignmentHeading.Value - ctx.Aircraft.Heading));
+                double diff = alignmentHeading.Value.AbsAngleTo(ctx.Aircraft.TrueHeading);
                 if (diff <= AlignmentThresholdDeg)
                 {
                     _isAligned = true;
-                    ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
+                    ctx.Aircraft.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
                     ctx.Targets.TargetSpeed = CategoryPerformance.PushbackSpeed(ctx.Category);
                     _startLat = ctx.Aircraft.Latitude;
                     _startLon = ctx.Aircraft.Longitude;
@@ -135,7 +135,7 @@ public sealed class PushbackPhase : Phase
         {
             ctx.Targets.TargetSpeed = 0;
             ctx.Aircraft.IndicatedAirspeed = 0;
-            ctx.Aircraft.PushbackHeading = null;
+            ctx.Aircraft.PushbackTrueHeading = null;
         }
         else
         {
@@ -162,8 +162,8 @@ public sealed class PushbackPhase : Phase
                 ctx.Aircraft.Callsign,
                 distPushed,
                 ctx.Aircraft.GroundSpeed,
-                ctx.Aircraft.PushbackHeading ?? 0,
-                ctx.Aircraft.Heading,
+                ctx.Aircraft.PushbackTrueHeading?.Degrees ?? 0,
+                ctx.Aircraft.TrueHeading.Degrees,
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude
             );
@@ -198,8 +198,8 @@ public sealed class PushbackPhase : Phase
                     TargetLongitude!.Value
                 );
                 double maxArcTurn = turnRate * ctx.DeltaSeconds;
-                ctx.Aircraft.PushbackHeading = GeoMath.TurnHeadingToward(
-                    ctx.Aircraft.PushbackHeading ?? (ctx.Aircraft.Heading + 180.0) % 360.0,
+                ctx.Aircraft.PushbackTrueHeading = GeoMath.TurnHeadingToward(
+                    ctx.Aircraft.PushbackTrueHeading ?? ctx.Aircraft.TrueHeading.ToReciprocal(),
                     bearingToTarget,
                     maxArcTurn
                 );
@@ -212,7 +212,7 @@ public sealed class PushbackPhase : Phase
                 double progress = _totalDistToTarget > 0.001 ? distFromStart / _totalDistToTarget : 1.0;
                 if (progress >= NoseRotationProgressThreshold)
                 {
-                    TurnNoseToward(ctx, tgt, turnRate);
+                    TurnNoseToward(ctx, new TrueHeading(tgt), turnRate);
                 }
             }
         }
@@ -227,17 +227,17 @@ public sealed class PushbackPhase : Phase
             return true;
         }
 
-        return TurnNoseToward(ctx, finalHdg, turnRate);
+        return TurnNoseToward(ctx, new TrueHeading(finalHdg), turnRate);
     }
 
     private bool TickSimplePushback(PhaseContext ctx, double turnRate)
     {
         if (TargetHeading is { } tgt)
         {
-            bool headingReached = TurnNoseToward(ctx, tgt, turnRate);
+            bool headingReached = TurnNoseToward(ctx, new TrueHeading(tgt), turnRate);
 
             // Couple pushback direction to nose after rotation: as the nose rotates, the arc curves.
-            ctx.Aircraft.PushbackHeading = (ctx.Aircraft.Heading + 180.0) % 360.0;
+            ctx.Aircraft.PushbackTrueHeading = ctx.Aircraft.TrueHeading.ToReciprocal();
 
             double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
             return headingReached && distPushed >= DefaultPushbackDistanceNm;
@@ -247,31 +247,30 @@ public sealed class PushbackPhase : Phase
         return dist >= DefaultPushbackDistanceNm;
     }
 
-    private static bool TurnNoseToward(PhaseContext ctx, double target, double turnRate)
+    private static bool TurnNoseToward(PhaseContext ctx, TrueHeading target, double turnRate)
     {
         double maxTurn = turnRate * ctx.DeltaSeconds;
-        ctx.Aircraft.Heading = GeoMath.TurnHeadingToward(ctx.Aircraft.Heading, target, maxTurn);
-        double diff = FlightPhysics.NormalizeAngle(target - ctx.Aircraft.Heading);
-        return Math.Abs(diff) < HeadingReachedDeg;
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, target.Degrees, maxTurn);
+        return target.AbsAngleTo(ctx.Aircraft.TrueHeading) < HeadingReachedDeg;
     }
 
     /// <summary>
     /// Returns the heading the nose should face so the tail points at the target.
     /// Null means no alignment needed (simple pushback with no heading).
     /// </summary>
-    private double? ComputeAlignmentHeading(PhaseContext ctx)
+    private TrueHeading? ComputeAlignmentHeading(PhaseContext ctx)
     {
         if (TargetLatitude is not null && TargetLongitude is not null)
         {
             // Nose faces away from target so tail points at it
             double bearingToTarget = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLatitude.Value, TargetLongitude.Value);
-            return (bearingToTarget + 180.0) % 360.0;
+            return new TrueHeading(bearingToTarget).ToReciprocal();
         }
 
         if (TargetHeading is { } hdg)
         {
             // Simple heading mode: nose should face TargetHeading (push = heading+180)
-            return hdg;
+            return new TrueHeading(hdg);
         }
 
         return null;
@@ -285,12 +284,12 @@ public sealed class PushbackPhase : Phase
             ctx.Aircraft.Callsign,
             endStatus,
             distPushed,
-            ctx.Aircraft.Heading
+            ctx.Aircraft.TrueHeading.Degrees
         );
 
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
-        ctx.Aircraft.PushbackHeading = null;
+        ctx.Aircraft.PushbackTrueHeading = null;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

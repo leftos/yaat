@@ -13,8 +13,8 @@ public class MachCommandTests
             AircraftType = "B738",
             Latitude = 37.0,
             Longitude = -122.0,
-            Heading = 360,
-            Track = 360,
+            TrueHeading = new TrueHeading(360),
+            TrueTrack = new TrueHeading(360),
             Altitude = altitude,
             IndicatedAirspeed = ias,
         };

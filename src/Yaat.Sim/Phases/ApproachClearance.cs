@@ -12,7 +12,7 @@ public sealed class ApproachClearance
     public required string ApproachId { get; init; }
     public required string AirportCode { get; init; }
     public required string RunwayId { get; init; }
-    public required double FinalApproachCourse { get; init; }
+    public required TrueHeading FinalApproachCourse { get; init; }
 
     /// <summary>True when the aircraft is on a straight-in approach (no hold-in-lieu).</summary>
     public bool StraightIn { get; init; }

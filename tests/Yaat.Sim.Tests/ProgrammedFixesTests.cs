@@ -21,7 +21,7 @@ public class ProgrammedFixesTests
             AircraftType = "B738",
             Latitude = 37.62,
             Longitude = -122.38,
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = 10000,
             Route = route,
             Destination = destination ?? "",
@@ -123,7 +123,7 @@ public class ProgrammedFixesTests
                 ApproachId = "I28R",
                 AirportCode = "OAK",
                 RunwayId = "28R",
-                FinalApproachCourse = 280,
+                FinalApproachCourse = new TrueHeading(280),
                 Procedure = procedure,
             },
         };

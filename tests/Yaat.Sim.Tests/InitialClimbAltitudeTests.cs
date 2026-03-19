@@ -45,7 +45,7 @@ public class InitialClimbAltitudeTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };
@@ -179,7 +179,7 @@ public class InitialClimbAltitudeTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };
@@ -226,7 +226,7 @@ public class InitialClimbAltitudeTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };
@@ -253,11 +253,11 @@ public class InitialClimbAltitudeTests
 
         // Aircraft well below cruise, heading not yet reached
         ac.Altitude = 2000;
-        ac.Heading = 280;
+        ac.TrueHeading = new TrueHeading(280);
         Assert.False(phase.OnTick(ctx), "Should not complete — heading not reached");
 
         // Heading reached, altitude still well below cruise
-        ac.Heading = 190;
+        ac.TrueHeading = new TrueHeading(190);
         Assert.True(phase.OnTick(ctx), "Should complete — heading reached (altitude irrelevant for heading-only CTO)");
     }
 
@@ -268,21 +268,21 @@ public class InitialClimbAltitudeTests
 
         // Neither met
         ac.Altitude = 2000;
-        ac.Heading = 280;
+        ac.TrueHeading = new TrueHeading(280);
         Assert.False(phase.OnTick(ctx), "Neither heading nor altitude met");
 
         // Only heading met
-        ac.Heading = 190;
+        ac.TrueHeading = new TrueHeading(190);
         ac.Altitude = 2000;
         Assert.False(phase.OnTick(ctx), "Only heading met, not altitude");
 
         // Only altitude met
-        ac.Heading = 280;
+        ac.TrueHeading = new TrueHeading(280);
         ac.Altitude = 3000;
         Assert.False(phase.OnTick(ctx), "Only altitude met, not heading");
 
         // Both met
-        ac.Heading = 190;
+        ac.TrueHeading = new TrueHeading(190);
         ac.Altitude = 3000;
         Assert.True(phase.OnTick(ctx), "Both heading and altitude met");
     }
@@ -290,13 +290,13 @@ public class InitialClimbAltitudeTests
     [Fact]
     public void FlyHeading_NoAltitude_CompletesOnHeadingReached()
     {
-        var (phase, ac, ctx) = SetUpPhase(new FlyHeadingDeparture(180, null), assignedAltitude: null, cruiseAltitude: 35000);
+        var (phase, ac, ctx) = SetUpPhase(new FlyHeadingDeparture(new MagneticHeading(180), null), assignedAltitude: null, cruiseAltitude: 35000);
 
         ac.Altitude = 1500;
-        ac.Heading = 280;
+        ac.TrueHeading = new TrueHeading(280);
         Assert.False(phase.OnTick(ctx), "Heading not reached");
 
-        ac.Heading = 180;
+        ac.TrueHeading = new TrueHeading(180);
         Assert.True(phase.OnTick(ctx), "Heading reached");
     }
 
@@ -356,7 +356,7 @@ public class InitialClimbAltitudeTests
         {
             Callsign = "TEST001",
             AircraftType = "B738",
-            Heading = 280,
+            TrueHeading = new TrueHeading(280),
             Altitude = FieldElevation + 400,
             Phases = phaseList,
         };

@@ -9,7 +9,7 @@ namespace Yaat.Sim.Tests;
 public class LandingExitDecelTests
 {
     // Runway heading 280, threshold at origin, ~1nm long
-    private const double RunwayHeading = 280.0;
+    private static readonly TrueHeading RunwayHeading = new(280.0);
     private const double ThresholdLat = 37.0;
     private const double ThresholdLon = -122.0;
     private const double FieldElevation = 0.0;
@@ -117,7 +117,7 @@ public class LandingExitDecelTests
     private static RunwayInfo DefaultRunway() =>
         TestRunwayFactory.Make(
             designator: "28",
-            heading: RunwayHeading,
+            heading: RunwayHeading.Degrees,
             elevationFt: FieldElevation,
             thresholdLat: ThresholdLat,
             thresholdLon: ThresholdLon
@@ -131,7 +131,7 @@ public class LandingExitDecelTests
             AircraftType = "B738",
             Latitude = lat,
             Longitude = lon,
-            Heading = RunwayHeading,
+            TrueHeading = RunwayHeading,
             Altitude = FieldElevation,
             IndicatedAirspeed = ias,
             IsOnGround = true,
@@ -185,7 +185,7 @@ public class LandingExitDecelTests
     private static void AdvancePosition(AircraftState ac, double dt)
     {
         double distNm = ac.GroundSpeed / 3600.0 * dt;
-        double headingRad = ac.Heading * Math.PI / 180.0;
+        double headingRad = ac.TrueHeading.Degrees * Math.PI / 180.0;
         double dLat = distNm / 60.0 * Math.Cos(headingRad);
         double dLon = distNm / (60.0 * Math.Cos(ac.Latitude * Math.PI / 180.0)) * Math.Sin(headingRad);
         ac.Latitude += dLat;

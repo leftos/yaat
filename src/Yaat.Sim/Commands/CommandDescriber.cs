@@ -202,9 +202,9 @@ public static class CommandDescriber
     {
         return command switch
         {
-            FlyHeadingCommand cmd => $"FH {cmd.Heading:000}",
-            TurnLeftCommand cmd => $"TL {cmd.Heading:000}",
-            TurnRightCommand cmd => $"TR {cmd.Heading:000}",
+            FlyHeadingCommand cmd => $"FH {cmd.MagneticHeading.Degrees:000}",
+            TurnLeftCommand cmd => $"TL {cmd.MagneticHeading.Degrees:000}",
+            TurnRightCommand cmd => $"TR {cmd.MagneticHeading.Degrees:000}",
             LeftTurnCommand cmd => $"LT {cmd.Degrees}",
             RightTurnCommand cmd => $"RT {cmd.Degrees}",
             FlyPresentHeadingCommand => "FPH",
@@ -217,10 +217,10 @@ public static class CommandDescriber
             ExpediteCommand exp => exp.UntilAltitude is not null ? $"EXP {exp.UntilAltitude / 100}" : "EXP",
             NormalRateCommand => "NORM",
             MachCommand mach => $"MACH {mach.MachNumber:F2}",
-            ForceHeadingCommand cmd => $"FHN {cmd.Heading:000}",
+            ForceHeadingCommand cmd => $"FHN {cmd.MagneticHeading.Degrees:000}",
             ForceAltitudeCommand cmd => $"CMN {cmd.Altitude}",
             ForceSpeedCommand cmd => $"SPDN {cmd.Speed}",
-            WarpCommand cmd => $"WARP {cmd.PositionLabel} {cmd.Heading:000} {cmd.Altitude} {cmd.Speed}",
+            WarpCommand cmd => $"WARP {cmd.PositionLabel} {cmd.MagneticHeading.Degrees:000} {cmd.Altitude} {cmd.Speed}",
             WarpGroundCommand cmd => cmd.NodeId is int nid ? $"WARPG #{nid}"
             : cmd.ParkingName is string p ? $"WARPG @{p}"
             : $"WARPG {cmd.Taxiway1} {cmd.Taxiway2}",
@@ -323,7 +323,7 @@ public static class CommandDescriber
             : cmd.Altitude is not null ? $"DVIA {cmd.Altitude}"
             : "DVIA",
             CrossFixCommand cmd => FormatCfixCanonical(cmd),
-            DepartFixCommand cmd => $"DEPART {cmd.FixName} {cmd.Heading:000}",
+            DepartFixCommand cmd => $"DEPART {cmd.FixName} {cmd.MagneticHeading.Degrees:000}",
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"APPS {cmd.AirportCode}" : "APPS",
             ClearedVisualApproachCommand cmd => FormatCvaCanonical(cmd),
             ReportFieldInSightCommand => "RFIS",
@@ -338,9 +338,9 @@ public static class CommandDescriber
     {
         return command switch
         {
-            FlyHeadingCommand cmd => $"Fly heading {cmd.Heading:000}",
-            TurnLeftCommand cmd => $"Turn left heading {cmd.Heading:000}",
-            TurnRightCommand cmd => $"Turn right heading {cmd.Heading:000}",
+            FlyHeadingCommand cmd => $"Fly heading {cmd.MagneticHeading.Degrees:000}",
+            TurnLeftCommand cmd => $"Turn left heading {cmd.MagneticHeading.Degrees:000}",
+            TurnRightCommand cmd => $"Turn right heading {cmd.MagneticHeading.Degrees:000}",
             LeftTurnCommand cmd => $"Turn {cmd.Degrees} degrees left",
             RightTurnCommand cmd => $"Turn {cmd.Degrees} degrees right",
             FlyPresentHeadingCommand => "Fly present heading",
@@ -353,10 +353,10 @@ public static class CommandDescriber
             ExpediteCommand exp => exp.UntilAltitude is not null ? $"Expedite through {exp.UntilAltitude:N0}" : "Expedite climb/descent",
             NormalRateCommand => "Resume normal rate",
             MachCommand mach => $"Maintain Mach {mach.MachNumber:F2}",
-            ForceHeadingCommand cmd => $"Force heading {cmd.Heading:000}",
+            ForceHeadingCommand cmd => $"Force heading {cmd.MagneticHeading.Degrees:000}",
             ForceAltitudeCommand cmd => $"Force altitude {cmd.Altitude:N0}",
             ForceSpeedCommand cmd => $"Force speed {cmd.Speed}",
-            WarpCommand cmd => $"Warp to {cmd.PositionLabel}, heading {cmd.Heading:000}, {cmd.Altitude:N0} ft, {cmd.Speed} kts",
+            WarpCommand cmd => $"Warp to {cmd.PositionLabel}, heading {cmd.MagneticHeading.Degrees:000}, {cmd.Altitude:N0} ft, {cmd.Speed} kts",
             WarpGroundCommand cmd => cmd.NodeId is int nid2 ? $"Warp to node #{nid2}"
             : cmd.ParkingName is string p2 ? $"Warp to parking {p2}"
             : $"Warp to {cmd.Taxiway1}/{cmd.Taxiway2} intersection",
@@ -465,7 +465,7 @@ public static class CommandDescriber
             : cmd.Altitude is not null ? $"Descend via STAR, except maintain {cmd.Altitude:N0}"
             : "Descend via STAR",
             CrossFixCommand cmd => FormatCfixNatural(cmd),
-            DepartFixCommand cmd => $"Depart {cmd.FixName}, fly heading {cmd.Heading:000}",
+            DepartFixCommand cmd => $"Depart {cmd.FixName}, fly heading {cmd.MagneticHeading.Degrees:000}",
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"List approaches for {cmd.AirportCode}" : "List approaches",
             ClearedVisualApproachCommand cmd => FormatCvaNatural(cmd),
             ReportFieldInSightCommand => "Report field in sight",
@@ -588,17 +588,17 @@ public static class CommandDescriber
             {
                 result += $" {push.FacingTaxiway}";
             }
-            else if (push.Heading is not null)
+            else if (push.MagneticHeading is not null)
             {
-                result += $" {push.Heading:000}";
+                result += $" {push.MagneticHeading.Value.Degrees:000}";
             }
 
             return result;
         }
 
-        if (push.Taxiway is not null && push.Heading is not null)
+        if (push.Taxiway is not null && push.MagneticHeading is not null)
         {
-            return $"PUSH {push.Taxiway} {push.Heading:000}";
+            return $"PUSH {push.Taxiway} {push.MagneticHeading.Value.Degrees:000}";
         }
 
         if (push.Taxiway is not null)
@@ -606,9 +606,9 @@ public static class CommandDescriber
             return $"PUSH {push.Taxiway}";
         }
 
-        if (push.Heading is not null)
+        if (push.MagneticHeading is not null)
         {
-            return $"PUSH {push.Heading:000}";
+            return $"PUSH {push.MagneticHeading.Value.Degrees:000}";
         }
 
         return "PUSH";
@@ -624,9 +624,9 @@ public static class CommandDescriber
             {
                 msg += $" facing {push.FacingTaxiway}";
             }
-            else if (push.Heading is not null)
+            else if (push.MagneticHeading is not null)
             {
-                msg += $", heading {push.Heading:000}";
+                msg += $", heading {push.MagneticHeading.Value.Degrees:000}";
             }
 
             return msg;
@@ -638,9 +638,9 @@ public static class CommandDescriber
             result += $" onto {push.Taxiway}";
         }
 
-        if (push.Heading is not null)
+        if (push.MagneticHeading is not null)
         {
-            result += $", face heading {push.Heading:000}";
+            result += $", face heading {push.MagneticHeading.Value.Degrees:000}";
         }
 
         return result;
@@ -654,9 +654,9 @@ public static class CommandDescriber
             RunwayHeadingDeparture => " MRH",
             RelativeTurnDeparture { Direction: TurnDirection.Right } rel => $" MR{rel.Degrees}",
             RelativeTurnDeparture rel => $" ML{rel.Degrees}",
-            FlyHeadingDeparture { Direction: TurnDirection.Right } fh => $" RH{fh.Heading:000}",
-            FlyHeadingDeparture { Direction: TurnDirection.Left } fh => $" LH{fh.Heading:000}",
-            FlyHeadingDeparture fh => $" H{fh.Heading:000}",
+            FlyHeadingDeparture { Direction: TurnDirection.Right } fh => $" RH{fh.MagneticHeading.Degrees:000}",
+            FlyHeadingDeparture { Direction: TurnDirection.Left } fh => $" LH{fh.MagneticHeading.Degrees:000}",
+            FlyHeadingDeparture fh => $" H{fh.MagneticHeading.Degrees:000}",
             OnCourseDeparture => " OC",
             DirectFixDeparture dfd => $" DCT {dfd.FixName}",
             ClosedTrafficDeparture { Direction: PatternDirection.Right, RunwayId: { } rwyR } => $" MRT {rwyR}",
@@ -683,9 +683,9 @@ public static class CommandDescriber
             RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Right } => ", right downwind departure",
             RelativeTurnDeparture { Degrees: 180, Direction: TurnDirection.Left } => ", left downwind departure",
             RelativeTurnDeparture rel => $", turn {(rel.Direction == TurnDirection.Right ? "right" : "left")} {rel.Degrees} degrees",
-            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right => $", turn right heading {fh.Heading:000}",
-            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left => $", turn left heading {fh.Heading:000}",
-            FlyHeadingDeparture fh => $", fly heading {fh.Heading:000}",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Right => $", turn right heading {fh.MagneticHeading.Degrees:000}",
+            FlyHeadingDeparture fh when fh.Direction is TurnDirection.Left => $", turn left heading {fh.MagneticHeading.Degrees:000}",
+            FlyHeadingDeparture fh => $", fly heading {fh.MagneticHeading.Degrees:000}",
             OnCourseDeparture => ", on course",
             DirectFixDeparture dfd => $", direct {dfd.FixName}",
             ClosedTrafficDeparture ct when ct.RunwayId is not null =>
@@ -710,9 +710,9 @@ public static class CommandDescriber
         {
             return "GA MRT";
         }
-        if (ga.AssignedHeading is not null || ga.TargetAltitude is not null)
+        if (ga.AssignedMagneticHeading is not null || ga.TargetAltitude is not null)
         {
-            return $"GA {(ga.AssignedHeading?.ToString("000") ?? "RH")} {ga.TargetAltitude}";
+            return $"GA {(ga.AssignedMagneticHeading?.Degrees.ToString("000") ?? "RH")} {ga.TargetAltitude}";
         }
         return "GA";
     }
@@ -728,9 +728,9 @@ public static class CommandDescriber
         {
             msg += ", make right traffic";
         }
-        if (ga.AssignedHeading is not null)
+        if (ga.AssignedMagneticHeading is not null)
         {
-            msg += $", fly heading {ga.AssignedHeading:000}";
+            msg += $", fly heading {ga.AssignedMagneticHeading.Value.Degrees:000}";
         }
         if (ga.TargetAltitude is not null)
         {
@@ -970,14 +970,14 @@ public static class CommandDescriber
 
     private static string FormatPtacCanonical(PositionTurnAltitudeClearanceCommand cmd)
     {
-        var headingStr = cmd.Heading is { } h ? $"{h:000}" : "PH";
+        var headingStr = cmd.MagneticHeading is { } h ? $"{h.Degrees:000}" : "PH";
         var altStr = cmd.Altitude is { } a ? $"{a:000}" : "PA";
         return cmd.ApproachId is not null ? $"PTAC {headingStr} {altStr} {cmd.ApproachId}" : $"PTAC {headingStr} {altStr}";
     }
 
     private static string FormatPtacNatural(PositionTurnAltitudeClearanceCommand cmd)
     {
-        var headingPart = cmd.Heading is { } h ? $"Fly heading {h:000}" : "Maintain present heading";
+        var headingPart = cmd.MagneticHeading is { } h ? $"Fly heading {h.Degrees:000}" : "Maintain present heading";
         var altPart = cmd.Altitude is { } a ? $"maintain {a:N0}" : "maintain present altitude";
         var approachPart = cmd.ApproachId is not null ? $", cleared {cmd.ApproachId} approach" : ", cleared approach";
         return $"{headingPart}, {altPart}{approachPart}";

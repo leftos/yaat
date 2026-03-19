@@ -98,8 +98,8 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
             AircraftType = "B738",
             Latitude = route[0].Latitude,
             Longitude = route[0].Longitude,
-            Heading = 300, // RW30 heading
-            Track = 300,
+            TrueHeading = new TrueHeading(300), // RW30 heading
+            TrueTrack = new TrueHeading(300),
             Altitude = 1000,
             IndicatedAirspeed = 180,
             Departure = "KOAK",
