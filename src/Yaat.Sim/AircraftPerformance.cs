@@ -120,7 +120,7 @@ public static class AircraftPerformance
             return CategoryPerformance.DescentRate(cat);
         }
 
-        ReadOnlySpan<(double, double)> breakpoints = [(0, p.DescentRateApproach), (10000, p.DescentRateFl100), (p.Ceiling, p.DescentRateInitial)];
+        ReadOnlySpan<(double, double)> breakpoints = [(0, p.DescentRateInitial), (10000, p.DescentRateFl100), (p.Ceiling, p.DescentRateApproach)];
         return InterpolateByAltitude(altitudeFt, breakpoints);
     }
 

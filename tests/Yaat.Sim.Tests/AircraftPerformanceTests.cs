@@ -75,7 +75,8 @@ public sealed class AircraftPerformanceTests
     [Fact]
     public void DescentRate_ProfiledType_AltitudeAware()
     {
-        // B738: initial=800, FL100=3500, approach=1500
+        // B738: initial=800 (ground), FL100=3500, approach=1500 (ceiling)
+        // Descent rates increase from ground to FL100, then decrease toward ceiling.
         double high = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, 30000);
         double mid = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, 10000);
         double low = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, 2000);
@@ -83,6 +84,16 @@ public sealed class AircraftPerformanceTests
         // At FL100 boundary the rate should be 3500
         Assert.Equal(3500, mid);
         Assert.True(low < mid, $"Low alt rate ({low}) should be less than mid ({mid})");
+        // High altitude interpolates between FL100 (3500) and ceiling (1500), so > 1500
+        Assert.True(high > 1500, $"High alt rate ({high}) should exceed approach rate (1500)");
+    }
+
+    [Fact]
+    public void DescentRate_AtGroundLevel_ReturnsInitialRate()
+    {
+        // B738: DescentRateInitial=800 maps to ground level (altitude 0)
+        double rate = AircraftPerformance.DescentRate("B738", AircraftCategory.Jet, 0);
+        Assert.Equal(800, rate);
     }
 
     [Fact]
