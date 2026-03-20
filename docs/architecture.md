@@ -67,7 +67,7 @@ Views/
   WeatherEditorControl.axaml.cs # Per-period weather editing UserControl (precipitation, wind layers grid, METARs)
   WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
   ScenarioValidationWindow.axaml.cs  # Batch scenario validation report (DataGrid of failures, copy report)
-  WindowGeometryHelper.cs       # Save/restore window position+size
+  WindowGeometryHelper.cs       # Save/restore window position+size+topmost
 
 Views/Map/
   MapViewport.cs                # Shared equirectangular projection for map views

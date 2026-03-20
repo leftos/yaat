@@ -254,6 +254,19 @@
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />
                         </StackPanel>
+                        <Separator Margin="0,4" />
+                        <TextBlock Text="Windows"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Always on Top" FontWeight="SemiBold" Margin="0,0,0,2" />
+                            <TextBlock Text="Pin pop-out windows above all other windows. You can also toggle this with the Always on Top keybind while a window is focused." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal" Spacing="16" Margin="12,0,0,0">
+                                <CheckBox Content="Ground View" IsChecked="{Binding GroundViewTopmost}" />
+                                <CheckBox Content="Radar View" IsChecked="{Binding RadarViewTopmost}" />
+                                <CheckBox Content="Aircraft List" IsChecked="{Binding DataGridTopmost}" />
+                                <CheckBox Content="Terminal" IsChecked="{Binding TerminalTopmost}" />
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -436,6 +449,25 @@
                                            VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Text="Pressing this key combo assigns the selected aircraft to yourself (RPO take control). Default: Ctrl+T"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <StackPanel Spacing="4" Margin="0,8,0,0">
+                            <TextBlock Text="Always on Top Key:"
+                                       Foreground="{DynamicResource SubtleTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="AlwaysOnTopKeyButton"
+                                        Content="{Binding AlwaysOnTopKeyDisplay}"
+                                        Width="160"
+                                        HorizontalContentAlignment="Center"
+                                        Command="{Binding StartAlwaysOnTopKeyCaptureCommand}" />
+                                <TextBlock Text="(click, then press a key combo)"
+                                           Foreground="{DynamicResource SubtleTextBrush}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="Pressing this key combo toggles always-on-top for the focused pop-out window. Default: Ctrl+Shift+T"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource SubtleTextBrush}"
                                        FontSize="11" />

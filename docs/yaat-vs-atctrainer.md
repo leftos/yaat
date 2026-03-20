@@ -53,7 +53,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 
 | Aspect | ATCTrainer | YAAT |
 |--------|-----------|------|
-| Layout | Single window (aircraft grid) | Tabbed: Aircraft List, Ground View, Radar View + terminal below |
+| Layout | Single window (aircraft grid) | Tabbed: Aircraft List, Ground View, Radar View + terminal below; pop-outs support always-on-top (keybind or per-window setting) |
 | Ground view | No (only via CRC) | Interactive SkiaSharp airport surface map with extensive context menus |
 | Radar view | No (only via CRC) | Built-in simplified STARS-style display with video maps and extensive context menus |
 

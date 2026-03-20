@@ -1455,6 +1455,8 @@ Each view can be popped out into its own window via **View > Pop Out Aircraft Li
 
 All three views can be popped out simultaneously. Pop-out state and window positions are remembered across sessions.
 
+**Always on Top:** Press **Ctrl+Shift+T** (configurable in Settings > Advanced) while a pop-out window is focused to pin it above all other windows. You can also toggle this per window in Settings > Display > Windows. The setting persists across sessions.
+
 ### Aircraft List
 
 The default tab. Shows the aircraft data grid described above.
@@ -1629,7 +1631,8 @@ Open **Settings** to configure:
 - **Scenarios** — Auto-accept handoff settings (enable/disable + delay in seconds), auto-delete aircraft override (Use Scenario Setting / Never / On Landing / On Parking), simulation shortcuts (auto-clear to land, auto-cross runways), and validate DCT fixes against route (rejects DCT to off-route fixes; use DCTF to override)
 - **Commands** — Alias editor for customizing command verbs. Each command shows its primary name, editable aliases, and an example. Use **Reset to Defaults** to restore the built-in aliases.
 - **Macros** — Define reusable command shortcuts (see [Macros](#macros) below)
-- **Advanced** — Aircraft select keybind (default: Numpad +), focus command input keybind (default: `~`), take control keybind (default: Ctrl+T), and server admin mode
+- **Display** — Aircraft list font size, command signature help placement, radar display colors (assignment tint, unassigned tint, selected aircraft), and per-window always-on-top toggles (Ground View, Radar View, Aircraft List, Terminal)
+- **Advanced** — Aircraft select keybind (default: Numpad +), focus command input keybind (default: `~`), take control keybind (default: Ctrl+T), always-on-top keybind (default: Ctrl+Shift+T), and server admin mode
 
 ## Autocomplete
 

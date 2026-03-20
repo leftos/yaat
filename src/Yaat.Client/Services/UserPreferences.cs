@@ -124,6 +124,7 @@ public sealed class UserPreferences
     public string AircraftSelectKey => _data.AircraftSelectKey;
     public string FocusInputKey => _data.FocusInputKey;
     public string TakeControlKey => _data.TakeControlKey;
+    public string AlwaysOnTopKey => _data.AlwaysOnTopKey;
     public HashSet<TerminalEntryKind> HiddenTerminalKinds { get; private set; } = [];
     public bool GroundShowRunwayLabels => _data.GroundShowRunwayLabels;
     public bool GroundShowTaxiwayLabels => _data.GroundShowTaxiwayLabels;
@@ -312,6 +313,19 @@ public sealed class UserPreferences
     {
         _data.TakeControlKey = key;
         Save();
+    }
+
+    public void SetAlwaysOnTopKey(string key)
+    {
+        _data.AlwaysOnTopKey = key;
+        Save();
+    }
+
+    public void SetWindowTopmost(string windowName, bool isTopmost)
+    {
+        var geo = GetWindowGeometry(windowName) ?? new SavedWindowGeometry();
+        geo.IsTopmost = isTopmost;
+        SetWindowGeometry(windowName, geo);
     }
 
     public void SetAssignmentTint(bool enabled, string color)
@@ -586,6 +600,7 @@ public sealed class UserPreferences
             AircraftSelectKey = GetFieldOr(obj, "aircraftSelectKey", "Add"),
             FocusInputKey = GetFieldOr(obj, "focusInputKey", "OemTilde"),
             TakeControlKey = GetFieldOr(obj, "takeControlKey", "Ctrl+T"),
+            AlwaysOnTopKey = GetFieldOr(obj, "alwaysOnTopKey", "Ctrl+Shift+T"),
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
             GroundShowRunwayLabels = GetFieldOr(obj, "groundShowRunwayLabels", true),
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
@@ -754,6 +769,7 @@ public sealed class UserPreferences
         public string AircraftSelectKey { get; set; } = "Add";
         public string FocusInputKey { get; set; } = "OemTilde";
         public string TakeControlKey { get; set; } = "Ctrl+T";
+        public string AlwaysOnTopKey { get; set; } = "Ctrl+Shift+T";
         public List<string> HiddenTerminalKinds { get; set; } = [];
         public bool GroundShowRunwayLabels { get; set; } = true;
         public bool GroundShowTaxiwayLabels { get; set; } = true;
@@ -791,6 +807,7 @@ public sealed class SavedWindowGeometry
     public double Height { get; set; }
     public bool IsMaximized { get; set; }
     public int ScreenIndex { get; set; }
+    public bool IsTopmost { get; set; }
 }
 
 public sealed class SavedGridLayout

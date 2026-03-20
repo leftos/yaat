@@ -63,6 +63,8 @@ public sealed class WindowGeometryHelper
                 _window.Width = geo.Width;
                 _window.Height = geo.Height;
             }
+
+            _window.Topmost = geo.IsTopmost;
         }
         else
         {
@@ -136,6 +138,26 @@ public sealed class WindowGeometryHelper
             Height = isMax ? _lastNormalHeight : _window.Height,
             IsMaximized = isMax,
             ScreenIndex = GetCurrentScreenIndex(),
+            IsTopmost = _window.Topmost,
+        };
+
+        _preferences.SetWindowGeometry(_windowName, geo);
+    }
+
+    public void ToggleTopmost()
+    {
+        _window.Topmost = !_window.Topmost;
+
+        var isMax = _window.WindowState == WindowState.Maximized;
+        var geo = new SavedWindowGeometry
+        {
+            X = isMax ? _lastNormalPosition.X : _window.Position.X,
+            Y = isMax ? _lastNormalPosition.Y : _window.Position.Y,
+            Width = isMax ? _lastNormalWidth : _window.Width,
+            Height = isMax ? _lastNormalHeight : _window.Height,
+            IsMaximized = isMax,
+            ScreenIndex = GetCurrentScreenIndex(),
+            IsTopmost = _window.Topmost,
         };
 
         _preferences.SetWindowGeometry(_windowName, geo);

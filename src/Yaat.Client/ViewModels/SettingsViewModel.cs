@@ -158,6 +158,21 @@ public partial class SettingsViewModel : ObservableObject
     private string _takeControlKeyDisplay = "Ctrl + T";
 
     [ObservableProperty]
+    private string _alwaysOnTopKeyDisplay = "Ctrl + Shift + T";
+
+    [ObservableProperty]
+    private bool _groundViewTopmost;
+
+    [ObservableProperty]
+    private bool _radarViewTopmost;
+
+    [ObservableProperty]
+    private bool _dataGridTopmost;
+
+    [ObservableProperty]
+    private bool _terminalTopmost;
+
+    [ObservableProperty]
     private bool _assignmentTintEnabled;
 
     [ObservableProperty]
@@ -184,6 +199,7 @@ public partial class SettingsViewModel : ObservableObject
     private string _aircraftSelectKeyName = "Add";
     private string _focusInputKeyName = "OemTilde";
     private string _takeControlKeyName = "Ctrl+T";
+    private string _alwaysOnTopKeyName = "Ctrl+Shift+T";
     private string? _captureTarget;
 
     public static IReadOnlyList<string> AutoDeleteOptions { get; } = ["Use Scenario Setting", "Never", "On Landing", "On Parking"];
@@ -222,6 +238,12 @@ public partial class SettingsViewModel : ObservableObject
         _focusInputKeyDisplay = KeyComboToDisplay(_focusInputKeyName);
         _takeControlKeyName = _preferences.TakeControlKey;
         _takeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
+        _alwaysOnTopKeyName = _preferences.AlwaysOnTopKey;
+        _alwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
+        _groundViewTopmost = _preferences.GroundViewWindowGeometry?.IsTopmost ?? false;
+        _radarViewTopmost = _preferences.RadarViewWindowGeometry?.IsTopmost ?? false;
+        _dataGridTopmost = _preferences.DataGridWindowGeometry?.IsTopmost ?? false;
+        _terminalTopmost = _preferences.TerminalWindowGeometry?.IsTopmost ?? false;
         _assignmentTintEnabled = _preferences.AssignmentTintEnabled;
         _assignmentTintColor = _preferences.AssignmentTintColor;
         _unassignedTintEnabled = _preferences.UnassignedTintEnabled;
@@ -266,6 +288,11 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAircraftSelectKey(_aircraftSelectKeyName);
         _preferences.SetFocusInputKey(_focusInputKeyName);
         _preferences.SetTakeControlKey(_takeControlKeyName);
+        _preferences.SetAlwaysOnTopKey(_alwaysOnTopKeyName);
+        _preferences.SetWindowTopmost("GroundView", GroundViewTopmost);
+        _preferences.SetWindowTopmost("RadarView", RadarViewTopmost);
+        _preferences.SetWindowTopmost("DataGrid", DataGridTopmost);
+        _preferences.SetWindowTopmost("Terminal", TerminalTopmost);
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
         _preferences.SetUnassignedTint(UnassignedTintEnabled, UnassignedTintColor);
         _preferences.SetSelectedColor(SelectedColor);
@@ -589,6 +616,12 @@ public partial class SettingsViewModel : ObservableObject
         StartKeyCaptureFor("TakeControl");
     }
 
+    [RelayCommand]
+    private void StartAlwaysOnTopKeyCapture()
+    {
+        StartKeyCaptureFor("AlwaysOnTop");
+    }
+
     private void StartKeyCaptureFor(string target)
     {
         _captureTarget = target;
@@ -603,6 +636,9 @@ public partial class SettingsViewModel : ObservableObject
                 break;
             case "TakeControl":
                 TakeControlKeyDisplay = "Press a key combo...";
+                break;
+            case "AlwaysOnTop":
+                AlwaysOnTopKeyDisplay = "Press a key combo...";
                 break;
         }
     }
@@ -635,6 +671,10 @@ public partial class SettingsViewModel : ObservableObject
                 _takeControlKeyName = combo;
                 TakeControlKeyDisplay = KeyComboToDisplay(combo);
                 break;
+            case "AlwaysOnTop":
+                _alwaysOnTopKeyName = combo;
+                AlwaysOnTopKeyDisplay = KeyComboToDisplay(combo);
+                break;
         }
 
         IsCapturingKey = false;
@@ -655,6 +695,9 @@ public partial class SettingsViewModel : ObservableObject
                     break;
                 case "TakeControl":
                     TakeControlKeyDisplay = KeyComboToDisplay(_takeControlKeyName);
+                    break;
+                case "AlwaysOnTop":
+                    AlwaysOnTopKeyDisplay = KeyComboToDisplay(_alwaysOnTopKeyName);
                     break;
             }
 
