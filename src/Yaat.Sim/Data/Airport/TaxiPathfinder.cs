@@ -37,7 +37,7 @@ public static class TaxiPathfinder
 
     /// <summary>
     /// Validate and resolve an explicit taxiway path (e.g., "S T U W W1").
-    /// Supports !nodeId tokens for exact node references (A* between them).
+    /// Supports #nodeId tokens for exact node references (A* between them).
     /// Returns the route along the named taxiways, with implicit hold-short at
     /// runway crossings and explicit hold-short points.
     /// When a destination runway is set and the last user-specified taxiway doesn't
@@ -116,7 +116,7 @@ public static class TaxiPathfinder
                 int targetNodeId = ParseNodeId(twName);
                 if (!layout.Nodes.ContainsKey(targetNodeId))
                 {
-                    failReason = $"Node !{targetNodeId} does not exist";
+                    failReason = $"Node #{targetNodeId} does not exist";
                     return null;
                 }
 
@@ -125,7 +125,7 @@ public static class TaxiPathfinder
                     var subRoute = FindRoute(layout, currentNodeId, targetNodeId);
                     if (subRoute is null)
                     {
-                        failReason = $"No route from node {currentNodeId} to !{targetNodeId}";
+                        failReason = $"No route from node {currentNodeId} to #{targetNodeId}";
                         return null;
                     }
 

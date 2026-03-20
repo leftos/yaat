@@ -1113,7 +1113,7 @@ public partial class GroundViewModel : ObservableObject
 
         var merged = MergeSubRoutes();
         // Skip index 0 (aircraft's starting node)
-        var nodeRefs = _drawWaypointIds.Skip(1).Select(id => $"!{id}");
+        var nodeRefs = _drawWaypointIds.Skip(1).Select(id => $"#{id}");
         var nodeRefPath = string.Join(" ", nodeRefs);
         ClearDrawState();
 
