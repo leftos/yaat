@@ -458,13 +458,10 @@ public sealed class UserPreferences
             ids.Add(key);
         }
 
-        var nameMap = new Dictionary<string, string>();
+        var nameMap = new Dictionary<string, string>(_data.ScenarioNames);
         foreach (var recent in _data.RecentScenarios)
         {
-            if (!nameMap.ContainsKey(recent.Key))
-            {
-                nameMap[recent.Key] = recent.Name;
-            }
+            nameMap[recent.Key] = recent.Name;
         }
 
         var result = new List<(string, string)>();
@@ -476,6 +473,12 @@ public sealed class UserPreferences
 
         result.Sort((a, b) => string.Compare(a.Item2, b.Item2, StringComparison.OrdinalIgnoreCase));
         return result;
+    }
+
+    public void SetScenarioName(string scenarioId, string name)
+    {
+        _data.ScenarioNames[scenarioId] = name;
+        Save();
     }
 
     private static SavedPrefs Load()
@@ -597,6 +600,7 @@ public sealed class UserPreferences
             SelectedColor = GetFieldOr(obj, "selectedColor", "#FFFFFF"),
             SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
+            ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
         };
 
         // Normalize empty server list on recovery
@@ -764,6 +768,7 @@ public sealed class UserPreferences
         public string SelectedColor { get; set; } = "#FFFFFF";
         public string SignatureHelpPlacement { get; set; } = "Above";
         public int DataGridFontSize { get; set; } = 12;
+        public Dictionary<string, string> ScenarioNames { get; set; } = [];
     }
 
     private sealed class SavedCommandScheme

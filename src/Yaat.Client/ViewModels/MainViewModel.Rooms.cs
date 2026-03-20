@@ -356,6 +356,11 @@ public partial class MainViewModel
         {
             ActiveScenarioId = state.ScenarioId;
             ActiveScenarioName = state.ScenarioName;
+            if (state.ScenarioName is not null)
+            {
+                _preferences.SetScenarioName(state.ScenarioId, state.ScenarioName);
+            }
+
             _commandInput.PrimaryAirportId = state.PrimaryAirportId;
             Radar.SetPrimaryAirportId(state.PrimaryAirportId);
             SetRadarAirportPosition(state.PrimaryAirportId);

@@ -291,6 +291,7 @@ public partial class MainViewModel
     {
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.Name;
+        _preferences.SetScenarioName(result.ScenarioId, result.Name);
         _commandInput.PrimaryAirportId = result.PrimaryAirportId;
         Radar.SetPrimaryAirportId(result.PrimaryAirportId);
         SetRadarAirportPosition(result.PrimaryAirportId);
@@ -339,6 +340,7 @@ public partial class MainViewModel
 
             ActiveScenarioId = dto.ScenarioId;
             ActiveScenarioName = dto.ScenarioName;
+            _preferences.SetScenarioName(dto.ScenarioId, dto.ScenarioName);
             _commandInput.PrimaryAirportId = dto.PrimaryAirportId;
             Radar.SetPrimaryAirportId(dto.PrimaryAirportId);
             SetRadarAirportPosition(dto.PrimaryAirportId);
