@@ -149,6 +149,11 @@ public class AircraftState
     public string? PreviousScratchpad1 { get; set; }
     public string? Scratchpad2 { get; set; }
     public string? PreviousScratchpad2 { get; set; }
+
+    // ASDEX scratchpads (separate from STARS scratchpads above)
+    public string? AsdexScratchpad1 { get; set; }
+    public string? AsdexScratchpad2 { get; set; }
+
     public int? TemporaryAltitude { get; set; }
     public int? PilotReportedAltitude { get; set; }
     public bool IsAnnotated { get; set; }
