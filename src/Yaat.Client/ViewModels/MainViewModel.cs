@@ -709,7 +709,13 @@ public partial class MainViewModel : ObservableObject
         {
             var canonical = forceOverride ? $"** {compound.CanonicalString}" : compound.CanonicalString;
             _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalCommand);
-            await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+            var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
+
+            if (!result.Success)
+            {
+                StatusText = result.Message ?? "Command rejected";
+                return;
+            }
 
             AddHistory(originalCommand);
 
