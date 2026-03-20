@@ -457,6 +457,101 @@ public partial class RadarView
         }
     }
 
+    // --- Warp popup ---
+
+    private void ShowWarpPopup(
+        string callsign,
+        string defaultFrd,
+        int defaultHeading,
+        int defaultAltitude,
+        int defaultSpeed,
+        Action<string, int, int, int> onSubmit
+    )
+    {
+        _pendingWarpAction = onSubmit;
+        var popup = this.FindControl<Popup>("WarpPopup");
+        var header = this.FindControl<TextBlock>("WarpPopupHeader");
+        var frdBox = this.FindControl<TextBox>("WarpPopupFrd");
+        var hdgBox = this.FindControl<TextBox>("WarpPopupHeading");
+        var altBox = this.FindControl<TextBox>("WarpPopupAltitude");
+        var spdBox = this.FindControl<TextBox>("WarpPopupSpeed");
+        if (popup is null || header is null || frdBox is null || hdgBox is null || altBox is null || spdBox is null)
+        {
+            return;
+        }
+
+        header.Text = $"Warp {callsign}";
+        frdBox.Text = defaultFrd;
+        hdgBox.Text = defaultHeading > 0 ? defaultHeading.ToString() : "";
+        altBox.Text = defaultAltitude > 0 ? defaultAltitude.ToString() : "";
+        spdBox.Text = defaultSpeed > 0 ? defaultSpeed.ToString() : "";
+        popup.IsOpen = true;
+        frdBox.Focus();
+    }
+
+    private void OnWarpPopupSubmit(object? sender, RoutedEventArgs e)
+    {
+        SubmitWarpPopup();
+    }
+
+    private void OnWarpPopupCancel(object? sender, RoutedEventArgs e)
+    {
+        CloseWarpPopup();
+    }
+
+    private void OnWarpPopupKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            SubmitWarpPopup();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseWarpPopup();
+            e.Handled = true;
+        }
+    }
+
+    private void SubmitWarpPopup()
+    {
+        var frdBox = this.FindControl<TextBox>("WarpPopupFrd");
+        var hdgBox = this.FindControl<TextBox>("WarpPopupHeading");
+        var altBox = this.FindControl<TextBox>("WarpPopupAltitude");
+        var spdBox = this.FindControl<TextBox>("WarpPopupSpeed");
+
+        var frd = frdBox?.Text?.Trim();
+        if (string.IsNullOrEmpty(frd) || _pendingWarpAction is null)
+        {
+            CloseWarpPopup();
+            return;
+        }
+
+        if (
+            !int.TryParse(hdgBox?.Text?.Trim(), out var heading)
+            || !int.TryParse(altBox?.Text?.Trim(), out var altitude)
+            || !int.TryParse(spdBox?.Text?.Trim(), out var speed)
+        )
+        {
+            CloseWarpPopup();
+            return;
+        }
+
+        var action = _pendingWarpAction;
+        CloseWarpPopup();
+        action(frd, heading, altitude, speed);
+    }
+
+    private void CloseWarpPopup()
+    {
+        _pendingWarpAction = null;
+        var popup = this.FindControl<Popup>("WarpPopup");
+        if (popup is not null)
+        {
+            popup.IsOpen = false;
+        }
+    }
+
     // --- Heading/altitude/route list builders ---
 
     private static IReadOnlyList<object> BuildHeadingList()

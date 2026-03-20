@@ -1007,6 +1007,11 @@ public partial class RadarViewModel : ObservableObject
         await _sendCommand(callsign, "DEL", initials);
     }
 
+    public async Task WarpAsync(string callsign, string initials, string frd, int heading, int altitude, int speed)
+    {
+        await _sendCommand(callsign, $"WARP {frd} {heading} {altitude} {speed}", initials);
+    }
+
     public async Task IdentAsync(string callsign, string initials)
     {
         await _sendCommand(callsign, "ID", initials);

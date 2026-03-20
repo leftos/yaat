@@ -502,6 +502,30 @@
                 </Border>
             </Popup>
 
+            <!-- Warp popup (FRD + heading + altitude + speed for teleporting aircraft) -->
+            <Popup x:Name="WarpPopup"
+                   IsLightDismissEnabled="True"
+                   PlacementTarget="{Binding #Canvas}"
+                   Placement="Pointer">
+                <Border Background="#222" BorderBrush="#555" BorderThickness="1" Padding="8" CornerRadius="2">
+                    <StackPanel Spacing="6" Width="280">
+                        <TextBlock x:Name="WarpPopupHeader" FontSize="13" FontWeight="Bold" Foreground="#DDD" />
+                        <TextBlock Text="Fix or FRD" FontSize="11" Foreground="#999" />
+                        <TextBox x:Name="WarpPopupFrd" Watermark="e.g. SFO or SFO180010" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
+                        <TextBlock Text="Heading" FontSize="11" Foreground="#999" />
+                        <TextBox x:Name="WarpPopupHeading" Watermark="0-360" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
+                        <TextBlock Text="Altitude (feet)" FontSize="11" Foreground="#999" />
+                        <TextBox x:Name="WarpPopupAltitude" Watermark="e.g. 5000" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
+                        <TextBlock Text="Speed (knots IAS)" FontSize="11" Foreground="#999" />
+                        <TextBox x:Name="WarpPopupSpeed" Watermark="e.g. 250" FontSize="12" FontFamily="{StaticResource MonoFont}" KeyDown="OnWarpPopupKeyDown" />
+                        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" Margin="0,4,0,0">
+                            <Button Content="OK" Click="OnWarpPopupSubmit" Padding="8,2" FontSize="11" />
+                            <Button Content="Cancel" Click="OnWarpPopupCancel" Padding="8,2" FontSize="11" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Popup>
+
             <!-- Waypoint condition popup (altitude + commands for draw route waypoints) -->
             <Popup x:Name="WaypointConditionPopup"
                    IsLightDismissEnabled="True"

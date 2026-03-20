@@ -115,7 +115,7 @@ public partial class RadarView
         menu.Items.Add(BuildCoordinationSubmenu(vm, callsign, initials));
         menu.Items.Add(BuildDisplaySubmenu(vm, callsign));
         menu.Items.Add(new Separator());
-        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(callsign, initials)));
+        menu.Items.Add(BuildSimControlSubmenu(vm, callsign, initials, ac));
 
         // RPO control
         FindMainViewModel()?.BuildRpoMenuItems(menu, [callsign]);
@@ -378,6 +378,27 @@ public partial class RadarView
         menu.Items.Add(CreateMenuItem("Hold", () => vm.CoordinationHoldAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Recall", () => vm.CoordinationRecallAsync(cs, init)));
         menu.Items.Add(CreateMenuItem("Acknowledge release", () => vm.CoordinationAcknowledgeAsync(cs, init)));
+        return menu;
+    }
+
+    private MenuItem BuildSimControlSubmenu(RadarViewModel vm, string cs, string init, AircraftModel? ac)
+    {
+        var menu = new MenuItem { Header = "Sim Control" };
+        var warpItem = new MenuItem { Header = "Warp..." };
+        warpItem.Click += (_, _) =>
+        {
+            var hdg = ac is not null ? (int)Math.Round(ac.Heading) : 0;
+            if (hdg <= 0)
+            {
+                hdg = 360;
+            }
+
+            var alt = ac is not null ? (int)Math.Round(ac.Altitude) : 0;
+            var spd = ac is not null ? (int)Math.Round(ac.IndicatedAirspeed) : 0;
+            ShowWarpPopup(cs, "", hdg, alt, spd, (frd, h, a, s) => _ = vm.WarpAsync(cs, init, frd, h, a, s));
+        };
+        menu.Items.Add(warpItem);
+        menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(cs, init)));
         return menu;
     }
 
@@ -668,6 +689,22 @@ public partial class RadarView
                 menu.Items.Add(CreateMenuItem($"Append direct to {target}", () => vm.AppendDirectToAsync(callsign, initials, target)));
                 menu.Items.Add(CreateMenuItem($"Hold at {target} (left)", () => vm.HoldAtFixLeftAsync(callsign, initials, target)));
                 menu.Items.Add(CreateMenuItem($"Hold at {target} (right)", () => vm.HoldAtFixRightAsync(callsign, initials, target)));
+
+                var warpFrd = target;
+                var warpHdg = (int)Math.Round(vm.SelectedAircraft.Heading);
+                if (warpHdg <= 0)
+                {
+                    warpHdg = 360;
+                }
+
+                var warpAlt = (int)Math.Round(vm.SelectedAircraft.Altitude);
+                var warpSpd = (int)Math.Round(vm.SelectedAircraft.IndicatedAirspeed);
+                var warpItem = new MenuItem { Header = $"Warp here ({target})" };
+                warpItem.Click += (_, _) =>
+                {
+                    ShowWarpPopup(callsign, warpFrd, warpHdg, warpAlt, warpSpd, (frd, h, a, s) => _ = vm.WarpAsync(callsign, initials, frd, h, a, s));
+                };
+                menu.Items.Add(warpItem);
             }
         }
 

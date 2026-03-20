@@ -21,6 +21,7 @@ public partial class RadarView : UserControl
     private bool _listPopupInitializing;
     private Func<string, Task>? _pendingFilteredListAction;
     private string[]? _filteredListAllNames;
+    private Action<string, int, int, int>? _pendingWarpAction;
 
     public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeMain = new(v => v == DcbMenuMode.Main);
     public static readonly FuncValueConverter<DcbMenuMode, bool> IsDcbModeAux = new(v => v == DcbMenuMode.Aux);
