@@ -666,6 +666,15 @@ public partial class RadarView
                     FontWeight = Avalonia.Media.FontWeight.Bold,
                 }
             );
+            var frd = frdString;
+            menu.Items.Add(CreateMenuItem("Copy FRD", async () =>
+            {
+                var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+                if (clipboard is not null)
+                {
+                    await clipboard.SetTextAsync(frd);
+                }
+            }));
             menu.Items.Add(new Separator());
         }
 
