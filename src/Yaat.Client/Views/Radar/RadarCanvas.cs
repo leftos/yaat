@@ -713,14 +713,10 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 if (wpIdx >= 0)
                 {
                     RouteWaypointRightClicked?.Invoke(wpIdx, pos);
+                    e.Handled = true;
+                    return;
                 }
-                else
-                {
-                    RoutePointUndo?.Invoke();
-                }
-
-                e.Handled = true;
-                return;
+                // Fall through to base handler for pan/zoom
             }
         }
 
