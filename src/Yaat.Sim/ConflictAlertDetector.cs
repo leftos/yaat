@@ -9,13 +9,19 @@ namespace Yaat.Sim;
 /// </summary>
 public static class ConflictAlertDetector
 {
-    // Standard STARS CA thresholds
+    // Standard STARS CA thresholds (IFR)
     private const double HorizontalNm = 3.0;
     private const double VerticalFt = 1000;
 
-    // Hysteresis thresholds — must exceed these to clear an existing alert
+    // IFR hysteresis thresholds — must exceed these to clear an existing alert
     private const double HysteresisHorizontalNm = 3.3;
     private const double HysteresisVerticalFt = 1100;
+
+    // VFR thresholds — "target resolution" per STARS behavior
+    private const double VfrHorizontalNm = 0.25;
+    private const double VfrVerticalFt = 500;
+    private const double VfrHysteresisHorizontalNm = 0.30;
+    private const double VfrHysteresisVerticalFt = 550;
 
     // Final approach suppression zone
     private const double ApproachZoneHalfWidthNm = 2.0;
@@ -91,14 +97,19 @@ public static class ConflictAlertDetector
             return false;
         }
 
+        // When either target is VFR, use target-resolution thresholds
+        bool vfr = (a.IsVfr) || (b.IsVfr);
+
         if (alreadyInConflict)
         {
-            // Hysteresis: clears when either dimension exceeds its hysteresis threshold
-            return currentHorizontal < HysteresisHorizontalNm && currentVertical < HysteresisVerticalFt;
+            double hystH = vfr ? VfrHysteresisHorizontalNm : HysteresisHorizontalNm;
+            double hystV = vfr ? VfrHysteresisVerticalFt : HysteresisVerticalFt;
+            return (currentHorizontal < hystH) && (currentVertical < hystV);
         }
 
-        // Current separation violation: both dimensions must be within thresholds
-        return currentHorizontal < HorizontalNm && currentVertical < VerticalFt;
+        double threshH = vfr ? VfrHorizontalNm : HorizontalNm;
+        double threshV = vfr ? VfrVerticalFt : VerticalFt;
+        return (currentHorizontal < threshH) && (currentVertical < threshV);
     }
 
     private static bool IsSuppressedByApproachZone(AircraftState a, AircraftState b)

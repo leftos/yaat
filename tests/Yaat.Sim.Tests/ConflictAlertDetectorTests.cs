@@ -375,6 +375,128 @@ public class ConflictAlertDetectorTests
     }
 
     // -------------------------------------------------------------------------
+    // VFR thresholds (target resolution: 0.25nm / 500ft)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void VfrPair_UsesTargetResolution_Detected()
+    {
+        // Two VFR aircraft 0.2nm apart, 400ft vertical → detected (within 0.25nm / 500ft)
+        var a = MakeAircraft("N12345", altitude: 5000);
+        a.FlightRules = "VFR";
+        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.2), altitude: 5400);
+        b.FlightRules = "VFR";
+
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public void VfrPair_UsesTargetResolution_NotDetected()
+    {
+        // Two VFR aircraft 0.3nm apart, 400ft vertical → not detected (outside 0.25nm)
+        var a = MakeAircraft("N12345", altitude: 5000);
+        a.FlightRules = "VFR";
+        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.3), altitude: 5400);
+        b.FlightRules = "VFR";
+
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void VfrPair_Uses500ftVertical_NotDetected()
+    {
+        // Two VFR aircraft same position, 600ft vertical → not detected (outside 500ft)
+        var a = MakeAircraft("N12345", altitude: 5000);
+        a.FlightRules = "VFR";
+        var b = MakeAircraft("N67890", altitude: 5600);
+        b.FlightRules = "VFR";
+
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void IfrVfr_Mixed_UsesVfrThresholds()
+    {
+        // One IFR + one VFR, 0.2nm apart, 400ft vertical → detected (VFR thresholds when either is VFR)
+        var a = MakeAircraft("AAL100", altitude: 5000);
+        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.2), altitude: 5400);
+        b.FlightRules = "VFR";
+
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public void IfrVfr_Mixed_OutsideVfrThreshold_NotDetected()
+    {
+        // One IFR + one VFR, 2nm apart, 800ft vertical → not detected
+        // Would be CA under IFR thresholds (2nm < 3nm, 800ft < 1000ft) but not under VFR (2nm > 0.25nm)
+        var a = MakeAircraft("AAL100", altitude: 5000);
+        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(2.0), altitude: 5800);
+        b.FlightRules = "VFR";
+
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void VfrHysteresis_ExistingConflict_ClearsAtVfrHysteresis()
+    {
+        // Existing VFR conflict at 0.28nm (between 0.25 entry and 0.30 hysteresis) stays active
+        var a = MakeAircraft("N12345", altitude: 5000);
+        a.FlightRules = "VFR";
+        var b = MakeAircraft("N67890", lon: BaseLon + LonOffsetForNm(0.28), altitude: 5000);
+        b.FlightRules = "VFR";
+
+        string id = ConflictAlertDetector.MakeConflictId("N12345", "N67890");
+
+        // Without existing: no detection (0.28 > 0.25)
+        var fresh = ConflictAlertDetector.Detect([a, b]);
+        Assert.Empty(fresh);
+
+        // With existing: still in conflict (0.28 < 0.30 hysteresis)
+        var existing = new HashSet<string> { id };
+        var hysteresis = ConflictAlertDetector.Detect([a, b], existing);
+        Assert.Single(hysteresis);
+    }
+
+    // -------------------------------------------------------------------------
+    // Standby transponder filtering
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Standby_Vs_ModeC_Skipped()
+    {
+        // One Mode C + one Standby → no CA
+        var a = MakeAircraft("AAL100", altitude: 5000, transponderMode: "C");
+        var b = MakeAircraft("UAL200", altitude: 5000, transponderMode: "S");
+
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void Standby_Vs_Standby_Skipped()
+    {
+        // Both Standby → no CA
+        var a = MakeAircraft("AAL100", altitude: 5000, transponderMode: "S");
+        var b = MakeAircraft("UAL200", altitude: 5000, transponderMode: "S");
+
+        var result = ConflictAlertDetector.Detect([a, b]);
+
+        Assert.Empty(result);
+    }
+
+    // -------------------------------------------------------------------------
     // Final approach helpers
     // -------------------------------------------------------------------------
 
