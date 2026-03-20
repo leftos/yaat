@@ -549,9 +549,19 @@ internal static class GroundCommandHandler
 
     internal static CommandResult TryCrossRunway(AircraftState aircraft, CrossRunwayCommand cross)
     {
-        // If currently holding short, satisfy the clearance immediately
+        // If currently holding short, validate before satisfying the clearance
         if (aircraft.Phases?.CurrentPhase is HoldingShortPhase holdPhase)
         {
+            if (holdPhase.HoldShort.Reason == HoldShortReason.DestinationRunway)
+            {
+                return new CommandResult(false, $"Cannot cross destination runway {holdPhase.HoldShort.TargetName}; use LUAW or CTO");
+            }
+
+            if (holdPhase.HoldShort.TargetName is not null && !RunwayIdentifier.Parse(holdPhase.HoldShort.TargetName).Contains(cross.RunwayId))
+            {
+                return new CommandResult(false, $"Not holding short of {cross.RunwayId}");
+            }
+
             holdPhase.SatisfyClearance(ClearanceType.RunwayCrossing);
             return CommandDispatcher.Ok($"Cross {cross.RunwayId}");
         }
