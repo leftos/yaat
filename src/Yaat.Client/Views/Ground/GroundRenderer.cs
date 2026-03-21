@@ -1293,7 +1293,7 @@ public sealed class GroundRenderer : IDisposable
     private static bool IsAirborneVisible(AircraftModel ac, double airportCenterLat, double airportCenterLon, double airportElevation)
     {
         double agl = ac.Altitude - airportElevation;
-        if (agl <= 0 || agl > AirborneMaxAglFt)
+        if (agl > AirborneMaxAglFt)
         {
             return false;
         }
