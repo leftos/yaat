@@ -63,7 +63,7 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            var canonicalBlock = ParseBlockToCanonical(block, scheme);
+            var canonicalBlock = ParseBlockToCanonical(block, scheme, out failure);
             if (canonicalBlock is null)
             {
                 return null;
@@ -80,8 +80,9 @@ public static class CommandSchemeParser
         return new CompoundParseResult(string.Join("; ", canonicalBlocks));
     }
 
-    private static string? ParseBlockToCanonical(string block, CommandScheme scheme)
+    private static string? ParseBlockToCanonical(string block, CommandScheme scheme, out ParseFailure? failure)
     {
+        failure = null;
         var parts = new List<string>();
         var remaining = block;
 
@@ -162,7 +163,7 @@ public static class CommandSchemeParser
             // then recursively parse the remainder as a separate block
             if (remainderUpper.StartsWith("AT ") || remainderUpper.StartsWith("LV ") || remainderUpper.StartsWith("ATFN "))
             {
-                var innerCanonical = ParseBlockToCanonical(remaining, scheme);
+                var innerCanonical = ParseBlockToCanonical(remaining, scheme, out failure);
                 if (innerCanonical is null)
                 {
                     return null;
@@ -193,7 +194,7 @@ public static class CommandSchemeParser
                 if (i == 0)
                 {
                     // First sub-block gets the condition prefix
-                    var cmds = ParseCommandList(subBlock, scheme);
+                    var cmds = ParseCommandList(subBlock, scheme, out failure);
                     if (cmds is null)
                     {
                         return null;
@@ -211,7 +212,7 @@ public static class CommandSchemeParser
                 else
                 {
                     // Subsequent sub-blocks from expansion are standalone
-                    var canonicalBlock = ParseBlockToCanonical(subBlock, scheme);
+                    var canonicalBlock = ParseBlockToCanonical(subBlock, scheme, out failure);
                     if (canonicalBlock is null)
                     {
                         return null;
@@ -232,7 +233,7 @@ public static class CommandSchemeParser
             return string.Join(" ", parts);
         }
 
-        var commandResult = ParseCommandList(remaining, scheme);
+        var commandResult = ParseCommandList(remaining, scheme, out failure);
         if (commandResult is null)
         {
             return null;
@@ -246,13 +247,14 @@ public static class CommandSchemeParser
         return commandResult;
     }
 
-    private static string? ParseCommandList(string remaining, CommandScheme scheme)
+    private static string? ParseCommandList(string remaining, CommandScheme scheme, out ParseFailure? failure)
     {
+        failure = null;
         // SAY consumes entire remainder as literal text — don't split on comma
         var upperCheck = remaining.TrimStart().ToUpperInvariant();
         if (upperCheck.StartsWith("SAY "))
         {
-            var parsed = Parse(remaining.Trim(), scheme);
+            var parsed = Parse(remaining.Trim(), scheme, out failure);
             return parsed is not null ? ToCanonical(parsed.Type, parsed.Argument) : null;
         }
 
@@ -268,7 +270,7 @@ public static class CommandSchemeParser
                 continue;
             }
 
-            var parsed = Parse(cmd, scheme);
+            var parsed = Parse(cmd, scheme, out failure);
             if (parsed is not null)
             {
                 canonicalCommands.Add(ToCanonical(parsed.Type, parsed.Argument));
@@ -279,12 +281,18 @@ public static class CommandSchemeParser
             var expanded = ExpandMultiCommand(cmd);
             if (expanded == cmd)
             {
+                if (failure is null)
+                {
+                    var verb = cmd.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
+                    failure = new ParseFailure(verb, "is not a recognized command");
+                }
+
                 return null;
             }
 
             foreach (var subCmd in expanded.Split(','))
             {
-                var subParsed = Parse(subCmd.Trim(), scheme);
+                var subParsed = Parse(subCmd.Trim(), scheme, out failure);
                 if (subParsed is null)
                 {
                     return null;
