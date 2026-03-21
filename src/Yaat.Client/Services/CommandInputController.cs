@@ -536,7 +536,7 @@ public partial class CommandInputController : ObservableObject
         return text[(lastSep + 1)..].TrimStart();
     }
 
-    private static string StripConditionPrefix(string fragment, out string? conditionVerb)
+    internal static string StripConditionPrefix(string fragment, out string? conditionVerb)
     {
         conditionVerb = null;
 
@@ -553,6 +553,21 @@ public partial class CommandInputController : ObservableObject
             }
 
             // Still typing the condition argument (e.g., "LV 05" or "AT SUN")
+            return "";
+        }
+
+        // Check for "AS <position> " prefix (compound prefix like LV/AT)
+        if (upper.StartsWith("AS ", StringComparison.Ordinal))
+        {
+            conditionVerb = "AS";
+            var afterPrefix = fragment[3..].TrimStart();
+            var spaceIdx = afterPrefix.IndexOf(' ');
+            if (spaceIdx >= 0)
+            {
+                return afterPrefix[(spaceIdx + 1)..].TrimStart();
+            }
+
+            // Still typing the position identifier (e.g., "AS 4U")
             return "";
         }
 
