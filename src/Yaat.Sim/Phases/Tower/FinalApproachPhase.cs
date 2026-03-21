@@ -9,14 +9,14 @@ namespace Yaat.Sim.Phases.Tower;
 /// Tracks 3° glideslope from current position to threshold.
 /// Checks PhaseList-level landing clearance (CTL can be issued on
 /// downwind/base, well before this phase activates).
-/// Auto-triggers go-around if no clearance by 0.5nm from threshold.
+/// Auto-triggers go-around if no clearance by 200ft AGL.
 /// Completes when crossing the threshold.
 /// Checks for illegal approach intercept (7110.65 §5-9-1) on
 /// first tick when aircraft is established on the localizer.
 /// </summary>
 public sealed class FinalApproachPhase : Phase
 {
-    private const double AutoGoAroundDistNm = 0.5;
+    private const double AutoGoAroundAgl = 200.0;
     private const double NoClearanceWarningDistNm = 1.0;
     private const double InterceptCrossTrackThresholdNm = 0.1;
     private const double InterceptHeadingThresholdDeg = 15.0;
@@ -95,7 +95,7 @@ public sealed class FinalApproachPhase : Phase
         _runwayHeading = ctx.Runway.TrueHeading;
         _gsAngleDeg = GlideSlopeGeometry.AngleForCategory(ctx.Category);
         _isPatternTraffic = ctx.Aircraft.Phases?.TrafficDirection is not null;
-        _mapDistNm = ctx.Aircraft.Phases?.ActiveApproach?.MapDistanceNm ?? AutoGoAroundDistNm;
+        _mapDistNm = ctx.Aircraft.Phases?.ActiveApproach?.MapDistanceNm ?? 0.5;
 
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
@@ -220,13 +220,15 @@ public sealed class FinalApproachPhase : Phase
             ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} is 1nm from the threshold without a landing clearance");
         }
 
-        // Auto go-around if no landing clearance by 0.5nm from threshold
-        if ((distNm <= AutoGoAroundDistNm) && !hasLandingClearance)
+        // Auto go-around if no landing clearance by 200ft AGL
+        double aglForClearance = ctx.Aircraft.Altitude - _thresholdElevation;
+        if ((aglForClearance <= AutoGoAroundAgl) && !hasLandingClearance)
         {
             _goAroundTriggered = true;
             ctx.Logger.LogDebug(
-                "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Dist:F2}nm)",
+                "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Agl:F0}ft AGL, {Dist:F2}nm)",
                 ctx.Aircraft.Callsign,
+                aglForClearance,
                 distNm
             );
             TriggerGoAround(ctx, "no landing clearance");

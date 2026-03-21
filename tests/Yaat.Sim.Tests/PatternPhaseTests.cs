@@ -137,7 +137,7 @@ public class PatternPhaseTests
         phase.OnStart(ctx);
 
         Assert.Equal(wp.CrosswindHeading, ac.Targets.TargetTrueHeading);
-        Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
+        Assert.Null(ac.Targets.PreferredTurnDirection);
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class PatternPhaseTests
 
         phase.OnStart(ctx);
 
-        Assert.Equal(TurnDirection.Right, ac.Targets.PreferredTurnDirection);
+        Assert.Null(ac.Targets.PreferredTurnDirection);
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class PatternPhaseTests
 
         Assert.Equal(wp.DownwindHeading, ac.Targets.TargetTrueHeading);
         Assert.Equal(wp.PatternAltitude, ac.Targets.TargetAltitude);
-        Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
+        Assert.Null(ac.Targets.PreferredTurnDirection);
     }
 
     [Fact]
@@ -265,7 +265,7 @@ public class PatternPhaseTests
         phase.OnStart(ctx);
 
         Assert.Equal(wp.BaseHeading, ac.Targets.TargetTrueHeading);
-        Assert.Equal(TurnDirection.Left, ac.Targets.PreferredTurnDirection);
+        Assert.Null(ac.Targets.PreferredTurnDirection);
         Assert.True(ac.Targets.DesiredVerticalRate < 0); // descending
     }
 

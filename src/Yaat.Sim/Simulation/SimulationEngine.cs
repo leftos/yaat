@@ -32,6 +32,10 @@ public sealed class SimulationEngine
     private readonly ILogger _logger;
     private readonly List<TerminalEntry> _terminalEntries = [];
 
+    // Replay cursor state — set by Replay(), consumed by ReplayOneSecond()
+    private List<RecordedAction>? _replayActions;
+    private int _replayActionCursor;
+
     public SimulationWorld World { get; } = new();
     public SimScenarioState? Scenario { get; set; }
     public ConsolidationState ConsolidationState { get; } = new();
@@ -467,6 +471,54 @@ public sealed class SimulationEngine
         }
 
         ReplayTo((int)targetSeconds, recording.Actions);
+
+        // Store replay cursor so ReplayOneSecond() can continue from here
+        _replayActions = recording.Actions;
+        _replayActionCursor = 0;
+        int target = (int)targetSeconds;
+        while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= target)
+        {
+            _replayActionCursor++;
+        }
+    }
+
+    /// <summary>
+    /// Advances the replay by one second: ticks physics, applies any recorded
+    /// actions at the new time, and advances weather. Call after <see cref="Replay"/>
+    /// to continue the recording second-by-second while inspecting state between ticks.
+    /// </summary>
+    public void ReplayOneSecond()
+    {
+        var scenario = Scenario;
+        if (scenario is null || _replayActions is null)
+        {
+            return;
+        }
+
+        scenario.ElapsedSeconds += 1;
+        int t = (int)scenario.ElapsedSeconds;
+
+        TickPrePhysics();
+
+        double subDelta = 1.0 / PhysicsSubTickRate;
+        for (int sub = 0; sub < PhysicsSubTickRate; sub++)
+        {
+            TickPhysics(subDelta);
+        }
+
+        TickPostPhysics();
+        _terminalEntries.Clear();
+
+        if (scenario.WeatherTimeline is { } timeline)
+        {
+            World.Weather = timeline.GetWeatherAt(t);
+        }
+
+        while (_replayActionCursor < _replayActions.Count && _replayActions[_replayActionCursor].ElapsedSeconds <= t)
+        {
+            ApplyRecordedAction(_replayActions[_replayActionCursor]);
+            _replayActionCursor++;
+        }
     }
 
     // --- Commands ---

@@ -38,10 +38,8 @@ public sealed class CrosswindPhase : Phase
         _targetLon = Waypoints.DownwindStartLon;
         _crosswindHeading = Waypoints.CrosswindHeading;
 
-        var turnDir = Waypoints.Direction == PatternDirection.Left ? TurnDirection.Left : TurnDirection.Right;
-
         ctx.Targets.TargetTrueHeading = Waypoints.CrosswindHeading;
-        ctx.Targets.PreferredTurnDirection = turnDir;
+        ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         ctx.Targets.NavigationRoute.Clear();
 

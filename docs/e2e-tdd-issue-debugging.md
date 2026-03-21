@@ -204,6 +204,8 @@ public void Diagnostic_LogDescentProfile()
 
 Run this, read the output. You'll see exactly where things go wrong — the heading reversal, the altitude plateau, the missing fix. This tells you what to assert and at what time.
 
+**Prefer `ReplayOneSecond()` over `TickOneSecond()`** when continuing a recording. `TickOneSecond()` only advances physics — it does **not** apply recording actions. `ReplayOneSecond()` ticks physics **and** applies any recorded commands/settings at the new time, so the replay stays faithful to what the user did. Call `engine.Replay(recording, startTime)` first (which sets up the replay cursor), then `engine.ReplayOneSecond()` in a loop.
+
 **What to log depends on the bug type:**
 
 | Bug type | Log these fields |
@@ -213,6 +215,58 @@ Run this, read the output. You'll see exactly where things go wrong — the head
 | Doesn't follow route | `Targets.NavigationRoute` (all fixes), `Heading`, bearing to next fix |
 | Wrong approach / transition | `Phases.ActiveApproach`, `Phases.Phases` list, nav targets |
 | Ground taxi overshoot | `AssignedTaxiRoute.Segments`, lat/lon, current segment index |
+
+### 5b. Hybrid replay with v2 snapshots
+
+When a bug involves command/phase logic that has changed since the recording was made, a full command replay from t=0 may produce different state than what the user saw (because the new code runs from the start). **Hybrid replay** solves this: restore a snapshot captured with the old code, then replay commands from that point with the current (fixed) code.
+
+This is the workflow for testing a fix against a recording where the old behavior diverges early:
+
+```csharp
+[Fact]
+public void HybridReplay_FixAppliesAfterSnapshot()
+{
+    var recording = LoadRecording();
+    var engine = BuildEngine();
+    if (recording is null || engine is null) return;
+
+    // 1. Find the snapshot just before the bug manifests
+    var snapshots = recording.Snapshots;
+    if (snapshots is null || snapshots.Count == 0) return; // v1 recording, no snapshots
+
+    int bugTime = 1350; // the bug happens around t=1353
+    var snapshot = snapshots.LastOrDefault(s => s.ElapsedSeconds <= bugTime);
+    if (snapshot is null) return;
+
+    // 2. Replay to t=0 (loads scenario + weather), then restore the snapshot.
+    //    This gives us exact state from the OLD code at snapshot time.
+    engine.Replay(recording, 0);
+    engine.RestoreFromSnapshot(snapshot.State);
+
+    // 3. Replay commands from snapshot time onward with CURRENT code.
+    //    This applies the fix to all commands after the snapshot.
+    engine.ReplayRange(
+        snapshot.ElapsedSeconds,
+        bugTime + 120, // replay past the bug
+        recording.Actions
+    );
+
+    // 4. Assert the fix worked
+    var aircraft = engine.FindAircraft("N427MX");
+    Assert.NotNull(aircraft);
+    // ... assertions about correct behavior ...
+}
+```
+
+**When to use hybrid replay:**
+- The bug is in command dispatch, phase transitions, or physics that runs from the start
+- A full command replay from t=0 produces different state than the user saw
+- You need the exact pre-bug state to test whether your fix corrects the behavior from that point
+
+**When full command replay is fine:**
+- The bug is localized (e.g., wrong approach transition, missing constraint)
+- Code changes don't affect earlier simulation state
+- Most issue fixes — hybrid replay is the exception, not the rule
 
 ### 6. Write the real assertion
 
@@ -459,7 +513,9 @@ curl -o tests/Yaat.Sim.Tests/TestData/mia.geojson \
 | `TestVnasData` | `tests/Yaat.Sim.Tests/TestVnasData.cs` | Thread-safe singleton loader for NavData + CIFP + aircraft specs |
 | `TestAirportGroundData` | `tests/Yaat.Sim.Tests/Helpers/TestAirportGroundData.cs` | `IAirportGroundData` impl that loads from TestData GeoJSON |
 | `SimLog` | `src/Yaat.Sim/SimLog.cs` | Static logger facade — wire to xunit output via `SimLog.Initialize(loggerFactory)` |
-| `SimulationEngine.Replay()` | `src/Yaat.Sim/Simulation/SimulationEngine.cs` | Loads scenario, applies weather, replays actions to target time |
-| `SimulationEngine.TickOneSecond()` | same | Advance simulation by 1 second (4 physics sub-ticks) |
+| `SimulationEngine.Replay()` | `src/Yaat.Sim/Simulation/SimulationEngine.cs` | Loads scenario, applies weather, replays actions to target time; sets up cursor for `ReplayOneSecond()` |
+| `SimulationEngine.ReplayOneSecond()` | same | Continue replay by 1 second — ticks physics AND applies recorded actions. Use after `Replay()` for tick-by-tick inspection |
+| `SimulationEngine.TickOneSecond()` | same | Advance physics only by 1 second (no recording actions). Use for post-replay manual ticking |
+| `SimulationEngine.RestoreFromSnapshot()` | same | Restore exact simulation state from a v2 snapshot. Use with `ReplayRange()` for hybrid replay |
 | `SimulationEngine.FindAircraft()` | same | Look up live aircraft state by callsign |
 | `SimulationEngine.SendCommand()` | same | Dispatch a command string to an aircraft mid-replay |
