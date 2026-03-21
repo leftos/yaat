@@ -17,7 +17,7 @@ namespace Yaat.Sim.Testing;
 /// </summary>
 public static class TestVnasData
 {
-    private static string _testDataDir = "TestData";
+    private static string _testDataDir = Path.Combine(AppContext.BaseDirectory, "TestData");
     private static bool _initialized;
     private static readonly object _lock = new();
 
