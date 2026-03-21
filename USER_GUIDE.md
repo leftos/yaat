@@ -98,6 +98,18 @@ dotnet run --project src/Yaat.Client -- --autoconnect Local
 dotnet run --project src/Yaat.Client -- --autoconnect http://192.168.1.50:5000
 ```
 
+**Connecting to a remote server:** If someone is hosting a yaat-server instance (e.g. `https://yaat1.leftos.dev`), use `--sync` to automatically check out the compatible client version, build, and connect:
+
+```powershell
+# PowerShell
+.\start.ps1 -Sync https://yaat1.leftos.dev
+
+# Bash
+./start.sh --sync https://yaat1.leftos.dev
+```
+
+This queries the server's `/api/version` endpoint for the exact client commit it was built with, checks out that commit locally, builds the client, and auto-connects. Your working tree must be clean (no uncommitted changes) — it leaves you in detached HEAD state at the pinned commit. Run `git checkout main` to return to the latest code afterward.
+
 ### Configuration
 
 Before connecting, open **Settings** and configure:

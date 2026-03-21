@@ -164,6 +164,20 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 The script builds both projects and starts them. You'll see log output from both the server and client. Press **Ctrl+C** to stop everything.
 
+### Option A2: Connect to Someone Else's Server
+
+If another user is already hosting a yaat-server (e.g. at `https://yaat1.leftos.dev`), you can skip running your own server entirely. The `--sync` flag checks out the exact client version the remote server was built with, builds it, and auto-connects:
+
+```bash
+# Windows (PowerShell)
+.\start.ps1 -Sync https://yaat1.leftos.dev
+
+# macOS / Linux
+./start.sh --sync https://yaat1.leftos.dev
+```
+
+Your working tree must be clean (no uncommitted changes). This leaves you in detached HEAD state — run `git checkout main` to return to the latest code afterward.
+
 ### Option B: Run Manually
 
 If you prefer to run each piece separately (useful for troubleshooting):
@@ -214,10 +228,10 @@ cd C:\dev\yaat
 
 # macOS / Linux
 cd ~/dev/yaat
-./start.sh -p
+./start.sh --pull
 ```
 
-The `-Pull` / `-p` flag downloads the latest code for both repos before building. Alternatively, you can update manually:
+The `-Pull` / `--pull` flag downloads the latest code for both repos before building. Alternatively, you can update manually:
 
 ```bash
 cd yaat

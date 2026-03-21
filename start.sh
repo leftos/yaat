@@ -2,7 +2,11 @@
 # Start yaat-server and yaat-client side by side.
 # Kill both on Ctrl-C.
 # Build sequentially first — both projects share Yaat.Sim.
-# Usage: ./start.sh [--pull] [--docker] [--client-only] [--server-only] [--scenario <id>]
+# Usage: ./start.sh [--pull] [--docker] [--client-only] [--server-only] [--scenario <id>] [--sync <url>]
+#
+# --sync <url>  Sync local yaat repo to the commit pinned by a remote server,
+#               then build and run client-only. Example:
+#                 ./start.sh --sync https://yaat1.leftos.dev
 
 set -euo pipefail
 
@@ -11,6 +15,7 @@ DOCKER=false
 CLIENT_ONLY=false
 SERVER_ONLY=false
 SCENARIO=""
+SYNC=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --pull) PULL=true; shift ;;
@@ -18,12 +23,46 @@ while [[ $# -gt 0 ]]; do
         --client-only) CLIENT_ONLY=true; shift ;;
         --server-only) SERVER_ONLY=true; shift ;;
         --scenario) SCENARIO="$2"; shift 2 ;;
+        --sync) SYNC="$2"; shift 2 ;;
         *) shift ;;
     esac
 done
 
 CLIENT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$(dirname "$CLIENT_DIR")/yaat-server"
+
+# --sync: fetch version from remote server, checkout matching commit, run client-only
+if [[ -n "$SYNC" ]]; then
+    VERSION_URL="${SYNC%/}/api/version"
+    echo "Fetching version from $VERSION_URL..."
+    VERSION_JSON=$(curl -sf --max-time 10 "$VERSION_URL") || {
+        echo "Error: Failed to fetch version from $VERSION_URL" >&2
+        exit 1
+    }
+
+    # Parse client commit from JSON (portable: no jq dependency)
+    CLIENT_COMMIT=$(echo "$VERSION_JSON" | grep -o '"client":"[^"]*"' | cut -d'"' -f4)
+    if [[ -z "$CLIENT_COMMIT" || "$CLIENT_COMMIT" == "dev" ]]; then
+        echo "Error: Remote server did not report a client commit hash (got: '$CLIENT_COMMIT')." >&2
+        echo "The server may need to be redeployed with version support." >&2
+        exit 1
+    fi
+
+    echo "Remote server client commit: $CLIENT_COMMIT"
+    echo "Fetching and checking out $CLIENT_COMMIT..."
+
+    git -C "$CLIENT_DIR" fetch origin
+
+    # Check for uncommitted changes
+    if [[ -n "$(git -C "$CLIENT_DIR" status --porcelain)" ]]; then
+        echo "Error: Working tree has uncommitted changes. Commit or stash them before using --sync." >&2
+        exit 1
+    fi
+
+    git -C "$CLIENT_DIR" checkout "$CLIENT_COMMIT"
+    echo "Checked out $CLIENT_COMMIT — building client-only against $SYNC"
+    CLIENT_ONLY=true
+fi
 
 find_free_port() {
     local port=${1:-5000}
@@ -96,7 +135,9 @@ fi
 if ! $SERVER_ONLY; then
     echo "Starting yaat-client..."
     CLIENT_ARGS=()
-    if ! $CLIENT_ONLY; then
+    if [[ -n "$SYNC" ]]; then
+        CLIENT_ARGS+=(--autoconnect "$SYNC")
+    elif ! $CLIENT_ONLY; then
         CLIENT_ARGS+=(--autoconnect "http://localhost:$SERVER_PORT")
     fi
     if [[ -n "$SCENARIO" ]]; then

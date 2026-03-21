@@ -1,18 +1,61 @@
 # Start yaat-server and yaat-client side by side.
 # Kill both on Ctrl-C.
 # Build sequentially first — both projects share Yaat.Sim.
-# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-Scenario <id>]
+# Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-Scenario <id>] [-Sync <url>]
+#
+# -Sync <url>  Sync local yaat repo to the commit pinned by a remote server,
+#              then build and run client-only. Example:
+#                .\start.ps1 -Sync https://yaat1.leftos.dev
 
 param(
     [switch]$Pull,
     [switch]$Docker,
     [switch]$ClientOnly,
     [switch]$ServerOnly,
-    [string]$Scenario
+    [string]$Scenario,
+    [string]$Sync
 )
 
 $ClientDir = $PSScriptRoot
 $ServerDir = Join-Path (Split-Path $ClientDir) "yaat-server"
+
+# --sync: fetch version from remote server, checkout matching commit, run client-only
+if ($Sync) {
+    $versionUrl = "$($Sync.TrimEnd('/'))/api/version"
+    Write-Host "Fetching version from $versionUrl..."
+    try {
+        $version = Invoke-RestMethod -Uri $versionUrl -TimeoutSec 10
+    } catch {
+        Write-Error "Failed to fetch version from $versionUrl`: $_"
+        exit 1
+    }
+
+    $clientCommit = $version.client
+    if (-not $clientCommit -or $clientCommit -eq "dev") {
+        Write-Error "Remote server did not report a client commit hash (got: '$clientCommit'). The server may need to be redeployed with version support."
+        exit 1
+    }
+
+    Write-Host "Remote server client commit: $clientCommit"
+    Write-Host "Fetching and checking out $clientCommit..."
+
+    git -C "$ClientDir" fetch origin
+    if ($LASTEXITCODE -ne 0) { Write-Error "git fetch failed"; exit 1 }
+
+    # Check for uncommitted changes
+    $status = git -C "$ClientDir" status --porcelain
+    if ($status) {
+        Write-Error "Working tree has uncommitted changes. Commit or stash them before using -Sync."
+        exit 1
+    }
+
+    git -C "$ClientDir" checkout $clientCommit
+    if ($LASTEXITCODE -ne 0) { Write-Error "git checkout $clientCommit failed"; exit 1 }
+
+    Write-Host "Checked out $clientCommit — building client-only against $Sync"
+    # Force client-only mode: the remote server IS the server
+    $ClientOnly = $true
+}
 
 function Find-FreePort {
     param([int]$Start = 5000)
@@ -81,11 +124,16 @@ if (-not $ClientOnly) {
 if (-not $ServerOnly) {
     Write-Host "Starting yaat-client..."
     $clientArgs = "run --no-build --project `"$ClientDir\src\Yaat.Client`""
-    if (-not $ClientOnly) {
+    $needsDashDash = $true
+    if ($Sync) {
+        $clientArgs += " -- --autoconnect $Sync"
+        $needsDashDash = $false
+    } elseif (-not $ClientOnly) {
         $clientArgs += " -- --autoconnect http://localhost:${ServerPort}"
+        $needsDashDash = $false
     }
     if ($Scenario) {
-        if ($ClientOnly) { $clientArgs += " --" }
+        if ($needsDashDash) { $clientArgs += " --" }
         $clientArgs += " --scenario $Scenario"
     }
     $procs += Start-Process -PassThru -NoNewWindow dotnet $clientArgs
