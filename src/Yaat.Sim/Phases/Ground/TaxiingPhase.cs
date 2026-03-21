@@ -85,9 +85,13 @@ public sealed class TaxiingPhase : Phase
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
         bool overshot = dist > _prevDistToTarget && _prevDistToTarget < OvershootDetectionNm;
+        // When the braking curve decelerates to zero right at the arrival threshold,
+        // floating-point precision can leave dist slightly above NodeArrivalThresholdNm.
+        // Detect this stall and force arrival to prevent the aircraft from getting stuck.
+        bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && dist < NodeArrivalThresholdNm + 0.001;
         _prevDistToTarget = dist;
 
-        if (dist <= NodeArrivalThresholdNm || overshot)
+        if (dist <= NodeArrivalThresholdNm || overshot || stalledAtThreshold)
         {
             if (overshot)
             {
