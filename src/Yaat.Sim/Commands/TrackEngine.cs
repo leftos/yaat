@@ -132,6 +132,30 @@ public static class TrackEngine
         return new CommandResult(true, $"Acknowledged {ac.Callsign}");
     }
 
+    public static CommandResult HandlePointOutNoArgs(AircraftState ac, TrackOwner identity)
+    {
+        if (ac.Pointout is not { IsPending: true })
+        {
+            return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
+        }
+
+        var tcpStr = $"{identity.Subset}{identity.SectorId}";
+
+        if (ac.Pointout.Recipient.ToString() == tcpStr)
+        {
+            ac.Pointout.Status = StarsPointoutStatus.Accepted;
+            return new CommandResult(true, $"Acknowledged {ac.Callsign}");
+        }
+
+        if (ac.Pointout.Sender.ToString() == tcpStr)
+        {
+            ac.Pointout = null;
+            return new CommandResult(true, $"Retracted pointout for {ac.Callsign}");
+        }
+
+        return new CommandResult(false, $"No pending pointout for {ac.Callsign}");
+    }
+
     public static CommandResult HandleScratchpad1(AircraftState ac, string text)
     {
         bool isClearing = string.IsNullOrEmpty(text);
