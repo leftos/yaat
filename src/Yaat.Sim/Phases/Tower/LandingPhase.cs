@@ -283,7 +283,7 @@ public sealed class LandingPhase : Phase
         _lastResolvedPreference = preference;
         _resolvedExitNode = null;
 
-        if (preference is null || ctx.GroundLayout is null)
+        if (ctx.GroundLayout is null)
         {
             return;
         }

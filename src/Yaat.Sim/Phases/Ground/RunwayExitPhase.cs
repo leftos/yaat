@@ -175,7 +175,9 @@ public sealed class RunwayExitPhase : Phase
         }
         else
         {
-            _exitNode = ctx.GroundLayout!.FindNearestExit(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, trueHeading, _runwayId);
+            // Prefer exits ahead on the runway; fall back to nearest if none ahead
+            var aheadResult = ctx.GroundLayout!.FindExitAheadOnRunway(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, trueHeading, null, _runwayId);
+            _exitNode = aheadResult?.Node ?? ctx.GroundLayout!.FindNearestExit(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, trueHeading, _runwayId);
         }
 
         _exitTaxiway = _exitNode is not null ? ctx.GroundLayout!.GetExitTaxiwayName(_exitNode) : null;

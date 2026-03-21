@@ -165,41 +165,13 @@ public sealed class AirportGroundLayout
 
         foreach (var node in Nodes.Values)
         {
-            if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
-            {
-                continue;
-            }
-
-            // Skip nodes that have RWY centerline edges — they're on the
-            // runway surface and not valid exit points
-            if (HasRunwayCenterlineEdge(node))
+            if (!IsValidExitCandidate(node, targetRunway))
             {
                 continue;
             }
 
             double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
             if (dist > maxSearchNm)
-            {
-                continue;
-            }
-
-            bool hasTaxiwayEdge = false;
-            foreach (var edge in node.Edges)
-            {
-                if (!IsRunwayEdge(edge))
-                {
-                    hasTaxiwayEdge = true;
-                    break;
-                }
-            }
-
-            if (!hasTaxiwayEdge)
-            {
-                continue;
-            }
-
-            // Filter out exits closer to a different parallel runway
-            if (targetRunway is not null && !IsCloserToRunway(node, targetRunway))
             {
                 continue;
             }
@@ -238,39 +210,13 @@ public sealed class AirportGroundLayout
 
         foreach (var node in Nodes.Values)
         {
-            if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
-            {
-                continue;
-            }
-
-            if (HasRunwayCenterlineEdge(node))
+            if (!IsValidExitCandidate(node, targetRunway))
             {
                 continue;
             }
 
             double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
             if (dist > maxSearchNm)
-            {
-                continue;
-            }
-
-            bool hasTaxiwayEdge = false;
-            foreach (var edge in node.Edges)
-            {
-                if (!IsRunwayEdge(edge))
-                {
-                    hasTaxiwayEdge = true;
-                    break;
-                }
-            }
-
-            if (!hasTaxiwayEdge)
-            {
-                continue;
-            }
-
-            // Filter out exits closer to a different parallel runway
-            if (targetRunway is not null && !IsCloserToRunway(node, targetRunway))
             {
                 continue;
             }
@@ -530,12 +476,7 @@ public sealed class AirportGroundLayout
 
         foreach (var node in Nodes.Values)
         {
-            if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
-            {
-                continue;
-            }
-
-            if (HasRunwayCenterlineEdge(node))
+            if (!IsValidExitCandidate(node, targetRunway))
             {
                 continue;
             }
@@ -553,35 +494,19 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            // Check for taxiway edges
+            // Check for taxiway preference match
             bool matchesPreference = false;
-            bool hasTaxiwayEdge = false;
 
-            foreach (var edge in node.Edges)
+            if (preference?.Taxiway is { } taxiway)
             {
-                if (IsRunwayEdge(edge))
+                foreach (var edge in node.Edges)
                 {
-                    continue;
+                    if (!IsRunwayEdge(edge) && string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+                    {
+                        matchesPreference = true;
+                        break;
+                    }
                 }
-
-                hasTaxiwayEdge = true;
-
-                if (preference?.Taxiway is { } taxiway && string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
-                {
-                    matchesPreference = true;
-                    break;
-                }
-            }
-
-            if (!hasTaxiwayEdge)
-            {
-                continue;
-            }
-
-            // Filter out exits closer to a different parallel runway
-            if (targetRunway is not null && !IsCloserToRunway(node, targetRunway))
-            {
-                continue;
             }
 
             // Apply preference filters
@@ -773,6 +698,65 @@ public sealed class AirportGroundLayout
         double closestLon = aLon + (t * (bLon - aLon));
 
         return GeoMath.DistanceNm(pLat, pLon, closestLat, closestLon);
+    }
+
+    /// <summary>
+    /// Returns true if the node is a valid runway exit candidate. Filters out:
+    /// - Parking/Helipad nodes
+    /// - Nodes on the runway centerline (with RWY edges)
+    /// - Nodes with no taxiway edges
+    /// - Nodes that are closer to a different parallel runway
+    /// - Nodes within the runway surface width (intermediate routing vertices
+    ///   from GeoJSON LineStrings that sit just off the centerline but aren't
+    ///   real taxiway exit points)
+    /// </summary>
+    private bool IsValidExitCandidate(GroundNode node, GroundRunway? targetRunway)
+    {
+        if (node.Type is GroundNodeType.Parking or GroundNodeType.Helipad)
+        {
+            return false;
+        }
+
+        if (HasRunwayCenterlineEdge(node))
+        {
+            return false;
+        }
+
+        bool hasTaxiwayEdge = false;
+        foreach (var edge in node.Edges)
+        {
+            if (!IsRunwayEdge(edge))
+            {
+                hasTaxiwayEdge = true;
+                break;
+            }
+        }
+
+        if (!hasTaxiwayEdge)
+        {
+            return false;
+        }
+
+        if (targetRunway is not null && !IsCloserToRunway(node, targetRunway))
+        {
+            return false;
+        }
+
+        // Filter out nodes within the runway surface. These are intermediate
+        // GeoJSON routing vertices that sit just off the centerline but aren't
+        // real taxiway intersections where an aircraft can exit.
+        if (targetRunway is not null)
+        {
+            double crossTrackNm = MinDistanceToRunwayCenterline(node, targetRunway);
+            double runwayHalfWidthNm = (targetRunway.WidthFt / 2.0) / 6076.12;
+            double minExitDistanceNm = runwayHalfWidthNm + (50.0 / 6076.12);
+            if (crossTrackNm < minExitDistanceNm)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool IsRunwayEdge(GroundEdge edge)
