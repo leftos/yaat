@@ -17,18 +17,20 @@ public static class RecordingLoader
         if (path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
             using var archive = ZipFile.OpenRead(path);
-            var entry = archive.GetEntry("recording.yaat-recording.json");
+            var entry =
+                archive.GetEntry("recording.yaat-recording.br")
+                ?? archive.GetEntry("recording.yaat-recording.json.gz")
+                ?? archive.GetEntry("recording.yaat-recording.json");
             if (entry is null)
             {
                 return null;
             }
 
-            using var reader = new StreamReader(entry.Open());
-            json = reader.ReadToEnd();
+            json = RecordingCompression.Decompress(entry.Open());
         }
         else
         {
-            json = File.ReadAllText(path);
+            json = RecordingCompression.Decompress(File.ReadAllBytes(path));
         }
 
         return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

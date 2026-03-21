@@ -8,7 +8,7 @@ public sealed class SimulationWorld
     private readonly object _lock = new();
     private readonly List<AircraftState> _aircraft = [];
 
-    public Random Rng { get; set; } = Random.Shared;
+    public SerializableRandom Rng { get; set; } = new SerializableRandom(0);
     public WeatherProfile? Weather { get; set; }
     public AirportGroundLayout? GroundLayout { get; set; }
 

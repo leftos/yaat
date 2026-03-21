@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -165,5 +166,33 @@ public sealed class AirTaxiPhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new AirTaxiPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = SnapshotRequirements(),
+            TargetLat = _targetLat,
+            TargetLon = _targetLon,
+            DestinationName = _destinationName,
+            TargetAltitude = _targetAltitude,
+            LiftingOff = _liftingOff,
+            Descending = _descending,
+            TimeSinceLastLog = _timeSinceLastLog,
+        };
+
+    public static AirTaxiPhase FromSnapshot(AirTaxiPhaseDto dto)
+    {
+        var phase = new AirTaxiPhase(dto.TargetLat, dto.TargetLon, dto.DestinationName);
+        phase._targetAltitude = dto.TargetAltitude;
+        phase._liftingOff = dto.LiftingOff;
+        phase._descending = dto.Descending;
+        phase._timeSinceLastLog = dto.TimeSinceLastLog;
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
     }
 }

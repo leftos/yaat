@@ -1,3 +1,5 @@
+using Yaat.Sim.Simulation.Snapshots;
+
 namespace Yaat.Sim;
 
 public enum BlockTriggerType
@@ -30,6 +32,38 @@ public class BlockTrigger
 
     /// <summary>Distance from runway threshold in nm for DistanceFinal triggers.</summary>
     public double? DistanceFinalNm { get; init; }
+
+    public BlockTriggerDto ToSnapshot() =>
+        new()
+        {
+            Type = (int)Type,
+            Altitude = Altitude,
+            FixName = FixName,
+            FixLat = FixLat,
+            FixLon = FixLon,
+            Radial = Radial,
+            DistanceNm = DistanceNm,
+            TargetLat = TargetLat,
+            TargetLon = TargetLon,
+            TargetCallsign = TargetCallsign,
+            DistanceFinalNm = DistanceFinalNm,
+        };
+
+    public static BlockTrigger FromSnapshot(BlockTriggerDto dto) =>
+        new()
+        {
+            Type = (BlockTriggerType)dto.Type,
+            Altitude = dto.Altitude,
+            FixName = dto.FixName,
+            FixLat = dto.FixLat,
+            FixLon = dto.FixLon,
+            Radial = dto.Radial,
+            DistanceNm = dto.DistanceNm,
+            TargetLat = dto.TargetLat,
+            TargetLon = dto.TargetLon,
+            TargetCallsign = dto.TargetCallsign,
+            DistanceFinalNm = dto.DistanceFinalNm,
+        };
 }
 
 public enum TrackedCommandType
@@ -46,6 +80,10 @@ public class TrackedCommand
 {
     public required TrackedCommandType Type { get; init; }
     public bool IsComplete { get; set; }
+
+    public TrackedCommandDto ToSnapshot() => new() { Type = (int)Type, IsComplete = IsComplete };
+
+    public static TrackedCommand FromSnapshot(TrackedCommandDto dto) => new() { Type = (TrackedCommandType)dto.Type, IsComplete = dto.IsComplete };
 }
 
 public class CommandBlock
@@ -81,6 +119,48 @@ public class CommandBlock
     /// Returns a CommandResult with success/failure and optional message.
     /// </summary>
     public Func<AircraftState, Commands.CommandResult>? ApplyAction { get; init; }
+
+    /// <summary>
+    /// Original canonical command text that produced this block.
+    /// Used by snapshot serialization to re-derive <see cref="ApplyAction"/> on restore.
+    /// </summary>
+    public string? SourceCommandText { get; init; }
+
+    public CommandBlockDto ToSnapshot() =>
+        new()
+        {
+            Trigger = Trigger?.ToSnapshot(),
+            Commands = Commands.Select(c => c.ToSnapshot()).ToList(),
+            IsApplied = IsApplied,
+            TriggerMet = TriggerMet,
+            TriggerClosestApproach = TriggerClosestApproach,
+            TriggerMissed = TriggerMissed,
+            IsWaitBlock = IsWaitBlock,
+            WaitRemainingSeconds = WaitRemainingSeconds,
+            WaitRemainingDistanceNm = WaitRemainingDistanceNm,
+            Description = Description,
+            NaturalDescription = NaturalDescription,
+            SourceCommandText = SourceCommandText,
+        };
+
+    public static CommandBlock FromSnapshot(CommandBlockDto dto) =>
+        new()
+        {
+            Trigger = dto.Trigger is not null ? BlockTrigger.FromSnapshot(dto.Trigger) : null,
+            Commands = dto.Commands.Select(TrackedCommand.FromSnapshot).ToList(),
+            IsApplied = dto.IsApplied,
+            TriggerMet = dto.TriggerMet,
+            TriggerClosestApproach = dto.TriggerClosestApproach,
+            TriggerMissed = dto.TriggerMissed,
+            IsWaitBlock = dto.IsWaitBlock,
+            WaitRemainingSeconds = dto.WaitRemainingSeconds,
+            WaitRemainingDistanceNm = dto.WaitRemainingDistanceNm,
+            Description = dto.Description,
+            NaturalDescription = dto.NaturalDescription,
+            SourceCommandText = dto.SourceCommandText,
+            // ApplyAction is NOT restored here — it's re-derived by CommandQueue.FromSnapshot
+            // for unapplied blocks that have SourceCommandText
+        };
 }
 
 public class CommandQueue
@@ -91,6 +171,18 @@ public class CommandQueue
     public CommandBlock? CurrentBlock => CurrentBlockIndex >= 0 && CurrentBlockIndex < Blocks.Count ? Blocks[CurrentBlockIndex] : null;
 
     public bool IsComplete => CurrentBlockIndex >= Blocks.Count;
+
+    public CommandQueueDto ToSnapshot() => new() { Blocks = Blocks.Select(b => b.ToSnapshot()).ToList(), CurrentBlockIndex = CurrentBlockIndex };
+
+    public static CommandQueue FromSnapshot(CommandQueueDto dto)
+    {
+        var queue = new CommandQueue { CurrentBlockIndex = dto.CurrentBlockIndex };
+        foreach (var blockDto in dto.Blocks)
+        {
+            queue.Blocks.Add(CommandBlock.FromSnapshot(blockDto));
+        }
+        return queue;
+    }
 }
 
 /// <summary>
@@ -105,6 +197,12 @@ public sealed class DeferredDispatch
     public bool IsDistanceBased { get; }
     public Commands.CompoundCommand Payload { get; }
 
+    /// <summary>
+    /// Original canonical command text (including the WAIT prefix) that produced this dispatch.
+    /// Used by snapshot serialization to re-derive the payload on restore.
+    /// </summary>
+    public string? SourceText { get; init; }
+
     public DeferredDispatch(double seconds, Commands.CompoundCommand payload)
     {
         RemainingSeconds = seconds;
@@ -116,5 +214,35 @@ public sealed class DeferredDispatch
         IsDistanceBased = true;
         RemainingDistanceNm = distanceNm;
         Payload = payload;
+    }
+
+    public DeferredDispatchDto ToSnapshot() =>
+        new()
+        {
+            RemainingSeconds = RemainingSeconds,
+            RemainingDistanceNm = RemainingDistanceNm,
+            IsDistanceBased = IsDistanceBased,
+            SourceText = SourceText,
+        };
+
+    public static DeferredDispatch? FromSnapshot(DeferredDispatchDto dto)
+    {
+        if (dto.SourceText is null)
+        {
+            return null;
+        }
+
+        var parseResult = Commands.CommandParser.ParseCompound(dto.SourceText);
+        if (!parseResult.IsSuccess)
+        {
+            return null;
+        }
+
+        if (dto.IsDistanceBased)
+        {
+            return new DeferredDispatch(parseResult.Value!, dto.RemainingDistanceNm) { SourceText = dto.SourceText };
+        }
+
+        return new DeferredDispatch(dto.RemainingSeconds, parseResult.Value!) { SourceText = dto.SourceText };
     }
 }

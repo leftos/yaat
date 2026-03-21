@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -21,6 +22,35 @@ public sealed class LowApproachPhase : Phase
     private bool _climbingOut;
 
     public override string Name => "LowApproach";
+
+    public override PhaseDto ToSnapshot() =>
+        new LowApproachPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            FieldElevation = _fieldElevation,
+            RunwayHeadingDeg = _runwayHeading.Degrees,
+            GoAroundAgl = _goAroundAgl,
+            ThresholdLat = _thresholdLat,
+            ThresholdLon = _thresholdLon,
+            ClimbingOut = _climbingOut,
+        };
+
+    public static LowApproachPhase FromSnapshot(LowApproachPhaseDto dto)
+    {
+        var phase = new LowApproachPhase();
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._fieldElevation = dto.FieldElevation;
+        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._goAroundAgl = dto.GoAroundAgl;
+        phase._thresholdLat = dto.ThresholdLat;
+        phase._thresholdLon = dto.ThresholdLon;
+        phase._climbingOut = dto.ClimbingOut;
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

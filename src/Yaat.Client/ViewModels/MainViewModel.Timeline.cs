@@ -121,8 +121,8 @@ public partial class MainViewModel
     {
         try
         {
-            var json = await _connection.ExportRecordingAsync();
-            if (json is null)
+            var compressedBytes = await _connection.ExportRecordingAsync();
+            if (compressedBytes is null)
             {
                 StatusText = "No recording available";
                 return;
@@ -142,9 +142,9 @@ public partial class MainViewModel
                 new FilePickerSaveOptions
                 {
                     Title = "Save Recording",
-                    DefaultExtension = "yaat-recording.json",
-                    FileTypeChoices = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.json"] }],
-                    SuggestedFileName = $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-recording.json",
+                    DefaultExtension = "yaat-recording.br",
+                    FileTypeChoices = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.br", "*.yaat-recording.json"] }],
+                    SuggestedFileName = $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-recording.br",
                 }
             );
 
@@ -154,8 +154,7 @@ public partial class MainViewModel
             }
 
             await using var stream = await file.OpenWriteAsync();
-            await using var writer = new StreamWriter(stream);
-            await writer.WriteAsync(json);
+            await stream.WriteAsync(compressedBytes);
 
             StatusText = "Recording saved";
         }
@@ -171,8 +170,8 @@ public partial class MainViewModel
     {
         try
         {
-            var json = await _connection.ExportRecordingAsync();
-            if (json is null)
+            var compressedBytes = await _connection.ExportRecordingAsync();
+            if (compressedBytes is null)
             {
                 StatusText = "No recording available";
                 return;
@@ -206,11 +205,10 @@ public partial class MainViewModel
             await using var stream = await file.OpenWriteAsync();
             using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
 
-            var recordingEntry = archive.CreateEntry("recording.yaat-recording.json");
+            var recordingEntry = archive.CreateEntry("recording.yaat-recording.br");
             await using (var entryStream = recordingEntry.Open())
-            await using (var writer = new StreamWriter(entryStream))
             {
-                await writer.WriteAsync(json);
+                await entryStream.WriteAsync(compressedBytes);
             }
 
             AddFileToArchive(archive, AppLog.LogPath, "yaat-client.log");
@@ -238,6 +236,13 @@ public partial class MainViewModel
             _log.LogError(ex, "Save bug report bundle failed");
             StatusText = $"Save bug report bundle error: {ex.Message}";
         }
+    }
+
+    private static async Task<string> DecompressRecordingAsync(Stream stream)
+    {
+        using var memStream = new MemoryStream();
+        await stream.CopyToAsync(memStream);
+        return Yaat.Sim.Simulation.RecordingCompression.Decompress(memStream.ToArray());
     }
 
     private static bool IsLocalServer(string url)
@@ -278,7 +283,7 @@ public partial class MainViewModel
                 {
                     Title = "Load Recording",
                     AllowMultiple = false,
-                    FileTypeFilter = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.json"] }],
+                    FileTypeFilter = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.br", "*.yaat-recording.json"] }],
                 }
             );
 
@@ -288,8 +293,7 @@ public partial class MainViewModel
             }
 
             await using var stream = await files[0].OpenReadAsync();
-            using var reader = new StreamReader(stream);
-            var json = await reader.ReadToEndAsync();
+            var json = await DecompressRecordingAsync(stream);
 
             StatusText = "Loading recording...";
             var result = await _connection.LoadRecordingAsync(json);

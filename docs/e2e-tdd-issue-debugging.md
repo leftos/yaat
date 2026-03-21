@@ -28,6 +28,27 @@ A `SessionRecording` contains everything needed to reproduce a session from scra
 
 Actions include commands (`RecordedCommand`), spawns, deletes, warps, flight plan amendments, weather changes, and setting changes. Replay applies them in timestamp order, ticking physics 4x/second between them.
 
+### v2 Recordings (with State Snapshots)
+
+v2 recordings add complete simulation state snapshots captured every second. This allows:
+
+1. **Exact state restore** — load the snapshot at time T and get the precise state the user saw, regardless of code changes since the recording
+2. **Hybrid replay** — restore snapshot at time T, then replay commands from T onward with current (fixed) code to test whether a fix works
+3. **Faster rewind** — instead of replaying from t=0, restore the nearest snapshot and replay only the remaining seconds
+
+| Field | Purpose |
+|-------|---------|
+| `Version` | `1` = commands only (original format), `2` = commands + snapshots |
+| `Snapshots` | `List<TimedSnapshot>` — one per second, each containing full `StateSnapshotDto` |
+
+Each `StateSnapshotDto` captures: all aircraft (position, physics, control targets, command queue, phases, track ownership, scratchpads, procedures), scenario state (queues, generators, settings, coordination), and RNG state. Snapshots are versioned via `SchemaVersion` with a migration chain (`SnapshotSchemaMigrator`) — old snapshots are upgraded on load, and breaking changes throw `SnapshotSchemaException` (fallback to command replay).
+
+**File format:** v2 recordings are Brotli-compressed JSON (`.yaat-recording.br`). `RecordingCompression.Decompress()` auto-detects the format (Brotli, gzip, or plain JSON) and decompresses transparently. v1 `.yaat-recording.json` files still load without issue. Snapshots are captured every 5 seconds.
+
+**Generating snapshots:** Snapshots are generated at export time, not during runtime. The server replays the recording through a temporary isolated room with the full server pipeline (including track commands, coordination, etc.) and captures a snapshot every second. Zero runtime memory overhead.
+
+**Migration:** The `MigrateRecording` SignalR endpoint accepts a v1 JSON string and returns v2 gzip bytes with snapshots generated via replay.
+
 ## Bug Report Bundles
 
 A `.yaat-bug-report-bundle.zip` packages a recording with client and server logs into a single file. Created via **Scenario > Save Bug Report Bundle...** in the client.
@@ -35,25 +56,32 @@ A `.yaat-bug-report-bundle.zip` packages a recording with client and server logs
 **Contents:**
 | Entry | Description |
 |-------|-------------|
-| `recording.yaat-recording.json` | The session recording (same format as standalone `.yaat-recording.json`) |
+| `recording.yaat-recording.br` | The session recording (Brotli-compressed v2 format) |
 | `yaat-client.log` | Client log at the time of the report |
 | `yaat-server.log` | Server log (only included when connected to a local server) |
 
-**Using bundles in tests:** Extract the `.yaat-recording.json` from the zip and place it in TestData as a standalone file — this gives better git diffs and smaller file size. If you want to use the zip directly, `RecordingLoader.Load()` in `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` handles both `.json` and `.zip` formats transparently.
+**Using bundles in tests:** Extract the recording from the zip and place it in TestData as a standalone file. `RecordingLoader.Load()` in `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` handles `.br`, `.json.gz`, `.json`, and `.zip` formats transparently.
 
 ## Step-by-Step: From Issue to Test
 
 ### 1. Get the recording into TestData
 
-Download the recording from the issue and rename it:
+Download the recording from the issue. **If it's a v1 `.yaat-recording.json` file, upgrade it to v2 before investigating:**
+
+```bash
+cd yaat-server
+dotnet run --project tools/Yaat.RecordingUpgrader -- ../yaat/tests/Yaat.Sim.Tests/TestData/issue123-some-bug-recording.json
+```
+
+This generates a `.br` file with state snapshots alongside the original. Place both in TestData:
 
 ```
-tests/Yaat.Sim.Tests/TestData/issue77-alwys-descent-recording.json
+tests/Yaat.Sim.Tests/TestData/issue77-alwys-descent-recording.br
 ```
 
-If the attachment is a `.yaat-bug-report-bundle.zip`, extract `recording.yaat-recording.json` from it and rename to the convention below. The zip also contains logs which may help diagnose the issue but don't need to go into TestData.
+If the attachment is a `.yaat-bug-report-bundle.zip`, extract the recording from it (it may be `.br`, `.json.gz`, or `.json`). Upgrade to v2 if needed, then rename to the convention below. The zip also contains logs which may help diagnose the issue but don't need to go into TestData.
 
-Convention: `issue{N}-{short-description}-recording.json`. Including the issue number makes it easy to trace back to the GitHub thread.
+Convention: `issue{N}-{short-description}-recording.br` (v2) or `.json` (v1). Including the issue number makes it easy to trace back to the GitHub thread.
 
 ### 2. Understand the bug from the issue
 
@@ -96,7 +124,22 @@ private static SessionRecording? LoadRecording()
         return null;
     }
 
-    var json = File.ReadAllText(RecordingPath);
+    var bytes = File.ReadAllBytes(RecordingPath);
+    string json;
+
+    // Detect gzip (magic bytes 0x1F 0x8B) for v2 .json.gz recordings
+    if (bytes.Length >= 2 && bytes[0] == 0x1F && bytes[1] == 0x8B)
+    {
+        using var ms = new MemoryStream(bytes);
+        using var gz = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionMode.Decompress);
+        using var reader = new StreamReader(gz);
+        json = reader.ReadToEnd();
+    }
+    else
+    {
+        json = System.Text.Encoding.UTF8.GetString(bytes);
+    }
+
     return JsonSerializer.Deserialize<SessionRecording>(
         json,
         new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

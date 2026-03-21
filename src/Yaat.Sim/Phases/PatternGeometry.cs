@@ -1,3 +1,5 @@
+using Yaat.Sim.Simulation.Snapshots;
+
 namespace Yaat.Sim.Phases;
 
 /// <summary>
@@ -53,6 +55,50 @@ public sealed class PatternWaypoints
 
     /// <summary>Pattern direction (left or right turns).</summary>
     public PatternDirection Direction { get; init; }
+
+    public PatternWaypointsDto ToSnapshot() =>
+        new()
+        {
+            DepartureEndLat = DepartureEndLat,
+            DepartureEndLon = DepartureEndLon,
+            CrosswindTurnLat = CrosswindTurnLat,
+            CrosswindTurnLon = CrosswindTurnLon,
+            DownwindStartLat = DownwindStartLat,
+            DownwindStartLon = DownwindStartLon,
+            DownwindAbeamLat = DownwindAbeamLat,
+            DownwindAbeamLon = DownwindAbeamLon,
+            BaseTurnLat = BaseTurnLat,
+            BaseTurnLon = BaseTurnLon,
+            ThresholdLat = ThresholdLat,
+            ThresholdLon = ThresholdLon,
+            UpwindHeadingDeg = UpwindHeading.Degrees,
+            CrosswindHeadingDeg = CrosswindHeading.Degrees,
+            DownwindHeadingDeg = DownwindHeading.Degrees,
+            BaseHeadingDeg = BaseHeading.Degrees,
+            FinalHeadingDeg = FinalHeading.Degrees,
+        };
+
+    public static PatternWaypoints FromSnapshot(PatternWaypointsDto dto) =>
+        new()
+        {
+            DepartureEndLat = dto.DepartureEndLat,
+            DepartureEndLon = dto.DepartureEndLon,
+            CrosswindTurnLat = dto.CrosswindTurnLat,
+            CrosswindTurnLon = dto.CrosswindTurnLon,
+            DownwindStartLat = dto.DownwindStartLat,
+            DownwindStartLon = dto.DownwindStartLon,
+            DownwindAbeamLat = dto.DownwindAbeamLat,
+            DownwindAbeamLon = dto.DownwindAbeamLon,
+            BaseTurnLat = dto.BaseTurnLat,
+            BaseTurnLon = dto.BaseTurnLon,
+            ThresholdLat = dto.ThresholdLat,
+            ThresholdLon = dto.ThresholdLon,
+            UpwindHeading = new TrueHeading(dto.UpwindHeadingDeg),
+            CrosswindHeading = new TrueHeading(dto.CrosswindHeadingDeg),
+            DownwindHeading = new TrueHeading(dto.DownwindHeadingDeg),
+            BaseHeading = new TrueHeading(dto.BaseHeadingDeg),
+            FinalHeading = new TrueHeading(dto.FinalHeadingDeg),
+        };
 }
 
 /// <summary>

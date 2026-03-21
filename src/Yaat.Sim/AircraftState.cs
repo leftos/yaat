@@ -1,6 +1,7 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
 
@@ -260,6 +261,278 @@ public class AircraftState
     // Sequence state
     public int? SequenceNumber { get; set; }
     public string? FollowTarget { get; set; }
+
+    public static AircraftState FromSnapshot(AircraftSnapshotDto dto, AirportGroundLayout? groundLayout)
+    {
+        var ac = new AircraftState
+        {
+            Callsign = dto.Callsign,
+            AircraftType = dto.AircraftType,
+            ScenarioId = dto.ScenarioId,
+            Cid = dto.Cid,
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
+            TrueHeading = new TrueHeading(dto.TrueHeadingDeg),
+            TrueTrack = new TrueHeading(dto.TrueTrackDeg),
+            Declination = dto.Declination,
+            Altitude = dto.Altitude,
+            IndicatedAirspeed = dto.IndicatedAirspeed,
+            VerticalSpeed = dto.VerticalSpeed,
+            BankAngle = dto.BankAngle,
+            HasFlightPlan = dto.HasFlightPlan,
+            Departure = dto.Departure,
+            Destination = dto.Destination,
+            Route = dto.Route,
+            Remarks = dto.Remarks,
+            EquipmentSuffix = dto.EquipmentSuffix,
+            FlightRules = dto.FlightRules,
+            CruiseAltitude = dto.CruiseAltitude,
+            CruiseSpeed = dto.CruiseSpeed,
+            TransponderMode = dto.TransponderMode,
+            AssignedBeaconCode = dto.AssignedBeaconCode,
+            BeaconCode = dto.BeaconCode,
+            IsIdenting = dto.IsIdenting,
+            IdentStartedAt = dto.IdentStartedAt,
+            IsOnGround = dto.IsOnGround,
+            GroundLayout = groundLayout,
+            ParkingSpot = dto.ParkingSpot,
+            CurrentTaxiway = dto.CurrentTaxiway,
+            IsHeld = dto.IsHeld,
+            GiveWayTarget = dto.GiveWayTarget,
+            AutoDeleteExempt = dto.AutoDeleteExempt,
+            ConflictBreakRemainingSeconds = dto.ConflictBreakRemainingSeconds,
+            GroundSpeedLimit = dto.GroundSpeedLimit,
+            PushbackTrueHeading = dto.PushbackTrueHeadingDeg.HasValue ? new TrueHeading(dto.PushbackTrueHeadingDeg.Value) : null,
+            Owner = dto.Owner is not null ? TrackOwner.FromSnapshot(dto.Owner) : null,
+            HandoffPeer = dto.HandoffPeer is not null ? TrackOwner.FromSnapshot(dto.HandoffPeer) : null,
+            HandoffRedirectedBy = dto.HandoffRedirectedBy is not null ? TrackOwner.FromSnapshot(dto.HandoffRedirectedBy) : null,
+            Pointout = dto.Pointout is not null ? StarsPointout.FromSnapshot(dto.Pointout) : null,
+            Scratchpad1 = dto.Scratchpad1,
+            WasScratchpad1Cleared = dto.WasScratchpad1Cleared,
+            PreviousScratchpad1 = dto.PreviousScratchpad1,
+            Scratchpad2 = dto.Scratchpad2,
+            PreviousScratchpad2 = dto.PreviousScratchpad2,
+            AsdexScratchpad1 = dto.AsdexScratchpad1,
+            AsdexScratchpad2 = dto.AsdexScratchpad2,
+            TemporaryAltitude = dto.TemporaryAltitude,
+            PilotReportedAltitude = dto.PilotReportedAltitude,
+            IsAnnotated = dto.IsAnnotated,
+            OnHandoff = dto.OnHandoff,
+            HandoffAccepted = dto.HandoffAccepted,
+            HandoffInitiatedAt = dto.HandoffInitiatedAt,
+            AssignedAltitude = dto.AssignedAltitude,
+            ExpectedApproach = dto.ExpectedApproach,
+            PendingApproachClearance = dto.PendingApproachClearance is not null
+                ? PendingApproachInfo.FromSnapshot(dto.PendingApproachClearance)
+                : null,
+            ActiveSidId = dto.ActiveSidId,
+            ActiveStarId = dto.ActiveStarId,
+            DepartureRunway = dto.DepartureRunway,
+            DestinationRunway = dto.DestinationRunway,
+            SidViaMode = dto.SidViaMode,
+            StarViaMode = dto.StarViaMode,
+            SidViaCeiling = dto.SidViaCeiling,
+            StarViaFloor = dto.StarViaFloor,
+            SpeedRestrictionsDeleted = dto.SpeedRestrictionsDeleted,
+            IsExpediting = dto.IsExpediting,
+            PatternSizeOverrideNm = dto.PatternSizeOverrideNm,
+            HasReportedFieldInSight = dto.HasReportedFieldInSight,
+            HasReportedTrafficInSight = dto.HasReportedTrafficInSight,
+            FollowingCallsign = dto.FollowingCallsign,
+            VoiceType = dto.VoiceType,
+            TdlsDumped = dto.TdlsDumped,
+            HoldAnnotationFix = dto.HoldAnnotationFix,
+            HoldAnnotationDirection = dto.HoldAnnotationDirection,
+            HoldAnnotationTurns = dto.HoldAnnotationTurns,
+            HoldAnnotationLegLength = dto.HoldAnnotationLegLength,
+            HoldAnnotationLegLengthInNm = dto.HoldAnnotationLegLengthInNm,
+            HoldAnnotationEfc = dto.HoldAnnotationEfc,
+            ClearanceExpect = dto.ClearanceExpect,
+            ClearanceSid = dto.ClearanceSid,
+            ClearanceTransition = dto.ClearanceTransition,
+            ClearanceClimbout = dto.ClearanceClimbout,
+            ClearanceClimbvia = dto.ClearanceClimbvia,
+            ClearanceInitialAlt = dto.ClearanceInitialAlt,
+            ClearanceContactInfo = dto.ClearanceContactInfo,
+            ClearanceLocalInfo = dto.ClearanceLocalInfo,
+            ClearanceDepFreq = dto.ClearanceDepFreq,
+            IsUnsupported = dto.IsUnsupported,
+            UnsupportedLatitude = dto.UnsupportedLatitude,
+            UnsupportedLongitude = dto.UnsupportedLongitude,
+            IsCaInhibited = dto.IsCaInhibited,
+            IsModeCInhibited = dto.IsModeCInhibited,
+            IsMsawInhibited = dto.IsMsawInhibited,
+            IsDuplicateBeaconInhibited = dto.IsDuplicateBeaconInhibited,
+            TpaType = dto.TpaType,
+            GlobalLeaderDirection = dto.GlobalLeaderDirection,
+            SequenceNumber = dto.SequenceNumber,
+            FollowTarget = dto.FollowTarget,
+            AssignedTaxiRoute = dto.AssignedTaxiRoute is not null ? TaxiRoute.FromSnapshot(dto.AssignedTaxiRoute, groundLayout) : null,
+            Queue = CommandQueue.FromSnapshot(dto.Queue),
+            Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
+        };
+
+        ac.WindComponents = (dto.WindN, dto.WindE);
+        ControlTargets.RestoreFrom(dto.Targets, ac.Targets);
+
+        if (dto.ForcedPointoutsTo is not null)
+        {
+            ac.ForcedPointoutsTo = dto.ForcedPointoutsTo.Select(Tcp.FromSnapshot).ToList();
+        }
+
+        if (dto.SharedState is not null)
+        {
+            ac.SharedState = dto.SharedState.ToDictionary(kv => kv.Key, kv => StarsTrackSharedState.FromSnapshot(kv.Value));
+        }
+
+        if (dto.PositionHistory is not null)
+        {
+            foreach (var p in dto.PositionHistory)
+            {
+                ac.PositionHistory.Add((p.Lat, p.Lon));
+            }
+        }
+
+        if (dto.DeferredDispatches is not null)
+        {
+            foreach (var dd in dto.DeferredDispatches)
+            {
+                var dispatch = DeferredDispatch.FromSnapshot(dd);
+                if (dispatch is not null)
+                {
+                    ac.DeferredDispatches.Add(dispatch);
+                }
+            }
+        }
+
+        return ac;
+    }
+
+    public AircraftSnapshotDto ToSnapshot() =>
+        new()
+        {
+            Callsign = Callsign,
+            AircraftType = AircraftType,
+            ScenarioId = ScenarioId,
+            Cid = Cid,
+            Latitude = Latitude,
+            Longitude = Longitude,
+            TrueHeadingDeg = TrueHeading.Degrees,
+            TrueTrackDeg = TrueTrack.Degrees,
+            Declination = Declination,
+            Altitude = Altitude,
+            IndicatedAirspeed = IndicatedAirspeed,
+            VerticalSpeed = VerticalSpeed,
+            BankAngle = BankAngle,
+            WindN = WindComponents.N,
+            WindE = WindComponents.E,
+            HasFlightPlan = HasFlightPlan,
+            Departure = Departure,
+            Destination = Destination,
+            Route = Route,
+            Remarks = Remarks,
+            EquipmentSuffix = EquipmentSuffix,
+            FlightRules = FlightRules,
+            CruiseAltitude = CruiseAltitude,
+            CruiseSpeed = CruiseSpeed,
+            TransponderMode = TransponderMode,
+            AssignedBeaconCode = AssignedBeaconCode,
+            BeaconCode = BeaconCode,
+            IsIdenting = IsIdenting,
+            IdentStartedAt = IdentStartedAt,
+            IsOnGround = IsOnGround,
+            ParkingSpot = ParkingSpot,
+            CurrentTaxiway = CurrentTaxiway,
+            IsHeld = IsHeld,
+            GiveWayTarget = GiveWayTarget,
+            AutoDeleteExempt = AutoDeleteExempt,
+            ConflictBreakRemainingSeconds = ConflictBreakRemainingSeconds,
+            GroundSpeedLimit = GroundSpeedLimit,
+            PushbackTrueHeadingDeg = PushbackTrueHeading?.Degrees,
+            Owner = Owner?.ToSnapshot(),
+            HandoffPeer = HandoffPeer?.ToSnapshot(),
+            HandoffRedirectedBy = HandoffRedirectedBy?.ToSnapshot(),
+            Pointout = Pointout?.ToSnapshot(),
+            Scratchpad1 = Scratchpad1,
+            WasScratchpad1Cleared = WasScratchpad1Cleared,
+            PreviousScratchpad1 = PreviousScratchpad1,
+            Scratchpad2 = Scratchpad2,
+            PreviousScratchpad2 = PreviousScratchpad2,
+            AsdexScratchpad1 = AsdexScratchpad1,
+            AsdexScratchpad2 = AsdexScratchpad2,
+            TemporaryAltitude = TemporaryAltitude,
+            PilotReportedAltitude = PilotReportedAltitude,
+            IsAnnotated = IsAnnotated,
+            OnHandoff = OnHandoff,
+            HandoffAccepted = HandoffAccepted,
+            HandoffInitiatedAt = HandoffInitiatedAt,
+            AssignedAltitude = AssignedAltitude,
+            ExpectedApproach = ExpectedApproach,
+            PendingApproachClearance = PendingApproachClearance?.ToSnapshot(),
+            ActiveSidId = ActiveSidId,
+            ActiveStarId = ActiveStarId,
+            DepartureRunway = DepartureRunway,
+            DestinationRunway = DestinationRunway,
+            SidViaMode = SidViaMode,
+            StarViaMode = StarViaMode,
+            SidViaCeiling = SidViaCeiling,
+            StarViaFloor = StarViaFloor,
+            SpeedRestrictionsDeleted = SpeedRestrictionsDeleted,
+            IsExpediting = IsExpediting,
+            PatternSizeOverrideNm = PatternSizeOverrideNm,
+            HasReportedFieldInSight = HasReportedFieldInSight,
+            HasReportedTrafficInSight = HasReportedTrafficInSight,
+            FollowingCallsign = FollowingCallsign,
+            VoiceType = VoiceType,
+            TdlsDumped = TdlsDumped,
+            HoldAnnotationFix = HoldAnnotationFix,
+            HoldAnnotationDirection = HoldAnnotationDirection,
+            HoldAnnotationTurns = HoldAnnotationTurns,
+            HoldAnnotationLegLength = HoldAnnotationLegLength,
+            HoldAnnotationLegLengthInNm = HoldAnnotationLegLengthInNm,
+            HoldAnnotationEfc = HoldAnnotationEfc,
+            ClearanceExpect = ClearanceExpect,
+            ClearanceSid = ClearanceSid,
+            ClearanceTransition = ClearanceTransition,
+            ClearanceClimbout = ClearanceClimbout,
+            ClearanceClimbvia = ClearanceClimbvia,
+            ClearanceInitialAlt = ClearanceInitialAlt,
+            ClearanceContactInfo = ClearanceContactInfo,
+            ClearanceLocalInfo = ClearanceLocalInfo,
+            ClearanceDepFreq = ClearanceDepFreq,
+            IsUnsupported = IsUnsupported,
+            UnsupportedLatitude = UnsupportedLatitude,
+            UnsupportedLongitude = UnsupportedLongitude,
+            IsCaInhibited = IsCaInhibited,
+            IsModeCInhibited = IsModeCInhibited,
+            IsMsawInhibited = IsMsawInhibited,
+            IsDuplicateBeaconInhibited = IsDuplicateBeaconInhibited,
+            TpaType = TpaType,
+            GlobalLeaderDirection = GlobalLeaderDirection,
+            ForcedPointoutsTo = ForcedPointoutsTo.Count > 0 ? ForcedPointoutsTo.Select(t => t.ToSnapshot()).ToList() : null,
+            SharedState = SharedState.Count > 0 ? SharedState.ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot()) : null,
+            PositionHistory = PositionHistory.Count > 0 ? PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon }).ToList() : null,
+            SequenceNumber = SequenceNumber,
+            FollowTarget = FollowTarget,
+            ActiveApproachScore = ActiveApproachScore is { } score
+                ? new ApproachScoreDto
+                {
+                    Callsign = score.Callsign,
+                    ApproachId = score.ApproachId,
+                    AirportCode = score.AirportCode,
+                    RunwayId = score.RunwayId,
+                    InterceptAngleDeg = score.InterceptAngleDeg,
+                    InterceptDistanceNm = score.InterceptDistanceNm,
+                    EstablishedDistanceNm = score.MinInterceptDistanceNm,
+                    GoAround = false,
+                }
+                : null,
+            Targets = Targets.ToSnapshot(),
+            Queue = Queue.ToSnapshot(),
+            Phases = Phases?.ToSnapshot(),
+            DeferredDispatches = DeferredDispatches.Count > 0 ? DeferredDispatches.Select(d => d.ToSnapshot()).ToList() : null,
+            AssignedTaxiRoute = AssignedTaxiRoute?.ToSnapshot(),
+        };
 
     public HashSet<string> GetProgrammedFixes()
     {

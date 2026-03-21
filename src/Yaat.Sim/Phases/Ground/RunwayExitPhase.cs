@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -207,5 +208,41 @@ public sealed class RunwayExitPhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new RunwayExitPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = SnapshotRequirements(),
+            ExitNodeId = _exitNode?.Id,
+            ClearNodeId = _clearNode?.Id,
+            ReachedExitNode = _reachedExitNode,
+            ExitTaxiway = _exitTaxiway,
+            RunwayId = _runwayId,
+            LastResolvedPreference = (int?)_lastResolvedPreference?.Side,
+            ExitSpeed = _exitSpeed,
+            TimeSinceLastLog = _timeSinceLastLog,
+            StoppedForLahso = false,
+        };
+
+    public static RunwayExitPhase FromSnapshot(RunwayExitPhaseDto dto, AirportGroundLayout? groundLayout)
+    {
+        var phase = new RunwayExitPhase();
+        phase._exitNode = dto.ExitNodeId.HasValue ? groundLayout?.Nodes.GetValueOrDefault(dto.ExitNodeId.Value) : null;
+        phase._clearNode = dto.ClearNodeId.HasValue ? groundLayout?.Nodes.GetValueOrDefault(dto.ClearNodeId.Value) : null;
+        phase._reachedExitNode = dto.ReachedExitNode;
+        phase._exitTaxiway = dto.ExitTaxiway;
+        phase._runwayId = dto.RunwayId;
+        phase._lastResolvedPreference = dto.LastResolvedPreference.HasValue
+            ? new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value }
+            : null;
+        phase._exitSpeed = dto.ExitSpeed;
+        phase._timeSinceLastLog = dto.TimeSinceLastLog;
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
     }
 }

@@ -9,8 +9,8 @@ public class RngDeterminismTests
     [Fact]
     public void GenerateBeaconCode_SameSeed_SameSequence()
     {
-        var rng1 = new Random(42);
-        var rng2 = new Random(42);
+        var rng1 = new SerializableRandom(42);
+        var rng2 = new SerializableRandom(42);
 
         for (int i = 0; i < 20; i++)
         {
@@ -21,8 +21,8 @@ public class RngDeterminismTests
     [Fact]
     public void GenerateBeaconCode_DifferentSeeds_DifferentResults()
     {
-        var rng1 = new Random(42);
-        var rng2 = new Random(99);
+        var rng1 = new SerializableRandom(42);
+        var rng2 = new SerializableRandom(99);
 
         // Generate several codes — at least one should differ
         var codes1 = Enumerable.Range(0, 10).Select(_ => SimulationWorld.GenerateBeaconCode(rng1)).ToList();
@@ -34,8 +34,8 @@ public class RngDeterminismTests
     [Fact]
     public void GenerateUniqueCid_SameSeed_SameSequence()
     {
-        var world1 = new SimulationWorld { Rng = new Random(42) };
-        var world2 = new SimulationWorld { Rng = new Random(42) };
+        var world1 = new SimulationWorld { Rng = new SerializableRandom(42) };
+        var world2 = new SimulationWorld { Rng = new SerializableRandom(42) };
 
         var ac1 = new AircraftState { Callsign = "AAL100", AircraftType = "B738" };
         var ac2 = new AircraftState { Callsign = "AAL100", AircraftType = "B738" };
@@ -47,17 +47,17 @@ public class RngDeterminismTests
     }
 
     [Fact]
-    public void SimulationWorld_Rng_DefaultsToShared()
+    public void SimulationWorld_Rng_DefaultsToSerializableRandom()
     {
         var world = new SimulationWorld();
-        Assert.Same(Random.Shared, world.Rng);
+        Assert.IsType<SerializableRandom>(world.Rng);
     }
 
     [Fact]
     public void SimulationWorld_Rng_CanBeSeeded()
     {
         var world = new SimulationWorld();
-        var seeded = new Random(123);
+        var seeded = new SerializableRandom(123);
         world.Rng = seeded;
         Assert.Same(seeded, world.Rng);
     }
@@ -66,8 +66,8 @@ public class RngDeterminismTests
     public void SeededWorld_TickDeterministic()
     {
         // Two worlds with same seed and same aircraft should produce identical results after ticking
-        var world1 = new SimulationWorld { Rng = new Random(42) };
-        var world2 = new SimulationWorld { Rng = new Random(42) };
+        var world1 = new SimulationWorld { Rng = new SerializableRandom(42) };
+        var world2 = new SimulationWorld { Rng = new SerializableRandom(42) };
 
         var ac1 = new AircraftState
         {

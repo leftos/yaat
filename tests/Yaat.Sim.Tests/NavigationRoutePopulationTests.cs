@@ -39,7 +39,7 @@ public class NavigationRoutePopulationTests
             }
             """;
 
-        return ScenarioLoader.Load(scenarioJson, null, new Random(42));
+        return ScenarioLoader.Load(scenarioJson, null, new SerializableRandom(42));
     }
 
     private static string[] RouteFixNames(ScenarioLoadResult result)

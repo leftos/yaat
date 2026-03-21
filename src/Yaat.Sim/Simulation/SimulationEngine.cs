@@ -7,6 +7,7 @@ using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Scenarios;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Simulation;
 
@@ -54,12 +55,123 @@ public sealed class SimulationEngine
         return entries;
     }
 
+    // --- Snapshots ---
+
+    public StateSnapshotDto CaptureSnapshot(int actionIndex)
+    {
+        var scenario = Scenario ?? throw new InvalidOperationException("No scenario loaded.");
+        var aircraft = World.GetSnapshot();
+
+        return new StateSnapshotDto
+        {
+            ElapsedSeconds = scenario.ElapsedSeconds,
+            Rng = World.Rng.GetState(),
+            WeatherJson = World.Weather is not null ? JsonSerializer.Serialize(World.Weather) : null,
+            Aircraft = aircraft.Select(ac => ac.ToSnapshot()).ToList(),
+            Scenario = scenario.ToSnapshot(),
+        };
+    }
+
+    public void RestoreFromSnapshot(StateSnapshotDto snapshot)
+    {
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        World.Clear();
+        World.Rng = new SerializableRandom(snapshot.Rng.S0, snapshot.Rng.S1, snapshot.Rng.S2, snapshot.Rng.S3);
+        World.Weather = snapshot.WeatherJson is not null ? JsonSerializer.Deserialize<WeatherProfile>(snapshot.WeatherJson) : null;
+
+        var scenarioDto = snapshot.Scenario;
+
+        // Resolve ground layout for the primary airport
+        AirportGroundLayout? groundLayout = null;
+        if (scenarioDto.PrimaryAirportId is not null)
+        {
+            groundLayout = _groundData.GetLayout(scenarioDto.PrimaryAirportId);
+            World.GroundLayout = groundLayout;
+        }
+
+        foreach (var acDto in snapshot.Aircraft)
+        {
+            var ac = AircraftState.FromSnapshot(acDto, groundLayout);
+            World.AddAircraft(ac);
+        }
+
+        // Restore scenario state — we need the original scenario JSON from the existing Scenario
+        // (it's not in the snapshot DTO since it's immutable). The caller must ensure Scenario
+        // is pre-populated with the original scenario metadata before calling RestoreFromSnapshot.
+        if (Scenario is not null)
+        {
+            Scenario.ElapsedSeconds = scenarioDto.ElapsedSeconds;
+            Scenario.AutoClearedToLand = scenarioDto.AutoClearedToLand;
+            Scenario.AutoCrossRunway = scenarioDto.AutoCrossRunway;
+            Scenario.ValidateDctFixes = scenarioDto.ValidateDctFixes;
+            Scenario.IsPaused = scenarioDto.IsPaused;
+            Scenario.SimRate = scenarioDto.SimRate;
+            Scenario.AutoAcceptDelay = TimeSpan.FromSeconds(scenarioDto.AutoAcceptDelaySeconds);
+            Scenario.IsStudentTowerPosition = scenarioDto.IsStudentTowerPosition;
+            Scenario.ScenarioAutoDeleteMode = scenarioDto.ScenarioAutoDeleteMode;
+            Scenario.ClientAutoDeleteOverride = scenarioDto.ClientAutoDeleteOverride;
+            Scenario.StudentPosition = scenarioDto.StudentPosition is not null ? TrackOwner.FromSnapshot(scenarioDto.StudentPosition) : null;
+            Scenario.StudentTcp = scenarioDto.StudentTcp is not null ? Tcp.FromSnapshot(scenarioDto.StudentTcp) : null;
+            World.StudentTcp = Scenario.StudentTcp;
+            Scenario.StudentPositionType = scenarioDto.StudentPositionType;
+
+            // Clear and restore queues
+            Scenario.DelayedQueue.Clear();
+            Scenario.TriggerQueue.Clear();
+            Scenario.PresetQueue.Clear();
+            Scenario.DelayedHandoffQueue.Clear();
+
+            if (scenarioDto.TriggerQueue is not null)
+            {
+                foreach (var t in scenarioDto.TriggerQueue)
+                {
+                    Scenario.TriggerQueue.Add(new ScheduledTrigger { Command = t.Command, FireAtSeconds = t.FireAtSeconds });
+                }
+            }
+
+            if (scenarioDto.PresetQueue is not null)
+            {
+                foreach (var p in scenarioDto.PresetQueue)
+                {
+                    Scenario.PresetQueue.Add(
+                        new ScheduledPreset
+                        {
+                            Callsign = p.Callsign,
+                            Command = p.Command,
+                            FireAtSeconds = p.FireAtSeconds,
+                        }
+                    );
+                }
+            }
+
+            if (scenarioDto.DelayedHandoffQueue is not null)
+            {
+                foreach (var h in scenarioDto.DelayedHandoffQueue)
+                {
+                    Scenario.DelayedHandoffQueue.Add(
+                        new DelayedHandoff
+                        {
+                            Callsign = h.Callsign,
+                            Target = TrackOwner.FromSnapshot(h.Target),
+                            FireAtSeconds = h.FireAtSeconds,
+                        }
+                    );
+                }
+            }
+        }
+
+        // Reset engine-level state
+        ConsolidationState.Clear();
+        ConflictAlerts.Conflicts.Clear();
+    }
+
     // --- Scenario loading ---
 
     public List<string> LoadScenario(string json, int rngSeed)
     {
         World.Clear();
-        World.Rng = new Random(rngSeed);
+        World.Rng = new SerializableRandom(rngSeed);
 
         var result = ScenarioLoader.Load(json, _groundData, World.Rng);
 
@@ -217,18 +329,40 @@ public sealed class SimulationEngine
     /// </summary>
     public void ReplayTo(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
     {
+        ReplayRange(0, targetSeconds, actions, actionApplier);
+    }
+
+    /// <summary>
+    /// Replays from <paramref name="startSeconds"/> to <paramref name="targetSeconds"/>,
+    /// applying actions and ticking physics for each second in the range.
+    /// When startSeconds is 0, actions at t=0 are applied first.
+    /// </summary>
+    public void ReplayRange(int startSeconds, int targetSeconds, List<RecordedAction> actions, Action<RecordedAction>? actionApplier = null)
+    {
         actionApplier ??= ApplyRecordedAction;
 
-        // Apply actions at t=0 first (settings, immediate commands)
         int actionCursor = 0;
-        while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= 0)
+
+        if (startSeconds == 0)
         {
-            actionApplier(actions[actionCursor]);
-            actionCursor++;
+            // Apply actions at t=0 first (settings, immediate commands)
+            while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= 0)
+            {
+                actionApplier(actions[actionCursor]);
+                actionCursor++;
+            }
+        }
+        else
+        {
+            // Skip actions before the start time
+            while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= startSeconds)
+            {
+                actionCursor++;
+            }
         }
 
         double subDelta = 1.0 / PhysicsSubTickRate;
-        for (int t = 1; t <= targetSeconds; t++)
+        for (int t = startSeconds + 1; t <= targetSeconds; t++)
         {
             Scenario!.ElapsedSeconds = t;
 
@@ -255,6 +389,71 @@ public sealed class SimulationEngine
                 actionCursor++;
             }
         }
+    }
+
+    public const int SnapshotIntervalSeconds = 5;
+
+    public List<TimedSnapshot> ReplayWithSnapshots(int targetSeconds, List<RecordedAction> actions, Action<RecordedAction> actionApplier)
+    {
+        var snapshots = new List<TimedSnapshot>((targetSeconds / SnapshotIntervalSeconds) + 2);
+
+        // Capture initial state at t=0
+        int actionCursor = 0;
+        while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= 0)
+        {
+            actionApplier(actions[actionCursor]);
+            actionCursor++;
+        }
+
+        snapshots.Add(
+            new TimedSnapshot
+            {
+                ElapsedSeconds = 0,
+                ActionIndex = actionCursor - 1,
+                State = CaptureSnapshot(actionCursor - 1),
+            }
+        );
+
+        double subDelta = 1.0 / PhysicsSubTickRate;
+        for (int t = 1; t <= targetSeconds; t++)
+        {
+            Scenario!.ElapsedSeconds = t;
+
+            TickPrePhysics();
+
+            for (int sub = 0; sub < PhysicsSubTickRate; sub++)
+            {
+                TickPhysics(subDelta);
+            }
+
+            TickPostPhysics();
+            _terminalEntries.Clear();
+
+            if (Scenario!.WeatherTimeline is { } timeline)
+            {
+                World.Weather = timeline.GetWeatherAt(t);
+            }
+
+            while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= t)
+            {
+                actionApplier(actions[actionCursor]);
+                actionCursor++;
+            }
+
+            if ((t % SnapshotIntervalSeconds == 0) || (t == targetSeconds))
+            {
+                snapshots.Add(
+                    new TimedSnapshot
+                    {
+                        ElapsedSeconds = t,
+                        ActionIndex = Math.Max(0, actionCursor - 1),
+                        State = CaptureSnapshot(Math.Max(0, actionCursor - 1)),
+                    }
+                );
+            }
+        }
+
+        return snapshots;
     }
 
     public void Replay(SessionRecording recording, double targetSeconds)
@@ -894,6 +1093,7 @@ public sealed class SimulationEngine
         }
 
         // Skip track commands (server-only: ownership, handoffs, scratchpads, etc.)
+        // For complete snapshots, use ReplayWithSnapshots with the server's action applier.
         if (IsTrackCommand(simpleParsed))
         {
             return;

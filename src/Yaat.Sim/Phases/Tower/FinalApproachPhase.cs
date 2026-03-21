@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -40,6 +41,46 @@ public sealed class FinalApproachPhase : Phase
     public bool SkipInterceptCheck { get; init; }
 
     public override string Name => "FinalApproach";
+
+    public override PhaseDto ToSnapshot() =>
+        new FinalApproachPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            SkipInterceptCheck = SkipInterceptCheck,
+            ThresholdLat = _thresholdLat,
+            ThresholdLon = _thresholdLon,
+            ThresholdElevation = _thresholdElevation,
+            RunwayHeadingDeg = _runwayHeading.Degrees,
+            GsAngleDeg = _gsAngleDeg,
+            GoAroundTriggered = _goAroundTriggered,
+            NoClearanceWarningIssued = _noClearanceWarningIssued,
+            InterceptChecked = _interceptChecked,
+            IsPatternTraffic = _isPatternTraffic,
+            TooHighGoAroundChecked = _tooHighGoAroundChecked,
+            MapDistNm = _mapDistNm,
+        };
+
+    public static FinalApproachPhase FromSnapshot(FinalApproachPhaseDto dto)
+    {
+        var phase = new FinalApproachPhase { SkipInterceptCheck = dto.SkipInterceptCheck };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._thresholdLat = dto.ThresholdLat;
+        phase._thresholdLon = dto.ThresholdLon;
+        phase._thresholdElevation = dto.ThresholdElevation;
+        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._gsAngleDeg = dto.GsAngleDeg;
+        phase._goAroundTriggered = dto.GoAroundTriggered;
+        phase._noClearanceWarningIssued = dto.NoClearanceWarningIssued;
+        phase._interceptChecked = dto.InterceptChecked;
+        phase._isPatternTraffic = dto.IsPatternTraffic;
+        phase._tooHighGoAroundChecked = dto.TooHighGoAroundChecked;
+        phase._mapDistNm = dto.MapDistNm;
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

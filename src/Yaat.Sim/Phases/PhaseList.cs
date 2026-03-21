@@ -1,5 +1,10 @@
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Phases.Pattern;
+using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases;
 
@@ -13,6 +18,24 @@ public sealed class LahsoTarget
     public required double Lon { get; init; }
     public required double DistFromThresholdNm { get; init; }
     public required string CrossingRunwayId { get; init; }
+
+    public LahsoTargetDto ToSnapshot() =>
+        new()
+        {
+            Lat = Lat,
+            Lon = Lon,
+            DistFromThresholdNm = DistFromThresholdNm,
+            CrossingRunwayId = CrossingRunwayId,
+        };
+
+    public static LahsoTarget FromSnapshot(LahsoTargetDto dto) =>
+        new()
+        {
+            Lat = dto.Lat,
+            Lon = dto.Lon,
+            DistFromThresholdNm = dto.DistFromThresholdNm,
+            CrossingRunwayId = dto.CrossingRunwayId,
+        };
 }
 
 /// <summary>
@@ -42,6 +65,28 @@ public sealed class DepartureClearanceInfo
     /// Set by the dispatcher so TaxiingPhase doesn't need NavigationDatabase.
     /// </summary>
     public RunwayInfo? PatternRunway { get; init; }
+
+    public DepartureClearanceDto ToSnapshot() =>
+        new()
+        {
+            Type = (int)Type,
+            Departure = Departure.ToSnapshot(),
+            AssignedAltitude = AssignedAltitude,
+            DepartureRoute = DepartureRoute?.Select(t => t.ToSnapshot()).ToList(),
+            DepartureSidId = DepartureSidId,
+            PatternRunway = PatternRunway?.ToSnapshot(),
+        };
+
+    public static DepartureClearanceInfo FromSnapshot(DepartureClearanceDto dto) =>
+        new()
+        {
+            Type = (ClearanceType)dto.Type,
+            Departure = DepartureInstruction.FromSnapshot(dto.Departure),
+            AssignedAltitude = dto.AssignedAltitude,
+            DepartureRoute = dto.DepartureRoute?.Select(NavigationTarget.FromSnapshot).ToList(),
+            DepartureSidId = dto.DepartureSidId,
+            PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
+        };
 }
 
 public sealed class PhaseList
@@ -229,4 +274,96 @@ public sealed class PhaseList
 
         CurrentIndex = Phases.Count;
     }
+
+    public static PhaseList FromSnapshot(PhaseListDto dto, AirportGroundLayout? groundLayout)
+    {
+        var list = new PhaseList
+        {
+            AssignedRunway = dto.AssignedRunway is not null ? RunwayInfo.FromSnapshot(dto.AssignedRunway) : null,
+            TaxiRoute = dto.TaxiRoute is not null ? Data.Airport.TaxiRoute.FromSnapshot(dto.TaxiRoute, groundLayout) : null,
+            DepartureClearance = dto.DepartureClearance is not null ? DepartureClearanceInfo.FromSnapshot(dto.DepartureClearance) : null,
+            LandingClearance = dto.LandingClearance.HasValue ? (ClearanceType)dto.LandingClearance.Value : null,
+            ClearedRunwayId = dto.ClearedRunwayId,
+            TrafficDirection = dto.TrafficDirection.HasValue ? (PatternDirection)dto.TrafficDirection.Value : null,
+            PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
+            ActiveApproach = dto.ActiveApproach is not null ? ApproachClearance.FromSnapshot(dto.ActiveApproach) : null,
+            LahsoHoldShort = dto.LahsoHoldShort is not null ? LahsoTarget.FromSnapshot(dto.LahsoHoldShort) : null,
+        };
+
+        foreach (var phaseDto in dto.Phases)
+        {
+            var phase = RestorePhase(phaseDto, groundLayout);
+            list.Add(phase);
+        }
+
+        // Advance CurrentIndex to match — we can't set it directly (private set),
+        // so we use the fact that phases are added sequentially and CurrentIndex starts at 0.
+        // We need to set it via reflection-free approach: just track the index.
+        while (list.CurrentIndex < dto.CurrentIndex && list.CurrentIndex < list.Phases.Count)
+        {
+            list.CurrentIndex++;
+        }
+
+        return list;
+    }
+
+    private static Phase RestorePhase(PhaseDto dto, AirportGroundLayout? groundLayout) =>
+        dto switch
+        {
+            HoldingShortPhaseDto d => HoldingShortPhase.FromSnapshot(d),
+            CrossingRunwayPhaseDto d => CrossingRunwayPhase.FromSnapshot(d),
+            AirTaxiPhaseDto d => AirTaxiPhase.FromSnapshot(d),
+            HoldingInPositionPhaseDto d => HoldingInPositionPhase.FromSnapshot(d),
+            HoldingAfterPushbackPhaseDto d => HoldingAfterPushbackPhase.FromSnapshot(d),
+            HoldingAfterExitPhaseDto d => HoldingAfterExitPhase.FromSnapshot(d),
+            AtParkingPhaseDto d => AtParkingPhase.FromSnapshot(d),
+            TaxiingPhaseDto d => TaxiingPhase.FromSnapshot(d),
+            FollowingPhaseDto d => FollowingPhase.FromSnapshot(d),
+            PushbackPhaseDto d => PushbackPhase.FromSnapshot(d),
+            PushbackToSpotPhaseDto d => PushbackToSpotPhase.FromSnapshot(d, groundLayout)!,
+            RunwayExitPhaseDto d => RunwayExitPhase.FromSnapshot(d, groundLayout),
+            HelicopterLandingPhaseDto d => HelicopterLandingPhase.FromSnapshot(d),
+            GoAroundPhaseDto d => GoAroundPhase.FromSnapshot(d),
+            HelicopterTakeoffPhaseDto d => HelicopterTakeoffPhase.FromSnapshot(d),
+            LowApproachPhaseDto d => LowApproachPhase.FromSnapshot(d),
+            RunwayHoldingPhaseDto d => RunwayHoldingPhase.FromSnapshot(d),
+            MakeTurnPhaseDto d => MakeTurnPhase.FromSnapshot(d),
+            VfrHoldPhaseDto d => VfrHoldPhase.FromSnapshot(d),
+            STurnPhaseDto d => STurnPhase.FromSnapshot(d),
+            StopAndGoPhaseDto d => StopAndGoPhase.FromSnapshot(d),
+            TouchAndGoPhaseDto d => TouchAndGoPhase.FromSnapshot(d),
+            TakeoffPhaseDto d => TakeoffPhase.FromSnapshot(d),
+            InitialClimbPhaseDto d => InitialClimbPhase.FromSnapshot(d),
+            LineUpPhaseDto d => LineUpPhase.FromSnapshot(d),
+            LinedUpAndWaitingPhaseDto d => LinedUpAndWaitingPhase.FromSnapshot(d),
+            FinalApproachPhaseDto d => FinalApproachPhase.FromSnapshot(d),
+            LandingPhaseDto d => LandingPhase.FromSnapshot(d, groundLayout),
+            MidfieldCrossingPhaseDto d => MidfieldCrossingPhase.FromSnapshot(d),
+            PatternEntryPhaseDto d => PatternEntryPhase.FromSnapshot(d),
+            BasePhaseDto d => BasePhase.FromSnapshot(d),
+            CrosswindPhaseDto d => CrosswindPhase.FromSnapshot(d),
+            DownwindPhaseDto d => DownwindPhase.FromSnapshot(d),
+            UpwindPhaseDto d => UpwindPhase.FromSnapshot(d),
+            HoldingPatternPhaseDto d => HoldingPatternPhase.FromSnapshot(d),
+            ApproachNavigationPhaseDto d => ApproachNavigationPhase.FromSnapshot(d),
+            InterceptCoursePhaseDto d => InterceptCoursePhase.FromSnapshot(d),
+            _ => throw new InvalidOperationException($"Unknown phase DTO type: {dto.GetType().Name}"),
+        };
+
+    public PhaseListDto ToSnapshot() =>
+        new()
+        {
+            AssignedRunway = AssignedRunway?.ToSnapshot(),
+            TaxiRoute = TaxiRoute?.ToSnapshot(),
+            DepartureClearance = DepartureClearance?.ToSnapshot(),
+            LandingClearance = LandingClearance.HasValue ? (int)LandingClearance.Value : null,
+            ClearedRunwayId = ClearedRunwayId,
+            TrafficDirection = TrafficDirection.HasValue ? (int)TrafficDirection.Value : null,
+            PatternRunway = PatternRunway?.ToSnapshot(),
+            RequestedExit = RequestedExit?.Side is not null ? (int)RequestedExit.Side.Value : null,
+            ActiveApproach = ActiveApproach?.ToSnapshot(),
+            LahsoHoldShort = LahsoHoldShort?.ToSnapshot(),
+            CurrentIndex = CurrentIndex,
+            Phases = Phases.Select(p => p.ToSnapshot()).ToList(),
+        };
 }

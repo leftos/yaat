@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -14,6 +15,27 @@ public sealed class HelicopterLandingPhase : Phase
     private bool _touchedDown;
 
     public override string Name => "Landing-H";
+
+    public override PhaseDto ToSnapshot() =>
+        new HelicopterLandingPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            FieldElevation = _fieldElevation,
+            TouchedDown = _touchedDown,
+        };
+
+    public static HelicopterLandingPhase FromSnapshot(HelicopterLandingPhaseDto dto)
+    {
+        var phase = new HelicopterLandingPhase();
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._fieldElevation = dto.FieldElevation;
+        phase._touchedDown = dto.TouchedDown;
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

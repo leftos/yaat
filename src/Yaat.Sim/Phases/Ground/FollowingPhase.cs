@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -136,6 +137,26 @@ public sealed class FollowingPhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new FollowingPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = SnapshotRequirements(),
+            TargetCallsign = _targetCallsign,
+            TimeSinceLastLog = _timeSinceLastLog,
+        };
+
+    public static FollowingPhase FromSnapshot(FollowingPhaseDto dto)
+    {
+        var phase = new FollowingPhase(dto.TargetCallsign);
+        phase._timeSinceLastLog = dto.TimeSinceLastLog;
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Approach;
 
@@ -406,6 +407,54 @@ public sealed class HoldingPatternPhase : Phase
             CanonicalCommandType.Mach => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new HoldingPatternPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            FixName = FixName,
+            FixLat = FixLat,
+            FixLon = FixLon,
+            InboundCourse = InboundCourse,
+            LegLength = LegLength,
+            IsMinuteBased = IsMinuteBased,
+            Direction = (int)Direction,
+            Entry = Entry is { } e ? (int)e : null,
+            MaxCircuits = MaxCircuits,
+            State = (int)_state,
+            ResolvedEntry = (int)_entry,
+            OutboundHeadingDeg = _outboundHeading.Degrees,
+            CorrectedOutboundHeadingDeg = _correctedOutboundHeading.Degrees,
+            LegTimerSeconds = _legTimerSeconds,
+            CircuitsCompleted = _circuitsCompleted,
+        };
+
+    public static HoldingPatternPhase FromSnapshot(HoldingPatternPhaseDto dto)
+    {
+        var phase = new HoldingPatternPhase
+        {
+            FixName = dto.FixName,
+            FixLat = dto.FixLat,
+            FixLon = dto.FixLon,
+            InboundCourse = dto.InboundCourse,
+            LegLength = dto.LegLength,
+            IsMinuteBased = dto.IsMinuteBased,
+            Direction = (TurnDirection)dto.Direction,
+            Entry = dto.Entry is { } entry ? (HoldingEntry)entry : null,
+            MaxCircuits = dto.MaxCircuits,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase._state = (HoldState)dto.State;
+        phase._entry = (HoldingEntry)dto.ResolvedEntry;
+        phase._outboundHeading = new TrueHeading(dto.OutboundHeadingDeg);
+        phase._correctedOutboundHeading = new TrueHeading(dto.CorrectedOutboundHeadingDeg);
+        phase._legTimerSeconds = dto.LegTimerSeconds;
+        phase._circuitsCompleted = dto.CircuitsCompleted;
+        return phase;
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

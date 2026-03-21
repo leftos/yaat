@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
 
@@ -100,6 +101,34 @@ public sealed class UpwindPhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new UpwindPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Waypoints = Waypoints?.ToSnapshot(),
+            IsExtended = IsExtended,
+            TargetLat = _targetLat,
+            TargetLon = _targetLon,
+            UpwindHeadingDeg = _upwindHeading.Degrees,
+        };
+
+    public static UpwindPhase FromSnapshot(UpwindPhaseDto dto)
+    {
+        var phase = new UpwindPhase
+        {
+            Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
+            IsExtended = dto.IsExtended,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase._targetLat = dto.TargetLat;
+        phase._targetLon = dto.TargetLon;
+        phase._upwindHeading = new TrueHeading(dto.UpwindHeadingDeg);
+        return phase;
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

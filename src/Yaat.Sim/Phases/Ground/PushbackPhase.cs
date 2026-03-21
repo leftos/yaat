@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -304,5 +305,42 @@ public sealed class PushbackPhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new PushbackPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = SnapshotRequirements(),
+            TargetHeading = TargetHeading,
+            TargetLatitude = TargetLatitude,
+            TargetLongitude = TargetLongitude,
+            StartLat = _startLat,
+            StartLon = _startLon,
+            TotalDistToTarget = _totalDistToTarget,
+            ReachedTarget = _reachedTarget,
+            IsAligned = _isAligned,
+            TimeSinceLastLog = _timeSinceLastLog,
+        };
+
+    public static PushbackPhase FromSnapshot(PushbackPhaseDto dto)
+    {
+        var phase = new PushbackPhase
+        {
+            TargetHeading = dto.TargetHeading,
+            TargetLatitude = dto.TargetLatitude,
+            TargetLongitude = dto.TargetLongitude,
+        };
+        phase._startLat = dto.StartLat;
+        phase._startLon = dto.StartLon;
+        phase._totalDistToTarget = dto.TotalDistToTarget;
+        phase._reachedTarget = dto.ReachedTarget;
+        phase._isAligned = dto.IsAligned;
+        phase._timeSinceLastLog = dto.TimeSinceLastLog;
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
     }
 }

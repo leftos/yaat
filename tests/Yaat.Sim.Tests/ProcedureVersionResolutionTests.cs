@@ -195,7 +195,7 @@ public class ProcedureVersionResolutionTests
             }
             """;
 
-        var result = ScenarioLoader.Load(scenarioJson, null, new Random(42));
+        var result = ScenarioLoader.Load(scenarioJson, null, new SerializableRandom(42));
 
         // Should have loaded the aircraft
         Assert.Single(result.ImmediateAircraft);

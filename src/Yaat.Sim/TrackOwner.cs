@@ -1,3 +1,5 @@
+using Yaat.Sim.Simulation.Snapshots;
+
 namespace Yaat.Sim;
 
 public record TrackOwner(string Callsign, string? FacilityId, int? Subset, string? SectorId, TrackOwnerType OwnerType)
@@ -13,4 +15,17 @@ public record TrackOwner(string Callsign, string? FacilityId, int? Subset, strin
         new(callsign, facilityId, null, sectorId, TrackOwnerType.Eram);
 
     public static TrackOwner CreateNonNas(string callsign) => new(callsign, null, null, null, TrackOwnerType.Other);
+
+    public TrackOwnerDto ToSnapshot() =>
+        new()
+        {
+            Callsign = Callsign,
+            FacilityId = FacilityId,
+            Subset = Subset,
+            SectorId = SectorId,
+            OwnerType = (int)OwnerType,
+        };
+
+    public static TrackOwner FromSnapshot(TrackOwnerDto dto) =>
+        new(dto.Callsign, dto.FacilityId, dto.Subset, dto.SectorId, (TrackOwnerType)dto.OwnerType);
 }

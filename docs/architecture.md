@@ -115,9 +115,11 @@ FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan�
                                # Expedite: IsExpediting → 1.5x climb/descent rate; Mach hold: TargetMach → recompute IAS each tick
 GeoMath.cs                     # Static: DistanceNm (haversine), BearingTo, TurnHeadingToward, GenerateArcPoints (RF/AF)
 SimLog.cs                      # Static logger factory for Yaat.Sim; Initialize(ILoggerFactory) at startup
+SerializableRandom.cs          # Xoshiro256** PRNG with serializable state (RngState record); drop-in Random replacement
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
 CommandQueue.cs                # CommandBlock (trigger + closure + TrackedCommands), BlockTrigger
+                               # SourceCommandText on CommandBlock/DeferredDispatch for snapshot restore
 AircraftCategory.cs            # Enum + AircraftCategorization (static Init from AircraftSpecs.json)
                                # CategoryPerformance: fallback aviation constants (taxi, pattern geometry, flare, etc.)
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
@@ -275,6 +277,31 @@ ScenarioValidator.cs           # Validates preset commands via CommandParser.Par
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult
 AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator)
 SpawnRequest.cs                # Spawn descriptor
+
+# Simulation/
+SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayTo, ReplayRange, ReplayWithSnapshots)
+                               # CaptureSnapshot/RestoreFromSnapshot for v2 recording state snapshots
+SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, LoadedSnapshots
+SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; Version, Snapshots fields
+RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange
+RecordingCompression.cs        # Brotli compress/decompress; auto-detects Brotli, gzip, or plain JSON on read
+ScenarioQueues.cs              # DelayedSpawn, ScheduledTrigger, ScheduledPreset, GeneratorState, DelayedHandoff
+ConsolidationState.cs          # Thread-safe manual consolidation overrides
+
+# Simulation/Snapshots/
+StateSnapshotDto.cs            # Top-level snapshot DTO + TimedSnapshot (elapsed + action index + state)
+AircraftSnapshotDto.cs         # Aircraft state DTO (~100 fields) + nested DTOs (TrackOwner, Tcp, Pointout, SharedState, etc.)
+ControlTargetsDto.cs           # Control targets + NavigationTarget + altitude/speed restriction DTOs
+CommandQueueDto.cs             # CommandBlock/TrackedCommand/BlockTrigger/DeferredDispatch DTOs
+PhaseSnapshotDto.cs            # Polymorphic PhaseDto with [JsonDerivedType] for all ~35 Phase subclasses
+                               # RunwayInfoDto, ApproachClearanceDto, DepartureClearanceDto, PatternWaypointsDto, etc.
+ScenarioSnapshotDto.cs         # SimScenarioState DTO: queues, generators, settings, coordination channels
+ServerSnapshotDto.cs           # Server-side state: consolidation overrides, conflict alerts, beacon code pool
+TaxiRouteDto.cs                # Taxi route segments + hold-short points (re-resolved from ground layout on restore)
+SnapshotSchemaMigrator.cs      # Sequential migration chain for snapshot DTO versioning; SnapshotSchemaException
+
+# Testing/
+TestVnasData.cs                # Shared test data loader: NavData, CIFP, AircraftSpecs, AircraftCwt, FaaAcd, AircraftProfiles
 
 Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
 ```

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -17,6 +18,31 @@ public sealed class HelicopterTakeoffPhase : Phase
     private DepartureInstruction? _departure;
 
     public override string Name => "Takeoff-H";
+
+    public override PhaseDto ToSnapshot() =>
+        new HelicopterTakeoffPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            FieldElevation = _fieldElevation,
+            RunwayHeadingDeg = _runwayHeading.Degrees,
+            Departure = _departure?.ToSnapshot(),
+        };
+
+    public static HelicopterTakeoffPhase FromSnapshot(HelicopterTakeoffPhaseDto dto)
+    {
+        DepartureInstruction? departure = dto.Departure is not null ? DepartureInstruction.FromSnapshot(dto.Departure) : null;
+        var phase = new HelicopterTakeoffPhase();
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._fieldElevation = dto.FieldElevation;
+        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._departure = departure;
+        phase.Departure = departure;
+        return phase;
+    }
 
     /// <summary>Departure instruction from CTO command.</summary>
     public DepartureInstruction? Departure { get; private set; }

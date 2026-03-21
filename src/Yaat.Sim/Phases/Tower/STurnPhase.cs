@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -21,6 +22,31 @@ public sealed class STurnPhase : Phase
     public int Count { get; init; } = 2;
 
     public override string Name => "S-Turns";
+
+    public override PhaseDto ToSnapshot() =>
+        new STurnPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            InitialDirection = (int)InitialDirection,
+            Count = Count,
+            FinalHeadingDeg = _finalHeading.Degrees,
+            TurnsCompleted = _turnsCompleted,
+            TurningToFinal = _turningToFinal,
+        };
+
+    public static STurnPhase FromSnapshot(STurnPhaseDto dto)
+    {
+        var phase = new STurnPhase { InitialDirection = (TurnDirection)dto.InitialDirection, Count = dto.Count };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._finalHeading = new TrueHeading(dto.FinalHeadingDeg);
+        phase._turnsCompleted = dto.TurnsCompleted;
+        phase._turningToFinal = dto.TurningToFinal;
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

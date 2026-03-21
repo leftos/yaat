@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -36,6 +37,53 @@ public sealed class LandingPhase : Phase
     public bool StoppedForLahso { get; private set; }
 
     public override string Name => "Landing";
+
+    public override PhaseDto ToSnapshot() =>
+        new LandingPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            FieldElevation = _fieldElevation,
+            RunwayHeadingDeg = _runwayHeading.Degrees,
+            ThresholdLat = _thresholdLat,
+            ThresholdLon = _thresholdLon,
+            TouchedDown = _touchedDown,
+            CanGoAround = _canGoAround,
+            LahsoHoldShortDistNm = _lahsoHoldShortDistNm,
+            HasLahso = _hasLahso,
+            ResolvedExitNodeId = _resolvedExitNode?.Id,
+            ExitTurnOffSpeed = _exitTurnOffSpeed,
+            LastResolvedPreference = (int?)_lastResolvedPreference?.Side,
+            StoppedForLahso = StoppedForLahso,
+        };
+
+    public static LandingPhase FromSnapshot(LandingPhaseDto dto, AirportGroundLayout? groundLayout)
+    {
+        var phase = new LandingPhase();
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._fieldElevation = dto.FieldElevation;
+        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._thresholdLat = dto.ThresholdLat;
+        phase._thresholdLon = dto.ThresholdLon;
+        phase._touchedDown = dto.TouchedDown;
+        phase._canGoAround = dto.CanGoAround;
+        phase._lahsoHoldShortDistNm = dto.LahsoHoldShortDistNm;
+        phase._hasLahso = dto.HasLahso;
+        phase._exitTurnOffSpeed = dto.ExitTurnOffSpeed;
+        phase.StoppedForLahso = dto.StoppedForLahso;
+        if (dto.LastResolvedPreference.HasValue)
+        {
+            phase._lastResolvedPreference = new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value };
+        }
+        if (dto.ResolvedExitNodeId.HasValue && groundLayout is not null)
+        {
+            groundLayout.Nodes.TryGetValue(dto.ResolvedExitNodeId.Value, out phase._resolvedExitNode);
+        }
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

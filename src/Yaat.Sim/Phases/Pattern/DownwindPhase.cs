@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
 
@@ -155,6 +156,42 @@ public sealed class DownwindPhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new DownwindPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Waypoints = Waypoints?.ToSnapshot(),
+            IsExtended = IsExtended,
+            BaseTurnAlongTrack = _baseTurnAlongTrack,
+            AbeamAlongTrack = _abeamAlongTrack,
+            ThresholdLat = _thresholdLat,
+            ThresholdLon = _thresholdLon,
+            DownwindHeadingDeg = _downwindHeading.Degrees,
+            PastAbeam = _pastAbeam,
+            AltitudeFloor = _altitudeFloor,
+        };
+
+    public static DownwindPhase FromSnapshot(DownwindPhaseDto dto)
+    {
+        var phase = new DownwindPhase
+        {
+            Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
+            IsExtended = dto.IsExtended,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase._baseTurnAlongTrack = dto.BaseTurnAlongTrack;
+        phase._abeamAlongTrack = dto.AbeamAlongTrack;
+        phase._thresholdLat = dto.ThresholdLat;
+        phase._thresholdLon = dto.ThresholdLon;
+        phase._downwindHeading = new TrueHeading(dto.DownwindHeadingDeg);
+        phase._pastAbeam = dto.PastAbeam;
+        phase._altitudeFloor = dto.AltitudeFloor;
+        return phase;
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

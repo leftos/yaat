@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Approach;
 
@@ -357,6 +358,38 @@ public sealed partial class InterceptCoursePhase : Phase
             // Everything else (heading, direct-to, etc.) takes the aircraft off the approach
             _ => CommandAcceptance.ClearsPhase,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new InterceptCoursePhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            FinalApproachCourseDeg = FinalApproachCourse.Degrees,
+            ThresholdLat = ThresholdLat,
+            ThresholdLon = ThresholdLon,
+            ApproachId = ApproachId,
+            PreviousSignedCrossTrack = _previousSignedCrossTrack,
+            RunwayHeadingCacheDeg = _runwayHeadingCache?.Degrees,
+            ApproachSpeedSet = _approachSpeedSet,
+        };
+
+    public static InterceptCoursePhase FromSnapshot(InterceptCoursePhaseDto dto)
+    {
+        var phase = new InterceptCoursePhase
+        {
+            FinalApproachCourse = new TrueHeading(dto.FinalApproachCourseDeg),
+            ThresholdLat = dto.ThresholdLat,
+            ThresholdLon = dto.ThresholdLon,
+            ApproachId = dto.ApproachId,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase._previousSignedCrossTrack = dto.PreviousSignedCrossTrack;
+        phase._runwayHeadingCache = dto.RunwayHeadingCacheDeg is { } deg ? new TrueHeading(deg) : null;
+        phase._approachSpeedSet = dto.ApproachSpeedSet;
+        return phase;
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

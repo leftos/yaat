@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -41,6 +42,44 @@ public sealed class LineUpPhase : Phase
     }
 
     public override string Name => "LiningUp";
+
+    public override PhaseDto ToSnapshot() =>
+        new LineUpPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            HoldShortNodeId = _holdShortNodeId,
+            RunwayHeadingDeg = _runwayHeading.Degrees,
+            Initialized = _initialized,
+            TimeSinceLastLog = _timeSinceLastLog,
+            Stage1Lat = _stage1Lat,
+            Stage1Lon = _stage1Lon,
+            HasStage1 = _hasStage1,
+            Stage1Complete = _stage1Complete,
+            CenterlineLat = _centerlineLat,
+            CenterlineLon = _centerlineLon,
+            AligningOnly = _aligningOnly,
+        };
+
+    public static LineUpPhase FromSnapshot(LineUpPhaseDto dto)
+    {
+        var phase = new LineUpPhase(dto.HoldShortNodeId);
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._initialized = dto.Initialized;
+        phase._timeSinceLastLog = dto.TimeSinceLastLog;
+        phase._stage1Lat = dto.Stage1Lat;
+        phase._stage1Lon = dto.Stage1Lon;
+        phase._hasStage1 = dto.HasStage1;
+        phase._stage1Complete = dto.Stage1Complete;
+        phase._centerlineLat = dto.CenterlineLat;
+        phase._centerlineLon = dto.CenterlineLon;
+        phase._aligningOnly = dto.AligningOnly;
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

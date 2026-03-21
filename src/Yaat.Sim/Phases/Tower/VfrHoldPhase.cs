@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -44,6 +45,40 @@ public sealed class VfrHoldPhase : Phase
                 _ => "HPP",
             };
         }
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new VfrHoldPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            FixName = FixName,
+            FixLat = FixLat,
+            FixLon = FixLon,
+            OrbitDirection = OrbitDirection.HasValue ? (int)OrbitDirection.Value : null,
+            AtFix = _atFix,
+            CumulativeTurn = _cumulativeTurn,
+            LastHeadingDeg = _lastHeading.Degrees,
+        };
+
+    public static VfrHoldPhase FromSnapshot(VfrHoldPhaseDto dto)
+    {
+        TurnDirection? orbitDirection = dto.OrbitDirection.HasValue ? (TurnDirection)dto.OrbitDirection.Value : null;
+        var phase = new VfrHoldPhase
+        {
+            FixName = dto.FixName,
+            FixLat = dto.FixLat,
+            FixLon = dto.FixLon,
+            OrbitDirection = orbitDirection,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._atFix = dto.AtFix;
+        phase._cumulativeTurn = dto.CumulativeTurn;
+        phase._lastHeading = new TrueHeading(dto.LastHeadingDeg);
+        return phase;
     }
 
     public override void OnStart(PhaseContext ctx)

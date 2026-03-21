@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -84,5 +85,31 @@ public sealed class HoldingShortPhase : Phase
     protected override List<ClearanceRequirement> CreateRequirements()
     {
         return [new ClearanceRequirement { Type = ClearanceType.RunwayCrossing }];
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new HoldingShortPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = SnapshotRequirements(),
+            HoldShortNodeId = _holdShort.NodeId,
+            RunwayId = _holdShort.TargetName ?? string.Empty,
+        };
+
+    public static HoldingShortPhase FromSnapshot(HoldingShortPhaseDto dto)
+    {
+        var holdShort = new HoldShortPoint
+        {
+            NodeId = dto.HoldShortNodeId,
+            Reason = HoldShortReason.RunwayCrossing,
+            TargetName = string.IsNullOrEmpty(dto.RunwayId) ? null : dto.RunwayId,
+        };
+
+        var phase = new HoldingShortPhase(holdShort);
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
     }
 }

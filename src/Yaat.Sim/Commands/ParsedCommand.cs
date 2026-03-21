@@ -1,4 +1,5 @@
 using Yaat.Sim.Phases;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Commands;
 
@@ -123,30 +124,82 @@ public record SayPositionCommand : ParsedCommand;
 public record UnsupportedCommand(string RawText) : ParsedCommand;
 
 // Departure instruction hierarchy for CTO commands
-public abstract record DepartureInstruction;
+public abstract record DepartureInstruction
+{
+    public abstract DepartureInstructionDto ToSnapshot();
+
+    public static DepartureInstruction FromSnapshot(DepartureInstructionDto dto) =>
+        dto switch
+        {
+            RunwayHeadingDepartureDto => new RunwayHeadingDeparture(),
+            RelativeTurnDepartureDto rt => new RelativeTurnDeparture(rt.Degrees, (TurnDirection)rt.Direction),
+            FlyHeadingDepartureDto fh => new FlyHeadingDeparture(
+                new MagneticHeading(fh.MagneticHeadingDeg),
+                fh.Direction.HasValue ? (TurnDirection)fh.Direction.Value : null
+            ),
+            OnCourseDepartureDto => new OnCourseDeparture(),
+            DirectFixDepartureDto df => new DirectFixDeparture(
+                df.FixName,
+                df.Lat,
+                df.Lon,
+                df.Direction.HasValue ? (TurnDirection)df.Direction.Value : null
+            ),
+            DefaultDepartureDto => new DefaultDeparture(),
+            _ => new DefaultDeparture(),
+        };
+}
 
 /// <summary>VFR: fly runway heading. IFR: navigate to first route fix.</summary>
-public record DefaultDeparture : DepartureInstruction;
+public record DefaultDeparture : DepartureInstruction
+{
+    public override DepartureInstructionDto ToSnapshot() => new DefaultDepartureDto();
+}
 
 /// <summary>Fly runway heading (explicit instruction).</summary>
-public record RunwayHeadingDeparture : DepartureInstruction;
+public record RunwayHeadingDeparture : DepartureInstruction
+{
+    public override DepartureInstructionDto ToSnapshot() => new RunwayHeadingDepartureDto();
+}
 
 /// <summary>Turn a relative number of degrees after takeoff (e.g., crosswind = 90°).</summary>
-public record RelativeTurnDeparture(int Degrees, TurnDirection Direction) : DepartureInstruction;
+public record RelativeTurnDeparture(int Degrees, TurnDirection Direction) : DepartureInstruction
+{
+    public override DepartureInstructionDto ToSnapshot() => new RelativeTurnDepartureDto { Degrees = Degrees, Direction = (int)Direction };
+}
 
 /// <summary>Fly a specific heading after takeoff, with optional turn direction.</summary>
-public record FlyHeadingDeparture(MagneticHeading MagneticHeading, TurnDirection? Direction) : DepartureInstruction;
+public record FlyHeadingDeparture(MagneticHeading MagneticHeading, TurnDirection? Direction) : DepartureInstruction
+{
+    public override DepartureInstructionDto ToSnapshot() =>
+        new FlyHeadingDepartureDto { MagneticHeadingDeg = MagneticHeading.Degrees, Direction = Direction.HasValue ? (int)Direction.Value : null };
+}
 
 /// <summary>On course: fly direct to destination airport.</summary>
-public record OnCourseDeparture : DepartureInstruction;
+public record OnCourseDeparture : DepartureInstruction
+{
+    public override DepartureInstructionDto ToSnapshot() => new OnCourseDepartureDto();
+}
 
 /// <summary>Direct to a named fix after takeoff, with optional turn direction preference.</summary>
-public record DirectFixDeparture(string FixName, double Lat, double Lon, TurnDirection? Direction) : DepartureInstruction;
+public record DirectFixDeparture(string FixName, double Lat, double Lon, TurnDirection? Direction) : DepartureInstruction
+{
+    public override DepartureInstructionDto ToSnapshot() =>
+        new DirectFixDepartureDto
+        {
+            FixName = FixName,
+            Lat = Lat,
+            Lon = Lon,
+            Direction = Direction.HasValue ? (int)Direction.Value : null,
+        };
+}
 
 /// <summary>Closed traffic: re-enter the pattern after takeoff.</summary>
 /// <param name="Direction">Left or right traffic pattern.</param>
 /// <param name="RunwayId">Optional runway for the pattern (cross-runway ops). When null, uses the takeoff runway.</param>
-public record ClosedTrafficDeparture(PatternDirection Direction, string? RunwayId = null) : DepartureInstruction;
+public record ClosedTrafficDeparture(PatternDirection Direction, string? RunwayId = null) : DepartureInstruction
+{
+    public override DepartureInstructionDto ToSnapshot() => new DefaultDepartureDto();
+}
 
 // Tower commands
 public record LineUpAndWaitCommand : ParsedCommand;
@@ -303,7 +356,14 @@ public record WaitCommand(double Seconds) : ParsedCommand;
 
 public record WaitDistanceCommand(double DistanceNm) : ParsedCommand;
 
-public record CompoundCommand(List<ParsedBlock> Blocks);
+public record CompoundCommand(List<ParsedBlock> Blocks)
+{
+    /// <summary>
+    /// Original canonical command text that produced this compound command.
+    /// Set by the parser or caller for snapshot serialization of CommandQueue.
+    /// </summary>
+    public string? SourceText { get; init; }
+}
 
 public record ParsedBlock(BlockCondition? Condition, List<ParsedCommand> Commands);
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -20,6 +21,49 @@ public sealed class InitialClimbPhase : Phase
     private double _selfClearAltitude;
 
     public override string Name => "InitialClimb";
+
+    public override PhaseDto ToSnapshot() =>
+        new InitialClimbPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Departure = Departure?.ToSnapshot(),
+            AssignedAltitude = AssignedAltitude,
+            DepartureRoute = DepartureRoute is { Count: > 0 } ? DepartureRoute.Select(t => t.ToSnapshot()).ToList() : null,
+            IsVfr = IsVfr,
+            CruiseAltitude = CruiseAltitude,
+            DepartureSidId = DepartureSidId,
+            FieldElevation = _fieldElevation,
+            TargetAltitude = _targetAltitude,
+            DepartureHeadingDeg = _departureHeading?.Degrees,
+            PhaseCompletionAltitude = _phaseCompletionAltitude,
+            SelfClearAltitude = _selfClearAltitude,
+        };
+
+    public static InitialClimbPhase FromSnapshot(InitialClimbPhaseDto dto)
+    {
+        DepartureInstruction? departure = dto.Departure is not null ? DepartureInstruction.FromSnapshot(dto.Departure) : null;
+        List<NavigationTarget>? departureRoute = dto.DepartureRoute?.Select(NavigationTarget.FromSnapshot).ToList();
+        var phase = new InitialClimbPhase
+        {
+            Departure = departure,
+            AssignedAltitude = dto.AssignedAltitude,
+            DepartureRoute = departureRoute,
+            IsVfr = dto.IsVfr,
+            CruiseAltitude = dto.CruiseAltitude,
+            DepartureSidId = dto.DepartureSidId,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._fieldElevation = dto.FieldElevation;
+        phase._targetAltitude = dto.TargetAltitude;
+        phase._departureHeading = dto.DepartureHeadingDeg.HasValue ? new TrueHeading(dto.DepartureHeadingDeg.Value) : null;
+        phase._phaseCompletionAltitude = dto.PhaseCompletionAltitude;
+        phase._selfClearAltitude = dto.SelfClearAltitude;
+        return phase;
+    }
 
     /// <summary>Departure instruction, set by dispatcher.</summary>
     public DepartureInstruction? Departure { get; init; }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
 
@@ -124,6 +125,36 @@ public sealed class BasePhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new BasePhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Waypoints = Waypoints?.ToSnapshot(),
+            FinalDistanceNm = FinalDistanceNm,
+            IsExtended = IsExtended,
+            ThresholdLat = _thresholdLat,
+            ThresholdLon = _thresholdLon,
+            FinalHeadingDeg = _finalHeading.Degrees,
+        };
+
+    public static BasePhase FromSnapshot(BasePhaseDto dto)
+    {
+        var phase = new BasePhase
+        {
+            Waypoints = dto.Waypoints is not null ? PatternWaypoints.FromSnapshot(dto.Waypoints) : null,
+            FinalDistanceNm = dto.FinalDistanceNm,
+            IsExtended = dto.IsExtended,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase._thresholdLat = dto.ThresholdLat;
+        phase._thresholdLon = dto.ThresholdLon;
+        phase._finalHeading = new TrueHeading(dto.FinalHeadingDeg);
+        return phase;
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

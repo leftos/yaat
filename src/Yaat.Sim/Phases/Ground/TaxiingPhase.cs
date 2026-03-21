@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -199,6 +200,67 @@ public sealed class TaxiingPhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };
+    }
+
+    public override PhaseDto ToSnapshot()
+    {
+        List<SpeedConstraintDto>? constraints = null;
+        if (_speedConstraints.Count > 0)
+        {
+            constraints = new List<SpeedConstraintDto>(_speedConstraints.Count);
+            foreach (var (pathDist, reqSpeed, nodeId) in _speedConstraints)
+            {
+                constraints.Add(
+                    new SpeedConstraintDto
+                    {
+                        PathDistNm = pathDist,
+                        RequiredSpeedKts = reqSpeed,
+                        NodeId = nodeId,
+                    }
+                );
+            }
+        }
+
+        return new TaxiingPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = SnapshotRequirements(),
+            TargetNodeId = _targetNodeId,
+            TargetLat = _targetLat,
+            TargetLon = _targetLon,
+            Initialized = _initialized,
+            TimeSinceLastLog = _timeSinceLastLog,
+            PrevDistToTarget = _prevDistToTarget,
+            CurrentNodeRequiredSpeed = _currentNodeRequiredSpeed,
+            SpeedConstraints = constraints,
+        };
+    }
+
+    public static TaxiingPhase FromSnapshot(TaxiingPhaseDto dto)
+    {
+        var phase = new TaxiingPhase();
+        phase._targetNodeId = dto.TargetNodeId;
+        phase._targetLat = dto.TargetLat;
+        phase._targetLon = dto.TargetLon;
+        phase._initialized = dto.Initialized;
+        phase._timeSinceLastLog = dto.TimeSinceLastLog;
+        phase._prevDistToTarget = dto.PrevDistToTarget;
+        phase._currentNodeRequiredSpeed = dto.CurrentNodeRequiredSpeed;
+
+        if (dto.SpeedConstraints is not null)
+        {
+            phase._speedConstraints = new List<(double PathDistNm, double RequiredSpeedKts, int NodeId)>(dto.SpeedConstraints.Count);
+            foreach (var sc in dto.SpeedConstraints)
+            {
+                phase._speedConstraints.Add((sc.PathDistNm, sc.RequiredSpeedKts, sc.NodeId));
+            }
+        }
+
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
     }
 
     private void SetupCurrentSegment(PhaseContext ctx)

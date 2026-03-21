@@ -1,4 +1,5 @@
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases;
 
@@ -39,6 +40,43 @@ public sealed class RunwayInfo
     /// <summary>
     /// Same physical runway, different active approach direction.
     /// </summary>
+    public RunwayInfoDto ToSnapshot() =>
+        new()
+        {
+            AirportId = AirportId,
+            End1 = Id.End1,
+            End2 = Id.End2,
+            Designator = Designator,
+            Lat1 = Lat1,
+            Lon1 = Lon1,
+            Elevation1Ft = Elevation1Ft,
+            TrueHeading1Deg = TrueHeading1.Degrees,
+            Lat2 = Lat2,
+            Lon2 = Lon2,
+            Elevation2Ft = Elevation2Ft,
+            TrueHeading2Deg = TrueHeading2.Degrees,
+            LengthFt = LengthFt,
+            WidthFt = WidthFt,
+        };
+
+    public static RunwayInfo FromSnapshot(RunwayInfoDto dto) =>
+        new()
+        {
+            AirportId = dto.AirportId,
+            Id = new RunwayIdentifier(dto.End1, dto.End2),
+            Designator = dto.Designator,
+            Lat1 = dto.Lat1,
+            Lon1 = dto.Lon1,
+            Elevation1Ft = dto.Elevation1Ft,
+            TrueHeading1 = new TrueHeading(dto.TrueHeading1Deg),
+            Lat2 = dto.Lat2,
+            Lon2 = dto.Lon2,
+            Elevation2Ft = dto.Elevation2Ft,
+            TrueHeading2 = new TrueHeading(dto.TrueHeading2Deg),
+            LengthFt = dto.LengthFt,
+            WidthFt = dto.WidthFt,
+        };
+
     public RunwayInfo ForApproach(string designator)
     {
         return new RunwayInfo

@@ -168,7 +168,7 @@ public sealed class ClimbSpeedScheduleTests
 
         // Simulate CM command
         var cmd = new ClimbMaintainCommand(40000);
-        CommandDispatcher.Dispatch(cmd, ac, groundLayout: null, new Random(42), true);
+        CommandDispatcher.Dispatch(cmd, ac, groundLayout: null, new SerializableRandom(42), true);
 
         Assert.False(ac.Targets.HasExplicitSpeedCommand);
     }
@@ -179,7 +179,7 @@ public sealed class ClimbSpeedScheduleTests
         var ac = MakeClimbingJet(altitude: 12000, ias: 250, targetAlt: 35000);
 
         var cmd = new SpeedCommand(210);
-        CommandDispatcher.Dispatch(cmd, ac, groundLayout: null, new Random(42), true);
+        CommandDispatcher.Dispatch(cmd, ac, groundLayout: null, new SerializableRandom(42), true);
 
         Assert.True(ac.Targets.HasExplicitSpeedCommand);
     }

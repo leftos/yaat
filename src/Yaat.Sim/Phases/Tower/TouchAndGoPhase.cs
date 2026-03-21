@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -25,6 +26,39 @@ public sealed class TouchAndGoPhase : Phase
     private bool _airborne;
 
     public override string Name => "TouchAndGo";
+
+    public override PhaseDto ToSnapshot() =>
+        new TouchAndGoPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            FieldElevation = _fieldElevation,
+            RunwayHeadingDeg = _runwayHeading.Degrees,
+            ThresholdLat = _thresholdLat,
+            ThresholdLon = _thresholdLon,
+            RolloutDuration = _rolloutDuration,
+            RolloutElapsed = _rolloutElapsed,
+            Reaccelerating = _reaccelerating,
+            Airborne = _airborne,
+        };
+
+    public static TouchAndGoPhase FromSnapshot(TouchAndGoPhaseDto dto)
+    {
+        var phase = new TouchAndGoPhase();
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._fieldElevation = dto.FieldElevation;
+        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._thresholdLat = dto.ThresholdLat;
+        phase._thresholdLon = dto.ThresholdLon;
+        phase._rolloutDuration = dto.RolloutDuration;
+        phase._rolloutElapsed = dto.RolloutElapsed;
+        phase._reaccelerating = dto.Reaccelerating;
+        phase._airborne = dto.Airborne;
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

@@ -1,3 +1,5 @@
+using Yaat.Sim.Simulation.Snapshots;
+
 namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
@@ -160,6 +162,95 @@ public sealed class TaxiRoute
         }
 
         return string.Join(" ", parts);
+    }
+
+    public TaxiRouteDto ToSnapshot() =>
+        new()
+        {
+            Segments = Segments
+                .Select(s => new TaxiSegmentDto
+                {
+                    FromNodeId = s.FromNodeId,
+                    ToNodeId = s.ToNodeId,
+                    TaxiwayName = s.TaxiwayName,
+                })
+                .ToList(),
+            CurrentSegmentIndex = CurrentSegmentIndex,
+            HoldShortPoints = HoldShortPoints
+                .Select(hs => new HoldShortPointDto
+                {
+                    NodeId = hs.NodeId,
+                    RunwayId = hs.TargetName ?? "",
+                    IsSatisfied = hs.IsCleared,
+                })
+                .ToList(),
+            Description = ToSummary(),
+        };
+
+    public static TaxiRoute? FromSnapshot(TaxiRouteDto dto, AirportGroundLayout? layout)
+    {
+        if (layout is null)
+        {
+            return null;
+        }
+
+        var segments = new List<TaxiRouteSegment>();
+        foreach (var seg in dto.Segments)
+        {
+            if (!layout.Nodes.TryGetValue(seg.FromNodeId, out var fromNode))
+            {
+                return null;
+            }
+
+            GroundEdge? edge = null;
+            foreach (var e in fromNode.Edges)
+            {
+                if (e.ToNodeId == seg.ToNodeId)
+                {
+                    edge = e;
+                    break;
+                }
+            }
+
+            if (edge is null)
+            {
+                return null;
+            }
+
+            segments.Add(
+                new TaxiRouteSegment
+                {
+                    FromNodeId = seg.FromNodeId,
+                    ToNodeId = seg.ToNodeId,
+                    TaxiwayName = seg.TaxiwayName ?? edge.TaxiwayName,
+                    Edge = edge,
+                }
+            );
+        }
+
+        var holdShorts = new List<HoldShortPoint>();
+        if (dto.HoldShortPoints is not null)
+        {
+            foreach (var hs in dto.HoldShortPoints)
+            {
+                holdShorts.Add(
+                    new HoldShortPoint
+                    {
+                        NodeId = hs.NodeId,
+                        Reason = HoldShortReason.ExplicitHoldShort,
+                        TargetName = hs.RunwayId,
+                        IsCleared = hs.IsSatisfied,
+                    }
+                );
+            }
+        }
+
+        return new TaxiRoute
+        {
+            Segments = segments,
+            HoldShortPoints = holdShorts,
+            CurrentSegmentIndex = dto.CurrentSegmentIndex,
+        };
     }
 }
 

@@ -1,4 +1,5 @@
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
 
@@ -74,6 +75,50 @@ public class ControlTargets
     /// it advances to the next. Cleared when all waypoints are visited.
     /// </summary>
     public List<NavigationTarget> NavigationRoute { get; } = [];
+
+    public ControlTargetsDto ToSnapshot() =>
+        new()
+        {
+            TargetTrueHeadingDeg = TargetTrueHeading?.Degrees,
+            PreferredTurnDirection = PreferredTurnDirection.HasValue ? (int)PreferredTurnDirection.Value : null,
+            TurnRateOverride = TurnRateOverride,
+            TargetAltitude = TargetAltitude,
+            DesiredVerticalRate = DesiredVerticalRate,
+            TargetSpeed = TargetSpeed,
+            SpeedFloor = SpeedFloor,
+            SpeedCeiling = SpeedCeiling,
+            AssignedMagneticHeadingDeg = AssignedMagneticHeading?.Degrees,
+            AssignedAltitude = AssignedAltitude,
+            AssignedSpeed = AssignedSpeed,
+            HasExplicitSpeedCommand = HasExplicitSpeedCommand,
+            TargetMach = TargetMach,
+            NavigationRoute = NavigationRoute.Count > 0 ? NavigationRoute.Select(n => n.ToSnapshot()).ToList() : null,
+        };
+
+    public static void RestoreFrom(ControlTargetsDto dto, ControlTargets targets)
+    {
+        targets.TargetTrueHeading = dto.TargetTrueHeadingDeg.HasValue ? new TrueHeading(dto.TargetTrueHeadingDeg.Value) : null;
+        targets.PreferredTurnDirection = dto.PreferredTurnDirection.HasValue ? (TurnDirection)dto.PreferredTurnDirection.Value : null;
+        targets.TurnRateOverride = dto.TurnRateOverride;
+        targets.TargetAltitude = dto.TargetAltitude;
+        targets.DesiredVerticalRate = dto.DesiredVerticalRate;
+        targets.TargetSpeed = dto.TargetSpeed;
+        targets.SpeedFloor = dto.SpeedFloor;
+        targets.SpeedCeiling = dto.SpeedCeiling;
+        targets.AssignedMagneticHeading = dto.AssignedMagneticHeadingDeg.HasValue ? new MagneticHeading(dto.AssignedMagneticHeadingDeg.Value) : null;
+        targets.AssignedAltitude = dto.AssignedAltitude;
+        targets.AssignedSpeed = dto.AssignedSpeed;
+        targets.HasExplicitSpeedCommand = dto.HasExplicitSpeedCommand;
+        targets.TargetMach = dto.TargetMach;
+        targets.NavigationRoute.Clear();
+        if (dto.NavigationRoute is not null)
+        {
+            foreach (var nav in dto.NavigationRoute)
+            {
+                targets.NavigationRoute.Add(NavigationTarget.FromSnapshot(nav));
+            }
+        }
+    }
 }
 
 public class NavigationTarget
@@ -96,4 +141,51 @@ public class NavigationTarget
 
     /// <summary>AssignedSpeed to restore after sequencing past this fix.</summary>
     public double? RevertAssignedSpeed { get; set; }
+
+    public NavigationTargetDto ToSnapshot() =>
+        new()
+        {
+            Name = Name,
+            Latitude = Latitude,
+            Longitude = Longitude,
+            AltitudeRestriction = AltitudeRestriction is not null
+                ? new AltitudeRestrictionDto
+                {
+                    Type = (int)AltitudeRestriction.Type,
+                    Altitude1 = AltitudeRestriction.Altitude1Ft,
+                    Altitude2 = AltitudeRestriction.Altitude2Ft,
+                }
+                : null,
+            SpeedRestriction = SpeedRestriction is not null
+                ? new SpeedRestrictionDto { Type = SpeedRestriction.IsMaximum ? 1 : 0, Speed = SpeedRestriction.SpeedKts }
+                : null,
+            IsFlyOver = IsFlyOver,
+            RevertAltitude = RevertAltitude,
+            RevertAssignedAltitude = RevertAssignedAltitude,
+            RevertSpeed = RevertSpeed,
+            RevertAssignedSpeed = RevertAssignedSpeed,
+        };
+
+    public static NavigationTarget FromSnapshot(NavigationTargetDto dto) =>
+        new()
+        {
+            Name = dto.Name,
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
+            AltitudeRestriction = dto.AltitudeRestriction is not null
+                ? new CifpAltitudeRestriction(
+                    (CifpAltitudeRestrictionType)dto.AltitudeRestriction.Type,
+                    dto.AltitudeRestriction.Altitude1,
+                    dto.AltitudeRestriction.Altitude2
+                )
+                : null,
+            SpeedRestriction = dto.SpeedRestriction is not null
+                ? new CifpSpeedRestriction(dto.SpeedRestriction.Speed, dto.SpeedRestriction.Type == 1)
+                : null,
+            IsFlyOver = dto.IsFlyOver,
+            RevertAltitude = dto.RevertAltitude,
+            RevertAssignedAltitude = dto.RevertAssignedAltitude,
+            RevertSpeed = dto.RevertSpeed,
+            RevertAssignedSpeed = dto.RevertAssignedSpeed,
+        };
 }

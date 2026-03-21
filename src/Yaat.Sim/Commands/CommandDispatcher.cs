@@ -489,12 +489,12 @@ public static class CommandDispatcher
         string timerDesc;
         if (waitCmd is not null)
         {
-            deferred = new DeferredDispatch(waitCmd.Seconds, payload);
+            deferred = new DeferredDispatch(waitCmd.Seconds, payload) { SourceText = compound.SourceText };
             timerDesc = $"{waitCmd.Seconds}s";
         }
         else
         {
-            deferred = new DeferredDispatch(payload, waitDistCmd!.DistanceNm);
+            deferred = new DeferredDispatch(payload, waitDistCmd!.DistanceNm) { SourceText = compound.SourceText };
             timerDesc = $"{waitDistCmd.DistanceNm}nm";
         }
 
@@ -1001,6 +1001,7 @@ public static class CommandDispatcher
                 IsWaitBlock = isWait,
                 WaitRemainingSeconds = waitTime?.Seconds ?? 0,
                 WaitRemainingDistanceNm = waitDist?.DistanceNm ?? 0,
+                SourceCommandText = compound.SourceText,
             };
 
             foreach (var cmd in parsedBlock.Commands)

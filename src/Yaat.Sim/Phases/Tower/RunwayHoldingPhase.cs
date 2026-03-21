@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -18,6 +19,24 @@ public sealed class RunwayHoldingPhase : Phase
     }
 
     public override string Name => $"Holding Short RWY {_crossingRunwayId}";
+
+    public override PhaseDto ToSnapshot() =>
+        new RunwayHoldingPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            CrossingRunwayId = _crossingRunwayId,
+        };
+
+    public static RunwayHoldingPhase FromSnapshot(RunwayHoldingPhaseDto dto)
+    {
+        var phase = new RunwayHoldingPhase(dto.CrossingRunwayId);
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

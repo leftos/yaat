@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -112,5 +113,31 @@ public sealed class CrossingRunwayPhase : Phase
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new CrossingRunwayPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = SnapshotRequirements(),
+            TargetNodeId = _targetNodeId,
+            TargetLat = _targetLat,
+            TargetLon = _targetLon,
+            Initialized = _initialized,
+            TimeSinceLastLog = _timeSinceLastLog,
+        };
+
+    public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto)
+    {
+        var phase = new CrossingRunwayPhase(dto.TargetNodeId);
+        phase._targetLat = dto.TargetLat;
+        phase._targetLon = dto.TargetLon;
+        phase._initialized = dto.Initialized;
+        phase._timeSinceLastLog = dto.TimeSinceLastLog;
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
     }
 }

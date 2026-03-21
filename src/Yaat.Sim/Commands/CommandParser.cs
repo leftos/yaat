@@ -55,7 +55,7 @@ public static class CommandParser
                 return ParseResult<CompoundCommand>.Fail(single.Reason!);
             }
 
-            return ParseResult<CompoundCommand>.Ok(new CompoundCommand([new ParsedBlock(null, [single.Value!])]));
+            return ParseResult<CompoundCommand>.Ok(new CompoundCommand([new ParsedBlock(null, [single.Value!])]) { SourceText = trimmed });
         }
 
         var blockStrings = trimmed.Split(';');
@@ -80,7 +80,7 @@ public static class CommandParser
             return ParseResult<CompoundCommand>.Fail("no blocks parsed");
         }
 
-        return ParseResult<CompoundCommand>.Ok(new CompoundCommand(blocks));
+        return ParseResult<CompoundCommand>.Ok(new CompoundCommand(blocks) { SourceText = trimmed });
     }
 
     // Thread-local storage for propagating block/command failure reasons through ParseBlock

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -22,6 +23,33 @@ public sealed class MakeTurnPhase : Phase
     public required double TargetDegrees { get; init; }
 
     public override string Name => $"Turn{(Direction == TurnDirection.Left ? "L" : "R")}{TargetDegrees:F0}";
+
+    public override PhaseDto ToSnapshot() =>
+        new MakeTurnPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Direction = (int)Direction,
+            TargetDegrees = TargetDegrees,
+            StartHeadingDeg = _startHeading.Degrees,
+            CumulativeTurn = _cumulativeTurn,
+            LastHeadingDeg = _lastHeading.Degrees,
+            Exiting = _exiting,
+        };
+
+    public static MakeTurnPhase FromSnapshot(MakeTurnPhaseDto dto)
+    {
+        var phase = new MakeTurnPhase { Direction = (TurnDirection)dto.Direction, TargetDegrees = dto.TargetDegrees };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._startHeading = new TrueHeading(dto.StartHeadingDeg);
+        phase._cumulativeTurn = dto.CumulativeTurn;
+        phase._lastHeading = new TrueHeading(dto.LastHeadingDeg);
+        phase._exiting = dto.Exiting;
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

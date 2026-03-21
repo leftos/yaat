@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
 
@@ -177,6 +178,65 @@ public sealed class PushbackToSpotPhase : Phase
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
+        };
+    }
+
+    public static PushbackToSpotPhase? FromSnapshot(PushbackToSpotPhaseDto dto, AirportGroundLayout? groundLayout)
+    {
+        var route = TaxiRoute.FromSnapshot(dto.Route, groundLayout);
+        if (route is null)
+        {
+            return null;
+        }
+
+        var phase = new PushbackToSpotPhase(route, dto.TargetHeading);
+        phase._targetNodeId = dto.TargetNodeId;
+        phase._targetLat = dto.TargetLat;
+        phase._targetLon = dto.TargetLon;
+        phase._initialized = dto.Initialized;
+        phase._reachedFinalNode = dto.ReachedFinalNode;
+        phase._pivoting = dto.Pivoting;
+        phase._pivotTargetHeading = new TrueHeading(dto.PivotTargetHeadingDeg);
+        phase._timeSinceLastLog = dto.TimeSinceLastLog;
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
+    }
+
+    public override PhaseDto ToSnapshot()
+    {
+        // TODO: Move TaxiRoute.ToSnapshot() to TaxiRoute when a shared conversion is needed.
+        var segments = new List<TaxiSegmentDto>(_route.Segments.Count);
+        foreach (var seg in _route.Segments)
+        {
+            segments.Add(
+                new TaxiSegmentDto
+                {
+                    FromNodeId = seg.FromNodeId,
+                    ToNodeId = seg.ToNodeId,
+                    TaxiwayName = seg.TaxiwayName,
+                }
+            );
+        }
+
+        var routeDto = new TaxiRouteDto { Segments = segments, CurrentSegmentIndex = _route.CurrentSegmentIndex };
+
+        return new PushbackToSpotPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = SnapshotRequirements(),
+            Route = routeDto,
+            TargetHeading = _targetHeading,
+            TargetNodeId = _targetNodeId,
+            TargetLat = _targetLat,
+            TargetLon = _targetLon,
+            Initialized = _initialized,
+            ReachedFinalNode = _reachedFinalNode,
+            Pivoting = _pivoting,
+            PivotTargetHeadingDeg = _pivotTargetHeading.Degrees,
+            TimeSinceLastLog = _timeSinceLastLog,
         };
     }
 

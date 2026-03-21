@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -18,6 +19,38 @@ public sealed class GoAroundPhase : Phase
     private bool _headingAssigned;
 
     public override string Name => "GoAround";
+
+    public override PhaseDto ToSnapshot() =>
+        new GoAroundPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            AssignedMagneticHeadingDeg = AssignedMagneticHeading?.Degrees,
+            TargetAltitude = TargetAltitude,
+            ReenterPattern = ReenterPattern,
+            FieldElevation = _fieldElevation,
+            RunwayTrueHeadingDeg = _runwayTrueHeading.Degrees,
+            HeadingAssigned = _headingAssigned,
+        };
+
+    public static GoAroundPhase FromSnapshot(GoAroundPhaseDto dto)
+    {
+        MagneticHeading? assignedHeading = dto.AssignedMagneticHeadingDeg.HasValue ? new MagneticHeading(dto.AssignedMagneticHeadingDeg.Value) : null;
+        var phase = new GoAroundPhase
+        {
+            AssignedMagneticHeading = assignedHeading,
+            TargetAltitude = dto.TargetAltitude,
+            ReenterPattern = dto.ReenterPattern,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._fieldElevation = dto.FieldElevation;
+        phase._runwayTrueHeading = new TrueHeading(dto.RunwayTrueHeadingDeg);
+        phase._headingAssigned = dto.HeadingAssigned;
+        return phase;
+    }
 
     /// <summary>Heading to fly in magnetic (null = runway heading).</summary>
     public MagneticHeading? AssignedMagneticHeading { get; init; }

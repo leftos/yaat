@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Approach;
 
@@ -212,6 +213,25 @@ public sealed class ApproachNavigationPhase : Phase
         };
     }
 
+    public override PhaseDto ToSnapshot() =>
+        new ApproachNavigationPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Fixes = Fixes.Select(f => f.ToSnapshot()).ToList(),
+            CurrentFixIndex = _currentFixIndex,
+        };
+
+    public static ApproachNavigationPhase FromSnapshot(ApproachNavigationPhaseDto dto)
+    {
+        var phase = new ApproachNavigationPhase { Fixes = dto.Fixes.Select(ApproachFix.FromSnapshot).ToList() };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase._currentFixIndex = dto.CurrentFixIndex;
+        return phase;
+    }
+
     protected override List<ClearanceRequirement> CreateRequirements()
     {
         return [];
@@ -229,4 +249,43 @@ public sealed record ApproachFix(
     int? SpeedKts = null,
     CifpFixRole Role = CifpFixRole.None,
     bool IsFlyOver = false
-);
+)
+{
+    public ApproachFixDto ToSnapshot() =>
+        new()
+        {
+            Name = Name,
+            Lat = Latitude,
+            Lon = Longitude,
+            AltitudeRestriction = Altitude is not null
+                ? new AltitudeRestrictionDto
+                {
+                    Type = (int)Altitude.Type,
+                    Altitude1 = Altitude.Altitude1Ft,
+                    Altitude2 = Altitude.Altitude2Ft,
+                }
+                : null,
+            SpeedRestriction = SpeedKts is { } kts ? new SpeedRestrictionDto { Type = 1, Speed = kts } : null,
+            IsFlyOver = IsFlyOver,
+            IsFaf = Role == CifpFixRole.FAF,
+            LegType = 0,
+            IsArc = false,
+        };
+
+    public static ApproachFix FromSnapshot(ApproachFixDto dto) =>
+        new(
+            dto.Name,
+            dto.Lat,
+            dto.Lon,
+            dto.AltitudeRestriction is not null
+                ? new CifpAltitudeRestriction(
+                    (CifpAltitudeRestrictionType)dto.AltitudeRestriction.Type,
+                    dto.AltitudeRestriction.Altitude1,
+                    dto.AltitudeRestriction.Altitude2
+                )
+                : null,
+            dto.SpeedRestriction?.Speed,
+            dto.IsFaf ? CifpFixRole.FAF : CifpFixRole.None,
+            dto.IsFlyOver
+        );
+}

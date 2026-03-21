@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -27,6 +28,43 @@ public sealed class StopAndGoPhase : Phase
     private bool _goTriggered;
 
     public override string Name => "StopAndGo";
+
+    public override PhaseDto ToSnapshot() =>
+        new StopAndGoPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            FieldElevation = _fieldElevation,
+            RunwayHeadingDeg = _runwayHeading.Degrees,
+            ThresholdLat = _thresholdLat,
+            ThresholdLon = _thresholdLon,
+            PauseDuration = _pauseDuration,
+            PauseElapsed = _pauseElapsed,
+            Stopped = _stopped,
+            Reaccelerating = _reaccelerating,
+            Airborne = _airborne,
+            GoTriggered = _goTriggered,
+        };
+
+    public static StopAndGoPhase FromSnapshot(StopAndGoPhaseDto dto)
+    {
+        var phase = new StopAndGoPhase();
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        phase._fieldElevation = dto.FieldElevation;
+        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._thresholdLat = dto.ThresholdLat;
+        phase._thresholdLon = dto.ThresholdLon;
+        phase._pauseDuration = dto.PauseDuration;
+        phase._pauseElapsed = dto.PauseElapsed;
+        phase._stopped = dto.Stopped;
+        phase._reaccelerating = dto.Reaccelerating;
+        phase._airborne = dto.Airborne;
+        phase._goTriggered = dto.GoTriggered;
+        return phase;
+    }
 
     public override void OnStart(PhaseContext ctx)
     {

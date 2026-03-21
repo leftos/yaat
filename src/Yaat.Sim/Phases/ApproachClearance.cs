@@ -1,5 +1,6 @@
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases;
 
@@ -57,6 +58,40 @@ public sealed class ApproachClearance
     /// meaningless for scoring. This records the true intercept angle.
     /// </summary>
     public double? InterceptCaptureAngleDeg { get; set; }
+
+    public ApproachClearanceDto ToSnapshot() =>
+        new()
+        {
+            ApproachId = ApproachId,
+            AirportCode = AirportCode,
+            RunwayId = RunwayId,
+            FinalApproachCourseDeg = FinalApproachCourse.Degrees,
+            StraightIn = StraightIn,
+            Force = Force,
+            MapAltitudeFt = MapAltitudeFt,
+            MapDistanceNm = MapDistanceNm,
+            InterceptCaptureDistanceNm = InterceptCaptureDistanceNm,
+            InterceptCaptureAngleDeg = InterceptCaptureAngleDeg,
+            MapHold = MapHold?.ToSnapshot(),
+            MissedApproachFixes = MissedApproachFixes.Count > 0 ? MissedApproachFixes.Select(f => f.ToSnapshot()).ToList() : null,
+        };
+
+    public static ApproachClearance FromSnapshot(ApproachClearanceDto dto) =>
+        new()
+        {
+            ApproachId = dto.ApproachId,
+            AirportCode = dto.AirportCode,
+            RunwayId = dto.RunwayId,
+            FinalApproachCourse = new TrueHeading(dto.FinalApproachCourseDeg),
+            StraightIn = dto.StraightIn,
+            Force = dto.Force,
+            MapAltitudeFt = dto.MapAltitudeFt,
+            MapDistanceNm = dto.MapDistanceNm,
+            InterceptCaptureDistanceNm = dto.InterceptCaptureDistanceNm,
+            InterceptCaptureAngleDeg = dto.InterceptCaptureAngleDeg,
+            MapHold = dto.MapHold is not null ? MissedApproachHold.FromSnapshot(dto.MapHold) : null,
+            MissedApproachFixes = dto.MissedApproachFixes?.Select(ApproachFix.FromSnapshot).ToList() ?? [],
+        };
 }
 
 /// <summary>
@@ -68,6 +103,11 @@ public sealed class PendingApproachInfo
 {
     public required ApproachClearance Clearance { get; init; }
     public required RunwayInfo AssignedRunway { get; init; }
+
+    public PendingApproachDto ToSnapshot() => new() { Clearance = Clearance.ToSnapshot(), AssignedRunway = AssignedRunway.ToSnapshot() };
+
+    public static PendingApproachInfo FromSnapshot(PendingApproachDto dto) =>
+        new() { Clearance = ApproachClearance.FromSnapshot(dto.Clearance), AssignedRunway = RunwayInfo.FromSnapshot(dto.AssignedRunway) };
 }
 
 /// <summary>Holding pattern parameters extracted from a missed approach HA/HF/HM leg.</summary>
@@ -79,4 +119,20 @@ public sealed record MissedApproachHold(
     double LegLength,
     bool IsMinuteBased,
     TurnDirection Direction
-);
+)
+{
+    public MissedApproachHoldDto ToSnapshot() =>
+        new()
+        {
+            FixName = FixName,
+            FixLat = FixLat,
+            FixLon = FixLon,
+            InboundCourse = InboundCourse,
+            LegLength = LegLength,
+            IsMinuteBased = IsMinuteBased,
+            Direction = (int)Direction,
+        };
+
+    public static MissedApproachHold FromSnapshot(MissedApproachHoldDto dto) =>
+        new(dto.FixName, dto.FixLat, dto.FixLon, dto.InboundCourse, dto.LegLength, dto.IsMinuteBased, (TurnDirection)dto.Direction);
+}

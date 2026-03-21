@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
 
@@ -11,6 +12,29 @@ namespace Yaat.Sim.Phases.Tower;
 public sealed class LinedUpAndWaitingPhase : Phase
 {
     public override string Name => "LinedUpAndWaiting";
+
+    public override PhaseDto ToSnapshot() =>
+        new LinedUpAndWaitingPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            Departure = Departure?.ToSnapshot(),
+            AssignedAltitude = AssignedAltitude,
+        };
+
+    public static LinedUpAndWaitingPhase FromSnapshot(LinedUpAndWaitingPhaseDto dto)
+    {
+        var phase = new LinedUpAndWaitingPhase
+        {
+            Departure = dto.Departure is not null ? DepartureInstruction.FromSnapshot(dto.Departure) : null,
+            AssignedAltitude = dto.AssignedAltitude,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
+    }
 
     /// <summary>Departure instruction from CTO command.</summary>
     public DepartureInstruction? Departure { get; set; }

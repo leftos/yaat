@@ -1,4 +1,5 @@
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases;
 
@@ -12,6 +13,8 @@ public abstract class Phase
     public abstract string Name { get; }
 
     public IReadOnlyList<ClearanceRequirement> Requirements => _requirements ??= CreateRequirements();
+
+    public abstract PhaseDto ToSnapshot();
 
     /// <summary>
     /// Called once when the phase becomes active.
@@ -47,6 +50,42 @@ public abstract class Phase
     protected virtual List<ClearanceRequirement> CreateRequirements()
     {
         return [];
+    }
+
+    /// <summary>
+    /// Restores requirements from a DTO list. Call from FromSnapshot inside subclasses.
+    /// </summary>
+    protected void RestoreRequirements(List<ClearanceRequirementDto>? dtoRequirements)
+    {
+        if (dtoRequirements is null || dtoRequirements.Count == 0)
+        {
+            return;
+        }
+
+        _requirements = new List<ClearanceRequirement>(dtoRequirements.Count);
+        foreach (var dto in dtoRequirements)
+        {
+            _requirements.Add(ClearanceRequirement.FromSnapshot(dto));
+        }
+    }
+
+    /// <summary>
+    /// Serializes requirements to DTO form. Only includes requirements if any have been created.
+    /// </summary>
+    protected List<ClearanceRequirementDto>? SnapshotRequirements()
+    {
+        if (_requirements is null || _requirements.Count == 0)
+        {
+            return null;
+        }
+
+        var result = new List<ClearanceRequirementDto>(_requirements.Count);
+        foreach (var req in _requirements)
+        {
+            result.Add(req.ToSnapshot());
+        }
+
+        return result;
     }
 
     /// <summary>

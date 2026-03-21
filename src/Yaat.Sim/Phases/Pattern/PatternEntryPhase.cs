@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
 
@@ -80,6 +81,34 @@ public sealed class PatternEntryPhase : Phase
     {
         // FlightPhysics drains NavigationRoute as waypoints are reached
         return ctx.Targets.NavigationRoute.Count == 0;
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new PatternEntryPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            EntryLat = EntryLat,
+            EntryLon = EntryLon,
+            PatternAltitude = PatternAltitude,
+            LeadInLat = LeadInLat,
+            LeadInLon = LeadInLon,
+        };
+
+    public static PatternEntryPhase FromSnapshot(PatternEntryPhaseDto dto)
+    {
+        var phase = new PatternEntryPhase
+        {
+            EntryLat = dto.EntryLat,
+            EntryLon = dto.EntryLon,
+            PatternAltitude = dto.PatternAltitude,
+            LeadInLat = dto.LeadInLat,
+            LeadInLon = dto.LeadInLon,
+        };
+        phase.Status = (PhaseStatus)dto.Status;
+        phase.ElapsedSeconds = dto.ElapsedSeconds;
+        return phase;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

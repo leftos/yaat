@@ -255,6 +255,12 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<RewindResultDto?>("RewindTo", elapsedSeconds);
     }
 
+    public async Task<RewindResultDto?> RewindFromSnapshotAsync(double snapshotSeconds, double replayToSeconds)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<RewindResultDto?>("RewindFromSnapshot", snapshotSeconds, replayToSeconds);
+    }
+
     public async Task TakeControlAsync()
     {
         EnsureConnected();
@@ -267,10 +273,10 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<TimelineInfoDto?>("GetTimelineInfo");
     }
 
-    public async Task<string?> ExportRecordingAsync()
+    public async Task<byte[]?> ExportRecordingAsync()
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<string?>("ExportRecording");
+        return await _connection!.InvokeAsync<byte[]?>("ExportRecording");
     }
 
     public async Task<string?> GetServerLogPathAsync()
@@ -283,6 +289,12 @@ public sealed class ServerConnection : IAsyncDisposable
     {
         EnsureConnected();
         return await _connection!.InvokeAsync<RewindResultDto?>("LoadRecording", recordingJson);
+    }
+
+    public async Task<byte[]?> MigrateRecordingAsync(string recordingJson)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<byte[]?>("MigrateRecording", recordingJson);
     }
 
     // --- Data queries ---
