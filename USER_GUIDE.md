@@ -59,6 +59,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/RPO desktop client for air traff
   - [Resizing](#resizing)
   - [Pop Out / Dock](#pop-out--dock)
   - [Warnings](#warnings)
+- [Room Members](#room-members)
 - [Students Panel](#students-panel)
   - [In Room](#in-room)
   - [Lobby](#lobby)
@@ -1602,6 +1603,15 @@ Warning messages appear as gray system entries when the simulator detects potent
 
 - **Missed FRD condition**: `Missed condition at SUNOL R090 D020 (closest: 2.3 NM)` — an aircraft passed through an FRD trigger point without getting close enough (within 1.5 NM) but came within 5 NM.
 - **Illegal approach intercept**: `Illegal intercept: turned on final 5.2nm from threshold (min 9.0nm) [7110.65 §5-9-1]` — an aircraft was vectored onto the final approach course closer to the runway than the minimum intercept distance derived from the approach gate (FAA 7110.65 §5-9-1). The minimum distance is computed from FAA CIFP data as: approach gate + 2nm, where approach gate = max(FAF distance + 1nm, 5nm). Pattern traffic (base-to-final turns) is exempt.
+
+## Room Members
+
+Open **Room > Members...** to see everyone in the current training room. The panel has two sections:
+
+- **Instructors** — Lists all YAAT clients (instructors/RPOs) in the room, showing their initials, VATSIM CID, and ARTCC. Click **Kick** to remove another instructor from the room. You cannot kick yourself.
+- **CRC Students** — Lists CRC clients bound to the room, showing display name, position, and active status. Click **Kick** to remove a student (same as kicking from the Students panel).
+
+Kicked instructors are returned to the room list and see a notification. The panel updates in real-time as members join or leave.
 
 ## Students Panel
 

@@ -38,6 +38,9 @@
                 <MenuItem Header="_Students..."
                           Command="{Binding ToggleCrcPanelCommand}"
                           IsEnabled="{Binding IsInRoom}" />
+                <MenuItem Header="_Members..."
+                          Command="{Binding ToggleRoomMembersPanelCommand}"
+                          IsEnabled="{Binding IsInRoom}" />
                 <Separator />
                 <MenuItem Header="_Leave Room"
                           Command="{Binding LeaveRoomCommand}" />
@@ -376,6 +379,124 @@
                 <Button Content="Dismiss"
                         Command="{Binding
                             DismissRoomListCommand}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+
+    <!-- Room Members panel overlay -->
+    <Border IsVisible="{Binding ShowRoomMembersPanel}"
+            Background="#CC000000"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="8"
+            Padding="24"
+            MinWidth="500"
+            MaxHeight="600">
+        <StackPanel Spacing="12">
+            <TextBlock Text="Room Members"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Foreground="White" />
+
+            <!-- Instructors section -->
+            <TextBlock Text="Instructors"
+                       Foreground="LightGray"
+                       FontWeight="SemiBold"
+                       FontSize="13" />
+            <ItemsControl
+                ItemsSource="{Binding RoomMembers}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate
+                        x:DataType="svc:RoomMemberDto">
+                        <Border Margin="0,2"
+                                Padding="8"
+                                Background="#40FFFFFF"
+                                CornerRadius="4">
+                            <Grid
+                                ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock
+                                        FontWeight="Bold"
+                                        Foreground="White"
+                                        Text="{Binding Initials}" />
+                                    <TextBlock
+                                        Foreground="{DynamicResource SubtleTextBrush}"
+                                        FontSize="11">
+                                        <Run Text="CID: " />
+                                        <Run Text="{Binding Cid}" />
+                                        <Run Text=" · " />
+                                        <Run Text="{Binding ArtccId}" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                    Content="Kick"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding $parent[Window].DataContext.KickMemberCommand}"
+                                    CommandParameter="{Binding Cid}"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="No instructors in room"
+                       Foreground="{DynamicResource SubtleTextBrush}"
+                       FontSize="11"
+                       IsVisible="{Binding !RoomMembers.Count}" />
+
+            <!-- CRC Students section -->
+            <TextBlock Text="CRC Students"
+                       Foreground="LightGray"
+                       FontWeight="SemiBold"
+                       FontSize="13"
+                       Margin="0,8,0,0" />
+            <ItemsControl
+                ItemsSource="{Binding CrcRoomMembers}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate
+                        x:DataType="svc:CrcRoomMemberDto">
+                        <Border Margin="0,2"
+                                Padding="8"
+                                Background="#40FFFFFF"
+                                CornerRadius="4">
+                            <Grid
+                                ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock
+                                        FontWeight="Bold"
+                                        Foreground="White"
+                                        Text="{Binding DisplayName, TargetNullValue='(connecting...)'}" />
+                                    <TextBlock
+                                        Foreground="{DynamicResource SubtleTextBrush}"
+                                        FontSize="11">
+                                        <Run Text="{Binding PositionId, TargetNullValue='No position'}" />
+                                        <Run Text=" · " />
+                                        <Run Text="{Binding IsActive, StringFormat='Active: {0}'}" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                    Content="Kick"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding $parent[Window].DataContext.KickCrcClientCommand}"
+                                    CommandParameter="{Binding ClientId}"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="No CRC students in room"
+                       Foreground="{DynamicResource SubtleTextBrush}"
+                       FontSize="11"
+                       IsVisible="{Binding !CrcRoomMembers.Count}" />
+
+            <!-- Footer buttons -->
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8"
+                        HorizontalAlignment="Right"
+                        Margin="0,8,0,0">
+                <Button Content="Refresh"
+                        Command="{Binding RefreshCrcLobbyCommand}" />
+                <Button Content="Close"
+                        Command="{Binding DismissRoomMembersPanelCommand}" />
             </StackPanel>
         </StackPanel>
     </Border>

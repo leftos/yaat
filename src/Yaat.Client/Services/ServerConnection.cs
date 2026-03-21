@@ -28,6 +28,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
     public event Action? ScenarioUnloaded;
     public event Action<AircraftAssignmentsDto>? AircraftAssignmentsChanged;
+    public event Action<string>? KickedFromRoom;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -69,6 +70,7 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<ScenarioLoadedDto>("ScenarioLoaded", dto => ScenarioLoaded?.Invoke(dto));
         _connection.On("ScenarioUnloaded", () => ScenarioUnloaded?.Invoke());
         _connection.On<AircraftAssignmentsDto>("AircraftAssignmentsChanged", dto => AircraftAssignmentsChanged?.Invoke(dto));
+        _connection.On<string>("KickedFromRoom", msg => KickedFromRoom?.Invoke(msg));
 
         _connection.Reconnecting += error =>
         {
@@ -347,6 +349,12 @@ public sealed class ServerConnection : IAsyncDisposable
     {
         EnsureConnected();
         return await _connection!.InvokeAsync<bool>("KickCrcClient", clientId);
+    }
+
+    public async Task<bool> KickMemberAsync(string cid)
+    {
+        EnsureConnected();
+        return await _connection!.InvokeAsync<bool>("KickMember", cid);
     }
 
     public async Task<List<CrcRoomMemberDto>> GetCrcRoomMembersAsync()

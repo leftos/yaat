@@ -205,6 +205,47 @@ public partial class MainViewModel
 
     private bool CanShowRooms() => IsConnected && !IsInRoom;
 
+    // --- Room members panel ---
+
+    [RelayCommand]
+    private void ToggleRoomMembersPanel()
+    {
+        ShowRoomMembersPanel = !ShowRoomMembersPanel;
+        if (ShowRoomMembersPanel)
+        {
+            _ = RefreshCrcLobbyAsync();
+        }
+    }
+
+    [RelayCommand]
+    private void DismissRoomMembersPanel()
+    {
+        ShowRoomMembersPanel = false;
+    }
+
+    [RelayCommand]
+    private async Task KickMemberAsync(string cid)
+    {
+        if (cid == _preferences.VatsimCid)
+        {
+            return;
+        }
+
+        try
+        {
+            var ok = await _connection.KickMemberAsync(cid);
+            if (!ok)
+            {
+                StatusText = "Failed to kick member";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "KickMember failed");
+            StatusText = $"Kick error: {ex.Message}";
+        }
+    }
+
     // --- CRC client management ---
 
     [RelayCommand]
@@ -403,7 +444,9 @@ public partial class MainViewModel
         ActiveRoomName = null;
         CrcLobbyClients.Clear();
         CrcRoomMembers.Clear();
+        RoomMembers.Clear();
         ShowCrcPanel = false;
+        ShowRoomMembersPanel = false;
         _aircraftAssignments = [];
         AssignableMembers.Clear();
         OnPropertyChanged(nameof(HasAnyAssignments));
@@ -423,6 +466,24 @@ public partial class MainViewModel
             {
                 ActiveScenarioName = dto.ScenarioName;
             }
+
+            RoomMembers.Clear();
+            foreach (var m in dto.Members)
+            {
+                RoomMembers.Add(m);
+            }
+        });
+    }
+
+    private void OnKickedFromRoom(string reason)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            AddSystemEntry(reason);
+            ClearRoomState();
+            StatusText = reason;
+            await RefreshRoomListAsync();
+            ShowRoomList = true;
         });
     }
 

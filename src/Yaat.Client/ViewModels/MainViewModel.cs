@@ -166,6 +166,9 @@ public partial class MainViewModel : ObservableObject
     private bool _showCrcPanel;
 
     [ObservableProperty]
+    private bool _showRoomMembersPanel;
+
+    [ObservableProperty]
     private bool _isTerminalDocked = true;
 
     [ObservableProperty]
@@ -425,6 +428,8 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<CrcRoomMemberDto> CrcRoomMembers { get; } = [];
 
+    public ObservableCollection<RoomMemberDto> RoomMembers { get; } = [];
+
     public MainViewModel()
     {
         AircraftView = new DataGridCollectionView(Aircraft);
@@ -468,6 +473,7 @@ public partial class MainViewModel : ObservableObject
         _connection.ScenarioLoaded += OnScenarioLoaded;
         _connection.ScenarioUnloaded += OnScenarioUnloaded;
         _connection.AircraftAssignmentsChanged += OnAircraftAssignmentsChanged;
+        _connection.KickedFromRoom += OnKickedFromRoom;
 
         RefreshCommandScheme();
         _commandInput.Macros = _preferences.Macros;
