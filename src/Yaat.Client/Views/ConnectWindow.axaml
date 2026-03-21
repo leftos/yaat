@@ -12,7 +12,7 @@
         <vm:ConnectViewModel />
     </Design.DataContext>
 
-    <Grid RowDefinitions="*,Auto" Margin="12">
+    <Grid RowDefinitions="*,Auto,Auto" Margin="12">
 
         <!-- Server list + sidebar buttons -->
         <Grid ColumnDefinitions="*,Auto">
@@ -22,7 +22,8 @@
                       AutoGenerateColumns="False"
                       CanUserResizeColumns="True"
                       CanUserSortColumns="False"
-                      SelectionMode="Single">
+                      SelectionMode="Single"
+                      IsReadOnly="True">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180" />
                     <DataGridTextColumn Header="URL" Binding="{Binding Url}" Width="*" />
@@ -38,8 +39,17 @@
             </StackPanel>
         </Grid>
 
+        <!-- Edit selected server -->
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,*" Margin="0,8,0,0"
+              IsEnabled="{Binding SelectedServer, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <TextBlock Grid.Column="0" Text="Name:" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBox Grid.Column="1" Text="{Binding SelectedServer.Name}" Margin="0,0,12,0" />
+            <TextBlock Grid.Column="2" Text="URL:" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBox Grid.Column="3" Text="{Binding SelectedServer.Url}" />
+        </Grid>
+
         <!-- Bottom strip -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
             <!-- Connecting indicator -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
                         IsVisible="{Binding IsConnecting}">
