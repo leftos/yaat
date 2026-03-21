@@ -583,11 +583,11 @@ public static class CommandParser
             MakeLeft270 when arg is null => PR.Ok(new MakeLeft270Command()),
             MakeRight270 when arg is null => PR.Ok(new MakeRight270Command()),
             CircleAirport when arg is null => PR.Ok(new CircleAirportCommand()),
-            // Option / special ops
-            TouchAndGo => PR.Ok(new TouchAndGoCommand(arg?.Trim().ToUpperInvariant())),
-            StopAndGo when arg is null => PR.Ok(new StopAndGoCommand()),
-            LowApproach when arg is null => PR.Ok(new LowApproachCommand()),
-            ClearedForOption when arg is null => PR.Ok(new ClearedForOptionCommand()),
+            // Option / special ops (all accept optional MLT/MRT for traffic direction)
+            TouchAndGo => ParseTouchAndGo(arg),
+            StopAndGo => ParseOptionWithDirection(arg, dir => new StopAndGoCommand(dir)),
+            LowApproach => ParseOptionWithDirection(arg, dir => new LowApproachCommand(dir)),
+            ClearedForOption => ParseOptionWithDirection(arg, dir => new ClearedForOptionCommand(dir)),
             // Hold
             HoldPresentPosition360Left when arg is null => PR.Ok(new HoldPresentPosition360Command(TurnDirection.Left)),
             HoldPresentPosition360Right when arg is null => PR.Ok(new HoldPresentPosition360Command(TurnDirection.Right)),
@@ -1208,6 +1208,62 @@ public static class CommandParser
         var approachId = tokens[0].ToUpperInvariant();
         var airportCode = tokens.Length > 1 ? tokens[1].ToUpperInvariant() : null;
         return PR.Ok(new ExpectApproachCommand(approachId, airportCode));
+    }
+
+    private static PatternDirection? ParsePatternDir(string? arg)
+    {
+        if (arg is null)
+        {
+            return null;
+        }
+
+        if (arg.Equals("MLT", StringComparison.OrdinalIgnoreCase))
+        {
+            return PatternDirection.Left;
+        }
+
+        if (arg.Equals("MRT", StringComparison.OrdinalIgnoreCase))
+        {
+            return PatternDirection.Right;
+        }
+
+        return null;
+    }
+
+    private static PR ParseTouchAndGo(string? arg)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(new TouchAndGoCommand(null, null));
+        }
+
+        var dir = ParsePatternDir(arg);
+        if (dir is not null)
+        {
+            return PR.Ok(new TouchAndGoCommand(null, dir));
+        }
+
+        // May be "28R" or "28R MLT"
+        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string runwayId = parts[0].Trim().ToUpperInvariant();
+        PatternDirection? traffic = parts.Length > 1 ? ParsePatternDir(parts[1]) : null;
+        return PR.Ok(new TouchAndGoCommand(runwayId, traffic));
+    }
+
+    private static PR ParseOptionWithDirection(string? arg, Func<PatternDirection?, ParsedCommand> factory)
+    {
+        if (arg is null)
+        {
+            return PR.Ok(factory(null));
+        }
+
+        var dir = ParsePatternDir(arg);
+        if (dir is not null)
+        {
+            return PR.Ok(factory(dir));
+        }
+
+        return PR.Fail($"unexpected argument '{arg}' (expected MLT or MRT)");
     }
 
     /// <summary>

@@ -738,8 +738,8 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `LAHSO 33` | Cleared to land, hold short of runway 33 (LAHSO). Includes landing clearance. Aircraft stops before the intersecting runway and waits for a taxi/cross command. |
 | `CLC` / `CTLC` | Cancel landing clearance |
 | `GA` | Go around (instrument: fly published missed approach; otherwise: runway heading, 2,000 AGL) |
-| `GA MRT` | Go around, make right traffic |
-| `GA MLT` | Go around, make left traffic |
+| `GA MRT` | Go around, make right traffic (VFR/visual only) |
+| `GA MLT` | Go around, make left traffic (VFR/visual only) |
 | `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft (overrides published missed approach) |
 | `GA RH 50` | Go around, fly runway heading, climb to 5,000 ft (overrides published missed approach) |
 | `EL` / `EXITL` | Exit runway to the left |
@@ -835,12 +835,18 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 | Command | Effect |
 |---------|--------|
 | `TG` | Touch-and-go (establishes pattern mode if not already) |
+| `TG MLT` / `TG MRT` | Touch-and-go, make left/right traffic on the go |
+| `TG 28R` | Touch-and-go, runway 28R |
+| `TG 28R MLT` | Touch-and-go, runway 28R, make left traffic |
 | `SG` | Stop-and-go (full stop then re-takeoff, establishes pattern mode) |
+| `SG MLT` / `SG MRT` | Stop-and-go, make left/right traffic |
 | `GO` | Begin takeoff roll immediately during a stop-and-go (bypasses auto-pause) |
 | `LA` | Low approach (fly-through without touchdown, establishes pattern mode) |
+| `LA MLT` / `LA MRT` | Low approach, make left/right traffic |
 | `COPT` | Cleared for the option |
+| `COPT MLT` / `COPT MRT` | Cleared for the option, make left/right traffic |
 
-TG, SG, and LA set pattern mode — the aircraft will continue doing touch-and-goes after the next approach. Use `MLT`/`MRT` to specify traffic direction, or combine: `TG, MLT`.
+TG, SG, LA, and COPT accept an optional `MLT`/`MRT` argument to set the traffic pattern direction on the go. You can also use `MLT`/`MRT` as separate commands combined with `,`.
 
 ### Approach Control Commands
 

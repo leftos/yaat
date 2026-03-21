@@ -464,7 +464,7 @@ internal static class PatternCommandHandler
         };
     }
 
-    internal static CommandResult TrySetupTouchAndGo(AircraftState aircraft)
+    internal static CommandResult TrySetupTouchAndGo(AircraftState aircraft, PatternDirection? trafficPattern)
     {
         if (aircraft.Phases is null)
         {
@@ -473,13 +473,17 @@ internal static class PatternCommandHandler
 
         aircraft.Phases.LandingClearance = ClearanceType.ClearedTouchAndGo;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
+        if (trafficPattern is { } dir)
+        {
+            aircraft.Phases.TrafficDirection = dir;
+        }
         EnsurePatternMode(aircraft.Phases);
         CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase());
 
-        return CommandDispatcher.Ok($"Cleared touch-and-go{CommandDispatcher.RunwayLabel(aircraft)}");
+        return CommandDispatcher.Ok($"Cleared touch-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
 
-    internal static CommandResult TrySetupStopAndGo(AircraftState aircraft)
+    internal static CommandResult TrySetupStopAndGo(AircraftState aircraft, PatternDirection? trafficPattern)
     {
         if (aircraft.Phases is null)
         {
@@ -488,13 +492,17 @@ internal static class PatternCommandHandler
 
         aircraft.Phases.LandingClearance = ClearanceType.ClearedStopAndGo;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
+        if (trafficPattern is { } dir)
+        {
+            aircraft.Phases.TrafficDirection = dir;
+        }
         EnsurePatternMode(aircraft.Phases);
         CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new StopAndGoPhase());
 
-        return CommandDispatcher.Ok($"Cleared stop-and-go{CommandDispatcher.RunwayLabel(aircraft)}");
+        return CommandDispatcher.Ok($"Cleared stop-and-go{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
     }
 
-    internal static CommandResult TrySetupLowApproach(AircraftState aircraft)
+    internal static CommandResult TrySetupLowApproach(AircraftState aircraft, PatternDirection? trafficPattern)
     {
         if (aircraft.Phases is null)
         {
@@ -503,10 +511,43 @@ internal static class PatternCommandHandler
 
         aircraft.Phases.LandingClearance = ClearanceType.ClearedLowApproach;
         aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
+        if (trafficPattern is { } dir)
+        {
+            aircraft.Phases.TrafficDirection = dir;
+        }
         EnsurePatternMode(aircraft.Phases);
         CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LowApproachPhase());
 
-        return CommandDispatcher.Ok($"Cleared low approach{CommandDispatcher.RunwayLabel(aircraft)}");
+        return CommandDispatcher.Ok($"Cleared low approach{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
+    }
+
+    internal static CommandResult TrySetupClearedForOption(AircraftState aircraft, PatternDirection? trafficPattern)
+    {
+        if (aircraft.Phases is null)
+        {
+            return new CommandResult(false, "Aircraft has no active phase sequence");
+        }
+
+        aircraft.Phases.LandingClearance = ClearanceType.ClearedForOption;
+        aircraft.Phases.ClearedRunwayId = aircraft.Phases.AssignedRunway?.Designator;
+        if (trafficPattern is { } dir)
+        {
+            aircraft.Phases.TrafficDirection = dir;
+        }
+        EnsurePatternMode(aircraft.Phases);
+        CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new TouchAndGoPhase());
+
+        return CommandDispatcher.Ok($"Cleared for the option{CommandDispatcher.RunwayLabel(aircraft)}{TrafficLabel(trafficPattern)}");
+    }
+
+    private static string TrafficLabel(PatternDirection? dir)
+    {
+        return dir switch
+        {
+            PatternDirection.Left => ", make left traffic",
+            PatternDirection.Right => ", make right traffic",
+            _ => "",
+        };
     }
 
     internal static CommandResult TrySetLandingClearance(AircraftState aircraft, ClearanceType clearanceType, string message)
@@ -655,6 +696,16 @@ internal static class PatternCommandHandler
 
         if (ga.TrafficPattern is { } patDir)
         {
+            // Traffic pattern direction only applies to VFR, visual approach, or already-in-pattern aircraft
+            bool canSetPattern =
+                aircraft.IsVfr
+                || (aircraft.Phases.TrafficDirection is not null)
+                || (aircraft.Phases.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.Ordinal) == true);
+            if (!canSetPattern)
+            {
+                return new CommandResult(false, "Traffic pattern direction not applicable for IFR aircraft");
+            }
+
             aircraft.Phases.TrafficDirection = patDir;
         }
 

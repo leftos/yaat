@@ -273,13 +273,13 @@ public record CircleAirportCommand : ParsedCommand;
 public record SequenceCommand(int Number, string? FollowCallsign) : ParsedCommand;
 
 // Option approach / special ops commands
-public record TouchAndGoCommand(string? RunwayId = null) : ParsedCommand;
+public record TouchAndGoCommand(string? RunwayId, PatternDirection? TrafficPattern) : ParsedCommand;
 
-public record StopAndGoCommand : ParsedCommand;
+public record StopAndGoCommand(PatternDirection? TrafficPattern) : ParsedCommand;
 
-public record LowApproachCommand : ParsedCommand;
+public record LowApproachCommand(PatternDirection? TrafficPattern) : ParsedCommand;
 
-public record ClearedForOptionCommand : ParsedCommand;
+public record ClearedForOptionCommand(PatternDirection? TrafficPattern) : ParsedCommand;
 
 // Hold commands
 

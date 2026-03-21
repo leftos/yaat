@@ -333,11 +333,36 @@ public static class CommandRegistry
                 "Tower",
                 false,
                 ["TG"],
-                [O(null, [], "Touch and go"), O("Runway", [R("runway", "runway designator")], "Touch and go runway")]
+                [
+                    O(null, [], "Touch and go"),
+                    O("Runway", [R("runway", "runway designator")], "Touch and go runway"),
+                    O("Traffic", [R("direction", "MLT/MRT")], "Touch and go, make traffic"),
+                ]
             ),
-            Bare(StopAndGo, "Stop and Go", "Tower", false, ["SG"]),
-            Bare(LowApproach, "Low Approach", "Tower", false, ["LA"]),
-            Bare(ClearedForOption, "Cleared for the Option", "Tower", false, ["COPT"]),
+            Cmd(
+                StopAndGo,
+                "Stop and Go",
+                "Tower",
+                false,
+                ["SG"],
+                [O(null, [], "Stop and go"), O("Traffic", [R("direction", "MLT/MRT")], "Stop and go, make traffic")]
+            ),
+            Cmd(
+                LowApproach,
+                "Low Approach",
+                "Tower",
+                false,
+                ["LA"],
+                [O(null, [], "Low approach"), O("Traffic", [R("direction", "MLT/MRT")], "Low approach, make traffic")]
+            ),
+            Cmd(
+                ClearedForOption,
+                "Cleared for the Option",
+                "Tower",
+                false,
+                ["COPT"],
+                [O(null, [], "Cleared for the option"), O("Traffic", [R("direction", "MLT/MRT")], "Option, make traffic")]
+            ),
             Cmd(
                 Sequence,
                 "Landing Sequence",

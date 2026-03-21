@@ -152,9 +152,11 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | CTO left/right traffic | `CTOMLT`/`CTOMRT` | `CTO MLT`/`CTO MRT` (+ `CTOMLT`/`CTOMRT` aliases) | YAAT supports as modifiers and standalone verbs |
 | CTO runway heading | `CTORH` | `CTO RH`/`CTO MRH`/`CTO MSO` | YAAT supports as modifier |
 | GA heading + alt | — | `GA 270 5000`, `GA RH 2000` | **YAAT-only** |
+| GA + traffic pattern | — | `GA MRT`, `GA MLT` (VFR/visual only) | **YAAT-only** |
 | Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CLAND`/`CL` | **YAAT-only** optional explicit landing clearance |
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |
 | Cleared for option | — | `COPT` | **YAAT-only** |
+| Option + traffic pattern | — | `TG MLT`, `SG MRT`, `LA MLT`, `COPT MRT` | **YAAT-only** — set traffic direction on the go |
 | LAHSO | `LAHSO {rwy}` | `LAHSO {rwy}` | Parity |
 | GO (begin takeoff roll during stop-and-go) | `GO` | `GO` | Parity |
 | NODEL flag | — | `CLAND NODEL`, `EL NODEL`, etc. | YAAT-only — exempts from auto-delete |

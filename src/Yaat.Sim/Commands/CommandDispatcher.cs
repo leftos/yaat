@@ -707,18 +707,14 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TrySetSequence(seq, aircraft);
 
             // Option approach / special ops commands
-            case TouchAndGoCommand:
-                return PatternCommandHandler.TrySetupTouchAndGo(aircraft);
-            case StopAndGoCommand:
-                return PatternCommandHandler.TrySetupStopAndGo(aircraft);
-            case LowApproachCommand:
-                return PatternCommandHandler.TrySetupLowApproach(aircraft);
-            case ClearedForOptionCommand:
-                return PatternCommandHandler.TrySetLandingClearance(
-                    aircraft,
-                    ClearanceType.ClearedForOption,
-                    $"Cleared for the option{RunwayLabel(aircraft)}"
-                );
+            case TouchAndGoCommand tg:
+                return PatternCommandHandler.TrySetupTouchAndGo(aircraft, tg.TrafficPattern);
+            case StopAndGoCommand sg:
+                return PatternCommandHandler.TrySetupStopAndGo(aircraft, sg.TrafficPattern);
+            case LowApproachCommand la:
+                return PatternCommandHandler.TrySetupLowApproach(aircraft, la.TrafficPattern);
+            case ClearedForOptionCommand opt:
+                return PatternCommandHandler.TrySetupClearedForOption(aircraft, opt.TrafficPattern);
 
             // Hold commands
             case HoldPresentPosition360Command hpp:
