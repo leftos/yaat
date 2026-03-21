@@ -140,6 +140,7 @@ public partial class MainViewModel
 
                 SelectedDifficultyIndex = difficulties.Count - 1;
                 _pendingScenarioJson = json;
+                _pendingDifficultyApiId = apiId;
                 ShowDifficultySelection = true;
                 return;
             }
@@ -158,7 +159,9 @@ public partial class MainViewModel
     {
         ShowDifficultySelection = false;
         var json = _pendingScenarioJson;
+        var apiId = _pendingDifficultyApiId;
         _pendingScenarioJson = null;
+        _pendingDifficultyApiId = null;
 
         if (json is null || SelectedDifficultyIndex < 0 || SelectedDifficultyIndex >= DifficultyOptions.Count)
         {
@@ -175,7 +178,7 @@ public partial class MainViewModel
 
         try
         {
-            await SendScenarioToServer(filtered);
+            await SendScenarioToServer(filtered, apiId);
         }
         catch (Exception ex)
         {
@@ -189,10 +192,11 @@ public partial class MainViewModel
     {
         ShowDifficultySelection = false;
         _pendingScenarioJson = null;
+        _pendingDifficultyApiId = null;
         DifficultyOptions.Clear();
     }
 
-    private async Task SendScenarioToServer(string json, string? apiId = null)
+    private async Task SendScenarioToServer(string json, string? apiId)
     {
         var result = await _connection.LoadScenarioAsync(json);
 

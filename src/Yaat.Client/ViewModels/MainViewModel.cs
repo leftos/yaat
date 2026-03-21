@@ -156,6 +156,7 @@ public partial class MainViewModel : ObservableObject
     private int _selectedDifficultyIndex;
 
     private string? _pendingScenarioJson;
+    private string? _pendingDifficultyApiId;
 
     public ObservableCollection<DifficultyOption> DifficultyOptions { get; } = [];
 
