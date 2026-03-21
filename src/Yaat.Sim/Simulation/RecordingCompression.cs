@@ -76,6 +76,19 @@ public static class RecordingCompression
         return reader.ReadToEnd();
     }
 
+    /// <summary>
+    /// Returns <c>true</c> if the byte array starts with the ZIP local file header
+    /// magic bytes (<c>PK\x03\x04</c>).
+    /// </summary>
+    public static bool IsZipArchive(byte[] bytes)
+    {
+        return bytes.Length >= 4
+            && bytes[0] == 0x50 // P
+            && bytes[1] == 0x4B // K
+            && bytes[2] == 0x03
+            && bytes[3] == 0x04;
+    }
+
     private static bool LooksLikePlainJson(byte[] bytes)
     {
         // Skip UTF-8 BOM if present

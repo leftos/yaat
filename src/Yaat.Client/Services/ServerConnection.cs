@@ -285,10 +285,10 @@ public sealed class ServerConnection : IAsyncDisposable
         return await _connection!.InvokeAsync<string?>("GetServerLogPath");
     }
 
-    public async Task<RewindResultDto?> LoadRecordingAsync(string recordingJson)
+    public async Task<RewindResultDto?> LoadRecordingAsync(byte[] recordingBytes)
     {
         EnsureConnected();
-        return await _connection!.InvokeAsync<RewindResultDto?>("LoadRecording", recordingJson);
+        return await _connection!.InvokeAsync<RewindResultDto?>("LoadRecording", recordingBytes);
     }
 
     public async Task<byte[]?> MigrateRecordingAsync(string recordingJson)

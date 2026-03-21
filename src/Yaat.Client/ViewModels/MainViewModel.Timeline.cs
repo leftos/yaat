@@ -142,9 +142,9 @@ public partial class MainViewModel
                 new FilePickerSaveOptions
                 {
                     Title = "Save Recording",
-                    DefaultExtension = "yaat-recording.br",
-                    FileTypeChoices = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.br", "*.yaat-recording.json"] }],
-                    SuggestedFileName = $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-recording.br",
+                    DefaultExtension = "yaat-recording.zip",
+                    FileTypeChoices = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.zip", "*.yaat-recording.br"] }],
+                    SuggestedFileName = $"{SanitizeFileName(ActiveScenarioName ?? "recording")}.yaat-recording.zip",
                 }
             );
 
@@ -205,7 +205,7 @@ public partial class MainViewModel
             await using var stream = await file.OpenWriteAsync();
             using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
 
-            var recordingEntry = archive.CreateEntry("recording.yaat-recording.br");
+            var recordingEntry = archive.CreateEntry("recording.yaat-recording.zip");
             await using (var entryStream = recordingEntry.Open())
             {
                 await entryStream.WriteAsync(compressedBytes);
@@ -236,13 +236,6 @@ public partial class MainViewModel
             _log.LogError(ex, "Save bug report bundle failed");
             StatusText = $"Save bug report bundle error: {ex.Message}";
         }
-    }
-
-    private static async Task<string> DecompressRecordingAsync(Stream stream)
-    {
-        using var memStream = new MemoryStream();
-        await stream.CopyToAsync(memStream);
-        return Yaat.Sim.Simulation.RecordingCompression.Decompress(memStream.ToArray());
     }
 
     private static bool IsLocalServer(string url)
@@ -283,7 +276,13 @@ public partial class MainViewModel
                 {
                     Title = "Load Recording",
                     AllowMultiple = false,
-                    FileTypeFilter = [new FilePickerFileType("YAAT Recording") { Patterns = ["*.yaat-recording.br", "*.yaat-recording.json"] }],
+                    FileTypeFilter =
+                    [
+                        new FilePickerFileType("YAAT Recording")
+                        {
+                            Patterns = ["*.yaat-recording.zip", "*.yaat-recording.br", "*.yaat-recording.json"],
+                        },
+                    ],
                 }
             );
 
@@ -293,10 +292,12 @@ public partial class MainViewModel
             }
 
             await using var stream = await files[0].OpenReadAsync();
-            var json = await DecompressRecordingAsync(stream);
+            using var memStream = new MemoryStream();
+            await stream.CopyToAsync(memStream);
+            var recordingBytes = memStream.ToArray();
 
             StatusText = "Loading recording...";
-            var result = await _connection.LoadRecordingAsync(json);
+            var result = await _connection.LoadRecordingAsync(recordingBytes);
             if (result is null || !result.Success)
             {
                 StatusText = $"Load recording failed: {result?.Error ?? "Unknown error"}";

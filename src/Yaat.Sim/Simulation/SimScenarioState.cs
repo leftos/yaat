@@ -45,6 +45,16 @@ public sealed class SimScenarioState
     // State snapshots loaded from a v2 recording (null for live sessions and v1 recordings)
     public List<TimedSnapshot>? LoadedSnapshots { get; set; }
 
+    // On-demand snapshot provider backed by a v3 RecordingArchive (null for v1/v2 or live sessions).
+    // When set, LoadedSnapshots is null — snapshots are loaded one at a time via this provider.
+    public Func<int, TimedSnapshot>? SnapshotProvider { get; set; }
+
+    // Number of snapshots available via SnapshotProvider (0 when SnapshotProvider is null)
+    public int SnapshotCount { get; set; }
+
+    // Keeps the v3 archive open for on-demand snapshot reads; disposed on scenario unload
+    public RecordingArchive? SnapshotArchive { get; set; }
+
     // Handoff tracking
     public List<DelayedHandoff> DelayedHandoffQueue { get; } = [];
 

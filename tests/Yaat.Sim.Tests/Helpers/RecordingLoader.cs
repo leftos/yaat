@@ -13,26 +13,77 @@ public static class RecordingLoader
             return null;
         }
 
-        string json;
         if (path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
-            using var archive = ZipFile.OpenRead(path);
-            var entry =
-                archive.GetEntry("recording.yaat-recording.br")
-                ?? archive.GetEntry("recording.yaat-recording.json.gz")
-                ?? archive.GetEntry("recording.yaat-recording.json");
-            if (entry is null)
-            {
-                return null;
-            }
-
-            json = RecordingCompression.Decompress(entry.Open());
+            return LoadFromZip(path);
         }
-        else
+
+        // Non-ZIP: Brotli / gzip / plain JSON (v1/v2 legacy)
+        var bytes = File.ReadAllBytes(path);
+
+        // Could be a v3 ZIP without .zip extension
+        if (RecordingCompression.IsZipArchive(bytes))
         {
-            json = RecordingCompression.Decompress(File.ReadAllBytes(path));
+            using var ms = new MemoryStream(bytes);
+            return LoadFromZipStream(ms);
         }
 
-        return JsonSerializer.Deserialize<SessionRecording>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var json = RecordingCompression.Decompress(bytes);
+        return JsonSerializer.Deserialize<SessionRecording>(json, RecordingJsonOptions.Default);
+    }
+
+    /// <summary>
+    /// Open a v3 archive without materializing all snapshots. Returns a disposable reader
+    /// that loads snapshots on demand. Returns null if the file is missing or not a v3 archive.
+    /// </summary>
+    public static RecordingArchive? OpenArchive(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return RecordingArchive.Open(path);
+        }
+        catch (InvalidOperationException)
+        {
+            // Not a v3 archive (missing manifest.json)
+            return null;
+        }
+    }
+
+    private static SessionRecording? LoadFromZip(string path)
+    {
+        // Peek at the ZIP to check for v3 manifest
+        using var zip = ZipFile.OpenRead(path);
+
+        if (zip.GetEntry("manifest.json") is not null)
+        {
+            // v3 archive — use RecordingArchive reader
+            zip.Dispose();
+            using var archive = RecordingArchive.Open(path);
+            return archive.ToSessionRecording();
+        }
+
+        // Legacy bug-report bundle
+        var entry =
+            zip.GetEntry("recording.yaat-recording.br")
+            ?? zip.GetEntry("recording.yaat-recording.json.gz")
+            ?? zip.GetEntry("recording.yaat-recording.json");
+        if (entry is null)
+        {
+            return null;
+        }
+
+        var json = RecordingCompression.Decompress(entry.Open());
+        return JsonSerializer.Deserialize<SessionRecording>(json, RecordingJsonOptions.Default);
+    }
+
+    private static SessionRecording? LoadFromZipStream(MemoryStream ms)
+    {
+        using var archive = RecordingArchive.Open(ms);
+        return archive.ToSessionRecording();
     }
 }

@@ -407,6 +407,38 @@ public sealed class SimulationEngine
     {
         var snapshots = new List<TimedSnapshot>((targetSeconds / SnapshotIntervalSeconds) + 2);
 
+        ReplayWithSnapshotCallback(
+            targetSeconds,
+            actions,
+            actionApplier,
+            (elapsed, actionIndex, state) =>
+            {
+                snapshots.Add(
+                    new TimedSnapshot
+                    {
+                        ElapsedSeconds = elapsed,
+                        ActionIndex = actionIndex,
+                        State = state,
+                    }
+                );
+            }
+        );
+
+        return snapshots;
+    }
+
+    /// <summary>
+    /// Replays the simulation and invokes <paramref name="snapshotCallback"/> each time a snapshot
+    /// is captured. The callback receives (elapsedSeconds, actionIndex, stateSnapshot) and can
+    /// serialize/flush the snapshot immediately — the state is eligible for GC after the callback returns.
+    /// </summary>
+    public void ReplayWithSnapshotCallback(
+        int targetSeconds,
+        List<RecordedAction> actions,
+        Action<RecordedAction> actionApplier,
+        Action<double, int, StateSnapshotDto> snapshotCallback
+    )
+    {
         // Capture initial state at t=0
         int actionCursor = 0;
         while (actionCursor < actions.Count && actions[actionCursor].ElapsedSeconds <= 0)
@@ -415,14 +447,7 @@ public sealed class SimulationEngine
             actionCursor++;
         }
 
-        snapshots.Add(
-            new TimedSnapshot
-            {
-                ElapsedSeconds = 0,
-                ActionIndex = actionCursor - 1,
-                State = CaptureSnapshot(actionCursor - 1),
-            }
-        );
+        snapshotCallback(0, actionCursor - 1, CaptureSnapshot(actionCursor - 1));
 
         double subDelta = 1.0 / PhysicsSubTickRate;
         for (int t = 1; t <= targetSeconds; t++)
@@ -452,18 +477,10 @@ public sealed class SimulationEngine
 
             if ((t % SnapshotIntervalSeconds == 0) || (t == targetSeconds))
             {
-                snapshots.Add(
-                    new TimedSnapshot
-                    {
-                        ElapsedSeconds = t,
-                        ActionIndex = Math.Max(0, actionCursor - 1),
-                        State = CaptureSnapshot(Math.Max(0, actionCursor - 1)),
-                    }
-                );
+                int idx = Math.Max(0, actionCursor - 1);
+                snapshotCallback(t, idx, CaptureSnapshot(idx));
             }
         }
-
-        return snapshots;
     }
 
     public void Replay(SessionRecording recording, double targetSeconds)
