@@ -10,64 +10,71 @@ internal static class FlightCommandHandler
 {
     internal static CommandResult ApplyHeading(FlyHeadingCommand cmd, AircraftState aircraft)
     {
+        var prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
-        return CommandDispatcher.Ok($"Fly heading {cmd.MagneticHeading.Degrees:000}");
+        return CommandDispatcher.Ok($"Fly heading {cmd.MagneticHeading.Degrees:000}{prev}");
     }
 
     internal static CommandResult ApplyTurnLeft(TurnLeftCommand cmd, AircraftState aircraft)
     {
+        var prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
-        return CommandDispatcher.Ok($"Turn left heading {cmd.MagneticHeading.Degrees:000}");
+        return CommandDispatcher.Ok($"Turn left heading {cmd.MagneticHeading.Degrees:000}{prev}");
     }
 
     internal static CommandResult ApplyTurnRight(TurnRightCommand cmd, AircraftState aircraft)
     {
+        var prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
         aircraft.Targets.AssignedMagneticHeading = cmd.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
-        return CommandDispatcher.Ok($"Turn right heading {cmd.MagneticHeading.Degrees:000}");
+        return CommandDispatcher.Ok($"Turn right heading {cmd.MagneticHeading.Degrees:000}{prev}");
     }
 
     internal static CommandResult ApplyLeftTurn(LeftTurnCommand cmd, AircraftState aircraft)
     {
+        var prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading - cmd.Degrees;
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading - cmd.Degrees;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Left;
         int leftHdg = (aircraft.MagneticHeading - cmd.Degrees).ToDisplayInt();
-        return CommandDispatcher.Ok($"Turn {cmd.Degrees} degrees left, heading {leftHdg:000}");
+        return CommandDispatcher.Ok($"Turn {cmd.Degrees} degrees left, heading {leftHdg:000}{prev}");
     }
 
     internal static CommandResult ApplyRightTurn(RightTurnCommand cmd, AircraftState aircraft)
     {
+        var prev = PreviousLateralGuidance(aircraft);
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading + cmd.Degrees;
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading + cmd.Degrees;
         aircraft.Targets.PreferredTurnDirection = TurnDirection.Right;
         int rightHdg = (aircraft.MagneticHeading + cmd.Degrees).ToDisplayInt();
-        return CommandDispatcher.Ok($"Turn {cmd.Degrees} degrees right, heading {rightHdg:000}");
+        return CommandDispatcher.Ok($"Turn {cmd.Degrees} degrees right, heading {rightHdg:000}{prev}");
     }
 
     internal static CommandResult ApplyFlyPresentHeading(AircraftState aircraft)
     {
+        var prev = PreviousLateralGuidance(aircraft);
+        int hdg = aircraft.MagneticHeading.ToDisplayInt();
         ClearActiveProcedure(aircraft);
         aircraft.Targets.NavigationRoute.Clear();
         aircraft.Targets.TargetTrueHeading = aircraft.TrueHeading;
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
-        return CommandDispatcher.Ok("Fly present heading");
+        return CommandDispatcher.Ok($"Fly present heading {hdg:000}{prev}");
     }
 
     internal static CommandResult ApplyForceHeading(ForceHeadingCommand cmd, AircraftState aircraft)
@@ -84,24 +91,26 @@ internal static class FlightCommandHandler
 
     internal static CommandResult ApplyClimbMaintain(ClimbMaintainCommand cmd, AircraftState aircraft)
     {
+        var prev = PreviousAltitude(aircraft, cmd.Altitude);
         aircraft.SidViaMode = false;
         aircraft.SidViaCeiling = null;
         aircraft.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
-        return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
+        return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
     }
 
     internal static CommandResult ApplyDescendMaintain(DescendMaintainCommand cmd, AircraftState aircraft)
     {
+        var prev = PreviousAltitude(aircraft, cmd.Altitude);
         aircraft.StarViaMode = false;
         aircraft.StarViaFloor = null;
         aircraft.IsExpediting = false;
         aircraft.Targets.TargetAltitude = cmd.Altitude;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
-        return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}");
+        return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
     }
 
     internal static CommandResult ApplyForceAltitude(ForceAltitudeCommand cmd, AircraftState aircraft)
@@ -786,6 +795,41 @@ internal static class FlightCommandHandler
     private static string AltitudeVerb(AircraftState aircraft, int targetAltitude)
     {
         return aircraft.Altitude > targetAltitude ? "Descend and maintain" : "Climb and maintain";
+    }
+
+    private static string PreviousAltitude(AircraftState aircraft, int newAltitude)
+    {
+        if (aircraft.Targets.AssignedAltitude is { } prev && (int)prev != newAltitude)
+        {
+            return $" (was {(int)prev})";
+        }
+
+        return "";
+    }
+
+    private static string PreviousLateralGuidance(AircraftState aircraft)
+    {
+        if (aircraft.Targets.AssignedMagneticHeading is { } prevHdg)
+        {
+            return $" (was heading {prevHdg.Degrees:000})";
+        }
+
+        if (aircraft.Targets.NavigationRoute.Count > 0)
+        {
+            return $" (was DCT {aircraft.Targets.NavigationRoute[0].Name})";
+        }
+
+        if (aircraft.ActiveSidId is { } sid)
+        {
+            return $" (was SID {sid})";
+        }
+
+        if (aircraft.ActiveStarId is { } star)
+        {
+            return $" (was STAR {star})";
+        }
+
+        return "";
     }
 
     private static TrueHeading PickBestEdgeHeading(AirportGroundLayout layout, GroundNode node, TrueHeading currentHeading)
