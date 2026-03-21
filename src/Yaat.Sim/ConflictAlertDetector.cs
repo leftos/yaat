@@ -80,6 +80,11 @@ public static class ConflictAlertDetector
                 continue;
             }
 
+            if (ac.IsUnsupported)
+            {
+                continue;
+            }
+
             eligible.Add(ac);
         }
 

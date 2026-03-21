@@ -496,6 +496,19 @@ public class ConflictAlertDetectorTests
         Assert.Empty(result);
     }
 
+    [Fact]
+    public void UnsupportedGhostTrack_Skipped()
+    {
+        // Ghost track (IsUnsupported) at same position/altitude as real aircraft → no CA
+        var real = MakeAircraft("AAL100", altitude: 5000);
+        var ghost = MakeAircraft("UAL200", altitude: 5000);
+        ghost.IsUnsupported = true;
+
+        var result = ConflictAlertDetector.Detect([real, ghost]);
+
+        Assert.Empty(result);
+    }
+
     // -------------------------------------------------------------------------
     // Final approach helpers
     // -------------------------------------------------------------------------
