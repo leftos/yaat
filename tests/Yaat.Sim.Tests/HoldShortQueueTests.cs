@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Testing;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 

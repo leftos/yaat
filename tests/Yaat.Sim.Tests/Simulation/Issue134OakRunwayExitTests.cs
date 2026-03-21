@@ -184,25 +184,25 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             if (phaseName == "HoldingAfterExitPhase")
             {
                 exitedRunway = true;
-                output.WriteLine($"t+{t}: runway exit complete at ({ac.Latitude:F6},{ac.Longitude:F6})");
+                output.WriteLine($"t+{t}: runway exit complete at ({ac.Latitude:F6},{ac.Longitude:F6}) hdg={ac.TrueHeading.Degrees:F0}");
 
-                // The aircraft position should be near a real taxiway intersection,
-                // not in the grass between J and P. Load the layout and verify the
-                // nearest node is a real intersection (not an intermediate vertex).
                 var layout = LoadOakLayout();
                 Assert.NotNull(layout);
 
-                var nearestExit = layout.FindNearestExit(ac.Latitude, ac.Longitude, ac.TrueHeading, "28L", 0.5);
+                // Aircraft should be snapped to a graph node
+                var nearestNode = layout.FindNearestNode(ac.Latitude, ac.Longitude);
+                Assert.NotNull(nearestNode);
+                double distToNode = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, nearestNode.Latitude, nearestNode.Longitude);
+                output.WriteLine($"Nearest node: {nearestNode.Id} type={nearestNode.Type} dist={distToNode:F4}nm");
+                Assert.True(distToNode < 0.02, $"Aircraft is {distToNode:F4}nm from nearest node — should be snapped");
 
-                // The aircraft should be close to a real exit node (within 0.05nm / 300ft)
-                if (nearestExit is not null)
-                {
-                    double distToExit = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, nearestExit.Latitude, nearestExit.Longitude);
-                    var exitTaxiway = layout.GetExitTaxiwayName(nearestExit);
-                    output.WriteLine($"Nearest valid exit: node={nearestExit.Id} taxiway={exitTaxiway} dist={distToExit:F3}nm");
+                // Aircraft should be at a RunwayHoldShort node
+                Assert.True(nearestNode.Type == GroundNodeType.RunwayHoldShort, $"Expected hold-short node, got type={nearestNode.Type}");
 
-                    Assert.True(distToExit < 0.1, $"Aircraft is {distToExit:F3}nm from nearest valid exit — too far, likely in the grass");
-                }
+                // Aircraft should face away from the runway (heading diverges from 280°)
+                double headingDiff = GeoMath.AbsBearingDifference(ac.TrueHeading.Degrees, 280.0);
+                output.WriteLine($"Heading diff from runway: {headingDiff:F0}");
+                Assert.True(headingDiff > 30, $"Heading {ac.TrueHeading.Degrees:F0} too close to runway 280");
 
                 break;
             }

@@ -310,6 +310,10 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     public required double ExitSpeed { get; init; }
     public required double TimeSinceLastLog { get; init; }
     public required bool StoppedForLahso { get; init; }
+    public int? CurrentCenterlineNodeId { get; init; }
+    public int? NextCenterlineNodeId { get; init; }
+    public double RunwayHeadingDeg { get; init; }
+    public int ExitStateValue { get; init; }
 }
 
 // --- Tower phases ---

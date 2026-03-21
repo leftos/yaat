@@ -289,6 +289,37 @@ public sealed class LandingPhase : Phase
         }
 
         string? rwyDesignator = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
+
+        // Primary: find nearest hold-short node ahead (works with or without preference)
+        if (rwyDesignator is not null)
+        {
+            var hsNode = ctx.GroundLayout.FindNearestHoldShortAhead(
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                _runwayHeading,
+                rwyDesignator,
+                preference
+            );
+
+            if (hsNode is not null)
+            {
+                _resolvedExitNode = hsNode;
+                string? taxiwayName = ctx.GroundLayout.GetExitTaxiwayName(hsNode);
+                double? exitAngle = taxiwayName is not null ? ctx.GroundLayout.ComputeExitAngle(hsNode, taxiwayName, _runwayHeading) : null;
+                _exitTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
+
+                ctx.Logger.LogDebug(
+                    "[Landing] {Callsign}: resolved exit at {Taxiway}, angle={Angle}, turnOffSpeed={Speed:F0}kts",
+                    ctx.Aircraft.Callsign,
+                    taxiwayName ?? "?",
+                    exitAngle?.ToString("F0") ?? "?",
+                    _exitTurnOffSpeed
+                );
+                return;
+            }
+        }
+
+        // Fallback: straight-line search (airports without hold-short data)
         var result = ctx.GroundLayout.FindExitAheadOnRunway(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _runwayHeading, preference, rwyDesignator);
 
         if (result is null)
@@ -297,14 +328,13 @@ public sealed class LandingPhase : Phase
         }
 
         _resolvedExitNode = result.Value.Node;
-        double? exitAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, _runwayHeading);
-        _exitTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
+        double? fallbackAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, _runwayHeading);
+        _exitTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, fallbackAngle);
 
         ctx.Logger.LogDebug(
-            "[Landing] {Callsign}: resolved exit at {Taxiway}, angle={Angle}, turnOffSpeed={Speed:F0}kts",
+            "[Landing] {Callsign}: resolved exit (fallback) at {Taxiway}, turnOffSpeed={Speed:F0}kts",
             ctx.Aircraft.Callsign,
             result.Value.Taxiway,
-            exitAngle?.ToString("F0") ?? "?",
             _exitTurnOffSpeed
         );
     }

@@ -134,6 +134,249 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// Find the nearest runway centerline node that is ahead of or abeam the
+    /// aircraft along the given heading. When <paramref name="runwayDesignator"/>
+    /// is provided, only considers nodes with RWY edges matching that runway.
+    /// Falls back to the nearest matching centerline node if none is ahead.
+    /// </summary>
+    public GroundNode? FindNearestCenterlineNode(double lat, double lon, TrueHeading runwayHeading, string? runwayDesignator = null)
+    {
+        GroundNode? bestAhead = null;
+        double bestAheadDist = double.MaxValue;
+        GroundNode? bestAny = null;
+        double bestAnyDist = double.MaxValue;
+
+        foreach (var node in Nodes.Values)
+        {
+            if (!HasRunwayCenterlineEdge(node))
+            {
+                continue;
+            }
+
+            // Filter to edges matching the specific runway if designator provided
+            if (runwayDesignator is not null && !HasRunwayEdgeForDesignator(node, runwayDesignator))
+            {
+                continue;
+            }
+
+            double dist = GeoMath.DistanceNm(lat, lon, node.Latitude, node.Longitude);
+
+            if (dist < bestAnyDist)
+            {
+                bestAnyDist = dist;
+                bestAny = node;
+            }
+
+            double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
+            double diff = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
+            if (diff <= 90 && dist < bestAheadDist)
+            {
+                bestAheadDist = dist;
+                bestAhead = node;
+            }
+        }
+
+        return bestAhead ?? bestAny;
+    }
+
+    /// <summary>
+    /// Returns true if the node has a RWY edge whose name contains the given
+    /// runway designator (e.g., "RWY10L/28R" contains "28R").
+    /// </summary>
+    private static bool HasRunwayEdgeForDesignator(GroundNode node, string designator)
+    {
+        foreach (var edge in node.Edges)
+        {
+            if (IsRunwayEdge(edge) && edge.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// From a runway centerline node, find the next centerline node ahead along
+    /// the given heading. Walks RWY-prefixed edges and picks the neighbor whose
+    /// bearing is closest to the runway heading (within 90°).
+    /// </summary>
+    public GroundNode? FindCenterlineNeighborAhead(GroundNode currentNode, TrueHeading runwayHeading, string? runwayDesignator = null)
+    {
+        GroundNode? best = null;
+        double bestDiff = double.MaxValue;
+
+        foreach (var edge in currentNode.Edges)
+        {
+            if (!IsRunwayEdge(edge))
+            {
+                continue;
+            }
+
+            if (runwayDesignator is not null && !edge.TaxiwayName.Contains(runwayDesignator, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            int neighborId = edge.FromNodeId == currentNode.Id ? edge.ToNodeId : edge.FromNodeId;
+            if (!Nodes.TryGetValue(neighborId, out var neighbor))
+            {
+                continue;
+            }
+
+            double bearing = GeoMath.BearingTo(currentNode.Latitude, currentNode.Longitude, neighbor.Latitude, neighbor.Longitude);
+            double diff = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
+            if (diff < 90 && diff < bestDiff)
+            {
+                bestDiff = diff;
+                best = neighbor;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// From a runway centerline node, find any hold-short node directly connected
+    /// to it via a non-RWY edge. Optionally filters by runway designator, exit side,
+    /// or taxiway name. Returns the hold-short node and the taxiway name of the
+    /// connecting edge, or null if none found.
+    /// </summary>
+    public (GroundNode Node, string Taxiway)? FindAdjacentHoldShort(
+        GroundNode centerlineNode,
+        string? runwayDesignator,
+        TrueHeading runwayHeading,
+        ExitPreference? preference
+    )
+    {
+        GroundNode? best = null;
+        string? bestTaxiway = null;
+        double bestDist = double.MaxValue;
+
+        foreach (var edge in centerlineNode.Edges)
+        {
+            if (IsRunwayEdge(edge))
+            {
+                continue;
+            }
+
+            int neighborId = edge.FromNodeId == centerlineNode.Id ? edge.ToNodeId : edge.FromNodeId;
+            if (!Nodes.TryGetValue(neighborId, out var neighbor))
+            {
+                continue;
+            }
+
+            if (neighbor.Type != GroundNodeType.RunwayHoldShort)
+            {
+                continue;
+            }
+
+            if (runwayDesignator is not null && neighbor.RunwayId is { } rwyId && !rwyId.Contains(runwayDesignator))
+            {
+                continue;
+            }
+
+            if (preference?.Side is { } side)
+            {
+                double bearing = GeoMath.BearingTo(centerlineNode.Latitude, centerlineNode.Longitude, neighbor.Latitude, neighbor.Longitude);
+                double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
+                bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
+                if (!isOnRequestedSide)
+                {
+                    continue;
+                }
+            }
+
+            if (preference?.Taxiway is { } taxiway && !string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Score by parking proximity — prefer exits leading toward parking areas
+            double parkingBias = AverageNearestParkingDistanceNm(neighbor, ParkingSampleCount) * ParkingProximityWeight;
+            double score = edge.DistanceNm + parkingBias;
+            if (score < bestDist)
+            {
+                bestDist = score;
+                best = neighbor;
+                bestTaxiway = edge.TaxiwayName;
+            }
+        }
+
+        if (best is null || bestTaxiway is null)
+        {
+            return null;
+        }
+
+        return (best, bestTaxiway);
+    }
+
+    /// <summary>
+    /// Find the nearest ahead hold-short node for the given runway, measured by
+    /// along-track distance. Used by LandingPhase for exit-aware braking.
+    /// </summary>
+    public GroundNode? FindNearestHoldShortAhead(
+        double lat,
+        double lon,
+        TrueHeading runwayHeading,
+        string runwayDesignator,
+        ExitPreference? preference
+    )
+    {
+        GroundNode? best = null;
+        double bestAlongTrack = double.MaxValue;
+
+        foreach (var node in GetRunwayHoldShortNodes(runwayDesignator))
+        {
+            double alongTrack = GeoMath.AlongTrackDistanceNm(node.Latitude, node.Longitude, lat, lon, runwayHeading);
+            if (alongTrack <= 0)
+            {
+                continue;
+            }
+
+            if (preference?.Side is { } side)
+            {
+                double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
+                double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
+                bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
+                if (!isOnRequestedSide)
+                {
+                    continue;
+                }
+            }
+
+            if (preference?.Taxiway is { } taxiway)
+            {
+                bool hasMatchingEdge = false;
+                foreach (var edge in node.Edges)
+                {
+                    if (!IsRunwayEdge(edge) && string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasMatchingEdge = true;
+                        break;
+                    }
+                }
+
+                if (!hasMatchingEdge)
+                {
+                    continue;
+                }
+            }
+
+            // Score by along-track distance + parking proximity bias
+            double parkingBias = AverageNearestParkingDistanceNm(node, ParkingSampleCount) * ParkingProximityWeight;
+            double score = alongTrack + parkingBias;
+            if (score < bestAlongTrack)
+            {
+                bestAlongTrack = score;
+                best = node;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
     /// Find a GroundRunway where either end matches the given designator (e.g., "28L").
     /// GroundRunway.Name format: "10R/28L".
     /// </summary>
@@ -422,8 +665,10 @@ public sealed class AirportGroundLayout
     /// </summary>
     public double? ComputeExitAngle(GroundNode exitNode, string taxiwayName, TrueHeading runwayHeading)
     {
-        // Use the taxiway heading that diverges most from the runway — this represents
-        // the exit direction, not the direction back along the runway.
+        // Find the edge that leads AWAY from the runway (neighbor is not on the
+        // centerline) and return its angle from the runway heading. This is the
+        // actual exit direction — a high-speed exit has a small angle (~30°), a
+        // standard exit has a larger angle (~90°).
         double? bestAngle = null;
 
         foreach (var edge in exitNode.Edges)
@@ -444,10 +689,16 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
+            // Skip edges going toward the runway centerline — we want the away direction
+            if (HasRunwayCenterlineEdge(otherNode))
+            {
+                continue;
+            }
+
             double bearing = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
             double angle = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
 
-            if (bestAngle is null || angle > bestAngle.Value)
+            if (bestAngle is null || angle < bestAngle.Value)
             {
                 bestAngle = angle;
             }
