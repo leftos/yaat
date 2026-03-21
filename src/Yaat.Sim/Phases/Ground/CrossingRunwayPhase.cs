@@ -87,7 +87,7 @@ public sealed class CrossingRunwayPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogDebug("[Crossing] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts", ctx.Aircraft.Callsign, dist, ctx.Aircraft.GroundSpeed);
+            ctx.Logger.LogTrace("[Crossing] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts", ctx.Aircraft.Callsign, dist, ctx.Aircraft.GroundSpeed);
         }
 
         return false;

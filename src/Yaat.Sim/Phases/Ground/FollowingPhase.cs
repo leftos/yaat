@@ -112,7 +112,7 @@ public sealed class FollowingPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogDebug(
+            ctx.Logger.LogTrace(
                 "[Follow] {Callsign}: dist={Dist:F4}nm to {Target}, gs={Gs:F1}kts, targetGs={TGs:F1}kts",
                 ctx.Aircraft.Callsign,
                 dist,

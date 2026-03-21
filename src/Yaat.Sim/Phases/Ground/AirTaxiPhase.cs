@@ -136,7 +136,7 @@ public sealed class AirTaxiPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogDebug(
+            ctx.Logger.LogTrace(
                 "[AirTaxi] {Callsign}: dist={Dist:F3}nm, hdg={Hdg:F0}, brg={Brg:F0}, alt={Alt:F0}, gs={Gs:F0}",
                 ctx.Aircraft.Callsign,
                 dist,

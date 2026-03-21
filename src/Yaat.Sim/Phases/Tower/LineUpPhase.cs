@@ -193,7 +193,7 @@ public sealed class LineUpPhase : Phase
             _timeSinceLastLog = 0;
             double clDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _centerlineLat, _centerlineLon);
             double hdgDiff = _runwayHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
-            ctx.Logger.LogDebug(
+            ctx.Logger.LogTrace(
                 "[LineUp] {Callsign}: clDist={Dist:F4}nm, hdgDiff={Diff:F1}, gs={Gs:F1}kts",
                 ctx.Aircraft.Callsign,
                 clDist,

@@ -137,7 +137,7 @@ public sealed class PushbackToSpotPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogDebug(
+            ctx.Logger.LogTrace(
                 "[PushSpot] {Callsign}: seg {SegIdx}/{SegCount}, dist={Dist:F4}nm, gs={Gs:F1}kts, pushHdg={PushHdg:F0}, noseHdg={NoseHdg:F0}",
                 ctx.Aircraft.Callsign,
                 _route.CurrentSegmentIndex,

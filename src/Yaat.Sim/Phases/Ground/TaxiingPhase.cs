@@ -165,7 +165,7 @@ public sealed class TaxiingPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogDebug(
+            ctx.Logger.LogTrace(
                 "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}, bearing={Brg:F0}, pos=({Lat:F6},{Lon:F6})",
                 ctx.Aircraft.Callsign,
                 route.CurrentSegmentIndex,

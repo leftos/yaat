@@ -596,7 +596,7 @@ public static class GroundConflictDetector
         // Only log when this call actually set or lowered the limit
         if (existing is null || maxSpeed < existing)
         {
-            Log.LogDebug(
+            Log.LogTrace(
                 "[Conflict] {Callsign}: limit={Limit:F0}kts, reason={Reason}, other={Other}, dist={Dist:F0}ft",
                 aircraft.Callsign,
                 maxSpeed,

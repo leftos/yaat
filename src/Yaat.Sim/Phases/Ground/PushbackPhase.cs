@@ -158,7 +158,7 @@ public sealed class PushbackPhase : Phase
         {
             _timeSinceLastLog = 0;
             double distPushed = GeoMath.DistanceNm(_startLat, _startLon, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
-            ctx.Logger.LogDebug(
+            ctx.Logger.LogTrace(
                 "[Push] {Callsign}: dist={Dist:F4}nm, gs={Gs:F1}kts, pushHdg={PushHdg:F0}, noseHdg={NoseHdg:F0}, pos=({Lat:F6},{Lon:F6})",
                 ctx.Aircraft.Callsign,
                 distPushed,

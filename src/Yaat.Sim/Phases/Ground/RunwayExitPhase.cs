@@ -304,7 +304,7 @@ public sealed class RunwayExitPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            ctx.Logger.LogDebug(
+            ctx.Logger.LogTrace(
                 "[Exit] {Callsign}: {State}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
                 ctx.Aircraft.Callsign,
                 _state,
