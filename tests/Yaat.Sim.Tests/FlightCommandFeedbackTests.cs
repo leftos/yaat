@@ -5,11 +5,7 @@ namespace Yaat.Sim.Tests;
 
 public class FlightCommandFeedbackTests
 {
-    private static AircraftState CreateAircraft(
-        double heading = 180,
-        double altitude = 5000,
-        double declination = 0
-    )
+    private static AircraftState CreateAircraft(double heading = 180, double altitude = 5000, double declination = 0)
     {
         return new AircraftState
         {
@@ -128,7 +124,14 @@ public class FlightCommandFeedbackTests
     public void FlyHeading_WithPriorDct_ShowsPrevious()
     {
         var ac = CreateAircraft();
-        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SUNOL", Latitude = 37.5, Longitude = -121.9 });
+        ac.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "SUNOL",
+                Latitude = 37.5,
+                Longitude = -121.9,
+            }
+        );
 
         var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, null, Random.Shared, true);
 
@@ -169,7 +172,14 @@ public class FlightCommandFeedbackTests
     {
         var ac = CreateAircraft();
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(180);
-        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SUNOL", Latitude = 37.5, Longitude = -121.9 });
+        ac.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "SUNOL",
+                Latitude = 37.5,
+                Longitude = -121.9,
+            }
+        );
 
         var result = CommandDispatcher.Dispatch(new FlyHeadingCommand(new MagneticHeading(200)), ac, null, Random.Shared, true);
 
@@ -194,7 +204,14 @@ public class FlightCommandFeedbackTests
     public void FlyPresentHeading_WithPriorDct_ShowsBoth()
     {
         var ac = CreateAircraft(heading: 180);
-        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SUNOL", Latitude = 37.5, Longitude = -121.9 });
+        ac.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "SUNOL",
+                Latitude = 37.5,
+                Longitude = -121.9,
+            }
+        );
 
         var result = CommandDispatcher.Dispatch(new FlyPresentHeadingCommand(), ac, null, Random.Shared, true);
 
@@ -220,7 +237,14 @@ public class FlightCommandFeedbackTests
     public void RightTurn_WithPriorDct_ShowsPrevious()
     {
         var ac = CreateAircraft(heading: 180);
-        ac.Targets.NavigationRoute.Add(new NavigationTarget { Name = "SUNOL", Latitude = 37.5, Longitude = -121.9 });
+        ac.Targets.NavigationRoute.Add(
+            new NavigationTarget
+            {
+                Name = "SUNOL",
+                Latitude = 37.5,
+                Longitude = -121.9,
+            }
+        );
 
         var result = CommandDispatcher.Dispatch(new RightTurnCommand(30), ac, null, Random.Shared, true);
 

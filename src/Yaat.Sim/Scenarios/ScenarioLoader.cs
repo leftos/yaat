@@ -97,10 +97,27 @@ public static class ScenarioLoader
         };
     }
 
-    private static AircraftState CreateBaseState(ScenarioAircraft ac, string? primaryApproach = null)
+    private static AircraftState CreateBaseState(ScenarioAircraft ac, string? primaryAirportId, string? primaryApproach)
     {
         var fpType = ac.FlightPlan?.AircraftType;
         var equipType = !string.IsNullOrEmpty(fpType) ? fpType : ac.AircraftType;
+
+        // primaryApproach is only intended for the scenario's primary airport.
+        // Aircraft destined elsewhere must not inherit it — even if the same approach ID
+        // exists at their destination, it was chosen for the primary airport's routes.
+        string? effectiveApproach = ac.ExpectedApproach;
+        if (effectiveApproach is null && primaryApproach is not null)
+        {
+            var dest = ac.FlightPlan?.Destination;
+            bool destMatchesPrimary =
+                primaryAirportId is null
+                || string.IsNullOrEmpty(dest)
+                || NormalizeAirportCode(dest).Equals(NormalizeAirportCode(primaryAirportId), StringComparison.OrdinalIgnoreCase);
+            if (destMatchesPrimary)
+            {
+                effectiveApproach = primaryApproach;
+            }
+        }
 
         return new AircraftState
         {
@@ -115,9 +132,14 @@ public static class ScenarioLoader
             Route = ac.FlightPlan?.Route ?? "",
             Remarks = ac.FlightPlan?.Remarks ?? "",
             EquipmentSuffix = ExtractSuffix(equipType),
-            ExpectedApproach = ac.ExpectedApproach ?? primaryApproach,
+            ExpectedApproach = effectiveApproach,
             HasFlightPlan = ac.FlightPlan is not null,
         };
+    }
+
+    private static string NormalizeAirportCode(string code)
+    {
+        return (code.StartsWith('K') && code.Length == 4) ? code[1..] : code;
     }
 
     private static LoadedAircraft? LoadAircraft(
@@ -172,10 +194,10 @@ public static class ScenarioLoader
                 break;
 
             case "OnRunway":
-                return LoadOnRunway(ac, groundData, warnings, primaryApproach, rng);
+                return LoadOnRunway(ac, groundData, warnings, primaryAirportId, primaryApproach, rng);
 
             case "OnFinal":
-                return LoadOnFinal(ac, groundData, warnings, primaryApproach, rng);
+                return LoadOnFinal(ac, groundData, warnings, primaryAirportId, primaryApproach, rng);
 
             case "Parking":
                 return LoadAtParking(ac, groundData, primaryAirportId, warnings, primaryApproach, rng);
@@ -192,7 +214,7 @@ public static class ScenarioLoader
             speed = AircraftPerformance.DefaultSpeed(ac.AircraftType, category, alt, null);
         }
 
-        var state = CreateBaseState(ac, primaryApproach);
+        var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
         state.Latitude = lat;
         state.Longitude = lon;
         state.Altitude = alt;
@@ -258,6 +280,7 @@ public static class ScenarioLoader
         ScenarioAircraft ac,
         IAirportGroundData? groundData,
         List<string> warnings,
+        string? primaryAirportId,
         string? primaryApproach,
         Random rng
     )
@@ -268,20 +291,20 @@ public static class ScenarioLoader
         if (string.IsNullOrEmpty(runwayId) || string.IsNullOrEmpty(airportId))
         {
             warnings.Add($"{ac.AircraftId}: OnRunway requires runway and airport ID");
-            return BuildDeferredAircraft(ac, primaryApproach, "OnRunway (missing runway/airport)");
+            return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "OnRunway (missing runway/airport)");
         }
 
         var rwy = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
         if (rwy is null)
         {
             warnings.Add($"{ac.AircraftId}: Could not find runway {runwayId} at {airportId}");
-            return BuildDeferredAircraft(ac, primaryApproach, $"OnRunway ({airportId}/{runwayId} not found)");
+            return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"OnRunway ({airportId}/{runwayId} not found)");
         }
 
         var rwyCategory = AircraftCategorization.Categorize(ac.AircraftType);
         var init = AircraftInitializer.InitializeOnRunway(rwy, rwyCategory);
 
-        var state = CreateBaseState(ac, primaryApproach);
+        var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
         state.Latitude = init.Latitude;
         state.Longitude = init.Longitude;
         state.TrueHeading = init.TrueHeading;
@@ -308,6 +331,7 @@ public static class ScenarioLoader
         ScenarioAircraft ac,
         IAirportGroundData? groundData,
         List<string> warnings,
+        string? primaryAirportId,
         string? primaryApproach,
         Random rng
     )
@@ -318,14 +342,14 @@ public static class ScenarioLoader
         if (string.IsNullOrEmpty(runwayId) || string.IsNullOrEmpty(airportId))
         {
             warnings.Add($"{ac.AircraftId}: OnFinal requires runway and airport ID");
-            return BuildDeferredAircraft(ac, primaryApproach, "OnFinal (missing runway/airport)");
+            return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "OnFinal (missing runway/airport)");
         }
 
         var rwy = NavigationDatabase.Instance.GetRunway(airportId, runwayId);
         if (rwy is null)
         {
             warnings.Add($"{ac.AircraftId}: Could not find runway {runwayId} at {airportId}");
-            return BuildDeferredAircraft(ac, primaryApproach, $"OnFinal ({airportId}/{runwayId} not found)");
+            return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"OnFinal ({airportId}/{runwayId} not found)");
         }
 
         var category = AircraftCategorization.Categorize(ac.AircraftType);
@@ -338,7 +362,7 @@ public static class ScenarioLoader
             ac.AircraftType
         );
 
-        var state = CreateBaseState(ac, primaryApproach);
+        var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
         state.Latitude = init.Latitude;
         state.Longitude = init.Longitude;
         state.TrueHeading = init.TrueHeading;
@@ -379,27 +403,27 @@ public static class ScenarioLoader
         if (string.IsNullOrEmpty(airportId))
         {
             warnings.Add($"{ac.AircraftId}: Parking requires airport ID");
-            return BuildDeferredAircraft(ac, primaryApproach, "Parking (missing airport)");
+            return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "Parking (missing airport)");
         }
 
         if (groundData is null)
         {
             warnings.Add($"{ac.AircraftId}: Parking requires airport ground data");
-            return BuildDeferredAircraft(ac, primaryApproach, "Parking (no ground data)");
+            return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "Parking (no ground data)");
         }
 
         var layout = groundData.GetLayout(airportId);
         if (layout is null)
         {
             warnings.Add($"{ac.AircraftId}: No ground layout for {airportId}");
-            return BuildDeferredAircraft(ac, primaryApproach, $"Parking ({airportId} has no ground data)");
+            return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"Parking ({airportId} has no ground data)");
         }
 
         var parkingName = cond.Parking;
         if (string.IsNullOrEmpty(parkingName))
         {
             warnings.Add($"{ac.AircraftId}: Parking type but no parking name");
-            return BuildDeferredAircraft(ac, primaryApproach, "Parking (missing parking name)");
+            return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, "Parking (missing parking name)");
         }
 
         // Search parking first, then helipads and other spots
@@ -407,13 +431,13 @@ public static class ScenarioLoader
         if (node is null)
         {
             warnings.Add($"{ac.AircraftId}: Parking '{parkingName}' not found at {airportId}");
-            return BuildDeferredAircraft(ac, primaryApproach, $"Parking ({parkingName} not found)");
+            return BuildDeferredAircraft(ac, primaryAirportId, primaryApproach, $"Parking ({parkingName} not found)");
         }
 
         var elevation = NavigationDatabase.Instance.GetAirportElevation(airportId) ?? 0;
         var init = AircraftInitializer.InitializeAtParking(node, elevation);
 
-        var state = CreateBaseState(ac, primaryApproach);
+        var state = CreateBaseState(ac, primaryAirportId, primaryApproach);
         state.Latitude = init.Latitude;
         state.Longitude = init.Longitude;
         state.TrueHeading = init.TrueHeading;
@@ -437,11 +461,11 @@ public static class ScenarioLoader
         };
     }
 
-    private static LoadedAircraft BuildDeferredAircraft(ScenarioAircraft ac, string? primaryApproach, string reason)
+    private static LoadedAircraft BuildDeferredAircraft(ScenarioAircraft ac, string? primaryAirportId, string? primaryApproach, string reason)
     {
         return new LoadedAircraft
         {
-            State = CreateBaseState(ac, primaryApproach),
+            State = CreateBaseState(ac, primaryAirportId, primaryApproach),
             DeferralReason = reason,
             PresetCommands = ac.PresetCommands,
         };

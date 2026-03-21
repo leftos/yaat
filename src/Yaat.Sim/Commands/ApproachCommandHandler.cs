@@ -409,14 +409,9 @@ public static class ApproachCommandHandler
             return ResolvedApproach.Fail("Cannot determine airport for approach");
         }
 
-        // Auto-resolve: when no approach ID given, try ExpectedApproach first, then assigned runway
         if (approachId is null)
         {
-            approachId = aircraft.ExpectedApproach ?? aircraft.DestinationRunway ?? aircraft.DepartureRunway;
-            if (approachId is null)
-            {
-                return ResolvedApproach.Fail("No approach ID and no runway assigned — cannot auto-resolve");
-            }
+            return AutoResolveApproach(navDb, airport, aircraft);
         }
 
         var candidates = navDb.ResolveApproachCandidates(airport, approachId);
@@ -425,14 +420,114 @@ public static class ApproachCommandHandler
             return ResolvedApproach.Fail($"Unknown approach: {approachId} at {airport}");
         }
 
-        // Single candidate — no ambiguity
         if (candidates.Count == 1)
         {
             return BuildResolved(navDb, airport, candidates[0]);
         }
 
-        // Multiple candidates — disambiguate via route connectivity.
-        // Build known fixes from the aircraft's route + active nav route.
+        return DisambiguateCandidates(navDb, airport, candidates, aircraft);
+    }
+
+    /// <summary>
+    /// Auto-resolve approach when bare CAPP is issued (no approach ID specified).
+    /// Uses a 3-tier strategy:
+    /// <list type="number">
+    /// <item>Try hint sources (ExpectedApproach, DestinationRunway) in order.
+    ///        For each, verify candidates exist at the airport. If the aircraft is on a nav route,
+    ///        also verify route connectivity — skip disconnected hints.</item>
+    /// <item>Auto-discover: enumerate all approaches at the airport, pick one that connects
+    ///        to the aircraft's navigation route.</item>
+    /// <item>Fail with a clear error if nothing works.</item>
+    /// </list>
+    /// </summary>
+    private static ResolvedApproach AutoResolveApproach(NavigationDatabase navDb, string airport, AircraftState aircraft)
+    {
+        var knownFixes = BuildKnownFixes(aircraft);
+        bool onNavRoute = aircraft.Targets.NavigationRoute.Count > 0;
+
+        // Tier 1: try hint sources in priority order
+        string?[] sources = [aircraft.ExpectedApproach, aircraft.DestinationRunway];
+
+        foreach (var source in sources)
+        {
+            if (source is null)
+            {
+                continue;
+            }
+
+            var candidates = navDb.ResolveApproachCandidates(airport, source);
+            if (candidates.Count == 0)
+            {
+                continue;
+            }
+
+            if (onNavRoute)
+            {
+                // Verify route connectivity — don't blindly use a disconnected approach
+                var connected = FindConnectedCandidate(navDb, airport, candidates, knownFixes);
+                if (connected is not null)
+                {
+                    return BuildResolved(navDb, airport, connected);
+                }
+                // No connectivity — try next source
+                continue;
+            }
+
+            // Being vectored — accept without connectivity check
+            if (candidates.Count == 1)
+            {
+                return BuildResolved(navDb, airport, candidates[0]);
+            }
+
+            return DisambiguateCandidates(navDb, airport, candidates, aircraft);
+        }
+
+        // Tier 2: auto-discover any approach at the airport that connects to the route
+        if (onNavRoute)
+        {
+            var allApproaches = navDb.GetApproaches(airport);
+            foreach (var proc in allApproaches)
+            {
+                if (HasRouteConnectivity(proc, knownFixes))
+                {
+                    return BuildResolved(navDb, airport, proc.ApproachId);
+                }
+            }
+        }
+
+        return ResolvedApproach.Fail("No approach connects to the aircraft's route — specify explicitly");
+    }
+
+    private static string? FindConnectedCandidate(
+        NavigationDatabase navDb,
+        string airport,
+        IReadOnlyList<string> candidates,
+        HashSet<string> knownFixes
+    )
+    {
+        foreach (string candidateId in candidates)
+        {
+            var proc = navDb.GetApproach(airport, candidateId);
+            if (proc is not null && HasRouteConnectivity(proc, knownFixes))
+            {
+                return candidateId;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Disambiguate multiple approach candidates using route connectivity.
+    /// Prefers ExpectedApproach if it connects, then first connected candidate, then first overall.
+    /// </summary>
+    private static ResolvedApproach DisambiguateCandidates(
+        NavigationDatabase navDb,
+        string airport,
+        IReadOnlyList<string> candidates,
+        AircraftState aircraft
+    )
+    {
         var knownFixes = BuildKnownFixes(aircraft);
 
         // Priority 1: ExpectedApproach, if it matches one of the candidates and connects
