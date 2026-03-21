@@ -134,13 +134,34 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// Find a GroundRunway where either end matches the given designator (e.g., "28L").
+    /// GroundRunway.Name format: "10R/28L".
+    /// </summary>
+    public GroundRunway? FindGroundRunway(string designator)
+    {
+        foreach (var rwy in Runways)
+        {
+            var id = RunwayIdentifier.Parse(rwy.Name);
+            if (id.Contains(designator))
+            {
+                return rwy;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Find the nearest taxiway node suitable as a runway exit, considering aircraft heading.
     /// Prefers exits that don't require turns greater than 90 degrees.
+    /// When <paramref name="runwayDesignator"/> is provided, filters out exits that are closer
+    /// to a different parallel runway's centerline.
     /// </summary>
-    public GroundNode? FindNearestExit(double lat, double lon, TrueHeading runwayHeading, double maxSearchNm = 0.5)
+    public GroundNode? FindNearestExit(double lat, double lon, TrueHeading runwayHeading, string? runwayDesignator, double maxSearchNm = 0.5)
     {
         GroundNode? best = null;
         double bestScore = double.MaxValue;
+        GroundRunway? targetRunway = runwayDesignator is not null ? FindGroundRunway(runwayDesignator) : null;
 
         foreach (var node in Nodes.Values)
         {
@@ -177,9 +198,16 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
+            // Filter out exits closer to a different parallel runway
+            if (targetRunway is not null && !IsCloserToRunway(node, targetRunway))
+            {
+                continue;
+            }
+
             double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
             double turnAngle = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
-            double score = dist + (turnAngle > 90 ? 10.0 : 0.0);
+            double parkingBias = AverageNearestParkingDistanceNm(node, ParkingSampleCount) * ParkingProximityWeight;
+            double score = dist + (turnAngle > 90 ? 10.0 : 0.0) + parkingBias;
 
             if (score < bestScore)
             {
@@ -195,10 +223,18 @@ public sealed class AirportGroundLayout
     /// Find the nearest exit on the specified side of the runway heading.
     /// Falls back to FindNearestExit if no exits match the requested side.
     /// </summary>
-    public GroundNode? FindExitBySide(double lat, double lon, TrueHeading runwayHeading, ExitSide side, double maxSearchNm = 0.5)
+    public GroundNode? FindExitBySide(
+        double lat,
+        double lon,
+        TrueHeading runwayHeading,
+        ExitSide side,
+        string? runwayDesignator,
+        double maxSearchNm = 0.5
+    )
     {
         GroundNode? best = null;
         double bestScore = double.MaxValue;
+        GroundRunway? targetRunway = runwayDesignator is not null ? FindGroundRunway(runwayDesignator) : null;
 
         foreach (var node in Nodes.Values)
         {
@@ -233,6 +269,12 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
+            // Filter out exits closer to a different parallel runway
+            if (targetRunway is not null && !IsCloserToRunway(node, targetRunway))
+            {
+                continue;
+            }
+
             double bearing = GeoMath.BearingTo(lat, lon, node.Latitude, node.Longitude);
             double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
 
@@ -244,7 +286,8 @@ public sealed class AirportGroundLayout
             }
 
             double turnAngle = Math.Abs(relative);
-            double score = dist + (turnAngle > 90 ? 10.0 : 0.0);
+            double parkingBias = AverageNearestParkingDistanceNm(node, ParkingSampleCount) * ParkingProximityWeight;
+            double score = dist + (turnAngle > 90 ? 10.0 : 0.0) + parkingBias;
 
             if (score < bestScore)
             {
@@ -254,7 +297,7 @@ public sealed class AirportGroundLayout
         }
 
         // Fall back to nearest exit if none found on the requested side
-        return best ?? FindNearestExit(lat, lon, runwayHeading, maxSearchNm);
+        return best ?? FindNearestExit(lat, lon, runwayHeading, runwayDesignator, maxSearchNm);
     }
 
     /// <summary>
@@ -477,11 +520,13 @@ public sealed class AirportGroundLayout
         double lon,
         TrueHeading runwayHeading,
         ExitPreference? preference,
+        string? runwayDesignator,
         double maxSearchNm = 1.5
     )
     {
         GroundNode? best = null;
         double bestScore = double.MaxValue;
+        GroundRunway? targetRunway = runwayDesignator is not null ? FindGroundRunway(runwayDesignator) : null;
 
         foreach (var node in Nodes.Values)
         {
@@ -533,6 +578,12 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
+            // Filter out exits closer to a different parallel runway
+            if (targetRunway is not null && !IsCloserToRunway(node, targetRunway))
+            {
+                continue;
+            }
+
             // Apply preference filters
             if (preference?.Taxiway is not null && !matchesPreference)
             {
@@ -550,8 +601,9 @@ public sealed class AirportGroundLayout
                 }
             }
 
-            // Score by along-track distance (prefer nearest ahead exit)
-            double score = alongTrack;
+            // Score by along-track distance (prefer nearest ahead exit), biased toward parking
+            double parkingBias = AverageNearestParkingDistanceNm(node, ParkingSampleCount) * ParkingProximityWeight;
+            double score = alongTrack + parkingBias;
             if (score < bestScore)
             {
                 bestScore = score;
@@ -571,6 +623,156 @@ public sealed class AirportGroundLayout
         }
 
         return (best, taxiwayName);
+    }
+
+    /// <summary>
+    /// Number of nearest parking nodes to average when computing parking proximity bias.
+    /// </summary>
+    private const int ParkingSampleCount = 3;
+
+    /// <summary>
+    /// Weight applied to average parking distance when scoring exit candidates.
+    /// Higher values make exits near parking more strongly preferred.
+    /// </summary>
+    private const double ParkingProximityWeight = 2.0;
+
+    /// <summary>
+    /// Compute the average distance from a node to the N nearest parking nodes.
+    /// Returns 0 if there are no parking nodes in the layout.
+    /// </summary>
+    private double AverageNearestParkingDistanceNm(GroundNode exitNode, int count)
+    {
+        // Collect distances to all parking nodes, keep the N smallest
+        Span<double> nearest = stackalloc double[count];
+        nearest.Fill(double.MaxValue);
+
+        bool anyParking = false;
+        foreach (var node in Nodes.Values)
+        {
+            if (node.Type != GroundNodeType.Parking)
+            {
+                continue;
+            }
+
+            anyParking = true;
+            double dist = GeoMath.DistanceNm(exitNode.Latitude, exitNode.Longitude, node.Latitude, node.Longitude);
+
+            // Insert into sorted top-N if smaller than the current largest
+            if (dist < nearest[count - 1])
+            {
+                nearest[count - 1] = dist;
+                // Bubble down to maintain sorted order
+                for (int i = count - 2; i >= 0; i--)
+                {
+                    if (nearest[i] > nearest[i + 1])
+                    {
+                        (nearest[i], nearest[i + 1]) = (nearest[i + 1], nearest[i]);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!anyParking)
+        {
+            return 0;
+        }
+
+        // Average only the slots that were filled (handles layouts with fewer than N parking nodes)
+        double sum = 0;
+        int filled = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (nearest[i] < double.MaxValue)
+            {
+                sum += nearest[i];
+                filled++;
+            }
+        }
+
+        return filled > 0 ? sum / filled : 0;
+    }
+
+    /// <summary>
+    /// Returns true if the node is closer to <paramref name="targetRunway"/>'s centerline
+    /// than to any other runway's centerline. If there are no other runways, returns true.
+    /// </summary>
+    private bool IsCloserToRunway(GroundNode node, GroundRunway targetRunway)
+    {
+        double targetDist = MinDistanceToRunwayCenterline(node, targetRunway);
+
+        foreach (var rwy in Runways)
+        {
+            if (ReferenceEquals(rwy, targetRunway))
+            {
+                continue;
+            }
+
+            double otherDist = MinDistanceToRunwayCenterline(node, rwy);
+            if (otherDist < targetDist)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Compute the minimum distance from a node to a runway's centerline polyline.
+    /// Uses point-to-segment distances for each consecutive pair of coordinates.
+    /// </summary>
+    private static double MinDistanceToRunwayCenterline(GroundNode node, GroundRunway runway)
+    {
+        double minDist = double.MaxValue;
+        var coords = runway.Coordinates;
+
+        for (int i = 0; i < coords.Count - 1; i++)
+        {
+            double dist = PointToSegmentDistanceNm(node.Latitude, node.Longitude, coords[i].Lat, coords[i].Lon, coords[i + 1].Lat, coords[i + 1].Lon);
+            if (dist < minDist)
+            {
+                minDist = dist;
+            }
+        }
+
+        // Fallback: if runway has only one coordinate, use point-to-point distance
+        if (coords.Count == 1)
+        {
+            minDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, coords[0].Lat, coords[0].Lon);
+        }
+
+        return minDist;
+    }
+
+    /// <summary>
+    /// Approximate distance from a point to a line segment on the Earth's surface.
+    /// Projects the point onto the segment and returns the distance to the nearest point
+    /// (endpoint or projected point).
+    /// </summary>
+    private static double PointToSegmentDistanceNm(double pLat, double pLon, double aLat, double aLon, double bLat, double bLon)
+    {
+        // Use a flat-earth approximation (valid for short distances like runway widths)
+        double cosLat = Math.Cos(pLat * Math.PI / 180.0);
+        double dx = (bLon - aLon) * cosLat;
+        double dy = bLat - aLat;
+        double px = (pLon - aLon) * cosLat;
+        double py = pLat - aLat;
+
+        double segLenSq = (dx * dx) + (dy * dy);
+        if (segLenSq < 1e-20)
+        {
+            return GeoMath.DistanceNm(pLat, pLon, aLat, aLon);
+        }
+
+        double t = Math.Clamp(((px * dx) + (py * dy)) / segLenSq, 0.0, 1.0);
+        double closestLat = aLat + (t * (bLat - aLat));
+        double closestLon = aLon + (t * (bLon - aLon));
+
+        return GeoMath.DistanceNm(pLat, pLon, closestLat, closestLon);
     }
 
     private static bool IsRunwayEdge(GroundEdge edge)

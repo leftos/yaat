@@ -240,7 +240,8 @@ public sealed class LandingPhase : Phase
             return;
         }
 
-        var result = ctx.GroundLayout.FindExitAheadOnRunway(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _runwayHeading, preference);
+        string? rwyDesignator = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
+        var result = ctx.GroundLayout.FindExitAheadOnRunway(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _runwayHeading, preference, rwyDesignator);
 
         if (result is null)
         {

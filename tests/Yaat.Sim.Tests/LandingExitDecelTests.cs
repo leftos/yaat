@@ -428,7 +428,7 @@ public class LandingExitDecelTests
         double exitLon = ThresholdLon - 0.005;
         var layout = BuildStandardExitLayout(exitLat, exitLon);
 
-        var result = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Taxiway = "B" });
+        var result = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Taxiway = "B" }, null);
 
         Assert.NotNull(result);
         Assert.Equal("B", result.Value.Taxiway);
@@ -442,7 +442,7 @@ public class LandingExitDecelTests
         double exitLon = ThresholdLon + 0.005;
         var layout = BuildStandardExitLayout(exitLat, exitLon);
 
-        var result = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Taxiway = "B" });
+        var result = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Taxiway = "B" }, null);
 
         Assert.Null(result);
     }
@@ -454,7 +454,7 @@ public class LandingExitDecelTests
         double exitLon = ThresholdLon - 0.005;
         var layout = BuildStandardExitLayout(exitLat, exitLon);
 
-        var result = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, null);
+        var result = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, null, null);
 
         Assert.NotNull(result);
     }
@@ -468,8 +468,8 @@ public class LandingExitDecelTests
         var layout = BuildStandardExitLayout(exitLat, exitLon);
 
         // The exit node is slightly north → to the right of heading 280
-        var rightResult = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Side = ExitSide.Right });
-        layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Side = ExitSide.Left });
+        var rightResult = layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Side = ExitSide.Right }, null);
+        layout.FindExitAheadOnRunway(ThresholdLat, ThresholdLon, RunwayHeading, new ExitPreference { Side = ExitSide.Left }, null);
 
         // Right side should find it; left side should not (only one exit in layout)
         Assert.NotNull(rightResult);

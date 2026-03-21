@@ -1779,7 +1779,7 @@ public class TaxiPathfinderTests
         double acLon = -122.209536;
         double rwyHeading = 292.0;
 
-        var exitNode = layout.FindNearestExit(acLat, acLon, new TrueHeading(rwyHeading));
+        var exitNode = layout.FindNearestExit(acLat, acLon, new TrueHeading(rwyHeading), null);
         Assert.NotNull(exitNode);
 
         double distToExit = GeoMath.DistanceNm(acLat, acLon, exitNode.Latitude, exitNode.Longitude);
@@ -1824,7 +1824,7 @@ public class TaxiPathfinderTests
         double acLon = -122.209536;
         double rwyHeading = 292.0;
 
-        var exitNode = layout.FindNearestExit(acLat, acLon, new TrueHeading(rwyHeading));
+        var exitNode = layout.FindNearestExit(acLat, acLon, new TrueHeading(rwyHeading), null);
         Assert.NotNull(exitNode);
 
         string exitTaxiway = layout.GetExitTaxiwayName(exitNode) ?? "?";

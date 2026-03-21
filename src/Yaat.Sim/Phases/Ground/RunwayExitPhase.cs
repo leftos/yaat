@@ -170,11 +170,11 @@ public sealed class RunwayExitPhase : Phase
         }
         else if (requested?.Side is { } side)
         {
-            _exitNode = ctx.GroundLayout!.FindExitBySide(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, trueHeading, side);
+            _exitNode = ctx.GroundLayout!.FindExitBySide(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, trueHeading, side, _runwayId);
         }
         else
         {
-            _exitNode = ctx.GroundLayout!.FindNearestExit(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, trueHeading);
+            _exitNode = ctx.GroundLayout!.FindNearestExit(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, trueHeading, _runwayId);
         }
 
         _exitTaxiway = _exitNode is not null ? ctx.GroundLayout!.GetExitTaxiwayName(_exitNode) : null;

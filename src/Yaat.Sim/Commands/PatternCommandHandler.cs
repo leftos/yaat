@@ -751,14 +751,14 @@ internal static class PatternCommandHandler
         var runway = aircraft.Phases.AssignedRunway;
 
         // Find the landing runway in the ground layout
-        var landingGround = FindGroundRunway(groundLayout, runway.Id);
+        var landingGround = groundLayout.FindGroundRunway(runway.Designator);
         if (landingGround is null)
         {
             return new CommandResult(false, $"Landing runway {runway.Designator} not found in ground layout");
         }
 
         // Find the crossing runway in the ground layout
-        var crossingGround = FindGroundRunwayByDesignator(groundLayout, lahso.CrossingRunwayId);
+        var crossingGround = groundLayout.FindGroundRunway(lahso.CrossingRunwayId);
         if (crossingGround is null)
         {
             return new CommandResult(false, $"Crossing runway {lahso.CrossingRunwayId} not found in ground layout");
@@ -803,60 +803,6 @@ internal static class PatternCommandHandler
         CommandDispatcher.ReplaceApproachEnding(aircraft.Phases, new LandingPhase());
 
         return CommandDispatcher.Ok($"Cleared to land{CommandDispatcher.RunwayLabel(aircraft)}, hold short runway {lahso.CrossingRunwayId}");
-    }
-
-    /// <summary>
-    /// Finds a GroundRunway matching a RunwayIdentifier (either end).
-    /// GroundRunway.Name format: "10R/28L".
-    /// </summary>
-    private static GroundRunway? FindGroundRunway(AirportGroundLayout layout, RunwayIdentifier id)
-    {
-        foreach (var rwy in layout.Runways)
-        {
-            int slash = rwy.Name.IndexOf('/');
-            if (slash < 0)
-            {
-                continue;
-            }
-
-            string end1 = rwy.Name[..slash];
-            string end2 = rwy.Name[(slash + 1)..];
-            if (end1.Equals(id.End1, StringComparison.OrdinalIgnoreCase) && end2.Equals(id.End2, StringComparison.OrdinalIgnoreCase))
-            {
-                return rwy;
-            }
-
-            if (end1.Equals(id.End2, StringComparison.OrdinalIgnoreCase) && end2.Equals(id.End1, StringComparison.OrdinalIgnoreCase))
-            {
-                return rwy;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Finds a GroundRunway where either end matches the given designator.
-    /// </summary>
-    private static GroundRunway? FindGroundRunwayByDesignator(AirportGroundLayout layout, string designator)
-    {
-        foreach (var rwy in layout.Runways)
-        {
-            int slash = rwy.Name.IndexOf('/');
-            if (slash < 0)
-            {
-                continue;
-            }
-
-            string end1 = rwy.Name[..slash];
-            string end2 = rwy.Name[(slash + 1)..];
-            if (end1.Equals(designator, StringComparison.OrdinalIgnoreCase) || end2.Equals(designator, StringComparison.OrdinalIgnoreCase))
-            {
-                return rwy;
-            }
-        }
-
-        return null;
     }
 
     internal static CommandResult TryCancelLandingClearance(AircraftState aircraft)
