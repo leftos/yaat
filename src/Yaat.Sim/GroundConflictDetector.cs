@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 
 namespace Yaat.Sim;
 
@@ -18,8 +19,10 @@ namespace Yaat.Sim;
 public static class GroundConflictDetector
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GroundConflictDetector");
-    private const double TrailDistanceFt = 200.0;
-    private const double StopDistanceFt = 100.0;
+    private const double DefaultTrailDistanceFt = 200.0;
+    private const double DefaultStopDistanceFt = 100.0;
+    private const double DefaultAircraftLengthFt = 60.0;
+    private const double StopBufferFt = 25.0;
     private const double OppositeStopDistanceFt = 300.0;
     private const double PushbackBufferFt = 200.0;
     private const double SlowTaxiSpeedKts = 5.0;
@@ -194,7 +197,8 @@ public static class GroundConflictDetector
                 return true;
             }
 
-            if (distFt > TrailDistanceFt)
+            var (_, refTrailDist) = GetSeparation(reference);
+            if (distFt > refTrailDist)
             {
                 return true;
             }
@@ -362,7 +366,7 @@ public static class GroundConflictDetector
 
         // Graduated speed: full stop when close, slow taxi when further
         double limitSpeed;
-        if (conflictDistFt <= StopDistanceFt)
+        if (conflictDistFt <= DefaultStopDistanceFt)
         {
             limitSpeed = 0;
         }
@@ -485,12 +489,13 @@ public static class GroundConflictDetector
             return;
         }
 
-        if (distFt <= StopDistanceFt)
+        var (stopDist, trailDist) = GetSeparation(obstacle);
+        if (distFt <= stopDist)
         {
-            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ stop({StopDistanceFt:F0}ft) → limit=0");
+            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ stop({stopDist:F0}ft) → limit=0");
             ApplyMinLimit(mover, 0, "proximity stop", obstacle, distFt);
         }
-        else if (distFt <= TrailDistanceFt)
+        else if (distFt <= trailDist)
         {
             double limitSpeed = obstacle.GroundSpeed;
             if (limitSpeed < SlowTaxiSpeedKts)
@@ -499,13 +504,13 @@ public static class GroundConflictDetector
             }
 
             diagnosticLog?.Invoke(
-                $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ trail({TrailDistanceFt:F0}ft) → limit={limitSpeed:F1}"
+                $"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft ≤ trail({trailDist:F0}ft) → limit={limitSpeed:F1}"
             );
             ApplyMinLimit(mover, limitSpeed, "proximity trail", obstacle, distFt);
         }
         else
         {
-            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft > trail({TrailDistanceFt:F0}ft), no limit");
+            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: {distFt:F0}ft > trail({trailDist:F0}ft), no limit");
         }
     }
 
@@ -533,16 +538,31 @@ public static class GroundConflictDetector
 
     // --- Helpers ---
 
+    /// <summary>
+    /// Returns dimension-aware stop/trail distances based on the leader aircraft's length
+    /// from the FAA Aircraft Characteristics Database.
+    /// Stop distance = aircraft length + buffer, so the trailing aircraft's nose clears the leader's tail.
+    /// Trail distance = stop distance + deceleration margin.
+    /// </summary>
+    private static (double StopFt, double TrailFt) GetSeparation(AircraftState leader)
+    {
+        double leaderLength = FaaAircraftDatabase.Get(leader.AircraftType)?.LengthFt ?? DefaultAircraftLengthFt;
+        double stopDist = Math.Max(DefaultStopDistanceFt, leaderLength + StopBufferFt);
+        double trailDist = Math.Max(DefaultTrailDistanceFt, stopDist + 100.0);
+        return (stopDist, trailDist);
+    }
+
     private static void ApplyTrailLimit(AircraftState trailer, AircraftState leader, double distFt)
     {
+        var (stopDist, trailDist) = GetSeparation(leader);
         double maxSpeed;
         string reason;
-        if (distFt <= StopDistanceFt)
+        if (distFt <= stopDist)
         {
             maxSpeed = 0;
             reason = "trail stop";
         }
-        else if (distFt <= TrailDistanceFt)
+        else if (distFt <= trailDist)
         {
             maxSpeed = leader.GroundSpeed;
             reason = "trail match";

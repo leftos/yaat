@@ -36,4 +36,10 @@ public sealed class PhaseContext
 
     /// <summary>When true, aircraft are automatically cleared to land (no CLAND command needed).</summary>
     public bool AutoClearedToLand { get; init; }
+
+    /// <summary>
+    /// Returns true if the given hold-short node is already occupied by another aircraft.
+    /// Provided by the server tick loop to prevent stacking at hold-short points.
+    /// </summary>
+    public Func<int, bool>? IsHoldShortNodeOccupied { get; init; }
 }

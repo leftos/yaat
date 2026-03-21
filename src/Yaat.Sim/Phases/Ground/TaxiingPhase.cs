@@ -88,7 +88,10 @@ public sealed class TaxiingPhase : Phase
         // When the braking curve decelerates to zero right at the arrival threshold,
         // floating-point precision can leave dist slightly above NodeArrivalThresholdNm.
         // Detect this stall and force arrival to prevent the aircraft from getting stuck.
-        bool stalledAtThreshold = ctx.Aircraft.GroundSpeed < 0.5 && dist < NodeArrivalThresholdNm + 0.001;
+        // But don't trigger when the aircraft was stopped by GroundConflictDetector — that
+        // stop is intentional (e.g., traffic ahead at a hold-short node).
+        bool stoppedByConflict = (ctx.Aircraft.GroundSpeedLimit is not null) && (ctx.Aircraft.GroundSpeedLimit.Value < 0.5);
+        bool stalledAtThreshold = !stoppedByConflict && ctx.Aircraft.GroundSpeed < 0.5 && dist < NodeArrivalThresholdNm + 0.001;
         _prevDistToTarget = dist;
 
         if (dist <= NodeArrivalThresholdNm || overshot || stalledAtThreshold)
@@ -445,6 +448,20 @@ public sealed class TaxiingPhase : Phase
         var holdShort = route.GetHoldShortAt(_targetNodeId);
         if (holdShort is not null && !holdShort.IsCleared)
         {
+            // Safety net: if another aircraft is already holding at this node, don't snap to it.
+            // Stop at the current position and let GroundConflictDetector manage separation.
+            if (ctx.IsHoldShortNodeOccupied?.Invoke(_targetNodeId) == true)
+            {
+                ctx.Aircraft.IndicatedAirspeed = 0;
+                ctx.Targets.TargetSpeed = 0;
+                ctx.Logger.LogDebug(
+                    "[Taxi] {Callsign}: hold-short node {NodeId} occupied by another aircraft, waiting",
+                    ctx.Aircraft.Callsign,
+                    _targetNodeId
+                );
+                return false;
+            }
+
             ctx.Logger.LogDebug(
                 "[Taxi] {Callsign}: hold short at node {NodeId} (target {Target}, reason {Reason})",
                 ctx.Aircraft.Callsign,

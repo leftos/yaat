@@ -36,6 +36,10 @@ public sealed class SimulationEngine
     private List<RecordedAction>? _replayActions;
     private int _replayActionCursor;
 
+    // Holds the set of hold-short node IDs currently occupied by aircraft.
+    // Built at the start of each TickPhysics, used by PreTick to prevent stacking.
+    private HashSet<int>? _occupiedHoldShortNodes;
+
     public SimulationWorld World { get; } = new();
     public SimScenarioState? Scenario { get; set; }
     public ConsolidationState ConsolidationState { get; } = new();
@@ -281,7 +285,9 @@ public sealed class SimulationEngine
     /// </summary>
     public void TickPhysics(double delta)
     {
+        _occupiedHoldShortNodes = BuildOccupiedHoldShortNodes();
         World.Tick(delta, PreTick);
+        _occupiedHoldShortNodes = null;
         ProcessDeferredDispatches(delta);
     }
 
@@ -736,6 +742,20 @@ public sealed class SimulationEngine
         _terminalEntries.Add(new TerminalEntry(kind, callsign, message));
     }
 
+    private HashSet<int> BuildOccupiedHoldShortNodes()
+    {
+        var occupied = new HashSet<int>();
+        foreach (var ac in World.GetSnapshot())
+        {
+            if (ac.Phases?.CurrentPhase is HoldingShortPhase hs)
+            {
+                occupied.Add(hs.HoldShort.NodeId);
+            }
+        }
+
+        return occupied;
+    }
+
     private void PreTick(AircraftState aircraft, double deltaSeconds)
     {
         if (aircraft.Phases is null || aircraft.Phases.IsComplete)
@@ -746,6 +766,7 @@ public sealed class SimulationEngine
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         var runway = aircraft.Phases.AssignedRunway;
         var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
+        var occupiedNodes = _occupiedHoldShortNodes;
 
         var ctx = new PhaseContext
         {
@@ -760,6 +781,7 @@ public sealed class SimulationEngine
             Weather = World.Weather,
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
+            IsHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Contains(nodeId) : null,
         };
 
         PhaseRunner.Tick(aircraft, ctx);
