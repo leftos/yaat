@@ -71,6 +71,11 @@ public sealed class VnasDataService : IDisposable
 
         InitializeAircraftProfiles();
 
+        // Install Eurocontrol/BADA profile correction adapter to adjust speeds and
+        // climb rates using FAA ACD approach speed as ground truth. See
+        // EurocontrolProfileCorrectionAdapter.cs for methodology and validation.
+        AircraftPerformance.SetProfileCorrectionAdapter(new EurocontrolProfileCorrectionAdapter());
+
         SaveManifest(config, manifest);
 
         LogSummary();

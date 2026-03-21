@@ -431,6 +431,11 @@ public sealed class InitialClimbPhaseDto : PhaseDto
     public double? DepartureHeadingDeg { get; init; }
     public double? PhaseCompletionAltitude { get; init; }
     public required double SelfClearAltitude { get; init; }
+    public double RunwayDerLat { get; init; }
+    public double RunwayDerLon { get; init; }
+    public double RunwayHeadingDeg { get; init; }
+    public double VfrTurnAltitude { get; init; }
+    public bool VfrTurnApplied { get; init; }
 }
 
 public sealed class LineUpPhaseDto : PhaseDto
@@ -543,6 +548,7 @@ public sealed class UpwindPhaseDto : PhaseDto
     public required double TargetLat { get; init; }
     public required double TargetLon { get; init; }
     public required double UpwindHeadingDeg { get; init; }
+    public double MinTurnAltitude { get; init; }
 }
 
 // --- Approach phases ---

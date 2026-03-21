@@ -242,5 +242,7 @@ public static class TestVnasData
 
         var profiles = AircraftProfileDatabase.LoadFromFile(path);
         AircraftProfileDatabase.Initialize(profiles);
+
+        AircraftPerformance.SetProfileCorrectionAdapter(new EurocontrolProfileCorrectionAdapter());
     }
 }

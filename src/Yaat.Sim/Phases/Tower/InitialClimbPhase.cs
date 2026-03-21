@@ -13,12 +13,21 @@ public sealed class InitialClimbPhase : Phase
 {
     private const double DefaultSelfClearAgl = 1500.0;
     private const double HeadingToleranceDeg = 1.0;
+    private const double VfrDerMinDistanceNm = 0.0;
+    private const double VfrPatternAltMarginFt = 300.0;
 
     private double _fieldElevation;
     private double _targetAltitude;
     private TrueHeading? _departureHeading;
     private double? _phaseCompletionAltitude;
     private double _selfClearAltitude;
+
+    // VFR departure turn deferral (AIM 4-3-2)
+    private double _runwayDerLat;
+    private double _runwayDerLon;
+    private TrueHeading _runwayHeading;
+    private double _vfrTurnAltitude;
+    private bool _vfrTurnApplied = true;
 
     public override string Name => "InitialClimb";
 
@@ -39,6 +48,11 @@ public sealed class InitialClimbPhase : Phase
             DepartureHeadingDeg = _departureHeading?.Degrees,
             PhaseCompletionAltitude = _phaseCompletionAltitude,
             SelfClearAltitude = _selfClearAltitude,
+            RunwayDerLat = _runwayDerLat,
+            RunwayDerLon = _runwayDerLon,
+            RunwayHeadingDeg = _runwayHeading.Degrees,
+            VfrTurnAltitude = _vfrTurnAltitude,
+            VfrTurnApplied = _vfrTurnApplied,
         };
 
     public static InitialClimbPhase FromSnapshot(InitialClimbPhaseDto dto)
@@ -62,6 +76,11 @@ public sealed class InitialClimbPhase : Phase
         phase._departureHeading = dto.DepartureHeadingDeg.HasValue ? new TrueHeading(dto.DepartureHeadingDeg.Value) : null;
         phase._phaseCompletionAltitude = dto.PhaseCompletionAltitude;
         phase._selfClearAltitude = dto.SelfClearAltitude;
+        phase._runwayDerLat = dto.RunwayDerLat;
+        phase._runwayDerLon = dto.RunwayDerLon;
+        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._vfrTurnAltitude = dto.VfrTurnAltitude;
+        phase._vfrTurnApplied = dto.VfrTurnApplied;
         return phase;
     }
 
@@ -99,26 +118,21 @@ public sealed class InitialClimbPhase : Phase
         double initialSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetSpeed = initialSpeed;
 
-        // Set up navigation for route-based departures
-        if (DepartureRoute is { Count: > 0 })
+        // AIM 4-3-2: VFR departures must maintain runway heading until past the DER
+        // and within 300ft of pattern altitude. Defer nav route and heading setup.
+        bool deferVfrTurn = IsVfr && DepartureRequiresTurn() && ctx.Runway is not null;
+        if (deferVfrTurn)
         {
-            ctx.Targets.NavigationRoute.Clear();
-            foreach (var target in DepartureRoute)
-            {
-                ctx.Targets.NavigationRoute.Add(target);
-            }
-
-            // For DirectFixDeparture with a turn direction (TRDCT/TLDCT), pre-set the
-            // heading toward the first nav target with the preferred direction. Without
-            // this, FlightPhysics.UpdateNavigation clears PreferredTurnDirection on its
-            // first tick, losing the controller's turn instruction.
-            if (Departure is DirectFixDeparture { Direction: not null } dfd)
-            {
-                var first = DepartureRoute[0];
-                double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, first.Latitude, first.Longitude);
-                ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
-                ctx.Targets.PreferredTurnDirection = dfd.Direction;
-            }
+            _vfrTurnApplied = false;
+            _runwayDerLat = ctx.Runway!.EndLatitude;
+            _runwayDerLon = ctx.Runway.EndLongitude;
+            _runwayHeading = ctx.Runway.TrueHeading;
+            _vfrTurnAltitude = _fieldElevation + CategoryPerformance.PatternAltitudeAgl(ctx.Category) - VfrPatternAltMarginFt;
+        }
+        else
+        {
+            _vfrTurnApplied = true;
+            SetupDepartureNavigation(ctx);
         }
 
         // Activate SID procedure state (via mode ON by default for departures)
@@ -140,6 +154,20 @@ public sealed class InitialClimbPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // VFR departure turn deferral: apply heading/nav route once both conditions met
+        if (!_vfrTurnApplied)
+        {
+            bool pastDer =
+                GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _runwayDerLat, _runwayDerLon, _runwayHeading)
+                >= VfrDerMinDistanceNm;
+            bool altReached = ctx.Aircraft.Altitude >= _vfrTurnAltitude;
+            if (pastDer && altReached)
+            {
+                _vfrTurnApplied = true;
+                ApplyDeferredVfrTurn(ctx);
+            }
+        }
+
         // Update speed target based on current altitude band
         double appropriateSpeed = AircraftPerformance.DefaultSpeed(ctx.AircraftType, ctx.Category, ctx.Aircraft.Altitude, ctx.Targets.TargetAltitude);
         if (ctx.Targets.TargetSpeed is null && Math.Abs(ctx.Aircraft.IndicatedAirspeed - appropriateSpeed) > 5)
@@ -176,6 +204,76 @@ public sealed class InitialClimbPhase : Phase
     {
         // All standard RPO commands exit the phase
         return CommandAcceptance.ClearsPhase;
+    }
+
+    /// <summary>
+    /// Whether the departure instruction involves a turn away from runway heading.
+    /// DefaultDeparture and RunwayHeadingDeparture stay on runway heading.
+    /// </summary>
+    private bool DepartureRequiresTurn()
+    {
+        return Departure is not (null or DefaultDeparture or RunwayHeadingDeparture);
+    }
+
+    /// <summary>
+    /// Set up navigation route and heading for route-based departures.
+    /// Called immediately for IFR, deferred for VFR until DER + altitude conditions met.
+    /// </summary>
+    private void SetupDepartureNavigation(PhaseContext ctx)
+    {
+        if (DepartureRoute is { Count: > 0 })
+        {
+            ctx.Targets.NavigationRoute.Clear();
+            foreach (var target in DepartureRoute)
+            {
+                ctx.Targets.NavigationRoute.Add(target);
+            }
+
+            // For DirectFixDeparture with a turn direction (TRDCT/TLDCT), pre-set the
+            // heading toward the first nav target with the preferred direction. Without
+            // this, FlightPhysics.UpdateNavigation clears PreferredTurnDirection on its
+            // first tick, losing the controller's turn instruction.
+            if (Departure is DirectFixDeparture { Direction: not null } dfd)
+            {
+                var first = DepartureRoute[0];
+                double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, first.Latitude, first.Longitude);
+                ctx.Targets.TargetTrueHeading = new TrueHeading(bearing);
+                ctx.Targets.PreferredTurnDirection = dfd.Direction;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Apply heading and navigation that was deferred for VFR departures.
+    /// </summary>
+    private void ApplyDeferredVfrTurn(PhaseContext ctx)
+    {
+        // Apply heading target
+        if (_departureHeading is not null)
+        {
+            ctx.Targets.TargetTrueHeading = _departureHeading.Value;
+        }
+
+        // Apply turn direction
+        switch (Departure)
+        {
+            case RelativeTurnDeparture rel:
+                ctx.Targets.PreferredTurnDirection = rel.Direction;
+                break;
+            case FlyHeadingDeparture fh:
+                ctx.Targets.PreferredTurnDirection = fh.Direction;
+                break;
+        }
+
+        // Load navigation route (OnCourse, DirectFix)
+        SetupDepartureNavigation(ctx);
+
+        ctx.Logger.LogDebug(
+            "[InitialClimb] {Callsign}: VFR turn applied (alt={Alt:F0}ft, hdg={Hdg})",
+            ctx.Aircraft.Callsign,
+            ctx.Aircraft.Altitude,
+            _departureHeading?.Degrees.ToString("F0") ?? "nav"
+        );
     }
 
     private TrueHeading? ResolveDepartureHeading(PhaseContext ctx)

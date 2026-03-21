@@ -144,11 +144,12 @@ public sealed class AircraftPerformanceTests
     }
 
     [Fact]
-    public void ApproachSpeed_ProfiledType_UsesProfileValue()
+    public void ApproachSpeed_ProfiledType_UsesCorrectedValue()
     {
-        // B738 profile: finalApproachSpeed = 175
+        // B738 profile: finalApproachSpeed = 175, ACD = 144.
+        // EurocontrolProfileCorrectionAdapter replaces with ACD value.
         double speed = AircraftPerformance.ApproachSpeed("B738", AircraftCategory.Jet);
-        Assert.Equal(175, speed);
+        Assert.Equal(144, speed);
     }
 
     [Fact]
@@ -183,11 +184,12 @@ public sealed class AircraftPerformanceTests
     }
 
     [Fact]
-    public void BaseSpeed_ProfiledType_DerivedFromPatternAndApproach()
+    public void BaseSpeed_ProfiledType_DerivedFromCorrectedValues()
     {
-        // B738: (patternSpeed + finalApproachSpeed) / 2 = (161 + 175) / 2 = 168
+        // B738: corrected pattern = max(161, 144*1.10=158.4) = 161, corrected FAS = 144
+        // Base = (161 + 144) / 2 = 152.5
         double speed = AircraftPerformance.BaseSpeed("B738", AircraftCategory.Jet);
-        Assert.Equal(168, speed);
+        Assert.Equal(152.5, speed);
     }
 
     [Fact]
@@ -255,12 +257,13 @@ public sealed class AircraftPerformanceTests
     public void Piston_ZeroHighAltBands_UsesLastValidValue()
     {
         // C172: climbRateFl150=0, climbRateFl240=0, climbRateFinal=0
-        // Should use climbRateInitial (400) at all altitudes
+        // Corrected initial = max(400, 13000/18=722) = 722
+        // Should use corrected rate at all altitudes since higher bands are zero
         double rate = AircraftPerformance.ClimbRate("C172", AircraftCategory.Piston, 5000);
-        Assert.Equal(400, rate);
+        Assert.InRange(rate, 720, 725);
 
         double high = AircraftPerformance.ClimbRate("C172", AircraftCategory.Piston, 12000);
-        Assert.Equal(400, high);
+        Assert.InRange(high, 720, 725);
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
@@ -439,6 +440,568 @@ public class TakeoffDepartureTests
     {
         var phase = new LinedUpAndWaitingPhase();
         Assert.Equal(CommandAcceptance.Allowed, phase.CanAcceptCommand(CanonicalCommandType.DescendMaintain));
+    }
+
+    // --- VFR departure turn deferral (issue #130) ---
+
+    /// <summary>
+    /// VFR aircraft with a heading departure should NOT have the heading applied
+    /// during TakeoffPhase — it should keep runway heading until InitialClimbPhase
+    /// applies it after DER + altitude conditions are met.
+    /// </summary>
+    [Fact]
+    public void VFR_FlyHeading_KeepsRunwayHeadingAtLiftoff()
+    {
+        var runway = MakeRunway();
+        var phase = new TakeoffPhase();
+        phase.SetAssignedDeparture(new FlyHeadingDeparture(new MagneticHeading(060), null));
+
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            FlightRules = "VFR",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
+            TrueHeading = new TrueHeading(RunwayHeading),
+            Altitude = FieldElevation,
+            Phases = phaseList,
+        };
+        var targets = aircraft.Targets;
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        phase.OnStart(ctx);
+
+        // Tick until airborne
+        for (int i = 0; i < 300; i++)
+        {
+            if (phase.OnTick(ctx))
+            {
+                break;
+            }
+
+            if (!aircraft.IsOnGround)
+            {
+                aircraft.Altitude += 50;
+            }
+        }
+
+        // VFR: heading should still be runway heading, not 060
+        Assert.Equal(RunwayHeading, targets.TargetTrueHeading!.Value.Degrees);
+    }
+
+    /// <summary>
+    /// IFR aircraft with a heading departure should still turn immediately at liftoff
+    /// (regression guard for issue #130 fix).
+    /// </summary>
+    [Fact]
+    public void IFR_FlyHeading_StillTurnsAtLiftoff()
+    {
+        // Existing RunTakeoff creates IFR aircraft (FlightRules defaults to "IFR")
+        var (hdg, _) = RunTakeoff(new FlyHeadingDeparture(new MagneticHeading(060), null));
+        Assert.Equal(60, hdg);
+    }
+
+    /// <summary>
+    /// VFR InitialClimbPhase with FlyHeadingDeparture should defer heading application
+    /// until the aircraft is past the DER by 0.5nm AND within 300ft of pattern altitude.
+    /// </summary>
+    [Fact]
+    public void VFR_InitialClimb_FlyHeading_DelaysUntilConditions()
+    {
+        double runwayHdg = 280;
+        var runway = TestRunwayFactory.Make(
+            designator: "28R",
+            airportId: "KOAK",
+            heading: runwayHdg,
+            elevationFt: FieldElevation,
+            thresholdLat: 37.0,
+            thresholdLon: -122.0,
+            endLat: 37.01,
+            endLon: -122.01
+        );
+
+        var departure = new FlyHeadingDeparture(new MagneticHeading(060), null);
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            FlightRules = "VFR",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
+            TrueHeading = new TrueHeading(runwayHdg),
+            Altitude = FieldElevation + 400, // post-takeoff
+            Phases = phaseList,
+        };
+        var targets = aircraft.Targets;
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        var climbPhase = new InitialClimbPhase
+        {
+            Departure = departure,
+            IsVfr = true,
+            CruiseAltitude = 4500,
+        };
+        climbPhase.OnStart(ctx);
+
+        // At 400ft AGL, heading should still be runway heading (not 060)
+        // Pattern alt for piston = 1000ft AGL, turn threshold = 700ft AGL
+        // TargetTrueHeading may be null (never set) or runway heading — either way, not 060
+        Assert.True(
+            (targets.TargetTrueHeading is null) || (targets.TargetTrueHeading.Value.Degrees == runwayHdg),
+            $"Expected runway heading or null, got {targets.TargetTrueHeading?.Degrees}"
+        );
+
+        // Move aircraft to 700ft AGL AND past the DER
+        aircraft.Altitude = FieldElevation + 700;
+        // Project aircraft just past the DER along runway heading
+        var pastDer = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.1);
+        aircraft.Latitude = pastDer.Lat;
+        aircraft.Longitude = pastDer.Lon;
+
+        climbPhase.OnTick(ctx);
+
+        // Now heading should be applied
+        Assert.Equal(60, targets.TargetTrueHeading!.Value.Degrees);
+    }
+
+    /// <summary>
+    /// VFR InitialClimbPhase requires BOTH conditions (altitude + DER) to trigger turn.
+    /// Altitude alone or DER alone should not trigger.
+    /// </summary>
+    [Fact]
+    public void VFR_InitialClimb_RequiresBothConditions()
+    {
+        double runwayHdg = 280;
+        var runway = TestRunwayFactory.Make(
+            designator: "28R",
+            airportId: "KOAK",
+            heading: runwayHdg,
+            elevationFt: FieldElevation,
+            thresholdLat: 37.0,
+            thresholdLon: -122.0,
+            endLat: 37.01,
+            endLon: -122.01
+        );
+
+        var departure = new FlyHeadingDeparture(new MagneticHeading(060), null);
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            FlightRules = "VFR",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
+            TrueHeading = new TrueHeading(runwayHdg),
+            Altitude = FieldElevation + 400,
+            Phases = phaseList,
+        };
+        var targets = aircraft.Targets;
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        var climbPhase = new InitialClimbPhase
+        {
+            Departure = departure,
+            IsVfr = true,
+            CruiseAltitude = 4500,
+        };
+        climbPhase.OnStart(ctx);
+
+        // Case 1: altitude reached but still near threshold (not past DER)
+        aircraft.Altitude = FieldElevation + 700;
+        climbPhase.OnTick(ctx);
+        Assert.True(
+            (targets.TargetTrueHeading is null) || (targets.TargetTrueHeading.Value.Degrees == runwayHdg),
+            $"Expected runway heading or null, got {targets.TargetTrueHeading?.Degrees}"
+        );
+
+        // Case 2: past DER but altitude too low
+        aircraft.Altitude = FieldElevation + 400;
+        var pastDer = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.6);
+        aircraft.Latitude = pastDer.Lat;
+        aircraft.Longitude = pastDer.Lon;
+        climbPhase.OnTick(ctx);
+        Assert.True(
+            (targets.TargetTrueHeading is null) || (targets.TargetTrueHeading.Value.Degrees == runwayHdg),
+            $"Expected runway heading or null, got {targets.TargetTrueHeading?.Degrees}"
+        );
+    }
+
+    /// <summary>
+    /// VFR DirectFixDeparture should not load navigation route until DER + altitude conditions.
+    /// </summary>
+    [Fact]
+    public void VFR_InitialClimb_DirectFix_DelaysNavRoute()
+    {
+        double runwayHdg = 280;
+        var runway = TestRunwayFactory.Make(
+            designator: "28R",
+            airportId: "KOAK",
+            heading: runwayHdg,
+            elevationFt: FieldElevation,
+            thresholdLat: 37.0,
+            thresholdLon: -122.0,
+            endLat: 37.01,
+            endLon: -122.01
+        );
+
+        double fixLat = 37.6;
+        double fixLon = -122.3;
+        var departure = new DirectFixDeparture("OAK30NUM", fixLat, fixLon, null);
+        var departureRoute = new List<NavigationTarget>
+        {
+            new()
+            {
+                Name = "OAK30NUM",
+                Latitude = fixLat,
+                Longitude = fixLon,
+            },
+        };
+
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            FlightRules = "VFR",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
+            TrueHeading = new TrueHeading(runwayHdg),
+            Altitude = FieldElevation + 400,
+            Phases = phaseList,
+        };
+        var targets = aircraft.Targets;
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        var climbPhase = new InitialClimbPhase
+        {
+            Departure = departure,
+            DepartureRoute = departureRoute,
+            IsVfr = true,
+            CruiseAltitude = 4500,
+        };
+        climbPhase.OnStart(ctx);
+
+        // Nav route should NOT be loaded yet
+        Assert.Empty(targets.NavigationRoute);
+
+        // Move past DER + altitude
+        aircraft.Altitude = FieldElevation + 700;
+        var pastDer = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.6);
+        aircraft.Latitude = pastDer.Lat;
+        aircraft.Longitude = pastDer.Lon;
+        climbPhase.OnTick(ctx);
+
+        // Nav route should now be loaded
+        Assert.NotEmpty(targets.NavigationRoute);
+        Assert.Equal("OAK30NUM", targets.NavigationRoute[0].Name);
+    }
+
+    /// <summary>
+    /// VFR OnCourseDeparture should defer navigation route loading until conditions met.
+    /// </summary>
+    [Fact]
+    public void VFR_InitialClimb_OnCourse_DelaysNavRoute()
+    {
+        double runwayHdg = 280;
+        var runway = TestRunwayFactory.Make(
+            designator: "28R",
+            airportId: "KOAK",
+            heading: runwayHdg,
+            elevationFt: FieldElevation,
+            thresholdLat: 37.0,
+            thresholdLon: -122.0,
+            endLat: 37.01,
+            endLon: -122.01
+        );
+
+        var departure = new OnCourseDeparture();
+        var departureRoute = new List<NavigationTarget>
+        {
+            new()
+            {
+                Name = "SNS",
+                Latitude = 36.66,
+                Longitude = -121.6,
+            },
+        };
+
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            FlightRules = "VFR",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
+            TrueHeading = new TrueHeading(runwayHdg),
+            Altitude = FieldElevation + 400,
+            Phases = phaseList,
+        };
+        var targets = aircraft.Targets;
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = FieldElevation,
+            Logger = NullLogger.Instance,
+        };
+
+        var climbPhase = new InitialClimbPhase
+        {
+            Departure = departure,
+            DepartureRoute = departureRoute,
+            IsVfr = true,
+            CruiseAltitude = 4500,
+        };
+        climbPhase.OnStart(ctx);
+
+        // Nav route should NOT be loaded yet
+        Assert.Empty(targets.NavigationRoute);
+
+        // Move past DER + altitude
+        aircraft.Altitude = FieldElevation + 700;
+        var pastDer = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.6);
+        aircraft.Latitude = pastDer.Lat;
+        aircraft.Longitude = pastDer.Lon;
+        climbPhase.OnTick(ctx);
+
+        // Nav route should now be loaded
+        Assert.NotEmpty(targets.NavigationRoute);
+        Assert.Equal("SNS", targets.NavigationRoute[0].Name);
+    }
+
+    /// <summary>
+    /// When runway info is not available, VFR nav route should be loaded immediately
+    /// (graceful degradation — can't check DER position).
+    /// </summary>
+    [Fact]
+    public void VFR_NoRunway_AppliesImmediately()
+    {
+        var departure = new DirectFixDeparture("SUNOL", 37.5, -121.8, null);
+        var departureRoute = new List<NavigationTarget>
+        {
+            new()
+            {
+                Name = "SUNOL",
+                Latitude = 37.5,
+                Longitude = -121.8,
+            },
+        };
+        var phaseList = new PhaseList();
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            FlightRules = "VFR",
+            Latitude = 37.0,
+            Longitude = -122.0,
+            TrueHeading = new TrueHeading(280),
+            Altitude = 400,
+            Phases = phaseList,
+        };
+        var targets = aircraft.Targets;
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = null, // no runway info
+            FieldElevation = 0,
+            Logger = NullLogger.Instance,
+        };
+
+        var climbPhase = new InitialClimbPhase
+        {
+            Departure = departure,
+            DepartureRoute = departureRoute,
+            IsVfr = true,
+            CruiseAltitude = 4500,
+        };
+        climbPhase.OnStart(ctx);
+
+        // Without runway, nav route should be loaded immediately (no DER to check)
+        Assert.NotEmpty(targets.NavigationRoute);
+        Assert.Equal("SUNOL", targets.NavigationRoute[0].Name);
+    }
+
+    // --- UpwindPhase altitude gate (issue #130) ---
+
+    /// <summary>
+    /// UpwindPhase should not complete (trigger crosswind turn) if the aircraft
+    /// is below 300ft of pattern altitude, even if position-wise it has reached
+    /// the crosswind turn point.
+    /// </summary>
+    [Fact]
+    public void UpwindPhase_DoesNotCompleteBelow300OfPatternAlt()
+    {
+        double runwayHdg = 280;
+        double patternAlt = 1000; // MSL (field elev 0 + 1000 AGL)
+        var runway = TestRunwayFactory.Make(designator: "28", heading: runwayHdg, elevationFt: 0);
+
+        // Create waypoints with the crosswind turn point at the DER
+        var crosswindTurn = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.3);
+        var waypoints = new PatternWaypoints
+        {
+            DepartureEndLat = runway.EndLatitude,
+            DepartureEndLon = runway.EndLongitude,
+            CrosswindTurnLat = crosswindTurn.Lat,
+            CrosswindTurnLon = crosswindTurn.Lon,
+            DownwindStartLat = crosswindTurn.Lat,
+            DownwindStartLon = crosswindTurn.Lon,
+            DownwindAbeamLat = runway.ThresholdLatitude,
+            DownwindAbeamLon = runway.ThresholdLongitude,
+            BaseTurnLat = runway.ThresholdLatitude,
+            BaseTurnLon = runway.ThresholdLongitude,
+            ThresholdLat = runway.ThresholdLatitude,
+            ThresholdLon = runway.ThresholdLongitude,
+            UpwindHeading = new TrueHeading(runwayHdg),
+            CrosswindHeading = new TrueHeading((runwayHdg + 90) % 360),
+            DownwindHeading = new TrueHeading((runwayHdg + 180) % 360),
+            BaseHeading = new TrueHeading((runwayHdg + 270) % 360),
+            FinalHeading = new TrueHeading(runwayHdg),
+            PatternAltitude = patternAlt,
+            Direction = PatternDirection.Left,
+        };
+
+        var upwindPhase = new UpwindPhase { Waypoints = waypoints };
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            FlightRules = "VFR",
+            // Position AT the crosswind turn point
+            Latitude = crosswindTurn.Lat,
+            Longitude = crosswindTurn.Lon,
+            TrueHeading = new TrueHeading(runwayHdg),
+            Altitude = 500, // 500ft MSL — below threshold of 700ft (1000 - 300)
+            Phases = phaseList,
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = 0,
+            Logger = NullLogger.Instance,
+        };
+
+        upwindPhase.OnStart(ctx);
+        bool complete = upwindPhase.OnTick(ctx);
+
+        // Should NOT complete — altitude too low
+        Assert.False(complete, "UpwindPhase should not complete below 300ft of pattern altitude");
+    }
+
+    /// <summary>
+    /// UpwindPhase should complete when both position and altitude conditions are met.
+    /// </summary>
+    [Fact]
+    public void UpwindPhase_CompletesWhenBothPositionAndAltitudeMet()
+    {
+        double runwayHdg = 280;
+        double patternAlt = 1000;
+        var runway = TestRunwayFactory.Make(designator: "28", heading: runwayHdg, elevationFt: 0);
+
+        var crosswindTurn = GeoMath.ProjectPoint(runway.EndLatitude, runway.EndLongitude, new TrueHeading(runwayHdg), 0.3);
+        var waypoints = new PatternWaypoints
+        {
+            DepartureEndLat = runway.EndLatitude,
+            DepartureEndLon = runway.EndLongitude,
+            CrosswindTurnLat = crosswindTurn.Lat,
+            CrosswindTurnLon = crosswindTurn.Lon,
+            DownwindStartLat = crosswindTurn.Lat,
+            DownwindStartLon = crosswindTurn.Lon,
+            DownwindAbeamLat = runway.ThresholdLatitude,
+            DownwindAbeamLon = runway.ThresholdLongitude,
+            BaseTurnLat = runway.ThresholdLatitude,
+            BaseTurnLon = runway.ThresholdLongitude,
+            ThresholdLat = runway.ThresholdLatitude,
+            ThresholdLon = runway.ThresholdLongitude,
+            UpwindHeading = new TrueHeading(runwayHdg),
+            CrosswindHeading = new TrueHeading((runwayHdg + 90) % 360),
+            DownwindHeading = new TrueHeading((runwayHdg + 180) % 360),
+            BaseHeading = new TrueHeading((runwayHdg + 270) % 360),
+            FinalHeading = new TrueHeading(runwayHdg),
+            PatternAltitude = patternAlt,
+            Direction = PatternDirection.Left,
+        };
+
+        var upwindPhase = new UpwindPhase { Waypoints = waypoints };
+        var phaseList = new PhaseList { AssignedRunway = runway };
+        var aircraft = new AircraftState
+        {
+            Callsign = "N436MS",
+            AircraftType = "C182",
+            FlightRules = "VFR",
+            Latitude = crosswindTurn.Lat,
+            Longitude = crosswindTurn.Lon,
+            TrueHeading = new TrueHeading(runwayHdg),
+            Altitude = 750, // 750ft MSL — above threshold of 700ft (1000 - 300)
+            Phases = phaseList,
+        };
+        var ctx = new PhaseContext
+        {
+            Aircraft = aircraft,
+            Targets = aircraft.Targets,
+            Category = AircraftCategory.Piston,
+            DeltaSeconds = 1.0,
+            Runway = runway,
+            FieldElevation = 0,
+            Logger = NullLogger.Instance,
+        };
+
+        upwindPhase.OnStart(ctx);
+        bool complete = upwindPhase.OnTick(ctx);
+
+        // Should complete — both conditions met
+        Assert.True(complete, "UpwindPhase should complete when at crosswind turn point and above altitude threshold");
     }
 
     [Fact]

@@ -84,7 +84,7 @@ public class PatternPhaseTests
     public void Upwind_CompletesWhenReachingCrosswindTurnPoint()
     {
         var wp = DefaultWaypoints();
-        var ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon);
+        var ac = MakeAircraft(lat: wp.CrosswindTurnLat, lon: wp.CrosswindTurnLon, altitude: wp.PatternAltitude);
         var phase = new UpwindPhase { Waypoints = wp };
         var ctx = Ctx(ac);
 

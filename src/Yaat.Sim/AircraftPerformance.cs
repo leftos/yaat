@@ -7,9 +7,25 @@ namespace Yaat.Sim;
 /// Unified aircraft performance lookup: per-type profiles (AircraftProfiles.json) with
 /// category-based fallback (CategoryPerformance). Replaces direct CategoryPerformance
 /// calls for profile-covered fields (climb/descent rates, speeds, accel/decel, turn rate).
+///
+/// Profile values for approach speeds, climb speeds, pattern speeds, and climb rates can
+/// be corrected at runtime via an <see cref="IProfileCorrectionAdapter"/>. The default
+/// adapter passes values through unchanged; call <see cref="SetProfileCorrectionAdapter"/>
+/// at startup to install a correction adapter (e.g. <see cref="EurocontrolProfileCorrectionAdapter"/>).
 /// </summary>
 public static class AircraftPerformance
 {
+    private static IProfileCorrectionAdapter _correctionAdapter = new PassthroughProfileCorrectionAdapter();
+
+    /// <summary>
+    /// Install a profile correction adapter. Call once at startup before any performance
+    /// lookups. Pass null to revert to the default pass-through adapter.
+    /// </summary>
+    public static void SetProfileCorrectionAdapter(IProfileCorrectionAdapter? adapter)
+    {
+        _correctionAdapter = adapter ?? new PassthroughProfileCorrectionAdapter();
+    }
+
     /// <summary>
     /// Resolve a speed value that may be Mach (values &lt; 1.0) to IAS at the given altitude.
     /// Values &gt;= 1.0 are treated as KIAS and returned as-is.
@@ -102,9 +118,12 @@ public static class AircraftPerformance
             return CategoryPerformance.ClimbRate(cat, altitudeFt);
         }
 
+        var acd = FaaAircraftDatabase.Get(aircraftType);
+        double correctedInitial = _correctionAdapter.ClimbRateInitial(p, acd);
+
         ReadOnlySpan<(double, double)> breakpoints =
         [
-            (0, p.ClimbRateInitial),
+            (0, correctedInitial),
             (15000, p.ClimbRateFl150),
             (24000, p.ClimbRateFl240),
             (p.Ceiling, p.ClimbRateFinal),
@@ -135,9 +154,12 @@ public static class AircraftPerformance
             return CategoryPerformance.DefaultSpeed(cat, altitudeFt);
         }
 
+        var acd = FaaAircraftDatabase.Get(aircraftType);
+        double correctedInitial = _correctionAdapter.ClimbSpeedInitial(p, acd);
+
         ReadOnlySpan<(double, double)> breakpoints =
         [
-            (0, p.ClimbSpeedInitial),
+            (0, correctedInitial),
             (15000, ResolveSpeed(p.ClimbSpeedFl150, 15000)),
             (24000, ResolveSpeed(p.ClimbSpeedFl240, 24000)),
             (p.Ceiling, ResolveSpeed(p.ClimbSpeedFinal, Math.Max(altitudeFt, 24000))),
@@ -163,9 +185,12 @@ public static class AircraftPerformance
             return CategoryPerformance.DefaultSpeed(cat, altitudeFt);
         }
 
+        var acd = FaaAircraftDatabase.Get(aircraftType);
+        double correctedIas = _correctionAdapter.InitialApproachSpeed(p, acd);
+
         ReadOnlySpan<(double, double)> breakpoints =
         [
-            (0, p.InitialApproachSpeed),
+            (0, correctedIas),
             (10000, ResolveSpeed(p.DescentSpeedFl100, 10000)),
             (p.Ceiling, ResolveSpeed(p.DescentSpeedInitial, Math.Max(altitudeFt, 24000))),
         ];
@@ -234,13 +259,25 @@ public static class AircraftPerformance
     public static double InitialClimbSpeed(string aircraftType, AircraftCategory cat)
     {
         var p = AircraftProfileDatabase.Get(aircraftType);
-        return p is not null ? p.ClimbSpeedInitial : CategoryPerformance.InitialClimbSpeed(cat);
+        if (p is null)
+        {
+            return CategoryPerformance.InitialClimbSpeed(cat);
+        }
+
+        var acd = FaaAircraftDatabase.Get(aircraftType);
+        return _correctionAdapter.ClimbSpeedInitial(p, acd);
     }
 
     public static double InitialClimbRate(string aircraftType, AircraftCategory cat)
     {
         var p = AircraftProfileDatabase.Get(aircraftType);
-        return p is not null ? p.ClimbRateInitial : CategoryPerformance.InitialClimbRate(cat);
+        if (p is null)
+        {
+            return CategoryPerformance.InitialClimbRate(cat);
+        }
+
+        var acd = FaaAircraftDatabase.Get(aircraftType);
+        return _correctionAdapter.ClimbRateInitial(p, acd);
     }
 
     public static double TurnRate(string aircraftType, AircraftCategory cat)
@@ -255,14 +292,15 @@ public static class AircraftPerformance
     }
 
     /// <summary>
-    /// Final approach speed. Priority: profile -> FAA ACD -> category default.
+    /// Final approach speed. Priority: ACD-corrected profile -> FAA ACD -> category default.
     /// </summary>
     public static double ApproachSpeed(string aircraftType, AircraftCategory cat)
     {
         var p = AircraftProfileDatabase.Get(aircraftType);
         if (p is not null && p.FinalApproachSpeed > 0)
         {
-            return p.FinalApproachSpeed;
+            var acd = FaaAircraftDatabase.Get(aircraftType);
+            return _correctionAdapter.FinalApproachSpeed(p, acd);
         }
 
         // Fall back to FAA ACD approach speed
@@ -284,12 +322,17 @@ public static class AircraftPerformance
     public static double DownwindSpeed(string aircraftType, AircraftCategory cat)
     {
         var p = AircraftProfileDatabase.Get(aircraftType);
-        return p is not null ? p.PatternSpeed : CategoryPerformance.DownwindSpeed(cat);
+        if (p is null)
+        {
+            return CategoryPerformance.DownwindSpeed(cat);
+        }
+
+        var acd = FaaAircraftDatabase.Get(aircraftType);
+        return _correctionAdapter.PatternSpeed(p, acd);
     }
 
     /// <summary>
-    /// Base leg speed. Profile doesn't have a dedicated base speed, so we derive it
-    /// as midpoint between pattern speed and final approach speed.
+    /// Base leg speed. Derived as midpoint between corrected pattern and approach speeds.
     /// </summary>
     public static double BaseSpeed(string aircraftType, AircraftCategory cat)
     {
@@ -299,7 +342,8 @@ public static class AircraftPerformance
             return CategoryPerformance.BaseSpeed(cat);
         }
 
-        return (p.PatternSpeed + p.FinalApproachSpeed) / 2.0;
+        var acd = FaaAircraftDatabase.Get(aircraftType);
+        return _correctionAdapter.BaseSpeed(p, acd);
     }
 
     /// <summary>

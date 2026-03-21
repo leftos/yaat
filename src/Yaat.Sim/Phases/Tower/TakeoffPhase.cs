@@ -144,6 +144,14 @@ public sealed class TakeoffPhase : Phase
 
     private void ApplyDepartureHeading(PhaseContext ctx)
     {
+        // AIM 4-3-2: VFR departures must maintain runway heading until past
+        // the DER and within 300ft of pattern altitude. Defer heading changes
+        // to InitialClimbPhase which checks both conditions.
+        if (ctx.Aircraft.IsVfr)
+        {
+            return;
+        }
+
         switch (_departure)
         {
             case RelativeTurnDeparture rel:

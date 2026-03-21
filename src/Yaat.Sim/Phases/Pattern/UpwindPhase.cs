@@ -16,6 +16,7 @@ public sealed class UpwindPhase : Phase
     private double _targetLat;
     private double _targetLon;
     private TrueHeading _upwindHeading;
+    private double _minTurnAltitude;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -37,6 +38,7 @@ public sealed class UpwindPhase : Phase
         _targetLat = Waypoints.CrosswindTurnLat;
         _targetLon = Waypoints.CrosswindTurnLon;
         _upwindHeading = Waypoints.UpwindHeading;
+        _minTurnAltitude = Waypoints.PatternAltitude - 300;
 
         ctx.Targets.TargetTrueHeading = Waypoints.UpwindHeading;
         ctx.Targets.PreferredTurnDirection = null;
@@ -76,7 +78,9 @@ public sealed class UpwindPhase : Phase
         double bearingDiff = Math.Abs(GeoMath.SignedBearingDifference(bearingToTarget, _upwindHeading.Degrees));
         bool targetIsBehind = bearingDiff > 90.0;
 
-        bool complete = dist < ArrivalNm || targetIsBehind;
+        // AIM 4-3-2: crosswind turn requires being within 300ft of pattern altitude
+        bool altitudeReached = ctx.Aircraft.Altitude >= _minTurnAltitude;
+        bool complete = (dist < ArrivalNm || targetIsBehind) && altitudeReached;
         if (complete)
         {
             ctx.Logger.LogDebug(
@@ -114,6 +118,7 @@ public sealed class UpwindPhase : Phase
             TargetLat = _targetLat,
             TargetLon = _targetLon,
             UpwindHeadingDeg = _upwindHeading.Degrees,
+            MinTurnAltitude = _minTurnAltitude,
         };
 
     public static UpwindPhase FromSnapshot(UpwindPhaseDto dto)
@@ -128,6 +133,7 @@ public sealed class UpwindPhase : Phase
         phase._targetLat = dto.TargetLat;
         phase._targetLon = dto.TargetLon;
         phase._upwindHeading = new TrueHeading(dto.UpwindHeadingDeg);
+        phase._minTurnAltitude = dto.MinTurnAltitude;
         return phase;
     }
 
