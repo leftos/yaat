@@ -139,6 +139,8 @@
         <!-- Sim controls -->
         <Button Grid.Column="2"
                 Margin="8,0,0,0"
+                MinWidth="70"
+                HorizontalContentAlignment="Center"
                 Content="{Binding IsPaused,
                     Converter={x:Static
                     vm:PauseButtonConverter.Instance}}"
