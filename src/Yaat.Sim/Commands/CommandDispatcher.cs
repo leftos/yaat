@@ -366,6 +366,24 @@ public static class CommandDispatcher
             case Plan270Command:
                 return PatternCommandHandler.TryPlan270(aircraft);
 
+            // Helicopter commands
+            case ClearedTakeoffPresentCommand:
+                return DepartureClearanceHandler.TryClearedTakeoffPresent(aircraft, aircraft.GroundLayout);
+            case AirTaxiCommand atxi:
+                return GroundCommandHandler.TryAirTaxi(aircraft, atxi.Destination, aircraft.GroundLayout);
+            case LandCommand land:
+                return GroundCommandHandler.TryLand(aircraft, land, aircraft.GroundLayout);
+
+            // Hold commands (orbit/hover)
+            case HoldPresentPosition360Command hpp:
+                return PatternCommandHandler.TryHoldPresentPosition(aircraft, hpp.Direction);
+            case HoldPresentPositionHoverCommand:
+                return PatternCommandHandler.TryHoldPresentPosition(aircraft, null);
+            case HoldAtFixOrbitCommand hfix:
+                return PatternCommandHandler.TryHoldAtFix(aircraft, hfix.FixName, hfix.Lat, hfix.Lon, hfix.Direction);
+            case HoldAtFixHoverCommand hfixH:
+                return PatternCommandHandler.TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null);
+
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
