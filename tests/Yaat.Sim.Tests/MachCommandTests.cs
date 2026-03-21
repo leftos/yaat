@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -77,7 +78,7 @@ public class MachCommandTests
     [Fact]
     public void UpdateSpeed_WithTargetMach_RecomputesIAS()
     {
-        AircraftCategorization.Initialize([]);
+        TestVnasData.EnsureInitialized();
 
         // Start at IAS 250 so there's a meaningful delta from M0.82 (~279 KIAS at FL350)
         var ac = CreateAircraft(altitude: 35000, ias: 250);
@@ -126,7 +127,7 @@ public class MachCommandTests
     [Fact]
     public void ReduceToFinalApproachSpeed_ClearsTargetMach()
     {
-        AircraftCategorization.Initialize([]);
+        TestVnasData.EnsureInitialized();
 
         var ac = CreateAircraft();
         ac.Targets.TargetMach = 0.82;

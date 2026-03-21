@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests;
 
@@ -61,7 +62,7 @@ public class ExpediteCommandTests
     [Fact]
     public void UpdateAltitude_Applies1_5xMultiplier_WhenExpediting()
     {
-        AircraftCategorization.Initialize([]);
+        TestVnasData.EnsureInitialized();
 
         var ac = CreateAircraft(altitude: 5000);
         ac.Targets.TargetAltitude = 10000;
@@ -109,7 +110,7 @@ public class ExpediteCommandTests
     [Fact]
     public void Expedite_ClearedAtAltitudeSnap()
     {
-        AircraftCategorization.Initialize([]);
+        TestVnasData.EnsureInitialized();
 
         var ac = CreateAircraft(altitude: 9995);
         ac.Targets.TargetAltitude = 10000;
