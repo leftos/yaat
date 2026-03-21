@@ -67,6 +67,11 @@ public sealed class AtpaProcessor
                 continue;
             }
 
+            if (!AtpaVolumeGeometry.IsEstablishedOnApproach(volume, ac))
+            {
+                continue;
+            }
+
             inVolume.Add((ac, AtpaVolumeGeometry.DistanceFromThreshold(volume, ac)));
         }
 

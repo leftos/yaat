@@ -64,7 +64,39 @@ public static class AtpaVolumeGeometry
         return distNm * Math.Cos(angleDiff);
     }
 
-    private static double HeadingDelta(double a, double b)
+    /// <summary>Max heading deviation from volume heading for approach-established filter (degrees).</summary>
+    public const double ApproachHeadingTolerance = 30.0;
+
+    /// <summary>Max vertical speed (fpm) — aircraft climbing faster than this are excluded from ATPA.</summary>
+    public const double MaxVerticalSpeedFpm = 100.0;
+
+    /// <summary>
+    /// Returns true if the aircraft exhibits approach-like behavior: airborne, not climbing,
+    /// and heading roughly aligned with the volume approach course. This filters out departures,
+    /// overflights, and vectored traffic that happen to be inside the ATPA volume.
+    /// </summary>
+    public static bool IsEstablishedOnApproach(AtpaVolumeConfig volume, AircraftState ac)
+    {
+        if (ac.IsOnGround)
+        {
+            return false;
+        }
+
+        if (ac.VerticalSpeed > MaxVerticalSpeedFpm)
+        {
+            return false;
+        }
+
+        var hdgDiff = Math.Abs(HeadingDelta(ac.TrueTrack.Degrees, volume.MagneticHeading));
+        if (hdgDiff > ApproachHeadingTolerance)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static double HeadingDelta(double a, double b)
     {
         return ((a - b) % 360 + 540) % 360 - 180;
     }
