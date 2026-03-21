@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Testing;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 
@@ -263,65 +263,52 @@ public class HoldShortQueueTests
     [Fact]
     public void ConflictDetector_UsesAircraftLength_ForSeparation()
     {
-        // Initialize FAA ACD with test data
-        var lookup = new Dictionary<string, FaaAircraftRecord>
+        // Real ACD data has B738 LengthFt=129.5, C172 LengthFt=27.2
+        TestVnasData.EnsureInitialized();
+
+        // B738 holding at a point, C172 approaching from behind
+        var leader = new AircraftState
         {
-            ["B738"] = new FaaAircraftRecord { IcaoCode = "B738", LengthFt = 129.5 },
-            ["C172"] = new FaaAircraftRecord { IcaoCode = "C172", LengthFt = 27.2 },
+            Callsign = "LEAD",
+            AircraftType = "B738",
+            Latitude = BaseLat,
+            Longitude = BaseLon,
+            TrueHeading = new TrueHeading(0),
+            IsOnGround = true,
+            IndicatedAirspeed = 0,
         };
-        FaaAircraftDatabase.Initialize(lookup);
+        leader.Phases = new PhaseList();
+        leader.Phases.Add(
+            new HoldingShortPhase(
+                new HoldShortPoint
+                {
+                    NodeId = 99,
+                    Reason = HoldShortReason.DestinationRunway,
+                    TargetName = "28R",
+                }
+            )
+        );
+        leader.Phases.CurrentPhase!.Status = PhaseStatus.Active;
 
-        try
+        // Trailer at 120ft behind (less than B738 length of 129.5ft + buffer)
+        double trailOffsetNm = 120.0 / FtPerNm;
+        var trailer = new AircraftState
         {
-            // B738 holding at a point, C172 approaching from behind
-            var leader = new AircraftState
-            {
-                Callsign = "LEAD",
-                AircraftType = "B738",
-                Latitude = BaseLat,
-                Longitude = BaseLon,
-                TrueHeading = new TrueHeading(0),
-                IsOnGround = true,
-                IndicatedAirspeed = 0,
-            };
-            leader.Phases = new PhaseList();
-            leader.Phases.Add(
-                new HoldingShortPhase(
-                    new HoldShortPoint
-                    {
-                        NodeId = 99,
-                        Reason = HoldShortReason.DestinationRunway,
-                        TargetName = "28R",
-                    }
-                )
-            );
-            leader.Phases.CurrentPhase!.Status = PhaseStatus.Active;
+            Callsign = "TRAIL",
+            AircraftType = "C172",
+            Latitude = BaseLat - trailOffsetNm / 60.0,
+            Longitude = BaseLon,
+            TrueHeading = new TrueHeading(0),
+            IsOnGround = true,
+            IndicatedAirspeed = 15,
+        };
 
-            // Trailer at 120ft behind (less than B738 length of 129.5ft + buffer)
-            double trailOffsetNm = 120.0 / FtPerNm;
-            var trailer = new AircraftState
-            {
-                Callsign = "TRAIL",
-                AircraftType = "C172",
-                Latitude = BaseLat - trailOffsetNm / 60.0,
-                Longitude = BaseLon,
-                TrueHeading = new TrueHeading(0),
-                IsOnGround = true,
-                IndicatedAirspeed = 15,
-            };
+        var allAircraft = new List<AircraftState> { leader, trailer };
+        GroundConflictDetector.ApplySpeedLimits(allAircraft, null);
 
-            var allAircraft = new List<AircraftState> { leader, trailer };
-            GroundConflictDetector.ApplySpeedLimits(allAircraft, null);
-
-            // At 120ft behind a 129.5ft aircraft, trailer should be stopped
-            // (stop distance = leader length + 25 = 154.5ft, and 120 < 154.5)
-            Assert.NotNull(trailer.GroundSpeedLimit);
-            Assert.Equal(0.0, trailer.GroundSpeedLimit.Value);
-        }
-        finally
-        {
-            // Reset database
-            FaaAircraftDatabase.Initialize(new Dictionary<string, FaaAircraftRecord>());
-        }
+        // At 120ft behind a 129.5ft aircraft, trailer should be stopped
+        // (stop distance = leader length + 25 = 154.5ft, and 120 < 154.5)
+        Assert.NotNull(trailer.GroundSpeedLimit);
+        Assert.Equal(0.0, trailer.GroundSpeedLimit.Value);
     }
 }
