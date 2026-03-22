@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
     private bool _restoringGrid;
     private bool _isConfirmedClose;
+    private bool _isMainWindowClosing;
     private string? _sortColumnKey;
     private ListSortDirection? _sortDirection;
 
@@ -969,7 +970,7 @@ public partial class MainWindow : Window
 
     private void OnTerminalWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (DataContext is MainViewModel vm)
+        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
         {
             vm.IsTerminalDocked = true;
         }
@@ -978,7 +979,7 @@ public partial class MainWindow : Window
 
     private void OnDataGridWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (DataContext is MainViewModel vm)
+        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
         {
             vm.IsDataGridPoppedOut = false;
         }
@@ -987,7 +988,7 @@ public partial class MainWindow : Window
 
     private void OnGroundViewWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (DataContext is MainViewModel vm)
+        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
         {
             vm.IsGroundViewPoppedOut = false;
         }
@@ -996,7 +997,7 @@ public partial class MainWindow : Window
 
     private void OnRadarViewWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (DataContext is MainViewModel vm)
+        if (!_isMainWindowClosing && DataContext is MainViewModel vm)
         {
             vm.IsRadarViewPoppedOut = false;
         }
@@ -1460,6 +1461,7 @@ public partial class MainWindow : Window
             }
         }
 
+        _isMainWindowClosing = !e.Cancel;
         base.OnClosing(e);
     }
 
