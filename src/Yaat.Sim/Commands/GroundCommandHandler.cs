@@ -13,6 +13,11 @@ internal static class GroundCommandHandler
 
     internal static CommandResult TryTaxi(AircraftState aircraft, TaxiCommand taxi, AirportGroundLayout? groundLayout, bool autoCrossRunway = false)
     {
+        if (!aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "Taxi requires aircraft on the ground");
+        }
+
         if (groundLayout is null)
         {
             Log.LogWarning(
