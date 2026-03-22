@@ -363,6 +363,7 @@ public static class CommandSchemeParser
         CanonicalCommandType.Say,
         CanonicalCommandType.CreateFlightPlan,
         CanonicalCommandType.CreateVfrFlightPlan,
+        CanonicalCommandType.CreateAbbreviatedFlightPlan,
         CanonicalCommandType.SetRemarks,
     ];
 

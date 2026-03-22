@@ -310,8 +310,9 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 
 | Command | ATCTrainer | YAAT | Difference |
 |---------|-----------|------|------------|
-| Flight plan | `FP {type} {alt} {route}` | `FP {type} {alt} {route}` | Parity; also available via FPE |
-| VFR flight plan | `VP {type} {alt} {route}` | `VP {type} {alt} {route}` | Parity; also available via FPE |
+| Flight plan | `FP {type} {alt} {route}` | `FP {type} {alt} {route}` | Parity; also available via FPE. Auto-assigns squawk + echoes details. |
+| VFR flight plan | `VP {type} {alt} {route}` | `VP {type} {alt} {route}` | Parity; also available via FPE. Auto-assigns squawk + echoes details. |
+| Flight Data (abbreviated FP) | — | `DA [type] [alt] [beacon] [scratchpad] [.V/.E]` | YAAT-only (CRC F6 key). Optional fields, any order. DUP NEW ID if FP exists. |
 | Remarks | `REMARKS {text}` | `REMARKS {text}` (`REM`) | Parity; also available via FPE |
 | Cleared | `CLRD` | — | ATCTrainer-only (YAAT uses clearance column instead) |
 | Delete at | `DELAT` | `DELAT` / `DELAT {n}` | Parity; YAAT adds per-block delete by number |

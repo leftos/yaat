@@ -693,6 +693,7 @@ public static class CommandParser
             ChangeDestination => ParseChangeDestination(arg),
             CreateFlightPlan => ParseCreateFlightPlan(arg, "IFR"),
             CreateVfrFlightPlan => ParseCreateFlightPlan(arg, "VFR"),
+            CreateAbbreviatedFlightPlan => ParseAbbreviatedFlightPlan(arg),
             SetRemarks when arg is not null => PR.Ok(new SetRemarksCommand(arg)),
             // Verbs with arg-required guards: return fail when arg missing (invalid usage)
             Mach
@@ -1779,6 +1780,79 @@ public static class CommandParser
 
         var route = string.Join(" ", parts.Skip(2).Select(p => p.ToUpperInvariant()));
         return PR.Ok(new CreateFlightPlanCommand(flightRules, aircraftType, cruiseAltitude, route));
+    }
+
+    /// <summary>
+    /// Parses DA (abbreviated flight plan / Flight Data). Fields are optional and order-independent:
+    /// 4 digits = beacon code, backtick+chars = scratchpad1, +chars = scratchpad2,
+    /// letter-starting 2-4 alphanum (optionally /X) = type, 3 digits = altitude (hundreds),
+    /// .V/.P/.E = flight rules. Default flight rules = VFR.
+    /// </summary>
+    private static PR ParseAbbreviatedFlightPlan(string? arg)
+    {
+        uint? beaconCode = null;
+        string? scratchpad1 = null;
+        string? scratchpad2 = null;
+        string? aircraftType = null;
+        int? cruiseAltitude = null;
+        string flightRules = "VFR";
+
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Ok(new CreateAbbreviatedFlightPlanCommand(null, null, null, null, null, flightRules));
+        }
+
+        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var token in tokens)
+        {
+            var upper = token.ToUpperInvariant();
+
+            if ((upper == ".V") || (upper == ".P") || (upper == ".E"))
+            {
+                flightRules = upper switch
+                {
+                    ".V" => "VFR",
+                    ".P" => "VFR", // VFR-on-top treated as VFR
+                    ".E" => "IFR",
+                    _ => "VFR",
+                };
+                continue;
+            }
+
+            if (upper.StartsWith('`') && upper.Length >= 2 && upper.Length <= 5)
+            {
+                scratchpad1 = upper[1..];
+                continue;
+            }
+
+            if (upper.StartsWith('+') && upper.Length >= 2 && upper.Length <= 5)
+            {
+                scratchpad2 = upper[1..];
+                continue;
+            }
+
+            if (token.Length == 4 && token.All(char.IsDigit) && token.All(c => c >= '0' && c <= '7'))
+            {
+                beaconCode = uint.Parse(token);
+                continue;
+            }
+
+            if (token.Length == 3 && token.All(char.IsDigit))
+            {
+                cruiseAltitude = int.Parse(token) * 100;
+                continue;
+            }
+
+            if (char.IsLetter(token[0]) && token.Length >= 2)
+            {
+                aircraftType = upper;
+                continue;
+            }
+
+            return PR.Fail($"unrecognized DA field: '{token}'");
+        }
+
+        return PR.Ok(new CreateAbbreviatedFlightPlanCommand(beaconCode, scratchpad1, scratchpad2, aircraftType, cruiseAltitude, flightRules));
     }
 
     private static PR ParseStripAnnotate(string arg)

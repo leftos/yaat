@@ -169,9 +169,10 @@ internal static class PatternCommandHandler
 
         aircraft.Phases = phases;
 
-        var legDesc = entryLeg == PatternEntryLeg.Final
-            ? "final"
-            : $"{(direction == PatternDirection.Left ? "left" : "right")} {entryLeg.ToString().ToLowerInvariant()}";
+        var legDesc =
+            entryLeg == PatternEntryLeg.Final
+                ? "final"
+                : $"{(direction == PatternDirection.Left ? "left" : "right")} {entryLeg.ToString().ToLowerInvariant()}";
         var distStr = finalDistanceNm is not null ? $", {finalDistanceNm:G}nm final" : "";
         var sideStr = isOnWrongSide ? " (crossing midfield)" : "";
         return CommandDispatcher.Ok($"Enter {legDesc}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");

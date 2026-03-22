@@ -1050,6 +1050,14 @@ public static class CommandRegistry
                 ]
             ),
             Cmd(
+                CreateAbbreviatedFlightPlan,
+                "Flight Data (Abbreviated FP)",
+                "Flight Plan",
+                false,
+                ["DA"],
+                [O(null, [R("fields", "beacon scratchpad type altitude rules")], "Create abbreviated flight plan (optional fields, any order)")]
+            ),
+            Cmd(
                 SetRemarks,
                 "Set Remarks",
                 "Flight Plan",

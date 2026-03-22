@@ -141,6 +141,12 @@ public static class CommandDescriber
             WaitDistanceCommand => CanonicalCommandType.WaitDistance,
             DeleteQueuedCommand => CanonicalCommandType.DeleteQueuedCommands,
             ShowQueuedCommand => CanonicalCommandType.ShowQueuedCommands,
+            ChangeDestinationCommand => CanonicalCommandType.ChangeDestination,
+            CreateFlightPlanCommand cmd => cmd.FlightRules == "VFR"
+                ? CanonicalCommandType.CreateVfrFlightPlan
+                : CanonicalCommandType.CreateFlightPlan,
+            CreateAbbreviatedFlightPlanCommand => CanonicalCommandType.CreateAbbreviatedFlightPlan,
+            SetRemarksCommand => CanonicalCommandType.SetRemarks,
             _ => CanonicalCommandType.FlyHeading, // fallback
         };
     }
@@ -342,6 +348,10 @@ public static class CommandDescriber
             ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null ? $"RTISF {cmd.TargetCallsign}" : "RTISF",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"DELAT {del.BlockNumber}" : "DELAT",
             ShowQueuedCommand => "SHOWAT",
+            ChangeDestinationCommand cmd => $"APT {cmd.Airport}",
+            CreateFlightPlanCommand cmd => $"FP {cmd.AircraftType} {cmd.CruiseAltitude / 100:D3} {cmd.Route}",
+            CreateAbbreviatedFlightPlanCommand cmd => FormatDaCanonical(cmd),
+            SetRemarksCommand cmd => $"REMARKS {cmd.Text}",
             _ => command.ToString() ?? "?",
         };
     }
@@ -490,6 +500,10 @@ public static class CommandDescriber
                 : "Report traffic in sight (forced)",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"Delete queued block {del.BlockNumber}" : "Delete all queued commands",
             ShowQueuedCommand => "Show queued commands",
+            ChangeDestinationCommand cmd => $"Change destination to {cmd.Airport}",
+            CreateFlightPlanCommand cmd => $"Create {cmd.FlightRules} flight plan: {cmd.AircraftType}, {cmd.CruiseAltitude:N0} ft, {cmd.Route}",
+            CreateAbbreviatedFlightPlanCommand cmd => DescribeDaNatural(cmd),
+            SetRemarksCommand cmd => $"Set remarks: {cmd.Text}",
             _ => command.ToString() ?? "?",
         };
     }
@@ -1040,5 +1054,62 @@ public static class CommandDescriber
             msg += $", follow {cmd.FollowCallsign}";
         }
         return msg;
+    }
+
+    private static string FormatDaCanonical(CreateAbbreviatedFlightPlanCommand cmd)
+    {
+        var parts = new List<string> { "DA" };
+        if (cmd.BeaconCode is { } bc)
+        {
+            parts.Add($"{bc:D4}");
+        }
+
+        if (cmd.Scratchpad1 is not null)
+        {
+            parts.Add($"`{cmd.Scratchpad1}");
+        }
+
+        if (cmd.Scratchpad2 is not null)
+        {
+            parts.Add($"+{cmd.Scratchpad2}");
+        }
+
+        if (cmd.AircraftType is not null)
+        {
+            parts.Add(cmd.AircraftType);
+        }
+
+        if (cmd.CruiseAltitude is { } alt)
+        {
+            parts.Add($"{alt / 100:D3}");
+        }
+
+        if (cmd.FlightRules != "VFR")
+        {
+            parts.Add(cmd.FlightRules == "IFR" ? ".E" : ".V");
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    private static string DescribeDaNatural(CreateAbbreviatedFlightPlanCommand cmd)
+    {
+        var parts = new List<string> { "Create abbreviated flight plan" };
+        if (cmd.AircraftType is not null)
+        {
+            parts.Add($"type {cmd.AircraftType}");
+        }
+
+        if (cmd.CruiseAltitude is { } alt)
+        {
+            parts.Add($"at {alt:N0} ft");
+        }
+
+        if (cmd.FlightRules != "VFR")
+        {
+            parts.Add($"({cmd.FlightRules})");
+        }
+
+        return string.Join(", ", parts);
     }
 }

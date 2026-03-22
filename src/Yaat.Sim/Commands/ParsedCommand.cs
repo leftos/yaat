@@ -527,6 +527,15 @@ public record ChangeDestinationCommand(string Airport) : ParsedCommand;
 
 public record CreateFlightPlanCommand(string FlightRules, string AircraftType, int CruiseAltitude, string Route) : ParsedCommand;
 
+public record CreateAbbreviatedFlightPlanCommand(
+    uint? BeaconCode,
+    string? Scratchpad1,
+    string? Scratchpad2,
+    string? AircraftType,
+    int? CruiseAltitude,
+    string FlightRules
+) : ParsedCommand;
+
 public record SetRemarksCommand(string Text) : ParsedCommand;
 
 // Server/global commands
