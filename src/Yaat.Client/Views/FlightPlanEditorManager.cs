@@ -14,7 +14,12 @@ public static class FlightPlanEditorManager
 
     public static void Open(AircraftModel ac, MainViewModel vm, Window? owner)
     {
-        Close();
+        if (_openEditor is not null)
+        {
+            _openEditor.LoadAircraft(ac);
+            _openEditor.Activate();
+            return;
+        }
 
         var window = new FlightPlanEditorWindow(
             ac,

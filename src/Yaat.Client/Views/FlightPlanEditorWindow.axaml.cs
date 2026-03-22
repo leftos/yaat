@@ -8,26 +8,24 @@ namespace Yaat.Client.Views;
 
 public partial class FlightPlanEditorWindow : Window
 {
-    private readonly AircraftModel _aircraft;
+    private AircraftModel _aircraft;
     private readonly Action<string, FlightPlanAmendment> _onAmend;
 
-    private string _origBcn;
-    private string _origTyp;
-    private string _origEq;
-    private string _origDep;
-    private string _origDest;
-    private string _origSpd;
-    private string _origAlt;
-    private string _origRte;
-    private string _origRmk;
+    private string _origBcn = "";
+    private string _origTyp = "";
+    private string _origEq = "";
+    private string _origDep = "";
+    private string _origDest = "";
+    private string _origSpd = "";
+    private string _origAlt = "";
+    private string _origRte = "";
+    private string _origRmk = "";
 
     public FlightPlanEditorWindow()
     {
         InitializeComponent();
         _aircraft = null!;
         _onAmend = null!;
-        _origBcn = _origTyp = _origEq = _origDep = _origDest = "";
-        _origSpd = _origAlt = _origRte = _origRmk = "";
     }
 
     public FlightPlanEditorWindow(AircraftModel aircraft, Action<string, FlightPlanAmendment> onAmend)
@@ -35,6 +33,25 @@ public partial class FlightPlanEditorWindow : Window
         InitializeComponent();
         _aircraft = aircraft;
         _onAmend = onAmend;
+
+        LoadAircraft(aircraft);
+
+        AmendButton.Click += OnAmendClick;
+
+        BcnBox.TextChanged += OnFieldChanged;
+        TypBox.TextChanged += OnFieldChanged;
+        EqBox.TextChanged += OnFieldChanged;
+        DepBox.TextChanged += OnFieldChanged;
+        DestBox.TextChanged += OnFieldChanged;
+        SpdBox.TextChanged += OnFieldChanged;
+        AltBox.TextChanged += OnFieldChanged;
+        RteBox.TextChanged += OnFieldChanged;
+        RmkBox.TextChanged += OnFieldChanged;
+    }
+
+    public void LoadAircraft(AircraftModel aircraft)
+    {
+        _aircraft = aircraft;
 
         Title = $"{aircraft.Callsign} - Flight Plan";
 
@@ -60,17 +77,6 @@ public partial class FlightPlanEditorWindow : Window
         RmkBox.Text = _origRmk;
 
         AmendButton.IsEnabled = false;
-        AmendButton.Click += OnAmendClick;
-
-        BcnBox.TextChanged += OnFieldChanged;
-        TypBox.TextChanged += OnFieldChanged;
-        EqBox.TextChanged += OnFieldChanged;
-        DepBox.TextChanged += OnFieldChanged;
-        DestBox.TextChanged += OnFieldChanged;
-        SpdBox.TextChanged += OnFieldChanged;
-        AltBox.TextChanged += OnFieldChanged;
-        RteBox.TextChanged += OnFieldChanged;
-        RmkBox.TextChanged += OnFieldChanged;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
