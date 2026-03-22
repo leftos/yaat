@@ -847,7 +847,11 @@ public partial class CommandInputController : ObservableObject
                 foreach (var sp in def.SyntaxPatterns)
                 {
                     var prefix = sp[..sp.IndexOf('{')];
-                    if (prefix.Length > 0 && token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    if (
+                        prefix.Length > 0
+                        && token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                        && (token.Length <= prefix.Length || char.IsDigit(token[prefix.Length]))
+                    )
                     {
                         bestRank = Math.Min(bestRank, 1);
                     }
