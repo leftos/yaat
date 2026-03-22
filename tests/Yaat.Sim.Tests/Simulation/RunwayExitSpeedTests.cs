@@ -58,14 +58,15 @@ public class RunwayExitSpeedTests(ITestOutputHelper output)
             return;
         }
 
-        // N569SX lands around t=608, exit starts around t=638.
-        // Start early enough to catch the full landing→exit sequence.
-        engine.Replay(recording, 580);
+        // N569SX spawns on final ~10nm out. With speed maintained until 5nm,
+        // it arrives earlier than the original test expected. Start at t=400
+        // to catch the full landing→exit sequence.
+        engine.Replay(recording, 400);
 
         var ac = engine.FindAircraft("N569SX");
         Assert.NotNull(ac);
 
-        output.WriteLine($"t=580: gs={ac.GroundSpeed:F1} phase={ac.Phases?.CurrentPhase?.GetType().Name}");
+        output.WriteLine($"t=400: gs={ac.GroundSpeed:F1} phase={ac.Phases?.CurrentPhase?.GetType().Name}");
 
         bool enteredExit = false;
         int exitStartTick = 0;

@@ -21,6 +21,7 @@ public sealed class FinalApproachPhase : Phase
     private const double InterceptCrossTrackThresholdNm = 0.1;
     private const double InterceptHeadingThresholdDeg = 15.0;
     private const double AimPointMinNm = 0.1;
+    private const double FasTransitionDistanceNm = 5.0;
 
     private double _thresholdLat;
     private double _thresholdLon;
@@ -32,6 +33,7 @@ public sealed class FinalApproachPhase : Phase
     private bool _interceptChecked;
     private bool _isPatternTraffic;
     private bool _tooHighGoAroundChecked;
+    private bool _fasSet;
     private double _mapDistNm;
 
     /// <summary>
@@ -59,6 +61,7 @@ public sealed class FinalApproachPhase : Phase
             InterceptChecked = _interceptChecked,
             IsPatternTraffic = _isPatternTraffic,
             TooHighGoAroundChecked = _tooHighGoAroundChecked,
+            FasSet = _fasSet,
             MapDistNm = _mapDistNm,
         };
 
@@ -78,6 +81,7 @@ public sealed class FinalApproachPhase : Phase
         phase._interceptChecked = dto.InterceptChecked;
         phase._isPatternTraffic = dto.IsPatternTraffic;
         phase._tooHighGoAroundChecked = dto.TooHighGoAroundChecked;
+        phase._fasSet = dto.FasSet;
         phase._mapDistNm = dto.MapDistNm;
         return phase;
     }
@@ -101,11 +105,19 @@ public sealed class FinalApproachPhase : Phase
         ctx.Targets.PreferredTurnDirection = null;
         ctx.Targets.NavigationRoute.Clear();
 
-        // Set approach speed (per-type if available)
         double approachSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
-        ctx.Targets.TargetSpeed = approachSpeed;
 
         double startDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+
+        // Only set FAS immediately when already within transition distance.
+        // Further out, keep the current speed (InterceptCoursePhase sets 1.3×FAS)
+        // and let OnTick() apply FAS when distance drops below the threshold.
+        if (startDist <= FasTransitionDistanceNm)
+        {
+            ctx.Targets.TargetSpeed = approachSpeed;
+            _fasSet = true;
+        }
+
         double startXte = GeoMath.SignedCrossTrackDistanceNm(
             ctx.Aircraft.Latitude,
             ctx.Aircraft.Longitude,
@@ -114,12 +126,13 @@ public sealed class FinalApproachPhase : Phase
             _runwayHeading
         );
         ctx.Logger.LogDebug(
-            "[FinalApproach] {Callsign}: started, rwy hdg={Hdg:F0}, dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, xte={Xte:F3}nm",
+            "[FinalApproach] {Callsign}: started, rwy hdg={Hdg:F0}, dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, fasSet={FasSet}, xte={Xte:F3}nm",
             ctx.Aircraft.Callsign,
             _runwayHeading.Degrees,
             startDist,
             ctx.Aircraft.Altitude,
             approachSpeed,
+            _fasSet,
             startXte
         );
     }
@@ -132,6 +145,15 @@ public sealed class FinalApproachPhase : Phase
         }
 
         double distNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
+
+        // Decelerate to FAS when within transition distance
+        if (!_fasSet && (distNm <= FasTransitionDistanceNm) && !ctx.Targets.HasExplicitSpeedCommand)
+        {
+            double fas = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            ctx.Targets.TargetSpeed = fas;
+            _fasSet = true;
+            ctx.Logger.LogDebug("[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm", ctx.Aircraft.Callsign, fas, distNm);
+        }
 
         CheckInterceptDistance(ctx, distNm);
 

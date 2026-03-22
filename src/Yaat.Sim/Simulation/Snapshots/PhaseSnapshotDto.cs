@@ -476,6 +476,7 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     public required bool InterceptChecked { get; init; }
     public required bool IsPatternTraffic { get; init; }
     public required bool TooHighGoAroundChecked { get; init; }
+    public bool FasSet { get; init; }
     public required double MapDistNm { get; init; }
 }
 

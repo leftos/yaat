@@ -459,6 +459,7 @@ public class SpeedPhysicsTests
     {
         var ac = CreateAirborne(ias: 210);
         ac.Targets.TargetSpeed = 210;
+        ac.Targets.HasExplicitSpeedCommand = true;
         ac.Targets.SpeedFloor = 200;
         ac.Targets.SpeedCeiling = 250;
         ac.Phases = new PhaseList();
@@ -481,7 +482,9 @@ public class SpeedPhysicsTests
 
         FlightPhysics.Update(ac, 0.1);
 
-        // Aircraft is at 0nm from threshold, should auto-cancel
+        // Aircraft is at 0nm from threshold, should auto-cancel ATC speed restriction
+        Assert.Null(ac.Targets.TargetSpeed);
+        Assert.False(ac.Targets.HasExplicitSpeedCommand);
         Assert.Null(ac.Targets.SpeedFloor);
         Assert.Null(ac.Targets.SpeedCeiling);
     }

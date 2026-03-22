@@ -1203,11 +1203,19 @@ public static class FlightPhysics
 
     /// <summary>
     /// Auto-cancel ATC speed restrictions at 5nm final per 7110.65 §5-7-1.a.2.d.
+    /// Only clears speeds set by explicit ATC commands (S180, etc.), not phase-managed
+    /// speeds like FAS set by FinalApproachPhase.
     /// Called from Update() after UpdateSpeed().
     /// </summary>
     private static void AutoCancelSpeedAtFinal(AircraftState aircraft)
     {
         if (aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        // Only cancel explicit ATC speed restrictions, not phase-managed approach speeds
+        if (!aircraft.Targets.HasExplicitSpeedCommand)
         {
             return;
         }
@@ -1218,16 +1226,11 @@ public static class FlightPhysics
             return;
         }
 
-        // Only clear if there's something to clear
-        if (aircraft.Targets.TargetSpeed is null && aircraft.Targets.SpeedFloor is null && aircraft.Targets.SpeedCeiling is null)
-        {
-            return;
-        }
-
         double dist = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, runway.ThresholdLatitude, runway.ThresholdLongitude);
         if (dist <= 5.0)
         {
             aircraft.Targets.TargetSpeed = null;
+            aircraft.Targets.HasExplicitSpeedCommand = false;
             aircraft.Targets.SpeedFloor = null;
             aircraft.Targets.SpeedCeiling = null;
         }
