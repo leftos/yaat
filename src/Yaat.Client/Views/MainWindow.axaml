@@ -620,5 +620,23 @@
         </StackPanel>
     </Border>
 
+    <!-- Export recording overlay -->
+    <Border IsVisible="{Binding IsExportingRecording}"
+            Background="#CC000000"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            CornerRadius="8"
+            Padding="24"
+            MinWidth="280">
+        <StackPanel Spacing="12" HorizontalAlignment="Center">
+            <TextBlock Text="{Binding ExportingStatusText}"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       HorizontalAlignment="Center" />
+            <ProgressBar IsIndeterminate="True" Width="200" />
+        </StackPanel>
+    </Border>
+
     </Panel>
 </Window>

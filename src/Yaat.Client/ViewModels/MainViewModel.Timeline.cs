@@ -119,9 +119,24 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task SaveRecording()
     {
+        if (IsExportingRecording)
+        {
+            return;
+        }
+
+        IsExportingRecording = true;
+        ExportingStatusText = "Preparing recording...";
+        var wasPaused = IsPaused;
         try
         {
+            if (!wasPaused)
+            {
+                await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
+            }
+
             var compressedBytes = await _connection.ExportRecordingAsync();
+            IsExportingRecording = false;
+
             if (compressedBytes is null)
             {
                 StatusText = "No recording available";
@@ -163,14 +178,44 @@ public partial class MainViewModel
             _log.LogError(ex, "Save recording failed");
             StatusText = $"Save recording error: {ex.Message}";
         }
+        finally
+        {
+            IsExportingRecording = false;
+            if (!wasPaused)
+            {
+                try
+                {
+                    await _connection.SendCommandAsync("", "UNPAUSE", _preferences.UserInitials);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Failed to unpause after save recording");
+                }
+            }
+        }
     }
 
     [RelayCommand]
     private async Task SaveBugReportBundle()
     {
+        if (IsExportingRecording)
+        {
+            return;
+        }
+
+        IsExportingRecording = true;
+        ExportingStatusText = "Preparing bug report bundle...";
+        var wasPaused = IsPaused;
         try
         {
+            if (!wasPaused)
+            {
+                await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
+            }
+
             var compressedBytes = await _connection.ExportRecordingAsync();
+            IsExportingRecording = false;
+
             if (compressedBytes is null)
             {
                 StatusText = "No recording available";
@@ -235,6 +280,21 @@ public partial class MainViewModel
         {
             _log.LogError(ex, "Save bug report bundle failed");
             StatusText = $"Save bug report bundle error: {ex.Message}";
+        }
+        finally
+        {
+            IsExportingRecording = false;
+            if (!wasPaused)
+            {
+                try
+                {
+                    await _connection.SendCommandAsync("", "UNPAUSE", _preferences.UserInitials);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Failed to unpause after bug report save");
+                }
+            }
         }
     }
 

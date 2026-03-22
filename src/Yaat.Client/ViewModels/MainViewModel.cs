@@ -81,6 +81,12 @@ public partial class MainViewModel : ObservableObject
     private bool _isPlaybackMode;
 
     [ObservableProperty]
+    private bool _isExportingRecording;
+
+    [ObservableProperty]
+    private string _exportingStatusText = "";
+
+    [ObservableProperty]
     private double _playbackTapeEnd;
 
     public double TimelineMaximum => IsPlaybackMode ? PlaybackTapeEnd : ScenarioElapsedSeconds;
