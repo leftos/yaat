@@ -66,22 +66,18 @@ public static class CommandDispatcher
             // result is null means phases were cleared, fall through to normal dispatch
         }
 
-        // Reject tower commands that require phase context
-        // (pattern entry commands with an explicit runway can self-resolve)
-        foreach (var block in compound.Blocks)
+        // Dry-run: validate all commands on a snapshot clone before touching the
+        // real aircraft. This allows compound commands like "ERD 28R, CLAND" where
+        // a later command depends on state created by an earlier one.
+        var dryRunError = DryRunValidate(compound, aircraft, groundLayout);
+        if (dryRunError is not null)
         {
-            foreach (var cmd in block.Commands)
+            if (savedPhases is not null && aircraft.Phases is null)
             {
-                if (CommandDescriber.IsTowerCommand(cmd) && !IsPatternEntryWithRunway(cmd) && !CommandDescriber.IsApproachCommand(cmd))
-                {
-                    return new CommandResult(false, $"{CommandDescriber.DescribeNatural(cmd)} requires an active runway assignment");
-                }
-
-                if (CommandDescriber.IsGroundCommand(cmd) && !aircraft.IsOnGround)
-                {
-                    return new CommandResult(false, $"{CommandDescriber.DescribeNatural(cmd)} requires the aircraft to be on the ground");
-                }
+                aircraft.Phases = savedPhases;
             }
+
+            return dryRunError;
         }
 
         // Clear any existing queue and pending deferred dispatches
@@ -384,12 +380,88 @@ public static class CommandDispatcher
             case HoldAtFixHoverCommand hfixH:
                 return PatternCommandHandler.TryHoldAtFix(aircraft, hfixH.FixName, hfixH.Lat, hfixH.Lon, null);
 
+            // --- Tower commands (also dispatched via TryApplyTowerCommand in the phase path) ---
+            case ClearedToLandCommand ctl:
+                return PatternCommandHandler.TryClearedToLand(ctl, aircraft);
+            case LandAndHoldShortCommand lahso:
+                return PatternCommandHandler.TryLandAndHoldShort(lahso, aircraft, aircraft.GroundLayout);
+            case CancelLandingClearanceCommand:
+                return PatternCommandHandler.TryCancelLandingClearance(aircraft);
+            case GoAroundCommand ga:
+                return PatternCommandHandler.TryGoAround(ga, aircraft);
+            case MakeLeftTrafficCommand mlt:
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId);
+            case MakeRightTrafficCommand mrt:
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId);
+
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
             default:
                 return new CommandResult(false, "Unknown command");
         }
+    }
+
+    /// <summary>
+    /// Validates all commands in a compound by applying them sequentially on a
+    /// snapshot clone of the aircraft. Returns the first error, or null if all
+    /// commands are valid. The real aircraft is never mutated.
+    /// </summary>
+    private static CommandResult? DryRunValidate(CompoundCommand compound, AircraftState aircraft, AirportGroundLayout? groundLayout)
+    {
+        var clone = AircraftState.FromSnapshot(aircraft.ToSnapshot(), groundLayout);
+        var dryRng = new Random(0);
+
+        foreach (var block in compound.Blocks)
+        {
+            foreach (var cmd in block.Commands)
+            {
+                var result = DryRunApplyCommand(cmd, clone, groundLayout, dryRng);
+                if (!result.Success)
+                {
+                    return result;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Applies a single command during dry-run validation. Handles both normal
+    /// commands (via ApplyCommand) and tower-only commands that are normally
+    /// dispatched through TryApplyTowerCommand.
+    /// </summary>
+    private static CommandResult DryRunApplyCommand(ParsedCommand cmd, AircraftState clone, AirportGroundLayout? groundLayout, Random rng)
+    {
+        // Try the tower-command path first if phases are active — it handles
+        // CTO, CLAND, LUAW, go-around, pattern turns, etc.
+        var currentPhase = clone.Phases?.CurrentPhase;
+        if (currentPhase is not null)
+        {
+            var towerResult = TryApplyTowerCommand(cmd, clone, currentPhase, groundLayout);
+            if (towerResult is not null)
+            {
+                return towerResult;
+            }
+        }
+
+        // Then try ApplyCommand — handles flight, nav, pattern entry, etc.
+        var result = ApplyCommand(cmd, clone, rng, false);
+        if (result.Message != "Unknown command")
+        {
+            return result;
+        }
+
+        // Tower command without phases — give a descriptive error.
+        if (CommandDescriber.IsTowerCommand(cmd))
+        {
+            return new CommandResult(false, $"{CommandDescriber.DescribeNatural(cmd)} requires an active runway assignment");
+        }
+
+        // Commands not handled at the Sim level (e.g. DEL, server-side commands)
+        // cannot be validated here — assume valid.
+        return new CommandResult(true, "");
     }
 
     private static bool IsPatternEntryWithRunway(ParsedCommand cmd)

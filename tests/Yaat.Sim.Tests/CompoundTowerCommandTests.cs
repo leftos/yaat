@@ -192,4 +192,105 @@ public class CompoundTowerCommandTests
         Assert.True(dctApplied, "DCT SUNOL should have been applied after phases completed");
         Assert.Contains(ac.Targets.NavigationRoute, t => t.Name == "SUNOL");
     }
+
+    // -------------------------------------------------------------------------
+    // Compound pattern entry + tower command (dry-run validation)
+    // -------------------------------------------------------------------------
+
+    private static AircraftState MakeAircraftWithoutPhases()
+    {
+        return new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "C172",
+            Latitude = 37.72,
+            Longitude = -122.22,
+            TrueHeading = new TrueHeading(280),
+            Altitude = 1500,
+            IndicatedAirspeed = 100,
+            IsOnGround = false,
+            Destination = "OAK",
+        };
+    }
+
+    [Fact]
+    public void Erd_Comma_Cland_Succeeds_WithoutPriorPhases()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+        NavigationDatabase.SetInstance(navDb);
+
+        var ac = MakeAircraftWithoutPhases();
+
+        var parseResult = CommandParser.ParseCompound("ERD 28R, CL", ac.Route);
+        Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
+
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(42), false);
+
+        Assert.True(result.Success, $"Dispatch failed: {result.Message}");
+        Assert.NotNull(ac.Phases);
+        Assert.Equal("28R", ac.Phases!.AssignedRunway?.Designator);
+        Assert.Equal(ClearanceType.ClearedToLand, ac.Phases.LandingClearance);
+    }
+
+    [Fact]
+    public void Erd_Semicolon_Cland_Succeeds_WithoutPriorPhases()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+        NavigationDatabase.SetInstance(navDb);
+
+        var ac = MakeAircraftWithoutPhases();
+
+        var parseResult = CommandParser.ParseCompound("ERD 28R; CL", ac.Route);
+        Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
+
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(42), false);
+
+        Assert.True(result.Success, $"Dispatch failed: {result.Message}");
+        Assert.NotNull(ac.Phases);
+        Assert.Equal("28R", ac.Phases!.AssignedRunway?.Designator);
+        // CLAND is in a deferred block — it won't be applied until the queue advances.
+        // But the dispatch itself should succeed (not be rejected upfront).
+    }
+
+    [Fact]
+    public void Cland_Alone_Fails_WithoutPhases()
+    {
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+        NavigationDatabase.SetInstance(navDb);
+
+        var ac = MakeAircraftWithoutPhases();
+
+        var parseResult = CommandParser.ParseCompound("CL", ac.Route);
+        Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
+
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(42), false);
+
+        Assert.False(result.Success, "CLAND without phases should fail");
+    }
+
+    [Fact]
+    public void Ground_Command_Fails_While_Airborne()
+    {
+        var ac = MakeAircraftWithoutPhases();
+        ac.IsOnGround = false;
+
+        var parseResult = CommandParser.ParseCompound("TAXI A", ac.Route);
+        Assert.True(parseResult.IsSuccess, $"Parse failed: {parseResult.Reason}");
+
+        var result = CommandDispatcher.DispatchCompound(parseResult.Value!, ac, null, new Random(42), false);
+
+        Assert.False(result.Success, "Ground command while airborne should fail");
+    }
 }
