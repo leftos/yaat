@@ -418,9 +418,19 @@ internal static class PatternCommandHandler
 
     internal static CommandResult TryMakeTurn(AircraftState aircraft, TurnDirection direction, double degrees)
     {
+        var dirStr = direction == TurnDirection.Left ? "left" : "right";
+
+        // Standalone turn: no active phases — create a minimal phase list with
+        // just the turn so R360/L360/R270/L270 work on airborne aircraft that
+        // haven't been given a pattern entry (e.g. VFR traffic handed off to tower).
         if (aircraft.Phases is null || aircraft.Phases.IsComplete)
         {
-            return new CommandResult(false, "No active phase for turn");
+            var standalone = new MakeTurnPhase { Direction = direction, TargetDegrees = degrees };
+            aircraft.Phases = new PhaseList();
+            aircraft.Phases.Add(standalone);
+            var startCtx = CommandDispatcher.BuildMinimalContext(aircraft);
+            aircraft.Phases.Start(startCtx);
+            return CommandDispatcher.Ok($"Make {dirStr} {degrees:F0}");
         }
 
         var turnPhase = new MakeTurnPhase { Direction = direction, TargetDegrees = degrees };
@@ -443,7 +453,6 @@ internal static class PatternCommandHandler
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft);
         aircraft.Phases.AdvanceToNext(ctx);
 
-        var dirStr = direction == TurnDirection.Left ? "left" : "right";
         return CommandDispatcher.Ok($"Make {dirStr} {degrees:F0}");
     }
 

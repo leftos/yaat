@@ -393,6 +393,14 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId);
             case MakeRightTrafficCommand mrt:
                 return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId);
+            case MakeLeft360Command:
+                return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 360);
+            case MakeRight360Command:
+                return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 360);
+            case MakeLeft270Command:
+                return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 270);
+            case MakeRight270Command:
+                return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270);
 
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
