@@ -7,7 +7,7 @@ namespace Yaat.Client.ViewModels;
 
 public partial class ConnectViewModel : ObservableObject
 {
-    private readonly Func<string, CancellationToken, Task<bool>> _connectAction;
+    private readonly Func<string, CancellationToken, Task<string?>> _connectAction;
     private readonly Action<IList<SavedServer>, string> _saveAction;
     private readonly Action _closeAction;
     private CancellationTokenSource? _currentCts;
@@ -31,7 +31,7 @@ public partial class ConnectViewModel : ObservableObject
     public ConnectViewModel(
         IReadOnlyList<SavedServer> servers,
         string lastUsedUrl,
-        Func<string, CancellationToken, Task<bool>> connectAction,
+        Func<string, CancellationToken, Task<string?>> connectAction,
         Action<IList<SavedServer>, string> saveAction,
         Action closeAction
     )
@@ -162,14 +162,18 @@ public partial class ConnectViewModel : ObservableObject
         IsConnecting = true;
         ErrorMessage = null;
 
-        bool success = await _connectAction(SelectedServer.Url, cts.Token);
+        string? error = await _connectAction(SelectedServer.Url, cts.Token);
         IsConnecting = false;
         _currentCts = null;
 
-        if (success)
+        if (error is null)
         {
             _saveAction(Servers, SelectedServer.Url);
             _closeAction();
+        }
+        else
+        {
+            ErrorMessage = error;
         }
     }
 

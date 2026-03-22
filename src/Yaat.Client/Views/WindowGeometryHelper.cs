@@ -34,7 +34,7 @@ public sealed class WindowGeometryHelper
     {
         var geo = _preferences.GetWindowGeometry(_windowName);
 
-        if (geo is not null)
+        if (geo is not null && geo.Width > 0 && geo.Height > 0)
         {
             var screens = _window.Screens.All;
             if (screens.Count > 0)

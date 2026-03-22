@@ -12,24 +12,25 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
-    internal async Task<bool> AttemptConnectAsync(string url, CancellationToken ct)
+    /// <summary>
+    /// Attempts to connect to the given server URL.
+    /// Returns null on success, or an error message string on failure.
+    /// </summary>
+    internal async Task<string?> AttemptConnectAsync(string url, CancellationToken ct)
     {
         if (_preferences.UserInitials.Length != 2)
         {
-            StatusText = "Set your 2-letter initials in Settings before connecting";
-            return false;
+            return "Set your 2-letter initials in Settings before connecting";
         }
 
         if (string.IsNullOrWhiteSpace(_preferences.VatsimCid))
         {
-            StatusText = "Set your VATSIM CID in Settings before connecting";
-            return false;
+            return "Set your VATSIM CID in Settings before connecting";
         }
 
         if (string.IsNullOrWhiteSpace(_preferences.ArtccId))
         {
-            StatusText = "Set your ARTCC ID in Settings before connecting";
-            return false;
+            return "Set your ARTCC ID in Settings before connecting";
         }
 
         try
@@ -44,13 +45,13 @@ public partial class MainViewModel
             AddSystemEntry($"Connected to {url}");
             await RefreshRoomListAsync();
             ShowRoomList = true;
-            return true;
+            return null;
         }
         catch (OperationCanceledException)
         {
             IsConnecting = false;
             StatusText = "Connection cancelled";
-            return false;
+            return "Connection cancelled";
         }
         catch (Exception ex)
         {
@@ -58,7 +59,7 @@ public partial class MainViewModel
             IsConnecting = false;
             StatusText = $"Error: {ex.Message}";
             IsConnected = false;
-            return false;
+            return $"Error: {ex.Message}";
         }
     }
 

@@ -59,6 +59,7 @@
             <!-- Error message -->
             <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}"
                        Foreground="Red"
+                       TextWrapping="Wrap"
                        VerticalAlignment="Center"
                        Margin="8,0" />
             <!-- Cancel button (only while connecting) -->

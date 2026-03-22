@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -395,7 +396,7 @@ public partial class RadarView
 
             var alt = ac is not null ? (int)Math.Round(ac.Altitude) : 0;
             var spd = ac is not null ? (int)Math.Round(ac.IndicatedAirspeed) : 0;
-            ShowWarpPopup(cs, "", hdg, alt, spd, (frd, h, a, s) => _ = vm.WarpAsync(cs, init, frd, h, a, s));
+            Dispatcher.UIThread.Post(() => ShowWarpPopup(cs, "", hdg, alt, spd, (frd, h, a, s) => _ = vm.WarpAsync(cs, init, frd, h, a, s)));
         };
         menu.Items.Add(warpItem);
         menu.Items.Add(CreateMenuItem("Delete", () => vm.DeleteAsync(cs, init)));
@@ -716,7 +717,7 @@ public partial class RadarView
                 var warpItem = new MenuItem { Header = $"Warp here ({target})" };
                 warpItem.Click += (_, _) =>
                 {
-                    ShowWarpPopup(callsign, warpFrd, warpHdg, warpAlt, warpSpd, (frd, h, a, s) => _ = vm.WarpAsync(callsign, initials, frd, h, a, s));
+                    Dispatcher.UIThread.Post(() => ShowWarpPopup(callsign, warpFrd, warpHdg, warpAlt, warpSpd, (frd, h, a, s) => _ = vm.WarpAsync(callsign, initials, frd, h, a, s)));
                 };
                 menu.Items.Add(warpItem);
             }
@@ -742,7 +743,7 @@ public partial class RadarView
         var item = new MenuItem { Header = header };
         item.Click += (_, _) =>
         {
-            ShowInputPopup(placeholder, action);
+            Dispatcher.UIThread.Post(() => ShowInputPopup(placeholder, action));
         };
         return item;
     }
@@ -757,7 +758,7 @@ public partial class RadarView
         var item = new MenuItem { Header = header };
         item.Click += (_, _) =>
         {
-            ShowFilteredListPopup(sortedNames, action, priorityItems);
+            Dispatcher.UIThread.Post(() => ShowFilteredListPopup(sortedNames, action, priorityItems));
         };
         return item;
     }
@@ -773,28 +774,31 @@ public partial class RadarView
         var item = new MenuItem { Header = header };
         item.Click += (_, _) =>
         {
-            if (formatLabel is not null)
+            Dispatcher.UIThread.Post(() =>
             {
-                var labeled = new List<object>(items.Count);
-                foreach (var i in items)
+                if (formatLabel is not null)
                 {
-                    labeled.Add(new LabeledValue(formatLabel((int)i), (int)i));
-                }
-
-                ShowListPopup(
-                    labeled,
-                    null,
-                    val =>
+                    var labeled = new List<object>(items.Count);
+                    foreach (var i in items)
                     {
-                        var lv = (LabeledValue)val;
-                        return action(lv.Value);
+                        labeled.Add(new LabeledValue(formatLabel((int)i), (int)i));
                     }
-                );
-            }
-            else
-            {
-                ShowListPopup(items, selectedValue, action);
-            }
+
+                    ShowListPopup(
+                        labeled,
+                        null,
+                        val =>
+                        {
+                            var lv = (LabeledValue)val;
+                            return action(lv.Value);
+                        }
+                    );
+                }
+                else
+                {
+                    ShowListPopup(items, selectedValue, action);
+                }
+            });
         };
         return item;
     }

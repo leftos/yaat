@@ -230,14 +230,17 @@ public partial class MainWindow : Window
         bool connected = false;
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            if (await vm.AttemptConnectAsync(url, CancellationToken.None))
+            var error = await vm.AttemptConnectAsync(url, CancellationToken.None);
+            if (error is null)
             {
                 connected = true;
                 break;
             }
 
-            if (!vm.StatusText.StartsWith("Error:"))
+            // Validation errors (missing identity info) — don't retry
+            if (!error.StartsWith("Error:"))
             {
+                vm.StatusText = error;
                 return;
             }
 
