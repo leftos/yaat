@@ -717,7 +717,16 @@ public partial class RadarView
                 var warpItem = new MenuItem { Header = $"Warp here ({target})" };
                 warpItem.Click += (_, _) =>
                 {
-                    Dispatcher.UIThread.Post(() => ShowWarpPopup(callsign, warpFrd, warpHdg, warpAlt, warpSpd, (frd, h, a, s) => _ = vm.WarpAsync(callsign, initials, frd, h, a, s)));
+                    Dispatcher.UIThread.Post(() =>
+                        ShowWarpPopup(
+                            callsign,
+                            warpFrd,
+                            warpHdg,
+                            warpAlt,
+                            warpSpd,
+                            (frd, h, a, s) => _ = vm.WarpAsync(callsign, initials, frd, h, a, s)
+                        )
+                    );
                 };
                 menu.Items.Add(warpItem);
             }

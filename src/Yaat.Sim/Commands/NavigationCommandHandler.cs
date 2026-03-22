@@ -1017,4 +1017,21 @@ internal static class NavigationCommandHandler
 
         return new CommandResult(false, "Unable, traffic not in sight");
     }
+
+    internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft)
+    {
+        aircraft.HasReportedFieldInSight = true;
+        aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the field in sight");
+        return CommandDispatcher.Ok("Field in sight (forced)");
+    }
+
+    internal static CommandResult DispatchReportTrafficInSightForced(AircraftState aircraft, string? targetCallsign)
+    {
+        aircraft.HasReportedTrafficInSight = true;
+        var msg = targetCallsign is not null
+            ? $"{aircraft.Callsign} has the traffic in sight ({targetCallsign})"
+            : $"{aircraft.Callsign} has the traffic in sight";
+        aircraft.PendingNotifications.Add(msg);
+        return CommandDispatcher.Ok("Traffic in sight (forced)");
+    }
 }

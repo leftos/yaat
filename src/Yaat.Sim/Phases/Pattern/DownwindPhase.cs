@@ -120,11 +120,34 @@ public sealed class DownwindPhase : Phase
             }
         }
 
+        // Follow speed adjustment: modulate speed based on distance to leader
+        if (ctx.Targets.TargetSpeed is { } currentSpeed)
+        {
+            double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, currentSpeed, minSpeed);
+            if (adjusted is not null)
+            {
+                ctx.Targets.TargetSpeed = adjusted.Value;
+            }
+        }
+
         if (IsExtended)
         {
             // Level off at the glideslope intercept altitude so the
             // aircraft doesn't descend below a normal approach path
             // while waiting for the TB command.
+            if (_pastAbeam && ctx.Aircraft.Altitude <= _altitudeFloor)
+            {
+                ctx.Targets.TargetAltitude = _altitudeFloor;
+                ctx.Targets.DesiredVerticalRate = null;
+            }
+
+            return false;
+        }
+
+        // Extend downwind if following traffic and too close
+        if (AirborneFollowHelper.ShouldExtendDownwind(ctx))
+        {
             if (_pastAbeam && ctx.Aircraft.Altitude <= _altitudeFloor)
             {
                 ctx.Targets.TargetAltitude = _altitudeFloor;
@@ -151,6 +174,7 @@ public sealed class DownwindPhase : Phase
             CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

@@ -876,12 +876,4 @@ internal static class PatternCommandHandler
         aircraft.Phases.ClearedRunwayId = null;
         return CommandDispatcher.Ok($"Landing clearance cancelled{CommandDispatcher.RunwayLabel(aircraft)}");
     }
-
-    internal static CommandResult TrySetSequence(SequenceCommand seq, AircraftState aircraft)
-    {
-        aircraft.SequenceNumber = seq.Number;
-        aircraft.FollowTarget = seq.FollowCallsign;
-        var seqMsg = seq.FollowCallsign is not null ? $"Number {seq.Number}, follow {seq.FollowCallsign}" : $"Number {seq.Number} in sequence";
-        return CommandDispatcher.Ok(seqMsg);
-    }
 }

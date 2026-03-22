@@ -45,7 +45,7 @@ public sealed class HoldingInPositionPhase : Phase
             CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Pushback => CommandAcceptance.ClearsPhase,
-            CanonicalCommandType.Follow => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.FollowGround => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.LineUpAndWait => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.ClearedTakeoffPresent => CommandAcceptance.ClearsPhase,

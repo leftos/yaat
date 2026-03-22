@@ -189,8 +189,11 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Rich approach forms | — | `CAPP AT SUNOL ILS28R`, `CAPP DCT SUNOL ILS28R` | YAAT-only — combines navigation + clearance |
 | Expect approach | — | `EAPP I28R` | YAAT-only — sets expected approach for DCT fix programming feature |
 | Visual approach | — | `CVA 28R` (+ LEFT/RIGHT/FOLLOW) | YAAT-only |
+| Follow (airborne) | — | `FOLLOW`/`FOL` | YAAT-only — speed/timing adjustment for visual separation |
 | Report field in sight | — | `RFIS` | YAAT-only |
+| Report field (forced) | — | `RFISF` | YAAT-only — bypasses visual detection |
 | Report traffic in sight | — | `RTIS` | YAAT-only |
+| Report traffic (forced) | — | `RTISF` | YAAT-only — bypasses visual detection |
 | Intercept validation | — | Yes — per 7110.65 §5-9-2 | YAAT-only |
 | Illegal intercept warning | — | Yes — per 7110.65 §5-9-1 | YAAT-only |
 | Approach scoring | — | Yes — terminal report + summary window | YAAT-only |
@@ -223,7 +226,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 |---------|-----------|------|------------|
 | Pushback | `PUSH [twy/spot]` | `PUSH`, `PUSH 270`, `PUSH A`, `PUSH TE 180`, `PUSH TE T`, `PUSH @4A`, `PUSH @4A A`, `PUSH @4A 180` | YAAT adds heading, taxiway+heading, taxiway+toward-taxiway, and `@spot` (A* pathfinding to named parking) forms |
 | Taxi | `TAXI {path} [hs-list]` / `RWY {rwy} TAXI {path}` | Same + `TAXI !42 !18` (node IDs), `TAXI A !42 B` (mixed) | YAAT adds node ID references for precise routing |
-| Follow | — | `FOLLOW`/`FOL` | YAAT-only |
+| Follow (ground) | — | `FOLLOWG`/`FOLG` | YAAT-only |
 | Give way | `GIVEWAY`/`GW`/`PB` (standalone) | `GIVEWAY`/`BEHIND` (condition prefix) | ATCTrainer: standalone. YAAT: condition prefix in compound chains |
 | Taxi all | `TAXIALL` | `TAXIALL` | Parity |
 | Break | `BREAK` | `BREAK` | Parity (15s collision ignore) |
@@ -386,9 +389,13 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 - `**` prefix for override
 - Visual indicators (Ctrl column, radar datablock, color tint)
 
-### Visual Approach System
+### Visual Approach & Follow System
 - `CVA` command with LEFT/RIGHT/FOLLOW options
 - Three execution paths (straight-in, angled join, pattern entry)
+- Airborne `FOLLOW` command for pattern and approach aircraft — adjusts speed and extends downwind to maintain visual separation
+- `RFISF`/`RTISF` forced variants bypass visual detection for RPO convenience
+- CVA FOLLOW requires RTIS/RTISF (traffic in sight gate)
+- Auto-cancels follow with warning when separation can't be maintained at minimum speed
 - Automatic "field in sight" / "traffic in sight" detection
 - Bank angle affects initial visual acquisition
 - WTG-based detection range (Super=15nm, Small=3nm)

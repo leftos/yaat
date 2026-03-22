@@ -290,6 +290,13 @@ public static class ApproachCommandHandler
 
     public static CommandResult TryClearedVisualApproach(ClearedVisualApproachCommand cmd, AircraftState aircraft)
     {
+        // RTIS gate: when following traffic, pilot must have reported traffic in sight.
+        // RPO can force this with RTISF command.
+        if ((cmd.FollowCallsign is not null) && !aircraft.HasReportedTrafficInSight)
+        {
+            return new CommandResult(false, "Traffic not in sight — issue RTIS first");
+        }
+
         string airport = cmd.AirportCode ?? CommandDispatcher.ResolveAirport(aircraft);
         if (string.IsNullOrEmpty(airport))
         {

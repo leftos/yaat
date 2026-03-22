@@ -83,6 +83,17 @@ public sealed class BasePhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Follow speed adjustment
+        if (ctx.Targets.TargetSpeed is { } currentSpeed)
+        {
+            double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, currentSpeed, minSpeed);
+            if (adjusted is not null)
+            {
+                ctx.Targets.TargetSpeed = adjusted.Value;
+            }
+        }
+
         if (IsExtended)
         {
             return false;
@@ -120,6 +131,7 @@ public sealed class BasePhase : Phase
             CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

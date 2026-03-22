@@ -556,7 +556,6 @@ public static class CommandParser
             ClearedToLand => PR.Fail("CL does not accept a runway argument; assign runway first with a pattern entry command"),
             LandAndHoldShort when arg is not null => PR.Ok(new LandAndHoldShortCommand(arg.Trim().ToUpperInvariant())),
             CancelLandingClearance when arg is null => PR.Ok(new CancelLandingClearanceCommand()),
-            Sequence => ParseSequence(arg),
             // Pattern
             EnterLeftDownwind => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterLeftDownwindCommand(rwy)),
             EnterRightDownwind => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterRightDownwindCommand(rwy)),
@@ -608,7 +607,8 @@ public static class CommandParser
             Resume when arg is null => PR.Ok(new ResumeCommand()),
             CrossRunway => GroundCommandParser.ParseCross(arg),
             HoldShort => GroundCommandParser.ParseHoldShort(arg),
-            Follow => GroundCommandParser.ParseFollow(arg),
+            Follow => ParseFollowAirborne(arg),
+            FollowGround => GroundCommandParser.ParseFollowGround(arg),
             GiveWay => GroundCommandParser.ParseGiveWay(arg),
             TaxiAll => GroundCommandParser.ParseTaxiAll(arg),
             BreakConflict when arg is null => PR.Ok(new BreakConflictCommand()),
@@ -640,7 +640,9 @@ public static class CommandParser
             ListApproaches => PR.Ok(ApproachCommandParser.ParseApps(arg)),
             ClearedVisualApproach => ApproachCommandParser.ParseCva(arg),
             ReportFieldInSight when arg is null => PR.Ok(new ReportFieldInSightCommand()),
+            ReportFieldInSightForced when arg is null => PR.Ok(new ReportFieldInSightForcedCommand()),
             ReportTrafficInSight => PR.Ok(new ReportTrafficInSightCommand(arg?.Trim().ToUpperInvariant())),
+            ReportTrafficInSightForced => PR.Ok(new ReportTrafficInSightForcedCommand(arg?.Trim().ToUpperInvariant())),
             // Track operations
             SetActivePosition => ParseTcpArg(arg, tcp => new SetActivePositionCommand(tcp)),
             TrackAircraft => PR.Ok(new TrackAircraftCommand(arg?.Trim().ToUpperInvariant())),
@@ -1375,21 +1377,20 @@ public static class CommandParser
         return new LandCommand(raw.ToUpperInvariant(), noDelete, IsTaxiway: true);
     }
 
-    private static PR ParseSequence(string? arg)
+    private static PR ParseFollowAirborne(string? arg)
     {
         if (arg is null)
         {
-            return PR.Fail("sequence requires a number");
+            return PR.Fail("FOLLOW requires a callsign");
         }
 
-        var parts = arg.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0 || !int.TryParse(parts[0], out var number) || number < 1)
+        var callsign = arg.Trim();
+        if (callsign.Length == 0)
         {
-            return PR.Fail($"invalid sequence number '{arg}'");
+            return PR.Fail("FOLLOW requires a callsign");
         }
 
-        var follow = parts.Length > 1 ? parts[1].Trim().ToUpperInvariant() : null;
-        return PR.Ok(new SequenceCommand(number, follow));
+        return PR.Ok(new FollowCommand(callsign.ToUpperInvariant()));
     }
 
     private static PR ParseWaitSeconds(string? arg)

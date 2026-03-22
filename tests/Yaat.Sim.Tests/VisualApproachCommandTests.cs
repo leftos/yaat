@@ -127,6 +127,7 @@ public class VisualApproachCommandTests
     public void Cva_WithFollow_SetsFollowingCallsign()
     {
         var aircraft = MakeAircraft(heading: 280);
+        aircraft.HasReportedTrafficInSight = true;
         var cmd = new ClearedVisualApproachCommand("28R", null, null, "UAL456");
         var result = ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
 

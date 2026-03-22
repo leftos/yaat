@@ -363,14 +363,6 @@ public static class CommandRegistry
                 ["COPT"],
                 [O(null, [], "Cleared for the option"), O("Traffic", [R("direction", "MLT/MRT")], "Option, make traffic")]
             ),
-            Cmd(
-                Sequence,
-                "Landing Sequence",
-                "Tower",
-                false,
-                ["SEQ"],
-                [O(null, [R("number", "sequence position"), R("callsign", "traffic to follow")], "Set landing sequence position")]
-            ),
         ];
 
     private static CommandDefinition[] PatternCommands() =>
@@ -534,7 +526,14 @@ public static class CommandRegistry
                 [O(null, [R("runway", "runway number")], "Assign departure/arrival runway")],
                 [Mod("TAXI", null, false)]
             ),
-            Cmd(Follow, "Follow", "Ground", false, ["FOLLOW", "FOL"], [O(null, [R("callsign", "traffic callsign")], "Follow traffic")]),
+            Cmd(
+                FollowGround,
+                "Follow (Ground)",
+                "Ground",
+                false,
+                ["FOLLOWG", "FOLG"],
+                [O(null, [R("callsign", "traffic callsign")], "Follow traffic on ground")]
+            ),
             Cmd(
                 GiveWay,
                 "Give Way",
@@ -978,7 +977,9 @@ public static class CommandRegistry
                 ["CVA", "VISUAL"],
                 [O(null, [R("runway", "runway designator")], "Clear for visual approach to runway")]
             ),
+            Cmd(Follow, "Follow Traffic", "Approach", false, ["FOLLOW", "FOL"], [O(null, [R("callsign", "traffic callsign")], "Follow traffic")]),
             Bare(ReportFieldInSight, "Report Field In Sight", "Approach", true, ["RFIS"]),
+            Bare(ReportFieldInSightForced, "Report Field In Sight (Forced)", "Approach", true, ["RFISF"]),
             Cmd(
                 ReportTrafficInSight,
                 "Report Traffic In Sight",
@@ -986,6 +987,14 @@ public static class CommandRegistry
                 true,
                 ["RTIS"],
                 [O(null, [], "Report traffic in sight"), O("Target", [R("callsign", "traffic callsign")], "Report specific traffic in sight")]
+            ),
+            Cmd(
+                ReportTrafficInSightForced,
+                "Report Traffic In Sight (Forced)",
+                "Approach",
+                true,
+                ["RTISF"],
+                [O(null, [], "Force traffic in sight"), O("Target", [R("callsign", "traffic callsign")], "Force specific traffic in sight")]
             ),
         ];
 

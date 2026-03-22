@@ -258,10 +258,6 @@ public class AircraftState
     // Position history for STARS radar trails (recorded every ~5 sim-seconds)
     public List<(double Lat, double Lon)> PositionHistory { get; } = new(10);
 
-    // Sequence state
-    public int? SequenceNumber { get; set; }
-    public string? FollowTarget { get; set; }
-
     public static AircraftState FromSnapshot(AircraftSnapshotDto dto, AirportGroundLayout? groundLayout)
     {
         var ac = new AircraftState
@@ -365,8 +361,6 @@ public class AircraftState
             IsDuplicateBeaconInhibited = dto.IsDuplicateBeaconInhibited,
             TpaType = dto.TpaType,
             GlobalLeaderDirection = dto.GlobalLeaderDirection,
-            SequenceNumber = dto.SequenceNumber,
-            FollowTarget = dto.FollowTarget,
             AssignedTaxiRoute = dto.AssignedTaxiRoute is not null ? TaxiRoute.FromSnapshot(dto.AssignedTaxiRoute, groundLayout) : null,
             Queue = CommandQueue.FromSnapshot(dto.Queue),
             Phases = dto.Phases is not null ? PhaseList.FromSnapshot(dto.Phases, groundLayout) : null,
@@ -512,8 +506,6 @@ public class AircraftState
             ForcedPointoutsTo = ForcedPointoutsTo.Count > 0 ? ForcedPointoutsTo.Select(t => t.ToSnapshot()).ToList() : null,
             SharedState = SharedState.Count > 0 ? SharedState.ToDictionary(kv => kv.Key, kv => kv.Value.ToSnapshot()) : null,
             PositionHistory = PositionHistory.Count > 0 ? PositionHistory.Select(p => new PositionDto { Lat = p.Lat, Lon = p.Lon }).ToList() : null,
-            SequenceNumber = SequenceNumber,
-            FollowTarget = FollowTarget,
             ActiveApproachScore = ActiveApproachScore is { } score
                 ? new ApproachScoreDto
                 {

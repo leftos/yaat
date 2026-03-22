@@ -624,7 +624,7 @@ internal static class GroundCommandHandler
         return CommandDispatcher.Ok($"Hold short of {hs.Target}");
     }
 
-    internal static CommandResult TryFollow(AircraftState aircraft, FollowCommand follow, AirportGroundLayout? groundLayout)
+    internal static CommandResult TryFollow(AircraftState aircraft, FollowGroundCommand follow, AirportGroundLayout? groundLayout)
     {
         var currentPhase = aircraft.Phases?.CurrentPhase;
         if (currentPhase is null)
@@ -638,7 +638,7 @@ internal static class GroundCommandHandler
             return new CommandResult(false, "Follow requires the aircraft to be on the ground");
         }
 
-        var acceptance = currentPhase.CanAcceptCommand(CanonicalCommandType.Follow);
+        var acceptance = currentPhase.CanAcceptCommand(CanonicalCommandType.FollowGround);
         if (acceptance == CommandAcceptance.Rejected)
         {
             return new CommandResult(false, $"Cannot follow during {currentPhase.Name}");

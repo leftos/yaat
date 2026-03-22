@@ -441,7 +441,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Exit left | `EL` | `EXITL` | — |
 | Exit right | `ER` | `EXITR` | — |
 | Exit taxiway | `EXIT A3` | — | — |
-| Follow | `FOLLOW SWA123` | `FOL` | — |
+| Follow (ground) | `FOLLOWG SWA123` | `FOLG` | — |
 | Give way | `GIVEWAY SWA123` | `BEHIND` | — |
 
 #### Helicopter
@@ -483,9 +483,12 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Depart fix | `DEPART SUNOL 270` | `DEP` | — |
 | Holding pattern | `HOLDP SUNOL R 180 1M` | `HOLD` (with args) | — |
 | Expect approach | `EAPP I28R` | `EXPECT` | — |
+| Follow traffic | `FOLLOW UAL456` | `FOL` | — |
 | Visual approach | `CVA 28R` | `VISUAL` | — |
 | Report field | `RFIS` | — | — |
+| Report field (forced) | `RFISF` | — | — |
 | Report traffic | `RTIS` | — | — |
+| Report traffic (forced) | `RTISF` | — | — |
 | List approaches | `APPS` | `APPS OAK` | — |
 
 #### Tower
@@ -504,7 +507,6 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Begin takeoff roll during stop-and-go | `GO` | — | — |
 | Low approach | `LA` | — | — |
 | Cleared for option | `COPT` | — | — |
-| Landing sequence | `SEQ 2 UAL123` | — | — |
 
 #### Pattern
 
@@ -677,7 +679,7 @@ Commands can be combined using `,` (parallel) and `;` (sequential):
 | `HS B` | Hold short at the next intersection with taxiway B |
 | `HS 28L` | Hold short at the next runway 28L crossing |
 | `RWY 30` | Assign runway 30 (override runway assignment without taxi) |
-| `FOLLOW SWA123` | Follow another aircraft on the ground |
+| `FOLLOWG SWA123` | Follow another aircraft on the ground |
 | `GIVEWAY SWA123` | Wait for SWA123 to pass before executing the next command (see [Conditional Blocks](#conditional-blocks)) |
 | `TAXIALL 30` | Taxi all parked aircraft to runway 30 via A* pathfinding (global command, no callsign needed) |
 | `BREAK` | Ignore ground conflicts for 15 seconds |
@@ -820,7 +822,7 @@ The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments
 | `MLS` / `MRS` | S-turns on final, initial left/right (default 2 turns) |
 | `MLS 3` / `MRS 4` | S-turns with specified count |
 | `CA` / `CIRCLE` | Circle the airport |
-| `SEQ 2 UAL123` | Landing sequence: you are number 2, follow UAL123 |
+| `FOLLOW UAL123` | Follow traffic: adjust speed and extend downwind to maintain separation |
 
 All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional runway argument that assigns or overrides the runway. ELB/ERB also accept an optional distance argument that controls how far from the threshold the final turn occurs (default is the standard pattern geometry).
 
@@ -828,7 +830,7 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 
 `PS` sets the pattern downwind offset distance. The crosswind extension and base extension scale proportionally. The override persists across pattern circuits until cleared. Use the category default by setting `PS` to the standard value for the aircraft type.
 
-`SEQ` assigns a sequence number and optionally a traffic to follow. Use `SEQ 2 UAL123` to tell the aircraft "number 2, follow UAL123." The number-only form `SEQ 2` sets the sequence position without specifying traffic.
+`FOLLOW` tells a pattern or approach aircraft to maintain visual separation from the specified traffic. The follower adjusts speed (+/- 20 kts) and extends downwind if too close. Follow is cancelled automatically if the leader disappears, if a new approach clearance is issued, or if the follower can't maintain separation at minimum speed (a warning is broadcast). For IFR visual approaches, use `CVA 28R FOLLOW AAL123` — this requires the pilot to have reported traffic in sight first (`RTIS`/`RTISF`).
 
 ### Approach Options
 
@@ -902,14 +904,16 @@ Approach clearances use FAA CIFP procedure data. Approach IDs can be full CIFP i
 | `CVA 28R` | Cleared visual approach runway 28R |
 | `CVA 28R LEFT` | Visual approach with left traffic pattern |
 | `CVA 28R RIGHT` | Visual approach with right traffic pattern |
-| `CVA 28R FOLLOW AAL123` | Visual approach following AAL123 |
+| `CVA 28R FOLLOW AAL123` | Visual approach following AAL123 (requires RTIS first) |
 
 The aircraft execution path depends on its position relative to the runway:
 - **Straight-in** (≤30° off final course): flies directly to final approach and landing
 - **Angled join** (30°–90° off): navigates to an intercept point, then final
 - **Pattern entry** (>90° off): enters downwind → base → final
 
-**Field/traffic in sight:** Aircraft on a visual approach automatically report "field in sight" or "traffic in sight" when detection conditions are met (forward hemisphere, within visibility range, below ceiling). Use `RFIS` (report field in sight) or `RTIS` (report traffic in sight) to get the pilot's current visual status on demand.
+The `FOLLOW` option requires the pilot to have reported traffic in sight first (via `RTIS` or `RTISF`). The follower adjusts speed and extends downwind to maintain visual separation from the leader. See [Pattern Commands](#pattern-commands) for follow behavior details.
+
+**Field/traffic in sight:** Aircraft on a visual approach automatically report "field in sight" or "traffic in sight" when detection conditions are met (forward hemisphere, within visibility range, below ceiling). Use `RFIS` (report field in sight) or `RTIS` (report traffic in sight) to get the pilot's current visual status on demand. The forced variants `RFISF` and `RTISF` set the flag directly without requiring visual detection — use these to override the simulation when the automatic detection hasn't triggered yet.
 
 **Bank angle affects initial acquisition:** A pilot in a turn cannot initially spot targets hidden by the high wing. For example, during a right turn the raised left wing blocks the view of traffic to the left at or below the aircraft's altitude. Time your traffic calls for when the pilot can actually see the target — not during a turn that blocks the view. Once the pilot has the target in sight, they can track it through subsequent turns.
 
@@ -1297,6 +1301,8 @@ These commands don't require an aircraft selection:
 | `RDAUTO <listId>` | Toggle auto-acknowledge for a coordination list |
 | `CON` / `CON+` / `DECON` | Consolidation commands (see [Consolidation](#consolidation)) |
 | `RFIS` / `RTIS` | Report field/traffic in sight (see [Approach Control Commands](#approach-control-commands)) |
+| `RFISF` / `RTISF` | Force field/traffic in sight (bypasses visual detection) |
+| `FOLLOW` / `FOLLOWG` | Follow traffic airborne / on ground |
 
 The pause/unpause button and sim rate dropdown in the bottom bar also control these.
 

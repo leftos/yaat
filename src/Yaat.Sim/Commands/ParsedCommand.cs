@@ -270,8 +270,6 @@ public record Plan270Command : ParsedCommand;
 
 public record CircleAirportCommand : ParsedCommand;
 
-public record SequenceCommand(int Number, string? FollowCallsign) : ParsedCommand;
-
 // Option approach / special ops commands
 public record TouchAndGoCommand(string? RunwayId, PatternDirection? TrafficPattern) : ParsedCommand;
 
@@ -332,6 +330,8 @@ public record HoldShortCommand(string Target) : ParsedCommand;
 public record AssignRunwayCommand(string RunwayId) : ParsedCommand;
 
 public record FollowCommand(string TargetCallsign) : ParsedCommand;
+
+public record FollowGroundCommand(string TargetCallsign) : ParsedCommand;
 
 public record GiveWayCommand(string TargetCallsign, string? Location = null) : ParsedCommand;
 
@@ -511,7 +511,11 @@ public record ClearedVisualApproachCommand(string RunwayId, string? AirportCode,
 
 public record ReportFieldInSightCommand : ParsedCommand;
 
+public record ReportFieldInSightForcedCommand : ParsedCommand;
+
 public record ReportTrafficInSightCommand(string? TargetCallsign) : ParsedCommand;
+
+public record ReportTrafficInSightForcedCommand(string? TargetCallsign) : ParsedCommand;
 
 // Queue meta-commands
 public record DeleteQueuedCommand(int? BlockNumber = null) : ParsedCommand;

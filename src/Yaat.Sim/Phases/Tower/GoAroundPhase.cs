@@ -145,8 +145,7 @@ public sealed class GoAroundPhase : Phase
             or CanonicalCommandType.MakeRightTraffic
             or CanonicalCommandType.ExitLeft
             or CanonicalCommandType.ExitRight
-            or CanonicalCommandType.ExitTaxiway
-            or CanonicalCommandType.Sequence => CommandAcceptance.Allowed,
+            or CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,
             _ => CommandAcceptance.ClearsPhase,
         };
     }

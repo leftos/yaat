@@ -297,8 +297,12 @@ public static class CommandDispatcher
                 return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
             case ReportFieldInSightCommand:
                 return NavigationCommandHandler.DispatchReportFieldInSight(aircraft);
+            case ReportFieldInSightForcedCommand:
+                return NavigationCommandHandler.DispatchReportFieldInSightForced(aircraft);
             case ReportTrafficInSightCommand cmd:
                 return NavigationCommandHandler.DispatchReportTrafficInSight(aircraft, cmd.TargetCallsign);
+            case ReportTrafficInSightForcedCommand cmd:
+                return NavigationCommandHandler.DispatchReportTrafficInSightForced(aircraft, cmd.TargetCallsign);
 
             // --- Pattern entry commands ---
             case EnterLeftDownwindCommand cmd:
@@ -401,6 +405,9 @@ public static class CommandDispatcher
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 270);
             case MakeRight270Command:
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270);
+
+            case FollowCommand follow:
+                return TryAirborneFollow(aircraft, follow);
 
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
@@ -783,9 +790,6 @@ public static class CommandDispatcher
             case Plan270Command:
                 return PatternCommandHandler.TryPlan270(aircraft);
 
-            case SequenceCommand seq:
-                return PatternCommandHandler.TrySetSequence(seq, aircraft);
-
             // Option approach / special ops commands
             case TouchAndGoCommand tg:
                 return PatternCommandHandler.TrySetupTouchAndGo(aircraft, tg.TrafficPattern);
@@ -841,8 +845,8 @@ public static class CommandDispatcher
                 return GroundCommandHandler.TryHoldShort(aircraft, hs, groundLayout);
             case AssignRunwayCommand assignRwy:
                 return GroundCommandHandler.TryAssignRunway(aircraft, assignRwy.RunwayId);
-            case FollowCommand follow:
-                return GroundCommandHandler.TryFollow(aircraft, follow, groundLayout);
+            case FollowGroundCommand followG:
+                return GroundCommandHandler.TryFollow(aircraft, followG, groundLayout);
             case GiveWayCommand gw:
                 return GroundCommandHandler.TryGiveWay(aircraft, gw.TargetCallsign);
             case ExitLeftCommand el:
@@ -1237,5 +1241,16 @@ public static class CommandDispatcher
         }
 
         return at.FixName;
+    }
+
+    private static CommandResult TryAirborneFollow(AircraftState aircraft, FollowCommand follow)
+    {
+        if (aircraft.Phases is null || aircraft.Phases.CurrentPhase is null)
+        {
+            return new CommandResult(false, "No active approach or pattern");
+        }
+
+        aircraft.FollowingCallsign = follow.TargetCallsign;
+        return Ok($"Follow {follow.TargetCallsign}");
     }
 }

@@ -133,7 +133,7 @@ public sealed class FollowingPhase : Phase
             CanonicalCommandType.HoldPosition => CommandAcceptance.Allowed,
             CanonicalCommandType.Resume => CommandAcceptance.Allowed,
             CanonicalCommandType.CrossRunway => CommandAcceptance.Allowed,
-            CanonicalCommandType.Follow => CommandAcceptance.ClearsPhase,
+            CanonicalCommandType.FollowGround => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.Rejected,
         };

@@ -477,7 +477,7 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         ac.Phases = null;
-        var cmd = new FollowCommand("UAL123");
+        var cmd = new FollowGroundCommand("UAL123");
 
         var result = GroundCommandHandler.TryFollow(ac, cmd, null);
 
@@ -503,7 +503,7 @@ public class GroundCommandHandlerTests
                 Logger = NullLogger.Instance,
             }
         );
-        var cmd = new FollowCommand("UAL123");
+        var cmd = new FollowGroundCommand("UAL123");
 
         var result = GroundCommandHandler.TryFollow(ac, cmd, null);
 

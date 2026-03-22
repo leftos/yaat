@@ -155,6 +155,17 @@ public sealed class FinalApproachPhase : Phase
             ctx.Logger.LogDebug("[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm", ctx.Aircraft.Callsign, fas, distNm);
         }
 
+        // Follow speed adjustment (Vref floor — never below final approach speed)
+        if (_fasSet && (ctx.Targets.TargetSpeed is { } currentFas))
+        {
+            double vref = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+            var adjusted = AirborneFollowHelper.GetAdjustedSpeed(ctx, currentFas, vref);
+            if (adjusted is not null)
+            {
+                ctx.Targets.TargetSpeed = adjusted.Value;
+            }
+        }
+
         CheckInterceptDistance(ctx, distNm);
 
         // Lateral guidance: steer toward an aim point on the extended centerline.
@@ -460,6 +471,7 @@ public sealed class FinalApproachPhase : Phase
             CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitLeft => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitRight => CommandAcceptance.Allowed,
             CanonicalCommandType.ExitTaxiway => CommandAcceptance.Allowed,

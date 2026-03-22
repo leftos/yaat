@@ -136,10 +136,6 @@ public sealed class AircraftSnapshotDto
     // Position history
     public List<PositionDto>? PositionHistory { get; init; }
 
-    // Sequence
-    public int? SequenceNumber { get; init; }
-    public string? FollowTarget { get; init; }
-
     // Approach score
     public ApproachScoreDto? ActiveApproachScore { get; init; }
 

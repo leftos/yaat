@@ -320,22 +320,22 @@ internal static class GroundCommandParser
     }
 
     /// <summary>
-    /// Parses FOLLOW callsign.
+    /// Parses FOLLOWG callsign (ground follow).
     /// </summary>
-    internal static PR ParseFollow(string? arg)
+    internal static PR ParseFollowGround(string? arg)
     {
         if (arg is null)
         {
-            return PR.Fail("FOLLOW requires a callsign");
+            return PR.Fail("FOLLOWG requires a callsign");
         }
 
         var callsign = arg.Trim();
         if (callsign.Length == 0)
         {
-            return PR.Fail("FOLLOW requires a callsign");
+            return PR.Fail("FOLLOWG requires a callsign");
         }
 
-        return PR.Ok(new FollowCommand(callsign));
+        return PR.Ok(new FollowGroundCommand(callsign));
     }
 
     /// <summary>

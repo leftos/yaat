@@ -79,7 +79,6 @@ public static class CommandDescriber
             MakeRightSTurnsCommand => CanonicalCommandType.MakeRightSTurns,
             Plan270Command => CanonicalCommandType.Plan270,
             CircleAirportCommand => CanonicalCommandType.CircleAirport,
-            SequenceCommand => CanonicalCommandType.Sequence,
             TouchAndGoCommand => CanonicalCommandType.TouchAndGo,
             StopAndGoCommand => CanonicalCommandType.StopAndGo,
             LowApproachCommand => CanonicalCommandType.LowApproach,
@@ -102,6 +101,7 @@ public static class CommandDescriber
             CrossRunwayCommand => CanonicalCommandType.CrossRunway,
             HoldShortCommand => CanonicalCommandType.HoldShort,
             FollowCommand => CanonicalCommandType.Follow,
+            FollowGroundCommand => CanonicalCommandType.FollowGround,
             GiveWayCommand => CanonicalCommandType.GiveWay,
             ExitLeftCommand => CanonicalCommandType.ExitLeft,
             ExitRightCommand => CanonicalCommandType.ExitRight,
@@ -134,7 +134,9 @@ public static class CommandDescriber
             ListApproachesCommand => CanonicalCommandType.ListApproaches,
             ClearedVisualApproachCommand => CanonicalCommandType.ClearedVisualApproach,
             ReportFieldInSightCommand => CanonicalCommandType.ReportFieldInSight,
+            ReportFieldInSightForcedCommand => CanonicalCommandType.ReportFieldInSightForced,
             ReportTrafficInSightCommand => CanonicalCommandType.ReportTrafficInSight,
+            ReportTrafficInSightForcedCommand => CanonicalCommandType.ReportTrafficInSightForced,
             WaitCommand => CanonicalCommandType.Wait,
             WaitDistanceCommand => CanonicalCommandType.WaitDistance,
             DeleteQueuedCommand => CanonicalCommandType.DeleteQueuedCommands,
@@ -195,7 +197,9 @@ public static class CommandDescriber
             ListApproachesCommand => TrackedCommandType.Immediate,
             ClearedVisualApproachCommand => TrackedCommandType.Immediate,
             ReportFieldInSightCommand => TrackedCommandType.Immediate,
+            ReportFieldInSightForcedCommand => TrackedCommandType.Immediate,
             ReportTrafficInSightCommand => TrackedCommandType.Immediate,
+            ReportTrafficInSightForcedCommand => TrackedCommandType.Immediate,
             DeleteQueuedCommand => TrackedCommandType.Immediate,
             ShowQueuedCommand => TrackedCommandType.Immediate,
             _ => TrackedCommandType.Immediate,
@@ -278,7 +282,6 @@ public static class CommandDescriber
             MakeRightSTurnsCommand mrs => mrs.Count != 2 ? $"MRS {mrs.Count}" : "MRS",
             Plan270Command => "P270",
             CircleAirportCommand => "CA",
-            SequenceCommand seq => seq.FollowCallsign is not null ? $"SEQ {seq.Number} {seq.FollowCallsign}" : $"SEQ {seq.Number}",
             TouchAndGoCommand => "TG",
             StopAndGoCommand => "SG",
             LowApproachCommand => "LA",
@@ -299,6 +302,7 @@ public static class CommandDescriber
             CrossRunwayCommand cross => $"CROSS {cross.RunwayId}",
             HoldShortCommand hs => $"HS {hs.Target}",
             FollowCommand follow => $"FOLLOW {follow.TargetCallsign}",
+            FollowGroundCommand follow => $"FOLLOWG {follow.TargetCallsign}",
             GiveWayCommand gw => $"GIVEWAY {gw.TargetCallsign}",
             ExitLeftCommand => "EL",
             ExitRightCommand => "ER",
@@ -333,7 +337,9 @@ public static class CommandDescriber
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"APPS {cmd.AirportCode}" : "APPS",
             ClearedVisualApproachCommand cmd => FormatCvaCanonical(cmd),
             ReportFieldInSightCommand => "RFIS",
+            ReportFieldInSightForcedCommand => "RFISF",
             ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null ? $"RTIS {cmd.TargetCallsign}" : "RTIS",
+            ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null ? $"RTISF {cmd.TargetCallsign}" : "RTISF",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"DELAT {del.BlockNumber}" : "DELAT",
             ShowQueuedCommand => "SHOWAT",
             _ => command.ToString() ?? "?",
@@ -415,9 +421,6 @@ public static class CommandDescriber
             MakeRightSTurnsCommand mrs => $"S-turns, initial right, {mrs.Count}",
             Plan270Command => "Plan 270 at next turn",
             CircleAirportCommand => "Circle airport",
-            SequenceCommand seq => seq.FollowCallsign is not null
-                ? $"Number {seq.Number}, follow {seq.FollowCallsign}"
-                : $"Number {seq.Number} in sequence",
             TouchAndGoCommand => "Cleared touch-and-go",
             StopAndGoCommand => "Cleared stop-and-go",
             LowApproachCommand => "Cleared low approach",
@@ -440,6 +443,7 @@ public static class CommandDescriber
             CrossRunwayCommand cross => $"Cross runway {cross.RunwayId}",
             HoldShortCommand hs => $"Hold short of {hs.Target}",
             FollowCommand follow => $"Follow {follow.TargetCallsign}",
+            FollowGroundCommand follow => $"Follow {follow.TargetCallsign} (ground)",
             GiveWayCommand gw => $"Give way to {gw.TargetCallsign}",
             ExitLeftCommand => "Exit left",
             ExitRightCommand => "Exit right",
@@ -477,9 +481,13 @@ public static class CommandDescriber
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"List approaches for {cmd.AirportCode}" : "List approaches",
             ClearedVisualApproachCommand cmd => FormatCvaNatural(cmd),
             ReportFieldInSightCommand => "Report field in sight",
+            ReportFieldInSightForcedCommand => "Report field in sight (forced)",
             ReportTrafficInSightCommand cmd => cmd.TargetCallsign is not null
                 ? $"Report traffic in sight, {cmd.TargetCallsign}"
                 : "Report traffic in sight",
+            ReportTrafficInSightForcedCommand cmd => cmd.TargetCallsign is not null
+                ? $"Report traffic in sight, {cmd.TargetCallsign} (forced)"
+                : "Report traffic in sight (forced)",
             DeleteQueuedCommand del => del.BlockNumber is not null ? $"Delete queued block {del.BlockNumber}" : "Delete all queued commands",
             ShowQueuedCommand => "Show queued commands",
             _ => command.ToString() ?? "?",
@@ -521,7 +529,6 @@ public static class CommandDescriber
                 or MakeLeft270Command
                 or MakeRight270Command
                 or CircleAirportCommand
-                or SequenceCommand
                 or TouchAndGoCommand
                 or StopAndGoCommand
                 or LowApproachCommand
@@ -560,7 +567,7 @@ public static class CommandDescriber
                 or ResumeCommand
                 or CrossRunwayCommand
                 or HoldShortCommand
-                or FollowCommand
+                or FollowGroundCommand
                 or GiveWayCommand
                 or BreakConflictCommand;
     }
