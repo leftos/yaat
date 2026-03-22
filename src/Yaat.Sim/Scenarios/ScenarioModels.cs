@@ -131,7 +131,7 @@ public class ScenarioCoordinates
 public class ScenarioFlightPlan
 {
     [JsonPropertyName("rules")]
-    public string Rules { get; set; } = "IFR";
+    public string? Rules { get; set; }
 
     [JsonPropertyName("departure")]
     public string Departure { get; set; } = "";

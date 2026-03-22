@@ -124,7 +124,7 @@ public static class ScenarioLoader
             Callsign = ac.AircraftId,
             AircraftType = equipType,
             TransponderMode = ac.TransponderMode,
-            FlightRules = ac.FlightPlan?.Rules ?? "IFR",
+            FlightRules = InferFlightRules(ac.FlightPlan),
             CruiseAltitude = ac.FlightPlan?.CruiseAltitude ?? 0,
             CruiseSpeed = ac.FlightPlan?.CruiseSpeed ?? 0,
             Departure = ac.FlightPlan?.Departure ?? "",
@@ -135,6 +135,21 @@ public static class ScenarioLoader
             ExpectedApproach = effectiveApproach,
             HasFlightPlan = ac.FlightPlan is not null,
         };
+    }
+
+    public static string InferFlightRules(ScenarioFlightPlan? fp)
+    {
+        if (fp?.Rules is not null)
+        {
+            return fp.Rules;
+        }
+
+        if ((fp is null) || (fp.CruiseAltitude <= 0))
+        {
+            return "VFR";
+        }
+
+        return "IFR";
     }
 
     private static string NormalizeAirportCode(string code)

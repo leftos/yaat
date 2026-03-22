@@ -407,7 +407,7 @@ public partial class AircraftModel : ObservableObject
         text = text.Trim().ToUpperInvariant();
         if (string.IsNullOrEmpty(text))
         {
-            return null;
+            return ("VFR", 0);
         }
 
         if (text == "VFR")
