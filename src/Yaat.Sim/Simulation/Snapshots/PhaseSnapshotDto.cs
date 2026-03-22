@@ -46,6 +46,7 @@ public sealed class DepartureClearanceDto
     public int? AssignedAltitude { get; init; }
     public List<NavigationTargetDto>? DepartureRoute { get; init; }
     public string? DepartureSidId { get; init; }
+    public double? SidDepartureHeadingMagnetic { get; init; }
     public RunwayInfoDto? PatternRunway { get; init; }
 }
 
@@ -430,6 +431,7 @@ public sealed class InitialClimbPhaseDto : PhaseDto
     public required bool IsVfr { get; init; }
     public required int CruiseAltitude { get; init; }
     public string? DepartureSidId { get; init; }
+    public double? SidDepartureHeadingMagnetic { get; init; }
     public required double FieldElevation { get; init; }
     public required double TargetAltitude { get; init; }
     public double? DepartureHeadingDeg { get; init; }

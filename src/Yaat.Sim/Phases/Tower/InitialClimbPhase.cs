@@ -43,6 +43,7 @@ public sealed class InitialClimbPhase : Phase
             IsVfr = IsVfr,
             CruiseAltitude = CruiseAltitude,
             DepartureSidId = DepartureSidId,
+            SidDepartureHeadingMagnetic = SidDepartureHeadingMagnetic,
             FieldElevation = _fieldElevation,
             TargetAltitude = _targetAltitude,
             DepartureHeadingDeg = _departureHeading?.Degrees,
@@ -67,6 +68,7 @@ public sealed class InitialClimbPhase : Phase
             IsVfr = dto.IsVfr,
             CruiseAltitude = dto.CruiseAltitude,
             DepartureSidId = dto.DepartureSidId,
+            SidDepartureHeadingMagnetic = dto.SidDepartureHeadingMagnetic,
         };
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
@@ -101,6 +103,9 @@ public sealed class InitialClimbPhase : Phase
 
     /// <summary>SID procedure ID to activate on start (e.g. "PORTE3").</summary>
     public string? DepartureSidId { get; init; }
+
+    /// <summary>Magnetic heading from a radar vectors SID (e.g. 315° from NIMI5 VM leg).</summary>
+    public double? SidDepartureHeadingMagnetic { get; init; }
 
     public override void OnStart(PhaseContext ctx)
     {
@@ -285,6 +290,10 @@ public sealed class InitialClimbPhase : Phase
                 ? new TrueHeading(runwayHeading.Degrees + rel.Degrees)
                 : new TrueHeading(runwayHeading.Degrees - rel.Degrees),
             FlyHeadingDeparture fh => fh.MagneticHeading.ToTrue(ctx.Aircraft.Declination),
+            // Radar vectors SID: fly the heading from the VM/VA leg
+            DefaultDeparture when SidDepartureHeadingMagnetic.HasValue => new MagneticHeading(SidDepartureHeadingMagnetic.Value).ToTrue(
+                ctx.Aircraft.Declination
+            ),
             _ => null,
         };
     }

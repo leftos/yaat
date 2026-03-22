@@ -874,6 +874,155 @@ public class ProcedureLoadingTests
         Assert.NotNull(brixx);
     }
 
+    // --- Radar vectors SID detection ---
+
+    [Fact]
+    public void IsRadarVectorsSid_VmLastLeg_ReturnsTrue()
+    {
+        var rwLegs = new List<CifpLeg>
+        {
+            new("", CifpPathTerminator.CA, null, null, null, CifpFixRole.None, 10, 278.0, null, null),
+            new("", CifpPathTerminator.VM, null, null, null, CifpFixRole.None, 20, 315.0, null, null),
+        };
+
+        Assert.True(DepartureClearanceHandler.IsRadarVectorsSid(rwLegs, []));
+    }
+
+    [Fact]
+    public void IsRadarVectorsSid_TfLastLeg_ReturnsFalse()
+    {
+        var rwLegs = new List<CifpLeg>
+        {
+            new("", CifpPathTerminator.VA, null, null, null, CifpFixRole.None, 10, 278.0, null, null),
+            new("PORTE", CifpPathTerminator.DF, null, null, null, CifpFixRole.None, 20, null, null, null),
+        };
+        var commonLegs = new List<CifpLeg> { new("OAK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null) };
+
+        Assert.False(DepartureClearanceHandler.IsRadarVectorsSid(rwLegs, commonLegs));
+    }
+
+    [Fact]
+    public void IsRadarVectorsSid_CommonLegsEndInVm_ReturnsTrue()
+    {
+        var rwLegs = new List<CifpLeg> { new("", CifpPathTerminator.CA, null, null, null, CifpFixRole.None, 10, 280.0, null, null) };
+        var commonLegs = new List<CifpLeg> { new("", CifpPathTerminator.VM, null, null, null, CifpFixRole.None, 20, 315.0, null, null) };
+
+        Assert.True(DepartureClearanceHandler.IsRadarVectorsSid(rwLegs, commonLegs));
+    }
+
+    [Fact]
+    public void TryResolveSidFromCifp_RadarVectorsSid_SkipsCifpLegs_ReturnsPostSidFixes()
+    {
+        // Radar vectors SID: CA → VM (heading 315), no common legs, no enroute transitions
+        var sid = new CifpSidProcedure(
+            Airport: "KOAK",
+            ProcedureId: "NIMI5",
+            CommonLegs: [],
+            RunwayTransitions: new Dictionary<string, CifpTransition>
+            {
+                ["RW28B"] = new(
+                    "RW28B",
+                    [
+                        new CifpLeg("", CifpPathTerminator.CA, null, null, null, CifpFixRole.None, 10, 278.0, null, null),
+                        new CifpLeg("", CifpPathTerminator.VM, null, null, null, CifpFixRole.None, 20, 315.0, null, null),
+                    ]
+                ),
+            },
+            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+        );
+
+        var navDb = CreateNavDb(sid: sid);
+        NavigationDatabase.SetInstance(navDb);
+
+        var aircraft = CreateIfrAircraft("NIMI5 OAK V6 SAC", departure: "KOAK");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+
+        Assert.NotNull(result);
+        // SidId should be null — no via-mode constraints for radar vectors SIDs
+        Assert.Null(result.SidId);
+        // Should NOT contain any internal CIFP fixes (there are none for this SID anyway)
+        // Should contain post-SID enroute fix OAK (from route "NIMI5 OAK V6 SAC")
+        Assert.Contains(result.Targets, t => t.Name == "OAK");
+        // DepartureHeadingMagnetic should be 315 from the VM leg
+        Assert.NotNull(result.DepartureHeadingMagnetic);
+        Assert.Equal(315.0, result.DepartureHeadingMagnetic!.Value, 1);
+    }
+
+    [Fact]
+    public void TryResolveSidFromCifp_RadarVectorsSid_ExtractsHeading()
+    {
+        var sid = new CifpSidProcedure(
+            Airport: "KOAK",
+            ProcedureId: "RVTEST1",
+            CommonLegs: [],
+            RunwayTransitions: new Dictionary<string, CifpTransition>
+            {
+                ["RW10B"] = new("RW10B", [new CifpLeg("", CifpPathTerminator.VM, null, null, null, CifpFixRole.None, 10, 098.0, null, null)]),
+            },
+            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+        );
+
+        var navDb = CreateNavDb(sid: sid);
+        NavigationDatabase.SetInstance(navDb);
+
+        var aircraft = CreateIfrAircraft("RVTEST1 OAK", departure: "KOAK");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("10L") };
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+
+        Assert.NotNull(result);
+        Assert.Equal(98.0, result.DepartureHeadingMagnetic!.Value, 1);
+    }
+
+    [Fact]
+    public void TryResolveSidFromCifp_RadarVectorsSid_NoPostSidFixes_ReturnsWithEmptyTargets()
+    {
+        var sid = new CifpSidProcedure(
+            Airport: "KOAK",
+            ProcedureId: "RVONLY1",
+            CommonLegs: [],
+            RunwayTransitions: new Dictionary<string, CifpTransition>
+            {
+                ["RW28B"] = new("RW28B", [new CifpLeg("", CifpPathTerminator.VM, null, null, null, CifpFixRole.None, 10, 315.0, null, null)]),
+            },
+            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+        );
+
+        var navDb = CreateNavDb(sid: sid);
+        NavigationDatabase.SetInstance(navDb);
+
+        // Route is just the SID name — no post-SID enroute fixes
+        var aircraft = CreateIfrAircraft("RVONLY1", departure: "KOAK");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+
+        // Should still return a result with heading even if no nav targets
+        Assert.NotNull(result);
+        Assert.Empty(result.Targets);
+        Assert.Equal(315.0, result.DepartureHeadingMagnetic!.Value, 1);
+    }
+
+    [Fact]
+    public void TryResolveSidFromCifp_NonRadarVectorsSid_StillReturnsTargets()
+    {
+        // Regression guard: PORTE3 (normal SID with TF legs) should still work
+        var aircraft = CreateIfrAircraft("PORTE3 SUNOL V244 OAK");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
+
+        var navDb = CreateNavDb(sid: CreateTestSid());
+        NavigationDatabase.SetInstance(navDb);
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+
+        Assert.NotNull(result);
+        Assert.Equal("PORTE3", result.SidId);
+        Assert.True(result.Targets.Count >= 3);
+        Assert.Equal("MOLEN", result.Targets[0].Name);
+        Assert.Null(result.DepartureHeadingMagnetic);
+    }
+
     // --- Helper ---
 
     private static RunwayInfo MakeRunway(string designator) =>

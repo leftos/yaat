@@ -687,6 +687,7 @@ public sealed class TaxiingPhase : Phase
                 AssignedAltitude = dep.AssignedAltitude,
                 DepartureRoute = dep.DepartureRoute,
                 DepartureSidId = dep.DepartureSidId,
+                SidDepartureHeadingMagnetic = dep.SidDepartureHeadingMagnetic,
                 IsVfr = ctx.Aircraft.IsVfr,
                 CruiseAltitude = ctx.Aircraft.CruiseAltitude,
             };

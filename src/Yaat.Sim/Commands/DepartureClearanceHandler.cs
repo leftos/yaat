@@ -9,7 +9,7 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Commands;
 
-internal sealed record DepartureRouteResult(List<NavigationTarget> Targets, string? SidId);
+internal sealed record DepartureRouteResult(List<NavigationTarget> Targets, string? SidId, double? DepartureHeadingMagnetic = null);
 
 internal static class DepartureClearanceHandler
 {
@@ -246,6 +246,7 @@ internal static class DepartureClearanceHandler
             AssignedAltitude = assignedAltitude,
             DepartureRoute = routeResult?.Targets,
             DepartureSidId = routeResult?.SidId,
+            SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
             PatternRunway = patternRunway,
         };
 
@@ -286,6 +287,7 @@ internal static class DepartureClearanceHandler
                 AssignedAltitude = assignedAltitude,
                 DepartureRoute = routeResult?.Targets,
                 DepartureSidId = routeResult?.SidId,
+                SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
                 IsVfr = aircraft.IsVfr,
                 CruiseAltitude = aircraft.CruiseAltitude,
             };
@@ -618,19 +620,43 @@ internal static class DepartureClearanceHandler
 
         orderedLegs.AddRange(sid.CommonLegs);
 
-        // If the route specifies an enroute transition (second token matches a transition name)
+        // Check for enroute transition (second route token matches a transition name)
+        bool hasEnrouteTransition = false;
         if (routeTokens.Length > 1)
         {
             var enrouteKey = routeTokens[1].ToUpperInvariant();
             if (sid.EnrouteTransitions.TryGetValue(enrouteKey, out var enTransition))
             {
                 orderedLegs.AddRange(enTransition.Legs);
+                hasEnrouteTransition = true;
             }
         }
 
         if (orderedLegs.Count == 0)
         {
             return null;
+        }
+
+        // Detect radar vectors SIDs (core procedure ends with VM/VA/VI).
+        // These have no published lateral path — controller vectors the aircraft.
+        var rwLegs = aircraft.Phases?.AssignedRunway is { } rwyInfo ? GetRunwayTransitionLegs(sid, rwyInfo.Designator) : (IReadOnlyList<CifpLeg>)[];
+        if (IsRadarVectorsSid(rwLegs, sid.CommonLegs))
+        {
+            double? heading = ExtractRadarVectorsHeading(orderedLegs);
+            var rvTargets = new List<NavigationTarget>();
+
+            if (hasEnrouteTransition)
+            {
+                // Enroute transition provides a published path from the vectors segment.
+                // Resolve only the enroute transition legs (skip the core RV legs).
+                var enrouteKey = routeTokens[1].ToUpperInvariant();
+                var enLegs = sid.EnrouteTransitions[enrouteKey].Legs;
+                rvTargets = ResolveLegsToTargets(enLegs);
+            }
+
+            AppendPostSidEnrouteFixes(rvTargets, routeTokens, sid, rvTargets.Count > 0 ? rvTargets[^1].Name : null);
+            StripNearDepartureTargets(rvTargets, aircraft.Departure);
+            return new DepartureRouteResult(rvTargets, null, heading);
         }
 
         // Convert SID legs to NavigationTargets with constraints
@@ -640,8 +666,79 @@ internal static class DepartureClearanceHandler
             return null;
         }
 
-        // Append remaining enroute fixes from filed route (post-SID tokens) without constraints.
-        // Skip the SID token and any enroute transition token that was consumed.
+        AppendPostSidEnrouteFixes(targets, routeTokens, sid, targets[^1].Name);
+        StripNearDepartureTargets(targets, aircraft.Departure);
+
+        return targets.Count > 0 ? new DepartureRouteResult(targets, sid.ProcedureId) : null;
+    }
+
+    /// <summary>
+    /// Returns true when the core SID procedure (common legs, or runway transition if no common)
+    /// terminates with a radar vectors leg (VM, VA, or VI). These SIDs have no published lateral
+    /// path — the controller provides heading vectors after departure.
+    /// </summary>
+    internal static bool IsRadarVectorsSid(IReadOnlyList<CifpLeg> runwayTransitionLegs, IReadOnlyList<CifpLeg> commonLegs)
+    {
+        // Check the last leg of the core procedure (common legs take precedence)
+        var lastCoreLeg =
+            commonLegs.Count > 0 ? commonLegs[^1]
+            : runwayTransitionLegs.Count > 0 ? runwayTransitionLegs[^1]
+            : null;
+
+        if (lastCoreLeg is null)
+        {
+            return false;
+        }
+
+        return lastCoreLeg.PathTerminator is CifpPathTerminator.VM or CifpPathTerminator.VA or CifpPathTerminator.VI;
+    }
+
+    /// <summary>
+    /// Extracts the magnetic heading from the last VM/VA/VI leg in the sequence.
+    /// Returns the OutboundCourse of that leg (the assigned heading for radar vectors).
+    /// </summary>
+    private static double? ExtractRadarVectorsHeading(IReadOnlyList<CifpLeg> legs)
+    {
+        for (int i = legs.Count - 1; i >= 0; i--)
+        {
+            if (legs[i].PathTerminator is CifpPathTerminator.VM or CifpPathTerminator.VA or CifpPathTerminator.VI)
+            {
+                return legs[i].OutboundCourse;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets runway transition legs for the given designator, handling "B" suffix fallback.
+    /// </summary>
+    private static IReadOnlyList<CifpLeg> GetRunwayTransitionLegs(CifpSidProcedure sid, string designator)
+    {
+        var rwKey = "RW" + designator;
+        if (sid.RunwayTransitions.TryGetValue(rwKey, out var rwTransition))
+        {
+            return rwTransition.Legs;
+        }
+
+        var bothKey = "RW" + designator.TrimEnd('L', 'R', 'C') + "B";
+        if (sid.RunwayTransitions.TryGetValue(bothKey, out rwTransition))
+        {
+            return rwTransition.Legs;
+        }
+
+        return [];
+    }
+
+    /// <summary>
+    /// Appends remaining enroute fixes from the filed route (post-SID tokens) without constraints.
+    /// Skips numeric tokens and deduplicates against the last SID fix.
+    /// </summary>
+    private static void AppendPostSidEnrouteFixes(List<NavigationTarget> targets, string[] routeTokens, CifpSidProcedure sid, string? lastSidFix)
+    {
+        var navDb = NavigationDatabase.Instance;
+
+        // Skip the SID token and any enroute transition token
         int startIdx = 1;
         if (routeTokens.Length > 1)
         {
@@ -652,8 +749,7 @@ internal static class DepartureClearanceHandler
             }
         }
 
-        var lastSidFix = targets[^1].Name;
-        bool pastSidFix = false;
+        bool pastSidFix = lastSidFix is null;
         for (int i = startIdx; i < routeTokens.Length; i++)
         {
             var token = routeTokens[i];
@@ -685,9 +781,20 @@ internal static class DepartureClearanceHandler
                 );
             }
         }
+    }
 
-        // Safety net: strip leading targets within 1nm of departure
-        var airportPos = navDb.GetFixPosition(aircraft.Departure);
+    /// <summary>
+    /// Strips leading targets within 1nm of the departure airport.
+    /// </summary>
+    private static void StripNearDepartureTargets(List<NavigationTarget> targets, string? departure)
+    {
+        if (departure is null)
+        {
+            return;
+        }
+
+        var navDb = NavigationDatabase.Instance;
+        var airportPos = navDb.GetFixPosition(departure);
         if (airportPos is not null)
         {
             while (targets.Count > 0)
@@ -700,8 +807,6 @@ internal static class DepartureClearanceHandler
                 targets.RemoveAt(0);
             }
         }
-
-        return targets.Count > 0 ? new DepartureRouteResult(targets, sid.ProcedureId) : null;
     }
 
     /// <summary>
@@ -866,6 +971,7 @@ internal static class DepartureClearanceHandler
             AssignedAltitude = assignedAltitude,
             DepartureRoute = routeResult?.Targets,
             DepartureSidId = routeResult?.SidId,
+            SidDepartureHeadingMagnetic = routeResult?.DepartureHeadingMagnetic,
             IsVfr = aircraft.IsVfr,
             CruiseAltitude = aircraft.CruiseAltitude,
         };

@@ -60,6 +60,9 @@ public sealed class DepartureClearanceInfo
     /// </summary>
     public string? DepartureSidId { get; init; }
 
+    /// <summary>Magnetic heading from a radar vectors SID (VM/VA leg).</summary>
+    public double? SidDepartureHeadingMagnetic { get; init; }
+
     /// <summary>
     /// Pre-resolved pattern runway for cross-runway closed traffic departures.
     /// Set by the dispatcher so TaxiingPhase doesn't need NavigationDatabase.
@@ -74,6 +77,7 @@ public sealed class DepartureClearanceInfo
             AssignedAltitude = AssignedAltitude,
             DepartureRoute = DepartureRoute?.Select(t => t.ToSnapshot()).ToList(),
             DepartureSidId = DepartureSidId,
+            SidDepartureHeadingMagnetic = SidDepartureHeadingMagnetic,
             PatternRunway = PatternRunway?.ToSnapshot(),
         };
 
@@ -85,6 +89,7 @@ public sealed class DepartureClearanceInfo
             AssignedAltitude = dto.AssignedAltitude,
             DepartureRoute = dto.DepartureRoute?.Select(NavigationTarget.FromSnapshot).ToList(),
             DepartureSidId = dto.DepartureSidId,
+            SidDepartureHeadingMagnetic = dto.SidDepartureHeadingMagnetic,
             PatternRunway = dto.PatternRunway is not null ? RunwayInfo.FromSnapshot(dto.PatternRunway) : null,
         };
 }
