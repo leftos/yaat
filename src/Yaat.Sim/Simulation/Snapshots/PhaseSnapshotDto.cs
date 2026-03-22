@@ -315,6 +315,7 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     public int? NextCenterlineNodeId { get; init; }
     public double RunwayHeadingDeg { get; init; }
     public int ExitStateValue { get; init; }
+    public bool Braking { get; init; }
 }
 
 // --- Tower phases ---

@@ -16,7 +16,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class RunwayExitPhase : Phase
 {
-    private const double ArrivalThresholdNm = 0.015;
+    private const double CenterlineNodeArrivalNm = 0.015;
+    private const double StoppedSpeedKts = 1.0;
     private const double LogIntervalSeconds = 3.0;
 
     private enum ExitState
@@ -29,8 +30,9 @@ public sealed class RunwayExitPhase : Phase
     private string? _runwayId;
     private TrueHeading _runwayHeading;
     private ExitPreference? _lastResolvedPreference;
-    private double _exitSpeed;
+    private double _coastSpeed;
     private double _timeSinceLastLog;
+    private bool _braking;
 
     // Centerline walking state
     private GroundNode? _currentCenterlineNode;
@@ -48,7 +50,7 @@ public sealed class RunwayExitPhase : Phase
         _runwayId = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
         _runwayHeading = ctx.Aircraft.TrueHeading;
         _lastResolvedPreference = ctx.Aircraft.Phases?.RequestedExit;
-        _exitSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
+        _coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
 
         if (ctx.GroundLayout is null)
         {
@@ -118,8 +120,8 @@ public sealed class RunwayExitPhase : Phase
         }
 
         // Maintain rollout coast speed while searching for exit
-        AdjustSpeed(ctx, _exitSpeed);
-        ctx.Targets.TargetSpeed = _exitSpeed;
+        AdjustSpeed(ctx, _coastSpeed);
+        ctx.Targets.TargetSpeed = null;
 
         // Steer toward next centerline node
         double bearing = GeoMath.BearingTo(
@@ -134,7 +136,7 @@ public sealed class RunwayExitPhase : Phase
         // Check arrival at next centerline node
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _nextCenterlineNode.Latitude, _nextCenterlineNode.Longitude);
 
-        if (dist <= ArrivalThresholdNm)
+        if (dist <= CenterlineNodeArrivalNm)
         {
             ctx.Aircraft.Latitude = _nextCenterlineNode.Latitude;
             ctx.Aircraft.Longitude = _nextCenterlineNode.Longitude;
@@ -156,51 +158,39 @@ public sealed class RunwayExitPhase : Phase
             return true;
         }
 
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _holdShortNode.Latitude, _holdShortNode.Longitude);
+
+        // Steer toward hold-short node
         double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _holdShortNode.Latitude, _holdShortNode.Longitude);
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _holdShortNode.Latitude, _holdShortNode.Longitude);
-
-        // Kinematic braking: maintain exit speed through the turn, brake to stop at hold-short.
-        // v²/(2a) gives stopping distance; when it exceeds remaining distance, start braking.
+        // Maintain coast speed; kinematic braking decelerates to stop at the node.
+        // Once braking starts, commit to it — don't re-accelerate if the aircraft
+        // overshoots slightly (prevents orbiting the node).
         double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
         double speed = ctx.Aircraft.GroundSpeed;
         double stoppingDistNm = (speed * speed) / (2.0 * decelRate * 3600.0);
 
-        if (stoppingDistNm >= dist)
+        if (_braking || (stoppingDistNm >= dist))
         {
+            _braking = true;
             AdjustSpeed(ctx, 0);
-            ctx.Targets.TargetSpeed = 0;
         }
         else
         {
-            // Hold exit speed; don't accelerate if already below it
-            double target = Math.Min(_exitSpeed, speed);
-            AdjustSpeed(ctx, target);
-            ctx.Targets.TargetSpeed = target;
+            AdjustSpeed(ctx, _coastSpeed);
         }
 
-        // Keep minimum speed to actually reach the node
-        if (ctx.Aircraft.IndicatedAirspeed < 5)
-        {
-            ctx.Aircraft.IndicatedAirspeed = 5;
-        }
+        // Phase controls speed directly — null prevents FlightPhysics from
+        // applying a second deceleration on top of AdjustSpeed.
+        ctx.Targets.TargetSpeed = null;
 
-        if (dist <= ArrivalThresholdNm)
+        // Complete when the aircraft has come to a stop (or near enough).
+        // No position snapping — downstream code (taxi pathfinding, node
+        // occupation) uses FindNearestNode with generous tolerances.
+        if (ctx.Aircraft.IndicatedAirspeed <= StoppedSpeedKts)
         {
-            // If the hold-short node is occupied, stop here (queued behind)
-            // instead of snapping on top of the other aircraft
-            if (ctx.IsHoldShortNodeOccupied?.Invoke(_holdShortNode.Id) == true)
-            {
-                ctx.Aircraft.IndicatedAirspeed = 0;
-                ctx.Aircraft.CurrentTaxiway = _exitTaxiway;
-                ctx.Logger.LogDebug("[Exit] {Callsign}: hold-short {NodeId} occupied, stopping short", ctx.Aircraft.Callsign, _holdShortNode.Id);
-                return true;
-            }
-
-            ctx.Aircraft.Latitude = _holdShortNode.Latitude;
-            ctx.Aircraft.Longitude = _holdShortNode.Longitude;
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Aircraft.CurrentTaxiway = _exitTaxiway;
             return true;
@@ -254,7 +244,6 @@ public sealed class RunwayExitPhase : Phase
 
         _holdShortNode = result.Value.Node;
         _exitTaxiway = result.Value.Taxiway;
-        _exitSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
@@ -377,9 +366,10 @@ public sealed class RunwayExitPhase : Phase
             ExitTaxiway = _exitTaxiway,
             RunwayId = _runwayId,
             LastResolvedPreference = (int?)_lastResolvedPreference?.Side,
-            ExitSpeed = _exitSpeed,
+            ExitSpeed = _coastSpeed,
             TimeSinceLastLog = _timeSinceLastLog,
             StoppedForLahso = false,
+            Braking = _braking,
             CurrentCenterlineNodeId = _currentCenterlineNode?.Id,
             NextCenterlineNodeId = _nextCenterlineNode?.Id,
             RunwayHeadingDeg = _runwayHeading.Degrees,
@@ -396,7 +386,8 @@ public sealed class RunwayExitPhase : Phase
         phase._lastResolvedPreference = dto.LastResolvedPreference.HasValue
             ? new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value }
             : null;
-        phase._exitSpeed = dto.ExitSpeed;
+        phase._coastSpeed = dto.ExitSpeed;
+        phase._braking = dto.Braking;
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
