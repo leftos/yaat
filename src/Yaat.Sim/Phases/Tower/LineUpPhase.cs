@@ -115,6 +115,40 @@ public sealed class LineUpPhase : Phase
             return true;
         }
 
+        // Pre-stage: when there's no on-runway node, taxi forward without
+        // turning until the aircraft crosses onto the runway centerline. This
+        // makes the aircraft enter the runway perpendicular to the centerline,
+        // then the alignment stage turns it to face the departure heading.
+        if (!_hasStage1 && !_stage1Complete)
+        {
+            double crossTrack = Math.Abs(
+                GeoMath.SignedCrossTrackDistanceNm(
+                    ctx.Aircraft.Latitude,
+                    ctx.Aircraft.Longitude,
+                    ctx.Runway!.ThresholdLatitude,
+                    ctx.Runway.ThresholdLongitude,
+                    _runwayHeading
+                )
+            );
+
+            if (crossTrack > OnRunwayNodeThresholdNm)
+            {
+                AdjustSpeed(ctx, CategoryPerformance.TaxiSpeed(ctx.Category) * 0.8);
+                LogPeriodic(ctx);
+                return false;
+            }
+
+            _stage1Complete = true;
+            _aligningOnly = true;
+            ctx.Aircraft.IndicatedAirspeed = 0;
+            ctx.Targets.TargetSpeed = 0;
+            ctx.Logger.LogDebug(
+                "[LineUp] {Callsign}: crossed onto centerline (crossTrack={Cross:F4}nm), turning to align",
+                ctx.Aircraft.Callsign,
+                crossTrack
+            );
+        }
+
         // Stage 1: navigate to on-runway node
         if (_hasStage1 && !_stage1Complete)
         {
@@ -153,9 +187,9 @@ public sealed class LineUpPhase : Phase
         }
 
         // Align with runway heading
-        double headingDiff = _runwayHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
+        double alignDiff = _runwayHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
 
-        if (headingDiff > HeadingToleranceDeg)
+        if (alignDiff > HeadingToleranceDeg)
         {
             double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
             ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, _runwayHeading.Degrees, maxTurn);
