@@ -109,38 +109,41 @@ function activate(context) {
       const bundleLine = bundleInput
         ? `\n\nBug report bundle: ${bundleInput}`
         : "";
-      const baseStartupDelay = 6000;
-      const perTerminalDelay = 2000;
+      const launchInterval = 3000;
+      const startupDelay = 6000;
       const shiftTab = "\x1b[Z";
 
       for (let i = 0; i < prompts.length; i++) {
         const fullPrompt =
           template.replace(/\{bug\}/g, prompts[i]) + bundleLine;
+        const launchAt = i * launchInterval;
 
-        const terminal = vscode.window.createTerminal({
-          name: `Bug ${i + 1}`,
-        });
-
-        // Start claude (needs a TTY — can't pipe into it)
-        terminal.sendText(`claude --dangerously-skip-permissions`);
-
-        // After claude starts: Shift+Tab x3 to enter plan mode, type prompt, Enter
-        const delay = baseStartupDelay + i * perTerminalDelay;
         setTimeout(() => {
-          terminal.sendText(shiftTab, false);
+          const terminal = vscode.window.createTerminal({
+            name: `Bug ${i + 1}`,
+          });
+
+          // Start claude (needs a TTY — can't pipe into it)
+          terminal.sendText(`claude --dangerously-skip-permissions`);
+
+          // After claude starts: Shift+Tab x3 to enter plan mode, type prompt, Enter
+          const inputDelay = startupDelay;
           setTimeout(() => {
             terminal.sendText(shiftTab, false);
             setTimeout(() => {
               terminal.sendText(shiftTab, false);
               setTimeout(() => {
-                terminal.sendText(fullPrompt, false);
+                terminal.sendText(shiftTab, false);
                 setTimeout(() => {
-                  terminal.sendText("", true);
+                  terminal.sendText(fullPrompt, false);
+                  setTimeout(() => {
+                    terminal.sendText("", true);
+                  }, 500);
                 }, 500);
-              }, 500);
+              }, 200);
             }, 200);
-          }, 200);
-        }, delay);
+          }, inputDelay);
+        }, launchAt);
       }
 
       vscode.window.showInformationMessage(
