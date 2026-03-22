@@ -147,6 +147,7 @@ public static class CommandDescriber
                 : CanonicalCommandType.CreateFlightPlan,
             CreateAbbreviatedFlightPlanCommand => CanonicalCommandType.CreateAbbreviatedFlightPlan,
             SetRemarksCommand => CanonicalCommandType.SetRemarks,
+            CancelIfrCommand => CanonicalCommandType.CancelIfr,
             CancelLandingClearanceCommand => CanonicalCommandType.CancelLandingClearance,
             DeleteCommand => CanonicalCommandType.Delete,
             PauseCommand => CanonicalCommandType.Pause,

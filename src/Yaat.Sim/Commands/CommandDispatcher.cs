@@ -218,8 +218,51 @@ public static class CommandDispatcher
         return result;
     }
 
+    private static bool RequiresVfr(ParsedCommand command) =>
+        command
+            is EnterLeftDownwindCommand
+                or EnterRightDownwindCommand
+                or EnterLeftCrosswindCommand
+                or EnterRightCrosswindCommand
+                or EnterLeftBaseCommand
+                or EnterRightBaseCommand
+                or EnterFinalCommand
+                or MakeLeftTrafficCommand
+                or MakeRightTrafficCommand
+                or TurnCrosswindCommand
+                or TurnDownwindCommand
+                or TurnBaseCommand
+                or ExtendDownwindCommand
+                or MakeShortApproachCommand
+                or MakeNormalApproachCommand
+                or MakeLeft360Command
+                or MakeRight360Command
+                or MakeLeft270Command
+                or MakeRight270Command
+                or CircleAirportCommand
+                or PatternSizeCommand
+                or MakeLeftSTurnsCommand
+                or MakeRightSTurnsCommand
+                or Plan270Command
+                or Cancel270Command
+                or TouchAndGoCommand
+                or StopAndGoCommand
+                or LowApproachCommand
+                or ClearedForOptionCommand
+                or HoldPresentPosition360Command
+                or HoldPresentPositionHoverCommand
+                or HoldAtFixOrbitCommand
+                or HoldAtFixHoverCommand;
+
+    private static readonly CommandResult VfrRequiredResult = new(false, "Command requires VFR aircraft. Use CIFR to cancel IFR flight plan");
+
     private static CommandResult ApplyCommand(ParsedCommand command, AircraftState aircraft, Random rng, bool validateDctFixes)
     {
+        if (RequiresVfr(command) && !aircraft.IsVfr)
+        {
+            return VfrRequiredResult;
+        }
+
         switch (command)
         {
             // --- Heading ---
@@ -478,6 +521,16 @@ public static class CommandDispatcher
             case FollowCommand follow:
                 return TryAirborneFollow(aircraft, follow);
 
+            // --- Flight plan ---
+            case CancelIfrCommand:
+                if (aircraft.IsVfr)
+                {
+                    return new CommandResult(false, "Aircraft is already VFR");
+                }
+                aircraft.FlightRules = "VFR";
+                aircraft.CruiseAltitude = 0;
+                return Ok("IFR cancelled, aircraft is now VFR");
+
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
@@ -728,6 +781,11 @@ public static class CommandDispatcher
         bool autoCrossRunway = false
     )
     {
+        if (RequiresVfr(command) && !aircraft.IsVfr)
+        {
+            return VfrRequiredResult;
+        }
+
         switch (command)
         {
             case ClearedForTakeoffCommand cto:

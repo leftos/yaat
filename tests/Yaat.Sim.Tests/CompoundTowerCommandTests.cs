@@ -210,6 +210,7 @@ public class CompoundTowerCommandTests
             IndicatedAirspeed = 100,
             IsOnGround = false,
             Destination = "OAK",
+            FlightRules = "VFR",
         };
     }
 

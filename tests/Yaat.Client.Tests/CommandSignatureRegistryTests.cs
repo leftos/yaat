@@ -65,13 +65,14 @@ public class CommandRegistryTests
     }
 
     [Fact]
-    public void GoAround_HasTwoOverloads()
+    public void GoAround_HasThreeOverloads()
     {
         var def = CommandRegistry.Get(CanonicalCommandType.GoAround);
         Assert.NotNull(def);
-        Assert.Equal(2, def.Overloads.Length);
+        Assert.Equal(3, def.Overloads.Length);
         Assert.Empty(def.Overloads[0].Parameters);
         Assert.Single(def.Overloads[1].Parameters);
+        Assert.Equal(2, def.Overloads[2].Parameters.Length);
     }
 
     [Fact]

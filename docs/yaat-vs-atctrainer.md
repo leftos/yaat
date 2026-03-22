@@ -313,6 +313,7 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | Flight plan | `FP {type} {alt} {route}` | `FP {type} {alt} {route}` | Parity; also available via FPE. Auto-assigns squawk + echoes details. |
 | VFR flight plan | `VP {type} {alt} {route}` | `VP {type} {alt} {route}` | Parity; also available via FPE. Auto-assigns squawk + echoes details. |
 | Flight Data (abbreviated FP) | — | `DA [type] [alt] [beacon] [scratchpad] [.V/.E]` | YAAT-only (CRC F6 key). Optional fields, any order. DUP NEW ID if FP exists. |
+| Cancel IFR | — | `CIFR` | YAAT-only. Changes aircraft from IFR to VFR. Required before issuing VFR-only commands (pattern entry, VFR holds, TG/SG/LA/COPT) to IFR aircraft. |
 | Remarks | `REMARKS {text}` | `REMARKS {text}` (`REM`) | Parity; also available via FPE |
 | Cleared | `CLRD` | — | ATCTrainer-only (YAAT uses clearance column instead) |
 | Delete at | `DELAT` | `DELAT` / `DELAT {n}` | Parity; YAAT adds per-block delete by number |
@@ -322,6 +323,10 @@ ATCTrainer has no native coordination commands. YAAT implements STARS departure 
 | Chat messages | No specifix prefixes, chat messages can be misinterpreted as commands | `'msg`, `/msg`, `>msg` | YAAT has dedicated chat prefixes |
 
 ## Behavioral Differences
+
+### IFR/VFR Command Gating (YAAT-only)
+
+VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds, touch-and-go, stop-and-go, low approach, cleared-for-option) are restricted to VFR aircraft. IFR aircraft receive an error with a hint to use `CIFR`. Visual approaches (`CVA`) and report commands (`RFIS`/`RTIS`) are available to both IFR and VFR aircraft — IFR aircraft can be cleared for a visual approach.
 
 ### Auto Go-Around (YAAT-only)
 

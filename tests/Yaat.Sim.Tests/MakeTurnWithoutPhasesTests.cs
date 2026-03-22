@@ -33,6 +33,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
             IsOnGround = false,
             Departure = "OAK",
             CruiseAltitude = 3000,
+            FlightRules = "VFR",
         };
     }
 

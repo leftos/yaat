@@ -695,6 +695,7 @@ public static class CommandParser
             CreateVfrFlightPlan => ParseCreateFlightPlan(arg, "VFR"),
             CreateAbbreviatedFlightPlan => ParseAbbreviatedFlightPlan(arg),
             SetRemarks when arg is not null => PR.Ok(new SetRemarksCommand(arg)),
+            CancelIfr when arg is null => PR.Ok(new CancelIfrCommand()),
             // Verbs with arg-required guards: return fail when arg missing (invalid usage)
             Mach
             or WarpGround

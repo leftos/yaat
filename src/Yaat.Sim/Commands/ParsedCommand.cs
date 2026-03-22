@@ -538,6 +538,8 @@ public record CreateAbbreviatedFlightPlanCommand(
 
 public record SetRemarksCommand(string Text) : ParsedCommand;
 
+public record CancelIfrCommand : ParsedCommand;
+
 // Server/global commands
 public record DeleteCommand : ParsedCommand;
 

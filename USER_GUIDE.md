@@ -510,6 +510,8 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 
 #### Pattern
 
+> **VFR only:** Pattern commands, traffic direction, VFR holds, touch-and-go, stop-and-go, low approach, and cleared-for-option are restricted to VFR aircraft. IFR aircraft must first be given `CIFR` (Cancel IFR) to become VFR. Visual approaches (`CVA`) and report commands (`RFIS`/`RTIS`) are available to both IFR and VFR aircraft.
+
 | Command | Primary | Aliases | Concatenated |
 |---------|---------|---------|-------------|
 | Enter L downwind | `ELD` | — | — |
@@ -579,6 +581,7 @@ The `H` alias is shared: bare `H` (no argument) maps to Fly Present Heading; `H 
 | Create VFR flight plan | `VP C172 5500 KOAK DCT KJFK` | — | Altitude absolute (5500 = 5,500 ft) |
 | Flight Data (abbreviated FP) | `DA C172 065 4304` | — | CRC F6 key. Optional fields in any order: type, altitude (hundreds), beacon code, scratchpad (`` `VFF ``), flight rules (`.V`/`.E`). Creates VFR FP by default. Errors with DUP NEW ID if aircraft already has a flight plan. |
 | Set remarks | `REMARKS /V/ STUDENT` | `REM` | Sets flight plan remarks field |
+| Cancel IFR | `CIFR` | — | Changes aircraft from IFR to VFR. Sets flight rules to VFR and clears filed altitude. Required before issuing VFR-only commands (pattern entry, traffic pattern, VFR holds, touch-and-go, etc.) to IFR aircraft. |
 
 #### Consolidation
 

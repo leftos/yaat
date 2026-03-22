@@ -1069,6 +1069,7 @@ public static class CommandRegistry
                 ["REMARKS", "REM"],
                 [O(null, [R("text", "remarks text")], "Set flight plan remarks")]
             ),
+            Bare(CancelIfr, "Cancel IFR", "Flight Plan", false, ["CIFR"]),
         ];
 
     private static CommandDefinition[] ConsolidationCommands() =>
