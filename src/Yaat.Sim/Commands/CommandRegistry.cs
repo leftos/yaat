@@ -307,7 +307,11 @@ public static class CommandRegistry
                 "Tower",
                 false,
                 ["GA"],
-                [O(null, [], "Go around (fly runway heading)"), O("Heading", [R("heading", "0-360")], "Go around and fly heading")]
+                [
+                    O(null, [], "Go around (fly runway heading)"),
+                    O("Heading", [R("heading", "0-360")], "Go around and fly heading"),
+                    O("Heading+Alt", [R("heading", "0-360"), R("altitude", "alt")], "Go around, fly heading, climb to altitude"),
+                ]
             ),
             Cmd(
                 ClearedToLand,

@@ -743,7 +743,9 @@ These commands control aircraft during takeoff, landing, and pattern operations.
 | `GA` | Go around (instrument: fly published missed approach; otherwise: runway heading, 2,000 AGL) |
 | `GA MRT` | Go around, make right traffic (VFR/visual only) |
 | `GA MLT` | Go around, make left traffic (VFR/visual only) |
+| `GA 270` | Go around, fly heading 270, climb to 2,000 AGL (self-clear) |
 | `GA 270 50` | Go around, fly heading 270, climb to 5,000 ft (overrides published missed approach) |
+| `GA RH` | Go around, fly runway heading explicitly (same behavior as plain `GA`) |
 | `GA RH 50` | Go around, fly runway heading, climb to 5,000 ft (overrides published missed approach) |
 | `EL` / `EXITL` | Exit runway to the left |
 | `ER` / `EXITR` | Exit runway to the right |
@@ -787,7 +789,7 @@ All CTO modifiers accept an optional altitude suffix using the same format as CM
 
 **Navigation** — IFR `CTO` (default departure) automatically expands the filed route including SID waypoints and navigates the aircraft along it. When CIFP data is available, SID legs include published altitude and speed constraints; SID via mode activates automatically so the aircraft follows the published climb profile. Use `CM` to override (disables via mode), or `CVIA` to re-enable it. `CTO DCT {fix}` turns the aircraft toward the fix after liftoff. `CTO OC` navigates toward the destination airport.
 
-The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments above). `RH` in the heading position means "runway heading." `GA MRT`/`GA MLT` sets the aircraft into pattern mode (make right/left traffic) and climbs to pattern altitude.
+The `GA` altitude argument uses the same format as CM/DM (see Altitude Arguments above). `RH` in the heading position means "runway heading." `GA` accepts heading only (`GA 270`), heading + altitude (`GA 270 50`), or pattern direction (`GA MRT`/`GA MLT`). Without an altitude, the aircraft self-clears at 2,000 AGL. `GA MRT`/`GA MLT` sets the aircraft into pattern mode (make right/left traffic) and climbs to pattern altitude.
 
 **Published missed approach** — When an aircraft on an instrument approach (ILS, RNAV, VOR, etc.) goes around — either automatically or via `GA` — it flies the published missed approach procedure from CIFP data. This includes climbing to the missed approach altitude, navigating through the MAP fix sequence, and entering a holding pattern at the final MAP fix if the procedure defines one (HA/HF/HM leg). The aircraft holds indefinitely until given further instructions. If the procedure has no holding leg, the aircraft completes the MAP fix sequence and awaits vectors. Visual approaches and pattern traffic have no published missed approach and use the generic go-around behavior instead.
 

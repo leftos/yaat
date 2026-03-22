@@ -151,7 +151,7 @@ A living comparison of features, commands, and behaviors between YAAT and ATCTra
 | Cleared for takeoff | `CTO [heading]` | `CTO` + rich modifiers | YAAT has many more CTO forms (see below) |
 | CTO left/right traffic | `CTOMLT`/`CTOMRT` | `CTO MLT`/`CTO MRT` (+ `CTOMLT`/`CTOMRT` aliases) | YAAT supports as modifiers and standalone verbs |
 | CTO runway heading | `CTORH` | `CTO RH`/`CTO MRH`/`CTO MSO` | YAAT supports as modifier |
-| GA heading + alt | — | `GA 270 5000`, `GA RH 2000` | **YAAT-only** |
+| GA heading (± alt) | — | `GA 270`, `GA 270 5000`, `GA RH 2000` | **YAAT-only** |
 | GA + traffic pattern | — | `GA MRT`, `GA MLT` (VFR/visual only) | **YAAT-only** |
 | Cleared to land | — (implicit for pattern; `FS` for full-stop) | `CLAND`/`CL` | **YAAT-only** optional explicit landing clearance |
 | Cancel landing | — | `CLC`/`CTLC` | **YAAT-only** |

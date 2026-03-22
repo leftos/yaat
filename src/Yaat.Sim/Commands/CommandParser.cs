@@ -1271,8 +1271,9 @@ public static class CommandParser
 
     /// <summary>
     /// Parses GA (no args), GA MRT/MLT (pattern direction),
-    /// or GA hdg alt (2 args). Heading can be a number (1-360)
-    /// or RH (runway heading). Altitude uses AltitudeResolver.
+    /// GA hdg (heading only), or GA hdg alt (heading + altitude).
+    /// Heading can be a number (1-360) or RH (runway heading).
+    /// Altitude uses AltitudeResolver.
     /// </summary>
     private static PR ParseGoAround(string? arg)
     {
@@ -1292,9 +1293,9 @@ public static class CommandParser
         }
 
         var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length != 2)
+        if (parts.Length < 1 || parts.Length > 2)
         {
-            return PR.Fail($"invalid go-around args '{arg}' (expected heading altitude or MRT/MLT)");
+            return PR.Fail($"invalid go-around args '{arg}' (expected heading, heading altitude, or MRT/MLT)");
         }
 
         int? heading = null;
@@ -1308,10 +1309,14 @@ public static class CommandParser
             heading = h;
         }
 
-        int? altitude = AltitudeResolver.Resolve(parts[1]);
-        if (altitude is null)
+        int? altitude = null;
+        if (parts.Length == 2)
         {
-            return PR.Fail($"invalid go-around altitude '{parts[1]}'");
+            altitude = AltitudeResolver.Resolve(parts[1]);
+            if (altitude is null)
+            {
+                return PR.Fail($"invalid go-around altitude '{parts[1]}'");
+            }
         }
 
         return PR.Ok(new GoAroundCommand(heading is not null ? new MagneticHeading(heading.Value) : null, altitude, null));
