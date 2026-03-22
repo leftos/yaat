@@ -14,6 +14,13 @@ public record CommandResult(bool Success, string? Message = null);
 
 public static class CommandDispatcher
 {
+    /// <summary>
+    /// Sentinel returned by DispatchWithPhase to signal that phases should be cleared,
+    /// but only AFTER validation succeeds. This avoids mutating PhaseList before we know
+    /// the command is valid (the old approach saved a reference to the PhaseList, but
+    /// Clear() mutated it in place, making restore impossible).
+    /// </summary>
+    private static readonly CommandResult PhaseShouldBeCleared = new(true, "__CLEAR_PHASES__");
     private static readonly ILogger Log = SimLog.CreateLogger("CommandDispatcher");
 
     public static CommandResult DispatchCompound(
@@ -35,14 +42,17 @@ public static class CommandDispatcher
         }
 
         // Phase interaction: check if aircraft has active phases
-        PhaseList? savedPhases = null;
+        bool shouldClearPhases = false;
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
         {
-            // Save phases before DispatchWithPhase may clear them (ClearsPhase path).
-            // If the subsequent dispatch fails, we restore them.
-            savedPhases = aircraft.Phases;
             var result = DispatchWithPhase(compound, aircraft, currentPhase, groundLayout, autoCrossRunway);
-            if (result is not null)
+            if (ReferenceEquals(result, PhaseShouldBeCleared))
+            {
+                // Phases need clearing, but defer until after validation succeeds.
+                // This prevents destroying phases on invalid commands.
+                shouldClearPhases = true;
+            }
+            else if (result is not null)
             {
                 // Tower command handled the first block. Enqueue remaining blocks
                 // so they execute after phases complete (UpdateCommandQueue picks them
@@ -63,7 +73,7 @@ public static class CommandDispatcher
 
                 return result;
             }
-            // result is null means phases were cleared, fall through to normal dispatch
+            // result is null means phase allowed the command, fall through to normal dispatch
         }
 
         // Dry-run: validate all commands on a snapshot clone before touching the
@@ -72,12 +82,16 @@ public static class CommandDispatcher
         var dryRunError = DryRunValidate(compound, aircraft, groundLayout);
         if (dryRunError is not null)
         {
-            if (savedPhases is not null && aircraft.Phases is null)
-            {
-                aircraft.Phases = savedPhases;
-            }
-
             return dryRunError;
+        }
+
+        // Now that validation passed, clear phases if the command requires it
+        if (shouldClearPhases)
+        {
+            var ctx = BuildMinimalContext(aircraft);
+            aircraft.Phases?.Clear(ctx);
+            aircraft.Phases = null;
+            aircraft.Targets.TurnRateOverride = null;
         }
 
         // Clear any existing queue and pending deferred dispatches
@@ -99,13 +113,6 @@ public static class CommandDispatcher
                     // First block failed — clear the queue and propagate the failure
                     aircraft.Queue.Blocks.Clear();
                     aircraft.Queue.CurrentBlockIndex = 0;
-
-                    // Restore phases if they were cleared by DispatchWithPhase (ClearsPhase)
-                    if (savedPhases is not null && aircraft.Phases is null)
-                    {
-                        aircraft.Phases = savedPhases;
-                    }
-
                     return applyResult;
                 }
 
@@ -604,6 +611,15 @@ public static class CommandDispatcher
     {
         // Extract the first command to check acceptance
         var firstCmd = compound.Blocks[0].Commands[0];
+
+        // Bail out immediately for unsupported commands — they must never interact
+        // with phases (the old default fallback in ToCanonicalType mapped them to
+        // FlyHeading, which triggered ClearsPhase and destroyed pattern state).
+        if (firstCmd is UnsupportedCommand unsupported)
+        {
+            return new CommandResult(false, $"Command not yet supported: {unsupported.RawText}");
+        }
+
         var cmdType = CommandDescriber.ToCanonicalType(firstCmd);
 
         // Try tower/ground-specific handling first (phase-interactive commands)
@@ -633,12 +649,9 @@ public static class CommandDispatcher
 
         if (acceptance == CommandAcceptance.ClearsPhase)
         {
-            // End the active phase properly, then exit the phase system
-            var ctx = BuildMinimalContext(aircraft);
-            aircraft.Phases?.Clear(ctx);
-            aircraft.Phases = null;
-            aircraft.Targets.TurnRateOverride = null;
-            return null;
+            // Don't clear phases yet — return a sentinel so DispatchCompound can validate
+            // the command first. If validation fails, phases stay intact.
+            return PhaseShouldBeCleared;
         }
 
         // Allowed but not a tower command — shouldn't normally reach here
