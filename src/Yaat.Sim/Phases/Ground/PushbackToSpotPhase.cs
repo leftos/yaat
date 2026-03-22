@@ -260,7 +260,7 @@ public sealed class PushbackToSpotPhase : Phase
 
     private bool ArriveAtNode(PhaseContext ctx)
     {
-        ctx.Logger.LogDebug(
+        ctx.Logger.LogTrace(
             "[PushSpot] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount})",
             ctx.Aircraft.Callsign,
             _targetNodeId,

@@ -430,7 +430,7 @@ public sealed class TaxiingPhase : Phase
 
     private bool ArriveAtNode(PhaseContext ctx, TaxiRoute route)
     {
-        ctx.Logger.LogDebug(
+        ctx.Logger.LogTrace(
             "[Taxi] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount})",
             ctx.Aircraft.Callsign,
             _targetNodeId,
