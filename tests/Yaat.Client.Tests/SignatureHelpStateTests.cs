@@ -191,4 +191,45 @@ public class SignatureHelpStateTests
         Assert.False(state.SignatureParts[2].IsActive); // fix
         Assert.True(state.SignatureParts[4].IsActive); // inbound
     }
+
+    [Fact]
+    public void BuildParts_OptionalParam_RendersWithQuestionMark()
+    {
+        var sig = new CommandSignature(
+            CanonicalCommandType.ClearedForTakeoff,
+            "CTO MRC",
+            ["CTO"],
+            [Lit("MRC"), new CommandParameter("altitude", "alt", true)],
+            "Turn right crosswind on departure"
+        );
+
+        var parts = SignatureHelpState.BuildParts(sig, 1);
+
+        // CTO, " ", MRC, " ", [altitude?] = 5 parts
+        Assert.Equal(5, parts.Count);
+        Assert.Equal("MRC", parts[2].Text);
+        Assert.False(parts[2].IsParameter);
+        Assert.Equal("[altitude?]", parts[4].Text);
+        Assert.True(parts[4].IsParameter);
+        Assert.True(parts[4].IsActive);
+    }
+
+    [Fact]
+    public void BuildParts_RequiredAndOptionalParams_RenderDifferently()
+    {
+        var sig = new CommandSignature(
+            CanonicalCommandType.ClearedForTakeoff,
+            "CTO LT",
+            ["CTO"],
+            [Lit("LT"), new CommandParameter("heading", "0-360", false), new CommandParameter("altitude", "alt", true)],
+            "Turn left to heading on departure"
+        );
+
+        var parts = SignatureHelpState.BuildParts(sig, 0);
+
+        // CTO, " ", LT, " ", [heading], " ", [altitude?] = 7 parts
+        Assert.Equal(7, parts.Count);
+        Assert.Equal("[heading]", parts[4].Text);
+        Assert.Equal("[altitude?]", parts[6].Text);
+    }
 }

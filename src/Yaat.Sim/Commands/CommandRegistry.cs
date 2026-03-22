@@ -281,23 +281,23 @@ public static class CommandRegistry
                 ["CTO"],
                 [
                     O(null, [], "Cleared for takeoff (fly runway heading)"),
-                    O("RH", [L("RH")], "Fly runway heading on departure"),
-                    O("OC", [L("OC")], "Fly on course after departure"),
-                    O("Heading", [R("heading", "0-360")], "Fly heading on departure"),
-                    O("LT", [L("LT"), R("heading", "0-360")], "Turn left to heading on departure"),
-                    O("RT", [L("RT"), R("heading", "0-360")], "Turn right to heading on departure"),
-                    O("MLT", [L("MLT")], "Make left traffic on departure"),
-                    O("MRT", [L("MRT")], "Make right traffic on departure"),
-                    O("DCT", [L("DCT"), R("fix", "fix name")], "Proceed direct to fix on departure"),
-                    O("TLDCT", [L("TLDCT"), R("fix", "fix name")], "Turn left direct to fix on departure"),
-                    O("TRDCT", [L("TRDCT"), R("fix", "fix name")], "Turn right direct to fix on departure"),
-                    O("MRC", [L("MRC")], "Turn right crosswind on departure"),
-                    O("MRD", [L("MRD")], "Turn right downwind on departure"),
-                    O("MLC", [L("MLC")], "Turn left crosswind on departure"),
-                    O("MLD", [L("MLD")], "Turn left downwind on departure"),
-                    O("MR270", [L("MR270")], "Right 270 on departure"),
-                    O("ML270", [L("ML270")], "Left 270 on departure"),
-                    O("360", [L("360")], "360 overhead on departure"),
+                    O("RH", [L("RH"), Opt("altitude", "alt")], "Fly runway heading on departure"),
+                    O("OC", [L("OC"), Opt("altitude", "alt")], "Fly on course after departure"),
+                    O("Heading", [R("heading", "0-360"), Opt("altitude", "alt")], "Fly heading on departure"),
+                    O("LT", [L("LT"), R("heading", "0-360"), Opt("altitude", "alt")], "Turn left to heading on departure"),
+                    O("RT", [L("RT"), R("heading", "0-360"), Opt("altitude", "alt")], "Turn right to heading on departure"),
+                    O("MLT", [L("MLT"), Opt("runway", "runway designator")], "Make left traffic on departure"),
+                    O("MRT", [L("MRT"), Opt("runway", "runway designator")], "Make right traffic on departure"),
+                    O("DCT", [L("DCT"), R("fix", "fix name"), Opt("altitude", "alt")], "Proceed direct to fix on departure"),
+                    O("TLDCT", [L("TLDCT"), R("fix", "fix name"), Opt("altitude", "alt")], "Turn left direct to fix on departure"),
+                    O("TRDCT", [L("TRDCT"), R("fix", "fix name"), Opt("altitude", "alt")], "Turn right direct to fix on departure"),
+                    O("MRC", [L("MRC"), Opt("altitude", "alt")], "Turn right crosswind on departure"),
+                    O("MRD", [L("MRD"), Opt("altitude", "alt")], "Turn right downwind on departure"),
+                    O("MLC", [L("MLC"), Opt("altitude", "alt")], "Turn left crosswind on departure"),
+                    O("MLD", [L("MLD"), Opt("altitude", "alt")], "Turn left downwind on departure"),
+                    O("MR270", [L("MR270"), Opt("altitude", "alt")], "Right 270 on departure"),
+                    O("ML270", [L("ML270"), Opt("altitude", "alt")], "Left 270 on departure"),
+                    O("360", [L("360"), Opt("altitude", "alt")], "360 overhead on departure"),
                 ]
             ),
             Bare(CancelTakeoffClearance, "Cancel Takeoff Clearance", "Tower", false, ["CTOC"]),
@@ -1081,6 +1081,11 @@ public static class CommandRegistry
     private static CommandParameter L(string name)
     {
         return new CommandParameter(name, "literal", false, IsLiteral: true);
+    }
+
+    private static CommandParameter Opt(string name, string typeHint)
+    {
+        return new CommandParameter(name, typeHint, true);
     }
 
     private static CommandOverload O(string? variantLabel, CommandParameter[] parameters, string? usageHint)

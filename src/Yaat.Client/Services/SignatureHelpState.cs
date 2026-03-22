@@ -124,8 +124,8 @@ public partial class SignatureHelpState : ObservableObject
         {
             parts.Add(new SignaturePart(" ", false, false));
             var param = signature.Parameters[i];
-            // Literals render as plain text, variables in [brackets]
-            var text = param.IsLiteral ? param.Name : $"[{param.Name}]";
+            // Literals render as plain text, variables in [brackets], optional variables in [name?]
+            var text = param.IsLiteral ? param.Name : param.IsOptional ? $"[{param.Name}?]" : $"[{param.Name}]";
             var isActive = i == activeParamIndex;
             parts.Add(new SignaturePart(text, !param.IsLiteral, isActive));
         }
