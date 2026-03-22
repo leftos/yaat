@@ -3,8 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_PROMPT_TEMPLATE =
-  "Investigate this bug and plan a fix. Ask the user questions if you need to with the AskUserQuestion tool. Reference @docs\\e2e-tdd-issue-debugging.md. " +
-  "Use the bug report details below:\n\n{bug}";
+  "{bug}\n\nInvestigate this bug and plan a fix. Ask the user questions if you need to with the AskUserQuestion tool. Reference @docs\\e2e-tdd-issue-debugging.md.";
 
 function parsePrompts(content) {
   const prompts = [];
