@@ -623,6 +623,35 @@ public static class CommandDescriber
                 or BreakConflictCommand;
     }
 
+    internal static bool IsPhaseTransparent(CanonicalCommandType type)
+    {
+        return type
+            is CanonicalCommandType.Squawk
+                or CanonicalCommandType.SquawkVfr
+                or CanonicalCommandType.SquawkNormal
+                or CanonicalCommandType.SquawkStandby
+                or CanonicalCommandType.Ident
+                or CanonicalCommandType.RandomSquawk
+                or CanonicalCommandType.SquawkAll
+                or CanonicalCommandType.SquawkNormalAll
+                or CanonicalCommandType.SquawkStandbyAll
+                or CanonicalCommandType.Say
+                or CanonicalCommandType.SaySpeed
+                or CanonicalCommandType.SayMach
+                or CanonicalCommandType.SayExpectedApproach
+                or CanonicalCommandType.SayAltitude
+                or CanonicalCommandType.SayHeading
+                or CanonicalCommandType.SayPosition
+                or CanonicalCommandType.Annotate
+                or CanonicalCommandType.Scratchpad1
+                or CanonicalCommandType.Scratchpad2
+                or CanonicalCommandType.TemporaryAltitude
+                or CanonicalCommandType.Consolidate
+                or CanonicalCommandType.ConsolidateFull
+                or CanonicalCommandType.Deconsolidate
+                or CanonicalCommandType.ShowQueuedCommands;
+    }
+
     private static string FormatSpeedCanonical(SpeedCommand cmd)
     {
         return cmd.Modifier switch

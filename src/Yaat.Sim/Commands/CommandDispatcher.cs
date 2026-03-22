@@ -41,6 +41,13 @@ public static class CommandDispatcher
             return deferredResult;
         }
 
+        // Phase-transparent commands (squawk, ident, say, etc.) — apply directly
+        // without consulting phases, clearing the queue, or clearing deferred dispatches.
+        if (aircraft.Phases?.CurrentPhase is not null && IsAllTransparent(compound))
+        {
+            return ApplyTransparentCompound(compound, aircraft, rng);
+        }
+
         // Phase interaction: check if aircraft has active phases
         bool shouldClearPhases = false;
         if (aircraft.Phases?.CurrentPhase is { } currentPhase)
@@ -129,6 +136,55 @@ public static class CommandDispatcher
         return new CommandResult(true, fullMessage);
     }
 
+    private static bool IsAllTransparent(CompoundCommand compound)
+    {
+        foreach (var block in compound.Blocks)
+        {
+            if (block.Condition is not null)
+            {
+                return false;
+            }
+
+            foreach (var cmd in block.Commands)
+            {
+                if (cmd is UnsupportedCommand)
+                {
+                    return false;
+                }
+
+                if (!CommandDescriber.IsPhaseTransparent(CommandDescriber.ToCanonicalType(cmd)))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static CommandResult ApplyTransparentCompound(CompoundCommand compound, AircraftState aircraft, Random rng)
+    {
+        var messages = new List<string>();
+        foreach (var block in compound.Blocks)
+        {
+            foreach (var cmd in block.Commands)
+            {
+                var result = ApplyCommand(cmd, aircraft, rng, false);
+                if (!result.Success)
+                {
+                    return result;
+                }
+
+                if (result.Message is not null)
+                {
+                    messages.Add(result.Message);
+                }
+            }
+        }
+
+        return new CommandResult(true, string.Join(", ", messages));
+    }
+
     public static CommandResult Dispatch(
         ParsedCommand command,
         AircraftState aircraft,
@@ -143,6 +199,12 @@ public static class CommandDispatcher
         {
             var compound = new CompoundCommand([new ParsedBlock(null, [command])]);
             return DispatchCompound(compound, aircraft, groundLayout, rng, validateDctFixes, autoCrossRunway);
+        }
+
+        // Phase-transparent commands: apply without clearing queue or phases
+        if ((aircraft.Phases?.CurrentPhase is not null) && CommandDescriber.IsPhaseTransparent(CommandDescriber.ToCanonicalType(command)))
+        {
+            return ApplyCommand(command, aircraft, rng, validateDctFixes);
         }
 
         // Clear any existing queue when a new single command is issued
