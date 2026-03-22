@@ -156,21 +156,36 @@ public sealed class RunwayExitPhase : Phase
             return true;
         }
 
-        // Decelerate toward zero — stop at the hold-short node
-        AdjustSpeed(ctx, 0);
-        ctx.Targets.TargetSpeed = 0;
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _holdShortNode.Latitude, _holdShortNode.Longitude);
+        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
+
+        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _holdShortNode.Latitude, _holdShortNode.Longitude);
+
+        // Kinematic braking: maintain exit speed through the turn, brake to stop at hold-short.
+        // v²/(2a) gives stopping distance; when it exceeds remaining distance, start braking.
+        double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
+        double speed = ctx.Aircraft.GroundSpeed;
+        double stoppingDistNm = (speed * speed) / (2.0 * decelRate * 3600.0);
+
+        if (stoppingDistNm >= dist)
+        {
+            AdjustSpeed(ctx, 0);
+            ctx.Targets.TargetSpeed = 0;
+        }
+        else
+        {
+            // Hold exit speed; don't accelerate if already below it
+            double target = Math.Min(_exitSpeed, speed);
+            AdjustSpeed(ctx, target);
+            ctx.Targets.TargetSpeed = target;
+        }
 
         // Keep minimum speed to actually reach the node
         if (ctx.Aircraft.IndicatedAirspeed < 5)
         {
             ctx.Aircraft.IndicatedAirspeed = 5;
         }
-
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _holdShortNode.Latitude, _holdShortNode.Longitude);
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
-
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _holdShortNode.Latitude, _holdShortNode.Longitude);
 
         if (dist <= ArrivalThresholdNm)
         {
