@@ -854,7 +854,7 @@ public partial class MainWindow : Window
                 grid.RowDefinitions[2].Height = GridLength.Auto;
             }
 
-            _terminalWindow = new TerminalWindow { DataContext = vm };
+            _terminalWindow = new TerminalWindow(vm.Preferences) { DataContext = vm };
             _terminalWindow.Closing += OnTerminalWindowClosing;
             _terminalWindow.Show();
         }
@@ -912,7 +912,7 @@ public partial class MainWindow : Window
 
     private void OpenDataGridWindow(MainViewModel vm)
     {
-        _dataGridWindow = new DataGridWindow { DataContext = vm };
+        _dataGridWindow = new DataGridWindow(vm.Preferences) { DataContext = vm };
         _dataGridWindow.Closing += OnDataGridWindowClosing;
         _dataGridWindow.Show();
 
@@ -936,7 +936,7 @@ public partial class MainWindow : Window
 
     private void OpenGroundViewWindow(MainViewModel vm)
     {
-        _groundViewWindow = new GroundViewWindow { DataContext = vm };
+        _groundViewWindow = new GroundViewWindow(vm.Preferences) { DataContext = vm };
         _groundViewWindow.Closing += OnGroundViewWindowClosing;
         _groundViewWindow.Show();
     }
@@ -953,7 +953,7 @@ public partial class MainWindow : Window
 
     private void OpenRadarViewWindow(MainViewModel vm)
     {
-        _radarViewWindow = new RadarViewWindow { DataContext = vm };
+        _radarViewWindow = new RadarViewWindow(vm.Preferences) { DataContext = vm };
         _radarViewWindow.Closing += OnRadarViewWindowClosing;
         _radarViewWindow.Show();
     }

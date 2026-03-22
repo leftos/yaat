@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Yaat.Client.ViewModels;
@@ -9,6 +11,7 @@ public partial class CommandInputView : UserControl
 {
     private Key _aircraftSelectKey = Key.Add;
     private KeyModifiers _aircraftSelectModifiers = KeyModifiers.None;
+    private Popup? _commandPopup;
 
     public CommandInputView()
     {
@@ -49,10 +52,27 @@ public partial class CommandInputView : UserControl
             sigHelpNext.Click += OnSigHelpNextClick;
         }
 
+        // Drive popup IsOpen from code-behind so it respects this view's visibility.
+        // Two CommandInputView instances share the same VM — the hidden embedded one
+        // must not open its popup (would appear at 0,0).
+        _commandPopup = this.FindControl<Popup>("CommandPopup");
+        if (DataContext is MainViewModel vm)
+        {
+            vm.CommandInput.PropertyChanged += OnCommandInputPropertyChanged;
+        }
+
         // Dismiss popups when the parent window loses focus (prevents topmost overlay over other apps)
         if (TopLevel.GetTopLevel(this) is Window window)
         {
             window.Deactivated += OnWindowDeactivated;
+        }
+    }
+
+    private void OnCommandInputPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == "IsPopupVisible" && _commandPopup is not null && DataContext is MainViewModel vm)
+        {
+            _commandPopup.IsOpen = vm.CommandInput.IsPopupVisible && IsVisible;
         }
     }
 

@@ -1,19 +1,25 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
 
 public partial class DataGridWindow : Window
 {
-    private WindowGeometryHelper? _geometryHelper;
+    private readonly WindowGeometryHelper _geometryHelper;
     private Key _alwaysOnTopKey = Key.None;
     private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.None;
 
     public DataGridWindow()
+        : this(new UserPreferences()) { }
+
+    public DataGridWindow(UserPreferences preferences)
     {
         InitializeComponent();
+        _geometryHelper = new WindowGeometryHelper(this, preferences, "DataGrid", 1000, 600);
+        _geometryHelper.Restore();
     }
 
     protected override void OnLoaded(RoutedEventArgs e)
@@ -22,9 +28,6 @@ public partial class DataGridWindow : Window
 
         if (DataContext is MainViewModel vm)
         {
-            _geometryHelper = new WindowGeometryHelper(this, vm.Preferences, "DataGrid", 1000, 600);
-            _geometryHelper.Restore();
-
             if (SettingsViewModel.ParseKeybind(vm.Preferences.AlwaysOnTopKey, out var key, out var mods))
             {
                 _alwaysOnTopKey = key;
@@ -35,7 +38,7 @@ public partial class DataGridWindow : Window
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (_geometryHelper is not null && e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
+        if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
         {
             _geometryHelper.ToggleTopmost();
             e.Handled = true;

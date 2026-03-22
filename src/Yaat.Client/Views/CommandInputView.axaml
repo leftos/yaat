@@ -22,8 +22,7 @@
                      Watermark="Enter command (FH 270, CM 240...)"
                      x:Name="CommandInput" />
             <!-- Combined popup for signature help + autocomplete -->
-            <Popup IsOpen="{Binding CommandInput.IsPopupVisible}"
-                   PlacementTarget="{Binding #CommandInput}"
+            <Popup PlacementTarget="{Binding #CommandInput}"
                    Placement="Top"
                    IsLightDismissEnabled="False"
                    Width="{Binding #CommandInput.Bounds.Width}"

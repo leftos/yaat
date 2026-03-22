@@ -1,18 +1,24 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views;
 
 public partial class TerminalWindow : Window
 {
-    private WindowGeometryHelper? _geometryHelper;
+    private readonly WindowGeometryHelper _geometryHelper;
     private Key _alwaysOnTopKey = Key.None;
     private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.None;
 
     public TerminalWindow()
+        : this(new UserPreferences()) { }
+
+    public TerminalWindow(UserPreferences preferences)
     {
         InitializeComponent();
+        _geometryHelper = new WindowGeometryHelper(this, preferences, "Terminal", 700, 400);
+        _geometryHelper.Restore();
     }
 
     protected override void OnLoaded(Avalonia.Interactivity.RoutedEventArgs e)
@@ -21,9 +27,6 @@ public partial class TerminalWindow : Window
 
         if (DataContext is MainViewModel vm)
         {
-            _geometryHelper = new WindowGeometryHelper(this, vm.Preferences, "Terminal", 700, 400);
-            _geometryHelper.Restore();
-
             if (SettingsViewModel.ParseKeybind(vm.Preferences.AlwaysOnTopKey, out var aotKey, out var aotMods))
             {
                 _alwaysOnTopKey = aotKey;
@@ -40,7 +43,7 @@ public partial class TerminalWindow : Window
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (_geometryHelper is not null && e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
+        if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
         {
             _geometryHelper.ToggleTopmost();
             e.Handled = true;

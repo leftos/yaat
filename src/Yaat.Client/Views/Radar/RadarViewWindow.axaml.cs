@@ -1,19 +1,25 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views.Radar;
 
 public partial class RadarViewWindow : Window
 {
-    private WindowGeometryHelper? _geometryHelper;
+    private readonly WindowGeometryHelper _geometryHelper;
     private Key _alwaysOnTopKey = Key.None;
     private KeyModifiers _alwaysOnTopModifiers = KeyModifiers.None;
 
     public RadarViewWindow()
+        : this(new UserPreferences()) { }
+
+    public RadarViewWindow(UserPreferences preferences)
     {
         InitializeComponent();
+        _geometryHelper = new WindowGeometryHelper(this, preferences, "RadarView", 800, 600);
+        _geometryHelper.Restore();
     }
 
     protected override void OnLoaded(RoutedEventArgs e)
@@ -22,9 +28,6 @@ public partial class RadarViewWindow : Window
 
         if (DataContext is MainViewModel vm)
         {
-            _geometryHelper = new WindowGeometryHelper(this, vm.Preferences, "RadarView", 800, 600);
-            _geometryHelper.Restore();
-
             if (SettingsViewModel.ParseKeybind(vm.Preferences.AlwaysOnTopKey, out var key, out var mods))
             {
                 _alwaysOnTopKey = key;
@@ -35,7 +38,7 @@ public partial class RadarViewWindow : Window
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (_geometryHelper is not null && e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
+        if (e.Key == _alwaysOnTopKey && e.KeyModifiers == _alwaysOnTopModifiers)
         {
             _geometryHelper.ToggleTopmost();
             e.Handled = true;
