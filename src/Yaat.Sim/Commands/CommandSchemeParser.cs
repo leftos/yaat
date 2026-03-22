@@ -20,6 +20,7 @@ public static class CommandSchemeParser
     {
         failure = null;
         var trimmed = ExpandMultiCommand(ExpandWait(ExpandSpeedUntil(input.Trim())));
+        trimmed = CommaBeforeCondition.Replace(trimmed, ";");
         if (string.IsNullOrEmpty(trimmed))
         {
             return null;
@@ -588,6 +589,15 @@ public static class CommandSchemeParser
         "BEHIND",
         "GW",
     };
+
+    /// <summary>
+    /// Promotes commas before condition keywords to semicolons so that
+    /// "cm 020, at oak30num cm 014" parses as "cm 020; at oak30num cm 014".
+    /// </summary>
+    private static readonly Regex CommaBeforeCondition = new(
+        @",\s*(?=(?:AT|LV|ATFN|ONHO|ONH|GIVEWAY|BEHIND|GW)\s)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
 
     /// <summary>
     /// Greedy splitting: each verb consumes tokens until Parse fails, then the next token

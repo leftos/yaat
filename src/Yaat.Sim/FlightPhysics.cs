@@ -962,6 +962,10 @@ public static class FlightPhysics
             }
             else
             {
+                // Lookahead: check next block's AT-fix trigger while current block is running.
+                // This allows "DCT A B C; AT B CM 014" to fire the altitude command at B
+                // without waiting for the DCT to reach C first.
+                LookaheadAtFixTrigger(aircraft, queue, aircraftLookup);
                 return;
             }
         }
@@ -987,6 +991,36 @@ public static class FlightPhysics
             // Apply the block's commands
             ApplyBlock(aircraft, block);
         }
+    }
+
+    /// <summary>
+    /// Peeks at the next block in the queue. If it has an AT fix-name trigger and the
+    /// aircraft is currently at that fix, apply the block immediately alongside the
+    /// still-running current block. This lets "DCT A B C; AT B CM 014" fire the
+    /// altitude command when the aircraft crosses B, without waiting for the DCT to
+    /// reach C first.
+    /// </summary>
+    private static void LookaheadAtFixTrigger(AircraftState aircraft, CommandQueue queue, Func<string, AircraftState?>? aircraftLookup)
+    {
+        int nextIdx = queue.CurrentBlockIndex + 1;
+        if (nextIdx >= queue.Blocks.Count)
+        {
+            return;
+        }
+
+        var nextBlock = queue.Blocks[nextIdx];
+        if (nextBlock.IsApplied || nextBlock.Trigger is null || nextBlock.Trigger.Type is not BlockTriggerType.ReachFix)
+        {
+            return;
+        }
+
+        if (!IsTriggerMet(aircraft, nextBlock.Trigger, aircraftLookup))
+        {
+            return;
+        }
+
+        nextBlock.TriggerMet = true;
+        ApplyBlock(aircraft, nextBlock);
     }
 
     private static void UpdateGiveWayResume(AircraftState aircraft, Func<string, AircraftState?>? aircraftLookup)
