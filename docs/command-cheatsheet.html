@@ -4,251 +4,349 @@
 <meta charset="UTF-8">
 <title>YAAT Command Cheatsheet</title>
 <style>
-  @page { size: letter; margin: 0.4in; }
+  @page { size: letter landscape; margin: 0.35in; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: "Segoe UI", Consolas, Arial, sans-serif; font-size: 7.5pt; line-height: 1.25; color: #1a1a1a; columns: 2; column-gap: 14px; }
-  h1 { column-span: all; text-align: center; font-size: 13pt; margin-bottom: 4px; letter-spacing: 0.5px; }
-  .subtitle { column-span: all; text-align: center; font-size: 7pt; color: #555; margin-bottom: 6px; border-bottom: 1.5px solid #333; padding-bottom: 4px; }
-  h2 { font-size: 8.5pt; background: #2a2a2a; color: #fff; padding: 1.5px 5px; margin: 5px 0 2px 0; break-after: avoid; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 3px; }
-  th { text-align: left; font-size: 6.5pt; text-transform: uppercase; color: #666; border-bottom: 1px solid #999; padding: 1px 3px; }
-  td { padding: 1px 3px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
-  td:first-child { white-space: nowrap; }
-  code { font-family: "Cascadia Mono", "Consolas", monospace; font-size: 7pt; background: #f0f0f0; padding: 0 2px; border-radius: 1px; }
-  .note { font-size: 6.5pt; color: #444; margin: 1px 0 3px 0; font-style: italic; break-inside: avoid; }
-  .sep { border: none; border-top: 1px dashed #bbb; margin: 3px 0; }
-  tr { break-inside: avoid; }
-  .section { break-inside: avoid-column; }
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 6.5pt;
+    line-height: 1.22;
+    color: #1a1a1a;
+    columns: 4;
+    column-gap: 10px;
+    column-rule: 1px solid #ddd;
+  }
+  h1 {
+    column-span: all;
+    text-align: center;
+    font-size: 10pt;
+    margin-bottom: 2px;
+    letter-spacing: 0.4px;
+  }
+  .sub {
+    column-span: all;
+    text-align: center;
+    font-size: 6pt;
+    color: #555;
+    margin-bottom: 4px;
+    border-bottom: 1.5px solid #333;
+    padding-bottom: 3px;
+  }
+  .sub code { font-size: 6pt; }
+  h2 {
+    font-size: 7pt;
+    background: #2a2a2a;
+    color: #fff;
+    padding: 1px 4px;
+    margin: 3px 0 1px 0;
+    break-after: avoid;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .s { break-inside: avoid-column; }
+  .r {
+    display: flex;
+    padding: 0.5px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .v {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 6.5pt;
+    font-weight: 700;
+    white-space: nowrap;
+    min-width: 52px;
+  }
+  .a {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 6pt;
+    color: #666;
+    white-space: nowrap;
+    min-width: 42px;
+  }
+  .d {
+    color: #444;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .n {
+    font-size: 5.5pt;
+    color: #666;
+    font-style: italic;
+    padding: 0.5px 0 1px 2px;
+    break-inside: avoid;
+  }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 6pt;
+    background: #f0f0f0;
+    padding: 0 1.5px;
+    border-radius: 1px;
+  }
+  .g { color: #999; font-size: 5.5pt; font-style: italic; }
 </style>
 </head>
 <body>
 
 <h1>YAAT Command Cheatsheet</h1>
-<div class="subtitle">Numeric args concatenate: <code>FH270</code> <code>CM240</code> <code>S250</code> <code>HO3Y</code> &nbsp;|&nbsp; <code>H</code> = heading (with arg) / present heading (bare) &nbsp;|&nbsp; <code>T30L</code> / <code>T30R</code> = relative turn</div>
+<div class="sub">Args concatenate: <code>FH270</code> <code>CM240</code> <code>S250</code> <code>HO3Y</code> &nbsp;|&nbsp; Altitudes: <code>050</code> / <code>5000</code> = 5,000 ft &nbsp; <code>A25</code> = 2,500 ft AGL &nbsp;|&nbsp; <code>*</code> = global command</div>
 
-<div class="section">
+<!-- ═══ HEADING ═══ -->
+<div class="s">
 <h2>Heading</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Fly heading</td><td><code>FH 270</code></td><td><code>H</code></td></tr>
-<tr><td>Turn left</td><td><code>TL 180</code></td><td><code>L</code>, <code>LT</code></td></tr>
-<tr><td>Turn right</td><td><code>TR 090</code></td><td><code>R</code>, <code>RT</code></td></tr>
-<tr><td>Relative left</td><td><code>RELL 30</code></td><td><code>T30L</code></td></tr>
-<tr><td>Relative right</td><td><code>RELR 30</code></td><td><code>T30R</code></td></tr>
-<tr><td>Fly present heading</td><td><code>FPH</code></td><td><code>FCH</code>, <code>H</code></td></tr>
-</table>
+<div class="r"><span class="v">FH</span><span class="a">h</span><span class="d">Fly heading</span></div>
+<div class="r"><span class="v">TL / TR</span><span class="a">l r</span><span class="d">Turn left / right to heading</span></div>
+<div class="r"><span class="v">RELL / RELR</span><span class="a">lt rt</span><span class="d">Relative turn (T30L / T30R syntax)</span></div>
+<div class="r"><span class="v">FPH</span><span class="a">fch</span><span class="d">Fly present heading</span></div>
 </div>
 
-<div class="section">
+<!-- ═══ ALTITUDE / SPEED ═══ -->
+<div class="s">
 <h2>Altitude / Speed</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Climb/maintain</td><td><code>CM 240</code></td><td><code>C</code></td></tr>
-<tr><td>Descend/maintain</td><td><code>DM 050</code></td><td><code>D</code></td></tr>
-<tr><td>Speed</td><td><code>SPD 250</code></td><td><code>S</code>, <code>SL</code>, <code>SLOW</code></td></tr>
-<tr><td>Speed floor / ceiling</td><td><code>SPD 210+</code> / <code>210-</code></td><td></td></tr>
-<tr><td>Resume normal speed</td><td><code>RNS</code></td><td><code>NS</code></td></tr>
-<tr><td>Delete speed restr.</td><td><code>DSR</code></td><td></td></tr>
-<tr><td>Climb via (SID)</td><td><code>CVIA</code></td><td></td></tr>
-<tr><td>Descend via (STAR)</td><td><code>DVIA</code></td><td></td></tr>
-</table>
-<div class="note">Altitudes: <code>050</code> = 5,000 ft &nbsp; <code>5000</code> = 5,000 ft &nbsp; <code>A25</code> = 2,500 ft AGL</div>
+<div class="r"><span class="v">CM</span><span class="a"></span><span class="d">Climb and maintain alt</span></div>
+<div class="r"><span class="v">DM</span><span class="a"></span><span class="d">Descend and maintain alt</span></div>
+<div class="r"><span class="v">SPD</span><span class="a">s sl slow</span><span class="d">Speed (knots IAS); 210+ / 210- floor/ceil</span></div>
+<div class="r"><span class="v">RNS</span><span class="a">ns</span><span class="d">Resume normal speed</span></div>
+<div class="r"><span class="v">RFAS</span><span class="a">fas</span><span class="d">Reduce to final approach speed</span></div>
+<div class="r"><span class="v">DSR</span><span class="a"></span><span class="d">Delete speed restrictions</span></div>
+<div class="r"><span class="v">EXP</span><span class="a"></span><span class="d">Expedite [alt]</span></div>
+<div class="r"><span class="v">NORM</span><span class="a"></span><span class="d">Normal rate</span></div>
+<div class="r"><span class="v">MACH</span><span class="a">m</span><span class="d">Maintain Mach number</span></div>
 </div>
 
-<div class="section">
-<h2>Squawk / Transponder</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Squawk</td><td><code>SQ 4521</code></td><td><code>SQUAWK</code></td></tr>
-<tr><td>Squawk VFR</td><td><code>SQVFR</code></td><td><code>SQV</code></td></tr>
-<tr><td>Squawk normal</td><td><code>SQNORM</code></td><td><code>SN</code>, <code>SQA</code>, <code>SQON</code></td></tr>
-<tr><td>Squawk standby</td><td><code>SQSBY</code></td><td><code>SS</code>, <code>SQS</code></td></tr>
-<tr><td>Ident</td><td><code>IDENT</code></td><td><code>ID</code>, <code>SQI</code>, <code>SQID</code></td></tr>
-<tr><td>Random squawk</td><td><code>RANDSQ</code></td><td></td></tr>
-</table>
-</div>
-
-<div class="section">
+<!-- ═══ NAVIGATION ═══ -->
+<div class="s">
 <h2>Navigation</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Direct to fix</td><td><code>DCT SUNOL</code></td><td></td></tr>
-<tr><td>Force direct to</td><td><code>DCTF SJC</code></td><td></td></tr>
-<tr><td>Append direct to</td><td><code>ADCT SUNOL</code></td><td></td></tr>
-<tr><td>Append force DCT</td><td><code>ADCTF SUNOL</code></td><td></td></tr>
-<tr><td>Cross fix at alt</td><td><code>CFIX SUNOL A034</code></td><td></td></tr>
-<tr><td>Cross next fix</td><td><code>CFIX 034</code></td><td></td></tr>
-<tr><td>Depart fix on hdg</td><td><code>DEPART SUNOL 270</code></td><td><code>DEP</code></td></tr>
-<tr><td>Radial outbound</td><td><code>JRADO SJC 150</code></td><td><code>JRAD</code></td></tr>
-<tr><td>Radial inbound</td><td><code>JRADI SJC 150</code></td><td><code>JICRS</code></td></tr>
-</table>
+<div class="r"><span class="v">DCT</span><span class="a"></span><span class="d">Direct to fix</span></div>
+<div class="r"><span class="v">DCTF</span><span class="a"></span><span class="d">Force direct to (bypass validation)</span></div>
+<div class="r"><span class="v">ADCT</span><span class="a"></span><span class="d">Append direct to fix</span></div>
+<div class="r"><span class="v">ADCTF</span><span class="a"></span><span class="d">Append force direct to</span></div>
+<div class="r"><span class="v">TLDCT / TRDCT</span><span class="a"></span><span class="d">Turn L/R then direct to fix</span></div>
 </div>
 
-<div class="section">
-<h2>Ground</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Pushback</td><td><code>PUSH</code></td><td></td></tr>
-<tr><td>Pushback heading</td><td><code>PUSH 270</code></td><td></td></tr>
-<tr><td>Pushback to twy</td><td><code>PUSH A</code></td><td></td></tr>
-<tr><td>Push twy facing twy</td><td><code>PUSH TE T</code></td><td></td></tr>
-<tr><td>Push twy facing hdg</td><td><code>PUSH TE 180</code></td><td></td></tr>
-<tr><td>Taxi</td><td><code>TAXI S T U W</code></td><td></td></tr>
-<tr><td>Taxi to runway</td><td><code>TAXI T U W 30</code></td><td></td></tr>
-<tr><td>Taxi (RWY-first)</td><td><code>RWY 30 TAXI T U W</code></td><td></td></tr>
-<tr><td>Taxi + hold-short</td><td><code>TAXI S T HS 28L</code></td><td></td></tr>
-<tr><td>Taxi to parking</td><td><code>TAXI S T @B12</code></td><td></td></tr>
-<tr><td>Hold position</td><td><code>HOLD</code></td><td><code>HP</code></td></tr>
-<tr><td>Resume taxi</td><td><code>RES</code></td><td><code>RESUME</code></td></tr>
-<tr><td>Cross runway</td><td><code>CROSS 28L</code></td><td></td></tr>
-<tr><td>Hold short of twy</td><td><code>HS B</code></td><td></td></tr>
-<tr><td>Assign runway</td><td><code>RWY 30</code></td><td></td></tr>
-<tr><td>Exit left / right</td><td><code>EL</code> / <code>ER</code></td><td></td></tr>
-<tr><td>Exit to taxiway</td><td><code>EXIT A3</code></td><td></td></tr>
-<tr><td>Follow</td><td><code>FOLLOW SWA123</code></td><td><code>FOL</code></td></tr>
-<tr><td>Give way</td><td><code>GIVEWAY SWA123</code></td><td><code>BEHIND</code></td></tr>
-</table>
+<!-- ═══ TRANSPONDER ═══ -->
+<div class="s">
+<h2>Transponder</h2>
+<div class="r"><span class="v">SQ</span><span class="a">squawk</span><span class="d">Squawk code (random if bare)</span></div>
+<div class="r"><span class="v">SQVFR</span><span class="a">sqv</span><span class="d">Squawk VFR (1200)</span></div>
+<div class="r"><span class="v">SQNORM</span><span class="a">sn</span><span class="d">Squawk normal</span></div>
+<div class="r"><span class="v">SQSBY</span><span class="a">ss</span><span class="d">Squawk standby</span></div>
+<div class="r"><span class="v">IDENT</span><span class="a">id</span><span class="d">Ident</span></div>
+<div class="r"><span class="v">RANDSQ</span><span class="a"></span><span class="d">Random squawk</span></div>
+<div class="n">Global: <code>SQALL</code>* <code>SNALL</code>* <code>SSALL</code>*</div>
 </div>
 
-<div class="section">
+<!-- ═══ APPROACH / PROCEDURES ═══ -->
+<div class="s">
 <h2>Approach / Procedures</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Cleared approach</td><td><code>CAPP ILS28R</code></td><td></td></tr>
-<tr><td>Join approach</td><td><code>JAPP ILS28R</code></td><td></td></tr>
-<tr><td>Straight-in</td><td><code>CAPPSI ILS28R</code></td><td><code>JAPPSI</code></td></tr>
-<tr><td>Forced approach</td><td><code>CAPPF ILS28R</code></td><td><code>JAPPF</code></td></tr>
-<tr><td>PTAC</td><td><code>PTAC 280 025 ILS30</code></td><td></td></tr>
-<tr><td>Join final course</td><td><code>JFAC ILS28R</code></td><td><code>JLOC</code>, <code>JF</code></td></tr>
-<tr><td>Join arrival</td><td><code>JARR OAK.SALI2</code></td><td><code>ARR</code>, <code>STAR</code>, <code>JSTAR</code></td></tr>
-<tr><td>JARR + entry fix</td><td><code>JARR SALI2 SUNOL</code></td><td></td></tr>
-<tr><td>Expect approach</td><td><code>EAPP I28R</code></td><td><code>EXPECT</code></td></tr>
-<tr><td>Visual approach</td><td><code>CVA 28R</code></td><td><code>VISUAL</code></td></tr>
-<tr><td>Holding pattern</td><td><code>HOLDP FIX R 180 1M</code></td><td><code>HOLD</code></td></tr>
-<tr><td>List approaches</td><td><code>APPS</code></td><td><code>APPS OAK</code></td></tr>
-</table>
-<div class="note">Rich forms: <code>AT fix CAPP ...</code>, <code>DCT fix CAPP ...</code>, <code>CFIX fix alt CAPP ...</code> (also JAPP, CAPPSI, JAPPSI)</div>
+<div class="r"><span class="v">EAPP</span><span class="a">expect</span><span class="d">Expect approach</span></div>
+<div class="r"><span class="v">CAPP</span><span class="a">ctl</span><span class="d">Cleared approach [id]</span></div>
+<div class="r"><span class="v">JAPP</span><span class="a"></span><span class="d">Join approach id</span></div>
+<div class="r"><span class="v">CAPPSI / JAPPSI</span><span class="a"></span><span class="d">Straight-in approach</span></div>
+<div class="r"><span class="v">CAPPF / JAPPF</span><span class="a"></span><span class="d">Force approach (bypass checks)</span></div>
+<div class="r"><span class="v">JFAC</span><span class="a">jloc jf</span><span class="d">Join final approach course [id]</span></div>
+<div class="r"><span class="v">JARR</span><span class="a">arr star</span><span class="d">Join STAR (star entry_fix)</span></div>
+<div class="r"><span class="v">JAWY</span><span class="a"></span><span class="d">Join airway</span></div>
+<div class="r"><span class="v">JRADO</span><span class="a">jrad</span><span class="d">Join radial outbound (fix bearing)</span></div>
+<div class="r"><span class="v">JRADI</span><span class="a">jicrs</span><span class="d">Join radial inbound (fix bearing)</span></div>
+<div class="r"><span class="v">HOLDP</span><span class="a"></span><span class="d">Holding pattern (fix inbound leg L/R)</span></div>
+<div class="r"><span class="v">PTAC</span><span class="a"></span><span class="d">Pos/turn/alt/clearance [hdg alt app]</span></div>
+<div class="r"><span class="v">CVIA</span><span class="a"></span><span class="d">Climb via SID [except alt]</span></div>
+<div class="r"><span class="v">DVIA</span><span class="a"></span><span class="d">Descend via STAR [except alt]</span></div>
+<div class="r"><span class="v">CFIX</span><span class="a">cf</span><span class="d">Cross fix at altitude</span></div>
+<div class="r"><span class="v">DEPART</span><span class="a">dep d</span><span class="d">Depart fix on heading</span></div>
+<div class="r"><span class="v">APPS</span><span class="a"></span><span class="d">List approaches [airport]*</span></div>
+<div class="r"><span class="v">CVA</span><span class="a">visual</span><span class="d">Cleared visual approach (runway)</span></div>
+<div class="r"><span class="v">FOLLOW</span><span class="a">fol</span><span class="d">Follow traffic (airborne)</span></div>
+<div class="r"><span class="v">RFIS</span><span class="a"></span><span class="d">Report field in sight* (RFISF = force)</span></div>
+<div class="r"><span class="v">RTIS</span><span class="a"></span><span class="d">Report traffic in sight* [cs] (RTISF = force)</span></div>
+<div class="n">Rich forms: <code>AT fix CAPP</code> <code>DCT fix CAPP</code> <code>CFIX fix alt CAPP</code></div>
 </div>
 
-<div class="section">
+<!-- ═══ TOWER ═══ -->
+<div class="s">
 <h2>Tower</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Line up and wait</td><td><code>LUAW</code></td><td><code>POS</code>, <code>LU</code>, <code>PH</code></td></tr>
-<tr><td>Cleared for takeoff</td><td><code>CTO</code></td><td></td></tr>
-<tr><td>Cancel takeoff</td><td><code>CTOC</code></td><td></td></tr>
-<tr><td>Cleared to land</td><td><code>CTL</code></td><td><code>FS</code></td></tr>
-<tr><td>Cancel landing</td><td><code>CLC</code></td><td><code>CTLC</code></td></tr>
-<tr><td>Go around</td><td><code>GA 270</code></td><td></td></tr>
-<tr><td>Touch and go</td><td><code>TG</code></td><td></td></tr>
-<tr><td>Stop and go</td><td><code>SG</code></td><td></td></tr>
-<tr><td>Low approach</td><td><code>LA</code></td><td></td></tr>
-<tr><td>Cleared for option</td><td><code>COPT</code></td><td></td></tr>
-<tr><td>Landing sequence</td><td><code>SEQ 2 UAL123</code></td><td></td></tr>
-</table>
-<div class="note">Takeoff: <code>CTO RH</code> rwy hdg, <code>CTO OC</code> on course, <code>CTO LT 270</code> / <code>RT 090</code> directional, <code>CTO MRC</code> rt crosswind, <code>CTO 360</code> fly 360</div>
+<div class="r"><span class="v">LUAW</span><span class="a">pos lu ph</span><span class="d">Line up and wait</span></div>
+<div class="r"><span class="v">CTO</span><span class="a"></span><span class="d">Cleared for takeoff</span></div>
+<div class="n">CTO modes: <code>RH</code> <code>OC</code> <code>hdg</code> <code>LT</code> <code>RT</code> <code>MLT</code> <code>MRT</code> <code>DCT</code> <code>MRC</code> <code>MRD</code> <code>MLC</code> <code>MLD</code> <code>MR270</code> <code>ML270</code> <code>360</code></div>
+<div class="r"><span class="v">CTOC</span><span class="a"></span><span class="d">Cancel takeoff clearance</span></div>
+<div class="r"><span class="v">GO</span><span class="a"></span><span class="d">Begin takeoff roll</span></div>
+<div class="r"><span class="v">GA</span><span class="a"></span><span class="d">Go around [heading]</span></div>
+<div class="r"><span class="v">CLAND</span><span class="a">cl fs</span><span class="d">Cleared to land (NODEL mod)</span></div>
+<div class="r"><span class="v">LAHSO</span><span class="a"></span><span class="d">Land and hold short of runway</span></div>
+<div class="r"><span class="v">CLC</span><span class="a">ctlc</span><span class="d">Cancel landing clearance</span></div>
+<div class="r"><span class="v">TG</span><span class="a"></span><span class="d">Touch and go [rwy / MLT / MRT]</span></div>
+<div class="r"><span class="v">SG</span><span class="a"></span><span class="d">Stop and go [MLT / MRT]</span></div>
+<div class="r"><span class="v">LA</span><span class="a"></span><span class="d">Low approach [MLT / MRT]</span></div>
+<div class="r"><span class="v">COPT</span><span class="a"></span><span class="d">Cleared for option [MLT / MRT]</span></div>
 </div>
 
-<div class="section">
+<!-- ═══ PATTERN ═══ -->
+<div class="s">
 <h2>Pattern</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Enter L/R downwind</td><td><code>ELD 28R</code> / <code>ERD 28R</code></td><td></td></tr>
-<tr><td>Enter L/R crosswind</td><td><code>ELC 28R</code> / <code>ERC 28R</code></td><td></td></tr>
-<tr><td>Enter L/R base</td><td><code>ELB 28R 3</code> / <code>ERB</code></td><td></td></tr>
-<tr><td>Enter final</td><td><code>EF 28R</code></td><td></td></tr>
-<tr><td>Make L/R traffic</td><td><code>MLT</code> / <code>MRT</code></td><td></td></tr>
-<tr><td>Turn crosswind</td><td><code>TC</code></td><td></td></tr>
-<tr><td>Turn downwind</td><td><code>TD</code></td><td></td></tr>
-<tr><td>Turn base</td><td><code>TB</code></td><td></td></tr>
-<tr><td>Extend leg</td><td><code>EXT</code></td><td></td></tr>
-<tr><td>Short approach</td><td><code>SA</code></td><td><code>MSA</code></td></tr>
-<tr><td>Normal approach</td><td><code>MNA</code></td><td></td></tr>
-<tr><td>Left/Right 360</td><td><code>L360</code> / <code>R360</code></td><td></td></tr>
-<tr><td>Left/Right 270</td><td><code>L270</code> / <code>R270</code></td><td></td></tr>
-<tr><td>Plan/Cancel 270</td><td><code>P270</code> / <code>NO270</code></td><td><code>PLAN270</code></td></tr>
-<tr><td>Pattern size</td><td><code>PS 1.5</code></td><td><code>PATTSIZE</code></td></tr>
-<tr><td>S-turns (L/R init)</td><td><code>MLS</code> / <code>MRS</code></td><td></td></tr>
-<tr><td>Circle airport</td><td><code>CA</code></td><td><code>CIRCLE</code></td></tr>
-</table>
+<div class="r"><span class="v">ELD / ERD</span><span class="a"></span><span class="d">Enter L/R downwind [rwy]</span></div>
+<div class="r"><span class="v">ELC / ERC</span><span class="a"></span><span class="d">Enter L/R crosswind [rwy]</span></div>
+<div class="r"><span class="v">ELB / ERB</span><span class="a"></span><span class="d">Enter L/R base [rwy] [dist]</span></div>
+<div class="r"><span class="v">EF</span><span class="a"></span><span class="d">Enter final [rwy]</span></div>
+<div class="r"><span class="v">MLT / MRT</span><span class="a"></span><span class="d">Make L/R traffic [rwy]</span></div>
+<div class="r"><span class="v">TC</span><span class="a"></span><span class="d">Turn crosswind</span></div>
+<div class="r"><span class="v">TD</span><span class="a"></span><span class="d">Turn downwind</span></div>
+<div class="r"><span class="v">TB</span><span class="a"></span><span class="d">Turn base</span></div>
+<div class="r"><span class="v">EXT</span><span class="a"></span><span class="d">Extend downwind</span></div>
+<div class="r"><span class="v">SA</span><span class="a">msa</span><span class="d">Short approach</span></div>
+<div class="r"><span class="v">MNA</span><span class="a"></span><span class="d">Normal approach</span></div>
+<div class="r"><span class="v">L360 / R360</span><span class="a"></span><span class="d">Left / right 360</span></div>
+<div class="r"><span class="v">L270 / R270</span><span class="a"></span><span class="d">Left / right 270</span></div>
+<div class="r"><span class="v">P270</span><span class="a">plan270</span><span class="d">Plan 270 at next turn</span></div>
+<div class="r"><span class="v">NO270</span><span class="a"></span><span class="d">Cancel 270</span></div>
+<div class="r"><span class="v">PS</span><span class="a">pattsize</span><span class="d">Pattern size multiplier</span></div>
+<div class="r"><span class="v">MLS / MRS</span><span class="a"></span><span class="d">S-turns (initial L / R) [count]</span></div>
+<div class="r"><span class="v">CA</span><span class="a">circle</span><span class="d">Circle airport</span></div>
 </div>
 
-<div class="section">
+<!-- ═══ HOLD ═══ -->
+<div class="s">
+<h2>Hold</h2>
+<div class="r"><span class="v">HPPL / HPPR</span><span class="a"></span><span class="d">Hold present position 360 L/R</span></div>
+<div class="r"><span class="v">HPP</span><span class="a"></span><span class="d">Hold present position (hover)</span></div>
+<div class="r"><span class="v">HFIXL / HFIXR</span><span class="a"></span><span class="d">Hold at fix L/R turns</span></div>
+<div class="r"><span class="v">HFIX</span><span class="a"></span><span class="d">Hold/hover at fix</span></div>
+</div>
+
+<!-- ═══ GROUND ═══ -->
+<div class="s">
+<h2>Ground</h2>
+<div class="r"><span class="v">PUSH</span><span class="a"></span><span class="d">Pushback [hdg / twy / twy hdg]</span></div>
+<div class="r"><span class="v">TAXI</span><span class="a"></span><span class="d">Taxi via route (see mods below)</span></div>
+<div class="n">TAXI mods: <code>RWY</code> <code>HS</code> <code>CROSS</code> <code>NODEL</code> <code>@parking</code> <code>$spot</code></div>
+<div class="r"><span class="v">HOLD</span><span class="a">hp</span><span class="d">Hold position</span></div>
+<div class="r"><span class="v">RES</span><span class="a">resume</span><span class="d">Resume taxi</span></div>
+<div class="r"><span class="v">CROSS</span><span class="a"></span><span class="d">Cross runway</span></div>
+<div class="r"><span class="v">HS</span><span class="a"></span><span class="d">Hold short of taxiway/runway</span></div>
+<div class="r"><span class="v">RWY</span><span class="a"></span><span class="d">Assign runway (TAXI mod avail)</span></div>
+<div class="r"><span class="v">FOLLOWG</span><span class="a">folg</span><span class="d">Follow traffic (ground)</span></div>
+<div class="r"><span class="v">GIVEWAY</span><span class="a">behind gw</span><span class="d">Give way to traffic</span></div>
+<div class="r"><span class="v">EL / ER</span><span class="a"></span><span class="d">Exit runway L/R [twy] (NODEL)</span></div>
+<div class="r"><span class="v">EXIT</span><span class="a"></span><span class="d">Exit onto taxiway (NODEL)</span></div>
+<div class="r"><span class="v">TAXIALL</span><span class="a"></span><span class="d">Taxi all to destination*</span></div>
+<div class="r"><span class="v">BREAK</span><span class="a"></span><span class="d">Break conflict</span></div>
+</div>
+
+<!-- ═══ HELICOPTER ═══ -->
+<div class="s">
+<h2>Helicopter</h2>
+<div class="r"><span class="v">ATXI</span><span class="a"></span><span class="d">Air taxi [helipad]</span></div>
+<div class="r"><span class="v">LAND</span><span class="a"></span><span class="d">Land at helipad (NODEL)</span></div>
+<div class="r"><span class="v">CTOPP</span><span class="a"></span><span class="d">Cleared takeoff present position</span></div>
+</div>
+
+<!-- ═══ TRACK OPERATIONS ═══ -->
+<div class="s">
 <h2>Track Operations</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Track</td><td><code>TRACK</code></td><td></td></tr>
-<tr><td>Drop track</td><td><code>DROP</code></td><td></td></tr>
-<tr><td>Handoff</td><td><code>HO 3Y</code></td><td></td></tr>
-<tr><td>Force handoff</td><td><code>HOF 3Y</code></td><td></td></tr>
-<tr><td>Accept handoff</td><td><code>ACCEPT</code></td><td><code>A</code></td></tr>
-<tr><td>Cancel handoff</td><td><code>CANCEL</code></td><td></td></tr>
-<tr><td>Pointout</td><td><code>PO 3Y</code></td><td></td></tr>
-<tr><td>Acknowledge</td><td><code>OK</code></td><td></td></tr>
-<tr><td>On-handoff action</td><td><code>ONHO</code></td><td><code>ONH</code></td></tr>
-</table>
+<div class="r"><span class="v">AS</span><span class="a"></span><span class="d">Set active position*</span></div>
+<div class="r"><span class="v">TRACK</span><span class="a"></span><span class="d">Track aircraft [position]</span></div>
+<div class="r"><span class="v">DROP</span><span class="a"></span><span class="d">Drop track</span></div>
+<div class="r"><span class="v">HO</span><span class="a"></span><span class="d">Handoff [position]</span></div>
+<div class="r"><span class="v">HOF</span><span class="a"></span><span class="d">Force handoff to position</span></div>
+<div class="r"><span class="v">ACCEPT</span><span class="a">a</span><span class="d">Accept handoff [callsign]</span></div>
+<div class="r"><span class="v">CANCEL</span><span class="a"></span><span class="d">Cancel handoff</span></div>
+<div class="r"><span class="v">PO</span><span class="a"></span><span class="d">Point out [position]</span></div>
+<div class="r"><span class="v">OK</span><span class="a"></span><span class="d">Acknowledge</span></div>
+<div class="r"><span class="v">ONHO</span><span class="a">onh</span><span class="d">On handoff action</span></div>
+<div class="r"><span class="v">ACCEPTALL</span><span class="a"></span><span class="d">Accept all handoffs*</span></div>
+<div class="r"><span class="v">HOALL</span><span class="a"></span><span class="d">Handoff all to position*</span></div>
 </div>
 
-<div class="section">
-<h2>Data Operations</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Annotate</td><td><code>ANNOTATE</code></td><td><code>AN</code>, <code>BOX</code></td></tr>
-<tr><td>Scratchpad 1</td><td><code>SP1 OAK</code></td><td></td></tr>
-<tr><td>Scratchpad 2</td><td><code>SP2 I8R</code></td><td></td></tr>
-<tr><td>Temp altitude</td><td><code>TEMPALT 120</code></td><td><code>TA</code>, <code>TEMP</code>, <code>QQ</code></td></tr>
-<tr><td>Cruise altitude</td><td><code>CRUISE 240</code></td><td><code>QZ</code></td></tr>
-</table>
+<!-- ═══ DATA / STRIPS ═══ -->
+<div class="s">
+<h2>Data / Strips</h2>
+<div class="r"><span class="v">ANNOTATE</span><span class="a">an box</span><span class="d">Annotate strip box (box# text)</span></div>
+<div class="r"><span class="v">STRIP</span><span class="a"></span><span class="d">Push strip to bay</span></div>
+<div class="r"><span class="v">SP1</span><span class="a">sp</span><span class="d">Scratchpad 1 [text / bare=clear]</span></div>
+<div class="r"><span class="v">SP2</span><span class="a"></span><span class="d">Scratchpad 2 [text / bare=clear]</span></div>
+<div class="r"><span class="v">TEMPALT</span><span class="a">ta qq</span><span class="d">Temporary altitude</span></div>
+<div class="r"><span class="v">CRUISE</span><span class="a">qz</span><span class="d">Cruise altitude</span></div>
 </div>
 
-<div class="section">
+<!-- ═══ COORDINATION ═══ -->
+<div class="s">
+<h2>Coordination</h2>
+<div class="r"><span class="v">RD</span><span class="a"></span><span class="d">Release [channel]</span></div>
+<div class="r"><span class="v">RDH</span><span class="a"></span><span class="d">Hold release [channel]</span></div>
+<div class="r"><span class="v">RDR</span><span class="a"></span><span class="d">Recall release [channel]</span></div>
+<div class="r"><span class="v">RDACK</span><span class="a"></span><span class="d">Acknowledge release [channel]</span></div>
+<div class="r"><span class="v">RDAUTO</span><span class="a"></span><span class="d">Toggle auto-ack for channel*</span></div>
+</div>
+
+<!-- ═══ BROADCAST ═══ -->
+<div class="s">
+<h2>Broadcast</h2>
+<div class="r"><span class="v">SAY</span><span class="a">sayf</span><span class="d">Broadcast pilot message (text)</span></div>
+<div class="r"><span class="v">SSPD</span><span class="a"></span><span class="d">Say speed</span></div>
+<div class="r"><span class="v">SMACH</span><span class="a"></span><span class="d">Say Mach</span></div>
+<div class="r"><span class="v">SEAPP</span><span class="a"></span><span class="d">Say expected approach</span></div>
+<div class="r"><span class="v">SALT</span><span class="a"></span><span class="d">Say altitude</span></div>
+<div class="r"><span class="v">SHDG</span><span class="a"></span><span class="d">Say heading</span></div>
+<div class="r"><span class="v">SPOS</span><span class="a"></span><span class="d">Say position</span></div>
+</div>
+
+<!-- ═══ FLIGHT PLAN ═══ -->
+<div class="s">
+<h2>Flight Plan</h2>
+<div class="r"><span class="v">APT</span><span class="a">dest</span><span class="d">Change destination airport</span></div>
+<div class="r"><span class="v">FP</span><span class="a"></span><span class="d">Create IFR FP (type alt route)</span></div>
+<div class="r"><span class="v">VP</span><span class="a"></span><span class="d">Create VFR FP (type alt route)</span></div>
+<div class="r"><span class="v">DA</span><span class="a"></span><span class="d">Flight data / abbreviated FP</span></div>
+<div class="r"><span class="v">REMARKS</span><span class="a">rem</span><span class="d">Set flight plan remarks</span></div>
+</div>
+
+<!-- ═══ QUEUE ═══ -->
+<div class="s">
+<h2>Queue</h2>
+<div class="r"><span class="v">DELAT</span><span class="a"></span><span class="d">Delete queued commands [index]</span></div>
+<div class="r"><span class="v">SHOWAT</span><span class="a"></span><span class="d">Show queued commands</span></div>
+</div>
+
+<!-- ═══ CONSOLIDATION ═══ -->
+<div class="s">
 <h2>Consolidation</h2>
-<table>
-<tr><th>Command</th><th>Verb</th></tr>
-<tr><td>Set active position</td><td><code>AS 2B</code></td></tr>
-<tr><td>Consolidate</td><td><code>CON 1T 1F</code></td></tr>
-<tr><td>Consolidate (full)</td><td><code>CON+ 1T 1F</code></td></tr>
-<tr><td>Deconsolidate</td><td><code>DECON 1F</code></td></tr>
-</table>
+<div class="r"><span class="v">CON</span><span class="a"></span><span class="d">Consolidate positions*</span></div>
+<div class="r"><span class="v">CON+</span><span class="a"></span><span class="d">Full consolidate positions*</span></div>
+<div class="r"><span class="v">DECON</span><span class="a"></span><span class="d">Deconsolidate position*</span></div>
 </div>
 
-<div class="section">
-<h2>Global Commands</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Pause / Unpause</td><td><code>PAUSE</code> / <code>UNPAUSE</code></td><td><code>P</code> / <code>U</code>, <code>UN</code></td></tr>
-<tr><td>Sim rate</td><td><code>SIMRATE 2</code></td><td></td></tr>
-<tr><td>Squawk all</td><td><code>SQALL</code></td><td></td></tr>
-<tr><td>SQ normal / sby all</td><td><code>SNALL</code> / <code>SSALL</code></td><td></td></tr>
-<tr><td>Accept all handoffs</td><td><code>ACCEPTALL</code></td><td></td></tr>
-<tr><td>Handoff all</td><td><code>HOALL 3Y</code></td><td></td></tr>
-<tr><td>Report field/traffic</td><td><code>RFIS</code> / <code>RTIS</code></td><td></td></tr>
-</table>
+<!-- ═══ SIM CONTROL ═══ -->
+<div class="s">
+<h2>Sim Control</h2>
+<div class="r"><span class="v">DEL</span><span class="a">x</span><span class="d">Delete aircraft</span></div>
+<div class="r"><span class="v">PAUSE</span><span class="a">p</span><span class="d">Pause simulation*</span></div>
+<div class="r"><span class="v">UNPAUSE</span><span class="a">u un</span><span class="d">Unpause simulation*</span></div>
+<div class="r"><span class="v">SIMRATE</span><span class="a"></span><span class="d">Sim rate 1-8*</span></div>
+<div class="r"><span class="v">WAIT</span><span class="a">delay</span><span class="d">Wait seconds before next cmd</span></div>
+<div class="r"><span class="v">WAITD</span><span class="a"></span><span class="d">Wait until distance (nm) from fix</span></div>
+<div class="r"><span class="v">ADD</span><span class="a"></span><span class="d">Add aircraft (rules wt eng brg dist alt)*</span></div>
+<div class="r"><span class="v">SPAWN</span><span class="a"></span><span class="d">Spawn now</span></div>
+<div class="r"><span class="v">SPAWNDELAY</span><span class="a"></span><span class="d">Set spawn delay (seconds)</span></div>
 </div>
 
-<div class="section">
-<h2>Per-Aircraft</h2>
-<table>
-<tr><th>Command</th><th>Verb</th><th>Aliases</th></tr>
-<tr><td>Delete aircraft</td><td><code>DEL</code></td><td><code>X</code></td></tr>
-<tr><td>Say (broadcast)</td><td><code>SAY text</code></td><td></td></tr>
-<tr><td>Spawn now</td><td><code>SPAWN</code></td><td></td></tr>
-<tr><td>Spawn delay</td><td><code>DELAY 120</code></td><td></td></tr>
-<tr><td>Wait (seconds)</td><td><code>WAIT 30</code></td><td></td></tr>
-<tr><td>Wait (distance)</td><td><code>WAITD 4</code></td><td></td></tr>
-</table>
+<!-- ═══ FORCE / TELEPORT ═══ -->
+<div class="s">
+<h2>Force / Teleport</h2>
+<div class="r"><span class="v">FHN</span><span class="a"></span><span class="d">Instantly set heading</span></div>
+<div class="r"><span class="v">CMN</span><span class="a"></span><span class="d">Instantly set altitude</span></div>
+<div class="r"><span class="v">SPDN</span><span class="a">sln</span><span class="d">Instantly set speed</span></div>
+<div class="r"><span class="v">WARP</span><span class="a"></span><span class="d">Teleport to FRD hdg alt spd</span></div>
+<div class="r"><span class="v">WARPG</span><span class="a"></span><span class="d">Teleport on ground to location</span></div>
 </div>
 
-<div class="section">
-<h2>Command Chaining</h2>
-<table>
-<tr><th>Syntax</th><th>Meaning</th></tr>
-<tr><td><code>CM 100 ; FH 270</code></td><td>Sequential: climb, then turn</td></tr>
-<tr><td><code>CM 100 , FH 270</code></td><td>Parallel: climb and turn together</td></tr>
-<tr><td><code>LV 50 FH 270</code></td><td>At altitude 50: fly heading 270</td></tr>
-<tr><td><code>AT SUNOL CM 100</code></td><td>At fix SUNOL: climb to 10,000</td></tr>
-<tr><td><code>SPD 210 UNTIL SUNOL</code></td><td>Speed 210 until reaching SUNOL</td></tr>
-</table>
+<!-- ═══ COMMAND CHAINING ═══ -->
+<div class="s">
+<h2>Chaining / Conditions</h2>
+<div class="r"><span class="v">;</span><span class="a"></span><span class="d">Sequential: <code>CM 100 ; FH 270</code></span></div>
+<div class="r"><span class="v">,</span><span class="a"></span><span class="d">Parallel: <code>CM 100 , FH 270</code></span></div>
+<div class="r"><span class="v">LV</span><span class="a"></span><span class="d">At altitude: <code>LV 50 FH 270</code></span></div>
+<div class="r"><span class="v">AT</span><span class="a"></span><span class="d">At fix: <code>AT SUNOL CM 100</code></span></div>
+<div class="r"><span class="v">UNTIL</span><span class="a"></span><span class="d">Until fix/dist: <code>SPD 210 UNTIL SUNOL</code></span></div>
 </div>
 
 </body>
