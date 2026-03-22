@@ -169,11 +169,12 @@ internal static class PatternCommandHandler
 
         aircraft.Phases = phases;
 
-        var dirStr = direction == PatternDirection.Left ? "left" : "right";
-        var legStr = entryLeg.ToString().ToLowerInvariant();
+        var legDesc = entryLeg == PatternEntryLeg.Final
+            ? "final"
+            : $"{(direction == PatternDirection.Left ? "left" : "right")} {entryLeg.ToString().ToLowerInvariant()}";
         var distStr = finalDistanceNm is not null ? $", {finalDistanceNm:G}nm final" : "";
         var sideStr = isOnWrongSide ? " (crossing midfield)" : "";
-        return CommandDispatcher.Ok($"Enter {dirStr} {legStr}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
+        return CommandDispatcher.Ok($"Enter {legDesc}{CommandDispatcher.RunwayLabel(aircraft)}{distStr}{sideStr}");
     }
 
     internal static CommandResult TryChangePatternDirection(AircraftState aircraft, PatternDirection newDirection, string? runwayId)
