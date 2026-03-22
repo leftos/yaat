@@ -65,9 +65,11 @@ public sealed class DownwindPhase : Phase
         ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         ctx.Targets.NavigationRoute.Clear();
 
-        // Level off at pattern altitude
+        // Target pattern altitude. If still above TPA (e.g., from a high pattern entry),
+        // continue descending at the pattern rate instead of using the slower default.
         ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
-        ctx.Targets.DesiredVerticalRate = null;
+        ctx.Targets.DesiredVerticalRate =
+            (ctx.Aircraft.Altitude > Waypoints.PatternAltitude + 100) ? -CategoryPerformance.PatternDescentRate(ctx.Category) : null;
 
         // Downwind speed (per-type if available)
         ctx.Targets.TargetSpeed = AircraftPerformance.DownwindSpeed(ctx.AircraftType, ctx.Category);

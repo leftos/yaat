@@ -126,7 +126,7 @@ internal static class PatternCommandHandler
         // downwind heading before reaching the abeam point.
         if (!aircraft.IsOnGround && !isOnWrongSide)
         {
-            var (entryLat, entryLon) = GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm);
+            var (entryLat, entryLon) = GetEntryPoint(waypoints, effectiveEntryLeg, effectiveFinalDistanceNm, category);
             double distToEntry = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, entryLat, entryLon);
 
             if (distToEntry > 1.0)
@@ -144,12 +144,22 @@ internal static class PatternCommandHandler
                     leadInLon = leadIn.Lon;
                 }
 
+                // For final entry, target the glideslope altitude at the entry point
+                // (not TPA). FinalApproachPhase handles glideslope tracking from there.
+                double entryAltitude = waypoints.PatternAltitude;
+                if (effectiveEntryLeg == PatternEntryLeg.Final)
+                {
+                    double entryDist = GeoMath.DistanceNm(entryLat, entryLon, waypoints.ThresholdLat, waypoints.ThresholdLon);
+                    double gsAngle = GlideSlopeGeometry.AngleForCategory(category);
+                    entryAltitude = GlideSlopeGeometry.AltitudeAtDistance(entryDist, runway.ElevationFt, gsAngle);
+                }
+
                 phases.Add(
                     new PatternEntryPhase
                     {
                         EntryLat = entryLat,
                         EntryLon = entryLon,
-                        PatternAltitude = waypoints.PatternAltitude,
+                        PatternAltitude = entryAltitude,
                         LeadInLat = leadInLat,
                         LeadInLon = leadInLon,
                     }
@@ -641,8 +651,15 @@ internal static class PatternCommandHandler
     /// Get the entry point coordinates for a given pattern entry leg.
     /// For base with a custom final distance, computes the point on the
     /// extended centerline offset laterally by pattern size.
+    /// For final entry, computes the glideslope-TPA intercept point on
+    /// the extended centerline (or uses the custom final distance).
     /// </summary>
-    private static (double Lat, double Lon) GetEntryPoint(PatternWaypoints wp, PatternEntryLeg leg, double? finalDistanceNm)
+    private static (double Lat, double Lon) GetEntryPoint(
+        PatternWaypoints wp,
+        PatternEntryLeg leg,
+        double? finalDistanceNm,
+        AircraftCategory category
+    )
     {
         if (leg == PatternEntryLeg.Base && finalDistanceNm is not null)
         {
@@ -656,6 +673,17 @@ internal static class PatternCommandHandler
             return (entryPoint.Lat, entryPoint.Lon);
         }
 
+        if (leg == PatternEntryLeg.Final)
+        {
+            // Entry point on extended centerline at the glideslope-TPA intercept distance.
+            // If finalDistanceNm is specified, use that distance instead.
+            double gsAngle = GlideSlopeGeometry.AngleForCategory(category);
+            double entryDist = finalDistanceNm ?? (CategoryPerformance.PatternAltitudeAgl(category) / GlideSlopeGeometry.FeetPerNm(gsAngle));
+            TrueHeading reciprocal = wp.FinalHeading.ToReciprocal();
+            var point = GeoMath.ProjectPoint(wp.ThresholdLat, wp.ThresholdLon, reciprocal, entryDist);
+            return (point.Lat, point.Lon);
+        }
+
         return leg switch
         {
             // AIM 4-3-3: enter downwind at midfield (abeam the threshold), not at the departure end.
@@ -663,7 +691,6 @@ internal static class PatternCommandHandler
             PatternEntryLeg.Downwind => (wp.DownwindAbeamLat, wp.DownwindAbeamLon),
             PatternEntryLeg.Crosswind => (wp.CrosswindTurnLat, wp.CrosswindTurnLon),
             PatternEntryLeg.Base => (wp.BaseTurnLat, wp.BaseTurnLon),
-            PatternEntryLeg.Final => (wp.ThresholdLat, wp.ThresholdLon),
             PatternEntryLeg.Upwind => (wp.DepartureEndLat, wp.DepartureEndLon),
             _ => (wp.DownwindAbeamLat, wp.DownwindAbeamLon),
         };

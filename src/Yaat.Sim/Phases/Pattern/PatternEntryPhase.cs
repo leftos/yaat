@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Pattern;
@@ -47,19 +49,17 @@ public sealed class PatternEntryPhase : Phase
                 Latitude = EntryLat,
                 Longitude = EntryLon,
                 Name = "PTN-ENTRY",
+                AltitudeRestriction = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, (int)PatternAltitude),
             }
         );
         ctx.Targets.TargetTrueHeading = null;
         ctx.Targets.TurnRateOverride = null;
         ctx.Targets.PreferredTurnDirection = null;
 
-        // Descend/climb to pattern altitude
+        // Set target altitude; UpdateDescentPlanning in FlightPhysics computes
+        // the required descent rate from the AltitudeRestriction on PTN-ENTRY.
         ctx.Targets.TargetAltitude = PatternAltitude;
-        if (ctx.Aircraft.Altitude > PatternAltitude + 100)
-        {
-            ctx.Targets.DesiredVerticalRate = -CategoryPerformance.PatternDescentRate(ctx.Category);
-        }
-        else if (ctx.Aircraft.Altitude < PatternAltitude - 100)
+        if (ctx.Aircraft.Altitude < PatternAltitude - 100)
         {
             ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
