@@ -14,7 +14,7 @@ public sealed class TargetRenderer : IDisposable
     private static readonly SKColor SymbolColor = new(0, 176, 255);
     private static readonly SKColor DataBlockColor = SKColors.White;
     private static readonly SKColor SelectedColor = new(255, 255, 255);
-    private static readonly SKColor HistoryColor = new(0, 100, 0);
+    private static readonly SKColor HistoryColor = new(0, 176, 255);
     private static readonly SKColor GroundColor = new(0, 200, 0);
 
     private readonly SKPaint _symbolPaint = new()
@@ -351,7 +351,7 @@ public sealed class TargetRenderer : IDisposable
             {
                 var dot = dots[i];
                 var (hx, hy) = vp.LatLonToScreen(dot[0], dot[1]);
-                canvas.DrawCircle(hx, hy, 2f, _historyPaint);
+                canvas.DrawCircle(hx, hy, 4f, _historyPaint);
             }
         }
     }
