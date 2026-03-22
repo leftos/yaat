@@ -108,7 +108,8 @@ public class LandingExitDecelTests
 
         var (_, finalSpeed) = SimulateRollout(phase, ctx);
 
-        Assert.InRange(finalSpeed, 0, 20.5);
+        // Completes at coast speed (40 kts for jets) — RunwayExitPhase continues from here
+        Assert.InRange(finalSpeed, 38, 41);
     }
 
     [Fact]
@@ -124,7 +125,8 @@ public class LandingExitDecelTests
 
         var (_, finalSpeed) = SimulateRollout(phase, ctx);
 
-        Assert.InRange(finalSpeed, 0, 20.5);
+        // No layout → no exit → completes at coast speed (40 kts for jets)
+        Assert.InRange(finalSpeed, 38, 41);
     }
 
     [Fact]
@@ -252,7 +254,8 @@ public class LandingExitDecelTests
 
         var (_, finalSpeed) = SimulateRollout(phase, ctx);
 
-        Assert.InRange(finalSpeed, 0, 20.5);
+        // B is behind → no exit resolved → completes at coast speed
+        Assert.InRange(finalSpeed, 38, 41);
     }
 
     // -- ComputeExitAngle --

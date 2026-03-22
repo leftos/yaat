@@ -465,8 +465,9 @@ public class TowerPhaseTests
             }
         }
 
-        Assert.True(completed, "Landing should complete after rollout to 20kts");
-        Assert.True(ac.GroundSpeed <= 20.0);
+        Assert.True(completed, "Landing should complete after rollout");
+        // Without a ground layout, completes at coast speed (40 kts for jets)
+        Assert.True(ac.GroundSpeed <= 41.0);
     }
 
     [Fact]

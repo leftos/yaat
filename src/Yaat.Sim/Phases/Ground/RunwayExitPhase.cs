@@ -174,6 +174,16 @@ public sealed class RunwayExitPhase : Phase
 
         if (dist <= ArrivalThresholdNm)
         {
+            // If the hold-short node is occupied, stop here (queued behind)
+            // instead of snapping on top of the other aircraft
+            if (ctx.IsHoldShortNodeOccupied?.Invoke(_holdShortNode.Id) == true)
+            {
+                ctx.Aircraft.IndicatedAirspeed = 0;
+                ctx.Aircraft.CurrentTaxiway = _exitTaxiway;
+                ctx.Logger.LogDebug("[Exit] {Callsign}: hold-short {NodeId} occupied, stopping short", ctx.Aircraft.Callsign, _holdShortNode.Id);
+                return true;
+            }
+
             ctx.Aircraft.Latitude = _holdShortNode.Latitude;
             ctx.Aircraft.Longitude = _holdShortNode.Longitude;
             ctx.Aircraft.IndicatedAirspeed = 0;
@@ -211,6 +221,18 @@ public sealed class RunwayExitPhase : Phase
                 ctx.Aircraft.Callsign,
                 result.Value.Taxiway,
                 exitAngle.Value
+            );
+            return;
+        }
+
+        // Skip occupied hold-short nodes if more runway ahead — don't queue on active runway
+        if (hasMoreRunway && (ctx.IsHoldShortNodeOccupied?.Invoke(result.Value.Node.Id) == true))
+        {
+            ctx.Logger.LogDebug(
+                "[Exit] {Callsign}: skipping {Twy} (hold-short node {NodeId} occupied, more runway ahead)",
+                ctx.Aircraft.Callsign,
+                result.Value.Taxiway,
+                result.Value.Node.Id
             );
             return;
         }

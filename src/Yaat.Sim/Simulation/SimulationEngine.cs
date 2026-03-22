@@ -767,6 +767,21 @@ public sealed class SimulationEngine
             if (ac.Phases?.CurrentPhase is HoldingShortPhase hs)
             {
                 occupied.Add(hs.HoldShort.NodeId);
+                continue;
+            }
+
+            // Aircraft holding after runway exit are also occupying their hold-short node
+            if ((ac.Phases?.CurrentPhase is HoldingAfterExitPhase) && (ac.GroundSpeed < 1) && (ac.GroundLayout is not null))
+            {
+                var nearestNode = ac.GroundLayout.FindNearestNode(ac.Latitude, ac.Longitude);
+                if (nearestNode is not null && nearestNode.Type == GroundNodeType.RunwayHoldShort)
+                {
+                    double dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, nearestNode.Latitude, nearestNode.Longitude);
+                    if (dist < 0.02)
+                    {
+                        occupied.Add(nearestNode.Id);
+                    }
+                }
             }
         }
 

@@ -203,7 +203,10 @@ public sealed class LandingPhase : Phase
             }
         }
 
-        // Exit-aware braking: compute required decel to reach exit at turn-off speed
+        // Coast speed: decelerate to this speed and hold it while searching for exits
+        double coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
+
+        // Exit-aware braking: if an exit is resolved, compute braking to reach it
         if (_resolvedExitNode is not null)
         {
             double distToExit = GeoMath.AlongTrackDistanceNm(
@@ -223,22 +226,38 @@ public sealed class LandingPhase : Phase
                     // Need to brake harder to make the exit
                     decelRate = Math.Min(exitDecel, MaxDecelRateKtsPerSec);
                 }
+                else if (ctx.Aircraft.IndicatedAirspeed <= coastSpeed)
+                {
+                    // At or below coast speed — hold until braking point
+                    decelRate = 0;
+                }
                 else
                 {
-                    // Not yet at braking point — coast at or above RolloutCoastSpeed
-                    double coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
-                    if (ctx.Aircraft.IndicatedAirspeed > coastSpeed)
+                    // Above coast speed — allow normal decel down to coast speed
+                    double coastLimited = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
+                    if (coastLimited < coastSpeed)
                     {
-                        // Allow normal decel down to coast speed, but not below it
-                        double coastLimited = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
-                        if (coastLimited < coastSpeed)
-                        {
-                            decelRate = 0;
-                        }
+                        decelRate = 0;
                     }
-                    else
+                }
+            }
+        }
+        else
+        {
+            // No exit resolved — decelerate to coast speed and hold it
+            if (ctx.Aircraft.IndicatedAirspeed <= coastSpeed)
+            {
+                decelRate = 0;
+            }
+            else
+            {
+                // Allow normal decel down to coast speed, but not below it
+                double coastLimited = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
+                if (coastLimited < coastSpeed)
+                {
+                    decelRate = (ctx.Aircraft.IndicatedAirspeed - coastSpeed) / ctx.DeltaSeconds;
+                    if (decelRate < 0)
                     {
-                        // Already at or below coast speed — hold speed until braking point
                         decelRate = 0;
                     }
                 }
@@ -265,8 +284,9 @@ public sealed class LandingPhase : Phase
             return true;
         }
 
-        // Completion threshold depends on whether an exit is resolved
-        double completeSpeed = _resolvedExitNode is not null ? _exitTurnOffSpeed : DefaultRolloutCompleteSpeed;
+        // Completion threshold: exit turn-off speed if resolved, coast speed otherwise.
+        // RunwayExitPhase will continue rolling at coast speed while searching for exits.
+        double completeSpeed = _resolvedExitNode is not null ? _exitTurnOffSpeed : coastSpeed;
 
         if (!_hasLahso && ctx.Aircraft.IndicatedAirspeed <= completeSpeed)
         {
