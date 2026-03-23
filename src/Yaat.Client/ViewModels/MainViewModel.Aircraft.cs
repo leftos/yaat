@@ -14,7 +14,7 @@ public partial class MainViewModel
     {
         _log.LogInformation("[Terminal] [{Kind}] {Initials} {Callsign}: {Message}", entry.Kind, entry.Initials, entry.Callsign, entry.Message);
         TerminalEntries.Add(entry);
-        while (TerminalEntries.Count > 500)
+        while (TerminalEntries.Count > 2000)
         {
             TerminalEntries.RemoveAt(0);
         }
