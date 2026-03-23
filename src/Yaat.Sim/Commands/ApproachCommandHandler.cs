@@ -2,6 +2,7 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Commands;
@@ -367,7 +368,16 @@ public static class ApproachCommandHandler
             var direction = cmd.TrafficDirection ?? DeterminePatternDirection(aircraft, approachRunway);
 
             var airportRunways = NavigationDatabase.Instance.GetRunways(approachRunway.AirportId);
-            var phases = PatternBuilder.BuildCircuit(
+            var waypoints = PatternGeometry.Compute(
+                approachRunway,
+                category,
+                direction,
+                aircraft.PatternSizeOverrideNm,
+                aircraft.PatternAltitudeOverrideFt,
+                airportRunways
+            );
+
+            var circuitPhases = PatternBuilder.BuildCircuit(
                 approachRunway,
                 category,
                 direction,
@@ -378,7 +388,49 @@ public static class ApproachCommandHandler
                 aircraft.PatternAltitudeOverrideFt,
                 airportRunways
             );
-            foreach (var phase in phases)
+
+            // Check if the aircraft is already established on the downwind leg.
+            // If so, start DownwindPhase directly — the along-track checks work
+            // correctly when the aircraft is near the track. If NOT on the downwind,
+            // insert a PatternEntryPhase to navigate there first.
+            double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
+                aircraft.Latitude,
+                aircraft.Longitude,
+                waypoints.DownwindAbeamLat,
+                waypoints.DownwindAbeamLon,
+                waypoints.DownwindHeading
+            );
+            double headingDiff = aircraft.TrueHeading.AbsAngleTo(waypoints.DownwindHeading);
+            bool isOnDownwind = (Math.Abs(crossTrack) < 0.5) && (headingDiff < 45);
+
+            if (!aircraft.IsOnGround && !isOnDownwind)
+            {
+                double distToEntry = GeoMath.DistanceNm(
+                    aircraft.Latitude,
+                    aircraft.Longitude,
+                    waypoints.DownwindAbeamLat,
+                    waypoints.DownwindAbeamLon
+                );
+
+                if (distToEntry > 1.0)
+                {
+                    TrueHeading reverseDownwind = waypoints.DownwindHeading.ToReciprocal();
+                    var leadIn = GeoMath.ProjectPoint(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon, reverseDownwind, 1.5);
+
+                    aircraft.Phases.Add(
+                        new PatternEntryPhase
+                        {
+                            EntryLat = waypoints.DownwindAbeamLat,
+                            EntryLon = waypoints.DownwindAbeamLon,
+                            PatternAltitude = waypoints.PatternAltitude,
+                            LeadInLat = leadIn.Lat,
+                            LeadInLon = leadIn.Lon,
+                        }
+                    );
+                }
+            }
+
+            foreach (var phase in circuitPhases)
             {
                 aircraft.Phases.Add(phase);
             }
