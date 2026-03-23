@@ -336,7 +336,7 @@ public sealed class TargetRenderer : IDisposable
 
     private void DrawHistoryTrails(SKCanvas canvas, MapViewport vp, IReadOnlyList<AircraftModel> aircraft, int historyCount)
     {
-        _historyPaint.Color = HistoryColor.WithAlpha((byte)(255 * HistoryBrightness));
+        float baseAlpha = 255 * HistoryBrightness;
 
         foreach (var ac in aircraft)
         {
@@ -347,11 +347,15 @@ public sealed class TargetRenderer : IDisposable
 
             var dots = ac.PositionHistory;
             int start = Math.Max(0, dots.Count - historyCount);
+            int visibleCount = dots.Count - start;
             for (int i = start; i < dots.Count; i++)
             {
+                int dotIndex = i - start;
+                byte alpha = (byte)(baseAlpha * (dotIndex + 1) / visibleCount);
+                _historyPaint.Color = HistoryColor.WithAlpha(alpha);
                 var dot = dots[i];
                 var (hx, hy) = vp.LatLonToScreen(dot[0], dot[1]);
-                canvas.DrawCircle(hx, hy, 4f, _historyPaint);
+                canvas.DrawCircle(hx, hy, SymbolSize / 2f, _historyPaint);
             }
         }
     }
