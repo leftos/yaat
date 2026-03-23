@@ -1,20 +1,11 @@
 {
   "name": "launch-bugs",
   "displayName": "Launch Bug Terminals",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "engines": { "vscode": "^1.85.0" },
-  "activationEvents": [
-    "onCommand:launchBugs.run",
-    "onCommand:launchBugs.cleanup"
-  ],
+  "activationEvents": ["onCommand:launchBugs.run"],
   "main": "./extension.js",
   "contributes": {
-    "commands": [
-      { "command": "launchBugs.run", "title": "Launch Bug Terminals" },
-      {
-        "command": "launchBugs.cleanup",
-        "title": "Clean Up Bug Worktrees"
-      }
-    ]
+    "commands": [{ "command": "launchBugs.run", "title": "Launch Bug Terminals" }]
   }
 }
