@@ -5,20 +5,25 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 /// <summary>
 /// Tests for the ZOA scenario parse fixes: ExpandMultiCommand, ExpandWait,
 /// alias additions, SAY comma handling, bare CAPP/JFAC, $ taxi prefix,
 /// TRACK/ACCEPT/TG optional args, SP alias, HOLD flexibility, AT bare, WAIT fix.
 /// </summary>
-public class ZoaParseFixTests
+public class ZoaParseFixTests : IDisposable
 {
     // NavigationDatabase that resolves any of the fix names used in this test file.
     private static readonly NavigationDatabase Fixes = TestNavDbFactory.WithFixNames("SUNOL", "OAK", "ARCHI", "BRIXX", "BESSA", "VPBCK", "RBL");
 
+    private readonly IDisposable _navDbScope;
+
     public ZoaParseFixTests()
     {
-        NavigationDatabase.SetInstance(Fixes);
+        _navDbScope = NavigationDatabase.ScopedOverride(Fixes);
     }
+
+    public void Dispose() => _navDbScope.Dispose();
 
     // --- ExpandMultiCommand ---
 

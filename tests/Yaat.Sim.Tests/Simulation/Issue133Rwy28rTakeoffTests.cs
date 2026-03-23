@@ -2,7 +2,6 @@ using MartinCostello.Logging.XUnit;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
-using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
@@ -42,7 +41,6 @@ public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        NavigationDatabase.SetInstance(navDb);
         return new SimulationEngine(groundData);
     }
 

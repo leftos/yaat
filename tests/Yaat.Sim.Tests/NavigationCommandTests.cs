@@ -6,12 +6,18 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
-public class NavigationCommandTests
+[Collection("NavDbMutator")]
+public class NavigationCommandTests : IDisposable
 {
+    private readonly IDisposable _navDbScope;
+
     public NavigationCommandTests()
     {
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+        TestVnasData.EnsureInitialized();
+        _navDbScope = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
     }
+
+    public void Dispose() => _navDbScope.Dispose();
 
     private static AircraftState MakeAircraft(double heading = 090, double altitude = 5000, double lat = 37.7, double lon = -122.2)
     {
@@ -302,7 +308,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft();
         // Pre-seed an empty approach list for OAK so the CIFP loader (which throws on empty path)
         // is never invoked. An empty list signals: CIFP is available but no approaches for this airport.
-        NavigationDatabase.SetInstance(
+        using var _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(approachesByAirport: new Dictionary<string, IReadOnlyList<CifpApproachProcedure>> { ["OAK"] = [] })
         );
 
@@ -319,7 +325,7 @@ public class NavigationCommandTests
     {
         var aircraft = MakeAircraft();
         var navDb = NavigationDatabase.ForTesting();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ListApproachesCommand(null);
 
@@ -335,7 +341,7 @@ public class NavigationCommandTests
         var aircraft = MakeAircraft();
         // Provide an empty approach cache for OAK to signal CIFP is available but airport has no approaches
         var navDb = NavigationDatabase.ForTesting(approachesByAirport: new Dictionary<string, IReadOnlyList<CifpApproachProcedure>> { ["OAK"] = [] });
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ListApproachesCommand("OAK");
 
@@ -352,7 +358,7 @@ public class NavigationCommandTests
         aircraft.Destination = "OAK";
         // Provide an empty approach cache for OAK to signal CIFP is available but airport has no approaches
         var navDb = NavigationDatabase.ForTesting(approachesByAirport: new Dictionary<string, IReadOnlyList<CifpApproachProcedure>> { ["OAK"] = [] });
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ListApproachesCommand(null);
 
@@ -369,7 +375,7 @@ public class NavigationCommandTests
     {
         var aircraft = MakeAircraft();
         var navDb = TestNavDbFactory.WithNavData();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinStarCommand("NONEXIST", null);
 
@@ -392,7 +398,7 @@ public class NavigationCommandTests
             starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
             starTransitions: new() { ["SUNOL1"] = [("KENNO", ["KENNO", "SUNOL"])] }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft(heading: 180);
         var cmd = new JoinStarCommand("SUNOL1", "KENNO");
@@ -420,7 +426,7 @@ public class NavigationCommandTests
             },
             starBodies: new() { ["SUNOL1"] = ["KENNO", "SUNOL", "OAK"] }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Aircraft heading south, SUNOL is to the south
         var aircraft = MakeAircraft(heading: 180, lat: 37.65, lon: -121.85);
@@ -445,7 +451,7 @@ public class NavigationCommandTests
             starBodies: new() { ["SUNOL1"] = ["SUNOL", "OAK"] },
             starTransitions: new() { ["SUNOL1"] = [("KENNO", ["KENNO", "SUNOL"])] }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("SUNOL1", "NOSUCH");
@@ -469,7 +475,7 @@ public class NavigationCommandTests
             },
             starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "BRIXX", "OAK"] }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("EMZOH4", "COREZ");
@@ -495,7 +501,7 @@ public class NavigationCommandTests
             starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
             starTransitions: new() { ["EMZOH4"] = [("COREZ", ["COREZ", "EMZOH"])] }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("EMZOH4", "COREZ");
@@ -522,7 +528,7 @@ public class NavigationCommandTests
             starBodies: new() { ["EMZOH4"] = ["EMZOH", "COREZ", "OAK"] },
             starTransitions: new() { ["EMZOH4"] = [("KENNO", ["KENNO", "EMZOH"])] }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft();
         var cmd = new JoinStarCommand("EMZOH4", "NOSUCH");
@@ -728,7 +734,7 @@ public class NavigationCommandTests
     public void Jarr_EmptyStarBody_ReturnsError()
     {
         var navDb = TestNavDbFactory.WithNavData(starBodies: new() { ["EMPTY1"] = [] });
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = MakeAircraft(heading: 180);
         var cmd = new JoinStarCommand("EMPTY1", null);
@@ -760,7 +766,7 @@ public class NavigationCommandTests
     public void Jawy_UnknownAirway_ReturnsError()
     {
         var fixes = MakeAirwayNavDb();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var aircraft = MakeAircraft(heading: 090);
         var cmd = new JoinAirwayCommand("V999");
 
@@ -786,7 +792,7 @@ public class NavigationCommandTests
     public void Jawy_EastboundOnV25_InterceptsSegmentAndFollowsFixes()
     {
         var fixes = MakeAirwayNavDb();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         // Aircraft between SUNOL and TRACY, heading east
         var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         var cmd = new JoinAirwayCommand("V25");
@@ -814,7 +820,7 @@ public class NavigationCommandTests
     public void Jawy_WestboundOnV25_FollowsFixesInReverse()
     {
         var fixes = MakeAirwayNavDb();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         // Aircraft between TRACY and MODEN, heading west
         var aircraft = MakeAircraft(heading: 270, lat: 37.72, lon: -121.45);
         var cmd = new JoinAirwayCommand("V25");
@@ -836,7 +842,7 @@ public class NavigationCommandTests
     public void Jawy_AircraftBeforeFirstFix_NavigatesFromFirstFix()
     {
         var fixes = MakeAirwayNavDb();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         // Aircraft west of SUNOL, heading east — no fix behind on this airway
         var aircraft = MakeAircraft(heading: 090, lat: 37.70, lon: -122.10);
         var cmd = new JoinAirwayCommand("V25");
@@ -857,7 +863,7 @@ public class NavigationCommandTests
     public void Jawy_ClearsExistingNavRoute()
     {
         var fixes = MakeAirwayNavDb();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         aircraft.Targets.NavigationRoute.Add(
             new NavigationTarget
@@ -1018,7 +1024,7 @@ public class NavigationCommandTests
     public void Jawy_SetsAssignedHeading_Immediately()
     {
         var fixes = MakeAirwayNavDb();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         var cmd = new JoinAirwayCommand("V25");
 
@@ -1031,7 +1037,7 @@ public class NavigationCommandTests
     public void Jawy_InterceptBlock_ClearsAssignedHeading()
     {
         var fixes = MakeAirwayNavDb();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var aircraft = MakeAircraft(heading: 090, lat: 37.72, lon: -121.75);
         var cmd = new JoinAirwayCommand("V25");
 

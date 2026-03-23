@@ -7,16 +7,20 @@ using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 
-public class VfrCommandGatingTests
+[Collection("NavDbMutator")]
+public class VfrCommandGatingTests : IDisposable
 {
     private readonly ITestOutputHelper _output;
+    private readonly IDisposable _navDbScope;
 
     public VfrCommandGatingTests(ITestOutputHelper output)
     {
         _output = output;
         TestVnasData.EnsureInitialized();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", heading: 280, elevationFt: 13)));
+        _navDbScope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", heading: 280, elevationFt: 13)));
     }
+
+    public void Dispose() => _navDbScope.Dispose();
 
     private static AircraftState MakeIfrAircraft()
     {

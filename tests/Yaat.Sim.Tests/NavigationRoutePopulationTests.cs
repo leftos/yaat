@@ -8,8 +8,14 @@ namespace Yaat.Sim.Tests;
 /// Tests for PopulateNavigationRoute in ScenarioLoader — airway expansion
 /// and fix names with trailing digits (airport codes like C83).
 /// </summary>
+[Collection("NavDbMutator")]
 public class NavigationRoutePopulationTests
 {
+    public NavigationRoutePopulationTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private static ScenarioLoadResult LoadWithNavPath(string navigationPath, NavigationDatabase navDb)
     {
         var scenarioJson = $$"""
@@ -65,7 +71,7 @@ public class NavigationRoutePopulationTests
         var airways = new Dictionary<string, IReadOnlyList<string>> { ["V108"] = (IReadOnlyList<string>)["FIX_A", "FIX_B", "FIX_C", "FIX_D"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = LoadWithNavPath("FIX_A V108 FIX_C", navDb);
 
@@ -93,7 +99,7 @@ public class NavigationRoutePopulationTests
         var airways = new Dictionary<string, IReadOnlyList<string>> { ["V108"] = (IReadOnlyList<string>)["FIX_A", "FIX_B"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = LoadWithNavPath("FIX_A V108 FIX_B", navDb);
 
@@ -113,7 +119,7 @@ public class NavigationRoutePopulationTests
         var airways = new Dictionary<string, IReadOnlyList<string>> { ["V108"] = (IReadOnlyList<string>)["FIX_A", "FIX_B"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         // V108 is the first token — no previous fix to expand from
         var result = LoadWithNavPath("V108 FIX_B", navDb);
@@ -137,7 +143,7 @@ public class NavigationRoutePopulationTests
         var airways = new Dictionary<string, IReadOnlyList<string>> { ["V108"] = (IReadOnlyList<string>)["FIX_A", "FIX_B"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, airways: airways);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         // V108 is the last token — no next fix to expand to
         var result = LoadWithNavPath("FIX_A V108", navDb);
@@ -160,7 +166,7 @@ public class NavigationRoutePopulationTests
         };
 
         var navDb = NavigationDatabase.ForTesting(fixes);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = LoadWithNavPath("C83", navDb);
 
@@ -182,7 +188,7 @@ public class NavigationRoutePopulationTests
         };
 
         var navDb = NavigationDatabase.ForTesting(fixes);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = LoadWithNavPath("Q136", navDb);
 
@@ -203,7 +209,7 @@ public class NavigationRoutePopulationTests
         };
 
         var navDb = NavigationDatabase.ForTesting(fixes);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = LoadWithNavPath("BDEGA4", navDb);
 

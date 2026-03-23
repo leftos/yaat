@@ -5,8 +5,14 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class ConflictAlertDetectorTests
 {
+    public ConflictAlertDetectorTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     // KOAK area — two aircraft near each other
     private const double BaseLat = 37.721;
     private const double BaseLon = -122.221;
@@ -370,7 +376,7 @@ public class ConflictAlertDetectorTests
     {
         // Aircraft on final approach to KOAK 28R. Other aircraft in the approach corridor
         // ahead of the threshold along the extended centerline.
-        SetupKoakNavDb();
+        using var _navDb = SetupKoakNavDb();
 
         // Aircraft 5nm out on approach course (along reciprocal of 284°, i.e., 104° from threshold)
         var outboundCourse = new TrueHeading(Koak10LHeading);
@@ -391,7 +397,7 @@ public class ConflictAlertDetectorTests
     public void FinalApproach_OtherBeyond30Nm_NotSuppressed()
     {
         // Approach aircraft at 29nm, other at 31nm — only 2nm apart but other is outside 30 NM corridor
-        SetupKoakNavDb();
+        using var _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 29.0);
@@ -411,7 +417,7 @@ public class ConflictAlertDetectorTests
     {
         // Other aircraft on the airport side of the threshold (negative along-track)
         // Approach aircraft close to threshold so they're within CA range of each other
-        SetupKoakNavDb();
+        using var _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 2.0);
@@ -433,7 +439,7 @@ public class ConflictAlertDetectorTests
     {
         // Other aircraft 2.5nm cross-track from centerline — outside 2nm half-width
         // but within 3nm CA threshold (distance ≈ 2.5nm when at same along-track)
-        SetupKoakNavDb();
+        using var _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
@@ -458,7 +464,7 @@ public class ConflictAlertDetectorTests
         // At 10nm: glideslope = 6 + 10*318 = 3186 ft, ceiling = 3186 + 1500 = 4686 ft
         // Place other at 4800ft (above ceiling). Approach aircraft at 4500ft (within 300ft → CA threshold).
         // Offset 1nm apart along approach to ensure clear non-divergent geometry.
-        SetupKoakNavDb();
+        using var _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 10.0);
@@ -478,7 +484,7 @@ public class ConflictAlertDetectorTests
     public void FinalApproach_NonInternalAirport_NotSuppressed()
     {
         // Airport not in internal airports list → suppression does not apply
-        SetupKoakNavDb();
+        using var _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
@@ -500,7 +506,7 @@ public class ConflictAlertDetectorTests
         // 3-char FAA LID airport → ICAO filter excludes it
         var faaLid = "OAK";
         var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway(faaLid));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (acLat, acLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
@@ -519,7 +525,7 @@ public class ConflictAlertDetectorTests
     public void BothOnFinalApproach_InCorridor_Suppressed()
     {
         // Both aircraft on final to same runway, both in corridor → suppressed
-        SetupKoakNavDb();
+        using var _navDb = SetupKoakNavDb();
 
         var outboundCourse = new TrueHeading(Koak10LHeading);
         var (leaderLat, leaderLon) = GeoMath.ProjectPoint(Koak28RThreshLat, Koak28RThreshLon, outboundCourse, 5.0);
@@ -723,10 +729,10 @@ public class ConflictAlertDetectorTests
             WidthFt = 150,
         };
 
-    private static void SetupKoakNavDb()
+    private static IDisposable SetupKoakNavDb()
     {
         var navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway());
-        NavigationDatabase.SetInstance(navDb);
+        return NavigationDatabase.ScopedOverride(navDb);
     }
 
     private static Phases.PhaseList MakeFinalApproachPhaseList(string airportCode, string runwayId, double finalCourseHeading)

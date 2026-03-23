@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class ProcedureCommandTests
 {
     private static AircraftState CreateAircraft(double altitude = 5000)
@@ -177,7 +178,7 @@ public class ProcedureCommandTests
     [Fact]
     public void Dct_ClearsEntireProcedure()
     {
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixNames("SUNOL"));
+        TestVnasData.EnsureInitialized();
 
         var aircraft = CreateAircraft();
         aircraft.ActiveSidId = "PORTE3";

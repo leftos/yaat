@@ -9,15 +9,21 @@ namespace Yaat.Sim.Tests;
 /// Reproduces issue #99: DCT OAK30NUM fails on server because custom fixes
 /// aren't resolved by CommandParser.ParseCompound.
 /// </summary>
+[Collection("NavDbMutator")]
 public class CustomFixTests
 {
+    public CustomFixTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     // --- Test 1: DCT with custom fix when fix is already in NavDb (parser test) ---
 
     [Fact]
     public void DirectTo_CustomFix_ParsesWhenFixInNavDb()
     {
         var navDb = NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["OAK30NUM"] = (37.702, -122.215) });
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = CommandParser.ParseCompound("DCT OAK30NUM", null);
 
@@ -115,7 +121,7 @@ public class CustomFixTests
 
         // Initialize with default custom fix path (same as server does)
         var db = new NavigationDatabase(navData, cifpPath);
-        NavigationDatabase.SetInstance(db);
+        using var _ = NavigationDatabase.ScopedOverride(db);
 
         // This is exactly what the server does in RoomEngine.SendCommand
         var result = CommandParser.ParseCompound("DCT OAK30NUM", null);

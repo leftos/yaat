@@ -5,8 +5,14 @@ using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class ProcedureVersionResolutionTests
 {
+    public ProcedureVersionResolutionTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private static CifpLeg MakeLeg(string fix, CifpPathTerminator pt, CifpAltitudeRestriction? alt)
     {
         return new CifpLeg(fix, pt, null, alt, null, CifpFixRole.None, 0, null, null, null);
@@ -105,7 +111,7 @@ public class ProcedureVersionResolutionTests
         );
 
         var navDb = NavigationDatabase.ForTesting(stars: [currentStar]);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = navDb.GetStar("SFO", "BDEGA3");
         Assert.NotNull(result);
@@ -124,7 +130,7 @@ public class ProcedureVersionResolutionTests
         );
 
         var navDb = NavigationDatabase.ForTesting(sids: [currentSid]);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = navDb.GetSid("SFO", "CNDEL5");
         Assert.NotNull(result);
@@ -164,7 +170,7 @@ public class ProcedureVersionResolutionTests
         );
 
         var navDb = NavigationDatabase.ForTesting(fixes, starBodies: starBodies, stars: [cifpStar]);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Scenario references BDEGA3 (outdated)
         var scenarioJson = """
@@ -222,7 +228,7 @@ public class ProcedureVersionResolutionTests
         var starBodies = new Dictionary<string, IReadOnlyList<string>> { ["BDEGA4"] = ["BDEGA", "CEDES"] };
 
         var navDb = NavigationDatabase.ForTesting(fixes, starBodies: starBodies);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var scenario = new Scenario
         {
@@ -254,7 +260,7 @@ public class ProcedureVersionResolutionTests
         var fixes = new Dictionary<string, (double Lat, double Lon)> { ["XYZZY"] = (37.0, -122.0) };
 
         var navDb = NavigationDatabase.ForTesting(fixes);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var scenario = new Scenario
         {
@@ -284,7 +290,7 @@ public class ProcedureVersionResolutionTests
         var starBodies = new Dictionary<string, IReadOnlyList<string>> { ["BDEGA4"] = ["BDEGA", "CEDES"] };
 
         var navDb = NavigationDatabase.ForTesting(starBodies: starBodies);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var scenario = new Scenario
         {

@@ -8,12 +8,18 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
-public class VisualApproachCommandTests
+[Collection("NavDbMutator")]
+public class VisualApproachCommandTests : IDisposable
 {
+    private readonly IDisposable _navDbScope;
+
     public VisualApproachCommandTests()
     {
-        NavigationDatabase.SetInstance(MakeRunwayLookup());
+        TestVnasData.EnsureInitialized();
+        _navDbScope = NavigationDatabase.ScopedOverride(MakeRunwayLookup());
     }
+
+    public void Dispose() => _navDbScope.Dispose();
 
     // Runway 28R at OAK: heading 280°, threshold at (37.72, -122.22)
     private static RunwayInfo MakeRunway(string designator = "28R", double heading = 280)

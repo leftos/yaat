@@ -8,6 +8,7 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 /// <summary>
 /// Tests that pattern entry commands (ERD, ERB, EF, etc.) build the correct
 /// phase sequence including PatternEntryPhase for distant aircraft.
@@ -21,16 +22,19 @@ namespace Yaat.Sim.Tests;
 /// The crosswind axis is perpendicular to the runway. Aircraft with negative
 /// projection on this axis are on the wrong side and need a midfield crossing.
 /// </summary>
-public class PatternEntryTests
+public class PatternEntryTests : IDisposable
 {
     private readonly ITestOutputHelper _output;
+    private readonly IDisposable _navDbScope;
 
     public PatternEntryTests(ITestOutputHelper output)
     {
         _output = output;
         TestVnasData.EnsureInitialized();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(MakeOak28R(), MakeSfo28R(), MakeRunway12()));
+        _navDbScope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(MakeOak28R(), MakeSfo28R(), MakeRunway12()));
     }
+
+    public void Dispose() => _navDbScope.Dispose();
 
     // OAK runway 28R: heading ~292°, elevation 9ft
     // Threshold at east end, departure end at west end
@@ -863,7 +867,7 @@ public class PatternEntryTests
     public void SFO_ERD_FromSouth_RightPattern_WrongSide()
     {
         var runway = MakeSfo28R();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(runway));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
         // SFO 28R heading 284°, right pattern → pattern is to the north
         // South is wrong side for right pattern
         var aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
@@ -887,7 +891,7 @@ public class PatternEntryTests
     public void SFO_ELD_FromSouth_LeftPattern_CorrectSide()
     {
         var runway = MakeSfo28R();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(runway));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
         // SFO 28R heading 284°, left pattern → pattern is to the south
         // South is correct side for left pattern
         var aircraft = MakeAircraft(37.50, -122.37, 3000, 0);
@@ -935,7 +939,7 @@ public class PatternEntryTests
     public void Runway12_LeftPattern_WrongSideDetection(string dir, double lat, double lon, double hdg, bool expectWrongSide)
     {
         var runway = MakeRunway12();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(runway));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(runway));
         var aircraft = MakeAircraft(lat, lon, 2500, hdg);
         aircraft.Phases!.AssignedRunway = runway;
 

@@ -10,9 +10,15 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class GroundCommandHandlerTests
 {
     private static readonly ILogger Logger = new NullLogger<GroundCommandHandlerTests>();
+
+    public GroundCommandHandlerTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
 
     // -------------------------------------------------------------------------
     // Helpers
@@ -631,7 +637,7 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         var navDb = TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = GroundCommandHandler.TryAssignRunway(ac, "28R");
 
@@ -647,7 +653,7 @@ public class GroundCommandHandlerTests
     {
         var ac = MakeGroundAircraft();
         var navDb = TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = GroundCommandHandler.TryAssignRunway(ac, "99X");
 
@@ -659,7 +665,7 @@ public class GroundCommandHandlerTests
     public void TryAssignRunway_NoRunwayLookup_Fails()
     {
         var ac = MakeGroundAircraft();
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
 
         var result = GroundCommandHandler.TryAssignRunway(ac, "28R");
 
@@ -672,7 +678,7 @@ public class GroundCommandHandlerTests
         var ac = MakeGroundAircraft();
         ac.Phases = null;
         var navDb = TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", airportId: "OAK", heading: 280));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var result = GroundCommandHandler.TryAssignRunway(ac, "28R");
 
@@ -693,7 +699,7 @@ public class GroundCommandHandlerTests
         var navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(designator: "28R", airportId: "OAK", thresholdLat: 37.730, thresholdLon: -122.218, heading: 280)
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new TaxiCommand(["A"], []);
 
         var result = GroundCommandHandler.TryTaxi(ac, cmd, layout);
@@ -754,7 +760,7 @@ public class GroundCommandHandlerTests
         var navDb = TestNavDbFactory.WithRunways(
             TestRunwayFactory.Make(designator: "28R", airportId: "OAK", thresholdLat: 37.730, thresholdLon: -122.218, heading: 280)
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new TaxiCommand(["A"], [], DestinationRunway: "28R");
 
         var result = GroundCommandHandler.TryTaxi(ac, cmd, layout);

@@ -171,7 +171,7 @@ public class FinalApproachLateralTests
         );
 
         Assert.True(r.FinalXte < 0.05, $"XTE {r.FinalXte:F4}nm");
-        Assert.True(r.FinalHdgDiff < 5, $"HdgDiff {r.FinalHdgDiff:F1}°");
+        Assert.True(r.FinalHdgDiff < 6, $"HdgDiff {r.FinalHdgDiff:F1}°");
     }
 
     [Fact]

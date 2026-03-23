@@ -23,14 +23,7 @@ public class AirportE2ETests
 
     public AirportE2ETests()
     {
-        // Ensure the full NavDb is set before each test — guards against parallel tests
-        // that call SetInstance with a minimal stub (e.g. TestNavDbFactory.WithRunways).
         Yaat.Sim.Testing.TestVnasData.EnsureInitialized();
-        var navDb = Yaat.Sim.Testing.TestVnasData.NavigationDb;
-        if (navDb is not null)
-        {
-            NavigationDatabase.SetInstance(navDb);
-        }
     }
 
     private static AirportGroundLayout? LoadLayout(string airportId, string subdir)

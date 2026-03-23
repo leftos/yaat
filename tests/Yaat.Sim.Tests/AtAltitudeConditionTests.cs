@@ -7,11 +7,10 @@ namespace Yaat.Sim.Tests;
 public class AtAltitudeConditionTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
-    private static readonly NavigationDatabase NavDb = TestNavDbFactory.WithFixNames("SUNOL", "BRIXX");
 
     public AtAltitudeConditionTests()
     {
-        NavigationDatabase.SetInstance(NavDb);
+        TestVnasData.EnsureInitialized();
     }
 
     private static AircraftState MakeAircraft(double altitude = 3000, double heading = 090, double ias = 250)

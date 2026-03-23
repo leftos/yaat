@@ -7,13 +7,8 @@ public class ApproachDatabaseTests
 {
     private static NavigationDatabase? GetNavDb()
     {
-        var db = TestVnasData.NavigationDb;
-        if (db is not null)
-        {
-            NavigationDatabase.SetInstance(db);
-        }
-
-        return db;
+        TestVnasData.EnsureInitialized();
+        return TestVnasData.NavigationDb;
     }
 
     [Fact]

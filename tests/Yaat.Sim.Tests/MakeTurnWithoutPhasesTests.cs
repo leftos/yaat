@@ -122,8 +122,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
     private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
-        var navDb = TestVnasData.NavigationDb;
-        if (navDb is null)
+        if (TestVnasData.NavigationDb is null)
         {
             return null;
         }
@@ -132,7 +131,6 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        NavigationDatabase.SetInstance(navDb);
         return new SimulationEngine(groundData);
     }
 }

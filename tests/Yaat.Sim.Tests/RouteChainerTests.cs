@@ -4,14 +4,20 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class RouteChainerTests
 {
+    public RouteChainerTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     [Fact]
     public void EmptyResolvedList_IsNoOp()
     {
         var resolved = new List<ResolvedFix>();
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO");
 
@@ -23,7 +29,7 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO OXNARD");
 
@@ -38,7 +44,7 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("OXNARD", 34.2, -119.2) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO OXNARD");
 
@@ -51,7 +57,7 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("BRIXX", 37.7, -121.9) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         RouteChainer.AppendRouteRemainder(resolved, "SUNOL MODESTO");
 
@@ -64,7 +70,7 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         RouteChainer.AppendRouteRemainder(resolved, "SUNOL.A50 MODESTO");
 
@@ -78,7 +84,7 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("OXNARD", 34.2, -119.2));
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         RouteChainer.AppendRouteRemainder(resolved, "SUNOL UNKNOWN OXNARD");
 
@@ -92,7 +98,7 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         RouteChainer.AppendRouteRemainder(resolved, "");
 
@@ -104,7 +110,7 @@ public class RouteChainerTests
     {
         var resolved = new List<ResolvedFix> { new("SUNOL", 37.5, -121.8) };
         var fixes = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         RouteChainer.AppendRouteRemainder(resolved, "Sunol MODESTO");
 

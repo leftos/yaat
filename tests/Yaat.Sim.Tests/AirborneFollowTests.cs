@@ -8,13 +8,18 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
-public class AirborneFollowTests
+[Collection("NavDbMutator")]
+public class AirborneFollowTests : IDisposable
 {
+    private readonly IDisposable _navDbScope;
+
     public AirborneFollowTests()
     {
         TestVnasData.EnsureInitialized();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(DefaultRunway()));
+        _navDbScope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(DefaultRunway()));
     }
+
+    public void Dispose() => _navDbScope.Dispose();
 
     // Runway 28 at KTEST: heading 280°
     private static RunwayInfo DefaultRunway() => TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 0);

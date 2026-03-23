@@ -8,8 +8,14 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class MissedApproachTests
 {
+    public MissedApproachTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private static readonly CifpLeg MapLeg1 = new(
         FixIdentifier: "MAPWP",
         PathTerminator: CifpPathTerminator.TF,
@@ -116,7 +122,7 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
@@ -134,7 +140,7 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedure(mapLegs: []);
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
@@ -146,7 +152,7 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedure();
         var fixes = TestNavDbFactory.WithFixes(("MAPWP", 37.02, -122.08));
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         var result = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
@@ -160,7 +166,7 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
@@ -272,7 +278,7 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
@@ -307,7 +313,7 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
@@ -341,7 +347,7 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
@@ -373,7 +379,7 @@ public class MissedApproachTests
         var aircraft = MakeAircraft(isPattern: true);
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
@@ -405,7 +411,7 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
@@ -440,7 +446,7 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedureWithHold();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         var hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
@@ -458,7 +464,7 @@ public class MissedApproachTests
     {
         var procedure = MakeProcedure(); // only TF legs
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
 
         var hold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
@@ -471,7 +477,7 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedureWithHold();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
         var mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 
@@ -502,7 +508,7 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedure(); // no hold leg
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
 
         aircraft.Phases!.ActiveApproach = new ApproachClearance
@@ -528,7 +534,7 @@ public class MissedApproachTests
         var aircraft = MakeAircraft();
         var procedure = MakeProcedureWithHold();
         var fixes = MakeFixLookup();
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var mapFixes = ApproachCommandHandler.BuildMissedApproachFixes(procedure);
         var mapHold = ApproachCommandHandler.ExtractMissedApproachHold(procedure);
 

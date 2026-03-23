@@ -9,16 +9,22 @@ namespace Yaat.Sim.Tests;
 /// to new sequential blocks (treated as semicolon), so users can write
 /// "cm 020, dct vpcol oak30num vpmid, at oak30num cm 014" naturally.
 /// </summary>
-public class CommaBeforeConditionTests
+[Collection("NavDbMutator")]
+public class CommaBeforeConditionTests : IDisposable
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
 
     private static readonly NavigationDatabase NavDb = TestNavDbFactory.WithFixNames("VPCOL", "OAK30NUM", "VPMID", "SUNOL", "BRIXX");
 
+    private readonly IDisposable _navDbScope;
+
     public CommaBeforeConditionTests()
     {
-        NavigationDatabase.SetInstance(NavDb);
+        TestVnasData.EnsureInitialized();
+        _navDbScope = NavigationDatabase.ScopedOverride(NavDb);
     }
+
+    public void Dispose() => _navDbScope.Dispose();
 
     [Theory]
     [InlineData("cm 020, dct vpcol oak30num vpmid, at oak30num cm 014", "CM 020, DCT VPCOL OAK30NUM VPMID; AT OAK30NUM CM 014")]

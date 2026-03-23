@@ -7,7 +7,7 @@ public class ProgrammedFixResolverTests
 {
     public ProgrammedFixResolverTests()
     {
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+        TestVnasData.EnsureInitialized();
     }
 
     [Fact]

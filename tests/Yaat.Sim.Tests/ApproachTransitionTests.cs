@@ -56,7 +56,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         // SFO LOC/DME 28R (L28R) — verify it has no transitions (localizer-only approaches
         // at SFO typically don't). If it does, find another approach without transitions.
         var procedure = navDb.GetApproach("KSFO", "L28R");
@@ -90,7 +89,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         // SFO I19L has CCR transition (CCR → UPEND → BERKS) and common legs starting at BERKS.
         // An aircraft with BERKS in its NavigationRoute (from ALWYS3 STAR) should NOT match
         // the CCR transition — it's already heading to the approach.
@@ -129,7 +127,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         // OAK H12-Z has a HIRMO transition. HIRMO is a transition-only fix (not in CommonLegs).
         // An aircraft with HIRMO in its NavigationRoute (from EMZOH4 STAR) should match
         // the HIRMO transition so the full fix sequence is built.
@@ -184,7 +181,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
@@ -264,7 +260,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
@@ -312,7 +307,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
@@ -361,7 +355,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
@@ -407,7 +400,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KOAK", "H12-Z");
         if (procedure is null)
         {
@@ -455,7 +447,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         // SFO I19L has the CCR transition. An aircraft with CCR in its route
         // (not in NavigationRoute — already consumed) should match that transition.
         var procedure = navDb.GetApproach("KSFO", "I19L");
@@ -484,7 +475,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         // SFO I19L with CCR transition. Aircraft with no route and no NavRoute,
         // heading roughly toward CCR — fallback should pick nearest transition IAF ahead.
         var procedure = navDb.GetApproach("KSFO", "I19L");
@@ -509,7 +499,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
@@ -532,7 +521,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
@@ -570,7 +558,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var approaches = navDb.GetApproaches("KSFO");
         var procedure = approaches.FirstOrDefault(a => a.Transitions.Count == 0);
         if (procedure is null)
@@ -596,7 +583,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
@@ -619,7 +605,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var procedure = navDb.GetApproach("KSFO", "I19L");
         Assert.NotNull(procedure);
 
@@ -669,7 +654,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         // ALWYS3 at KSFO should have runway transitions (e.g. RW19L/RW19B with fixes like BERKS)
         var star = navDb.GetStar("KSFO", "ALWYS3");
         if (star is null)
@@ -711,7 +695,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var star = navDb.GetStar("KSFO", "ALWYS3");
         if (star is null)
         {
@@ -777,7 +760,6 @@ public class ApproachTransitionTests(ITestOutputHelper output)
             return;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         var star = navDb.GetStar("KSFO", "ALWYS3");
         if (star is null)
         {

@@ -7,21 +7,10 @@ namespace Yaat.Sim.Tests;
 public class OnHandoffConditionTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
-    private static readonly NavigationDatabase Fixes = TestNavDbFactory.WithFixNames(
-        "LIVVY",
-        "MIIDY",
-        "KERRK",
-        "CAMRN",
-        "EYESS",
-        "FELTY",
-        "CAVDI",
-        "KATRN",
-        "SCHOO"
-    );
 
     public OnHandoffConditionTests()
     {
-        NavigationDatabase.SetInstance(Fixes);
+        TestVnasData.EnsureInitialized();
     }
 
     // --- CommandSchemeParser: canonical form ---

@@ -12,9 +12,15 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class DepartureClearanceHandlerTests
 {
     private static readonly ILogger Logger = new NullLogger<DepartureClearanceHandlerTests>();
+
+    public DepartureClearanceHandlerTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
 
     // -------------------------------------------------------------------------
     // Helpers
@@ -68,7 +74,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Start(MinCtx(ac));
 
         var rwy = DefaultRunway();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.LineUpAndWait, new DefaultDeparture(), null, Logger);
 
@@ -86,7 +92,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Start(MinCtx(ac));
 
         var rwy = DefaultRunway();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -130,7 +136,7 @@ public class DepartureClearanceHandlerTests
         };
 
         var rwy = DefaultRunway();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -231,7 +237,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(holdPhase);
         ac.Phases.Start(MinCtx(ac));
 
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -269,7 +275,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(holdPhase);
         ac.Phases.Start(MinCtx(ac));
 
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -324,7 +330,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Start(MinCtx(ac));
 
         var rwy = DefaultRunway();
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy));
 
         var departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null);
         var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.ClearedForTakeoff, departure, null, Logger);
@@ -343,7 +349,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_PI_Skipped()
     {
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixes(("FIXPI", 37.0, -122.0), ("FIXNORM", 37.5, -122.5)));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIXPI", 37.0, -122.0), ("FIXNORM", 37.5, -122.5)));
 
         var legs = new[]
         {
@@ -361,7 +367,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_UnknownFix_Skipped()
     {
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixes(("KNOWN", 37.0, -122.0)));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("KNOWN", 37.0, -122.0)));
 
         var legs = new[]
         {
@@ -378,7 +384,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_WithAltitudeConstraint_Preserved()
     {
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
 
         var alt = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000);
         var legs = new[] { new CifpLeg("FIX1", CifpPathTerminator.TF, null, alt, null, CifpFixRole.None, 1, null, null, null) };
@@ -393,7 +399,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void ResolveLegsToTargets_DuplicateAdjacentFix_Deduplicated()
     {
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithFixes(("FIX1", 37.0, -122.0)));
 
         var legs = new[]
         {
@@ -480,7 +486,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -514,7 +520,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33, rwy28L));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28L));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -539,7 +545,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(holding);
         ac.Phases.Start(MinCtx(ac));
 
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33));
 
         var result = DepartureClearanceHandler.TryDepartureClearance(
             ac,
@@ -586,7 +592,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Add(luaw);
         ac.Phases.Start(MinCtx(ac));
 
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
         var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, "28R", null));
 
         var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw);
@@ -622,7 +628,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases!.Add(taxiing);
         ac.Phases.Start(MinCtx(ac));
 
-        NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
 
         var result = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
             ac,

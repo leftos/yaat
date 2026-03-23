@@ -4,8 +4,14 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class AppendDirectToTests
 {
+    public AppendDirectToTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private static AircraftState CreateAircraft(string route = "")
     {
         return new AircraftState
@@ -25,7 +31,7 @@ public class AppendDirectToTests
     {
         var aircraft = CreateAircraft();
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -58,7 +64,7 @@ public class AppendDirectToTests
         );
 
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -85,7 +91,7 @@ public class AppendDirectToTests
         );
 
         var navDb = TestNavDbFactory.WithFixes(("FIX1", 37.5, -121.8), ("FIX2", 37.4, -121.7));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("FIX1", 37.5, -121.8), new ResolvedFix("FIX2", 37.4, -121.7)], []);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -102,7 +108,7 @@ public class AppendDirectToTests
     {
         var aircraft = CreateAircraft("SUNOL MODESTO OXNARD");
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0), ("OXNARD", 34.2, -119.2));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -129,7 +135,7 @@ public class AppendDirectToTests
         );
 
         var navDb = TestNavDbFactory.WithFixes(("MOVDD", 37.6, -122.0), ("SUNOL", 37.5, -121.8), ("MODESTO", 37.6, -121.0));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new AppendDirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -156,7 +162,7 @@ public class AppendDirectToTests
         );
 
         var navDb = TestNavDbFactory.WithFixes(("SUNOL", 37.5, -121.8));
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new DirectToCommand([new ResolvedFix("SUNOL", 37.5, -121.8)], []);
 
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);

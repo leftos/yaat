@@ -6,8 +6,14 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class TaxiPathfinderTests
 {
+    public TaxiPathfinderTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     /// <summary>
     /// Build a simple layout with a linear taxiway: A -> B -> C -> D
     /// and a branch: B -> E
@@ -558,7 +564,7 @@ public class TaxiPathfinderTests
         var layout = BuildVariantLayout();
 
         // Runway 30 threshold is further north (37.710)
-        NavigationDatabase.SetInstance(
+        using var _ = NavigationDatabase.ScopedOverride(
             TestNavDbFactory.WithRunways(
                 new RunwayInfo
                 {

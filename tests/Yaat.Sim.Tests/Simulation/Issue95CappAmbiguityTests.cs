@@ -40,6 +40,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
 
     private SimulationEngine? BuildEngine()
     {
+        TestVnasData.EnsureInitialized();
         var navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
@@ -50,7 +51,6 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        NavigationDatabase.SetInstance(navDb);
         return new SimulationEngine(groundData);
     }
 

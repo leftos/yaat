@@ -3,8 +3,14 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class MetarInterpolatorTests
 {
+    public MetarInterpolatorTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     // -------------------------------------------------------------------------
     // Exact station match
     // -------------------------------------------------------------------------
@@ -43,7 +49,7 @@ public class MetarInterpolatorTests
             fixes: new Dictionary<string, (double Lat, double Lon)> { ["LAX"] = (33.9425, -118.408), ["KLAX"] = (33.9425, -118.408) }
         );
 
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var metars = new[] { "KLAX 121853Z 27012KT 5SM BKN030 20/12 A2992" };
         var result = MetarInterpolator.GetWeatherForAirport(metars, "LAX");
         Assert.NotNull(result);
@@ -69,7 +75,7 @@ public class MetarInterpolatorTests
             }
         );
 
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var metars = new[] { "KSTA 121853Z 27012KT 10SM BKN050 20/12 A2992", "KSTB 121853Z 27012KT 3SM BKN020 20/12 A2992" };
 
         var result = MetarInterpolator.GetWeatherForAirport(metars, "TSTA");
@@ -94,7 +100,7 @@ public class MetarInterpolatorTests
             }
         );
 
-        NavigationDatabase.SetInstance(fixes);
+        using var _ = NavigationDatabase.ScopedOverride(fixes);
         var metars = new[] { "KJFK 121853Z 27012KT 10SM CLR 20/12 A2992" };
         var result = MetarInterpolator.GetWeatherForAirport(metars, "TSTA");
         Assert.Null(result);

@@ -169,7 +169,6 @@ public class PatternAltitudeArgumentTests
             Destination = "KOAK",
         };
         ac.Phases = new PhaseList { AssignedRunway = runway };
-        NavigationDatabase.SetInstance(TestVnasData.NavigationDb);
 
         var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Left, null, 1500);
 

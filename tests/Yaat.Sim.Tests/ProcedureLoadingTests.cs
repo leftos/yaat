@@ -9,9 +9,15 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class ProcedureLoadingTests
 {
     private static readonly ILogger Logger = NullLogger.Instance;
+
+    public ProcedureLoadingTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
 
     // --- Helpers ---
 
@@ -241,7 +247,7 @@ public class ProcedureLoadingTests
         aircraft.TrueTrack = new TrueHeading(150);
 
         var navDb = CreateNavDb(star: CreateTestStar());
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
@@ -272,7 +278,7 @@ public class ProcedureLoadingTests
         aircraft.Altitude = 20000;
 
         var navDb = CreateNavDb(star: CreateTestStar());
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var cmd = new JoinStarCommand("BDEGA3", "BDEGA");
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
 
@@ -289,7 +295,7 @@ public class ProcedureLoadingTests
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
         var navDb = CreateNavDb(sid: CreateTestSid());
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
@@ -315,7 +321,7 @@ public class ProcedureLoadingTests
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
         var navDb = CreateNavDb(sid: CreateTestSid());
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
@@ -332,7 +338,7 @@ public class ProcedureLoadingTests
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") }; // No match
 
         var navDb = CreateNavDb(sid: CreateTestSid());
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
@@ -346,7 +352,7 @@ public class ProcedureLoadingTests
         var aircraft = CreateIfrAircraft("BOGUS7 SUNOL V244 OAK");
 
         var navDb = CreateNavDb(sid: CreateTestSid());
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.Null(result);
@@ -359,7 +365,7 @@ public class ProcedureLoadingTests
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
         var navDb = CreateNavDb(sid: CreateTestSid());
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);
@@ -473,7 +479,7 @@ public class ProcedureLoadingTests
     public void ResolveLegsToTargets_ConvertsLegsWithConstraints()
     {
         var navDb = CreateNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var legs = new List<CifpLeg>
         {
             new(
@@ -504,7 +510,7 @@ public class ProcedureLoadingTests
     public void ResolveLegsToTargets_SkipsUnknownFixes()
     {
         var navDb = CreateNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var legs = new List<CifpLeg>
         {
             new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
@@ -523,7 +529,7 @@ public class ProcedureLoadingTests
     public void ResolveLegsToTargets_DeduplicatesAdjacentFixes()
     {
         var navDb = CreateNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var legs = new List<CifpLeg>
         {
             new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
@@ -621,7 +627,7 @@ public class ProcedureLoadingTests
         var endPt = GeoMath.ProjectPoint(centerLat, centerLon, new TrueHeading(90), radius);
 
         var navDb = CreateNavDb(extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["FIX1"] = startPt, ["FIX2"] = endPt });
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var legs = new List<CifpLeg>
         {
@@ -675,7 +681,7 @@ public class ProcedureLoadingTests
                 ["ABQ"] = (navaidLat, navaidLon),
             }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var legs = new List<CifpLeg>
         {
@@ -708,7 +714,7 @@ public class ProcedureLoadingTests
     public void ResolveLegsToTargets_SkipsProcedureTurnLegs()
     {
         var navDb = CreateNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var legs = new List<CifpLeg>
         {
             new("MOLEN", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null),
@@ -746,7 +752,7 @@ public class ProcedureLoadingTests
             sid: sid,
             extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") };
@@ -780,7 +786,7 @@ public class ProcedureLoadingTests
             sid: sid,
             extraFixes: new Dictionary<string, (double Lat, double Lon)> { ["SSTIK"] = (37.50, -122.40), ["PORTE"] = (37.65, -122.30) }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01R") };
@@ -818,7 +824,7 @@ public class ProcedureLoadingTests
                 ["PORTE"] = (37.65, -122.30),
             }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = CreateIfrAircraft("SSTIK5 PORTE");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("01L") };
@@ -856,7 +862,7 @@ public class ProcedureLoadingTests
                 ["BRIXX"] = (37.40, -122.40),
             }
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = CreateIfrAircraft("KSFO BDEGA3 BDEGA3.BDEGA");
         aircraft.Latitude = 38.5;
@@ -932,7 +938,7 @@ public class ProcedureLoadingTests
         );
 
         var navDb = CreateNavDb(sid: sid);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = CreateIfrAircraft("NIMI5 OAK V6 SAC", departure: "KOAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
@@ -965,7 +971,7 @@ public class ProcedureLoadingTests
         );
 
         var navDb = CreateNavDb(sid: sid);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var aircraft = CreateIfrAircraft("RVTEST1 OAK", departure: "KOAK");
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("10L") };
@@ -991,7 +997,7 @@ public class ProcedureLoadingTests
         );
 
         var navDb = CreateNavDb(sid: sid);
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Route is just the SID name — no post-SID enroute fixes
         var aircraft = CreateIfrAircraft("RVONLY1", departure: "KOAK");
@@ -1013,7 +1019,7 @@ public class ProcedureLoadingTests
         aircraft.Phases = new PhaseList { AssignedRunway = MakeRunway("28R") };
 
         var navDb = CreateNavDb(sid: CreateTestSid());
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
         var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
 
         Assert.NotNull(result);

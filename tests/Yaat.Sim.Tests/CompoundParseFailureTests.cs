@@ -4,15 +4,21 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
-public class CompoundParseFailureTests
+[Collection("NavDbMutator")]
+public class CompoundParseFailureTests : IDisposable
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();
     private static readonly NavigationDatabase NavDb = TestNavDbFactory.WithFixNames("KLIDE", "BRIXX");
 
+    private readonly IDisposable _navDbScope;
+
     public CompoundParseFailureTests()
     {
-        NavigationDatabase.SetInstance(NavDb);
+        TestVnasData.EnsureInitialized();
+        _navDbScope = NavigationDatabase.ScopedOverride(NavDb);
     }
+
+    public void Dispose() => _navDbScope.Dispose();
 
     [Theory]
     [InlineData("AT KLIDE CMD", "CMD")]

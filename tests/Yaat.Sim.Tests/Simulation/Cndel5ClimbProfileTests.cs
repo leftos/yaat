@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Tests.Helpers;
 
@@ -23,6 +22,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
     [Fact]
     public void ClimbVia_Cndel5Susey_MeetsAllConstraints()
     {
+        TestVnasData.EnsureInitialized();
         var navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
@@ -32,7 +32,6 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
 
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
-        NavigationDatabase.SetInstance(navDb);
 
         // Resolve CNDEL5 SID from CIFP
         var sid = navDb.GetSid("KOAK", "CNDEL5");

@@ -34,28 +34,47 @@ public sealed class NavigationDatabase
 
     private static readonly ILogger Log = SimLog.CreateLogger("NavigationDatabase");
 
-    private static NavigationDatabase? _instance;
+    private static NavigationDatabase? _defaultInstance;
+    private static readonly AsyncLocal<NavigationDatabase?> _scopedInstance = new();
 
     /// <summary>
-    /// Global singleton instance. Throws if not initialized.
+    /// Global singleton instance. Returns the thread-local scoped override if set,
+    /// otherwise the process-wide default. Throws if neither is initialized.
     /// </summary>
     public static NavigationDatabase Instance =>
-        _instance ?? throw new InvalidOperationException("NavigationDatabase not initialized. Call Initialize() first.");
+        _scopedInstance.Value ?? _defaultInstance
+        ?? throw new InvalidOperationException("NavigationDatabase not initialized. Call Initialize() first.");
 
     /// <summary>
     /// Initializes the global singleton with NavData + CIFP. Both are required.
     /// </summary>
     public static void Initialize(NavDataSet navData, string cifpFilePath, string? customFixesBaseDir = null)
     {
-        _instance = new NavigationDatabase(navData, cifpFilePath, customFixesBaseDir);
+        _defaultInstance = new NavigationDatabase(navData, cifpFilePath, customFixesBaseDir);
     }
 
     /// <summary>
-    /// Sets a custom instance (for tests).
+    /// Sets the process-wide default instance (for production and test initialization).
     /// </summary>
     public static void SetInstance(NavigationDatabase db)
     {
-        _instance = db;
+        _defaultInstance = db;
+    }
+
+    /// <summary>
+    /// Sets a thread-local override visible only to the current async execution context.
+    /// Other threads and tests are unaffected. Returns an <see cref="IDisposable"/> that
+    /// clears the override on dispose, falling back to the process-wide default.
+    /// </summary>
+    public static IDisposable ScopedOverride(NavigationDatabase db)
+    {
+        _scopedInstance.Value = db;
+        return new OverrideScope();
+    }
+
+    private sealed class OverrideScope : IDisposable
+    {
+        public void Dispose() => _scopedInstance.Value = null;
     }
 
     public NavigationDatabase(NavDataSet navData, string cifpFilePath, string? customFixesBaseDir = null)

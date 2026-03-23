@@ -221,9 +221,6 @@ public class PatternAltitudeMemoryTests
         phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         ac.Phases = phases;
 
-        // Ensure NavDb singleton is set (other tests may overwrite it)
-        NavigationDatabase.SetInstance(TestVnasData.NavigationDb);
-
         // Changing to 28R (different runway) should clear the altitude override
         var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, "28R", null);
         Assert.True(result.Success);
@@ -265,8 +262,6 @@ public class PatternAltitudeMemoryTests
         phases.Add(new DownwindPhase { Waypoints = waypoints });
         phases.Start(CommandDispatcher.BuildMinimalContext(ac));
         ac.Phases = phases;
-
-        NavigationDatabase.SetInstance(TestVnasData.NavigationDb);
 
         // Changing direction only (no new runway) should keep the altitude override
         var result = PatternCommandHandler.TryChangePatternDirection(ac, PatternDirection.Right, null, null);

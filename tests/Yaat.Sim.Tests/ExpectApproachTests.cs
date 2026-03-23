@@ -6,8 +6,14 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class ExpectApproachTests
 {
+    public ExpectApproachTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private static AircraftState MakeAircraft(string destination = "OAK")
     {
         return new AircraftState
@@ -63,7 +69,7 @@ public class ExpectApproachTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -77,7 +83,7 @@ public class ExpectApproachTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("I28R", null);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -92,7 +98,7 @@ public class ExpectApproachTests
     {
         var aircraft = MakeAircraft(destination: "SFO");
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Explicit airport overrides destination
         var cmd = new ExpectApproachCommand("ILS28R", "OAK");
@@ -107,7 +113,7 @@ public class ExpectApproachTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("VOR99", null);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -122,7 +128,7 @@ public class ExpectApproachTests
         var aircraft = MakeAircraft();
         aircraft.ExpectedApproach = "V28L";
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new ExpectApproachCommand("ILS28R", null);
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -136,7 +142,7 @@ public class ExpectApproachTests
     {
         var aircraft = MakeAircraft();
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         // "ILS28R" should resolve to "I28R"
         var cmd = new ExpectApproachCommand("ILS28R", null);

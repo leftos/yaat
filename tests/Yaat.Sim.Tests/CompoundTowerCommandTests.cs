@@ -21,6 +21,7 @@ public class CompoundTowerCommandTests
     public CompoundTowerCommandTests(ITestOutputHelper output)
     {
         _output = output;
+        TestVnasData.EnsureInitialized();
     }
 
     private static RunwayInfo Oak28R() =>
@@ -85,13 +86,10 @@ public class CompoundTowerCommandTests
     [Fact]
     public void Cto_Semicolon_Dct_EnqueuesPostDepartureBlock()
     {
-        var navDb = TestVnasData.NavigationDb;
-        if (navDb is null)
+        if (TestVnasData.NavigationDb is null)
         {
             return;
         }
-        NavigationDatabase.SetInstance(navDb);
-        TestVnasData.EnsureInitialized();
 
         var runway = Oak28R();
         var ac = MakeLinedUpAircraft(runway);
@@ -122,13 +120,10 @@ public class CompoundTowerCommandTests
     [Fact]
     public void Cto_MR270_Dct_ExecutesAfterPhasesComplete()
     {
-        var navDb = TestVnasData.NavigationDb;
-        if (navDb is null)
+        if (TestVnasData.NavigationDb is null)
         {
             return;
         }
-        NavigationDatabase.SetInstance(navDb);
-        TestVnasData.EnsureInitialized();
 
         var runway = Oak28R();
         var ac = MakeLinedUpAircraft(runway);
@@ -217,12 +212,10 @@ public class CompoundTowerCommandTests
     [Fact]
     public void Erd_Comma_Cland_Succeeds_WithoutPriorPhases()
     {
-        var navDb = TestVnasData.NavigationDb;
-        if (navDb is null)
+        if (TestVnasData.NavigationDb is null)
         {
             return;
         }
-        NavigationDatabase.SetInstance(navDb);
 
         var ac = MakeAircraftWithoutPhases();
 
@@ -240,12 +233,10 @@ public class CompoundTowerCommandTests
     [Fact]
     public void Erd_Semicolon_Cland_Succeeds_WithoutPriorPhases()
     {
-        var navDb = TestVnasData.NavigationDb;
-        if (navDb is null)
+        if (TestVnasData.NavigationDb is null)
         {
             return;
         }
-        NavigationDatabase.SetInstance(navDb);
 
         var ac = MakeAircraftWithoutPhases();
 
@@ -264,12 +255,10 @@ public class CompoundTowerCommandTests
     [Fact]
     public void Cland_Alone_Fails_WithoutPhases()
     {
-        var navDb = TestVnasData.NavigationDb;
-        if (navDb is null)
+        if (TestVnasData.NavigationDb is null)
         {
             return;
         }
-        NavigationDatabase.SetInstance(navDb);
 
         var ac = MakeAircraftWithoutPhases();
 

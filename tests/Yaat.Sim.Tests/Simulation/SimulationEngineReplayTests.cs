@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim;
-using Yaat.Sim.Data;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -32,6 +31,7 @@ public class SimulationEngineReplayTests
 
     private static SimulationEngine? BuildEngine()
     {
+        TestVnasData.EnsureInitialized();
         var navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
@@ -44,7 +44,6 @@ public class SimulationEngineReplayTests
             return null;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         return new SimulationEngine(groundData);
     }
 

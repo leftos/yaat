@@ -13,6 +13,7 @@ namespace Yaat.Sim.Tests;
 /// Bug: "cm 020, dct vpcol oak30num vpmid, at oak30num cm 014" — the AT condition should
 /// trigger a descent to 1400 when the aircraft crosses OAK30NUM, while continuing to VPMID.
 /// </summary>
+[Collection("NavDbMutator")]
 public class AtFixLookaheadTests(ITestOutputHelper output)
 {
     // Three fixes in a line heading roughly north from start position:
@@ -46,7 +47,8 @@ public class AtFixLookaheadTests(ITestOutputHelper output)
     [Fact]
     public void AtFix_LookaheadFiresDuringDct()
     {
-        NavigationDatabase.SetInstance(NavDb);
+        TestVnasData.EnsureInitialized();
+        using var _ = NavigationDatabase.ScopedOverride(NavDb);
 
         var ac = MakeAircraft();
 

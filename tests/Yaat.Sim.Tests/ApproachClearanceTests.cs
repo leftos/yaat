@@ -8,8 +8,14 @@ using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class ApproachClearanceTests
 {
+    public ApproachClearanceTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     private static AircraftState MakeAircraft(
         double heading = 090,
         double altitude = 3000,
@@ -206,7 +212,7 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -224,7 +230,7 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -241,7 +247,7 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -255,7 +261,7 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -270,7 +276,7 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(destination: "OAK");
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("VOR99");
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -284,7 +290,7 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(destination: "");
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -298,7 +304,7 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         // Set up existing phases
         aircraft.Phases = new PhaseList();
@@ -328,7 +334,7 @@ public class ApproachClearanceTests
         var aircraft = MakeAircraft(heading: 300, destination: "OAK");
         // ApproachId is "I28R" but user types "ILS28R"
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
@@ -342,7 +348,7 @@ public class ApproachClearanceTests
     {
         var aircraft = MakeAircraft(heading: 300, destination: "KOAK");
         var navDb = MakeNavDb();
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         var cmd = new JoinFinalApproachCourseCommand("ILS28R");
         var result = CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);

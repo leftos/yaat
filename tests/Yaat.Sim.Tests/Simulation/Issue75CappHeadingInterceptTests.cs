@@ -3,7 +3,6 @@ using MartinCostello.Logging.XUnit;
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
-using Yaat.Sim.Data;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
@@ -45,6 +44,7 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
 
     private SimulationEngine? BuildEngine()
     {
+        TestVnasData.EnsureInitialized();
         var navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
@@ -55,7 +55,6 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
         var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
-        NavigationDatabase.SetInstance(navDb);
         return new SimulationEngine(groundData);
     }
 

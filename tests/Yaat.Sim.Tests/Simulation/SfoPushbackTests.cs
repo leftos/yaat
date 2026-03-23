@@ -1,6 +1,5 @@
 using Xunit;
 using Xunit.Abstractions;
-using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Simulation;
@@ -25,6 +24,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
 
     private static SimulationEngine? BuildEngine()
     {
+        TestVnasData.EnsureInitialized();
         var navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
@@ -37,7 +37,6 @@ public class SfoPushbackTests(ITestOutputHelper output)
             return null;
         }
 
-        NavigationDatabase.SetInstance(navDb);
         return new SimulationEngine(groundData);
     }
 

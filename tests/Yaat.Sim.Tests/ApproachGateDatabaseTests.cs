@@ -5,8 +5,14 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class ApproachGateDatabaseTests
 {
+    public ApproachGateDatabaseTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     [Fact]
     public void GetMinInterceptDistanceNm_NotInitialized_ReturnsDefault()
     {
@@ -47,7 +53,7 @@ public class ApproachGateDatabaseTests
                 elevationFt: 10
             )
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         ApproachGateDatabase.Initialize(cifpData);
 
@@ -83,7 +89,7 @@ public class ApproachGateDatabaseTests
                 lengthFt: 8000
             )
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         ApproachGateDatabase.Initialize(cifpData);
 
@@ -133,7 +139,7 @@ public class ApproachGateDatabaseTests
                 widthFt: 100
             )
         );
-        NavigationDatabase.SetInstance(navDb);
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
 
         ApproachGateDatabase.Initialize(cifpData);
 
