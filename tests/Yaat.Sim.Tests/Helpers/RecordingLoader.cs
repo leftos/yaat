@@ -68,6 +68,17 @@ public static class RecordingLoader
         }
 
         // Legacy bug-report bundle
+        var nestedV3 = zip.GetEntry("recording.yaat-recording.zip");
+        if (nestedV3 is not null)
+        {
+            using var entryStream = nestedV3.Open();
+            using var ms = new MemoryStream();
+            entryStream.CopyTo(ms);
+            ms.Position = 0;
+            using var archive = RecordingArchive.Open(ms);
+            return archive.ToSessionRecording();
+        }
+
         var entry =
             zip.GetEntry("recording.yaat-recording.br")
             ?? zip.GetEntry("recording.yaat-recording.json.gz")

@@ -24,6 +24,25 @@ internal static class HoldShortAnnotator
         var enteredRunways = new Dictionary<RunwayIdentifier, int>();
         var seenHsNodes = new HashSet<(RunwayIdentifier, int)>();
 
+        // Pre-seed entry tracking from the starting node. If the route begins
+        // at a RunwayHoldShort (e.g., re-routed from a destination hold-short),
+        // the aircraft is already at the entry side of that runway crossing.
+        // The next HS for the same runway is the exit side and must be skipped.
+        if (segments.Count > 0)
+        {
+            int startNodeId = segments[0].FromNodeId;
+            if (
+                layout.Nodes.TryGetValue(startNodeId, out var startNode)
+                && startNode.Type == GroundNodeType.RunwayHoldShort
+                && startNode.RunwayId is { } startRwyId
+            )
+            {
+                enteredRunways[startRwyId] = startNodeId;
+                seenHsNodes.Add((startRwyId, startNodeId));
+                Log.LogDebug("[HoldShortAnnotator] Starting node {NodeId} is HS for {Runway} — pre-seeded as entry", startNodeId, startRwyId);
+            }
+        }
+
         foreach (var seg in segments)
         {
             if (
