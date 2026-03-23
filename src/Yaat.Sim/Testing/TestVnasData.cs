@@ -135,6 +135,14 @@ public static class TestVnasData
             LoadAircraftCwt();
             LoadFaaAcd();
             LoadAircraftProfiles();
+
+            // Initialize the NavigationDatabase singleton so production code
+            // that uses NavigationDatabase.Instance works in tests.
+            if (NavigationDb is { } navDb)
+            {
+                NavigationDatabase.SetInstance(navDb);
+            }
+
             _initialized = true;
         }
     }

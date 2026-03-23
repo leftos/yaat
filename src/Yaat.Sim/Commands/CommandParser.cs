@@ -564,8 +564,8 @@ public static class CommandParser
             EnterLeftBase => DepartureCommandParser.ParsePatternBaseEntry(arg),
             EnterRightBase => DepartureCommandParser.ParsePatternBaseEntry(arg, right: true),
             EnterFinal => DepartureCommandParser.ParsePatternRunwayEntry(arg, rwy => new EnterFinalCommand(rwy)),
-            MakeLeftTraffic => PR.Ok(new MakeLeftTrafficCommand(arg?.ToUpperInvariant())),
-            MakeRightTraffic => PR.Ok(new MakeRightTrafficCommand(arg?.ToUpperInvariant())),
+            MakeLeftTraffic => ParseMakeTraffic(arg, PatternDirection.Left),
+            MakeRightTraffic => ParseMakeTraffic(arg, PatternDirection.Right),
             TurnCrosswind when arg is null => PR.Ok(new TurnCrosswindCommand()),
             TurnDownwind when arg is null => PR.Ok(new TurnDownwindCommand()),
             TurnBase when arg is null => PR.Ok(new TurnBaseCommand()),
@@ -1271,6 +1271,78 @@ public static class CommandParser
     }
 
     /// <summary>
+    /// Parses MLT/MRT with optional runway and/or altitude.
+    /// Forms: MLT, MLT 28R, MLT 15, MLT 28R 15.
+    /// Runway designators contain letters (L/R/C) or start with 0; pure numbers are altitudes.
+    /// </summary>
+    private static PR ParseMakeTraffic(string? arg, PatternDirection direction)
+    {
+        if (arg is null)
+        {
+            return direction == PatternDirection.Left
+                ? PR.Ok(new MakeLeftTrafficCommand(null, null))
+                : PR.Ok(new MakeRightTrafficCommand(null, null));
+        }
+
+        var tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string? runwayId = null;
+        int? altitude = null;
+
+        foreach (var token in tokens)
+        {
+            if (runwayId is null && IsRunwayDesignator(token))
+            {
+                runwayId = token.ToUpperInvariant();
+            }
+            else
+            {
+                var resolved = AltitudeResolver.Resolve(token);
+                if (resolved is not null)
+                {
+                    altitude = resolved;
+                }
+                else
+                {
+                    // Could be a runway without L/R/C suffix — try as runway
+                    runwayId = token.ToUpperInvariant();
+                }
+            }
+        }
+
+        return direction == PatternDirection.Left
+            ? PR.Ok(new MakeLeftTrafficCommand(runwayId, altitude))
+            : PR.Ok(new MakeRightTrafficCommand(runwayId, altitude));
+    }
+
+    /// <summary>
+    /// Returns true if a token looks like a runway designator (contains a letter
+    /// like L/R/C, or starts with 0 like "09"). Pure numbers like "15" are treated
+    /// as altitudes by default.
+    /// </summary>
+    internal static bool IsRunwayDesignator(string token)
+    {
+        if (token.Length == 0)
+        {
+            return false;
+        }
+
+        // Contains L/R/C suffix → definitely a runway
+        char last = char.ToUpperInvariant(token[^1]);
+        if (last is 'L' or 'R' or 'C')
+        {
+            return true;
+        }
+
+        // Starts with 0 (e.g., "09") → runway, since altitude "09" = 900ft is unusual
+        if (token[0] == '0' && token.Length <= 3)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Parses GA (no args), GA MRT/MLT (pattern direction),
     /// GA hdg (heading only), or GA hdg alt (heading + altitude).
     /// Heading can be a number (1-360) or RH (runway heading).
@@ -1283,17 +1355,21 @@ public static class CommandParser
             return PR.Ok(new GoAroundCommand(null, null, null));
         }
 
-        if (arg.Equals("MRT", StringComparison.OrdinalIgnoreCase))
-        {
-            return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Right));
-        }
-
-        if (arg.Equals("MLT", StringComparison.OrdinalIgnoreCase))
-        {
-            return PR.Ok(new GoAroundCommand(null, null, PatternDirection.Left));
-        }
-
         var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        // GA MRT [altitude] or GA MLT [altitude]
+        if (parts[0].Equals("MRT", StringComparison.OrdinalIgnoreCase) || parts[0].Equals("MLT", StringComparison.OrdinalIgnoreCase))
+        {
+            var dir = parts[0].Equals("MLT", StringComparison.OrdinalIgnoreCase) ? PatternDirection.Left : PatternDirection.Right;
+            int? patternAlt = parts.Length > 1 ? AltitudeResolver.Resolve(parts[1]) : null;
+            if (parts.Length > 1 && patternAlt is null)
+            {
+                return PR.Fail($"invalid go-around altitude '{parts[1]}'");
+            }
+
+            return PR.Ok(new GoAroundCommand(null, patternAlt, dir));
+        }
+
         if (parts.Length < 1 || parts.Length > 2)
         {
             return PR.Fail($"invalid go-around args '{arg}' (expected heading, heading altitude, or MRT/MLT)");

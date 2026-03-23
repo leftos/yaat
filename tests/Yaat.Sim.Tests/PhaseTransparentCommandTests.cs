@@ -36,7 +36,7 @@ public class PhaseTransparentCommandTests
             BeaconCode = 7110,
         };
 
-        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null);
+        var waypoints = PatternGeometry.Compute(rwy, AircraftCategory.Piston, PatternDirection.Right, null, null, null);
         var phases = new PhaseList { AssignedRunway = rwy };
         phases.Add(new UpwindPhase { Waypoints = waypoints });
         phases.Add(new CrosswindPhase { Waypoints = waypoints });

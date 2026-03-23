@@ -102,6 +102,8 @@ public sealed class UpwindPhase : Phase
             CanonicalCommandType.LandAndHoldShort => CommandAcceptance.Allowed,
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
+            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

@@ -179,7 +179,7 @@ public class TakeoffDepartureTests
     [Fact]
     public void ClosedTrafficDeparture_KeepsRunwayHeading()
     {
-        var (hdg, dir) = RunTakeoff(new ClosedTrafficDeparture(PatternDirection.Right));
+        var (hdg, dir) = RunTakeoff(new ClosedTrafficDeparture(PatternDirection.Right, null, null));
         Assert.Equal(RunwayHeading, hdg);
         Assert.Null(dir);
     }

@@ -132,6 +132,8 @@ public sealed class BasePhase : Phase
             CanonicalCommandType.ClearedForOption => CommandAcceptance.Allowed,
             CanonicalCommandType.GoAround => CommandAcceptance.Allowed,
             CanonicalCommandType.Follow => CommandAcceptance.Allowed,
+            CanonicalCommandType.ClimbMaintain => CommandAcceptance.Allowed,
+            CanonicalCommandType.DescendMaintain => CommandAcceptance.Allowed,
             CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
             _ => CommandAcceptance.ClearsPhase,
         };

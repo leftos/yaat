@@ -196,7 +196,8 @@ public record DirectFixDeparture(string FixName, double Lat, double Lon, TurnDir
 /// <summary>Closed traffic: re-enter the pattern after takeoff.</summary>
 /// <param name="Direction">Left or right traffic pattern.</param>
 /// <param name="RunwayId">Optional runway for the pattern (cross-runway ops). When null, uses the takeoff runway.</param>
-public record ClosedTrafficDeparture(PatternDirection Direction, string? RunwayId = null) : DepartureInstruction
+/// <param name="PatternAltitude">Optional pattern altitude override (feet MSL).</param>
+public record ClosedTrafficDeparture(PatternDirection Direction, string? RunwayId, int? PatternAltitude) : DepartureInstruction
 {
     public override DepartureInstructionDto ToSnapshot() => new DefaultDepartureDto();
 }
@@ -234,9 +235,9 @@ public record EnterRightBaseCommand(string? RunwayId = null, double? FinalDistan
 
 public record EnterFinalCommand(string? RunwayId = null) : ParsedCommand;
 
-public record MakeLeftTrafficCommand(string? RunwayId = null) : ParsedCommand;
+public record MakeLeftTrafficCommand(string? RunwayId, int? Altitude) : ParsedCommand;
 
-public record MakeRightTrafficCommand(string? RunwayId = null) : ParsedCommand;
+public record MakeRightTrafficCommand(string? RunwayId, int? Altitude) : ParsedCommand;
 
 public record TurnCrosswindCommand : ParsedCommand;
 

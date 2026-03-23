@@ -110,7 +110,7 @@ public class PatternEntryTests
         var entry = (PatternEntryPhase)phases[0];
 
         // Entry point should be near the downwind abeam point (midfield per AIM 4-3-3)
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null);
         double distToAbeam = GeoMath.DistanceNm(entry.EntryLat, entry.EntryLon, waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon);
         _output.WriteLine($"Entry point dist to DownwindAbeam: {distToAbeam:F3}nm");
         Assert.True(distToAbeam < 0.1, $"Entry point should be at midfield abeam. Dist: {distToAbeam:F3}nm");
@@ -203,7 +203,7 @@ public class PatternEntryTests
     {
         var runway = MakeOak28R();
         // Aircraft already near the downwind abeam point (midfield entry per AIM 4-3-3)
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null);
         var aircraft = MakeAircraft(waypoints.DownwindAbeamLat + 0.005, waypoints.DownwindAbeamLon, waypoints.PatternAltitude, 112);
 
         aircraft.Phases!.AssignedRunway = runway;
@@ -413,7 +413,7 @@ public class PatternEntryTests
     public void DownwindEntryPoint_IsAtMidfieldAbeam_NotDepartureEnd()
     {
         var runway = MakeOak28R();
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null);
 
         var aircraft = MakeAircraft(37.87, -122.22, 3500, 180);
         aircraft.Phases!.AssignedRunway = runway;
@@ -442,7 +442,7 @@ public class PatternEntryTests
         PatternCommandHandler.TryEnterPattern(aircraft, PatternDirection.Right, PatternEntryLeg.Downwind, runwayId: "28R", finalDistanceNm: null);
 
         var entry = (PatternEntryPhase)aircraft.Phases!.Phases[0];
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null);
 
         // Pattern altitude = field elevation + AGL for the resolved category
         double expectedAlt = 9 + CategoryPerformance.PatternAltitudeAgl(ResolvedCategory);
@@ -647,7 +647,7 @@ public class PatternEntryTests
     public void MidfieldCrossing_RightPattern_HasCorrectWaypoints()
     {
         var runway = MakeOak28R();
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null);
 
         // South of airport — wrong side for right pattern (pattern is north)
         var aircraft = MakeAircraft(37.63, -122.21, 2500, 0);
@@ -687,7 +687,7 @@ public class PatternEntryTests
     public void PatternGeometry_LeftPattern_TurnsAreLeft()
     {
         var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left);
+        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Left, null, null, null);
 
         // For left pattern on runway heading 292:
         // Upwind = 292, Crosswind = 292 - 90 = 202, Downwind = 112, Base = 112 - 90 = 22
@@ -703,7 +703,7 @@ public class PatternEntryTests
     public void PatternGeometry_RightPattern_TurnsAreRight()
     {
         var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Right);
+        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Right, null, null, null);
 
         // For right pattern on runway heading 292:
         // Upwind = 292, Crosswind = 292 + 90 = 22, Downwind = 112, Base = 112 + 90 = 202
@@ -719,7 +719,7 @@ public class PatternEntryTests
     public void PatternGeometry_DownwindAbeam_IsAbeamThreshold()
     {
         var runway = MakeOak28R();
-        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Right);
+        var wp = PatternGeometry.Compute(runway, AircraftCategory.Piston, PatternDirection.Right, null, null, null);
 
         double distToThreshold = GeoMath.DistanceNm(wp.DownwindAbeamLat, wp.DownwindAbeamLon, wp.ThresholdLat, wp.ThresholdLon);
         double expectedSize = CategoryPerformance.PatternSizeNm(AircraftCategory.Piston);
@@ -746,7 +746,7 @@ public class PatternEntryTests
         phases.Add(new InitialClimbPhase());
         aircraft.Phases = phases;
 
-        var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right));
+        var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, null, null));
 
         var luaw = (LinedUpAndWaitingPhase)phases.Phases[0];
         var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, aircraft, luaw);
@@ -810,7 +810,7 @@ public class PatternEntryTests
     public void ERD_VeryClose_1nm_NoPatternEntryPhase()
     {
         var runway = MakeOak28R();
-        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right);
+        var waypoints = PatternGeometry.Compute(runway, ResolvedCategory, PatternDirection.Right, null, null, null);
 
         // Place aircraft 0.8nm from the entry point (under 1nm threshold), on correct side
         // Move slightly toward the runway from the abeam point (stays on pattern side)

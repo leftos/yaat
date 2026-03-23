@@ -710,12 +710,7 @@ public sealed class TaxiingPhase : Phase
 
             if (dep.Departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
             {
-                phases.TrafficDirection = ct.Direction;
-                var patternRunway = dep.PatternRunway ?? rwy;
-                var cat = AircraftCategorization.Categorize(ctx.Aircraft.AircraftType);
-                var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
-                phases.Phases.AddRange(circuit);
-                phases.PatternRunway = patternRunway;
+                Commands.DepartureClearanceHandler.ApplyClosedTraffic(ct, ctx.Aircraft, phases, dep.PatternRunway ?? rwy, removeInitialClimb: false);
             }
         }
 

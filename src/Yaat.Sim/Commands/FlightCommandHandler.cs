@@ -98,6 +98,12 @@ internal static class FlightCommandHandler
         aircraft.Targets.TargetAltitude = cmd.Altitude;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
+
+        if (aircraft.Phases?.TrafficDirection is not null)
+        {
+            aircraft.PatternAltitudeOverrideFt = cmd.Altitude;
+        }
+
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
     }
 
@@ -110,6 +116,12 @@ internal static class FlightCommandHandler
         aircraft.Targets.TargetAltitude = cmd.Altitude;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
         aircraft.Targets.HasExplicitSpeedCommand = false;
+
+        if (aircraft.Phases?.TrafficDirection is not null)
+        {
+            aircraft.PatternAltitudeOverrideFt = cmd.Altitude;
+        }
+
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
     }
 

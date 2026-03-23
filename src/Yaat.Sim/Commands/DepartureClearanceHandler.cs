@@ -47,20 +47,9 @@ internal static class DepartureClearanceHandler
             }
 
             // ClosedTrafficDeparture: establish pattern mode and append circuit.
-            // Remove InitialClimbPhase — UpwindPhase handles climb to pattern altitude.
-            if (cto.Departure is ClosedTrafficDeparture ct)
+            if (cto.Departure is ClosedTrafficDeparture ct && aircraft.Phases.AssignedRunway is { } ctRunway)
             {
-                aircraft.Phases.TrafficDirection = ct.Direction;
-                aircraft.Phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
-
-                var patternRunway = ResolvePatternRunway(ct, aircraft) ?? aircraft.Phases.AssignedRunway;
-                if (patternRunway is not null)
-                {
-                    var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-                    var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
-                    aircraft.Phases.Phases.AddRange(circuit);
-                    aircraft.Phases.PatternRunway = patternRunway;
-                }
+                ApplyClosedTraffic(ct, aircraft, aircraft.Phases, ctRunway, removeInitialClimb: true);
             }
         }
 
@@ -314,11 +303,7 @@ internal static class DepartureClearanceHandler
 
             if (departure is ClosedTrafficDeparture ct)
             {
-                aircraft.Phases.TrafficDirection = ct.Direction;
-                var patternRunway = ResolvePatternRunway(ct, aircraft) ?? runway;
-                var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
-                aircraft.Phases.Phases.AddRange(circuit);
-                aircraft.Phases.PatternRunway = patternRunway;
+                ApplyClosedTraffic(ct, aircraft, aircraft.Phases!, runway, removeInitialClimb: false);
             }
         }
 
@@ -394,14 +379,7 @@ internal static class DepartureClearanceHandler
 
         if (departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
         {
-            phases.TrafficDirection = ct.Direction;
-            // Remove InitialClimbPhase — UpwindPhase handles climb to pattern altitude
-            phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
-            var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
-            var patternRunway = ResolvePatternRunway(ct, aircraft) ?? rwy;
-            var circuit = PatternBuilder.BuildCircuit(patternRunway, cat, ct.Direction, PatternEntryLeg.Upwind, true);
-            phases.Phases.AddRange(circuit);
-            phases.PatternRunway = patternRunway;
+            ApplyClosedTraffic(ct, aircraft, phases, rwy, removeInitialClimb: true);
         }
 
         logger.LogDebug("[Departure] {Callsign}: CTO satisfied on upcoming LUAW phase", aircraft.Callsign);
@@ -467,6 +445,49 @@ internal static class DepartureClearanceHandler
         }
 
         return CommandDispatcher.ResolveRunway(aircraft, ct.RunwayId);
+    }
+
+    /// <summary>
+    /// Applies closed traffic departure to an aircraft: sets traffic direction,
+    /// pattern altitude override, resolves cross-runway, builds and appends
+    /// the pattern circuit, and optionally removes InitialClimbPhase.
+    /// </summary>
+    internal static void ApplyClosedTraffic(
+        ClosedTrafficDeparture ct,
+        AircraftState aircraft,
+        PhaseList phases,
+        RunwayInfo fallbackRunway,
+        bool removeInitialClimb
+    )
+    {
+        phases.TrafficDirection = ct.Direction;
+
+        if (ct.PatternAltitude is not null)
+        {
+            aircraft.PatternAltitudeOverrideFt = ct.PatternAltitude;
+        }
+
+        if (removeInitialClimb)
+        {
+            phases.Phases.RemoveAll(p => p is InitialClimbPhase { Status: PhaseStatus.Pending });
+        }
+
+        var patternRunway = ResolvePatternRunway(ct, aircraft) ?? fallbackRunway;
+        var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        var airportRunways = Data.NavigationDatabase.Instance.GetRunways(patternRunway.AirportId);
+        var circuit = PatternBuilder.BuildCircuit(
+            patternRunway,
+            cat,
+            ct.Direction,
+            PatternEntryLeg.Upwind,
+            true,
+            null,
+            null,
+            aircraft.PatternAltitudeOverrideFt,
+            airportRunways
+        );
+        phases.Phases.AddRange(circuit);
+        phases.PatternRunway = patternRunway;
     }
 
     /// <summary>

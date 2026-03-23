@@ -56,6 +56,7 @@ Three projects across two repos. **Yaat.Sim** is shared by both Yaat.Client and 
 
 - Match ATCTrainer/VICE names where applicable. See `docs/command-aliases/reference.md`.
 - **Completeness (MANDATORY):** Every `CanonicalCommandType` must exist in `CommandScheme.Default()` and `CommandMetadata.AllCommands`. Tests enforce this.
+- **Altitude arguments:** Always use `AltitudeResolver.Resolve()` for parsing altitude arguments in commands. It handles both shorthand (`15` → 1500ft) and full (`1500` → 1500ft) formats, plus AGL notation (`KOAK+010`).
 
 ### Command Input UX
 

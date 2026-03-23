@@ -326,7 +326,7 @@ public class DepartureClearanceHandlerTests
         var rwy = DefaultRunway();
         NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy));
 
-        var departure = new ClosedTrafficDeparture(PatternDirection.Left);
+        var departure = new ClosedTrafficDeparture(PatternDirection.Left, null, null);
         var result = DepartureClearanceHandler.TryDepartureClearance(ac, holding, ClearanceType.ClearedForTakeoff, departure, null, Logger);
 
         Assert.True(result.Success);
@@ -453,7 +453,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void FormatDepartureInstructionSuffix_ClosedTraffic()
     {
-        var dep = new ClosedTrafficDeparture(PatternDirection.Right);
+        var dep = new ClosedTrafficDeparture(PatternDirection.Right, null, null);
         Assert.Contains("right traffic", DepartureClearanceHandler.FormatDepartureInstructionSuffix(dep));
     }
 
@@ -486,7 +486,7 @@ public class DepartureClearanceHandlerTests
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
-            new ClosedTrafficDeparture(PatternDirection.Right, "28R"),
+            new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null,
             Logger
         );
@@ -520,7 +520,7 @@ public class DepartureClearanceHandlerTests
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
-            new ClosedTrafficDeparture(PatternDirection.Left, "28L"),
+            new ClosedTrafficDeparture(PatternDirection.Left, "28L", null),
             null,
             Logger
         );
@@ -545,7 +545,7 @@ public class DepartureClearanceHandlerTests
             ac,
             holding,
             ClearanceType.ClearedForTakeoff,
-            new ClosedTrafficDeparture(PatternDirection.Right),
+            new ClosedTrafficDeparture(PatternDirection.Right, null, null),
             null,
             Logger
         );
@@ -553,13 +553,13 @@ public class DepartureClearanceHandlerTests
         Assert.True(result.Success);
         // PatternRunway is set to the takeoff runway (fallback)
         Assert.Equal("33", ac.Phases.PatternRunway!.Designator);
-        Assert.Null(new ClosedTrafficDeparture(PatternDirection.Right).RunwayId);
+        Assert.Null(new ClosedTrafficDeparture(PatternDirection.Right, null, null).RunwayId);
     }
 
     [Fact]
     public void CrossRunway_Message_IncludesPatternRunway()
     {
-        var dep = new ClosedTrafficDeparture(PatternDirection.Right, "28R");
+        var dep = new ClosedTrafficDeparture(PatternDirection.Right, "28R", null);
         var suffix = DepartureClearanceHandler.FormatDepartureInstructionSuffix(dep);
         Assert.Contains("right traffic", suffix);
         Assert.Contains("runway 28R", suffix);
@@ -568,7 +568,7 @@ public class DepartureClearanceHandlerTests
     [Fact]
     public void CrossRunway_Message_NoRunwayId_OmitsRunway()
     {
-        var dep = new ClosedTrafficDeparture(PatternDirection.Left);
+        var dep = new ClosedTrafficDeparture(PatternDirection.Left, null, null);
         var suffix = DepartureClearanceHandler.FormatDepartureInstructionSuffix(dep);
         Assert.Contains("left traffic", suffix);
         Assert.DoesNotContain("runway", suffix);
@@ -587,7 +587,7 @@ public class DepartureClearanceHandlerTests
         ac.Phases.Start(MinCtx(ac));
 
         NavigationDatabase.SetInstance(TestNavDbFactory.WithRunways(rwy33, rwy28R));
-        var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, "28R"));
+        var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, "28R", null));
 
         var result = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw);
 
@@ -627,7 +627,7 @@ public class DepartureClearanceHandlerTests
         var result = DepartureClearanceHandler.StoreDepartureClearanceDuringTaxi(
             ac,
             ClearanceType.ClearedForTakeoff,
-            new ClosedTrafficDeparture(PatternDirection.Right, "28R"),
+            new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
             null
         );
 

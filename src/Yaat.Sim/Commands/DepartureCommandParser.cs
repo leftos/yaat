@@ -48,10 +48,10 @@ internal static class DepartureCommandParser
         var departure = ParseCtoModifier(mod);
         if (departure is not null)
         {
-            // For closed traffic, second token is a pattern runway ID (e.g., "CTO MRT 28R")
-            if (departure is ClosedTrafficDeparture ct && secondToken is not null)
+            // For closed traffic: CTO MLT [runway] [altitude]
+            if (departure is ClosedTrafficDeparture ct)
             {
-                return new ClearedForTakeoffCommand(ct with { RunwayId = secondToken.ToUpperInvariant() });
+                return ParseCtoClosedTraffic(ct, tokens);
             }
 
             int? alt = secondToken is not null ? AltitudeResolver.Resolve(secondToken) : null;
@@ -84,7 +84,7 @@ internal static class DepartureCommandParser
                 "C" => new RelativeTurnDeparture(90, TurnDirection.Right),
                 "D" => new RelativeTurnDeparture(180, TurnDirection.Right),
                 "H" => new RunwayHeadingDeparture(),
-                "T" => new ClosedTrafficDeparture(PatternDirection.Right),
+                "T" => new ClosedTrafficDeparture(PatternDirection.Right, null, null),
                 _ when int.TryParse(suffix, out var deg) && deg >= 1 && deg <= 359 => new RelativeTurnDeparture(deg, TurnDirection.Right),
                 _ => null,
             };
@@ -97,7 +97,7 @@ internal static class DepartureCommandParser
             {
                 "C" => new RelativeTurnDeparture(90, TurnDirection.Left),
                 "D" => new RelativeTurnDeparture(180, TurnDirection.Left),
-                "T" => new ClosedTrafficDeparture(PatternDirection.Left),
+                "T" => new ClosedTrafficDeparture(PatternDirection.Left, null, null),
                 _ when int.TryParse(suffix, out var deg) && deg >= 1 && deg <= 359 => new RelativeTurnDeparture(deg, TurnDirection.Left),
                 _ => null,
             };
@@ -112,11 +112,11 @@ internal static class DepartureCommandParser
         // Pattern traffic aliases
         if (mod is "MRT")
         {
-            return new ClosedTrafficDeparture(PatternDirection.Right);
+            return new ClosedTrafficDeparture(PatternDirection.Right, null, null);
         }
         if (mod is "MLT")
         {
-            return new ClosedTrafficDeparture(PatternDirection.Left);
+            return new ClosedTrafficDeparture(PatternDirection.Left, null, null);
         }
 
         // On course
@@ -153,6 +153,39 @@ internal static class DepartureCommandParser
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Parses CTO closed traffic with optional runway and altitude.
+    /// Forms: CTO MLT, CTO MLT 28R, CTO MLT 15, CTO MLT 28R 15.
+    /// </summary>
+    private static ParsedCommand ParseCtoClosedTraffic(ClosedTrafficDeparture ct, string[] tokens)
+    {
+        // tokens[0] = "MLT"/"MRT", rest are runway and/or altitude
+        string? runwayId = null;
+        int? patternAlt = null;
+
+        for (int i = 1; i < tokens.Length; i++)
+        {
+            if (runwayId is null && CommandParser.IsRunwayDesignator(tokens[i]))
+            {
+                runwayId = tokens[i].ToUpperInvariant();
+            }
+            else
+            {
+                var resolved = AltitudeResolver.Resolve(tokens[i]);
+                if (resolved is not null)
+                {
+                    patternAlt = resolved;
+                }
+                else
+                {
+                    runwayId = tokens[i].ToUpperInvariant();
+                }
+            }
+        }
+
+        return new ClearedForTakeoffCommand(ct with { RunwayId = runwayId, PatternAltitude = patternAlt });
     }
 
     /// <summary>

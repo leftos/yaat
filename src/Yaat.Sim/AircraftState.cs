@@ -199,6 +199,9 @@ public class AircraftState
     /// <summary>Override for pattern downwind offset distance (NM). Null uses category default.</summary>
     public double? PatternSizeOverrideNm { get; set; }
 
+    /// <summary>Override for pattern altitude (feet MSL). Null uses category-based default. Set by CM/DM during pattern mode or explicit altitude argument on MLT/MRT/CTO/GA.</summary>
+    public double? PatternAltitudeOverrideFt { get; set; }
+
     // Visual approach state
     public bool HasReportedFieldInSight { get; set; }
     public bool HasReportedTrafficInSight { get; set; }
@@ -332,6 +335,7 @@ public class AircraftState
             SpeedRestrictionsDeleted = dto.SpeedRestrictionsDeleted,
             IsExpediting = dto.IsExpediting,
             PatternSizeOverrideNm = dto.PatternSizeOverrideNm,
+            PatternAltitudeOverrideFt = dto.PatternAltitudeOverrideFt,
             HasReportedFieldInSight = dto.HasReportedFieldInSight,
             HasReportedTrafficInSight = dto.HasReportedTrafficInSight,
             FollowingCallsign = dto.FollowingCallsign,
@@ -474,6 +478,7 @@ public class AircraftState
             SpeedRestrictionsDeleted = SpeedRestrictionsDeleted,
             IsExpediting = IsExpediting,
             PatternSizeOverrideNm = PatternSizeOverrideNm,
+            PatternAltitudeOverrideFt = PatternAltitudeOverrideFt,
             HasReportedFieldInSight = HasReportedFieldInSight,
             HasReportedTrafficInSight = HasReportedTrafficInSight,
             FollowingCallsign = FollowingCallsign,

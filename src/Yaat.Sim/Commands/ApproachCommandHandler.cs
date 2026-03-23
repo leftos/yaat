@@ -366,7 +366,18 @@ public static class ApproachCommandHandler
             // Pattern entry: downwind → base → final → landing
             var direction = cmd.TrafficDirection ?? DeterminePatternDirection(aircraft, approachRunway);
 
-            var phases = PatternBuilder.BuildCircuit(approachRunway, category, direction, PatternEntryLeg.Downwind, false);
+            var airportRunways = NavigationDatabase.Instance.GetRunways(approachRunway.AirportId);
+            var phases = PatternBuilder.BuildCircuit(
+                approachRunway,
+                category,
+                direction,
+                PatternEntryLeg.Downwind,
+                false,
+                null,
+                null,
+                aircraft.PatternAltitudeOverrideFt,
+                airportRunways
+            );
             foreach (var phase in phases)
             {
                 aircraft.Phases.Add(phase);

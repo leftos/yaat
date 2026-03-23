@@ -506,9 +506,9 @@ public static class CommandDispatcher
             case GoAroundCommand ga:
                 return PatternCommandHandler.TryGoAround(ga, aircraft);
             case MakeLeftTrafficCommand mlt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, mlt.Altitude);
             case MakeRightTrafficCommand mrt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId, mrt.Altitude);
             case MakeLeft360Command:
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Left, 360);
             case MakeRight360Command:
@@ -887,9 +887,9 @@ public static class CommandDispatcher
 
             // Pattern modification commands
             case MakeLeftTrafficCommand mlt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, mlt.RunwayId, mlt.Altitude);
             case MakeRightTrafficCommand mrt:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Right, mrt.RunwayId, mrt.Altitude);
             case TurnCrosswindCommand:
                 return PatternCommandHandler.TryPatternTurnTo<UpwindPhase>(aircraft, "crosswind");
             case TurnDownwindCommand:
@@ -909,7 +909,7 @@ public static class CommandDispatcher
             case MakeRight270Command:
                 return PatternCommandHandler.TryMakeTurn(aircraft, TurnDirection.Right, 270);
             case CircleAirportCommand:
-                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, null);
+                return PatternCommandHandler.TryChangePatternDirection(aircraft, PatternDirection.Left, null, null);
             case PatternSizeCommand ps:
                 return PatternCommandHandler.TrySetPatternSize(aircraft, ps.SizeNm);
             case MakeNormalApproachCommand:

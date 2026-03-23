@@ -311,6 +311,10 @@ public static class CommandRegistry
                     O(null, [], "Go around (fly runway heading)"),
                     O("Heading", [R("heading", "0-360")], "Go around and fly heading"),
                     O("Heading+Alt", [R("heading", "0-360"), R("altitude", "alt")], "Go around, fly heading, climb to altitude"),
+                    O("MLT", [L("MLT")], "Go around, make left traffic"),
+                    O("MRT", [L("MRT")], "Go around, make right traffic"),
+                    O("MLT+Alt", [L("MLT"), R("altitude", "pattern alt")], "Go around, left traffic at altitude"),
+                    O("MRT+Alt", [L("MRT"), R("altitude", "pattern alt")], "Go around, right traffic at altitude"),
                 ]
             ),
             Cmd(
@@ -406,7 +410,12 @@ public static class CommandRegistry
                 "Pattern",
                 false,
                 ["MLT"],
-                [O(null, [], "Make left traffic for current runway"), O("Runway", [R("runway", "runway designator")], "Make left traffic for runway")]
+                [
+                    O(null, [], "Make left traffic for current runway"),
+                    O("Runway", [R("runway", "runway designator")], "Make left traffic for runway"),
+                    O("Altitude", [R("altitude", "pattern alt")], "Make left traffic at altitude"),
+                    O("RunwayAltitude", [R("runway", "runway designator"), R("altitude", "pattern alt")], "Make left traffic for runway at altitude"),
+                ]
             ),
             Cmd(
                 MakeRightTraffic,
@@ -417,6 +426,12 @@ public static class CommandRegistry
                 [
                     O(null, [], "Make right traffic for current runway"),
                     O("Runway", [R("runway", "runway designator")], "Make right traffic for runway"),
+                    O("Altitude", [R("altitude", "pattern alt")], "Make right traffic at altitude"),
+                    O(
+                        "RunwayAltitude",
+                        [R("runway", "runway designator"), R("altitude", "pattern alt")],
+                        "Make right traffic for runway at altitude"
+                    ),
                 ]
             ),
             Bare(TurnCrosswind, "Turn Crosswind", "Pattern", false, ["TC"]),

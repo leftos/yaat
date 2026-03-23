@@ -95,7 +95,15 @@ public static class PhaseRunner
             if (phases.IsComplete && phases.TrafficDirection is { } dir && phases.AssignedRunway is not null)
             {
                 var runway = phases.PatternRunway ?? phases.AssignedRunway;
-                var nextCircuit = PatternBuilder.BuildNextCircuit(runway, ctx.Category, dir, ctx.Aircraft.PatternSizeOverrideNm);
+                var airportRunways = Data.NavigationDatabase.Instance.GetRunways(runway.AirportId);
+                var nextCircuit = PatternBuilder.BuildNextCircuit(
+                    runway,
+                    ctx.Category,
+                    dir,
+                    ctx.Aircraft.PatternSizeOverrideNm,
+                    ctx.Aircraft.PatternAltitudeOverrideFt,
+                    airportRunways
+                );
                 phases.Phases.AddRange(nextCircuit);
 
                 // Clear landing clearance — RPO must re-clear each approach

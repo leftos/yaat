@@ -89,6 +89,7 @@ public sealed class AircraftSnapshotDto
     public required bool SpeedRestrictionsDeleted { get; init; }
     public required bool IsExpediting { get; init; }
     public double? PatternSizeOverrideNm { get; init; }
+    public double? PatternAltitudeOverrideFt { get; init; }
 
     // Visual approach
     public required bool HasReportedFieldInSight { get; init; }
