@@ -205,10 +205,9 @@ public partial class MainViewModel
 
         IsExportingRecording = true;
         ExportingStatusText = "Preparing bug report bundle...";
-        var wasPaused = IsPaused;
         try
         {
-            if (!wasPaused)
+            if (!IsPaused)
             {
                 await _connection.SendCommandAsync("", "PAUSE", _preferences.UserInitials);
             }
@@ -250,10 +249,14 @@ public partial class MainViewModel
             await using var stream = await file.OpenWriteAsync();
             using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
 
-            var recordingEntry = archive.CreateEntry("recording.yaat-recording.zip");
-            await using (var entryStream = recordingEntry.Open())
+            using var recordingStream = new MemoryStream(compressedBytes);
+            using var recordingZip = new ZipArchive(recordingStream, ZipArchiveMode.Read);
+            foreach (var sourceEntry in recordingZip.Entries)
             {
-                await entryStream.WriteAsync(compressedBytes);
+                var destEntry = archive.CreateEntry(sourceEntry.FullName);
+                await using var sourceStream = sourceEntry.Open();
+                await using var destStream = destEntry.Open();
+                await sourceStream.CopyToAsync(destStream);
             }
 
             AddFileToArchive(archive, AppLog.LogPath, "yaat-client.log");
@@ -284,17 +287,6 @@ public partial class MainViewModel
         finally
         {
             IsExportingRecording = false;
-            if (!wasPaused)
-            {
-                try
-                {
-                    await _connection.SendCommandAsync("", "UNPAUSE", _preferences.UserInitials);
-                }
-                catch (Exception ex)
-                {
-                    _log.LogError(ex, "Failed to unpause after bug report save");
-                }
-            }
         }
     }
 
