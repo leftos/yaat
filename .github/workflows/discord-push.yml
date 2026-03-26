@@ -36,7 +36,7 @@ jobs:
             SHORT_SHA="${SHA:0:7}"
             ESCAPED_MSG=$(echo "$MSG" | sed 's/\\/\\\\/g; s/"/\\"/g')
             COMMIT_LIST="${COMMIT_LIST}[\`${SHORT_SHA}\`](${REPO_URL}/commit/${SHA}) ${ESCAPED_MSG}\\n"
-          done < <(git log --format="%H %s" ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || git log --format="%H %s" -1)
+          done < <(git log --reverse --format="%H %s" ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || git log --format="%H %s" -1)
 
           COMMIT_COUNT=$(git rev-list --count ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || echo "1")
 
