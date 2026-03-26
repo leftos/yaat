@@ -90,7 +90,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
         output.WriteLine($"Hold-short heading: {holdShortHeading:F1}");
         output.WriteLine("");
         output.WriteLine("--- Tick-by-tick trajectory through LineUpPhase ---");
-        output.WriteLine($"{"t",4} {"Phase",-22} {"Lat",11} {"Lon",12} {"Hdg",7} {"GS",5} {"CrossTrack",11} {"AlongTrack",11}");
+        output.WriteLine($"{"t", 4} {"Phase", -22} {"Lat", 11} {"Lon", 12} {"Hdg", 7} {"GS", 5} {"CrossTrack", 11} {"AlongTrack", 11}");
 
         // The perpendicular heading toward the centerline from the south side of
         // 28R is approximately rwyHeading - 90 = 202°.
@@ -116,28 +116,17 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
             Assert.NotNull(ac);
 
             string phaseName = ac.Phases?.CurrentPhase?.Name ?? "(none)";
-            double crossTrackFt = Math.Abs(
-                GeoMath.SignedCrossTrackDistanceNm(
-                    ac.Latitude,
-                    ac.Longitude,
-                    37.72152,
-                    -122.20065,
-                    new TrueHeading(rwyHeading)
-                )
-            ) * GeoMath.FeetPerNm;
-            double alongTrackFt = GeoMath.AlongTrackDistanceNm(
-                ac.Latitude,
-                ac.Longitude,
-                37.72152,
-                -122.20065,
-                new TrueHeading(rwyHeading)
-            ) * GeoMath.FeetPerNm;
+            double crossTrackFt =
+                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Latitude, ac.Longitude, 37.72152, -122.20065, new TrueHeading(rwyHeading)))
+                * GeoMath.FeetPerNm;
+            double alongTrackFt =
+                GeoMath.AlongTrackDistanceNm(ac.Latitude, ac.Longitude, 37.72152, -122.20065, new TrueHeading(rwyHeading)) * GeoMath.FeetPerNm;
 
             double perpDiff = Math.Abs(NormalizeAngle(ac.TrueHeading.Degrees - perpHeading));
 
             output.WriteLine(
-                $"{t,4} {phaseName,-22} {ac.Latitude,11:F6} {ac.Longitude,12:F6} {ac.TrueHeading.Degrees,7:F1} "
-                    + $"{ac.GroundSpeed,5:F1} {crossTrackFt,8:F0}ft {alongTrackFt,8:F0}ft  perpDiff={perpDiff:F1}"
+                $"{t, 4} {phaseName, -22} {ac.Latitude, 11:F6} {ac.Longitude, 12:F6} {ac.TrueHeading.Degrees, 7:F1} "
+                    + $"{ac.GroundSpeed, 5:F1} {crossTrackFt, 8:F0}ft {alongTrackFt, 8:F0}ft  perpDiff={perpDiff:F1}"
             );
 
             // Detect when aircraft reaches perpendicular heading (within 5°)
@@ -173,10 +162,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
 
         // Aircraft must maintain roughly perpendicular heading while crossing
         // (at least 2 ticks of straight crossing before turning to align)
-        Assert.True(
-            crossingTicks >= 2,
-            $"Aircraft only crossed perpendicular for {crossingTicks} ticks — expected straight crossing"
-        );
+        Assert.True(crossingTicks >= 2, $"Aircraft only crossed perpendicular for {crossingTicks} ticks — expected straight crossing");
 
         Assert.True(completed, "Aircraft never completed lineup within 30 seconds");
     }
@@ -226,7 +212,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
 
         output.WriteLine($"Perpendicular heading: ~{perpHeading:F0}");
         output.WriteLine("");
-        output.WriteLine($"{"t",4} {"Phase",-22} {"Hdg",7} {"GS",5} {"CrossTrack",11} {"AlongTrack",11}");
+        output.WriteLine($"{"t", 4} {"Phase", -22} {"Hdg", 7} {"GS", 5} {"CrossTrack", 11} {"AlongTrack", 11}");
 
         bool reachedPerp = false;
         int crossingTicks = 0;
@@ -239,28 +225,17 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
             Assert.NotNull(ac);
 
             string phaseName = ac.Phases?.CurrentPhase?.Name ?? "(none)";
-            double crossTrackFt = Math.Abs(
-                GeoMath.SignedCrossTrackDistanceNm(
-                    ac.Latitude,
-                    ac.Longitude,
-                    37.72152,
-                    -122.20065,
-                    new TrueHeading(rwyHeading)
-                )
-            ) * GeoMath.FeetPerNm;
-            double alongTrackFt = GeoMath.AlongTrackDistanceNm(
-                ac.Latitude,
-                ac.Longitude,
-                37.72152,
-                -122.20065,
-                new TrueHeading(rwyHeading)
-            ) * GeoMath.FeetPerNm;
+            double crossTrackFt =
+                Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Latitude, ac.Longitude, 37.72152, -122.20065, new TrueHeading(rwyHeading)))
+                * GeoMath.FeetPerNm;
+            double alongTrackFt =
+                GeoMath.AlongTrackDistanceNm(ac.Latitude, ac.Longitude, 37.72152, -122.20065, new TrueHeading(rwyHeading)) * GeoMath.FeetPerNm;
 
             double perpDiff = Math.Abs(NormalizeAngle(ac.TrueHeading.Degrees - perpHeading));
 
             output.WriteLine(
-                $"{t,4} {phaseName,-22} {ac.TrueHeading.Degrees,7:F1} {ac.GroundSpeed,5:F1} "
-                    + $"{crossTrackFt,8:F0}ft {alongTrackFt,8:F0}ft  perpDiff={perpDiff:F1}"
+                $"{t, 4} {phaseName, -22} {ac.TrueHeading.Degrees, 7:F1} {ac.GroundSpeed, 5:F1} "
+                    + $"{crossTrackFt, 8:F0}ft {alongTrackFt, 8:F0}ft  perpDiff={perpDiff:F1}"
             );
 
             if (!reachedPerp && (perpDiff < 5))

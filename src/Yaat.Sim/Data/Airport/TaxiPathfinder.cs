@@ -52,6 +52,7 @@ public static class TaxiPathfinder
         List<string>? explicitHoldShorts = null,
         string? destinationRunway = null,
         string? airportId = null,
+        GroundNode? destinationHintNode = null,
         Action<string>? diagnosticLog = null
     )
     {
@@ -102,6 +103,10 @@ public static class TaxiPathfinder
                 $"[Pathfinder] destinationHint={destinationHint?.Id.ToString() ?? "null"} lat={destinationHint?.Latitude:F6} lon={destinationHint?.Longitude:F6} edges=[{string.Join(",", destinationHint?.Edges.Select(e => e.TaxiwayName) ?? [])}]"
             );
         }
+
+        // Fall back to the caller-provided destination node when no runway-based hint is available.
+        // This steers WalkTaxiway toward a parking/spot destination instead of picking an arbitrary direction.
+        destinationHint ??= destinationHintNode;
 
         for (int twIdx = 0; twIdx < taxiwayNames.Count; twIdx++)
         {

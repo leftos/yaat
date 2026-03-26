@@ -234,8 +234,8 @@ Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGroundLayout?
 AirportGroundLayout.cs         # Graph: Nodes + Edges (GroundNode, GroundEdge); FindNearestExit/FindExitBySide/FindExitAheadOnRunway (runway-aware filtering), FindGroundRunway, GetRunwayHoldShortNodes
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
-TaxiRoute.cs                   # Resolved path: Segments + HoldShortPoints + completion
-TaxiPathfinder.cs              # ResolveExplicitPath, FindRoute (A*), variant inference
+TaxiRoute.cs                   # Resolved path: Segments + HoldShortPoints + DestinationParking/DestinationSpot + completion
+TaxiPathfinder.cs              # ResolveExplicitPath (destinationHintNode for parking direction), FindRoute (A*), variant inference
 TaxiVariantResolver.cs         # Variant path resolution (e.g., A vs A1)
 TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
 GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode

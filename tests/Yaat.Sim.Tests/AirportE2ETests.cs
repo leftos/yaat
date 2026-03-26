@@ -1282,4 +1282,66 @@ public class AirportE2ETests
         double distToA9 = GeoMath.DistanceNm(lastNode.Latitude, lastNode.Longitude, a9.Latitude, a9.Longitude);
         Assert.True(distToA9 < 0.02, $"Route should end near A9: dist={distToA9:F4}nm");
     }
+
+    // -------------------------------------------------------------------------
+    // OAK: Taxi from 28R exit on G to parking SIG1
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void OAK_TaxiGFromRunway28RExit_ToSIG1_DoesNotCrossRunway()
+    {
+        var layout = LoadLayout("OAK", "oak");
+        if (layout is null)
+        {
+            return;
+        }
+
+        var sig1 = layout.FindHelipadByName("SIG1") ?? layout.FindParkingByName("SIG1");
+        Assert.NotNull(sig1);
+
+        // Find the 28R hold-short node on taxiway G (north side — the exit side after landing 28R).
+        // SIG1 is north of 28R, so the correct hold-short is the one closer to SIG1.
+        var holdShortNodes = layout.GetRunwayHoldShortNodes("28R");
+        GroundNode? exitHoldShort = null;
+        double bestDist = double.MaxValue;
+        foreach (var hs in holdShortNodes)
+        {
+            bool onG = hs.Edges.Any(e => string.Equals(e.TaxiwayName, "G", StringComparison.OrdinalIgnoreCase));
+            if (!onG)
+            {
+                continue;
+            }
+
+            // Pick the one closer to SIG1 (north side)
+            double dist = GeoMath.DistanceNm(hs.Latitude, hs.Longitude, sig1.Latitude, sig1.Longitude);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                exitHoldShort = hs;
+            }
+        }
+
+        Assert.NotNull(exitHoldShort);
+
+        var ac = MakeGroundAircraft(lat: exitHoldShort.Latitude, lon: exitHoldShort.Longitude);
+
+        var taxi = new TaxiCommand(["G"], [], DestinationParking: "SIG1");
+        var result = GroundCommandHandler.TryTaxi(ac, taxi, layout);
+
+        Assert.True(result.Success, $"Taxi should succeed: {result.Message}");
+        Assert.NotNull(ac.AssignedTaxiRoute);
+
+        var route = ac.AssignedTaxiRoute!;
+        var hsInfo = string.Join("; ", route.HoldShortPoints.Select(h => $"node={h.NodeId} target={h.TargetName} reason={h.Reason}"));
+
+        // Route should NOT cross runway 28R — aircraft is already on the correct side
+        Assert.False(
+            route.HoldShortPoints.Any(h => h.Reason == HoldShortReason.RunwayCrossing),
+            $"Route should not cross any runway. Hold-shorts: [{hsInfo}]"
+        );
+
+        // Route summary should mention @SIG1
+        string summary = route.ToSummary();
+        Assert.Contains("@SIG1", summary, StringComparison.OrdinalIgnoreCase);
+    }
 }

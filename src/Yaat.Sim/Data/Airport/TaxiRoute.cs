@@ -11,6 +11,12 @@ public sealed class TaxiRoute
     public required List<HoldShortPoint> HoldShortPoints { get; init; }
     public List<string> Warnings { get; init; } = [];
 
+    /// <summary>Parking destination name (@ prefix), if any.</summary>
+    public string? DestinationParking { get; init; }
+
+    /// <summary>Spot destination name ($ prefix), if any.</summary>
+    public string? DestinationSpot { get; init; }
+
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
     /// <summary>
@@ -159,6 +165,16 @@ public sealed class TaxiRoute
                 parts.Add(hs.TargetName);
                 break;
             }
+        }
+
+        // Append parking or spot destination
+        if (DestinationParking is not null)
+        {
+            parts.Add($"@{DestinationParking}");
+        }
+        else if (DestinationSpot is not null)
+        {
+            parts.Add($"${DestinationSpot}");
         }
 
         return string.Join(" ", parts);

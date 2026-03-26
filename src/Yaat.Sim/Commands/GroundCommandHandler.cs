@@ -256,9 +256,10 @@ internal static class GroundCommandHandler
             if (route is null)
             {
                 failReason = $"No route to {(taxi.DestinationSpot is not null ? "spot" : "parking")} '{destLabel}'";
+                return null;
             }
 
-            return route;
+            return SetDestination(route, taxi);
         }
 
         // Explicit path given — resolve it, then extend to destination via A*
@@ -269,7 +270,8 @@ internal static class GroundCommandHandler
             out failReason,
             taxi.HoldShorts,
             taxi.DestinationRunway,
-            groundLayout.AirportId
+            groundLayout.AirportId,
+            destinationHintNode: destNode
         );
 
         if (explicitRoute is null)
@@ -282,7 +284,7 @@ internal static class GroundCommandHandler
 
         if (endNodeId == destNode.Id)
         {
-            return explicitRoute;
+            return SetDestination(explicitRoute, taxi);
         }
 
         // Extend from end of explicit path to destination node via A*
@@ -301,7 +303,20 @@ internal static class GroundCommandHandler
         var holdShorts = new List<HoldShortPoint>(explicitRoute.HoldShortPoints);
         HoldShortAnnotator.AddImplicitRunwayHoldShorts(groundLayout, extension.Segments, holdShorts);
 
-        return new TaxiRoute { Segments = combined, HoldShortPoints = holdShorts };
+        return SetDestination(new TaxiRoute { Segments = combined, HoldShortPoints = holdShorts }, taxi);
+    }
+
+    private static TaxiRoute SetDestination(TaxiRoute route, TaxiCommand taxi)
+    {
+        // TaxiRoute uses init-only props, so return a new instance with destination set.
+        return new TaxiRoute
+        {
+            Segments = route.Segments,
+            HoldShortPoints = route.HoldShortPoints,
+            Warnings = route.Warnings,
+            DestinationParking = taxi.DestinationParking,
+            DestinationSpot = taxi.DestinationSpot,
+        };
     }
 
     internal static CommandResult TryPushback(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout)
