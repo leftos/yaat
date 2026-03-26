@@ -8,8 +8,10 @@ namespace Yaat.Sim.Phases.Tower;
 /// <summary>
 /// Taxis the aircraft from the hold-short point onto the runway centerline
 /// and aligns with the runway heading. Completes when aligned.
-/// Two-stage navigation: first follows the taxiway edge from hold-short to the
-/// on-runway node, then corrects laterally to the centerline projection.
+/// Three-stage navigation:
+///   Stage 0 — turn perpendicular to the runway centerline (face toward it).
+///   Stage 1 — cross straight ahead to the on-runway node (no heading change).
+///   Stage 2 — correct laterally to the centerline projection, then align.
 /// Inserted before LinedUpAndWaitingPhase when LUAW/CTO is issued.
 /// </summary>
 public sealed class LineUpPhase : Phase
@@ -25,7 +27,11 @@ public sealed class LineUpPhase : Phase
     private bool _initialized;
     private double _timeSinceLastLog;
 
-    // Stage 1: navigate to on-runway node (if available)
+    // Stage 0: turn perpendicular to the runway centerline
+    private TrueHeading _perpHeading;
+    private bool _perpAligned;
+
+    // Stage 1: cross straight ahead to on-runway node (if available)
     private double _stage1Lat;
     private double _stage1Lon;
     private bool _hasStage1;
@@ -53,6 +59,8 @@ public sealed class LineUpPhase : Phase
             RunwayHeadingDeg = _runwayHeading.Degrees,
             Initialized = _initialized,
             TimeSinceLastLog = _timeSinceLastLog,
+            PerpHeadingDeg = _perpHeading.Degrees,
+            PerpAligned = _perpAligned,
             Stage1Lat = _stage1Lat,
             Stage1Lon = _stage1Lon,
             HasStage1 = _hasStage1,
@@ -71,6 +79,8 @@ public sealed class LineUpPhase : Phase
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
         phase._initialized = dto.Initialized;
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
+        phase._perpHeading = new TrueHeading(dto.PerpHeadingDeg);
+        phase._perpAligned = dto.PerpAligned;
         phase._stage1Lat = dto.Stage1Lat;
         phase._stage1Lon = dto.Stage1Lon;
         phase._hasStage1 = dto.HasStage1;
@@ -93,14 +103,27 @@ public sealed class LineUpPhase : Phase
 
         _runwayHeading = ctx.Runway.TrueHeading;
 
+        // Compute the heading perpendicular to the runway, facing toward the centerline.
+        // Signed cross-track: positive = left of track, negative = right of track.
+        double signedCross = GeoMath.SignedCrossTrackDistanceNm(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            ctx.Runway.ThresholdLatitude,
+            ctx.Runway.ThresholdLongitude,
+            _runwayHeading
+        );
+        double perpOffset = signedCross >= 0 ? -90.0 : 90.0;
+        _perpHeading = new TrueHeading(_runwayHeading.Degrees + perpOffset);
+
         ComputeCenterlineTarget(ctx);
         FindOnRunwayNode(ctx);
 
         _initialized = true;
 
         ctx.Logger.LogDebug(
-            "[LineUp] {Callsign}: stage1={HasStage1}, centerline ({CLat:F6}, {CLon:F6}), rwy hdg {Hdg:F0}",
+            "[LineUp] {Callsign}: perpHdg={PerpHdg:F0}, stage1={HasStage1}, centerline ({CLat:F6}, {CLon:F6}), rwy hdg {Hdg:F0}",
             ctx.Aircraft.Callsign,
+            _perpHeading.Degrees,
             _hasStage1,
             _centerlineLat,
             _centerlineLon,
@@ -115,10 +138,32 @@ public sealed class LineUpPhase : Phase
             return true;
         }
 
-        // Pre-stage: when there's no on-runway node, taxi forward without
-        // turning until the aircraft crosses onto the runway centerline. This
-        // makes the aircraft enter the runway perpendicular to the centerline,
-        // then the alignment stage turns it to face the departure heading.
+        // Stage 0: turn perpendicular to the runway centerline before crossing.
+        // The aircraft rotates in place (slow speed) to face toward the centerline,
+        // then proceeds straight ahead in Stage 1.
+        if (!_perpAligned)
+        {
+            double perpDiff = _perpHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
+            if (perpDiff > HeadingToleranceDeg)
+            {
+                double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
+                ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, _perpHeading.Degrees, maxTurn);
+                AdjustSpeed(ctx, CategoryPerformance.TaxiSpeed(ctx.Category) * 0.3);
+                LogPeriodic(ctx);
+                return false;
+            }
+
+            ctx.Aircraft.TrueHeading = _perpHeading;
+            _perpAligned = true;
+            ctx.Logger.LogDebug(
+                "[LineUp] {Callsign}: perpendicular to centerline (hdg {Hdg:F0}), crossing",
+                ctx.Aircraft.Callsign,
+                _perpHeading.Degrees
+            );
+        }
+
+        // Stage 1 (no on-runway node): taxi forward without turning until the
+        // aircraft crosses onto the runway centerline.
         if (!_hasStage1 && !_stage1Complete)
         {
             double crossTrack = Math.Abs(
@@ -156,7 +201,7 @@ public sealed class LineUpPhase : Phase
 
             if (dist > OnRunwayNodeThresholdNm)
             {
-                NavigateToTarget(ctx, _stage1Lat, _stage1Lon);
+                AdjustSpeed(ctx, CategoryPerformance.TaxiSpeed(ctx.Category) * 0.8);
                 LogPeriodic(ctx);
                 return false;
             }

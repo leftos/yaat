@@ -453,6 +453,8 @@ public sealed class LineUpPhaseDto : PhaseDto
     public required double RunwayHeadingDeg { get; init; }
     public required bool Initialized { get; init; }
     public required double TimeSinceLastLog { get; init; }
+    public double PerpHeadingDeg { get; init; }
+    public bool PerpAligned { get; init; }
     public required double Stage1Lat { get; init; }
     public required double Stage1Lon { get; init; }
     public required bool HasStage1 { get; init; }
