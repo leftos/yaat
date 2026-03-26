@@ -31,3 +31,6 @@ deploy-to-droplet.ps1
 ## Secrets
 .env
 tools/discord-bot/yaat-bot.2026-03-13.private-key.pem
+
+## Test results
+tests/Yaat.Sim.Tests/TestResults/*
