@@ -120,6 +120,8 @@ SerializableRandom.cs          # Xoshiro256** PRNG with serializable state (RngS
 SimulationWorld.cs             # Thread-safe aircraft collection; GetSnapshot, Tick, DrainWarnings
                                # WeatherProfile? Weather — passed to FlightPhysics.Update() each tick
 CommandQueue.cs                # CommandBlock (trigger + closure + TrackedCommands), BlockTrigger
+                               # CommandDimension flags (Lateral|Vertical|Speed) for dimension-aware queue clearing
+                               # ReadyToAdvance: lateral gates block advancement; altitude/speed are fire-and-forget
                                # SourceCommandText on CommandBlock/DeferredDispatch for snapshot restore
 AircraftCategory.cs            # Enum + AircraftCategorization (static Init from AircraftSpecs.json)
                                # CategoryPerformance: fallback aviation constants (taxi, pattern geometry, flare, etc.)
@@ -167,10 +169,13 @@ Commands/CommandSchemeParser.cs     # Parse/ParseCompound (;/, syntax); ExpandSp
 Commands/CommandSignature.cs        # Records: CommandParameter, CommandSignature, CommandSignatureSet; FromDefinition factory
 Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interaction), ApplyCommand (thin routing switch),
                                     # TryApplyTowerCommand, queue infrastructure, condition conversion, shared utilities
+                                    # ClearConflictingBlocks: dimension-aware selective queue clearing
+                                    # SplitBlockNonConflicting: splits mixed-dimension blocks on partial conflicts
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands
 Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depart/cross fix, JARR STAR resolution,
                                     # JAWY airway intercept, CVIA/DVIA (DVIA SPD fix), JFAC, holding pattern, RFIS/RTIS, list approaches
 Commands/CommandDescriber.cs        # Static: DescribeCommand, DescribeNatural, classification helpers
+                                    # GetDimension, GetCommandDimension, GetCompoundDimensions for queue clearing
 Commands/AltitudeResolver.cs        # Plain int or AGL format → feet MSL
 Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaining route fixes
 Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
