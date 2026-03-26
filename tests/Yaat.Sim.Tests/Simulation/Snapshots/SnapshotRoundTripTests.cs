@@ -401,6 +401,115 @@ public class SnapshotRoundTripTests
     }
 
     [Fact]
+    public void ScenarioSnapshotDto_DelayedQueue_JsonRoundTrips()
+    {
+        var snapshot = new StateSnapshotDto
+        {
+            ElapsedSeconds = 120,
+            Rng = new RngState(1, 2, 3, 4),
+            Aircraft = [],
+            Scenario = new ScenarioSnapshotDto
+            {
+                ScenarioId = "test",
+                ScenarioName = "Test",
+                RngSeed = 42,
+                ElapsedSeconds = 120,
+                AutoClearedToLand = false,
+                AutoCrossRunway = false,
+                ValidateDctFixes = true,
+                IsPaused = false,
+                SimRate = 1,
+                AutoAcceptDelaySeconds = 5,
+                IsStudentTowerPosition = false,
+                DelayedQueue =
+                [
+                    new DelayedSpawnDto { AircraftJson = """{"State":{"Callsign":"N2BP"},"SpawnDelaySeconds":300}""", SpawnAtSeconds = 300 },
+                    new DelayedSpawnDto { AircraftJson = """{"State":{"Callsign":"N152SP"},"SpawnDelaySeconds":600}""", SpawnAtSeconds = 600 },
+                ],
+            },
+        };
+
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var json = JsonSerializer.Serialize(snapshot, options);
+        var deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
+
+        Assert.NotNull(deserialized);
+        Assert.NotNull(deserialized.Scenario.DelayedQueue);
+        Assert.Equal(2, deserialized.Scenario.DelayedQueue.Count);
+        Assert.Equal(300, deserialized.Scenario.DelayedQueue[0].SpawnAtSeconds);
+        Assert.Contains("N2BP", deserialized.Scenario.DelayedQueue[0].AircraftJson);
+        Assert.Equal(600, deserialized.Scenario.DelayedQueue[1].SpawnAtSeconds);
+        Assert.Contains("N152SP", deserialized.Scenario.DelayedQueue[1].AircraftJson);
+    }
+
+    [Fact]
+    public void ScenarioSnapshotDto_Generators_JsonRoundTrips()
+    {
+        var snapshot = new StateSnapshotDto
+        {
+            ElapsedSeconds = 60,
+            Rng = new RngState(1, 2, 3, 4),
+            Aircraft = [],
+            Scenario = new ScenarioSnapshotDto
+            {
+                ScenarioId = "test",
+                ScenarioName = "Test",
+                RngSeed = 42,
+                ElapsedSeconds = 60,
+                AutoClearedToLand = false,
+                AutoCrossRunway = false,
+                ValidateDctFixes = true,
+                IsPaused = false,
+                SimRate = 1,
+                AutoAcceptDelaySeconds = 5,
+                IsStudentTowerPosition = false,
+                Generators =
+                [
+                    new GeneratorStateDto
+                    {
+                        ConfigJson = """{"Id":"gen1","Runway":"28R"}""",
+                        Runway = new RunwayInfoDto
+                        {
+                            AirportId = "KOAK",
+                            End1 = "28R",
+                            End2 = "10L",
+                            Designator = "28R",
+                            Lat1 = 37.72,
+                            Lon1 = -122.22,
+                            Elevation1Ft = 9,
+                            TrueHeading1Deg = 280,
+                            Lat2 = 37.73,
+                            Lon2 = -122.23,
+                            Elevation2Ft = 9,
+                            TrueHeading2Deg = 100,
+                            LengthFt = 10000,
+                            WidthFt = 150,
+                        },
+                        NextSpawnSeconds = 180.5,
+                        NextSpawnDistance = 8.0,
+                        IsExhausted = false,
+                    },
+                ],
+            },
+        };
+
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var json = JsonSerializer.Serialize(snapshot, options);
+        var deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
+
+        Assert.NotNull(deserialized);
+        Assert.NotNull(deserialized.Scenario.Generators);
+        Assert.Single(deserialized.Scenario.Generators);
+        var gen = deserialized.Scenario.Generators[0];
+        Assert.Contains("gen1", gen.ConfigJson);
+        Assert.Equal("KOAK", gen.Runway.AirportId);
+        Assert.Equal("28R", gen.Runway.Designator);
+        Assert.Equal(180.5, gen.NextSpawnSeconds);
+        Assert.Equal(8.0, gen.NextSpawnDistance);
+        Assert.False(gen.IsExhausted);
+    }
+
+    [Fact]
     public void SessionRecording_V1_HasNoSnapshots()
     {
         var json = """

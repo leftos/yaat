@@ -130,6 +130,16 @@ public sealed class SimulationEngine
             Scenario.TriggerQueue.Clear();
             Scenario.PresetQueue.Clear();
             Scenario.DelayedHandoffQueue.Clear();
+            Scenario.Generators.Clear();
+
+            if (scenarioDto.DelayedQueue is not null)
+            {
+                foreach (var d in scenarioDto.DelayedQueue)
+                {
+                    var aircraft = JsonSerializer.Deserialize<LoadedAircraft>(d.AircraftJson)!;
+                    Scenario.DelayedQueue.Add(new DelayedSpawn { Aircraft = aircraft, SpawnAtSeconds = d.SpawnAtSeconds });
+                }
+            }
 
             if (scenarioDto.TriggerQueue is not null)
             {
@@ -164,6 +174,24 @@ public sealed class SimulationEngine
                             Callsign = h.Callsign,
                             Target = TrackOwner.FromSnapshot(h.Target),
                             FireAtSeconds = h.FireAtSeconds,
+                        }
+                    );
+                }
+            }
+
+            if (scenarioDto.Generators is not null)
+            {
+                foreach (var g in scenarioDto.Generators)
+                {
+                    var config = JsonSerializer.Deserialize<ScenarioGeneratorConfig>(g.ConfigJson)!;
+                    Scenario.Generators.Add(
+                        new GeneratorState
+                        {
+                            Config = config,
+                            Runway = RunwayInfo.FromSnapshot(g.Runway),
+                            NextSpawnSeconds = g.NextSpawnSeconds,
+                            NextSpawnDistance = g.NextSpawnDistance,
+                            IsExhausted = g.IsExhausted,
                         }
                     );
                 }
