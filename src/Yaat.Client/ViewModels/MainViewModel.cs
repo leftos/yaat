@@ -644,8 +644,21 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        // Try to resolve callsign prefix from the input
+        // Expand macros first so callsign prefix resolution sees real commands
         var commandText = text;
+        var originalInput = text;
+        var expandedCommand = MacroExpander.TryExpand(commandText, _preferences.Macros, out var macroError);
+        if (macroError is not null)
+        {
+            StatusText = macroError;
+            return;
+        }
+        if (expandedCommand is not null)
+        {
+            commandText = expandedCommand;
+        }
+
+        // Try to resolve callsign prefix from the (possibly expanded) input
         AircraftModel? target = SelectedAircraft;
         _log.LogDebug(
             "SendCommand target resolution: SelectedAircraft={Selected}, target={Target}",
@@ -653,7 +666,7 @@ public partial class MainViewModel : ObservableObject
             target?.Callsign ?? "(none)"
         );
 
-        var resolved = TryResolveCallsignPrefix(text, scheme);
+        var resolved = TryResolveCallsignPrefix(commandText, scheme);
         if (resolved is not null)
         {
             target = resolved.Value.Aircraft;
@@ -665,19 +678,6 @@ public partial class MainViewModel : ObservableObject
         if (rpoResult)
         {
             return;
-        }
-
-        // Expand macros before parsing
-        var originalCommand = commandText;
-        var expandedCommand = MacroExpander.TryExpand(commandText, _preferences.Macros, out var macroError);
-        if (macroError is not null)
-        {
-            StatusText = macroError;
-            return;
-        }
-        if (expandedCommand is not null)
-        {
-            commandText = expandedCommand;
         }
 
         // Parse as compound command (handles single and multi-block)
@@ -721,7 +721,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var canonical = forceOverride ? $"** {compound.CanonicalString}" : compound.CanonicalString;
-            _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalCommand);
+            _log.LogDebug("SendCommand: {Callsign} '{Canonical}' (input: '{Input}')", target.Callsign, canonical, originalInput);
             var result = await _connection.SendCommandAsync(target.Callsign, canonical, _preferences.UserInitials);
 
             if (!result.Success)
@@ -730,7 +730,7 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            AddHistory(originalCommand);
+            AddHistory(originalInput);
 
             _commandInput.DismissSuggestions();
             _commandInput.ResetHistoryNavigation();
