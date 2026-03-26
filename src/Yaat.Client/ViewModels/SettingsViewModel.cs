@@ -83,9 +83,9 @@ public partial class MacroRow : ObservableObject
         var baseName = def.BaseName;
         var validationError = def.Validate();
         var paramNames = def.ParameterNames;
-        var paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"${n}")) : "";
+        var paramHint = paramNames.Count > 0 ? " " + string.Join(" ", paramNames.Select(n => $"&{n}")) : "";
         var warning = validationError is not null ? $" ⚠ {validationError}" : "";
-        Preview = $"#{baseName}{paramHint} → {Expansion}{warning}";
+        Preview = $"!{baseName}{paramHint} → {Expansion}{warning}";
     }
 }
 
