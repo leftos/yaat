@@ -1206,7 +1206,7 @@ public partial class RadarViewModel : ObservableObject
 
     public async Task ClearedForOptionAsync(string callsign, string initials)
     {
-        await _sendCommand(callsign, "CFO", initials);
+        await _sendCommand(callsign, "COPT", initials);
     }
 
     public async Task TouchAndGoAsync(string callsign, string initials)
