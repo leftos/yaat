@@ -291,7 +291,13 @@ public class SnapshotRoundTripTests
                 },
                 ActiveConflicts =
                 [
-                    new ActiveConflictDto { Id = "c1", CallsignA = "AAL100", CallsignB = "UAL200", IsAcknowledged = false },
+                    new ActiveConflictDto
+                    {
+                        Id = "c1",
+                        CallsignA = "AAL100",
+                        CallsignB = "UAL200",
+                        IsAcknowledged = false,
+                    },
                 ],
                 BeaconCodePool = new BeaconCodePoolDto
                 {
@@ -348,10 +354,7 @@ public class SnapshotRoundTripTests
 
         Assert.Equal(2, state.GetSnapshot().Count);
 
-        var newOverrides = new Dictionary<string, ConsolidationState.ManualOverride>
-        {
-            ["12C"] = new("12A", false),
-        };
+        var newOverrides = new Dictionary<string, ConsolidationState.ManualOverride> { ["12C"] = new("12A", false) };
         state.Restore(newOverrides);
 
         var restored = state.GetSnapshot();
@@ -380,7 +383,12 @@ public class SnapshotRoundTripTests
     {
         var banks = new List<BeaconCodeBankConfig>
         {
-            new() { Start = 100, End = 107, Type = "Ifr" },
+            new()
+            {
+                Start = 100,
+                End = 107,
+                Type = "Ifr",
+            },
         };
         var pool = new BeaconCodePool(banks);
         pool.MarkUsed(100);

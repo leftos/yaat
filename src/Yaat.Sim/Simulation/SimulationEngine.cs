@@ -183,14 +183,12 @@ public sealed class SimulationEngine
 
     private ServerSnapshotDto CaptureServerSnapshot(List<AircraftState> aircraft)
     {
-        var consolidation = ConsolidationState.GetSnapshot()
-            .ToDictionary(
-                kv => kv.Key,
-                kv => new ConsolidationOverrideDto { ReceivingTcpId = kv.Value.ReceivingTcpId, IsBasic = kv.Value.IsBasic }
-            );
+        var consolidation = ConsolidationState
+            .GetSnapshot()
+            .ToDictionary(kv => kv.Key, kv => new ConsolidationOverrideDto { ReceivingTcpId = kv.Value.ReceivingTcpId, IsBasic = kv.Value.IsBasic });
 
-        var conflicts = ConflictAlerts.Conflicts.Values
-            .Select(c => new ActiveConflictDto
+        var conflicts = ConflictAlerts
+            .Conflicts.Values.Select(c => new ActiveConflictDto
             {
                 Id = c.Id,
                 CallsignA = c.CallsignA,
