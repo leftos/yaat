@@ -120,16 +120,16 @@ public sealed class TargetRenderer : IDisposable
             }
 
             bool isHighlighted = highlightedCallsigns is not null && highlightedCallsigns.Contains(ac.Callsign);
-            var baseSymbolColor = isHighlighted ? SKColors.Cyan : tintColor ?? (isOnGround ? GroundColor : SymbolColor);
-            var baseDbColor = isHighlighted ? SKColors.Cyan : tintColor ?? (isOnGround ? GroundColor : DataBlockColor);
+            var baseSymbolColor = tintColor ?? (isOnGround ? GroundColor : SymbolColor);
+            var baseDbColor = tintColor ?? (isOnGround ? GroundColor : DataBlockColor);
             var selectedColor = SelectedOverrideColor ?? SelectedColor;
             var symbolColor = isSelected ? selectedColor : baseSymbolColor;
-            var dbColor = isSelected ? selectedColor : baseDbColor;
+            var dbColor = isHighlighted ? SKColors.Cyan : isSelected ? selectedColor : baseDbColor;
             bool isMinified = minifiedCallsigns is not null && minifiedCallsigns.Contains(ac.Callsign);
 
             if (ptlLengthMinutes > 0 && ShouldShowPtl(ac, ptlOwn, ptlAll))
             {
-                DrawPtlLine(canvas, vp, sx, sy, ac, dbColor, ptlLengthMinutes);
+                DrawPtlLine(canvas, vp, sx, sy, ac, symbolColor, ptlLengthMinutes);
             }
 
             DrawPositionSymbol(canvas, sx, sy, symbolColor);
