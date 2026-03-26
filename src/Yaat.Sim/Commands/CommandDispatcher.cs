@@ -66,11 +66,12 @@ public static class CommandDispatcher
                 // up once CurrentPhase becomes null).
                 if (result.Success && compound.Blocks.Count > 1)
                 {
-                    aircraft.Queue.Blocks.Clear();
-                    aircraft.Queue.CurrentBlockIndex = 0;
+                    var phaseIncomingDims = CommandDescriber.GetCompoundDimensions(compound);
+                    var phasePreserved = ClearConflictingBlocks(aircraft, phaseIncomingDims, rng, validateDctFixes);
                     aircraft.DeferredDispatches.Clear();
 
                     var remainingMessages = EnqueueBlocks(compound, 1, aircraft, rng, validateDctFixes);
+                    aircraft.Queue.Blocks.AddRange(phasePreserved);
                     if (remainingMessages.Count > 0)
                     {
                         var combined = result.Message + "; then " + string.Join("; then ", remainingMessages);
@@ -101,20 +102,27 @@ public static class CommandDispatcher
             aircraft.Targets.TurnRateOverride = null;
         }
 
-        // Clear any existing queue and pending deferred dispatches
-        aircraft.Queue.Blocks.Clear();
-        aircraft.Queue.CurrentBlockIndex = 0;
+        // Selectively clear queue: remove only blocks whose dimensions conflict with the
+        // incoming command. Non-conflicting pending blocks are preserved and re-appended
+        // after the new blocks.
+        var incomingDims = CommandDescriber.GetCompoundDimensions(compound);
+        var preserved = ClearConflictingBlocks(aircraft, incomingDims, rng, validateDctFixes);
         aircraft.DeferredDispatches.Clear();
 
+        int firstNewBlockIdx = aircraft.Queue.Blocks.Count;
         var messages = EnqueueBlocks(compound, 0, aircraft, rng, validateDctFixes);
+        aircraft.Queue.Blocks.AddRange(preserved);
 
-        // Apply the first block immediately (if no trigger or trigger already met)
-        var firstBlock = aircraft.Queue.CurrentBlock;
-        if (firstBlock is not null)
+        // Apply the first NEW block immediately (if no trigger).
+        // After dimension-aware clearing, CurrentBlock may still point to an old applied block
+        // (e.g. phases prevented the queue from advancing), so we target the first new block
+        // by index rather than using CurrentBlock.
+        if (firstNewBlockIdx < aircraft.Queue.Blocks.Count)
         {
-            if (firstBlock.Trigger is null)
+            var firstNewBlock = aircraft.Queue.Blocks[firstNewBlockIdx];
+            if (firstNewBlock.Trigger is null)
             {
-                var applyResult = ApplyBlock(firstBlock, aircraft);
+                var applyResult = ApplyBlock(firstNewBlock, aircraft);
                 if (!applyResult.Success)
                 {
                     // First block failed — clear the queue and propagate the failure
@@ -126,7 +134,7 @@ public static class CommandDispatcher
                 // ApplyBlock may update NaturalDescription (e.g. implied CAPP resolving approach ID)
                 if (messages.Count > 0)
                 {
-                    messages[0] = firstBlock.NaturalDescription;
+                    messages[0] = firstNewBlock.NaturalDescription;
                 }
             }
             // If there's a trigger, the physics tick will check and apply when met
@@ -207,9 +215,10 @@ public static class CommandDispatcher
             return ApplyCommand(command, aircraft, rng, validateDctFixes);
         }
 
-        // Clear any existing queue when a new single command is issued
-        aircraft.Queue.Blocks.Clear();
-        aircraft.Queue.CurrentBlockIndex = 0;
+        // Selectively clear queue: remove only blocks whose dimensions conflict
+        var singleDims = CommandDescriber.GetCommandDimension(command);
+        var singlePreserved = ClearConflictingBlocks(aircraft, singleDims, rng, validateDctFixes);
+        aircraft.Queue.Blocks.AddRange(singlePreserved);
 
         bool hadProcedure = aircraft.ActiveSidId is not null || aircraft.ActiveStarId is not null;
         bool hadViaMode = aircraft.SidViaMode || aircraft.StarViaMode;
@@ -1169,6 +1178,132 @@ public static class CommandDispatcher
     /// and appends them to the aircraft's command queue. Returns natural-language messages
     /// for each enqueued block.
     /// </summary>
+    /// <summary>
+    /// Removes pending queue blocks whose dimensions conflict with the incoming command,
+    /// preserving non-conflicting blocks. For the current applied block, marks conflicting
+    /// tracked commands as complete (superseded). Returns the preserved blocks (removed
+    /// from the queue) so the caller can re-append them after enqueueing new blocks.
+    /// </summary>
+    private static List<CommandBlock> ClearConflictingBlocks(
+        AircraftState aircraft,
+        CommandDimension incomingDimensions,
+        Random rng,
+        bool validateDctFixes
+    )
+    {
+        var queue = aircraft.Queue;
+
+        // Fast path: All/None → clear everything (original behavior)
+        if ((incomingDimensions & CommandDimension.All) == CommandDimension.All || incomingDimensions == CommandDimension.None)
+        {
+            queue.Blocks.Clear();
+            queue.CurrentBlockIndex = 0;
+            return [];
+        }
+
+        // Mark conflicting tracked commands in the current applied block as complete (superseded)
+        var current = queue.CurrentBlock;
+        if (current is { IsApplied: true })
+        {
+            foreach (var cmd in current.Commands)
+            {
+                if (!cmd.IsComplete && (CommandDescriber.GetDimension(cmd.Type) & incomingDimensions) != 0)
+                {
+                    cmd.IsComplete = true;
+                }
+            }
+        }
+
+        // Partition pending blocks into preserved vs removed
+        int pendingStart = queue.CurrentBlockIndex + (current is { IsApplied: true } ? 1 : 0);
+        var preserved = new List<CommandBlock>();
+
+        for (int i = pendingStart; i < queue.Blocks.Count; i++)
+        {
+            var block = queue.Blocks[i];
+            var split = SplitBlockNonConflicting(block, incomingDimensions, rng, validateDctFixes);
+            if (split is not null)
+            {
+                preserved.Add(split);
+            }
+        }
+
+        // Remove all pending blocks from the queue
+        if (pendingStart < queue.Blocks.Count)
+        {
+            queue.Blocks.RemoveRange(pendingStart, queue.Blocks.Count - pendingStart);
+        }
+
+        return preserved;
+    }
+
+    /// <summary>
+    /// Returns a version of the block with only the non-conflicting commands, or null
+    /// if all commands conflict. If no commands conflict, returns the original block.
+    /// For partial conflicts, rebuilds the block from the remaining ParsedCommands.
+    /// </summary>
+    private static CommandBlock? SplitBlockNonConflicting(CommandBlock block, CommandDimension conflictingDims, Random rng, bool validateDctFixes)
+    {
+        // If the block has no dimensional overlap at all, keep it entirely
+        if ((block.Dimensions & conflictingDims) == 0)
+        {
+            return block;
+        }
+
+        // If we can't split (no ParsedCommands stored), the whole block conflicts
+        if (block.ParsedCommands is null || block.ParsedCommands.Count != block.Commands.Count)
+        {
+            return null;
+        }
+
+        // Find which command indices to keep
+        var keepIndices = new List<int>();
+        for (int i = 0; i < block.Commands.Count; i++)
+        {
+            if ((CommandDescriber.GetDimension(block.Commands[i].Type) & conflictingDims) == 0)
+            {
+                keepIndices.Add(i);
+            }
+        }
+
+        if (keepIndices.Count == 0)
+        {
+            return null;
+        }
+
+        if (keepIndices.Count == block.Commands.Count)
+        {
+            return block;
+        }
+
+        // Rebuild a new block with only the non-conflicting commands
+        var keptParsed = keepIndices.Select(i => block.ParsedCommands[i]).ToList();
+        var keptTracked = keepIndices.Select(i => new TrackedCommand { Type = block.Commands[i].Type }).ToList();
+        var keptDims = CommandDimension.None;
+        foreach (var idx in keepIndices)
+        {
+            keptDims |= CommandDescriber.GetCommandDimension(block.ParsedCommands[idx]);
+        }
+
+        var desc = string.Join(", ", keptParsed.Select(CommandDescriber.DescribeCommand));
+        var natural = string.Join(", ", keptParsed.Select(CommandDescriber.DescribeNatural));
+
+        return new CommandBlock
+        {
+            Trigger = block.Trigger,
+            ApplyAction = BuildApplyAction(keptParsed, rng, validateDctFixes),
+            ParsedCommands = keptParsed,
+            Commands = keptTracked,
+            Dimensions = keptDims,
+            Description = desc,
+            NaturalDescription = natural,
+            IsWaitBlock = block.IsWaitBlock,
+            WaitRemainingSeconds = block.WaitRemainingSeconds,
+            WaitRemainingDistanceNm = block.WaitRemainingDistanceNm,
+            SourceCommandText = block.SourceCommandText,
+        };
+    }
+
     private static List<string> EnqueueBlocks(CompoundCommand compound, int startIndex, AircraftState aircraft, Random rng, bool validateDctFixes)
     {
         var messages = new List<string>();
@@ -1209,6 +1344,7 @@ public static class CommandDispatcher
             {
                 Trigger = ConvertCondition(parsedBlock.Condition),
                 ApplyAction = BuildApplyAction(parsedBlock.Commands, rng, validateDctFixes),
+                ParsedCommands = parsedBlock.Commands.ToList(),
                 Description = blockDesc,
                 NaturalDescription = blockMsg,
                 IsWaitBlock = isWait,
@@ -1217,10 +1353,14 @@ public static class CommandDispatcher
                 SourceCommandText = compound.SourceText,
             };
 
+            var blockDims = CommandDimension.None;
             foreach (var cmd in parsedBlock.Commands)
             {
                 commandBlock.Commands.Add(new TrackedCommand { Type = CommandDescriber.ClassifyCommand(cmd) });
+                blockDims |= CommandDescriber.GetCommandDimension(cmd);
             }
+
+            commandBlock.Dimensions = blockDims;
 
             aircraft.Queue.Blocks.Add(commandBlock);
             messages.Add(blockMsg);
@@ -1233,7 +1373,7 @@ public static class CommandDispatcher
     /// Builds a deferred action that applies all commands in a block to the aircraft.
     /// This is stored on the CommandBlock and executed when the block becomes active.
     /// </summary>
-    private static Func<AircraftState, CommandResult> BuildApplyAction(List<ParsedCommand> commands, Random rng, bool validateDctFixes)
+    internal static Func<AircraftState, CommandResult> BuildApplyAction(List<ParsedCommand> commands, Random rng, bool validateDctFixes)
     {
         // Capture the parsed commands; they'll be applied when the block activates
         var captured = commands.ToList();

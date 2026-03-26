@@ -1,3 +1,4 @@
+using Yaat.Sim.Commands;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim;
@@ -76,6 +77,16 @@ public enum TrackedCommandType
     Wait,
 }
 
+[Flags]
+public enum CommandDimension
+{
+    None = 0,
+    Lateral = 1 << 0,
+    Vertical = 1 << 1,
+    Speed = 1 << 2,
+    All = Lateral | Vertical | Speed,
+}
+
 public class TrackedCommand
 {
     public required TrackedCommandType Type { get; init; }
@@ -93,6 +104,40 @@ public class CommandBlock
     public bool IsApplied { get; set; }
     public bool TriggerMet { get; set; }
     public bool AllComplete => Commands.TrueForAll(c => c.IsComplete);
+
+    /// <summary>
+    /// Aggregate command dimensions for this block (Lateral, Vertical, Speed).
+    /// Set by CommandDispatcher during <see cref="CommandDispatcher.EnqueueBlocks"/>.
+    /// </summary>
+    public CommandDimension Dimensions { get; set; }
+
+    /// <summary>
+    /// The parsed commands that produced this block. Stored to enable block splitting
+    /// when a new command only partially conflicts with this block's dimensions.
+    /// NOT serialized — only needed during the current dispatch lifecycle.
+    /// </summary>
+    public List<ParsedCommand>? ParsedCommands { get; init; }
+
+    /// <summary>
+    /// Whether this block is ready for the queue to advance past it.
+    /// If the block has lateral commands (Heading/Navigation), advancement is gated only
+    /// by those — altitude and speed are concurrent and don't block the next instruction.
+    /// If no lateral commands exist, all commands must complete (original behavior).
+    /// </summary>
+    public bool ReadyToAdvance
+    {
+        get
+        {
+            bool hasLateral = Commands.Exists(c => c.Type is TrackedCommandType.Heading or TrackedCommandType.Navigation);
+
+            if (hasLateral)
+            {
+                return Commands.TrueForAll(c => c.IsComplete || c.Type is not (TrackedCommandType.Heading or TrackedCommandType.Navigation));
+            }
+
+            return AllComplete;
+        }
+    }
 
     public double TriggerClosestApproach { get; set; } = double.MaxValue;
     public bool TriggerMissed { get; set; }
@@ -141,6 +186,7 @@ public class CommandBlock
             Description = Description,
             NaturalDescription = NaturalDescription,
             SourceCommandText = SourceCommandText,
+            Dimensions = (int)Dimensions,
         };
 
     public static CommandBlock FromSnapshot(CommandBlockDto dto) =>
@@ -158,6 +204,7 @@ public class CommandBlock
             Description = dto.Description,
             NaturalDescription = dto.NaturalDescription,
             SourceCommandText = dto.SourceCommandText,
+            Dimensions = (CommandDimension)dto.Dimensions,
             // ApplyAction is NOT restored here — it's re-derived by CommandQueue.FromSnapshot
             // for unapplied blocks that have SourceCommandText
         };

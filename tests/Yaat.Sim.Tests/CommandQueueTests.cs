@@ -447,4 +447,148 @@ public class CommandQueueTests
         Assert.Equal(270, ac.TrueHeading.Degrees);
         Assert.True(block.IsApplied);
     }
+
+    // -------------------------------------------------------------------------
+    // ReadyToAdvance (dimension-aware block completion)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void ReadyToAdvance_LateralGatesAdvancement_AltitudeDoesNot()
+    {
+        // Block: Navigation (incomplete) + Altitude (incomplete) → NOT ready
+        var nav = new TrackedCommand { Type = TrackedCommandType.Navigation };
+        var alt = new TrackedCommand { Type = TrackedCommandType.Altitude };
+        var block = new CommandBlock { Commands = [nav, alt] };
+
+        Assert.False(block.ReadyToAdvance);
+
+        // Complete altitude but not navigation → still NOT ready (lateral gates)
+        alt.IsComplete = true;
+        Assert.False(block.ReadyToAdvance);
+
+        // Complete navigation → ready (altitude is fire-and-forget alongside lateral)
+        nav.IsComplete = true;
+        Assert.True(block.ReadyToAdvance);
+    }
+
+    [Fact]
+    public void ReadyToAdvance_LateralComplete_AltitudeIncomplete_Advances()
+    {
+        // Block: Heading (complete) + Altitude (incomplete) → ready
+        var hdg = new TrackedCommand { Type = TrackedCommandType.Heading, IsComplete = true };
+        var alt = new TrackedCommand { Type = TrackedCommandType.Altitude };
+        var block = new CommandBlock { Commands = [hdg, alt] };
+
+        Assert.True(block.ReadyToAdvance);
+    }
+
+    [Fact]
+    public void ReadyToAdvance_VerticalOnlyBlock_RequiresAllComplete()
+    {
+        // Block: Altitude only → must complete for advancement
+        var alt = new TrackedCommand { Type = TrackedCommandType.Altitude };
+        var block = new CommandBlock { Commands = [alt] };
+
+        Assert.False(block.ReadyToAdvance);
+
+        alt.IsComplete = true;
+        Assert.True(block.ReadyToAdvance);
+    }
+
+    [Fact]
+    public void ReadyToAdvance_SpeedOnlyBlock_RequiresAllComplete()
+    {
+        var spd = new TrackedCommand { Type = TrackedCommandType.Speed };
+        var block = new CommandBlock { Commands = [spd] };
+
+        Assert.False(block.ReadyToAdvance);
+
+        spd.IsComplete = true;
+        Assert.True(block.ReadyToAdvance);
+    }
+
+    [Fact]
+    public void ReadyToAdvance_MixedNoLateral_RequiresAllComplete()
+    {
+        // Block: Altitude + Speed → both must complete
+        var alt = new TrackedCommand { Type = TrackedCommandType.Altitude };
+        var spd = new TrackedCommand { Type = TrackedCommandType.Speed };
+        var block = new CommandBlock { Commands = [alt, spd] };
+
+        alt.IsComplete = true;
+        Assert.False(block.ReadyToAdvance);
+
+        spd.IsComplete = true;
+        Assert.True(block.ReadyToAdvance);
+    }
+
+    [Fact]
+    public void ReadyToAdvance_PhysicsTick_AdvancesOnLateralCompletion()
+    {
+        // DCT (Navigation) + DM (Altitude) in Block 0, then FH in Block 1.
+        // Block 0 should advance when Navigation completes, even if Altitude is incomplete.
+        var ac = MakeAircraft();
+        ac.Targets.NavigationRoute.Clear();
+        ac.Targets.TargetTrueHeading = null;
+
+        var navCmd = new TrackedCommand { Type = TrackedCommandType.Navigation };
+        var altCmd = new TrackedCommand { Type = TrackedCommandType.Altitude };
+        var block0 = new CommandBlock { Commands = [navCmd, altCmd], IsApplied = true };
+
+        var block1 = ImmediateBlock();
+        ac.Queue.Blocks.Add(block0);
+        ac.Queue.Blocks.Add(block1);
+
+        // Navigation completes (route empty), altitude still tracking
+        navCmd.IsComplete = true;
+
+        FlightPhysics.Update(ac, 1.0, null, null);
+
+        // Should have advanced to block 1
+        Assert.Equal(1, ac.Queue.CurrentBlockIndex);
+        Assert.True(block1.IsApplied);
+    }
+
+    // -------------------------------------------------------------------------
+    // CommandDimension classification
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void GetDimension_MapsTrackedCommandTypes()
+    {
+        Assert.Equal(CommandDimension.Lateral, CommandDescriber.GetDimension(TrackedCommandType.Heading));
+        Assert.Equal(CommandDimension.Lateral, CommandDescriber.GetDimension(TrackedCommandType.Navigation));
+        Assert.Equal(CommandDimension.Vertical, CommandDescriber.GetDimension(TrackedCommandType.Altitude));
+        Assert.Equal(CommandDimension.Speed, CommandDescriber.GetDimension(TrackedCommandType.Speed));
+        Assert.Equal(CommandDimension.None, CommandDescriber.GetDimension(TrackedCommandType.Immediate));
+        Assert.Equal(CommandDimension.None, CommandDescriber.GetDimension(TrackedCommandType.Wait));
+    }
+
+    [Fact]
+    public void GetCommandDimension_TowerCommands_ReturnAll()
+    {
+        Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(new EnterRightDownwindCommand(null)));
+        Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(new ClearedToLandCommand()));
+        Assert.Equal(CommandDimension.All, CommandDescriber.GetCommandDimension(new GoAroundCommand(null, null, null)));
+    }
+
+    [Fact]
+    public void GetCommandDimension_FlightCommands_SingleDimension()
+    {
+        Assert.Equal(CommandDimension.Lateral, CommandDescriber.GetCommandDimension(new FlyHeadingCommand(new MagneticHeading(270))));
+        Assert.Equal(CommandDimension.Vertical, CommandDescriber.GetCommandDimension(new DescendMaintainCommand(2000)));
+        Assert.Equal(CommandDimension.Speed, CommandDescriber.GetCommandDimension(new SpeedCommand(250)));
+    }
+
+    [Fact]
+    public void GetCompoundDimensions_UnionsAllBlocks()
+    {
+        var compound = new CompoundCommand([
+            new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(270))]),
+            new ParsedBlock(null, [new DescendMaintainCommand(2000)]),
+        ]);
+
+        var dims = CommandDescriber.GetCompoundDimensions(compound);
+        Assert.Equal(CommandDimension.Lateral | CommandDimension.Vertical, dims);
+    }
 }

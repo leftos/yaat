@@ -20,6 +20,7 @@ public sealed class CommandBlockDto
     public required string Description { get; init; }
     public required string NaturalDescription { get; init; }
     public string? SourceCommandText { get; init; }
+    public int Dimensions { get; init; }
 }
 
 public sealed class TrackedCommandDto

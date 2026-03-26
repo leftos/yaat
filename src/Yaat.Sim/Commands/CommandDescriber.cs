@@ -189,6 +189,83 @@ public static class CommandDescriber
         };
     }
 
+    internal static CommandDimension GetDimension(TrackedCommandType type)
+    {
+        return type switch
+        {
+            TrackedCommandType.Heading => CommandDimension.Lateral,
+            TrackedCommandType.Navigation => CommandDimension.Lateral,
+            TrackedCommandType.Altitude => CommandDimension.Vertical,
+            TrackedCommandType.Speed => CommandDimension.Speed,
+            TrackedCommandType.Immediate => CommandDimension.None,
+            TrackedCommandType.Wait => CommandDimension.None,
+            _ => CommandDimension.None,
+        };
+    }
+
+    internal static CommandDimension GetCommandDimension(ParsedCommand command)
+    {
+        // Tower commands (includes pattern entries) control all dimensions
+        if (IsTowerCommand(command))
+        {
+            return CommandDimension.All;
+        }
+
+        // Ground commands control all dimensions
+        if (IsGroundCommand(command))
+        {
+            return CommandDimension.All;
+        }
+
+        // ClimbVia/DescendVia affect both lateral (procedure route) and vertical (altitude constraints)
+        if (command is ClimbViaCommand or DescendViaCommand)
+        {
+            return CommandDimension.Lateral | CommandDimension.Vertical;
+        }
+
+        // CrossFix/DepartFix: lateral (navigation) + vertical (altitude at fix)
+        if (command is CrossFixCommand or DepartFixCommand)
+        {
+            return CommandDimension.Lateral | CommandDimension.Vertical;
+        }
+
+        // Holding patterns are lateral
+        if (
+            command
+            is HoldPresentPosition360Command
+                or HoldPresentPositionHoverCommand
+                or HoldAtFixOrbitCommand
+                or HoldAtFixHoverCommand
+                or HoldingPatternCommand
+        )
+        {
+            return CommandDimension.Lateral;
+        }
+
+        // Delete clears everything
+        if (command is DeleteCommand)
+        {
+            return CommandDimension.All;
+        }
+
+        // Default: derive from TrackedCommandType
+        return GetDimension(ClassifyCommand(command));
+    }
+
+    internal static CommandDimension GetCompoundDimensions(CompoundCommand compound)
+    {
+        var dims = CommandDimension.None;
+        foreach (var block in compound.Blocks)
+        {
+            foreach (var cmd in block.Commands)
+            {
+                dims |= GetCommandDimension(cmd);
+            }
+        }
+
+        return dims;
+    }
+
     internal static TrackedCommandType ClassifyCommand(ParsedCommand command)
     {
         return command switch

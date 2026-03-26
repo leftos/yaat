@@ -952,7 +952,7 @@ public static class FlightPhysics
         {
             UpdateBlockCompletion(aircraft, block, deltaSeconds);
 
-            if (block.AllComplete)
+            if (block.ReadyToAdvance)
             {
                 queue.CurrentBlockIndex++;
                 block = queue.CurrentBlock;
