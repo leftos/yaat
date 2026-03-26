@@ -59,6 +59,7 @@ public partial class ColumnChooserWindow : Window
         MoveUpButton.Click += OnMoveUp;
         MoveDownButton.Click += OnMoveDown;
         MoveLastButton.Click += OnMoveLast;
+        ToggleButton.Click += OnToggle;
         ExportButton.Click += OnExport;
         ImportButton.Click += OnImport;
         ResetButton.Click += OnReset;
@@ -66,60 +67,134 @@ public partial class ColumnChooserWindow : Window
         CancelButton.Click += OnCancel;
     }
 
-    private void OnMoveTop(object? sender, RoutedEventArgs e)
+    private List<ColumnEntry> GetSelectedEntriesInOrder()
     {
-        var idx = ColumnList.SelectedIndex;
-        if (idx <= 0)
+        if (ColumnList.SelectedItems is not { Count: > 0 } selectedItems)
+        {
+            return [];
+        }
+
+        var selected = new HashSet<ColumnEntry>(selectedItems.Cast<ColumnEntry>());
+        return Entries.Where(e => selected.Contains(e)).ToList();
+    }
+
+    private void ReselectItems(List<ColumnEntry> items)
+    {
+        if (ColumnList.SelectedItems is null)
         {
             return;
         }
 
-        var item = Entries[idx];
-        Entries.RemoveAt(idx);
-        Entries.Insert(0, item);
-        ColumnList.SelectedIndex = 0;
+        ColumnList.SelectedItems.Clear();
+        foreach (var item in items)
+        {
+            ColumnList.SelectedItems.Add(item);
+        }
+    }
+
+    private void OnMoveTop(object? sender, RoutedEventArgs e)
+    {
+        var selected = GetSelectedEntriesInOrder();
+        if (selected.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var item in selected)
+        {
+            Entries.Remove(item);
+        }
+
+        for (var i = 0; i < selected.Count; i++)
+        {
+            Entries.Insert(i, selected[i]);
+        }
+
+        ReselectItems(selected);
     }
 
     private void OnMoveUp(object? sender, RoutedEventArgs e)
     {
-        var idx = ColumnList.SelectedIndex;
-        if (idx <= 0)
+        var selected = GetSelectedEntriesInOrder();
+        if (selected.Count == 0)
         {
             return;
         }
 
-        var item = Entries[idx];
-        Entries.RemoveAt(idx);
-        Entries.Insert(idx - 1, item);
-        ColumnList.SelectedIndex = idx - 1;
+        var indices = selected.Select(item => Entries.IndexOf(item)).ToList();
+        if (indices[0] == 0)
+        {
+            return;
+        }
+
+        foreach (var item in selected)
+        {
+            var idx = Entries.IndexOf(item);
+            Entries.RemoveAt(idx);
+            Entries.Insert(idx - 1, item);
+        }
+
+        ReselectItems(selected);
     }
 
     private void OnMoveDown(object? sender, RoutedEventArgs e)
     {
-        var idx = ColumnList.SelectedIndex;
-        if (idx < 0 || idx >= Entries.Count - 1)
+        var selected = GetSelectedEntriesInOrder();
+        if (selected.Count == 0)
         {
             return;
         }
 
-        var item = Entries[idx];
-        Entries.RemoveAt(idx);
-        Entries.Insert(idx + 1, item);
-        ColumnList.SelectedIndex = idx + 1;
+        var indices = selected.Select(item => Entries.IndexOf(item)).ToList();
+        if (indices[^1] == Entries.Count - 1)
+        {
+            return;
+        }
+
+        for (var i = selected.Count - 1; i >= 0; i--)
+        {
+            var idx = Entries.IndexOf(selected[i]);
+            Entries.RemoveAt(idx);
+            Entries.Insert(idx + 1, selected[i]);
+        }
+
+        ReselectItems(selected);
     }
 
     private void OnMoveLast(object? sender, RoutedEventArgs e)
     {
-        var idx = ColumnList.SelectedIndex;
-        if (idx < 0 || idx >= Entries.Count - 1)
+        var selected = GetSelectedEntriesInOrder();
+        if (selected.Count == 0)
         {
             return;
         }
 
-        var item = Entries[idx];
-        Entries.RemoveAt(idx);
-        Entries.Add(item);
-        ColumnList.SelectedIndex = Entries.Count - 1;
+        foreach (var item in selected)
+        {
+            Entries.Remove(item);
+        }
+
+        foreach (var item in selected)
+        {
+            Entries.Add(item);
+        }
+
+        ReselectItems(selected);
+    }
+
+    private void OnToggle(object? sender, RoutedEventArgs e)
+    {
+        var selected = GetSelectedEntriesInOrder();
+        if (selected.Count == 0)
+        {
+            return;
+        }
+
+        var allVisible = selected.All(item => item.IsVisible);
+        foreach (var item in selected)
+        {
+            item.IsVisible = !allVisible;
+        }
     }
 
     private async void OnExport(object? sender, RoutedEventArgs e)

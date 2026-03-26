@@ -14,7 +14,8 @@
         <ListBox x:Name="ColumnList"
                  Height="350"
                  Background="#0D0D0D"
-                 BorderBrush="#333333">
+                 BorderBrush="#333333"
+                 SelectionMode="Multiple">
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <CheckBox Content="{Binding Name}"
@@ -30,6 +31,7 @@
             <Button x:Name="MoveUpButton" Content="Up" Padding="8,4" />
             <Button x:Name="MoveDownButton" Content="Down" Padding="8,4" />
             <Button x:Name="MoveLastButton" Content="Last" Padding="8,4" />
+            <Button x:Name="ToggleButton" Content="Toggle" Padding="8,4" />
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
