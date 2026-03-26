@@ -132,7 +132,8 @@ public sealed class PhaseList
     /// <summary>
     /// When set, the pattern circuit uses a different runway than the takeoff runway.
     /// Used for cross-runway closed traffic (e.g., takeoff 33, pattern for 28R).
-    /// PhaseRunner uses this for auto-cycle; AssignedRunway switches when the pattern starts.
+    /// ApplyClosedTraffic sets both PatternRunway and AssignedRunway to this value.
+    /// PhaseRunner uses this for auto-cycle.
     /// </summary>
     public RunwayInfo? PatternRunway { get; set; }
 

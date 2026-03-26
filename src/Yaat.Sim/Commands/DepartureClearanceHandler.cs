@@ -24,6 +24,8 @@ internal static class DepartureClearanceHandler
         luaw.AssignedAltitude = cto.AssignedAltitude;
         luaw.SatisfyClearance(ClearanceType.ClearedForTakeoff);
 
+        string? takeoffDesignator = null;
+
         // Propagate departure to TakeoffPhase and InitialClimbPhase
         if (aircraft.Phases is not null)
         {
@@ -47,15 +49,17 @@ internal static class DepartureClearanceHandler
             }
 
             // ClosedTrafficDeparture: establish pattern mode and append circuit.
+            // Capture takeoff runway before ApplyClosedTraffic overwrites AssignedRunway.
             if (cto.Departure is ClosedTrafficDeparture ct && aircraft.Phases.AssignedRunway is { } ctRunway)
             {
+                takeoffDesignator = ctRunway.Designator;
                 ApplyClosedTraffic(ct, aircraft, aircraft.Phases, ctRunway, removeInitialClimb: true);
             }
         }
 
         return BuildDepartureMessage(
             ClearanceType.ClearedForTakeoff,
-            aircraft.Phases?.AssignedRunway?.Designator ?? "unknown",
+            takeoffDesignator ?? aircraft.Phases?.AssignedRunway?.Designator ?? "unknown",
             cto.Departure,
             cto.AssignedAltitude
         );
@@ -377,6 +381,8 @@ internal static class DepartureClearanceHandler
             SetInitialClimbProperties(climb, departure, assignedAltitude, routeResult, aircraft);
         }
 
+        // Capture takeoff runway before ApplyClosedTraffic overwrites AssignedRunway.
+        var takeoffDesignator = phases.AssignedRunway?.Designator ?? "unknown";
         if (departure is ClosedTrafficDeparture ct && phases.AssignedRunway is { } rwy)
         {
             ApplyClosedTraffic(ct, aircraft, phases, rwy, removeInitialClimb: true);
@@ -384,7 +390,7 @@ internal static class DepartureClearanceHandler
 
         logger.LogDebug("[Departure] {Callsign}: CTO satisfied on upcoming LUAW phase", aircraft.Callsign);
 
-        return BuildDepartureMessage(ClearanceType.ClearedForTakeoff, phases.AssignedRunway?.Designator ?? "unknown", departure, assignedAltitude);
+        return BuildDepartureMessage(ClearanceType.ClearedForTakeoff, takeoffDesignator, departure, assignedAltitude);
     }
 
     internal static CommandResult BuildDepartureMessage(
@@ -488,6 +494,7 @@ internal static class DepartureClearanceHandler
         );
         phases.Phases.AddRange(circuit);
         phases.PatternRunway = patternRunway;
+        phases.AssignedRunway = patternRunway;
     }
 
     /// <summary>

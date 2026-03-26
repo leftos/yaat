@@ -498,8 +498,8 @@ public class DepartureClearanceHandlerTests
         );
 
         Assert.True(result.Success);
-        // AssignedRunway is the takeoff runway (33)
-        Assert.Equal("33", ac.Phases.AssignedRunway?.Designator);
+        // AssignedRunway switches to the pattern runway (28R)
+        Assert.Equal("28R", ac.Phases.AssignedRunway?.Designator);
         // PatternRunway is the pattern runway (28R)
         Assert.NotNull(ac.Phases.PatternRunway);
         Assert.Equal("28R", ac.Phases.PatternRunway!.Designator);
@@ -641,5 +641,56 @@ public class DepartureClearanceHandlerTests
         Assert.NotNull(ac.Phases.DepartureClearance);
         Assert.NotNull(ac.Phases.DepartureClearance!.PatternRunway);
         Assert.Equal("28R", ac.Phases.DepartureClearance.PatternRunway!.Designator);
+    }
+
+    [Fact]
+    public void CrossRunway_DepartureMessage_UsesTakeoffRunway()
+    {
+        var rwy33 = Runway33();
+        var rwy28R = Runway28R();
+        var ac = MakeAircraft();
+        var holding = MakeHoldingShort("33/15");
+        ac.Phases!.Add(holding);
+        ac.Phases.Start(MinCtx(ac));
+
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+
+        var result = DepartureClearanceHandler.TryDepartureClearance(
+            ac,
+            holding,
+            ClearanceType.ClearedForTakeoff,
+            new ClosedTrafficDeparture(PatternDirection.Right, "28R", null),
+            null,
+            Logger
+        );
+
+        Assert.True(result.Success);
+        // Departure message references the takeoff runway (33), not the pattern runway (28R)
+        Assert.Contains("runway 33", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CrossRunway_CLAND_ClearsForPatternRunway()
+    {
+        var rwy33 = Runway33();
+        var rwy28R = Runway28R();
+        var ac = MakeAircraft();
+        ac.Phases!.AssignedRunway = rwy33;
+
+        var luaw = new LinedUpAndWaitingPhase();
+        ac.Phases.Add(luaw);
+        ac.Phases.Start(MinCtx(ac));
+
+        using var _ = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(rwy33, rwy28R));
+        var cto = new ClearedForTakeoffCommand(new ClosedTrafficDeparture(PatternDirection.Right, "28R", null));
+
+        var ctoResult = DepartureClearanceHandler.TryClearedForTakeoff(cto, ac, luaw);
+        Assert.True(ctoResult.Success);
+
+        // Issue CLAND — should clear for the pattern runway (28R), not the takeoff runway (33)
+        var clandResult = PatternCommandHandler.TryClearedToLand(new ClearedToLandCommand(), ac);
+        Assert.True(clandResult.Success);
+        Assert.Equal("28R", ac.Phases.ClearedRunwayId);
+        Assert.Contains("Runway 28R", clandResult.Message);
     }
 }
