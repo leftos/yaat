@@ -1277,12 +1277,6 @@ public sealed class SimulationEngine
 
     private void ReplayCommand(RecordedCommand cmd)
     {
-        var aircraft = FindAircraft(cmd.Callsign);
-        if (aircraft is null)
-        {
-            return;
-        }
-
         var simpleResult = CommandParser.Parse(cmd.Command);
         if (!simpleResult.IsSuccess || simpleResult.Value is SayCommand or ShowQueuedCommand)
         {
@@ -1290,15 +1284,24 @@ public sealed class SimulationEngine
         }
 
         var simpleParsed = simpleResult.Value!;
-        if (simpleParsed is DeleteQueuedCommand delAtCmd)
+
+        // DEL before the aircraft-exists guard: target may be in the delayed queue only.
+        if (simpleParsed is DeleteCommand)
         {
-            ReplayDeleteQueued(aircraft, delAtCmd.BlockNumber);
+            Scenario?.DelayedQueue.RemoveAll(e => e.Aircraft.State.Callsign.Equals(cmd.Callsign, StringComparison.OrdinalIgnoreCase));
+            World.RemoveAircraft(cmd.Callsign);
             return;
         }
 
-        if (simpleParsed is DeleteCommand)
+        var aircraft = FindAircraft(cmd.Callsign);
+        if (aircraft is null)
         {
-            World.RemoveAircraft(cmd.Callsign);
+            return;
+        }
+
+        if (simpleParsed is DeleteQueuedCommand delAtCmd)
+        {
+            ReplayDeleteQueued(aircraft, delAtCmd.BlockNumber);
             return;
         }
 
