@@ -1,6 +1,6 @@
-# Start yaat-server and yaat-client side by side.
+﻿# Start yaat-server and yaat-client side by side.
 # Kill both on Ctrl-C.
-# Build sequentially first — both projects share Yaat.Sim.
+# Build sequentially first -- both projects share Yaat.Sim.
 # Usage: .\start.ps1 [-Pull] [-Docker] [-ClientOnly] [-ServerOnly] [-Scenario <id>] [-Sync <url>]
 #
 # -Sync <url>  Sync local yaat repo to the commit pinned by a remote server,
@@ -52,7 +52,7 @@ if ($Sync) {
     git -C "$ClientDir" checkout $clientCommit
     if ($LASTEXITCODE -ne 0) { Write-Error "git checkout $clientCommit failed"; exit 1 }
 
-    Write-Host "Checked out $clientCommit — building client-only against $Sync"
+    Write-Host "Checked out $clientCommit -- building client-only against $Sync"
     # Force client-only mode: the remote server IS the server
     $ClientOnly = $true
 }
