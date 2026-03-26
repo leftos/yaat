@@ -108,6 +108,7 @@ ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IA
                                # TargetMach: when set, UpdateSpeed recomputes equivalent IAS each tick (Mach hold)
 FlightPhysics.cs               # Static 8-step Update: navigation→descentPlan→climbPlan→speedPlan→heading→altitude→speed→position→queue
                                # UpdateSpeedPlanning: proactive speed look-ahead for procedure fixes (mirrors descent/climb planning)
+                               # Auto speed schedule: skipped when ActiveApproach or ManagesSpeed (pattern phases)
                                # 14 CFR 91.117: 250 KIAS cap below 10,000 ft in UpdateSpeed() and ApplyFixConstraints()
                                # Wind physics: TAS = IasToTas(IAS, alt); GS/Track derived from TAS + wind vector; WCA applied to nav
                                # ApplyFixConstraints: SID/STAR via-mode constraint enforcement at waypoints
@@ -175,10 +176,10 @@ Commands/RouteChainer.cs            # After DCT to on-route fix, appends remaini
 Commands/ApproachCommandHandler.cs  # Approach clearance logic (CAPP/JAPP/PTAC/CAPPSI/JAPPSI/CVA visual approach); RF/AF arc expansion in BuildApproachFixes
 Commands/DepartureClearanceHandler.cs  # Departure clearance + CIFP SID resolution, CancelTakeoff, ClearedTakeoffPresent (CTOPP)
 Commands/GroundCommandHandler.cs    # Ground operation command logic (taxi, pushback, hold short)
-Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.)
+Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, rock wings, GoAround, CTL, sequence, etc.); EF loop detection via turn-arc geometry
 
 # Phases/ — clearance-gated behavior
-Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance
+Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance, ManagesSpeed (suppresses auto schedule)
 Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, ActiveApproach, DepartureClearance, mutations
 Phases/PhaseRunner.cs          # Static lifecycle: start→tick→advance; auto-appends exit/pattern phases
 Phases/PhaseContext.cs         # Readonly tick context; includes Weather, TowerPosition for RV SID heading hold
