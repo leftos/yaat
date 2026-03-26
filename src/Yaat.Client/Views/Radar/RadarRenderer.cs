@@ -249,6 +249,7 @@ public sealed class RadarRenderer : IDisposable
         string? rubberBandLabel = null,
         IReadOnlyDictionary<int, WaypointCondition>? waypointConditions = null,
         IReadOnlySet<string>? minifiedCallsigns = null,
+        IReadOnlySet<string>? highlightedCallsigns = null,
         bool showTopDown = false,
         IReadOnlyList<WeatherDisplayInfo>? weatherInfo = null,
         IReadOnlyList<ShownPathEntry>? shownPaths = null,
@@ -292,6 +293,7 @@ public sealed class RadarRenderer : IDisposable
             ptlOwn,
             ptlAll,
             minifiedCallsigns,
+            highlightedCallsigns,
             showTopDown,
             historyCount
         );

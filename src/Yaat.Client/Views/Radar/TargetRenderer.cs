@@ -88,6 +88,7 @@ public sealed class TargetRenderer : IDisposable
         bool ptlOwn = false,
         bool ptlAll = false,
         IReadOnlySet<string>? minifiedCallsigns = null,
+        IReadOnlySet<string>? highlightedCallsigns = null,
         bool showTopDown = false,
         int historyCount = 0
     )
@@ -118,8 +119,9 @@ public sealed class TargetRenderer : IDisposable
                 }
             }
 
-            var baseSymbolColor = tintColor ?? (isOnGround ? GroundColor : SymbolColor);
-            var baseDbColor = tintColor ?? (isOnGround ? GroundColor : DataBlockColor);
+            bool isHighlighted = highlightedCallsigns is not null && highlightedCallsigns.Contains(ac.Callsign);
+            var baseSymbolColor = isHighlighted ? SKColors.Cyan : tintColor ?? (isOnGround ? GroundColor : SymbolColor);
+            var baseDbColor = isHighlighted ? SKColors.Cyan : tintColor ?? (isOnGround ? GroundColor : DataBlockColor);
             var selectedColor = SelectedOverrideColor ?? SelectedColor;
             var symbolColor = isSelected ? selectedColor : baseSymbolColor;
             var dbColor = isSelected ? selectedColor : baseDbColor;

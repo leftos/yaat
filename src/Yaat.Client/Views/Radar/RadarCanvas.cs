@@ -132,6 +132,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
     private bool _dragThresholdMet;
     private Point _lastPointerPos;
     private readonly HashSet<string> _minifiedCallsigns = new();
+    private readonly HashSet<string> _highlightedCallsigns = new();
     private readonly Dictionary<string, int> _dataBlockZOrder = new();
     private int _nextZOrder = 1;
 
@@ -537,6 +538,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
         string? RubberBandLabel,
         IReadOnlyDictionary<int, WaypointCondition>? WaypointConditions,
         IReadOnlySet<string> MinifiedCallsigns,
+        IReadOnlySet<string> HighlightedCallsigns,
         bool ShowTopDown,
         IReadOnlyList<WeatherDisplayInfo>? WeatherInfo,
         IReadOnlyList<ShownPathEntry>? ShownPaths,
@@ -601,6 +603,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             drawRouteCursorLabel,
             IsDrawingRoute ? WaypointConditions : null,
             new HashSet<string>(_minifiedCallsigns),
+            new HashSet<string>(_highlightedCallsigns),
             ShowTopDown,
             WeatherInfo,
             ShownPaths,
@@ -665,6 +668,7 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
             s.RubberBandLabel,
             s.WaypointConditions,
             s.MinifiedCallsigns,
+            s.HighlightedCallsigns,
             s.ShowTopDown,
             s.WeatherInfo,
             s.ShownPaths,
@@ -718,6 +722,23 @@ public sealed class RadarCanvas : MapCanvasBase, IDisposable
                 }
                 // Fall through to base handler for pan/zoom
             }
+        }
+
+        if (props.IsMiddleButtonPressed)
+        {
+            var hitAc = FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos);
+            if (hitAc is not null)
+            {
+                if (!_highlightedCallsigns.Remove(hitAc.Callsign))
+                {
+                    _highlightedCallsigns.Add(hitAc.Callsign);
+                }
+
+                MarkDirty();
+                e.Handled = true;
+            }
+
+            return;
         }
 
         var dataBlockAc = FindDataBlockAtPoint(pos);
