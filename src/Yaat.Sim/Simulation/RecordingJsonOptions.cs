@@ -9,5 +9,10 @@ namespace Yaat.Sim.Simulation;
 public static class RecordingJsonOptions
 {
     public static JsonSerializerOptions Default { get; } =
-        new() { PropertyNameCaseInsensitive = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+        new()
+        {
+            PropertyNameCaseInsensitive = true,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            TypeInfoResolver = new LenientRequiredResolver(),
+        };
 }

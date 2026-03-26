@@ -313,9 +313,9 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     public required bool StoppedForLahso { get; init; }
     public int? CurrentCenterlineNodeId { get; init; }
     public int? NextCenterlineNodeId { get; init; }
-    public double RunwayHeadingDeg { get; init; }
-    public int ExitStateValue { get; init; }
-    public bool Braking { get; init; }
+    public required double RunwayHeadingDeg { get; init; } = 0.0;
+    public required int ExitStateValue { get; init; } = 0;
+    public required bool Braking { get; init; } = false;
 }
 
 // --- Tower phases ---
@@ -438,13 +438,13 @@ public sealed class InitialClimbPhaseDto : PhaseDto
     public double? DepartureHeadingDeg { get; init; }
     public double? PhaseCompletionAltitude { get; init; }
     public required double SelfClearAltitude { get; init; }
-    public double RunwayDerLat { get; init; }
-    public double RunwayDerLon { get; init; }
-    public double RunwayHeadingDeg { get; init; }
-    public double VfrTurnAltitude { get; init; }
-    public bool VfrTurnApplied { get; init; }
-    public bool RvSidActive { get; init; }
-    public double RvSidHandoffElapsed { get; init; }
+    public required double RunwayDerLat { get; init; } = 0.0;
+    public required double RunwayDerLon { get; init; } = 0.0;
+    public required double RunwayHeadingDeg { get; init; } = 0.0;
+    public required double VfrTurnAltitude { get; init; } = 0.0;
+    public required bool VfrTurnApplied { get; init; } = false;
+    public required bool RvSidActive { get; init; } = false;
+    public required double RvSidHandoffElapsed { get; init; } = 0.0;
 }
 
 public sealed class LineUpPhaseDto : PhaseDto
@@ -453,8 +453,8 @@ public sealed class LineUpPhaseDto : PhaseDto
     public required double RunwayHeadingDeg { get; init; }
     public required bool Initialized { get; init; }
     public required double TimeSinceLastLog { get; init; }
-    public double PerpHeadingDeg { get; init; }
-    public bool PerpAligned { get; init; }
+    public required double PerpHeadingDeg { get; init; } = 0.0;
+    public required bool PerpAligned { get; init; } = false;
     public required double Stage1Lat { get; init; }
     public required double Stage1Lon { get; init; }
     public required bool HasStage1 { get; init; }
@@ -483,7 +483,7 @@ public sealed class FinalApproachPhaseDto : PhaseDto
     public required bool InterceptChecked { get; init; }
     public required bool IsPatternTraffic { get; init; }
     public required bool TooHighGoAroundChecked { get; init; }
-    public bool FasSet { get; init; }
+    public required bool FasSet { get; init; } = false;
     public required double MapDistNm { get; init; }
 }
 
@@ -551,7 +551,7 @@ public sealed class DownwindPhaseDto : PhaseDto
     public required double DownwindHeadingDeg { get; init; }
     public required bool PastAbeam { get; init; }
     public required double AltitudeFloor { get; init; }
-    public bool MidfieldBroadcastIssued { get; init; }
+    public required bool MidfieldBroadcastIssued { get; init; } = false;
 }
 
 public sealed class UpwindPhaseDto : PhaseDto
@@ -561,7 +561,7 @@ public sealed class UpwindPhaseDto : PhaseDto
     public required double TargetLat { get; init; }
     public required double TargetLon { get; init; }
     public required double UpwindHeadingDeg { get; init; }
-    public double MinTurnAltitude { get; init; }
+    public required double MinTurnAltitude { get; init; } = 0.0;
 }
 
 // --- Approach phases ---
