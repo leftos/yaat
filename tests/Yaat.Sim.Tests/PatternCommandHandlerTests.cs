@@ -3,11 +3,17 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 
 public class PatternCommandHandlerTests
 {
+    public PatternCommandHandlerTests()
+    {
+        TestVnasData.EnsureInitialized();
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
