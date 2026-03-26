@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
@@ -570,5 +571,78 @@ public class PatternCommandHandlerTests
         Assert.Contains(phases, p => p is CrosswindPhase);
         Assert.Contains(phases, p => p is DownwindPhase);
         Assert.Contains(phases, p => p is BasePhase);
+    }
+
+    // -------------------------------------------------------------------------
+    // TryEnterPattern — short-final runway change rejection
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryEnterPattern_RejectsRunwayChange_WhenOnShortFinal()
+    {
+        var rwy28L = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found");
+        // Place aircraft 0.5nm from threshold on the extended centerline (short final)
+        var (lat, lon) = GeoMath.ProjectPoint(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude, rwy28L.TrueHeading.ToReciprocal(), 0.5);
+        var ac = MakeAircraft(lat: lat, lon: lon, altitude: (int)rwy28L.ElevationFt + 200);
+        ac.AircraftType = "B738";
+        ac.Destination = "KOAK";
+
+        // Set up PhaseList with active FinalApproachPhase for 28L
+        var phases = new PhaseList { AssignedRunway = rwy28L };
+        var finalPhase = new FinalApproachPhase();
+        phases.Add(finalPhase);
+        phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 1.0,
+                Runway = rwy28L,
+                FieldElevation = rwy28L.ElevationFt,
+                Logger = NullLogger.Instance,
+            }
+        );
+        ac.Phases = phases;
+
+        // Request EF for 28R — should be rejected (short final for 28L)
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
+
+        Assert.False(result.Success);
+        Assert.Contains("short final", result.Message!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryEnterPattern_AcceptsRunwayChange_WhenFarFromThreshold()
+    {
+        var rwy28L = TestVnasData.NavigationDb?.GetRunway("KOAK", "28L") ?? throw new InvalidOperationException("KOAK 28L not found");
+        // Place aircraft 5nm from threshold (not short final)
+        var (lat, lon) = GeoMath.ProjectPoint(rwy28L.ThresholdLatitude, rwy28L.ThresholdLongitude, rwy28L.TrueHeading.ToReciprocal(), 5.0);
+        var ac = MakeAircraft(lat: lat, lon: lon, altitude: 2000);
+        ac.AircraftType = "B738";
+        ac.Destination = "KOAK";
+
+        // Set up PhaseList with active FinalApproachPhase for 28L
+        var phases = new PhaseList { AssignedRunway = rwy28L };
+        var finalPhase = new FinalApproachPhase();
+        phases.Add(finalPhase);
+        phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Jet,
+                DeltaSeconds = 1.0,
+                Runway = rwy28L,
+                FieldElevation = rwy28L.ElevationFt,
+                Logger = NullLogger.Instance,
+            }
+        );
+        ac.Phases = phases;
+
+        // Request EF for 28R — should be accepted (far enough from threshold)
+        var result = PatternCommandHandler.TryEnterPattern(ac, PatternDirection.Left, PatternEntryLeg.Final, "28R", null);
+
+        Assert.True(result.Success);
     }
 }

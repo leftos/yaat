@@ -32,6 +32,7 @@ public sealed class BasePhase : Phase
     public bool IsExtended { get; set; }
 
     public override string Name => "Base";
+    public override bool ManagesSpeed => true;
 
     public override void OnStart(PhaseContext ctx)
     {

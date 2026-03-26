@@ -31,6 +31,7 @@ public sealed class DownwindPhase : Phase
     public bool IsExtended { get; set; }
 
     public override string Name => "Downwind";
+    public override bool ManagesSpeed => true;
 
     public override void OnStart(PhaseContext ctx)
     {

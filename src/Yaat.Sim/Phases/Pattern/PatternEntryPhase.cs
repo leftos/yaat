@@ -26,6 +26,7 @@ public sealed class PatternEntryPhase : Phase
     public double? LeadInLon { get; init; }
 
     public override string Name => "Pattern Entry";
+    public override bool ManagesSpeed => true;
 
     public override void OnStart(PhaseContext ctx)
     {

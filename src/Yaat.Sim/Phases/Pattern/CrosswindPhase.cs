@@ -26,6 +26,7 @@ public sealed class CrosswindPhase : Phase
     public bool IsExtended { get; set; }
 
     public override string Name => "Crosswind";
+    public override bool ManagesSpeed => true;
 
     public override void OnStart(PhaseContext ctx)
     {

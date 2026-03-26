@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
 
 namespace Yaat.Sim.Tests;
@@ -182,6 +183,62 @@ public sealed class ClimbSpeedScheduleTests
         CommandDispatcher.Dispatch(cmd, ac, groundLayout: null, new SerializableRandom(42), true);
 
         Assert.True(ac.Targets.HasExplicitSpeedCommand);
+    }
+
+    [Fact]
+    public void FlightPhysics_AutoSchedule_SkippedDuringPatternPhase()
+    {
+        // Aircraft climbing from 500ft to 1000ft TPA with null TargetSpeed —
+        // auto schedule should NOT fire because a pattern phase is active.
+        var runway = TestRunwayFactory.Make();
+        var ac = new AircraftState
+        {
+            Callsign = "TEST1",
+            AircraftType = "C172",
+            Altitude = 500,
+            IndicatedAirspeed = 90,
+            IsOnGround = false,
+            TrueHeading = new TrueHeading(280),
+            TrueTrack = new TrueHeading(280),
+            Departure = "KTEST",
+            Latitude = runway.ThresholdLatitude,
+            Longitude = runway.ThresholdLongitude,
+        };
+        ac.Targets.TargetAltitude = 1000;
+        ac.Targets.TargetTrueHeading = new TrueHeading(280);
+        ac.Targets.TargetSpeed = null;
+
+        // Set up a PhaseList with an active PatternEntryPhase
+        var phases = new PhaseList { AssignedRunway = runway };
+        var entryPhase = new PatternEntryPhase
+        {
+            EntryLat = runway.ThresholdLatitude,
+            EntryLon = runway.ThresholdLongitude,
+            PatternAltitude = 1000,
+        };
+        phases.Add(entryPhase);
+        phases.Start(
+            new PhaseContext
+            {
+                Aircraft = ac,
+                Targets = ac.Targets,
+                Category = AircraftCategory.Piston,
+                DeltaSeconds = 1.0,
+                Runway = runway,
+                FieldElevation = 6,
+                Logger = NullLogger.Instance,
+            }
+        );
+        ac.Phases = phases;
+
+        // Null out TargetSpeed as if UpdateSpeed cleared it after reaching pattern speed
+        ac.Targets.TargetSpeed = null;
+
+        FlightPhysics.Update(ac, 1.0);
+
+        // Auto schedule should NOT have set a climb speed — pattern phase owns speed.
+        // Without the fix, this would set DefaultSpeed (~250 kts).
+        Assert.Null(ac.Targets.TargetSpeed);
     }
 
     [Fact]

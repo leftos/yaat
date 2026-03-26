@@ -20,6 +20,7 @@ public sealed class MidfieldCrossingPhase : Phase
     public PatternWaypoints? Waypoints { get; set; }
 
     public override string Name => "MidfieldCrossing";
+    public override bool ManagesSpeed => true;
 
     public override void OnStart(PhaseContext ctx)
     {

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -9,6 +10,8 @@ namespace Yaat.Sim.Commands;
 
 internal static class PatternCommandHandler
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("PatternCommandHandler");
+
     internal static CommandResult TryEnterPattern(
         AircraftState aircraft,
         PatternDirection direction,
@@ -77,6 +80,69 @@ internal static class PatternCommandHandler
                     aircraft.PatternAltitudeOverrideFt,
                     airportRunways
                 );
+            }
+        }
+
+        // For Final entry: reject if the maneuver would create a 360° loop.
+        // Compute the two heading changes: (1) turn from current heading to the
+        // bearing toward the entry point, (2) turn from arrival bearing at the
+        // entry point to the runway (approach) heading. If BOTH exceed 90°, the
+        // total turn approaches 360° — the aircraft must reverse to the entry
+        // point and then reverse again to align with final. That's a loop.
+        if (!aircraft.IsOnGround && entryLeg == PatternEntryLeg.Final)
+        {
+            var airportRunways = NavigationDatabase.Instance.GetRunways(runway.AirportId);
+            waypoints ??= PatternGeometry.Compute(
+                runway,
+                category,
+                direction,
+                aircraft.PatternSizeOverrideNm,
+                aircraft.PatternAltitudeOverrideFt,
+                airportRunways
+            );
+            var (eLat, eLon) = GetEntryPoint(waypoints, PatternEntryLeg.Final, finalDistanceNm, category);
+
+            double bearingToEntry = GeoMath.BearingTo(aircraft.Latitude, aircraft.Longitude, eLat, eLon);
+            double turnToEntry = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearingToEntry));
+            double turnAtEntry = new TrueHeading(bearingToEntry).AbsAngleTo(runway.TrueHeading);
+
+            // The aircraft can only execute high-angle turns if it has enough
+            // room. Compute the minimum distance needed for the combined turn
+            // using standard-rate geometry: arc length = turn_angle × turn_radius.
+            // With standard 3°/s turns at the aircraft's current speed, the
+            // turn radius is V²/(g·tan(bank)) ≈ V/ω where ω = 3°/s.
+            // Simplification: use the distance to the entry point vs the arc
+            // distance required. If the straight-line distance is less than
+            // the arc needed, the maneuver is infeasible (loop).
+            double distToEntry = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, eLat, eLon);
+
+            // Turn radius at current IAS (nm). Standard rate = 3°/s, or pattern
+            // rate. TAS ≈ IAS at low altitude. radius = TAS / (ω in rad/s).
+            double turnRateDegs = 3.0;
+            double tasKts = Math.Max(aircraft.IndicatedAirspeed, 80);
+            double radiusNm = (tasKts / 3600.0) / (turnRateDegs * Math.PI / 180.0);
+
+            // Arc distance for both turns combined
+            double totalTurnDeg = turnToEntry + turnAtEntry;
+            double arcNm = (totalTurnDeg * Math.PI / 180.0) * radiusNm;
+
+            Log.LogDebug(
+                "[EF-LoopCheck] {Callsign}: hdg={Hdg:F0}, brg→entry={Brg:F0}, turnToEntry={T1:F0}°, turnAtEntry={T2:F0}°, dist={Dist:F1}nm, arc={Arc:F1}nm",
+                aircraft.Callsign,
+                aircraft.TrueHeading.Degrees,
+                bearingToEntry,
+                turnToEntry,
+                turnAtEntry,
+                distToEntry,
+                arcNm
+            );
+
+            // Reject if the required arc exceeds what the aircraft can fly in
+            // the available straight-line distance. The aircraft physically
+            // cannot complete the turns before reaching the entry point.
+            if ((totalTurnDeg > 180) && (arcNm > distToEntry))
+            {
+                return new CommandResult(false, "Unable, short final");
             }
         }
 

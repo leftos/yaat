@@ -35,6 +35,12 @@ public abstract class Phase
     public virtual void OnEnd(PhaseContext ctx, PhaseStatus endStatus) { }
 
     /// <summary>
+    /// When true, the auto speed schedule in FlightPhysics is suppressed.
+    /// Override in phases that set their own speed targets (pattern phases).
+    /// </summary>
+    public virtual bool ManagesSpeed => false;
+
+    /// <summary>
     /// Whether this phase accepts the given RPO command.
     /// Default: ClearsPhase (most commands exit the phase system).
     /// Override to reject commands during critical sub-states.

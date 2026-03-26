@@ -27,6 +27,7 @@ public sealed class UpwindPhase : Phase
     public bool IsExtended { get; set; }
 
     public override string Name => "Upwind";
+    public override bool ManagesSpeed => true;
 
     public override void OnStart(PhaseContext ctx)
     {
