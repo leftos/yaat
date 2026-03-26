@@ -128,14 +128,15 @@ public sealed class WindowGeometryHelper
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        var isNotNormal = _window.WindowState != WindowState.Normal;
         var isMax = _window.WindowState == WindowState.Maximized;
 
         var geo = new SavedWindowGeometry
         {
-            X = isMax ? _lastNormalPosition.X : _window.Position.X,
-            Y = isMax ? _lastNormalPosition.Y : _window.Position.Y,
-            Width = isMax ? _lastNormalWidth : _window.Width,
-            Height = isMax ? _lastNormalHeight : _window.Height,
+            X = isNotNormal ? _lastNormalPosition.X : _window.Position.X,
+            Y = isNotNormal ? _lastNormalPosition.Y : _window.Position.Y,
+            Width = isNotNormal ? _lastNormalWidth : _window.Width,
+            Height = isNotNormal ? _lastNormalHeight : _window.Height,
             IsMaximized = isMax,
             ScreenIndex = GetCurrentScreenIndex(),
             IsTopmost = _window.Topmost,
@@ -148,13 +149,14 @@ public sealed class WindowGeometryHelper
     {
         _window.Topmost = !_window.Topmost;
 
+        var isNotNormal = _window.WindowState != WindowState.Normal;
         var isMax = _window.WindowState == WindowState.Maximized;
         var geo = new SavedWindowGeometry
         {
-            X = isMax ? _lastNormalPosition.X : _window.Position.X,
-            Y = isMax ? _lastNormalPosition.Y : _window.Position.Y,
-            Width = isMax ? _lastNormalWidth : _window.Width,
-            Height = isMax ? _lastNormalHeight : _window.Height,
+            X = isNotNormal ? _lastNormalPosition.X : _window.Position.X,
+            Y = isNotNormal ? _lastNormalPosition.Y : _window.Position.Y,
+            Width = isNotNormal ? _lastNormalWidth : _window.Width,
+            Height = isNotNormal ? _lastNormalHeight : _window.Height,
             IsMaximized = isMax,
             ScreenIndex = GetCurrentScreenIndex(),
             IsTopmost = _window.Topmost,
