@@ -20,6 +20,7 @@ public sealed class DownwindPhase : Phase
     private TrueHeading _downwindHeading;
     private bool _pastAbeam;
     private double _altitudeFloor;
+    private bool _midfieldBroadcastIssued;
 
     public PatternWaypoints? Waypoints { get; set; }
 
@@ -43,6 +44,7 @@ public sealed class DownwindPhase : Phase
         _downwindHeading = Waypoints.DownwindHeading;
 
         _pastAbeam = false;
+        _midfieldBroadcastIssued = false;
 
         _abeamAlongTrack = GeoMath.AlongTrackDistanceNm(
             Waypoints.DownwindAbeamLat,
@@ -92,6 +94,21 @@ public sealed class DownwindPhase : Phase
             _thresholdLon,
             _downwindHeading
         );
+
+        // Midfield downwind broadcast: remind controller if no landing clearance
+        if (!_midfieldBroadcastIssued && !ctx.AutoClearedToLand)
+        {
+            double midfieldAlongTrack = _abeamAlongTrack / 2.0;
+            if (aircraftAlongTrack >= midfieldAlongTrack - AlongTrackToleranceNm)
+            {
+                _midfieldBroadcastIssued = true;
+                if (!HasLandingClearance(ctx))
+                {
+                    string runwayId = ctx.Runway?.Designator ?? "unknown";
+                    ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} midfield downwind runway {runwayId}");
+                }
+            }
+        }
 
         // Begin descent when abeam the approach end of the runway
         if (!_pastAbeam && Waypoints is not null)
@@ -199,6 +216,7 @@ public sealed class DownwindPhase : Phase
             DownwindHeadingDeg = _downwindHeading.Degrees,
             PastAbeam = _pastAbeam,
             AltitudeFloor = _altitudeFloor,
+            MidfieldBroadcastIssued = _midfieldBroadcastIssued,
         };
 
     public static DownwindPhase FromSnapshot(DownwindPhaseDto dto)
@@ -217,7 +235,24 @@ public sealed class DownwindPhase : Phase
         phase._downwindHeading = new TrueHeading(dto.DownwindHeadingDeg);
         phase._pastAbeam = dto.PastAbeam;
         phase._altitudeFloor = dto.AltitudeFloor;
+        phase._midfieldBroadcastIssued = dto.MidfieldBroadcastIssued;
         return phase;
+    }
+
+    private static bool HasLandingClearance(PhaseContext ctx)
+    {
+        var phases = ctx.Aircraft.Phases;
+        if (phases is null)
+        {
+            return false;
+        }
+
+        return phases.LandingClearance
+            is ClearanceType.ClearedToLand
+                or ClearanceType.ClearedForOption
+                or ClearanceType.ClearedTouchAndGo
+                or ClearanceType.ClearedStopAndGo
+                or ClearanceType.ClearedLowApproach;
     }
 
     protected override List<ClearanceRequirement> CreateRequirements()

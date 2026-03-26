@@ -551,6 +551,7 @@ public sealed class DownwindPhaseDto : PhaseDto
     public required double DownwindHeadingDeg { get; init; }
     public required bool PastAbeam { get; init; }
     public required double AltitudeFloor { get; init; }
+    public bool MidfieldBroadcastIssued { get; init; }
 }
 
 public sealed class UpwindPhaseDto : PhaseDto
