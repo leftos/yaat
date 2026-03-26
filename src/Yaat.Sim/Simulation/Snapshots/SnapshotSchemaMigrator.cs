@@ -29,7 +29,7 @@ public sealed class SnapshotSchemaException : Exception
 /// </summary>
 public static class SnapshotSchemaMigrator
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     /// <summary>
     /// Migrates a snapshot to <see cref="CurrentSchemaVersion"/> in place.
@@ -49,24 +49,10 @@ public static class SnapshotSchemaMigrator
         }
 
         // Sequential migration chain: apply each step in order.
-        // Example when we add version 2:
-        //   if (snapshot.SchemaVersion < 2) MigrateV1ToV2(snapshot);
-        //   if (snapshot.SchemaVersion < 3) MigrateV2ToV3(snapshot);
+        // V1→V2: Added ServerSnapshotDto (consolidation, conflicts, beacon pool).
+        //   No data transformation — V1 snapshots have Server = null, which
+        //   RestoreFromSnapshot handles gracefully by clearing state.
 
         snapshot.SchemaVersion = CurrentSchemaVersion;
     }
-
-    // Migration steps go here as private static methods.
-    // Each step mutates the DTO in place and bumps SchemaVersion.
-    // Throw SnapshotSchemaException if migration is not possible.
-    //
-    // Example:
-    // private static void MigrateV1ToV2(StateSnapshotDto snapshot)
-    // {
-    //     foreach (var ac in snapshot.Aircraft)
-    //     {
-    //         ac.NewField ??= ComputeDefault(ac);
-    //     }
-    //     snapshot.SchemaVersion = 2;
-    // }
 }

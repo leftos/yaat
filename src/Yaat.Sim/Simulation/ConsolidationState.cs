@@ -69,6 +69,21 @@ public sealed class ConsolidationState
     }
 
     /// <summary>
+    /// Replaces all overrides with the provided set. Used during snapshot restore.
+    /// </summary>
+    public void Restore(Dictionary<string, ManualOverride> overrides)
+    {
+        lock (_lock)
+        {
+            _overrides.Clear();
+            foreach (var (key, value) in overrides)
+            {
+                _overrides[key] = value;
+            }
+        }
+    }
+
+    /// <summary>
     /// Returns a snapshot of all current overrides (for testing/inspection).
     /// </summary>
     public Dictionary<string, ManualOverride> GetSnapshot()

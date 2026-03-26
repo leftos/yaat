@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim;
+using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -227,6 +228,168 @@ public class SnapshotRoundTripTests
         };
 
         Assert.Throws<SnapshotSchemaException>(() => SnapshotSchemaMigrator.Migrate(snapshot));
+    }
+
+    [Fact]
+    public void SnapshotSchemaMigrator_V1ToV2_Succeeds()
+    {
+        var snapshot = new StateSnapshotDto
+        {
+            SchemaVersion = 1,
+            ElapsedSeconds = 30,
+            Rng = new RngState(1, 2, 3, 4),
+            Aircraft = [],
+            Scenario = new ScenarioSnapshotDto
+            {
+                ScenarioId = "test",
+                ScenarioName = "Test",
+                RngSeed = 42,
+                ElapsedSeconds = 30,
+                AutoClearedToLand = false,
+                AutoCrossRunway = false,
+                ValidateDctFixes = true,
+                IsPaused = false,
+                SimRate = 1,
+                AutoAcceptDelaySeconds = 5,
+                IsStudentTowerPosition = false,
+            },
+        };
+
+        SnapshotSchemaMigrator.Migrate(snapshot);
+
+        Assert.Equal(2, snapshot.SchemaVersion);
+        Assert.Null(snapshot.Server);
+    }
+
+    [Fact]
+    public void ServerSnapshotDto_JsonRoundTrips()
+    {
+        var snapshot = new StateSnapshotDto
+        {
+            ElapsedSeconds = 60,
+            Rng = new RngState(1, 2, 3, 4),
+            Aircraft = [],
+            Scenario = new ScenarioSnapshotDto
+            {
+                ScenarioId = "test",
+                ScenarioName = "Test",
+                RngSeed = 42,
+                ElapsedSeconds = 60,
+                AutoClearedToLand = false,
+                AutoCrossRunway = false,
+                ValidateDctFixes = true,
+                IsPaused = false,
+                SimRate = 1,
+                AutoAcceptDelaySeconds = 5,
+                IsStudentTowerPosition = false,
+            },
+            Server = new ServerSnapshotDto
+            {
+                ConsolidationOverrides = new Dictionary<string, ConsolidationOverrideDto>
+                {
+                    ["12A"] = new ConsolidationOverrideDto { ReceivingTcpId = "12B", IsBasic = true },
+                },
+                ActiveConflicts =
+                [
+                    new ActiveConflictDto { Id = "c1", CallsignA = "AAL100", CallsignB = "UAL200", IsAcknowledged = false },
+                ],
+                BeaconCodePool = new BeaconCodePoolDto
+                {
+                    AssignedCodes = new Dictionary<uint, string> { [1234] = "AAL100", [5670] = "UAL200" },
+                },
+            },
+        };
+
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var json = JsonSerializer.Serialize(snapshot, options);
+        var deserialized = JsonSerializer.Deserialize<StateSnapshotDto>(json, options);
+
+        Assert.NotNull(deserialized);
+        Assert.NotNull(deserialized.Server);
+        Assert.Single(deserialized.Server.ConsolidationOverrides!);
+        Assert.Equal("12B", deserialized.Server.ConsolidationOverrides!["12A"].ReceivingTcpId);
+        Assert.True(deserialized.Server.ConsolidationOverrides!["12A"].IsBasic);
+        Assert.Single(deserialized.Server.ActiveConflicts!);
+        Assert.Equal("AAL100", deserialized.Server.ActiveConflicts![0].CallsignA);
+        Assert.Equal(2, deserialized.Server.BeaconCodePool!.AssignedCodes!.Count);
+    }
+
+    [Fact]
+    public void ConsolidationState_Restore_RoundTrips()
+    {
+        var state = new ConsolidationState();
+        var tcp1 = new Tcp(10, "1R", "12A", null);
+        var tcp2 = new Tcp(10, "2R", "12B", null);
+
+        state.Consolidate(tcp2, tcp1, true);
+
+        var snapshot = state.GetSnapshot();
+        Assert.Single(snapshot);
+
+        var fresh = new ConsolidationState();
+        fresh.Restore(snapshot);
+
+        var restored = fresh.GetSnapshot();
+        Assert.Single(restored);
+        Assert.Equal("12B", restored["12A"].ReceivingTcpId);
+        Assert.True(restored["12A"].IsBasic);
+    }
+
+    [Fact]
+    public void ConsolidationState_Restore_ClearsPreviousState()
+    {
+        var state = new ConsolidationState();
+        var tcp1 = new Tcp(10, "1R", "12A", null);
+        var tcp2 = new Tcp(10, "2R", "12B", null);
+        var tcp3 = new Tcp(10, "3R", "12C", null);
+
+        state.Consolidate(tcp2, tcp1, false);
+        state.Consolidate(tcp3, tcp2, true);
+
+        Assert.Equal(2, state.GetSnapshot().Count);
+
+        var newOverrides = new Dictionary<string, ConsolidationState.ManualOverride>
+        {
+            ["12C"] = new("12A", false),
+        };
+        state.Restore(newOverrides);
+
+        var restored = state.GetSnapshot();
+        Assert.Single(restored);
+        Assert.Equal("12A", restored["12C"].ReceivingTcpId);
+    }
+
+    [Fact]
+    public void BeaconCodePool_Clear_ResetsAssignments()
+    {
+        var pool = new BeaconCodePool();
+        pool.MarkUsed(1234);
+        pool.MarkUsed(5670);
+
+        pool.Clear();
+
+        // After clear, previously used codes should be assignable again
+        pool.MarkUsed(1234);
+        var code = pool.AssignNextCode(false);
+        // Sequential starts at 0001 after clear, should get 0001 (1234 is re-marked)
+        Assert.Equal((uint)0001, code);
+    }
+
+    [Fact]
+    public void BeaconCodePool_Clear_PreservesBankConfig()
+    {
+        var banks = new List<BeaconCodeBankConfig>
+        {
+            new() { Start = 100, End = 107, Type = "Ifr" },
+        };
+        var pool = new BeaconCodePool(banks);
+        pool.MarkUsed(100);
+
+        pool.Clear();
+
+        // After clear, bank config should still be active (assigns from bank, not sequential)
+        var code = pool.AssignNextCode(false);
+        Assert.Equal((uint)100, code);
     }
 
     [Fact]

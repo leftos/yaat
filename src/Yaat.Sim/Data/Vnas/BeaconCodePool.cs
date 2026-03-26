@@ -54,6 +54,17 @@ public sealed class BeaconCodePool
         return AssignFromBanks(primary) ?? AssignFromBanks(_anyBanks) ?? 0;
     }
 
+    /// <summary>
+    /// Resets all assignment state (assigned codes, cursors) without clearing bank configuration.
+    /// Used during snapshot restore to rebuild assignments from the snapshot.
+    /// </summary>
+    public void Clear()
+    {
+        _assigned.Clear();
+        _nextCandidate = 0001;
+        _bankCursors.Clear();
+    }
+
     public void MarkUsed(uint code)
     {
         _assigned.Add(code);

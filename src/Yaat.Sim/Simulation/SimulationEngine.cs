@@ -77,6 +77,7 @@ public sealed class SimulationEngine
             WeatherJson = World.Weather is not null ? JsonSerializer.Serialize(World.Weather) : null,
             Aircraft = aircraft.Select(ac => ac.ToSnapshot()).ToList(),
             Scenario = scenario.ToSnapshot(),
+            Server = CaptureServerSnapshot(aircraft),
         };
     }
 
@@ -169,9 +170,84 @@ public sealed class SimulationEngine
             }
         }
 
-        // Reset engine-level state
+        // Reset engine-level state, then restore from snapshot if available
         ConsolidationState.Clear();
         ConflictAlerts.Conflicts.Clear();
+        BeaconCodePool.Clear();
+
+        if (snapshot.Server is not null)
+        {
+            RestoreServerSnapshot(snapshot.Server);
+        }
+    }
+
+    private ServerSnapshotDto CaptureServerSnapshot(List<AircraftState> aircraft)
+    {
+        var consolidation = ConsolidationState.GetSnapshot()
+            .ToDictionary(
+                kv => kv.Key,
+                kv => new ConsolidationOverrideDto { ReceivingTcpId = kv.Value.ReceivingTcpId, IsBasic = kv.Value.IsBasic }
+            );
+
+        var conflicts = ConflictAlerts.Conflicts.Values
+            .Select(c => new ActiveConflictDto
+            {
+                Id = c.Id,
+                CallsignA = c.CallsignA,
+                CallsignB = c.CallsignB,
+                IsAcknowledged = c.IsAcknowledged,
+            })
+            .ToList();
+
+        var beaconCodes = new Dictionary<uint, string>();
+        foreach (var ac in aircraft)
+        {
+            if (ac.AssignedBeaconCode > 0)
+            {
+                beaconCodes[ac.AssignedBeaconCode] = ac.Callsign;
+            }
+        }
+
+        return new ServerSnapshotDto
+        {
+            ConsolidationOverrides = consolidation,
+            ActiveConflicts = conflicts,
+            BeaconCodePool = new BeaconCodePoolDto { AssignedCodes = beaconCodes },
+        };
+    }
+
+    private void RestoreServerSnapshot(ServerSnapshotDto server)
+    {
+        if (server.ConsolidationOverrides is not null)
+        {
+            var overrides = server.ConsolidationOverrides.ToDictionary(
+                kv => kv.Key,
+                kv => new ConsolidationState.ManualOverride(kv.Value.ReceivingTcpId, kv.Value.IsBasic)
+            );
+            ConsolidationState.Restore(overrides);
+        }
+
+        if (server.ActiveConflicts is not null)
+        {
+            foreach (var c in server.ActiveConflicts)
+            {
+                ConflictAlerts.Conflicts[c.Id] = new ActiveConflict
+                {
+                    Id = c.Id,
+                    CallsignA = c.CallsignA,
+                    CallsignB = c.CallsignB,
+                    IsAcknowledged = c.IsAcknowledged,
+                };
+            }
+        }
+
+        if (server.BeaconCodePool?.AssignedCodes is not null)
+        {
+            foreach (var code in server.BeaconCodePool.AssignedCodes.Keys)
+            {
+                BeaconCodePool.MarkUsed(code);
+            }
+        }
     }
 
     // --- Scenario loading ---
