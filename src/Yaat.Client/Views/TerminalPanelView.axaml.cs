@@ -42,6 +42,10 @@ public partial class TerminalPanelView : UserControl
             vm.TerminalEntries.CollectionChanged += OnEntriesChanged;
             vm.TerminalFilterChanged += OnFilterChanged;
             RebuildDocument(vm);
+
+            var clearItem = new MenuItem { Header = "Clear" };
+            clearItem.Click += (_, _) => vm.TerminalEntries.Clear();
+            TerminalEditor.ContextMenu = new ContextMenu { Items = { clearItem } };
         }
     }
 
