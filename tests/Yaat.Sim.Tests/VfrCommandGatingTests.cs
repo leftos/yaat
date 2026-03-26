@@ -17,7 +17,9 @@ public class VfrCommandGatingTests : IDisposable
     {
         _output = output;
         TestVnasData.EnsureInitialized();
-        _navDbScope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", heading: 280, elevationFt: 13)));
+        _navDbScope = NavigationDatabase.ScopedOverride(
+            TestNavDbFactory.WithRunways(TestRunwayFactory.Make(designator: "28R", heading: 280, elevationFt: 13))
+        );
     }
 
     public void Dispose() => _navDbScope.Dispose();

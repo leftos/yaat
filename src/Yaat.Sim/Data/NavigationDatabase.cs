@@ -42,7 +42,8 @@ public sealed class NavigationDatabase
     /// otherwise the process-wide default. Throws if neither is initialized.
     /// </summary>
     public static NavigationDatabase Instance =>
-        _scopedInstance.Value ?? _defaultInstance
+        _scopedInstance.Value
+        ?? _defaultInstance
         ?? throw new InvalidOperationException("NavigationDatabase not initialized. Call Initialize() first.");
 
     /// <summary>
