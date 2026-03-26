@@ -124,7 +124,10 @@ public sealed class TargetRenderer : IDisposable
             var baseDbColor = tintColor ?? (isOnGround ? GroundColor : DataBlockColor);
             var selectedColor = SelectedOverrideColor ?? SelectedColor;
             var symbolColor = isSelected ? selectedColor : baseSymbolColor;
-            var dbColor = isHighlighted ? SKColors.Cyan : isSelected ? selectedColor : baseDbColor;
+            var dbColor =
+                isHighlighted ? SKColors.Cyan
+                : isSelected ? selectedColor
+                : baseDbColor;
             bool isMinified = minifiedCallsigns is not null && minifiedCallsigns.Contains(ac.Callsign);
 
             if (ptlLengthMinutes > 0 && ShouldShowPtl(ac, ptlOwn, ptlAll))
