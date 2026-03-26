@@ -888,6 +888,7 @@ public sealed class SimulationEngine
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
             IsHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Contains(nodeId) : null,
+            MarkHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Add(nodeId) : null,
             TowerPosition = (Scenario?.IsStudentTowerPosition == true) ? Scenario.StudentPosition : null,
         };
 

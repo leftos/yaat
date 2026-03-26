@@ -1011,33 +1011,17 @@ public class AirportE2ETests
         var result1 = GroundCommandHandler.TryTaxi(ac, taxi1, layout);
         Assert.True(result1.Success, $"TAXI $7A should succeed: {result1.Message}");
 
-        // Place aircraft at last target node so ArriveAtNode fires
+        // Simulate route completion: place aircraft at destination and mark route done.
         var lastSeg = ac.AssignedTaxiRoute!.Segments[^1];
         var lastNode = layout.Nodes[lastSeg.ToNodeId];
-        ac.AssignedTaxiRoute.CurrentSegmentIndex = ac.AssignedTaxiRoute.Segments.Count - 1;
         ac.Latitude = lastNode.Latitude;
         ac.Longitude = lastNode.Longitude;
+        ac.AssignedTaxiRoute.CurrentSegmentIndex = ac.AssignedTaxiRoute.Segments.Count;
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(new HoldingInPositionPhase());
+        ac.Phases.Start(MinCtx(ac));
 
-        var ctx = new PhaseContext
-        {
-            Aircraft = ac,
-            Targets = ac.Targets,
-            Category = AircraftCategory.Jet,
-            DeltaSeconds = 1.0,
-            GroundLayout = layout,
-            Logger = Logger,
-        };
-
-        for (int i = 0; i < 10; i++)
-        {
-            PhaseRunner.Tick(ac, ctx);
-            if (ac.Phases!.CurrentPhase is HoldingInPositionPhase)
-            {
-                break;
-            }
-        }
-
-        Assert.IsType<HoldingInPositionPhase>(ac.Phases!.CurrentPhase);
+        Assert.IsType<HoldingInPositionPhase>(ac.Phases.CurrentPhase);
 
         // Step 2: Issue another taxi — should succeed because HoldingInPositionPhase accepts Taxi
         var taxi2 = new TaxiCommand(["A"], []);

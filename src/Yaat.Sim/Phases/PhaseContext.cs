@@ -48,4 +48,11 @@ public sealed class PhaseContext
     /// Provided by the server tick loop to prevent stacking at hold-short points.
     /// </summary>
     public Func<int, bool>? IsHoldShortNodeOccupied { get; init; }
+
+    /// <summary>
+    /// Marks a hold-short node as occupied within the current tick.
+    /// Called when an aircraft snaps to a hold-short, so subsequent aircraft
+    /// in the same tick see it as occupied.
+    /// </summary>
+    public Action<int>? MarkHoldShortNodeOccupied { get; init; }
 }

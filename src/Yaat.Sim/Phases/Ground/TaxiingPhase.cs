@@ -15,6 +15,7 @@ namespace Yaat.Sim.Phases.Ground;
 public sealed class TaxiingPhase : Phase
 {
     private const double NodeArrivalThresholdNm = 0.015;
+    private const double FinalNodeArrivalThresholdNm = 0.0003;
     private const double OvershootDetectionNm = 0.03;
     private const double LogIntervalSeconds = 3.0;
 
@@ -84,17 +85,22 @@ public sealed class TaxiingPhase : Phase
         // Navigate toward the current target node
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
 
+        // Use a tighter threshold for the final node so the aircraft stops close to its
+        // destination instead of 91ft short. Intermediate nodes keep the wider threshold
+        // to ensure smooth turns toward the next segment.
+        bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
+        double arrivalThreshold = isLastSegment ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+
         bool overshot = dist > _prevDistToTarget && _prevDistToTarget < OvershootDetectionNm;
-        // When the braking curve decelerates to zero right at the arrival threshold,
-        // floating-point precision can leave dist slightly above NodeArrivalThresholdNm.
-        // Detect this stall and force arrival to prevent the aircraft from getting stuck.
+        // When the braking curve decelerates to near-zero, floating-point precision can leave
+        // dist slightly above the threshold. Detect this stall and force arrival.
         // But don't trigger when the aircraft was stopped by GroundConflictDetector — that
         // stop is intentional (e.g., traffic ahead at a hold-short node).
         bool stoppedByConflict = (ctx.Aircraft.GroundSpeedLimit is not null) && (ctx.Aircraft.GroundSpeedLimit.Value < 0.5);
-        bool stalledAtThreshold = !stoppedByConflict && ctx.Aircraft.GroundSpeed < 0.5 && dist < NodeArrivalThresholdNm + 0.001;
+        bool stalledAtThreshold = !stoppedByConflict && ctx.Aircraft.GroundSpeed < 0.5 && dist < arrivalThreshold + 0.001;
         _prevDistToTarget = dist;
 
-        if (dist <= NodeArrivalThresholdNm || overshot || stalledAtThreshold)
+        if (dist <= arrivalThreshold || overshot || stalledAtThreshold)
         {
             if (overshot)
             {
@@ -122,12 +128,11 @@ public sealed class TaxiingPhase : Phase
         double targetSpeed = maxSpeed * speedFraction;
 
         // Multi-segment braking: use precomputed speed profile from SetupCurrentSegment.
-        // Effective distance accounts for arrival threshold snap (aircraft "arrives" at NodeArrivalThresholdNm).
-        double effectiveDist = Math.Max(0, dist - NodeArrivalThresholdNm);
+        // Braking targets speed=0 at the node itself (dist=0), not at the arrival threshold.
         double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
 
         // Brake for current target node
-        double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * effectiveDist * 3600.0);
+        double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * dist * 3600.0);
         targetSpeed = Math.Min(targetSpeed, brakingLimit);
 
         // Brake for all future constraints
@@ -138,16 +143,16 @@ public sealed class TaxiingPhase : Phase
                 continue;
             }
 
-            double totalDist = effectiveDist + pathDist;
+            double totalDist = dist + pathDist;
             double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
             brakingLimit = Math.Min(brakingLimit, limit);
         }
         targetSpeed = Math.Min(targetSpeed, brakingLimit);
 
         // Safety backstop: cap speed so we can't overshoot the target node in one tick.
-        if (ctx.DeltaSeconds > 0 && effectiveDist > 0)
+        if (ctx.DeltaSeconds > 0 && dist > 0)
         {
-            double maxSpeedForDist = effectiveDist * 0.8 / ctx.DeltaSeconds * 3600.0;
+            double maxSpeedForDist = dist * 0.8 / ctx.DeltaSeconds * 3600.0;
             targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
         }
 
@@ -476,6 +481,9 @@ public sealed class TaxiingPhase : Phase
                 ctx.Aircraft.Latitude = hsNode.Latitude;
                 ctx.Aircraft.Longitude = hsNode.Longitude;
             }
+
+            // Mark this node occupied so subsequent aircraft in the same tick don't stack here.
+            ctx.MarkHoldShortNodeOccupied?.Invoke(_targetNodeId);
 
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;

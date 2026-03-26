@@ -148,14 +148,20 @@ public static class GroundConflictDetector
                     continue;
                 }
 
-                // 3. Proximity-to-stationary
-                if (stateA == MovementState.Stationary || stateB == MovementState.Stationary)
+                // 3. Closing proximity — any aircraft heading toward another within
+                // stop/trail distance. Handles stationary obstacles, trailing on different
+                // edges, and any other case where the pilot would see traffic ahead.
+                if (dirA is not null)
                 {
-                    ResolveProximityToStationary(a, stateA, dirA, b, stateB, dirB, distFt, diagnosticLog);
-                    continue;
+                    ApplyClosingLimit(a, dirA.Value, b, distFt, diagnosticLog);
                 }
 
-                // 4. Head-on fallback (both moving, no layout or untracked)
+                if (dirB is not null)
+                {
+                    ApplyClosingLimit(b, dirB.Value, a, distFt, diagnosticLog);
+                }
+
+                // 4. Head-on fallback (both moving toward each other)
                 if (dirA is not null && dirB is not null && a.GroundSpeed > 0 && b.GroundSpeed > 0)
                 {
                     ResolveHeadOn(a, dirA.Value, b, dirB.Value, distFt);
@@ -444,33 +450,6 @@ public static class GroundConflictDetector
         }
     }
 
-    private static void ResolveProximityToStationary(
-        AircraftState a,
-        MovementState stateA,
-        double? dirA,
-        AircraftState b,
-        MovementState stateB,
-        double? dirB,
-        double distFt,
-        Action<string>? diagnosticLog = null
-    )
-    {
-        diagnosticLog?.Invoke(
-            $"  [Proximity] {a.Callsign}({stateA},gs={a.GroundSpeed:F1})+{b.Callsign}({stateB},gs={b.GroundSpeed:F1}): dist={distFt:F0}ft"
-        );
-
-        // Identify which is moving and which is stationary
-        if (stateA != MovementState.Stationary && dirA is not null && a.GroundSpeed > 0)
-        {
-            ApplyClosingLimit(a, dirA.Value, b, distFt, diagnosticLog);
-        }
-
-        if (stateB != MovementState.Stationary && dirB is not null && b.GroundSpeed > 0)
-        {
-            ApplyClosingLimit(b, dirB.Value, a, distFt, diagnosticLog);
-        }
-    }
-
     private static void ApplyClosingLimit(
         AircraftState mover,
         double moveDir,
@@ -658,6 +637,8 @@ public static class GroundConflictDetector
 
         // Check if B shares any upcoming target node within distance-based lookahead,
         // but only if B arrives from a different edge than A (different FromNodeId).
+        // Same-direction trailing on different edges is handled by the closing proximity
+        // check in the main loop — convergence is specifically for intersecting paths.
         double cumulativeB = 0;
         for (int i = routeB.CurrentSegmentIndex; i < routeB.Segments.Count; i++)
         {
