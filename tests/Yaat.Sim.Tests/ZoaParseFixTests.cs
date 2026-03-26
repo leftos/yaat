@@ -14,7 +14,18 @@ namespace Yaat.Sim.Tests;
 public class ZoaParseFixTests : IDisposable
 {
     // NavigationDatabase that resolves any of the fix names used in this test file.
-    private static readonly NavigationDatabase Fixes = TestNavDbFactory.WithFixNames("SUNOL", "OAK", "ARCHI", "BRIXX", "BESSA", "VPBCK", "RBL");
+    private static readonly NavigationDatabase Fixes = TestNavDbFactory.WithFixNames(
+        "SUNOL",
+        "OAK",
+        "ARCHI",
+        "BRIXX",
+        "BESSA",
+        "VPBCK",
+        "RBL",
+        "VPCOL",
+        "OAK30NUM",
+        "VPMID"
+    );
 
     private readonly IDisposable _navDbScope;
 
@@ -460,5 +471,41 @@ public class ZoaParseFixTests : IDisposable
         Assert.IsType<AtFixCondition>(result.Value!.Blocks[0].Condition);
         Assert.Single(result.Value!.Blocks[0].Commands);
         Assert.IsType<PointOutCommand>(result.Value!.Blocks[0].Commands[0]);
+    }
+
+    // --- DCT greedy fix resolution (must reject unknown fix names) ---
+
+    [Theory]
+    [InlineData("DCT VPCOL DM 020", "DCT VPCOL, DM 020")]
+    [InlineData("DM 020 DCT VPCOL", "DM 020, DCT VPCOL")]
+    [InlineData("DCT VPCOL CM 030", "DCT VPCOL, CM 030")]
+    [InlineData("DCT VPCOL FH 270", "DCT VPCOL, FH 270")]
+    public void ExpandMultiCommand_DCT_DoesNotSwallowFollowingVerbs(string input, string expected)
+    {
+        Assert.Equal(expected, CommandSchemeParser.ExpandMultiCommand(input));
+    }
+
+    [Fact]
+    public void ParseDirectTo_RejectsUnknownFixNames()
+    {
+        // "DCT VPCOL NOTAFIX" must fail — NOTAFIX is not in the navdb
+        var result = CommandParser.Parse("DCT VPCOL NOTAFIX");
+        Assert.False(result.IsSuccess);
+        Assert.Contains("NOTAFIX", result.Reason!);
+    }
+
+    [Fact]
+    public void ParseCompound_DCT_DM_WithoutComma_MatchesWithComma()
+    {
+        // "DCT VPCOL DM 020; ERD 28R" must behave like "DCT VPCOL, DM 020; ERD 28R"
+        var withComma = CommandParser.ParseCompound("DCT VPCOL, DM 020; ERD 28R");
+        var withoutComma = CommandParser.ParseCompound("DCT VPCOL DM 020; ERD 28R");
+
+        Assert.True(withComma.IsSuccess, $"With comma: {withComma.Reason}");
+        Assert.True(withoutComma.IsSuccess, $"Without comma: {withoutComma.Reason}");
+
+        Assert.Equal(withComma.Value!.Blocks[0].Commands.Count, withoutComma.Value!.Blocks[0].Commands.Count);
+        Assert.IsType<DirectToCommand>(withoutComma.Value!.Blocks[0].Commands[0]);
+        Assert.IsType<DescendMaintainCommand>(withoutComma.Value!.Blocks[0].Commands[1]);
     }
 }
