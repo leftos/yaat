@@ -271,6 +271,11 @@ public partial class MainViewModel
         try
         {
             var lobby = await _connection.GetCrcLobbyClientsAsync();
+            _log.LogInformation(
+                "[CrcLobby] Pull returned: {Count} clients ({Details})",
+                lobby.Count,
+                string.Join(", ", lobby.Select(c => $"{c.ClientId}({c.DisplayName ?? "no-name"})"))
+            );
             CrcLobbyClients.Clear();
             foreach (var c in lobby)
             {
@@ -490,6 +495,11 @@ public partial class MainViewModel
 
     private void OnCrcLobbyChanged(CrcLobbyChangedDto dto)
     {
+        _log.LogInformation(
+            "[CrcLobby] Push received: {Count} clients ({Details})",
+            dto.Clients.Count,
+            string.Join(", ", dto.Clients.Select(c => $"{c.ClientId}({c.DisplayName ?? "no-name"})"))
+        );
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             CrcLobbyClients.Clear();
