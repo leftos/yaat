@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Pattern;
 using Yaat.Sim.Phases.Tower;
@@ -10,8 +11,19 @@ namespace Yaat.Sim.Tests;
 /// P4.3: End-to-end pattern circuit tests.
 /// Builds phase lists and ticks through them to verify complete pattern circuits.
 /// </summary>
-public class PatternCircuitE2ETests
+[Collection("NavDbMutator")]
+public class PatternCircuitE2ETests : IDisposable
 {
+    private readonly IDisposable _navDbScope;
+
+    public PatternCircuitE2ETests()
+    {
+        TestVnasData.EnsureInitialized();
+        _navDbScope = NavigationDatabase.ScopedOverride(TestNavDbFactory.WithRunways(DefaultRunway()));
+    }
+
+    public void Dispose() => _navDbScope.Dispose();
+
     private static RunwayInfo DefaultRunway() => TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);
 
     private static AircraftState MakeAircraft(RunwayInfo rwy, double altitude, double heading, double ias = 200)
