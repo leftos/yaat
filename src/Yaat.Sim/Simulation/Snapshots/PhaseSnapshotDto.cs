@@ -443,6 +443,8 @@ public sealed class InitialClimbPhaseDto : PhaseDto
     public double RunwayHeadingDeg { get; init; }
     public double VfrTurnAltitude { get; init; }
     public bool VfrTurnApplied { get; init; }
+    public bool RvSidActive { get; init; }
+    public double RvSidHandoffElapsed { get; init; }
 }
 
 public sealed class LineUpPhaseDto : PhaseDto

@@ -38,6 +38,12 @@ public sealed class PhaseContext
     public bool AutoClearedToLand { get; init; }
 
     /// <summary>
+    /// The local tower position (TrackOwner), if the student is controlling tower.
+    /// Used by InitialClimbPhase to hold RV SID heading while tower owns the track.
+    /// </summary>
+    public TrackOwner? TowerPosition { get; init; }
+
+    /// <summary>
     /// Returns true if the given hold-short node is already occupied by another aircraft.
     /// Provided by the server tick loop to prevent stacking at hold-short points.
     /// </summary>

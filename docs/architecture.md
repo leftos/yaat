@@ -181,7 +181,7 @@ Commands/PatternCommandHandler.cs   # Pattern operation command logic (extend, r
 Phases/Phase.cs                # Abstract: OnStart/OnTick/OnEnd, CanAcceptCommand→CommandAcceptance
 Phases/PhaseList.cs            # Mutable list: AssignedRunway, TaxiRoute, LandingClearance, ActiveApproach, DepartureClearance, mutations
 Phases/PhaseRunner.cs          # Static lifecycle: start→tick→advance; auto-appends exit/pattern phases
-Phases/PhaseContext.cs         # Readonly tick context; includes WeatherProfile? Weather for wind-aware phases
+Phases/PhaseContext.cs         # Readonly tick context; includes Weather, TowerPosition for RV SID heading hold
 Phases/PhaseStatus.cs          # Enum: phase lifecycle status
 Phases/CommandAcceptance.cs    # Enum: Allowed, Rejected, ClearsPhase
 Phases/ClearanceRequirement.cs # Clearance requirement definitions
@@ -196,7 +196,7 @@ Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, UpdateWaypoints
 LineUpPhase.cs                 # Taxi from hold-short to runway centerline + align heading
 LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
-InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode when DepartureSidId set
+InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode; RV SID heading hold until handoff+5s
 FinalApproachPhase.cs          # Glideslope; auto-go-around at 0.5nm; illegal intercept check (§5-9-1)
 LandingPhase.cs                # Flare→touchdown→rollout; exit-aware (maintains coast speed, decels to angle-dependent turn-off speed); LAHSO-aware
 RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)

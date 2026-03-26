@@ -1029,7 +1029,114 @@ public class ProcedureLoadingTests
         Assert.Null(result.DepartureHeadingMagnetic);
     }
 
-    // --- Helper ---
+    // -------------------------------------------------------------------------
+    // Post-SID airway expansion (real nav data)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryResolveSidFromCifp_Nimi5_OakV6Sac_ExpandsAirwayFixes()
+    {
+        // Real NIMI5 (radar vectors SID) from KOAK with route "NIMI5 OAK V6 SAC".
+        // V6 should be expanded into intermediate fixes between OAK and SAC.
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return; // NavData not available — silently skip
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var sid = navDb.GetSid("KOAK", "NIMI5");
+        if (sid is null)
+        {
+            return; // NIMI5 not in CIFP data
+        }
+
+        var aircraft = CreateIfrAircraft("NIMI5 OAK V6 SAC", departure: "KOAK");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeOakRunway("28R") };
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+
+        Assert.NotNull(result);
+        // NIMI5 is a radar vectors SID — should have a departure heading
+        Assert.NotNull(result.DepartureHeadingMagnetic);
+        var names = result.Targets.Select(t => t.Name).ToList();
+        // OAK may be stripped by StripNearDepartureTargets (within 1nm of KOAK).
+        // SAC must be present, with intermediate V6 airway fixes before it.
+        Assert.Contains("SAC", names);
+        int sacIdx = names.IndexOf("SAC");
+        Assert.True(sacIdx >= 1, $"Expected intermediate V6 fixes before SAC, got: [{string.Join(", ", names)}]");
+    }
+
+    [Fact]
+    public void TryResolveSidFromCifp_Cndel5_OakV6Sac_ExpandsAirwayFixes()
+    {
+        // CNDEL5 (non-RV SID) with OAK enroute transition + V6 airway to SAC.
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        var sid = navDb.GetSid("KOAK", "CNDEL5");
+        if (sid is null || !sid.EnrouteTransitions.ContainsKey("OAK"))
+        {
+            return; // SID or OAK transition not available
+        }
+
+        var aircraft = CreateIfrAircraft("CNDEL5 OAK V6 SAC", departure: "KOAK");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeOakRunway("30") };
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+
+        Assert.NotNull(result);
+        Assert.Equal("CNDEL5", result.SidId);
+        var names = result.Targets.Select(t => t.Name).ToList();
+        Assert.Contains("OAK", names);
+        Assert.Contains("SAC", names);
+        int oakIdx = names.IndexOf("OAK");
+        int sacIdx = names.IndexOf("SAC");
+        Assert.True(sacIdx > oakIdx + 1, $"Expected intermediate V6 fixes between OAK and SAC, got: [{string.Join(", ", names)}]");
+    }
+
+    [Fact]
+    public void TryResolveSidFromCifp_Nimi5_OakSac_NoAirway_Regression()
+    {
+        // Route "NIMI5 OAK SAC" with no airway — SAC should appear directly after OAK.
+        var navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        using var _ = NavigationDatabase.ScopedOverride(navDb);
+
+        if (navDb.GetSid("KOAK", "NIMI5") is null)
+        {
+            return;
+        }
+
+        var aircraft = CreateIfrAircraft("NIMI5 OAK SAC", departure: "KOAK");
+        aircraft.Phases = new PhaseList { AssignedRunway = MakeOakRunway("28R") };
+
+        var result = DepartureClearanceHandler.TryResolveSidFromCifp(aircraft);
+
+        Assert.NotNull(result);
+        var names = result.Targets.Select(t => t.Name).ToList();
+        // OAK may be stripped (within 1nm of KOAK). SAC must be present with no
+        // intermediate airway fixes — either [SAC] or [OAK, SAC].
+        Assert.Contains("SAC", names);
+        if (names.Contains("OAK"))
+        {
+            int oakIdx = names.IndexOf("OAK");
+            int sacIdx = names.IndexOf("SAC");
+            Assert.Equal(oakIdx + 1, sacIdx);
+        }
+    }
+
+    // --- Helpers ---
 
     private static RunwayInfo MakeRunway(string designator) =>
         TestRunwayFactory.Make(
@@ -1040,4 +1147,7 @@ public class ProcedureLoadingTests
             heading: 280,
             elevationFt: 13
         );
+
+    private static RunwayInfo MakeOakRunway(string designator) =>
+        TestRunwayFactory.Make(designator: designator, airportId: "KOAK", thresholdLat: 37.728, thresholdLon: -122.218, heading: 280, elevationFt: 6);
 }

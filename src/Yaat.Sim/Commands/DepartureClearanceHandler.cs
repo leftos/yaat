@@ -753,7 +753,8 @@ internal static class DepartureClearanceHandler
 
     /// <summary>
     /// Appends remaining enroute fixes from the filed route (post-SID tokens) without constraints.
-    /// Skips numeric tokens and deduplicates against the last SID fix.
+    /// Delegates to <see cref="RouteExpander.Expand"/> to handle airway expansion, dot-notation,
+    /// and deduplication. Prepends the last SID fix as an anchor so airways have a from-fix.
     /// </summary>
     private static void AppendPostSidEnrouteFixes(List<NavigationTarget> targets, string[] routeTokens, CifpSidProcedure sid, string? lastSidFix)
     {
@@ -770,32 +771,41 @@ internal static class DepartureClearanceHandler
             }
         }
 
-        bool pastSidFix = lastSidFix is null;
-        for (int i = startIdx; i < routeTokens.Length; i++)
+        if (startIdx >= routeTokens.Length)
         {
-            var token = routeTokens[i];
-            if (double.TryParse(token, out _))
-            {
-                continue;
-            }
+            return;
+        }
 
-            // Skip until we're past the last SID fix to avoid duplicates
-            if (!pastSidFix)
+        // Prepend lastSidFix (or last target) as anchor so RouteExpander has a from-fix for airways
+        string? anchor = lastSidFix ?? (targets.Count > 0 ? targets[^1].Name : null);
+        var postSidTokens = routeTokens[startIdx..];
+        string postSidRoute = anchor is not null ? anchor + " " + string.Join(' ', postSidTokens) : string.Join(' ', postSidTokens);
+
+        var expandedFixes = RouteExpander.Expand(postSidRoute, navDb);
+
+        // Skip expanded fixes up to and including the anchor (already covered by SID targets)
+        int fixStart = 0;
+        if (anchor is not null)
+        {
+            for (int i = 0; i < expandedFixes.Count; i++)
             {
-                if (string.Equals(token, lastSidFix, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(expandedFixes[i], anchor, StringComparison.OrdinalIgnoreCase))
                 {
-                    pastSidFix = true;
+                    fixStart = i + 1;
+                    break;
                 }
-                continue;
             }
+        }
 
-            var pos = navDb.GetFixPosition(token);
+        for (int i = fixStart; i < expandedFixes.Count; i++)
+        {
+            var pos = navDb.GetFixPosition(expandedFixes[i]);
             if (pos is not null)
             {
                 targets.Add(
                     new NavigationTarget
                     {
-                        Name = token.ToUpperInvariant(),
+                        Name = expandedFixes[i].ToUpperInvariant(),
                         Latitude = pos.Value.Lat,
                         Longitude = pos.Value.Lon,
                     }

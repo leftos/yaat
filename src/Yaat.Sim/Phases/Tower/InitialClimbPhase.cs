@@ -15,6 +15,7 @@ public sealed class InitialClimbPhase : Phase
     private const double HeadingToleranceDeg = 1.0;
     private const double VfrDerMinDistanceNm = 0.0;
     private const double VfrPatternAltMarginFt = 300.0;
+    private const double RvSidPostHandoffDelaySec = 5.0;
 
     private double _fieldElevation;
     private double _targetAltitude;
@@ -28,6 +29,11 @@ public sealed class InitialClimbPhase : Phase
     private TrueHeading _runwayHeading;
     private double _vfrTurnAltitude;
     private bool _vfrTurnApplied = true;
+
+    // Radar vectors SID: fly published heading while tower owns the track.
+    // After handoff to a different TCP, continue heading for 5s then turn to first fix.
+    private bool _rvSidActive;
+    private double _rvSidHandoffElapsed;
 
     public override string Name => "InitialClimb";
 
@@ -54,6 +60,8 @@ public sealed class InitialClimbPhase : Phase
             RunwayHeadingDeg = _runwayHeading.Degrees,
             VfrTurnAltitude = _vfrTurnAltitude,
             VfrTurnApplied = _vfrTurnApplied,
+            RvSidActive = _rvSidActive,
+            RvSidHandoffElapsed = _rvSidHandoffElapsed,
         };
 
     public static InitialClimbPhase FromSnapshot(InitialClimbPhaseDto dto)
@@ -83,6 +91,8 @@ public sealed class InitialClimbPhase : Phase
         phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
         phase._vfrTurnAltitude = dto.VfrTurnAltitude;
         phase._vfrTurnApplied = dto.VfrTurnApplied;
+        phase._rvSidActive = dto.RvSidActive;
+        phase._rvSidHandoffElapsed = dto.RvSidHandoffElapsed;
         return phase;
     }
 
@@ -123,6 +133,16 @@ public sealed class InitialClimbPhase : Phase
         double initialSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);
         ctx.Targets.TargetSpeed = initialSpeed;
 
+        // Radar vectors SID: fly published heading, defer nav route until handoff + 5s.
+        // The heading is actively held each tick; nav route is NOT loaded yet so
+        // FlightPhysics won't override the heading.
+        bool isRvSid = SidDepartureHeadingMagnetic.HasValue && (DepartureRoute is { Count: > 0 });
+        if (isRvSid)
+        {
+            _rvSidActive = true;
+            ctx.Targets.TargetTrueHeading = _departureHeading;
+        }
+
         // AIM 4-3-2: VFR departures must maintain runway heading until past the DER
         // and within 300ft of pattern altitude. Defer nav route and heading setup.
         bool deferVfrTurn = IsVfr && DepartureRequiresTurn() && ctx.Runway is not null;
@@ -134,10 +154,14 @@ public sealed class InitialClimbPhase : Phase
             _runwayHeading = ctx.Runway.TrueHeading;
             _vfrTurnAltitude = _fieldElevation + CategoryPerformance.PatternAltitudeAgl(ctx.Category) - VfrPatternAltMarginFt;
         }
-        else
+        else if (!_rvSidActive)
         {
             _vfrTurnApplied = true;
             SetupDepartureNavigation(ctx);
+        }
+        else
+        {
+            _vfrTurnApplied = true;
         }
 
         // Activate SID procedure state (via mode ON by default for departures)
@@ -159,6 +183,13 @@ public sealed class InitialClimbPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        // Radar vectors SID: hold published heading while tower owns the track.
+        // After handoff to a different TCP, continue heading for 5s then turn to first fix.
+        if (_rvSidActive)
+        {
+            UpdateRvSidHeadingHold(ctx);
+        }
+
         // VFR departure turn deferral: apply heading/nav route once both conditions met
         if (!_vfrTurnApplied)
         {
@@ -180,12 +211,14 @@ public sealed class InitialClimbPhase : Phase
             ctx.Targets.TargetSpeed = appropriateSpeed;
         }
 
-        bool headingDone = _departureHeading is null || ctx.Aircraft.TrueHeading.AbsAngleTo(_departureHeading.Value) < HeadingToleranceDeg;
+        // RV SID uses altitude-only completion (heading is managed by the hold logic above).
+        // Non-RV departures with an explicit heading or altitude gate complete on those.
+        // Otherwise fall back to self-clear at 1500 AGL.
+        bool headingDone =
+            _rvSidActive || _departureHeading is null || ctx.Aircraft.TrueHeading.AbsAngleTo(_departureHeading.Value) < HeadingToleranceDeg;
 
         bool altitudeDone = _phaseCompletionAltitude is null || ctx.Aircraft.Altitude >= _phaseCompletionAltitude.Value;
 
-        // If heading or altitude was explicitly specified, complete when those are met.
-        // Otherwise fall back to self-clear at 1500 AGL.
         bool complete =
             (_departureHeading is not null || _phaseCompletionAltitude is not null)
                 ? (headingDone && altitudeDone)
@@ -279,6 +312,59 @@ public sealed class InitialClimbPhase : Phase
             ctx.Aircraft.Altitude,
             _departureHeading?.Degrees.ToString("F0") ?? "nav"
         );
+    }
+
+    /// <summary>
+    /// Manages the RV SID heading hold state machine using the tower position from
+    /// PhaseContext to distinguish tower ownership from departure/other ownership:
+    /// <list type="bullet">
+    ///   <item>While owned by tower (or unowned): fly the published heading indefinitely.</item>
+    ///   <item>When owned by a non-tower TCP (handoff or auto-track): start 5s timer.</item>
+    ///   <item>After 5s: load nav route ("vectored" to first fix).</item>
+    /// </list>
+    /// </summary>
+    private void UpdateRvSidHeadingHold(PhaseContext ctx)
+    {
+        var currentOwner = ctx.Aircraft.Owner;
+        bool ownedByTower = (currentOwner is null) || (ctx.TowerPosition is not null && currentOwner == ctx.TowerPosition);
+
+        if (ownedByTower)
+        {
+            // Tower still owns it (or untracked) — hold heading, reset any accidental timer.
+            _rvSidHandoffElapsed = 0;
+            ctx.Targets.TargetTrueHeading = _departureHeading;
+            return;
+        }
+
+        // Owned by a non-tower TCP — accumulate post-handoff time.
+        if (_rvSidHandoffElapsed == 0)
+        {
+            ctx.Logger.LogDebug(
+                "[InitialClimb] {Callsign}: RV SID track now owned by {Owner}, starting {Delay}s delay before vectoring to route",
+                ctx.Aircraft.Callsign,
+                currentOwner!.Callsign,
+                RvSidPostHandoffDelaySec
+            );
+        }
+
+        _rvSidHandoffElapsed += ctx.DeltaSeconds;
+
+        if (_rvSidHandoffElapsed >= RvSidPostHandoffDelaySec)
+        {
+            // Timer expired — load nav route and let FlightPhysics take over.
+            _rvSidActive = false;
+            SetupDepartureNavigation(ctx);
+            ctx.Logger.LogDebug(
+                "[InitialClimb] {Callsign}: RV SID vectored to first fix after {Elapsed:F1}s post-handoff",
+                ctx.Aircraft.Callsign,
+                _rvSidHandoffElapsed
+            );
+        }
+        else
+        {
+            // Still in post-handoff delay — continue holding heading.
+            ctx.Targets.TargetTrueHeading = _departureHeading;
+        }
     }
 
     private TrueHeading? ResolveDepartureHeading(PhaseContext ctx)
