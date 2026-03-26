@@ -149,7 +149,7 @@
                     <StackPanel Spacing="4">
                         <CheckBox Content="Aircraft cross runways automatically"
                                   IsChecked="{Binding AutoCrossRunway}" />
-                        <TextBlock Text="Taxiing aircraft cross inactive runways without stopping. No CROSS command needed. Hold-short commands and destination runway hold-shorts still apply."
+                        <TextBlock Text="Taxiing aircraft cross runways without stopping. No CROSS command needed. Hold-short commands and destination runway hold-shorts still apply."
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource SubtleTextBrush}"
                                    FontSize="11"

@@ -363,7 +363,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 | Merging paths | Yes — priority-based with instructor intervention | Not documented as extensively |
 | BREAK command | 15-second collision ignore | Not available |
 | Implicit hold-short | Not documented | Yes — automatic at all runway crossings |
-| Auto-cross runways | Default behavior | Optional setting — aircraft cross inactive runways automatically |
+| Auto-cross runways | Default behavior | Optional setting — aircraft cross runways automatically |
 
 ### Command Delay
 
