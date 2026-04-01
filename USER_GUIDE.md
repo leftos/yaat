@@ -130,14 +130,23 @@ CRC (Consolidated Radar Client) is the VATSIM radar client that students use to 
 
 **Option A: Setup script (recommended)**
 
-The yaat-server repo includes a script that configures CRC automatically:
+The YAAT repo includes a script that configures CRC automatically:
 
 ```powershell
-cd path/to/yaat-server
+cd path/to/yaat
 .\Setup-CrcEnvironment.ps1
 ```
 
-This finds your CRC installation via the registry and creates or updates its `DevEnvironments.json` with a "YAAT Local" entry pointing to `http://localhost:5000`.
+This finds your CRC installation via the registry and creates or updates its `DevEnvironments.json` with two entries:
+
+- **YAAT1** → `https://yaat1.leftos.dev` (hosted server)
+- **YAAT Local** → `http://localhost:5000` (local development)
+
+To add only specific servers, use the `-Servers` parameter:
+
+```powershell
+.\Setup-CrcEnvironment.ps1 -Servers @(@{Name="YAAT1";Url="https://yaat1.leftos.dev"})
+```
 
 **Option B: Manual configuration**
 
@@ -146,6 +155,13 @@ This finds your CRC installation via the registry and creates or updates its `De
 
 ```json
 [
+  {
+    "name": "YAAT1",
+    "clientHubUrl": "https://yaat1.leftos.dev/hubs/client",
+    "apiBaseUrl": "https://yaat1.leftos.dev",
+    "isDisabled": false,
+    "isSweatbox": false
+  },
   {
     "name": "YAAT Local",
     "clientHubUrl": "http://localhost:5000/hubs/client",
@@ -158,9 +174,9 @@ This finds your CRC installation via the registry and creates or updates its `De
 
 **Connecting from CRC:**
 
-1. Make sure the YAAT server is running
+1. Make sure the YAAT server is running (or use the hosted YAAT1 server)
 2. Restart CRC (it reads `DevEnvironments.json` on startup)
-3. In CRC's environment selector, choose **YAAT Local**
+3. In CRC's environment selector, choose **YAAT1** (or **YAAT Local** for development)
 4. Connect with your VATSIM credentials — the instructor can then pull the student into a room from the [Students Panel](#students-panel)
 
 ### Loading a Scenario

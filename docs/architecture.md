@@ -7,6 +7,12 @@ Three projects across two repos. **Yaat.Sim** is shared by both Yaat.Client and 
 
 **Yaat.Sim owns all simulation/aviation logic** — physics, phases, pattern geometry, performance constants, command dispatch, command queue. Server is a thin comms layer.
 
+## Root Scripts
+
+```
+Setup-CrcEnvironment.ps1          # Adds YAAT1 + YAAT Local to CRC's DevEnvironments.json
+```
+
 ## Yaat.Client — Avalonia desktop app (`src/Yaat.Client/`)
 
 ```

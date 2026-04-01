@@ -146,7 +146,7 @@ public partial class ConnectViewModel : ObservableObject
 
     private void SaveServers()
     {
-        _saveAction(Servers, SelectedServer?.Url ?? Servers.FirstOrDefault()?.Url ?? "http://localhost:5000");
+        _saveAction(Servers, SelectedServer?.Url ?? Servers.FirstOrDefault()?.Url ?? "https://yaat1.leftos.dev");
     }
 
     [RelayCommand(CanExecute = nameof(CanConnect))]

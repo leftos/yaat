@@ -708,8 +708,8 @@ Entity updates are **not** sent over UDP yet; CRC receives them via WebSocket in
 
 ### Milestone 0 End-to-End Test
 1. Start yaat-server (`dotnet run` or Docker)
-2. Place DevEnvironments.json in CRC installation pointing to `http://localhost:5000`
-3. Open CRC, select "YAAT Local" environment
+2. Run `.\Setup-CrcEnvironment.ps1` from the yaat repo to configure CRC
+3. Open CRC, select **YAAT1** or **YAAT Local** environment
 4. Connect to any ZOA position
 5. Verify aircraft appear on STARS display and move
 6. Open YAAT client, connect to same server

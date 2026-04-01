@@ -522,7 +522,11 @@ public sealed class UserPreferences
                 // Normalize empty server list on load
                 if (saved.SavedServers is null or { Count: 0 })
                 {
-                    saved.SavedServers = [new SavedServer("Local", "http://localhost:5000")];
+                    saved.SavedServers =
+                    [
+                        new SavedServer("YAAT1", "https://yaat1.leftos.dev"),
+                        new SavedServer("Local", "http://localhost:5000"),
+                    ];
                 }
 
                 return saved;
@@ -621,7 +625,11 @@ public sealed class UserPreferences
         // Normalize empty server list on recovery
         if (result.SavedServers is null or { Count: 0 })
         {
-            result.SavedServers = [new SavedServer("Local", "http://localhost:5000")];
+            result.SavedServers =
+            [
+                new SavedServer("YAAT1", "https://yaat1.leftos.dev"),
+                new SavedServer("Local", "http://localhost:5000"),
+            ];
         }
 
         return result;
@@ -730,7 +738,7 @@ public sealed class UserPreferences
     {
         public SavedCommandScheme? CommandScheme { get; set; }
         public List<SavedServer> SavedServers { get; set; } = [];
-        public string LastUsedServerUrl { get; set; } = "http://localhost:5000";
+        public string LastUsedServerUrl { get; set; } = "https://yaat1.leftos.dev";
         public string VatsimCid { get; set; } = "";
         public string UserInitials { get; set; } = "";
         public string ArtccId { get; set; } = "";
