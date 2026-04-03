@@ -644,6 +644,20 @@ internal static class FlightCommandHandler
         }
     }
 
+    internal static CommandResult ApplySetTurnRate(SetTurnRateCommand cmd, AircraftState aircraft)
+    {
+        aircraft.Targets.TurnRateOverride = cmd.DegreesPerSecond;
+        aircraft.Targets.HasExplicitTurnRate = true;
+        return CommandDispatcher.Ok($"Turn rate set to {cmd.DegreesPerSecond} deg/sec");
+    }
+
+    internal static CommandResult ApplyClearTurnRate(AircraftState aircraft)
+    {
+        aircraft.Targets.TurnRateOverride = null;
+        aircraft.Targets.HasExplicitTurnRate = false;
+        return CommandDispatcher.Ok("Turn rate reset to default");
+    }
+
     internal static CommandResult ApplyWarp(WarpCommand cmd, AircraftState aircraft)
     {
         ClearActiveProcedure(aircraft);
@@ -656,6 +670,7 @@ internal static class FlightCommandHandler
         }
         aircraft.AssignedTaxiRoute = null;
         aircraft.Targets.TurnRateOverride = null;
+        aircraft.Targets.HasExplicitTurnRate = false;
         aircraft.Latitude = cmd.Latitude;
         aircraft.Longitude = cmd.Longitude;
         aircraft.TrueHeading = cmd.MagneticHeading.ToTrue(aircraft.Declination);
@@ -727,6 +742,7 @@ internal static class FlightCommandHandler
         aircraft.Queue.Blocks.Clear();
         aircraft.IsHeld = false;
         aircraft.Targets.TurnRateOverride = null;
+        aircraft.Targets.HasExplicitTurnRate = false;
 
         // Place on ground at the target node with best heading alignment
         aircraft.Latitude = node.Latitude;

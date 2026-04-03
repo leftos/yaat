@@ -89,7 +89,10 @@ public sealed class STurnPhase : Phase
                 // Restore final heading
                 ctx.Targets.TargetTrueHeading = _finalHeading;
                 ctx.Targets.PreferredTurnDirection = null;
-                ctx.Targets.TurnRateOverride = null;
+                if (!ctx.Targets.HasExplicitTurnRate)
+                {
+                    ctx.Targets.TurnRateOverride = null;
+                }
                 ctx.Logger.LogDebug("[STurn] {Callsign}: complete after {Count} S-turns", ctx.Aircraft.Callsign, _turnsCompleted);
                 return true;
             }
@@ -116,7 +119,10 @@ public sealed class STurnPhase : Phase
         double offset = dir == TurnDirection.Left ? -TurnDeviationDeg : TurnDeviationDeg;
         ctx.Targets.TargetTrueHeading = new TrueHeading(_finalHeading.Degrees + offset);
         ctx.Targets.PreferredTurnDirection = dir;
-        ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        if (!ctx.Targets.HasExplicitTurnRate)
+        {
+            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        }
     }
 
     private TurnDirection GetCurrentTurnDirection()

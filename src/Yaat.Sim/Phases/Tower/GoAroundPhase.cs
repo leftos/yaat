@@ -85,7 +85,10 @@ public sealed class GoAroundPhase : Phase
 
         if (ctx.Aircraft.Phases?.TrafficDirection is not null)
         {
-            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+            if (!ctx.Targets.HasExplicitTurnRate)
+            {
+                ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+            }
         }
 
         ctx.Logger.LogDebug(

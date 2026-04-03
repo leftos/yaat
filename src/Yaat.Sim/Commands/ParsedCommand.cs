@@ -541,6 +541,11 @@ public record SetRemarksCommand(string Text) : ParsedCommand;
 
 public record CancelIfrCommand : ParsedCommand;
 
+// Turn rate override
+public record SetTurnRateCommand(double DegreesPerSecond) : ParsedCommand;
+
+public record ClearTurnRateCommand : ParsedCommand;
+
 // Server/global commands
 public record DeleteCommand : ParsedCommand;
 

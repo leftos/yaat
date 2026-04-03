@@ -202,4 +202,7 @@ public enum CanonicalCommandType
 
     // Strip operations
     StripPush,
+
+    // Turn rate
+    SetTurnRate,
 }

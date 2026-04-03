@@ -127,7 +127,10 @@ public sealed class InitialClimbPhase : Phase
 
         ctx.Targets.TargetAltitude = _targetAltitude;
         ctx.Targets.DesiredVerticalRate = null;
-        ctx.Targets.TurnRateOverride = null;
+        if (!ctx.Targets.HasExplicitTurnRate)
+        {
+            ctx.Targets.TurnRateOverride = null;
+        }
 
         // Start at initial climb speed; tick-based scheduling will ramp up through altitude bands
         double initialSpeed = AircraftPerformance.InitialClimbSpeed(ctx.AircraftType, ctx.Category);

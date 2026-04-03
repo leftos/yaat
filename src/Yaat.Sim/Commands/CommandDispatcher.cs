@@ -100,6 +100,7 @@ public static class CommandDispatcher
             aircraft.Phases?.Clear(ctx);
             aircraft.Phases = null;
             aircraft.Targets.TurnRateOverride = null;
+            aircraft.Targets.HasExplicitTurnRate = false;
         }
 
         // Selectively clear queue: remove only blocks whose dimensions conflict with the
@@ -353,6 +354,12 @@ public static class CommandDispatcher
                 return FlightCommandHandler.ApplyWarp(cmd, aircraft);
             case WarpGroundCommand cmd:
                 return FlightCommandHandler.ApplyWarpGround(cmd, aircraft);
+
+            // --- Turn rate ---
+            case SetTurnRateCommand cmd:
+                return FlightCommandHandler.ApplySetTurnRate(cmd, aircraft);
+            case ClearTurnRateCommand:
+                return FlightCommandHandler.ApplyClearTurnRate(aircraft);
 
             // --- Misc ---
             case WaitCommand cmd:

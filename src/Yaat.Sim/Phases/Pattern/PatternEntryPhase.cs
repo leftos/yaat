@@ -54,7 +54,10 @@ public sealed class PatternEntryPhase : Phase
             }
         );
         ctx.Targets.TargetTrueHeading = null;
-        ctx.Targets.TurnRateOverride = null;
+        if (!ctx.Targets.HasExplicitTurnRate)
+        {
+            ctx.Targets.TurnRateOverride = null;
+        }
         ctx.Targets.PreferredTurnDirection = null;
 
         // Set target altitude; UpdateDescentPlanning in FlightPhysics computes

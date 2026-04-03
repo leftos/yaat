@@ -41,7 +41,10 @@ public sealed class CrosswindPhase : Phase
 
         ctx.Targets.TargetTrueHeading = Waypoints.CrosswindHeading;
         ctx.Targets.PreferredTurnDirection = null;
-        ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        if (!ctx.Targets.HasExplicitTurnRate)
+        {
+            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        }
         ctx.Targets.NavigationRoute.Clear();
 
         // Continue climbing to pattern altitude if not there yet

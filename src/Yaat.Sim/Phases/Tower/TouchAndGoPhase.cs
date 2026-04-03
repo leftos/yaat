@@ -72,7 +72,10 @@ public sealed class TouchAndGoPhase : Phase
         ctx.Aircraft.IsOnGround = true;
         ctx.Targets.TargetTrueHeading = _runwayHeading;
         ctx.Targets.PreferredTurnDirection = null;
-        ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        if (!ctx.Targets.HasExplicitTurnRate)
+        {
+            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        }
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.TargetAltitude = _fieldElevation;
         ctx.Targets.DesiredVerticalRate = null;

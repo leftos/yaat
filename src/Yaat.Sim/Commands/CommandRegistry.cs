@@ -607,6 +607,14 @@ public static class CommandRegistry
             Bare(Unpause, "Unpause", "Sim Control", true, ["UNPAUSE", "U", "UN", "UNP", "UP"]),
             Cmd(SimRate, "Sim Rate", "Sim Control", true, ["SIMRATE"], [O(null, [R("rate", "1-8")], "Set simulation speed")]),
             Cmd(
+                SetTurnRate,
+                "Set Turn Rate",
+                "Sim Control",
+                false,
+                ["TRATE"],
+                [O(null, [Opt("rate", "deg/sec, 0.5-45; omit to clear")], "Set aircraft turn rate")]
+            ),
+            Cmd(
                 Wait,
                 "Wait (seconds)",
                 "Sim Control",

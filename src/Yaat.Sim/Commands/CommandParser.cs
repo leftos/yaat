@@ -540,6 +540,7 @@ public static class CommandParser
             Pause when arg is null => PR.Ok(new PauseCommand()),
             Unpause when arg is null => PR.Ok(new UnpauseCommand()),
             SimRate => ParseInt(arg, r => new SimRateCommand(r)),
+            SetTurnRate => ParseTurnRate(arg),
             Wait => ParseWaitSeconds(arg),
             WaitDistance => ParseWaitDistance(arg),
             SpawnNow when arg is null => PR.Ok(new SpawnNowCommand()),
@@ -1624,6 +1625,11 @@ public static class CommandParser
             return PR.Fail($"invalid speed '{arg}'");
         }
 
+        if ((speed == 0) && (speedParts.Length == 1))
+        {
+            return PR.Ok(new ResumeNormalSpeedCommand());
+        }
+
         if (speedParts.Length == 1)
         {
             return PR.Ok(new SpeedCommand(speed));
@@ -1732,6 +1738,29 @@ public static class CommandParser
 
         var remainder = string.Join(' ', parts.Skip(2));
         return (new DistanceFinalCondition(distNm), remainder);
+    }
+
+    private static PR ParseTurnRate(string? arg)
+    {
+        if (arg is null or "")
+        {
+            return PR.Ok(new ClearTurnRateCommand());
+        }
+
+        if (double.TryParse(arg.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double rate))
+        {
+            if (rate == 0)
+            {
+                return PR.Ok(new ClearTurnRateCommand());
+            }
+
+            if ((rate >= 0.5) && (rate <= 45.0))
+            {
+                return PR.Ok(new SetTurnRateCommand(rate));
+            }
+        }
+
+        return PR.Fail($"Turn rate must be 0.5-45 deg/sec, got '{arg}'");
     }
 
     private static PR ParseInt(string? arg, Func<int, ParsedCommand> factory)

@@ -64,6 +64,13 @@ public class ControlTargets
     public bool HasExplicitSpeedCommand { get; set; }
 
     /// <summary>
+    /// True when the user has issued an explicit TRATE command.
+    /// Prevents pattern phases from overwriting TurnRateOverride.
+    /// Cleared on TRATE (no arg), Warp, WarpGround, and phase-clear.
+    /// </summary>
+    public bool HasExplicitTurnRate { get; set; }
+
+    /// <summary>
     /// Target Mach number. When set, UpdateSpeed recomputes equivalent IAS each tick
     /// so the aircraft maintains constant Mach as altitude changes.
     /// </summary>
@@ -91,6 +98,7 @@ public class ControlTargets
             AssignedAltitude = AssignedAltitude,
             AssignedSpeed = AssignedSpeed,
             HasExplicitSpeedCommand = HasExplicitSpeedCommand,
+            HasExplicitTurnRate = HasExplicitTurnRate,
             TargetMach = TargetMach,
             NavigationRoute = NavigationRoute.Count > 0 ? NavigationRoute.Select(n => n.ToSnapshot()).ToList() : null,
         };
@@ -109,6 +117,7 @@ public class ControlTargets
         targets.AssignedAltitude = dto.AssignedAltitude;
         targets.AssignedSpeed = dto.AssignedSpeed;
         targets.HasExplicitSpeedCommand = dto.HasExplicitSpeedCommand;
+        targets.HasExplicitTurnRate = dto.HasExplicitTurnRate;
         targets.TargetMach = dto.TargetMach;
         targets.NavigationRoute.Clear();
         if (dto.NavigationRoute is not null)

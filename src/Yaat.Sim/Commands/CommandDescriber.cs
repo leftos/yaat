@@ -153,6 +153,8 @@ public static class CommandDescriber
             PauseCommand => CanonicalCommandType.Pause,
             UnpauseCommand => CanonicalCommandType.Unpause,
             SimRateCommand => CanonicalCommandType.SimRate,
+            SetTurnRateCommand => CanonicalCommandType.SetTurnRate,
+            ClearTurnRateCommand => CanonicalCommandType.SetTurnRate,
             SpawnNowCommand => CanonicalCommandType.SpawnNow,
             SpawnDelayCommand => CanonicalCommandType.SpawnDelay,
             AddAircraftCommand => CanonicalCommandType.Add,
@@ -290,6 +292,8 @@ public static class CommandDescriber
             ForceSpeedCommand => TrackedCommandType.Immediate,
             WarpCommand => TrackedCommandType.Immediate,
             WarpGroundCommand => TrackedCommandType.Immediate,
+            SetTurnRateCommand => TrackedCommandType.Immediate,
+            ClearTurnRateCommand => TrackedCommandType.Immediate,
             DirectToCommand => TrackedCommandType.Navigation,
             ForceDirectToCommand => TrackedCommandType.Navigation,
             ConstrainedForceDirectToCommand => TrackedCommandType.Navigation,
@@ -349,6 +353,8 @@ public static class CommandDescriber
             ForceHeadingCommand cmd => $"FHN {cmd.MagneticHeading.Degrees:000}",
             ForceAltitudeCommand cmd => $"CMN {cmd.Altitude}",
             ForceSpeedCommand cmd => $"SPDN {cmd.Speed}",
+            SetTurnRateCommand cmd => $"TRATE {cmd.DegreesPerSecond}",
+            ClearTurnRateCommand => "TRATE",
             WarpCommand cmd => $"WARP {cmd.PositionLabel} {cmd.MagneticHeading.Degrees:000} {cmd.Altitude} {cmd.Speed}",
             WarpGroundCommand cmd => cmd.NodeId is int nid ? $"WARPG #{nid}"
             : cmd.ParkingName is string p ? $"WARPG @{p}"
@@ -493,6 +499,8 @@ public static class CommandDescriber
             ForceHeadingCommand cmd => $"Force heading {cmd.MagneticHeading.Degrees:000}",
             ForceAltitudeCommand cmd => $"Force altitude {cmd.Altitude:N0}",
             ForceSpeedCommand cmd => $"Force speed {cmd.Speed}",
+            SetTurnRateCommand cmd => $"Turn rate {cmd.DegreesPerSecond} deg/sec",
+            ClearTurnRateCommand => "Turn rate default",
             WarpCommand cmd => $"Warp to {cmd.PositionLabel}, heading {cmd.MagneticHeading.Degrees:000}, {cmd.Altitude:N0} ft, {cmd.Speed} kts",
             WarpGroundCommand cmd => cmd.NodeId is int nid2 ? $"Warp to node #{nid2}"
             : cmd.ParkingName is string p2 ? $"Warp to parking {p2}"
@@ -727,7 +735,8 @@ public static class CommandDescriber
                 or CanonicalCommandType.Consolidate
                 or CanonicalCommandType.ConsolidateFull
                 or CanonicalCommandType.Deconsolidate
-                or CanonicalCommandType.ShowQueuedCommands;
+                or CanonicalCommandType.ShowQueuedCommands
+                or CanonicalCommandType.SetTurnRate;
     }
 
     private static string FormatSpeedCanonical(SpeedCommand cmd)

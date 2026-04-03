@@ -65,7 +65,10 @@ public sealed class DownwindPhase : Phase
 
         ctx.Targets.TargetTrueHeading = Waypoints.DownwindHeading;
         ctx.Targets.PreferredTurnDirection = null;
-        ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        if (!ctx.Targets.HasExplicitTurnRate)
+        {
+            ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
+        }
         ctx.Targets.NavigationRoute.Clear();
 
         // Target pattern altitude. If still above TPA (e.g., from a high pattern entry),
