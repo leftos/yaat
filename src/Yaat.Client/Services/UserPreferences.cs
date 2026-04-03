@@ -522,11 +522,7 @@ public sealed class UserPreferences
                 // Normalize empty server list on load
                 if (saved.SavedServers is null or { Count: 0 })
                 {
-                    saved.SavedServers =
-                    [
-                        new SavedServer("YAAT1", "https://yaat1.leftos.dev"),
-                        new SavedServer("Local", "http://localhost:5000"),
-                    ];
+                    saved.SavedServers = [new SavedServer("YAAT1", "https://yaat1.leftos.dev"), new SavedServer("Local", "http://localhost:5000")];
                 }
 
                 return saved;
@@ -625,11 +621,7 @@ public sealed class UserPreferences
         // Normalize empty server list on recovery
         if (result.SavedServers is null or { Count: 0 })
         {
-            result.SavedServers =
-            [
-                new SavedServer("YAAT1", "https://yaat1.leftos.dev"),
-                new SavedServer("Local", "http://localhost:5000"),
-            ];
+            result.SavedServers = [new SavedServer("YAAT1", "https://yaat1.leftos.dev"), new SavedServer("Local", "http://localhost:5000")];
         }
 
         return result;
