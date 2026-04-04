@@ -29,6 +29,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action? ScenarioUnloaded;
     public event Action<AircraftAssignmentsDto>? AircraftAssignmentsChanged;
     public event Action<string>? KickedFromRoom;
+    public event Action<int, int>? ExportRecordingProgress;
 
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
 
@@ -71,6 +72,7 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On("ScenarioUnloaded", () => ScenarioUnloaded?.Invoke());
         _connection.On<AircraftAssignmentsDto>("AircraftAssignmentsChanged", dto => AircraftAssignmentsChanged?.Invoke(dto));
         _connection.On<string>("KickedFromRoom", msg => KickedFromRoom?.Invoke(msg));
+        _connection.On<int, int>("ExportRecordingProgress", (current, total) => ExportRecordingProgress?.Invoke(current, total));
 
         _connection.Reconnecting += error =>
         {

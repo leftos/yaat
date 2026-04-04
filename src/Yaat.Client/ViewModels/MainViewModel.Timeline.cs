@@ -126,7 +126,10 @@ public partial class MainViewModel
 
         IsExportingRecording = true;
         ExportingStatusText = "Preparing recording...";
+        IsExportIndeterminate = true;
+        ExportProgress = 0;
         var wasPaused = IsPaused;
+        _connection.ExportRecordingProgress += OnExportRecordingProgress;
         try
         {
             if (!wasPaused)
@@ -180,6 +183,7 @@ public partial class MainViewModel
         }
         finally
         {
+            _connection.ExportRecordingProgress -= OnExportRecordingProgress;
             IsExportingRecording = false;
             if (!wasPaused)
             {
@@ -205,6 +209,9 @@ public partial class MainViewModel
 
         IsExportingRecording = true;
         ExportingStatusText = "Preparing bug report bundle...";
+        IsExportIndeterminate = true;
+        ExportProgress = 0;
+        _connection.ExportRecordingProgress += OnExportRecordingProgress;
         try
         {
             if (!IsPaused)
@@ -213,6 +220,7 @@ public partial class MainViewModel
             }
 
             var compressedBytes = await _connection.ExportRecordingAsync();
+            _connection.ExportRecordingProgress -= OnExportRecordingProgress;
             IsExportingRecording = false;
 
             if (compressedBytes is null)
@@ -286,8 +294,22 @@ public partial class MainViewModel
         }
         finally
         {
+            _connection.ExportRecordingProgress -= OnExportRecordingProgress;
             IsExportingRecording = false;
         }
+    }
+
+    private void OnExportRecordingProgress(int currentSeconds, int totalSeconds)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (totalSeconds > 0)
+            {
+                IsExportIndeterminate = false;
+                ExportProgress = (double)currentSeconds / totalSeconds;
+                ExportingStatusText = $"Generating snapshots ({currentSeconds}/{totalSeconds}s)...";
+            }
+        });
     }
 
     private static bool IsLocalServer(string url)

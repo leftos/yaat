@@ -634,7 +634,7 @@
                        FontWeight="Bold"
                        Foreground="White"
                        HorizontalAlignment="Center" />
-            <ProgressBar IsIndeterminate="True" Width="200" />
+            <ProgressBar IsIndeterminate="{Binding IsExportIndeterminate}" Value="{Binding ExportProgress}" Maximum="1" Width="200" />
         </StackPanel>
     </Border>
 

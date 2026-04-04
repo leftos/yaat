@@ -87,6 +87,12 @@ public partial class MainViewModel : ObservableObject
     private string _exportingStatusText = "";
 
     [ObservableProperty]
+    private double _exportProgress;
+
+    [ObservableProperty]
+    private bool _isExportIndeterminate = true;
+
+    [ObservableProperty]
     private double _playbackTapeEnd;
 
     public double TimelineMaximum => IsPlaybackMode ? PlaybackTapeEnd : ScenarioElapsedSeconds;
