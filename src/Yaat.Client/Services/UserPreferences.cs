@@ -137,6 +137,21 @@ public sealed class UserPreferences
     public bool UnassignedTintEnabled => _data.UnassignedTintEnabled;
     public string UnassignedTintColor => _data.UnassignedTintColor;
     public string SelectedColor => _data.SelectedColor;
+
+    public GroundColorScheme GroundColors =>
+        new(
+            _data.GroundBackgroundColor,
+            _data.GroundTaxiwayColor,
+            _data.GroundTaxiLabelColor,
+            _data.GroundRampEdgeColor,
+            _data.GroundHoldShortColor,
+            _data.GroundRunwayFillColor,
+            _data.GroundRunwayOutlineColor,
+            _data.GroundAircraftColor,
+            _data.GroundDatablockTextColor,
+            _data.GroundBrightness
+        );
+
     public string SignatureHelpPlacement => _data.SignatureHelpPlacement;
     public int DataGridFontSize => _data.DataGridFontSize;
 
@@ -345,6 +360,21 @@ public sealed class UserPreferences
     public void SetSelectedColor(string color)
     {
         _data.SelectedColor = color;
+        Save();
+    }
+
+    public void SetGroundColors(GroundColorScheme scheme)
+    {
+        _data.GroundBackgroundColor = scheme.Background;
+        _data.GroundTaxiwayColor = scheme.Taxiway;
+        _data.GroundTaxiLabelColor = scheme.TaxiLabel;
+        _data.GroundRampEdgeColor = scheme.RampEdge;
+        _data.GroundHoldShortColor = scheme.HoldShort;
+        _data.GroundRunwayFillColor = scheme.RunwayFill;
+        _data.GroundRunwayOutlineColor = scheme.RunwayOutline;
+        _data.GroundAircraftColor = scheme.Aircraft;
+        _data.GroundDatablockTextColor = scheme.DatablockText;
+        _data.GroundBrightness = Math.Clamp(scheme.Brightness, 10, 100);
         Save();
     }
 
@@ -613,6 +643,16 @@ public sealed class UserPreferences
             UnassignedTintEnabled = GetFieldOr(obj, "unassignedTintEnabled", false),
             UnassignedTintColor = GetFieldOr(obj, "unassignedTintColor", "#888888"),
             SelectedColor = GetFieldOr(obj, "selectedColor", "#FFFFFF"),
+            GroundBackgroundColor = GetFieldOr(obj, "groundBackgroundColor", GroundColorScheme.DefaultBackground),
+            GroundTaxiwayColor = GetFieldOr(obj, "groundTaxiwayColor", GroundColorScheme.DefaultTaxiway),
+            GroundTaxiLabelColor = GetFieldOr(obj, "groundTaxiLabelColor", GroundColorScheme.DefaultTaxiLabel),
+            GroundRampEdgeColor = GetFieldOr(obj, "groundRampEdgeColor", GroundColorScheme.DefaultRampEdge),
+            GroundHoldShortColor = GetFieldOr(obj, "groundHoldShortColor", GroundColorScheme.DefaultHoldShort),
+            GroundRunwayFillColor = GetFieldOr(obj, "groundRunwayFillColor", GroundColorScheme.DefaultRunwayFill),
+            GroundRunwayOutlineColor = GetFieldOr(obj, "groundRunwayOutlineColor", GroundColorScheme.DefaultRunwayOutline),
+            GroundAircraftColor = GetFieldOr(obj, "groundAircraftColor", GroundColorScheme.DefaultAircraft),
+            GroundDatablockTextColor = GetFieldOr(obj, "groundDatablockTextColor", GroundColorScheme.DefaultDatablockText),
+            GroundBrightness = GetFieldOr(obj, "groundBrightness", GroundColorScheme.DefaultBrightness),
             SignatureHelpPlacement = GetFieldOr(obj, "signatureHelpPlacement", "Above"),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
@@ -782,6 +822,16 @@ public sealed class UserPreferences
         public bool UnassignedTintEnabled { get; set; }
         public string UnassignedTintColor { get; set; } = "#888888";
         public string SelectedColor { get; set; } = "#FFFFFF";
+        public string GroundBackgroundColor { get; set; } = GroundColorScheme.DefaultBackground;
+        public string GroundTaxiwayColor { get; set; } = GroundColorScheme.DefaultTaxiway;
+        public string GroundTaxiLabelColor { get; set; } = GroundColorScheme.DefaultTaxiLabel;
+        public string GroundRampEdgeColor { get; set; } = GroundColorScheme.DefaultRampEdge;
+        public string GroundHoldShortColor { get; set; } = GroundColorScheme.DefaultHoldShort;
+        public string GroundRunwayFillColor { get; set; } = GroundColorScheme.DefaultRunwayFill;
+        public string GroundRunwayOutlineColor { get; set; } = GroundColorScheme.DefaultRunwayOutline;
+        public string GroundAircraftColor { get; set; } = GroundColorScheme.DefaultAircraft;
+        public string GroundDatablockTextColor { get; set; } = GroundColorScheme.DefaultDatablockText;
+        public int GroundBrightness { get; set; } = GroundColorScheme.DefaultBrightness;
         public string SignatureHelpPlacement { get; set; } = "Above";
         public int DataGridFontSize { get; set; } = 12;
         public Dictionary<string, string> ScenarioNames { get; set; } = [];

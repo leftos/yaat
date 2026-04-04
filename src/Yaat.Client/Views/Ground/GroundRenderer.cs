@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
@@ -76,23 +77,25 @@ internal readonly struct DataBlockLayout
 /// </summary>
 public sealed class GroundRenderer : IDisposable
 {
-    private static readonly SKColor BackgroundColor = SKColor.Parse("#0e0e1a");
-    private static readonly SKColor RunwayFillColor = new(60, 60, 60);
-    private static readonly SKColor RunwayOutlineColor = new(100, 100, 100);
-    private static readonly SKColor RunwayColor = new(120, 120, 120);
-    private static readonly SKColor TaxiwayColor = new(200, 180, 60);
-    private static readonly SKColor TaxiLabelColor = new(230, 210, 80, 200);
+    // Customizable colors — updated via SetColors()
+    private SKColor _backgroundColor = SKColor.Parse(GroundColorScheme.DefaultBackground);
+    private SKColor _runwayFillColor = SKColor.Parse(GroundColorScheme.DefaultRunwayFill);
+    private SKColor _runwayOutlineColor = SKColor.Parse(GroundColorScheme.DefaultRunwayOutline);
+    private SKColor _runwayColor = new(120, 120, 120);
+    private SKColor _taxiwayColor = SKColor.Parse(GroundColorScheme.DefaultTaxiway);
+    private SKColor _taxiLabelColor = SKColor.Parse(GroundColorScheme.DefaultTaxiLabel).WithAlpha(200);
+    private SKColor _rampEdgeColor = SKColor.Parse(GroundColorScheme.DefaultRampEdge);
+    private SKColor _holdShortColor = SKColor.Parse(GroundColorScheme.DefaultHoldShort).WithAlpha(180);
+    private SKColor _aircraftColor = SKColor.Parse(GroundColorScheme.DefaultAircraft);
+    private SKColor _datablockTextColor = SKColor.Parse(GroundColorScheme.DefaultDatablockText);
+
+    // Non-customizable colors
     private static readonly SKColor NodeIntersection = new(80, 120, 200, 100);
     private static readonly SKColor NodeParking = new(60, 180, 80, 140);
     private static readonly SKColor NodeHelipad = new(180, 60, 220, 140);
     private static readonly SKColor NodeSpot = new(220, 160, 40, 140);
-    private static readonly SKColor NodeHoldShort = new(220, 200, 60, 180);
     private static readonly SKColor ActiveRouteColor = new(60, 220, 60);
     private static readonly SKColor PreviewRouteColor = new(80, 180, 255, 180);
-    private static readonly SKColor AircraftTaxiing = new(255, 255, 255);
-    private static readonly SKColor AircraftSelected = new(255, 255, 255);
-    private static readonly SKColor AircraftAirborne = new(255, 255, 255);
-    private static readonly SKColor TerminalGreen = new(0, 230, 0);
     private static readonly SKColor DrawnRouteColor = new(0, 200, 255);
     private static readonly SKColor DrawHoverPreviewColor = new(255, 180, 50);
     private static readonly SKColor WaypointMarkerColor = new(255, 200, 0);
@@ -114,14 +117,14 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _runwayFillPaint = new()
     {
-        Color = RunwayFillColor,
+        Color = SKColor.Parse(GroundColorScheme.DefaultRunwayFill),
         Style = SKPaintStyle.Fill,
         IsAntialias = true,
     };
 
     private readonly SKPaint _runwayOutlinePaint = new()
     {
-        Color = RunwayOutlineColor,
+        Color = SKColor.Parse(GroundColorScheme.DefaultRunwayOutline),
         StrokeWidth = 1,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -139,7 +142,7 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _runwayPaint = new()
     {
-        Color = RunwayColor,
+        Color = new SKColor(120, 120, 120),
         StrokeWidth = 6,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -148,7 +151,16 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _taxiwayPaint = new()
     {
-        Color = TaxiwayColor,
+        Color = SKColor.Parse(GroundColorScheme.DefaultTaxiway),
+        StrokeWidth = 2,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = true,
+        StrokeCap = SKStrokeCap.Round,
+    };
+
+    private readonly SKPaint _rampEdgePaint = new()
+    {
+        Color = SKColor.Parse(GroundColorScheme.DefaultRampEdge),
         StrokeWidth = 2,
         Style = SKPaintStyle.Stroke,
         IsAntialias = true,
@@ -157,7 +169,7 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly SKPaint _taxiLabelPaint = new()
     {
-        Color = TaxiLabelColor,
+        Color = SKColor.Parse(GroundColorScheme.DefaultTaxiLabel).WithAlpha(200),
         TextSize = 13,
         IsAntialias = true,
         SubpixelText = true,
@@ -264,7 +276,7 @@ public sealed class GroundRenderer : IDisposable
         IsAntialias = true,
     };
 
-    private readonly SKPaint _bgPaint = new() { Color = BackgroundColor, Style = SKPaintStyle.Fill };
+    private readonly SKPaint _bgPaint = new() { Color = SKColor.Parse(GroundColorScheme.DefaultBackground), Style = SKPaintStyle.Fill };
 
     private readonly SKPaint _debugLabelPaint = new()
     {
@@ -288,6 +300,12 @@ public sealed class GroundRenderer : IDisposable
 
     private readonly List<LabelCandidate> _labelCandidates = new(256);
 
+    /// <summary>
+    /// Paints whose alpha should scale with the brightness slider.
+    /// Maps each paint to its base (full-brightness) alpha value.
+    /// </summary>
+    private readonly FrozenDictionary<SKPaint, byte> _infrastructurePaints;
+
     public GroundRenderer()
     {
         _shownTaxiRoutePaints = new SKPaint[TaxiRouteColorValues.Length];
@@ -301,6 +319,60 @@ public sealed class GroundRenderer : IDisposable
                 IsAntialias = true,
                 StrokeCap = SKStrokeCap.Round,
             };
+        }
+
+        _infrastructurePaints = new Dictionary<SKPaint, byte>
+        {
+            [_taxiwayPaint] = _taxiwayPaint.Color.Alpha,
+            [_rampEdgePaint] = _rampEdgePaint.Color.Alpha,
+            [_taxiLabelPaint] = _taxiLabelPaint.Color.Alpha,
+            [_runwayFillPaint] = _runwayFillPaint.Color.Alpha,
+            [_runwayOutlinePaint] = _runwayOutlinePaint.Color.Alpha,
+            [_runwayPaint] = _runwayPaint.Color.Alpha,
+            [_runwayLabelPaint] = _runwayLabelPaint.Color.Alpha,
+            [_nodePaint] = _nodePaint.Color.Alpha,
+            [_holdShortBarPaint] = _holdShortBarPaint.Color.Alpha,
+            [_nodeLabelPaint] = _nodeLabelPaint.Color.Alpha,
+        }.ToFrozenDictionary();
+    }
+
+    /// <summary>
+    /// Applies a user-defined color scheme to all customizable paints.
+    /// </summary>
+    public void SetColors(GroundColorScheme scheme)
+    {
+        _backgroundColor = SKColor.Parse(scheme.Background);
+        _runwayFillColor = SKColor.Parse(scheme.RunwayFill);
+        _runwayOutlineColor = SKColor.Parse(scheme.RunwayOutline);
+        _runwayColor = _runwayOutlineColor;
+        _taxiwayColor = SKColor.Parse(scheme.Taxiway);
+        _taxiLabelColor = SKColor.Parse(scheme.TaxiLabel).WithAlpha(200);
+        _rampEdgeColor = SKColor.Parse(scheme.RampEdge);
+        _holdShortColor = SKColor.Parse(scheme.HoldShort).WithAlpha(180);
+        _aircraftColor = SKColor.Parse(scheme.Aircraft);
+        _datablockTextColor = SKColor.Parse(scheme.DatablockText);
+
+        _bgPaint.Color = _backgroundColor;
+        _runwayFillPaint.Color = _runwayFillColor;
+        _runwayOutlinePaint.Color = _runwayOutlineColor;
+        _runwayPaint.Color = _runwayColor;
+        _taxiwayPaint.Color = _taxiwayColor;
+        _taxiLabelPaint.Color = _taxiLabelColor;
+        _rampEdgePaint.Color = _rampEdgeColor;
+
+        SetBrightness(scheme.Brightness / 100f);
+    }
+
+    /// <summary>
+    /// Scales alpha on infrastructure paints (taxiways, runways, nodes, labels).
+    /// Aircraft, datablocks, and route overlays are unaffected.
+    /// </summary>
+    public void SetBrightness(float brightness)
+    {
+        brightness = Math.Clamp(brightness, 0.1f, 1f);
+        foreach (var (paint, baseAlpha) in _infrastructurePaints)
+        {
+            paint.Color = paint.Color.WithAlpha((byte)(baseAlpha * brightness));
         }
     }
 
@@ -342,7 +414,7 @@ public sealed class GroundRenderer : IDisposable
         IReadOnlyList<ShownTaxiRouteEntry>? shownTaxiRoutes
     )
     {
-        canvas.Clear(BackgroundColor);
+        canvas.Clear(_backgroundColor);
 
         if (layout is null)
         {
@@ -352,7 +424,7 @@ public sealed class GroundRenderer : IDisposable
         _labelCandidates.Clear();
 
         DrawRunways(canvas, vp, layout, showRunwayLabels);
-        DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels);
+        DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels, showParking);
         DrawActiveRoute(canvas, vp, layout, activeRoute);
         DrawPreviewRoute(canvas, vp, layout, previewRoute);
         DrawShownTaxiRoutes(canvas, vp, layout, shownTaxiRoutes);
@@ -480,7 +552,14 @@ public sealed class GroundRenderer : IDisposable
         }
     }
 
-    private void DrawEdges(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, bool showDebugInfo, bool showTaxiwayLabels)
+    private void DrawEdges(
+        SKCanvas canvas,
+        MapViewport vp,
+        GroundLayoutDto layout,
+        bool showDebugInfo,
+        bool showTaxiwayLabels,
+        GroundFilterMode showParking
+    )
     {
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
         foreach (var node in layout.Nodes)
@@ -499,7 +578,29 @@ public sealed class GroundRenderer : IDisposable
             }
 
             bool isRunway = edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
-            var paint = isRunway ? _runwayPaint : _taxiwayPaint;
+            bool isRamp = string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
+
+            // RAMP edges follow the parking filter
+            if (isRamp && showParking == GroundFilterMode.Off)
+            {
+                continue;
+            }
+
+            SKPaint paint;
+            if (isRunway)
+            {
+                paint = _runwayPaint;
+            }
+            else if (isRamp)
+            {
+                _rampEdgePaint.Color =
+                    showParking == GroundFilterMode.IconsOnly ? _rampEdgeColor.WithAlpha((byte)(_rampEdgeColor.Alpha / 2)) : _rampEdgeColor;
+                paint = _rampEdgePaint;
+            }
+            else
+            {
+                paint = _taxiwayPaint;
+            }
 
             if (edge.IntermediatePoints is { Count: > 0 })
             {
@@ -522,7 +623,6 @@ public sealed class GroundRenderer : IDisposable
                 canvas.DrawLine(from.X, from.Y, to.X, to.Y, paint);
             }
 
-            bool isRamp = string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
             if (!showDebugInfo && !isRunway && !isRamp && showTaxiwayLabels)
             {
                 var mx = (from.X + to.X) / 2f;
@@ -924,7 +1024,7 @@ public sealed class GroundRenderer : IDisposable
         float dx = halfLen * MathF.Cos(perpAngle);
         float dy = halfLen * MathF.Sin(perpAngle);
 
-        _holdShortBarPaint.Color = NodeHoldShort;
+        _holdShortBarPaint.Color = _holdShortColor;
         canvas.DrawLine(sx - dx, sy - dy, sx + dx, sy + dy, _holdShortBarPaint);
     }
 
@@ -968,10 +1068,7 @@ public sealed class GroundRenderer : IDisposable
             bool isSelected = ac == selectedAircraft;
             bool isAirborne = !ac.IsOnGround;
 
-            _aircraftPaint.Color =
-                isSelected ? AircraftSelected
-                : isAirborne ? AircraftAirborne
-                : GetAircraftColor();
+            _aircraftPaint.Color = _aircraftColor;
 
             var (lengthPx, widthPx) = ComputeAircraftPixelSize(ac.AircraftType, pxPerFt);
             if (isSelected)
@@ -1037,11 +1134,6 @@ public sealed class GroundRenderer : IDisposable
         }
 
         return MathF.Max(diameterFt * 0.5f * pxPerFt, MinAircraftPx);
-    }
-
-    private static SKColor GetAircraftColor()
-    {
-        return AircraftTaxiing;
     }
 
     /// <summary>
@@ -1266,14 +1358,14 @@ public sealed class GroundRenderer : IDisposable
             var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _dataBlockTextPaint, isAirborne);
 
             bool isSelected = ac == selectedAircraft;
-            var dbColor = isSelected ? AircraftSelected : TerminalGreen;
+            var dbColor = isSelected ? _aircraftColor : _datablockTextColor;
 
             _dataBlockTextPaint.Color = dbColor;
             canvas.DrawRect(layout.Rect, _dataBlockBgPaint);
 
             if (isSelected)
             {
-                _dataBlockLeaderPaint.Color = AircraftSelected;
+                _dataBlockLeaderPaint.Color = _aircraftColor;
                 canvas.DrawRect(layout.Rect, _dataBlockLeaderPaint);
             }
 
@@ -1390,6 +1482,7 @@ public sealed class GroundRenderer : IDisposable
         _runwayLabelPaint.Dispose();
         _runwayPaint.Dispose();
         _taxiwayPaint.Dispose();
+        _rampEdgePaint.Dispose();
         _taxiLabelPaint.Dispose();
         _activeRoutePaint.Dispose();
         _previewRoutePaint.Dispose();
