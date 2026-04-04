@@ -117,6 +117,10 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     private bool _dragThresholdMet;
     private readonly Dictionary<string, int> _dataBlockZOrder = new();
     private int _nextZOrder = 1;
+    private readonly HashSet<string> _highlightedCallsigns = [];
+    private readonly HashSet<string> _hiddenDataBlockCallsigns = [];
+    private readonly HashSet<string> _shownDataBlockCallsigns = [];
+    private bool _startWithAllHidden;
 
     public GroundLayoutDto? Layout
     {
@@ -277,6 +281,42 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         MarkDirty();
     }
 
+    /// <summary>Returns true if the datablock for the given callsign is currently hidden.</summary>
+    public bool IsDataBlockHidden(string callsign)
+    {
+        return _startWithAllHidden ? !_shownDataBlockCallsigns.Contains(callsign) : _hiddenDataBlockCallsigns.Contains(callsign);
+    }
+
+    /// <summary>Toggles the hidden state of the datablock for the given callsign.</summary>
+    public void ToggleHiddenDataBlock(string callsign)
+    {
+        if (_startWithAllHidden)
+        {
+            if (!_shownDataBlockCallsigns.Remove(callsign))
+            {
+                _shownDataBlockCallsigns.Add(callsign);
+            }
+        }
+        else
+        {
+            if (!_hiddenDataBlockCallsigns.Remove(callsign))
+            {
+                _hiddenDataBlockCallsigns.Add(callsign);
+            }
+        }
+
+        MarkDirty();
+    }
+
+    /// <summary>Sets whether all datablocks start hidden (inverts the hide/show logic).</summary>
+    public void SetStartWithAllHidden(bool hidden)
+    {
+        _startWithAllHidden = hidden;
+        _hiddenDataBlockCallsigns.Clear();
+        _shownDataBlockCallsigns.Clear();
+        MarkDirty();
+    }
+
     /// <summary>Fired when a node is right-clicked. Args: nodeId, screen position.</summary>
     public event Action<int, Point>? NodeRightClicked;
 
@@ -309,6 +349,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         {
             _hasFitBounds = false;
             _dataBlockOffsets.Clear();
+            _highlightedCallsigns.Clear();
+            _hiddenDataBlockCallsigns.Clear();
+            _shownDataBlockCallsigns.Clear();
             FitToLayout();
             InvalidateVisual();
         }
@@ -376,14 +419,37 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         GroundFilterMode ShowHoldShort,
         GroundFilterMode ShowParking,
         GroundFilterMode ShowSpot,
-        IReadOnlyList<ShownTaxiRouteEntry>? ShownTaxiRoutes
+        IReadOnlyList<ShownTaxiRouteEntry>? ShownTaxiRoutes,
+        IReadOnlySet<string> HighlightedCallsigns,
+        IReadOnlySet<string> HiddenDataBlockCallsigns
     );
 
     protected override object? CreateRenderSnapshot()
     {
+        var aircraft = SortByZOrder(FilterActiveAircraft(Aircraft), _dataBlockZOrder);
+
+        var hiddenDbs = new HashSet<string>();
+        if (_startWithAllHidden)
+        {
+            foreach (var ac in aircraft)
+            {
+                if (!_shownDataBlockCallsigns.Contains(ac.Callsign))
+                {
+                    hiddenDbs.Add(ac.Callsign);
+                }
+            }
+        }
+        else
+        {
+            foreach (var cs in _hiddenDataBlockCallsigns)
+            {
+                hiddenDbs.Add(cs);
+            }
+        }
+
         return new RenderSnapshot(
             Layout,
-            SortByZOrder(FilterActiveAircraft(Aircraft), _dataBlockZOrder),
+            aircraft,
             SelectedAircraft,
             _hoveredNodeId,
             ActiveRoute,
@@ -403,7 +469,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ShowHoldShort,
             ShowParking,
             ShowSpot,
-            ShownTaxiRoutes
+            ShownTaxiRoutes,
+            new HashSet<string>(_highlightedCallsigns),
+            hiddenDbs
         );
     }
 
@@ -437,7 +505,9 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.ShowHoldShort,
             s.ShowParking,
             s.ShowSpot,
-            s.ShownTaxiRoutes
+            s.ShownTaxiRoutes,
+            s.HighlightedCallsigns,
+            s.HiddenDataBlockCallsigns
         );
     }
 
@@ -509,6 +579,28 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         var pos = e.GetPosition(this);
         var props = e.GetCurrentPoint(this).Properties;
+
+        if (props.IsMiddleButtonPressed)
+        {
+            var hitAc = FindDataBlockAtPoint(pos) ?? FindAircraftAtPoint(pos);
+            if (hitAc is not null)
+            {
+                if (!_highlightedCallsigns.Remove(hitAc.Callsign))
+                {
+                    _highlightedCallsigns.Add(hitAc.Callsign);
+                }
+
+                if (IsDataBlockHidden(hitAc.Callsign))
+                {
+                    ToggleHiddenDataBlock(hitAc.Callsign);
+                }
+
+                MarkDirty();
+                e.Handled = true;
+            }
+
+            return;
+        }
 
         var dataBlockAc = FindDataBlockAtPoint(pos);
         if (dataBlockAc is not null)

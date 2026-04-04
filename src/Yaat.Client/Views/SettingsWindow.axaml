@@ -255,6 +255,17 @@
                                        FontSize="11" />
                         </StackPanel>
                         <Separator Margin="0,4" />
+                        <TextBlock Text="Ground Display"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <CheckBox Content="Start with all datablocks hidden"
+                                      IsChecked="{Binding GroundHideDataBlocksByDefault}" />
+                            <TextBlock Text="When enabled, aircraft datablocks on the ground view are hidden by default. Use right-click > Show datablock or middle-click to reveal individual datablocks."
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource SubtleTextBrush}"
+                                       FontSize="11" />
+                        </StackPanel>
+                        <Separator Margin="0,4" />
                         <TextBlock Text="Windows"
                                    FontWeight="SemiBold" />
                         <StackPanel Spacing="4">

@@ -339,7 +339,9 @@ public sealed class GroundRenderer : IDisposable
         GroundFilterMode showHoldShort,
         GroundFilterMode showParking,
         GroundFilterMode showSpot,
-        IReadOnlyList<ShownTaxiRouteEntry>? shownTaxiRoutes
+        IReadOnlyList<ShownTaxiRouteEntry>? shownTaxiRoutes,
+        IReadOnlySet<string>? highlightedCallsigns,
+        IReadOnlySet<string>? hiddenDataBlockCallsigns
     )
     {
         canvas.Clear(BackgroundColor);
@@ -361,7 +363,18 @@ public sealed class GroundRenderer : IDisposable
         DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShort, showParking, showSpot);
         DrawLabels(canvas, hoveredOnly: false);
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
-        DrawDataBlocks(canvas, vp, aircraft, selectedAircraft, dataBlockOffsets, airportCenterLat, airportCenterLon, airportElevation);
+        DrawDataBlocks(
+            canvas,
+            vp,
+            aircraft,
+            selectedAircraft,
+            dataBlockOffsets,
+            airportCenterLat,
+            airportCenterLon,
+            airportElevation,
+            highlightedCallsigns,
+            hiddenDataBlockCallsigns
+        );
         DrawLabels(canvas, hoveredOnly: true);
 
         if (showDebugInfo)
@@ -1244,13 +1257,22 @@ public sealed class GroundRenderer : IDisposable
         IReadOnlyDictionary<string, SKPoint>? dataBlockOffsets,
         double airportCenterLat,
         double airportCenterLon,
-        double airportElevation
+        double airportElevation,
+        IReadOnlySet<string>? highlightedCallsigns,
+        IReadOnlySet<string>? hiddenDataBlockCallsigns
     )
     {
         foreach (var ac in aircraft)
         {
             bool isAirborne = !ac.IsOnGround;
             if (isAirborne && !IsAirborneVisible(ac, airportCenterLat, airportCenterLon, airportElevation))
+            {
+                continue;
+            }
+
+            bool isSelected = ac == selectedAircraft;
+            bool isHidden = hiddenDataBlockCallsigns is not null && hiddenDataBlockCallsigns.Contains(ac.Callsign);
+            if (isHidden && !isSelected)
             {
                 continue;
             }
@@ -1265,8 +1287,11 @@ public sealed class GroundRenderer : IDisposable
 
             var layout = DataBlockLayout.Compute(ac, sx, sy, offset, _dataBlockTextPaint, isAirborne);
 
-            bool isSelected = ac == selectedAircraft;
-            var dbColor = isSelected ? AircraftSelected : TerminalGreen;
+            bool isHighlighted = highlightedCallsigns is not null && highlightedCallsigns.Contains(ac.Callsign);
+            var dbColor =
+                isHighlighted ? SKColors.Cyan
+                : isSelected ? AircraftSelected
+                : TerminalGreen;
 
             _dataBlockTextPaint.Color = dbColor;
             canvas.DrawRect(layout.Rect, _dataBlockBgPaint);

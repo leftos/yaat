@@ -48,6 +48,11 @@ public partial class GroundView : UserControl
         _canvas.DrawNodeFinished += OnDrawNodeFinished;
         _canvas.DrawNodeHovered += OnDrawNodeHovered;
 
+        if (DataContext is GroundViewModel vm && vm.Preferences is not null)
+        {
+            _canvas.SetStartWithAllHidden(vm.Preferences.GroundHideDataBlocksByDefault);
+        }
+
         _taxiInputOverlay = this.FindControl<Border>("TaxiInputOverlay");
         _taxiInputBox = this.FindControl<TextBox>("TaxiInputBox");
         if (_taxiInputBox is not null)
@@ -409,6 +414,18 @@ public partial class GroundView : UserControl
                 () =>
                 {
                     vm.ToggleShowTaxiRoute(callsign);
+                    return Task.CompletedTask;
+                }
+            )
+        );
+
+        var isDbHidden = _canvas?.IsDataBlockHidden(callsign) ?? false;
+        menu.Items.Add(
+            CreateMenuItem(
+                isDbHidden ? "Show datablock" : "Hide datablock",
+                () =>
+                {
+                    _canvas?.ToggleHiddenDataBlock(callsign);
                     return Task.CompletedTask;
                 }
             )

@@ -194,6 +194,9 @@ public partial class SettingsViewModel : ObservableObject
     private int _dataGridFontSize;
 
     [ObservableProperty]
+    private bool _groundHideDataBlocksByDefault;
+
+    [ObservableProperty]
     private bool _isCapturingKey;
 
     private string _aircraftSelectKeyName = "Add";
@@ -251,6 +254,7 @@ public partial class SettingsViewModel : ObservableObject
         _selectedColor = _preferences.SelectedColor;
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
         _dataGridFontSize = _preferences.DataGridFontSize;
+        _groundHideDataBlocksByDefault = _preferences.GroundHideDataBlocksByDefault;
         LoadMacros();
     }
 
@@ -298,6 +302,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSelectedColor(SelectedColor);
         _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
         _preferences.SetDataGridFontSize(DataGridFontSize);
+        _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
         SaveMacros();
         Saved = true;
     }

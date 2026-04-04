@@ -132,6 +132,7 @@ public sealed class UserPreferences
     public GroundFilterMode GroundShowParking => (GroundFilterMode)_data.GroundShowParking;
     public GroundFilterMode GroundShowSpot => (GroundFilterMode)_data.GroundShowSpot;
     public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
+    public bool GroundHideDataBlocksByDefault => _data.GroundHideDataBlocksByDefault;
     public bool AssignmentTintEnabled => _data.AssignmentTintEnabled;
     public string AssignmentTintColor => _data.AssignmentTintColor;
     public bool UnassignedTintEnabled => _data.UnassignedTintEnabled;
@@ -376,6 +377,12 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetGroundHideDataBlocksByDefault(bool hide)
+    {
+        _data.GroundHideDataBlocksByDefault = hide;
+        Save();
+    }
+
     public void SetHiddenTerminalKinds(HashSet<TerminalEntryKind> hidden)
     {
         HiddenTerminalKinds = hidden;
@@ -608,6 +615,7 @@ public sealed class UserPreferences
             GroundShowParking = GetFieldOr(obj, "groundShowParking", 0),
             GroundShowSpot = GetFieldOr(obj, "groundShowSpot", 0),
             GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
+            GroundHideDataBlocksByDefault = GetFieldOr(obj, "groundHideDataBlocksByDefault", false),
             AssignmentTintEnabled = GetFieldOr(obj, "assignmentTintEnabled", false),
             AssignmentTintColor = GetFieldOr(obj, "assignmentTintColor", "#00FF00"),
             UnassignedTintEnabled = GetFieldOr(obj, "unassignedTintEnabled", false),
@@ -777,6 +785,7 @@ public sealed class UserPreferences
         public int GroundShowParking { get; set; }
         public int GroundShowSpot { get; set; }
         public bool GroundPanZoomLocked { get; set; }
+        public bool GroundHideDataBlocksByDefault { get; set; }
         public bool AssignmentTintEnabled { get; set; }
         public string AssignmentTintColor { get; set; } = "#00FF00";
         public bool UnassignedTintEnabled { get; set; }
