@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 
@@ -21,9 +22,17 @@ public static class GeoJsonParser
     /// <summary>Max distance to connect a parking spot to a taxiway (nm).</summary>
     private const double ParkingConnectMaxNm = 0.15;
 
+    private static readonly JsonDocumentOptions LenientJsonOptions = new() { AllowTrailingCommas = true };
+
+    /// <summary>Strips leading zeros from JSON number literals (e.g. 03 → 3) that are invalid per RFC 8259.</summary>
+    private static readonly Regex LeadingZeroRegex = new(@"(?<=[:,\[]\s*)0+(\d)", RegexOptions.Compiled);
+
+    private static string SanitizeJson(string json) => LeadingZeroRegex.Replace(json, "$1");
+
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode)
     {
-        var doc = JsonDocument.Parse(geoJson);
+        string sanitized = SanitizeJson(geoJson);
+        var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
         var root = doc.RootElement;
 
         var features = root.GetProperty("features");
@@ -34,33 +43,48 @@ public static class GeoJsonParser
         var taxiwayFeatures = new List<TaxiwayFeature>();
         var runwayFeatures = new List<RunwayFeature>();
 
+        int skipped = 0;
         foreach (var feature in features.EnumerateArray())
         {
             var props = feature.GetProperty("properties");
             string type = props.GetProperty("type").GetString() ?? "";
             var geom = feature.GetProperty("geometry");
 
-            switch (type)
+            try
             {
-                case "parking":
-                    parkingFeatures.Add(ParseParking(props, geom));
-                    break;
-                case "helipad":
-                    helipadFeatures.Add(ParseParking(props, geom));
-                    break;
-                case "spot":
-                    spotFeatures.Add(ParseSpot(props, geom));
-                    break;
-                case "taxiway":
-                    taxiwayFeatures.Add(ParseTaxiway(props, geom));
-                    break;
-                case "runway":
-                    runwayFeatures.Add(ParseRunway(props, geom));
-                    break;
-                default:
-                    Log.LogWarning("Unknown GeoJSON feature type: {Type}", type);
-                    break;
+                switch (type)
+                {
+                    case "parking":
+                        parkingFeatures.Add(ParseParking(props, geom));
+                        break;
+                    case "helipad":
+                        helipadFeatures.Add(ParseParking(props, geom));
+                        break;
+                    case "spot":
+                        spotFeatures.Add(ParseSpot(props, geom));
+                        break;
+                    case "taxiway":
+                        taxiwayFeatures.Add(ParseTaxiway(props, geom));
+                        break;
+                    case "runway":
+                        runwayFeatures.Add(ParseRunway(props, geom));
+                        break;
+                    default:
+                        Log.LogWarning("Unknown GeoJSON feature type: {Type}", type);
+                        break;
+                }
             }
+            catch (InvalidOperationException ex)
+            {
+                string name = props.TryGetProperty("name", out var n) ? n.GetString() ?? "?" : "?";
+                Log.LogWarning("Skipping malformed {Type} feature '{Name}' in {Airport}: {Message}", type, name, airportId, ex.Message);
+                skipped++;
+            }
+        }
+
+        if (skipped > 0)
+        {
+            Log.LogWarning("Skipped {Count} malformed feature(s) in {Airport}", skipped, airportId);
         }
 
         return BuildLayout(airportId, parkingFeatures, helipadFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, runwayAirportCode);
@@ -81,7 +105,8 @@ public static class GeoJsonParser
         var allFeatures = new List<JsonElement>();
         foreach (string json in merged)
         {
-            var doc = JsonDocument.Parse(json);
+            string sanitized = SanitizeJson(json);
+            var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
             var features = doc.RootElement.GetProperty("features");
             foreach (var f in features.EnumerateArray())
             {
