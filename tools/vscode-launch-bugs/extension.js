@@ -123,7 +123,7 @@ function activate(context) {
           });
 
           // Start claude (needs a TTY — can't pipe into it)
-          terminal.sendText(`claude --dangerously-skip-permissions --worktree`);
+          terminal.sendText(`claude --dangerously-skip-permissions`);
 
           // After claude starts: Shift+Tab x3 to enter plan mode, type prompt, Enter
           const inputDelay = startupDelay;
