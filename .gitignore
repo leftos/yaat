@@ -9,6 +9,9 @@ obj/
 ## Temp
 .tmp/
 
+## Claude Code worktrees
+.claude/worktrees/
+
 ## IDE
 .vs/
 .idea/
