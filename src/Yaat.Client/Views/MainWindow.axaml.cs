@@ -1312,6 +1312,7 @@ public partial class MainWindow : Window
             vm.DataGridScale = vm.Preferences.DataGridFontSize / 12.0;
             ApplyKeybinds(vm.Preferences);
             SyncAllRadarViewTint();
+            vm.Ground.ColorScheme = vm.Preferences.GroundColors;
         }
     }
 

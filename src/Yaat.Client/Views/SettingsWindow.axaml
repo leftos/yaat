@@ -195,66 +195,6 @@
                                        FontSize="11" />
                         </StackPanel>
                         <Separator Margin="0,4" />
-                        <TextBlock Text="Radar Display"
-                                   FontWeight="SemiBold" />
-                        <StackPanel Spacing="4">
-                            <CheckBox Content="Tint my assigned aircraft"
-                                      IsChecked="{Binding AssignmentTintEnabled}" />
-                            <StackPanel Spacing="4"
-                                        IsVisible="{Binding AssignmentTintEnabled}"
-                                        Margin="28,0,0,0">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="Tint Color:"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               VerticalAlignment="Center" />
-                                    <ColorPicker Color="{Binding AssignmentTintColor, Converter={StaticResource HexColorConverter}}"
-                                                 IsAlphaEnabled="False"
-                                                 Width="200"
-                                                 HorizontalAlignment="Left" />
-                                </StackPanel>
-                                <TextBlock Text="Color for targets and datablocks of aircraft assigned to you. Default: green."
-                                           TextWrapping="Wrap"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11" />
-                            </StackPanel>
-                        </StackPanel>
-                        <StackPanel Spacing="4">
-                            <CheckBox Content="Tint unassigned aircraft"
-                                      IsChecked="{Binding UnassignedTintEnabled}" />
-                            <StackPanel Spacing="4"
-                                        IsVisible="{Binding UnassignedTintEnabled}"
-                                        Margin="28,0,0,0">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="Tint Color:"
-                                               Foreground="{DynamicResource SubtleTextBrush}"
-                                               VerticalAlignment="Center" />
-                                    <ColorPicker Color="{Binding UnassignedTintColor, Converter={StaticResource HexColorConverter}}"
-                                                 IsAlphaEnabled="False"
-                                                 Width="200"
-                                                 HorizontalAlignment="Left" />
-                                </StackPanel>
-                                <TextBlock Text="Color for aircraft not assigned to you (or unassigned). Default: gray."
-                                           TextWrapping="Wrap"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           FontSize="11" />
-                            </StackPanel>
-                        </StackPanel>
-                        <StackPanel Spacing="4">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Selected Aircraft Color:"
-                                           Foreground="{DynamicResource SubtleTextBrush}"
-                                           VerticalAlignment="Center" />
-                                <ColorPicker Color="{Binding SelectedColor, Converter={StaticResource HexColorConverter}}"
-                                             IsAlphaEnabled="False"
-                                             Width="200"
-                                             HorizontalAlignment="Left" />
-                            </StackPanel>
-                            <TextBlock Text="Color for the currently selected aircraft's symbol and datablock. Default: white."
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SubtleTextBrush}"
-                                       FontSize="11" />
-                        </StackPanel>
-                        <Separator Margin="0,4" />
                         <TextBlock Text="Ground Display"
                                    FontWeight="SemiBold" />
                         <StackPanel Spacing="4">
@@ -278,6 +218,100 @@
                                 <CheckBox Content="Terminal" IsChecked="{Binding TerminalTopmost}" />
                             </StackPanel>
                         </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Colors tab -->
+            <TabItem Header="Colors">
+                <ScrollViewer>
+                    <StackPanel Margin="12" Spacing="12">
+                        <TextBlock Text="Ground View"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Background Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding GroundBackgroundColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Taxiway Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding GroundTaxiwayColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Taxiway Label Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding GroundTaxiLabelColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="RAMP Edge Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding GroundRampEdgeColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Hold Short Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding GroundHoldShortColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Runway Fill Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding GroundRunwayFillColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Runway Outline Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding GroundRunwayOutlineColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Aircraft Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding GroundAircraftColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Datablock Text Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <ColorPicker Color="{Binding GroundDatablockTextColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                <TextBlock Text="Brightness:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <Slider Value="{Binding GroundBrightness}" Minimum="10" Maximum="100" Width="200" TickFrequency="10" IsSnapToTickEnabled="True" />
+                                <TextBlock Text="{Binding GroundBrightness, StringFormat='{}{0}%'}" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                            </StackPanel>
+                            <TextBlock Text="Brightness scales the opacity of infrastructure elements (taxiways, runways, nodes) while keeping aircraft at full visibility." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                        </StackPanel>
+                        <Separator Margin="0,4" />
+                        <TextBlock Text="Radar View"
+                                   FontWeight="SemiBold" />
+                        <StackPanel Spacing="4">
+                            <CheckBox Content="Tint my assigned aircraft"
+                                      IsChecked="{Binding AssignmentTintEnabled}" />
+                            <StackPanel Spacing="4"
+                                        IsVisible="{Binding AssignmentTintEnabled}"
+                                        Margin="28,0,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Tint Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                                    <ColorPicker Color="{Binding AssignmentTintColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                                </StackPanel>
+                                <TextBlock Text="Color for targets and datablocks of aircraft assigned to you. Default: green." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <CheckBox Content="Tint unassigned aircraft"
+                                      IsChecked="{Binding UnassignedTintEnabled}" />
+                            <StackPanel Spacing="4"
+                                        IsVisible="{Binding UnassignedTintEnabled}"
+                                        Margin="28,0,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Tint Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                                    <ColorPicker Color="{Binding UnassignedTintColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                                </StackPanel>
+                                <TextBlock Text="Color for aircraft not assigned to you (or unassigned). Default: gray." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Selected Aircraft Color:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" />
+                                <ColorPicker Color="{Binding SelectedColor, Converter={StaticResource HexColorConverter}}" IsAlphaEnabled="False" Width="200" HorizontalAlignment="Left" />
+                            </StackPanel>
+                            <TextBlock Text="Color for the currently selected aircraft's symbol and datablock. Default: white." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                        </StackPanel>
+                        <Separator Margin="0,4" />
+                        <Button Content="Reset All Colors to Defaults"
+                                Command="{Binding ResetAllColorsCommand}"
+                                HorizontalAlignment="Left" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

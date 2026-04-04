@@ -3,6 +3,7 @@ using Avalonia.Collections;
 using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views;
 using Yaat.Sim.Commands;
@@ -187,6 +188,37 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _selectedColor = "#FFFFFF";
 
+    // Ground view colors
+    [ObservableProperty]
+    private string _groundBackgroundColor = GroundColorScheme.DefaultBackground;
+
+    [ObservableProperty]
+    private string _groundTaxiwayColor = GroundColorScheme.DefaultTaxiway;
+
+    [ObservableProperty]
+    private string _groundTaxiLabelColor = GroundColorScheme.DefaultTaxiLabel;
+
+    [ObservableProperty]
+    private string _groundRampEdgeColor = GroundColorScheme.DefaultRampEdge;
+
+    [ObservableProperty]
+    private string _groundHoldShortColor = GroundColorScheme.DefaultHoldShort;
+
+    [ObservableProperty]
+    private string _groundRunwayFillColor = GroundColorScheme.DefaultRunwayFill;
+
+    [ObservableProperty]
+    private string _groundRunwayOutlineColor = GroundColorScheme.DefaultRunwayOutline;
+
+    [ObservableProperty]
+    private string _groundAircraftColor = GroundColorScheme.DefaultAircraft;
+
+    [ObservableProperty]
+    private string _groundDatablockTextColor = GroundColorScheme.DefaultDatablockText;
+
+    [ObservableProperty]
+    private int _groundBrightness = GroundColorScheme.DefaultBrightness;
+
     [ObservableProperty]
     private int _selectedSignatureHelpPlacementIndex;
 
@@ -252,6 +284,17 @@ public partial class SettingsViewModel : ObservableObject
         _unassignedTintEnabled = _preferences.UnassignedTintEnabled;
         _unassignedTintColor = _preferences.UnassignedTintColor;
         _selectedColor = _preferences.SelectedColor;
+        var groundColors = _preferences.GroundColors;
+        _groundBackgroundColor = groundColors.Background;
+        _groundTaxiwayColor = groundColors.Taxiway;
+        _groundTaxiLabelColor = groundColors.TaxiLabel;
+        _groundRampEdgeColor = groundColors.RampEdge;
+        _groundHoldShortColor = groundColors.HoldShort;
+        _groundRunwayFillColor = groundColors.RunwayFill;
+        _groundRunwayOutlineColor = groundColors.RunwayOutline;
+        _groundAircraftColor = groundColors.Aircraft;
+        _groundDatablockTextColor = groundColors.DatablockText;
+        _groundBrightness = groundColors.Brightness;
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
         _dataGridFontSize = _preferences.DataGridFontSize;
         _groundHideDataBlocksByDefault = _preferences.GroundHideDataBlocksByDefault;
@@ -300,6 +343,20 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetAssignmentTint(AssignmentTintEnabled, AssignmentTintColor);
         _preferences.SetUnassignedTint(UnassignedTintEnabled, UnassignedTintColor);
         _preferences.SetSelectedColor(SelectedColor);
+        _preferences.SetGroundColors(
+            new GroundColorScheme(
+                GroundBackgroundColor,
+                GroundTaxiwayColor,
+                GroundTaxiLabelColor,
+                GroundRampEdgeColor,
+                GroundHoldShortColor,
+                GroundRunwayFillColor,
+                GroundRunwayOutlineColor,
+                GroundAircraftColor,
+                GroundDatablockTextColor,
+                GroundBrightness
+            )
+        );
         _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
         _preferences.SetDataGridFontSize(DataGridFontSize);
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
@@ -818,5 +875,26 @@ public partial class SettingsViewModel : ObservableObject
         }
 
         return key != Key.None;
+    }
+
+    [RelayCommand]
+    private void ResetAllColors()
+    {
+        var d = GroundColorScheme.Default;
+        GroundBackgroundColor = d.Background;
+        GroundTaxiwayColor = d.Taxiway;
+        GroundTaxiLabelColor = d.TaxiLabel;
+        GroundRampEdgeColor = d.RampEdge;
+        GroundHoldShortColor = d.HoldShort;
+        GroundRunwayFillColor = d.RunwayFill;
+        GroundRunwayOutlineColor = d.RunwayOutline;
+        GroundAircraftColor = d.Aircraft;
+        GroundDatablockTextColor = d.DatablockText;
+        GroundBrightness = d.Brightness;
+        AssignmentTintEnabled = false;
+        AssignmentTintColor = "#00FF00";
+        UnassignedTintEnabled = false;
+        UnassignedTintColor = "#888888";
+        SelectedColor = "#FFFFFF";
     }
 }

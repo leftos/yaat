@@ -78,6 +78,9 @@ public partial class GroundViewModel : ObservableObject
     private bool _isPanZoomLocked;
 
     [ObservableProperty]
+    private GroundColorScheme _colorScheme = GroundColorScheme.Default;
+
+    [ObservableProperty]
     private double _viewCenterLat;
 
     [ObservableProperty]
@@ -139,6 +142,7 @@ public partial class GroundViewModel : ObservableObject
             ShowParking = preferences.GroundShowParking;
             ShowSpot = preferences.GroundShowSpot;
             IsPanZoomLocked = preferences.GroundPanZoomLocked;
+            ColorScheme = preferences.GroundColors;
         }
     }
 

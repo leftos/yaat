@@ -66,6 +66,7 @@
                              ShowHoldShort="{Binding ShowHoldShort}"
                              ShowParking="{Binding ShowParking}"
                              ShowSpot="{Binding ShowSpot}"
+                             ColorScheme="{Binding ColorScheme}"
                              ShownTaxiRoutes="{Binding ShownTaxiRoutes}"
                              IsPanZoomLocked="{Binding IsPanZoomLocked}"
                              ViewCenterLat="{Binding ViewCenterLat, Mode=TwoWay}"

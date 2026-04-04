@@ -94,6 +94,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         defaultValue: GroundFilterMode.LabelsAndIcons
     );
 
+    public static readonly StyledProperty<GroundColorScheme> ColorSchemeProperty = AvaloniaProperty.Register<GroundCanvas, GroundColorScheme>(
+        nameof(ColorScheme),
+        defaultValue: GroundColorScheme.Default
+    );
+
     public static readonly StyledProperty<bool> IsPanZoomLockedProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(IsPanZoomLocked));
 
     public static readonly StyledProperty<double> ViewCenterLatProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewCenterLat));
@@ -210,6 +215,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(ShowSpotProperty);
         set => SetValue(ShowSpotProperty, value);
+    }
+
+    public GroundColorScheme ColorScheme
+    {
+        get => GetValue(ColorSchemeProperty);
+        set => SetValue(ColorSchemeProperty, value);
     }
 
     public bool IsPanZoomLocked
@@ -372,6 +383,11 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == ShowSpotProperty
         )
         {
+            MarkDirty();
+        }
+        else if (change.Property == ColorSchemeProperty)
+        {
+            _renderer.SetColors(ColorScheme);
             MarkDirty();
         }
         else if (change.Property == IsPanZoomLockedProperty)
