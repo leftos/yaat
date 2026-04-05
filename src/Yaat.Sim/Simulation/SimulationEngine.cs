@@ -406,7 +406,13 @@ public sealed class SimulationEngine
     public void TickPostPhysics()
     {
         World.DrainAllWarnings();
-        World.DrainAllNotifications();
+
+        var notifications = World.DrainAllNotifications();
+        foreach (var (callsign, notification) in notifications)
+        {
+            EmitTerminal("Response", callsign, notification);
+        }
+
         World.DrainAllApproachScores();
     }
 
@@ -870,6 +876,25 @@ public sealed class SimulationEngine
                 }
 
                 aircraft.DeferredDispatches.RemoveAt(i);
+
+                var payloadDesc = DescribeDeferredPayload(d);
+                string conditionDesc;
+                if (d.GiveWayTarget is not null)
+                {
+                    conditionDesc = $"Give-way cleared ({d.GiveWayTarget})";
+                }
+                else if (d.IsDistanceBased)
+                {
+                    conditionDesc = "Distance reached";
+                }
+                else
+                {
+                    conditionDesc = "WAIT expired";
+                }
+
+                _logger.LogInformation("[Deferred] {Callsign}: {Condition} → {Payload}", aircraft.Callsign, conditionDesc, payloadDesc);
+                EmitTerminal("System", aircraft.Callsign, $"[Deferred] {conditionDesc} → {payloadDesc}");
+
                 var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
                 CommandDispatcher.DispatchCompound(
                     d.Payload,
@@ -881,6 +906,18 @@ public sealed class SimulationEngine
                 );
             }
         }
+    }
+
+    private static string DescribeDeferredPayload(DeferredDispatch d)
+    {
+        var parts = new List<string>();
+        foreach (var block in d.Payload.Blocks)
+        {
+            var cmds = string.Join(", ", block.Commands.Select(CommandDescriber.DescribeNatural));
+            parts.Add(cmds);
+        }
+
+        return string.Join("; then ", parts);
     }
 
     private bool IsGiveWayDeferredMet(AircraftState aircraft, string targetCallsign)
