@@ -247,7 +247,7 @@ Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGroundLayout?
 AirportGroundLayout.cs         # Graph: Nodes + Edges (GroundNode, GroundEdge); FindNearestExit/FindExitBySide/FindExitAheadOnRunway (runway-aware filtering), FindGroundRunway, GetRunwayHoldShortNodes
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
-TaxiRoute.cs                   # Resolved path: Segments + HoldShortPoints + DestinationParking/DestinationSpot + completion
+TaxiRoute.cs                   # Resolved path: Segments + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiPathfinder.cs              # ResolveExplicitPath (destinationHintNode for parking direction), FindRoute (A*), variant inference
 TaxiVariantResolver.cs         # Variant path resolution (e.g., A vs A1)
 TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
@@ -255,7 +255,7 @@ GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via Spl
 CoordinateIndex.cs             # Spatial index for coordinate-based lookups
 RunwayCrossingDetector.cs      # Detect taxiway/runway intersections
 RunwayIntersectionCalculator.cs # LAHSO: runway centerline intersection + hold-short distance
-HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes
+HoldShortAnnotator.cs          # Annotate hold-short points on taxi routes; ComputeHoldShortPositions offsets taxiway HS by fuselage length
 
 # Data/
 AircraftProfile.cs             # Per-type performance profile record (from AircraftProfiles.json)
