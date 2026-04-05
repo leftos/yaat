@@ -84,15 +84,9 @@ public class ExitRightTaxiwaySelectionTests(ITestOutputHelper output)
             // CurrentTaxiway is set when RunwayExitPhase completes
             if (ac.CurrentTaxiway is not null)
             {
-                output.WriteLine(
-                    $"t+{t}: exited runway at taxiway {ac.CurrentTaxiway} hdg={ac.TrueHeading.Degrees:F0}"
-                );
+                output.WriteLine($"t+{t}: exited runway at taxiway {ac.CurrentTaxiway} hdg={ac.TrueHeading.Degrees:F0}");
 
-                Assert.Equal(
-                    "D",
-                    ac.CurrentTaxiway.ToUpperInvariant(),
-                    StringComparer.OrdinalIgnoreCase
-                );
+                Assert.Equal("D", ac.CurrentTaxiway.ToUpperInvariant(), StringComparer.OrdinalIgnoreCase);
                 return;
             }
         }

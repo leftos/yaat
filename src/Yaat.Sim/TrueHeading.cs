@@ -7,7 +7,7 @@ namespace Yaat.Sim;
 public readonly record struct TrueHeading(double Degrees)
 {
     /// <summary>Normalized to [0, 360).</summary>
-    public double Degrees { get; } = ((Degrees % 360.0) + 360.0) % 360.0;
+    public double Degrees { get; init; } = ((Degrees % 360.0) + 360.0) % 360.0;
 
     // --- Frame conversion ---
 

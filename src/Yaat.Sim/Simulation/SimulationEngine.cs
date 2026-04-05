@@ -137,6 +137,12 @@ public sealed class SimulationEngine
                 foreach (var d in scenarioDto.DelayedQueue)
                 {
                     var aircraft = JsonSerializer.Deserialize<LoadedAircraft>(d.AircraftJson)!;
+                    // Reattach ground layout — excluded from JSON by [JsonIgnore], resolve by airport ID
+                    if (aircraft.State.GroundLayoutAirportId is { } layoutAirportId)
+                    {
+                        aircraft.State.GroundLayout = _groundData.GetLayout(layoutAirportId);
+                    }
+
                     Scenario.DelayedQueue.Add(new DelayedSpawn { Aircraft = aircraft, SpawnAtSeconds = d.SpawnAtSeconds });
                 }
             }

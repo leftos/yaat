@@ -103,6 +103,7 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 ```
 # Core
 AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops
+                               # GroundLayout is [JsonIgnore]; GroundLayoutAirportId preserves reference for archive restore
                                # IndicatedAirspeed (IAS, primary speed state), Track (ground track = heading + wind drift)
                                # BankAngle (degrees, +right/-left, computed by FlightPhysics.UpdateHeading from TAS + turn rate)
                                # ActiveSidId/ActiveStarId, SidViaMode/StarViaMode, SidViaCeiling/StarViaFloor
@@ -292,11 +293,16 @@ SpawnRequest.cs                # Spawn descriptor
 
 # Simulation/
 SimulationEngine.cs            # Scenario load, tick orchestration, replay (ReplayTo, ReplayRange, ReplayWithSnapshots)
-                               # CaptureSnapshot/RestoreFromSnapshot for v2 recording state snapshots
-SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination, LoadedSnapshots
+                               # CaptureSnapshot/RestoreFromSnapshot; reattaches GroundLayouts to delayed spawns on restore
+SimScenarioState.cs            # Per-scenario runtime state: queues, settings, ATC positions, coordination
 SessionRecording.cs            # v1 (commands) + v2 (commands + snapshots) recording format; Version, Snapshots fields
 RecordedAction.cs              # Polymorphic recorded actions: Command, AmendFlightPlan, WeatherChange, SettingChange
 RecordingCompression.cs        # Brotli compress/decompress; auto-detects Brotli, gzip, or plain JSON on read
+RecordingArchive.cs            # v4 ZIP archive reader: on-demand snapshot loading, layout reading, seek API
+                               # ToBaseSessionRecording (no snapshots), FindNearestSnapshotIndex, ReadSnapshotAt
+RecordingArchiveWriter.cs      # v4 ZIP archive writer: streaming snapshots + deduplicated ground layouts
+RecordingManifest.cs           # Archive manifest: snapshot index, LayoutAirportIds, metadata
+RecordingJsonOptions.cs        # Shared JsonSerializerOptions for recording serialization
 ScenarioQueues.cs              # DelayedSpawn, ScheduledTrigger, ScheduledPreset, GeneratorState, DelayedHandoff
 ConsolidationState.cs          # Thread-safe manual consolidation overrides
 

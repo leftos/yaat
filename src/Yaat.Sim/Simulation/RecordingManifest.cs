@@ -19,6 +19,12 @@ public sealed class RecordingManifest
     public string? RecordedBy { get; init; }
 
     public required List<SnapshotIndexEntry> Snapshots { get; init; }
+
+    /// <summary>
+    /// Airport IDs whose ground layouts are stored as separate entries in the archive.
+    /// Present in v4+ archives. Null or empty for v3.
+    /// </summary>
+    public List<string>? LayoutAirportIds { get; init; }
 }
 
 /// <summary>

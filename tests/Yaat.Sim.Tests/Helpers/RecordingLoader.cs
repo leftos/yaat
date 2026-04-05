@@ -61,10 +61,10 @@ public static class RecordingLoader
 
         if (zip.GetEntry("manifest.json") is not null)
         {
-            // v3 archive — use RecordingArchive reader
+            // v4 archive — load base only (no snapshots) for replay
             zip.Dispose();
             using var archive = RecordingArchive.Open(path);
-            return archive.ToSessionRecording();
+            return archive.ToBaseSessionRecording();
         }
 
         // Legacy bug-report bundle
@@ -95,6 +95,6 @@ public static class RecordingLoader
     private static SessionRecording? LoadFromZipStream(MemoryStream ms)
     {
         using var archive = RecordingArchive.Open(ms);
-        return archive.ToSessionRecording();
+        return archive.ToBaseSessionRecording();
     }
 }

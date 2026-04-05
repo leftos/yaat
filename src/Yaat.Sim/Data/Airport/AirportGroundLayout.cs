@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -32,7 +33,7 @@ public sealed class GroundNode
     /// <summary>
     /// Adjacent edges for graph traversal. Populated during layout construction.
     /// </summary>
-    public List<GroundEdge> Edges { get; } = [];
+    public List<GroundEdge> Edges { get; init; } = [];
 }
 
 public sealed class GroundEdge
@@ -59,9 +60,10 @@ public sealed class GroundRunway
 public sealed class AirportGroundLayout
 {
     public required string AirportId { get; init; }
-    public Dictionary<int, GroundNode> Nodes { get; } = [];
-    public List<GroundEdge> Edges { get; } = [];
-    public List<GroundRunway> Runways { get; } = [];
+
+    public Dictionary<int, GroundNode> Nodes { get; init; } = [];
+    public List<GroundEdge> Edges { get; init; } = [];
+    public List<GroundRunway> Runways { get; init; } = [];
 
     public GroundNode? FindParkingByName(string name)
     {

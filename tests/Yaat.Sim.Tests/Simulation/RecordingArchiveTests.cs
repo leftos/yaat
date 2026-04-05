@@ -1,5 +1,7 @@
 using System.IO.Compression;
+using System.Text.Json;
 using Xunit;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -80,7 +82,7 @@ public class RecordingArchiveTests
         using var archive = RecordingArchive.Open(ms);
         var manifest = archive.Manifest;
 
-        Assert.Equal(3, manifest.Version);
+        Assert.Equal(4, manifest.Version);
         Assert.Equal(42, manifest.RngSeed);
         Assert.Equal(15.0, manifest.TotalElapsedSeconds);
         Assert.Equal(3, manifest.ActionCount);
@@ -215,7 +217,7 @@ public class RecordingArchiveTests
         using var archive = RecordingArchive.Open(ms);
 
         var restored = archive.ToSessionRecording();
-        Assert.Equal(3, restored.Version);
+        Assert.Equal(4, restored.Version);
         Assert.Equal(original.ScenarioJson, restored.ScenarioJson);
         Assert.Equal(original.RngSeed, restored.RngSeed);
         Assert.Equal(original.WeatherJson, restored.WeatherJson);
@@ -263,5 +265,275 @@ public class RecordingArchiveTests
         Assert.Contains("snapshots/000.json.br", entryNames);
         Assert.Contains("snapshots/001.json.br", entryNames);
         Assert.Contains("snapshots/002.json.br", entryNames);
+    }
+
+    [Fact]
+    public void ReadLayout_RoundTripsGroundLayout()
+    {
+        var layout = new AirportGroundLayout { AirportId = "KOAK" };
+        layout.Runways.Add(
+            new GroundRunway
+            {
+                Name = "10R/28L",
+                Coordinates = [(37.72, -122.22), (37.73, -122.23)],
+                WidthFt = 150.0,
+            }
+        );
+
+        using var ms = new MemoryStream();
+        using (var writer = new RecordingArchiveWriter(ms))
+        {
+            writer.WriteScenario("{}");
+            writer.WriteActions([]);
+            writer.WriteLayout(layout);
+            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+        }
+
+        ms.Position = 0;
+        using var archive = RecordingArchive.Open(ms);
+
+        var restored = archive.ReadLayout("KOAK");
+        Assert.Equal("KOAK", restored.AirportId);
+        Assert.Single(restored.Runways);
+        Assert.Equal("10R/28L", restored.Runways[0].Name);
+    }
+
+    [Fact]
+    public void ReadAllLayouts_ReturnsAllLayouts()
+    {
+        using var ms = new MemoryStream();
+        using (var writer = new RecordingArchiveWriter(ms))
+        {
+            writer.WriteScenario("{}");
+            writer.WriteActions([]);
+            writer.WriteLayout(new AirportGroundLayout { AirportId = "KOAK" });
+            writer.WriteLayout(new AirportGroundLayout { AirportId = "KSFO" });
+            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+        }
+
+        ms.Position = 0;
+        using var archive = RecordingArchive.Open(ms);
+
+        var layouts = archive.ReadAllLayouts();
+        Assert.Equal(2, layouts.Count);
+        Assert.True(layouts.ContainsKey("KOAK"));
+        Assert.True(layouts.ContainsKey("KSFO"));
+    }
+
+    [Fact]
+    public void SnapshotTimestamps_ReturnsManifestIndex()
+    {
+        var recording = CreateTestRecording(snapshotCount: 4);
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        var timestamps = archive.SnapshotTimestamps;
+        Assert.Equal(4, timestamps.Count);
+        Assert.Equal(0.0, timestamps[0].ElapsedSeconds);
+        Assert.Equal(5.0, timestamps[1].ElapsedSeconds);
+        Assert.Equal(10.0, timestamps[2].ElapsedSeconds);
+        Assert.Equal(15.0, timestamps[3].ElapsedSeconds);
+    }
+
+    [Fact]
+    public void FindNearestSnapshotIndex_ReturnsClosestBefore()
+    {
+        var recording = CreateTestRecording(snapshotCount: 4); // t=0, 5, 10, 15
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        Assert.Equal(2, archive.FindNearestSnapshotIndex(12.0)); // closest <= 12 is index 2 (t=10)
+        Assert.Equal(3, archive.FindNearestSnapshotIndex(15.0)); // exact match
+        Assert.Equal(0, archive.FindNearestSnapshotIndex(0.0)); // exact match at start
+        Assert.Equal(3, archive.FindNearestSnapshotIndex(999.0)); // past end -> last
+        Assert.Null(archive.FindNearestSnapshotIndex(-1.0)); // before all -> null
+    }
+
+    [Fact]
+    public void ReadSnapshotAt_LoadsNearestSnapshot()
+    {
+        var recording = CreateTestRecording(snapshotCount: 4); // t=0, 5, 10, 15
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        var snapshot = archive.ReadSnapshotAt(7.0);
+        Assert.NotNull(snapshot);
+        Assert.Equal(5.0, snapshot!.ElapsedSeconds);
+    }
+
+    [Fact]
+    public void ToBaseSessionRecording_ExcludesSnapshots()
+    {
+        var recording = CreateTestRecording(snapshotCount: 10);
+        var bytes = RecordingArchiveWriter.WriteToBytes(recording);
+
+        using var ms = new MemoryStream(bytes);
+        using var archive = RecordingArchive.Open(ms);
+
+        var base_ = archive.ToBaseSessionRecording();
+        Assert.Equal(recording.ScenarioJson, base_.ScenarioJson);
+        Assert.Equal(recording.RngSeed, base_.RngSeed);
+        Assert.Equal(recording.WeatherJson, base_.WeatherJson);
+        Assert.Equal(3, base_.Actions.Count);
+        Assert.Null(base_.Snapshots);
+    }
+
+    [Fact]
+    public void WriteLayout_CreatesLayoutEntry()
+    {
+        var layout = new AirportGroundLayout { AirportId = "KOAK" };
+        layout.Runways.Add(
+            new GroundRunway
+            {
+                Name = "10R/28L",
+                Coordinates = [(37.72, -122.22), (37.73, -122.23)],
+                WidthFt = 150.0,
+            }
+        );
+
+        using var ms = new MemoryStream();
+        using (var writer = new RecordingArchiveWriter(ms))
+        {
+            writer.WriteScenario("{}");
+            writer.WriteActions([]);
+            writer.WriteLayout(layout);
+            writer.Finish("test", "test-1", "ZOA", 42, 0, null, null);
+        }
+
+        ms.Position = 0;
+        using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
+        Assert.NotNull(zip.GetEntry("layouts/KOAK.json.br"));
+
+        // Verify manifest declares the layout
+        ms.Position = 0;
+        using var archive = RecordingArchive.Open(ms);
+        Assert.Equal(4, archive.Manifest.Version);
+        Assert.NotNull(archive.Manifest.LayoutAirportIds);
+        Assert.Contains("KOAK", archive.Manifest.LayoutAirportIds);
+    }
+
+    [Fact]
+    public void AirportGroundLayout_JsonRoundTrip()
+    {
+        var layout = new AirportGroundLayout { AirportId = "KOAK" };
+
+        var node1 = new GroundNode
+        {
+            Id = 1,
+            Latitude = 37.72,
+            Longitude = -122.22,
+            Type = GroundNodeType.TaxiwayIntersection,
+            Name = "J",
+        };
+        var node2 = new GroundNode
+        {
+            Id = 2,
+            Latitude = 37.73,
+            Longitude = -122.23,
+            Type = GroundNodeType.RunwayHoldShort,
+            Name = "HS-28L",
+            RunwayId = RunwayIdentifier.Parse("10R/28L"),
+            TrueHeading = new TrueHeading(280.0),
+        };
+
+        var edge = new GroundEdge
+        {
+            FromNodeId = 1,
+            ToNodeId = 2,
+            TaxiwayName = "J",
+            DistanceNm = 0.05,
+            IntermediatePoints = [(37.725, -122.225)],
+        };
+
+        node1.Edges.Add(edge);
+        node2.Edges.Add(edge);
+        layout.Nodes[1] = node1;
+        layout.Nodes[2] = node2;
+        layout.Edges.Add(edge);
+        layout.Runways.Add(
+            new GroundRunway
+            {
+                Name = "10R/28L",
+                Coordinates = [(37.72, -122.22), (37.73, -122.23)],
+                WidthFt = 150.0,
+            }
+        );
+
+        var json = JsonSerializer.Serialize(layout, RecordingJsonOptions.Default);
+        var restored = JsonSerializer.Deserialize<AirportGroundLayout>(json, RecordingJsonOptions.Default)!;
+
+        Assert.Equal("KOAK", restored.AirportId);
+        Assert.Equal(2, restored.Nodes.Count);
+        Assert.Single(restored.Edges);
+        Assert.Single(restored.Runways);
+
+        var restoredNode1 = restored.Nodes[1];
+        Assert.Equal("J", restoredNode1.Name);
+        Assert.Single(restoredNode1.Edges);
+        Assert.Equal("J", restoredNode1.Edges[0].TaxiwayName);
+        Assert.Single(restoredNode1.Edges[0].IntermediatePoints);
+
+        var restoredNode2 = restored.Nodes[2];
+        Assert.Equal(GroundNodeType.RunwayHoldShort, restoredNode2.Type);
+        Assert.NotNull(restoredNode2.RunwayId);
+        Assert.True(restoredNode2.RunwayId.Value.Contains("28L"));
+        Assert.NotNull(restoredNode2.TrueHeading);
+        Assert.Equal(280.0, restoredNode2.TrueHeading.Value.Degrees, 0.01);
+
+        Assert.Equal("10R/28L", restored.Runways[0].Name);
+        Assert.Equal(150.0, restored.Runways[0].WidthFt);
+    }
+
+    [Fact]
+    public void AircraftState_GroundLayout_ExcludedFromJson()
+    {
+        var layout = new AirportGroundLayout { AirportId = "KOAK" };
+        var ac = new AircraftState
+        {
+            Callsign = "AAL100",
+            AircraftType = "B738",
+            GroundLayout = layout,
+        };
+
+        var json = JsonSerializer.Serialize(ac);
+
+        // GroundLayout object must not appear in JSON
+        Assert.DoesNotContain("\"Nodes\"", json);
+        Assert.DoesNotContain("\"Edges\"", json);
+        // But GroundLayoutAirportId must be preserved
+        Assert.Contains("\"GroundLayoutAirportId\"", json);
+        Assert.Contains("KOAK", json);
+    }
+
+    [Fact]
+    public void AircraftState_GroundLayoutAirportId_RoundTrips()
+    {
+        var layout = new AirportGroundLayout { AirportId = "KOAK" };
+        var ac = new AircraftState
+        {
+            Callsign = "AAL100",
+            AircraftType = "B738",
+            GroundLayout = layout,
+        };
+
+        var json = JsonSerializer.Serialize(ac);
+        var restored = JsonSerializer.Deserialize<AircraftState>(json)!;
+
+        Assert.Null(restored.GroundLayout);
+        Assert.Equal("KOAK", restored.GroundLayoutAirportId);
+    }
+
+    [Fact]
+    public void AircraftState_GroundLayoutAirportId_NullWhenNoLayout()
+    {
+        var ac = new AircraftState { Callsign = "AAL100", AircraftType = "B738" };
+
+        Assert.Null(ac.GroundLayoutAirportId);
     }
 }

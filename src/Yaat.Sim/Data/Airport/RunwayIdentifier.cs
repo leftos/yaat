@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
@@ -10,6 +12,7 @@ public readonly struct RunwayIdentifier : IEquatable<RunwayIdentifier>
     public string End1 { get; }
     public string End2 { get; }
 
+    [JsonConstructor]
     public RunwayIdentifier(string end1, string end2)
     {
         End1 = Normalize(end1);

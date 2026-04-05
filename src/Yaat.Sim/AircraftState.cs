@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -89,8 +90,23 @@ public class AircraftState
     /// <summary>
     /// Cached ground layout for the airport this aircraft is currently at (or about to land at).
     /// Set at lifecycle events: spawn, CLAND, flight plan amend. Used by phases and commands.
+    /// Excluded from JSON serialization — layouts are stored separately in recording archives.
     /// </summary>
+    [JsonIgnore]
     public AirportGroundLayout? GroundLayout { get; set; }
+
+    /// <summary>
+    /// Airport ID reference for the ground layout. When <see cref="GroundLayout"/> is set,
+    /// returns its AirportId. When deserialized from JSON (no layout attached), returns the
+    /// stored reference so the layout can be reattached by the caller.
+    /// </summary>
+    public string? GroundLayoutAirportId
+    {
+        get => GroundLayout?.AirportId ?? _groundLayoutAirportId;
+        set => _groundLayoutAirportId = value;
+    }
+
+    private string? _groundLayoutAirportId;
     public string Route { get; set; } = "";
     public string Remarks { get; set; } = "";
     public string EquipmentSuffix { get; set; } = "A";

@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Simulation;
@@ -13,6 +14,7 @@ public sealed class RecordingArchiveWriter : IDisposable
 {
     private readonly ZipArchive _zip;
     private readonly List<SnapshotIndexEntry> _snapshotIndex = [];
+    private readonly List<string> _layoutAirportIds = [];
     private bool _finished;
     private int _actionCount;
     private bool _hasWeather;
@@ -58,6 +60,16 @@ public sealed class RecordingArchiveWriter : IDisposable
     }
 
     /// <summary>
+    /// Write a ground layout to the archive. Call once per unique airport.
+    /// </summary>
+    public void WriteLayout(AirportGroundLayout layout)
+    {
+        _layoutAirportIds.Add(layout.AirportId);
+        var jsonBytes = JsonSerializer.SerializeToUtf8Bytes(layout, RecordingJsonOptions.Default);
+        WriteBrotliEntry($"layouts/{layout.AirportId}.json.br", jsonBytes);
+    }
+
+    /// <summary>
     /// Writes <c>manifest.json</c> as the final entry and closes the archive.
     /// </summary>
     public void Finish(
@@ -79,7 +91,7 @@ public sealed class RecordingArchiveWriter : IDisposable
 
         var manifest = new RecordingManifest
         {
-            Version = 3,
+            Version = 4,
             RngSeed = rngSeed,
             TotalElapsedSeconds = totalElapsedSeconds,
             ActionCount = _actionCount,
@@ -90,6 +102,7 @@ public sealed class RecordingArchiveWriter : IDisposable
             RecordedAtUtc = recordedAtUtc,
             RecordedBy = recordedBy,
             Snapshots = _snapshotIndex,
+            LayoutAirportIds = _layoutAirportIds.Count > 0 ? _layoutAirportIds : null,
         };
 
         var manifestJson = JsonSerializer.SerializeToUtf8Bytes(manifest, RecordingJsonOptions.Default);
