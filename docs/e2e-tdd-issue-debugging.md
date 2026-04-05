@@ -492,6 +492,7 @@ dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [options]
 | Parking | `--parking` | All parking nodes with positions and headings |
 | Spots | `--spots` | Taxiway intersection spots |
 | JSON output | `--json` | Machine-readable output for scripting |
+| Full dump | `--dump` | Everything (all nodes, taxiways, runways, exits, parking, spots) as one JSON file. Pipe to a file and grep as needed |
 
 ### When to Use
 

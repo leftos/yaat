@@ -262,6 +262,37 @@ public sealed class LayoutAnalyzer
         return new TrueHeading(0);
     }
 
+    public FullDumpResult GetFullDump()
+    {
+        var overview = GetOverview();
+
+        var allNodes = new Dictionary<int, NodeInfo>();
+        foreach (var node in Layout.Nodes.Values)
+        {
+            allNodes[node.Id] = BuildNodeInfo(node);
+        }
+
+        var taxiways = new Dictionary<string, TaxiwayResult>();
+        foreach (string name in overview.TaxiwayNames)
+        {
+            taxiways[name] = GetTaxiwayDetail(name);
+        }
+
+        var runways = new Dictionary<string, RunwayResult>();
+        var exits = new Dictionary<string, ExitsResult>();
+        foreach (string rwyName in overview.RunwayNames)
+        {
+            var id = RunwayIdentifier.Parse(rwyName);
+            foreach (string designator in new[] { id.End1, id.End2 })
+            {
+                runways[designator] = GetRunwayDetail(designator);
+                exits[designator] = GetExits(designator);
+            }
+        }
+
+        return new FullDumpResult(overview, allNodes, taxiways, runways, exits, GetParking(), GetSpots());
+    }
+
     public BfsPathResult GetBfsPath(int startNodeId, string taxiway)
     {
         if (!Layout.Nodes.TryGetValue(startNodeId, out var startNode))

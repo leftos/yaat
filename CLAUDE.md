@@ -21,10 +21,10 @@ qodana scan --results-dir .tmp/qodana-results  # Static analysis (local only)
 `tools/Yaat.LayoutInspector/` loads an airport GeoJSON and queries the ground graph. Use it to understand airport topology when debugging ground/exit/taxi bugs.
 
 ```bash
-dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [--node N] [--taxiway T] [--runway 28R] [--exits 28R] [--path N T] [--parking] [--spots] [--json]
+dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [--node N] [--taxiway T] [--runway 28R] [--exits 28R] [--path N T] [--parking] [--spots] [--json] [--dump]
 ```
 
-Key use cases: trace multi-hop exit paths (`--path 230 T`), find all exits from a runway (`--exits 28R`), inspect node connectivity (`--node N`), verify hold-short runway IDs (`--runway 28R`). See `docs/e2e-tdd-issue-debugging.md` for detailed examples.
+Key use cases: trace multi-hop exit paths (`--path 230 T`), find all exits from a runway (`--exits 28R`), inspect node connectivity (`--node N`), verify hold-short runway IDs (`--runway 28R`), dump entire airport to JSON for grepping (`--dump > .tmp/oak.json`). See `docs/e2e-tdd-issue-debugging.md` for detailed examples.
 
 ## Logs
 

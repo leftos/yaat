@@ -52,6 +52,16 @@ public sealed record BfsStep(int NodeId, string NodeType, int Depth, List<BfsEdg
 
 public sealed record BfsEdgeExplored(int NeighborId, string TaxiwayName, double DistanceNm, string NeighborType, string Action, string Reason);
 
+public sealed record FullDumpResult(
+    OverviewResult Overview,
+    Dictionary<int, NodeInfo> Nodes,
+    Dictionary<string, TaxiwayResult> Taxiways,
+    Dictionary<string, RunwayResult> Runways,
+    Dictionary<string, ExitsResult> Exits,
+    List<NodeInfo> Parking,
+    List<NodeInfo> Spots
+);
+
 public sealed record BfsPathResult(
     int FromNodeId,
     string Taxiway,

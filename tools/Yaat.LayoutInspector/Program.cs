@@ -30,6 +30,7 @@ public static class Program
         bool showParking = false;
         bool showSpots = false;
         bool jsonOutput = false;
+        bool dumpAll = false;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -66,6 +67,10 @@ public static class Program
                 case "--json":
                     jsonOutput = true;
                     break;
+                case "--dump":
+                    dumpAll = true;
+                    jsonOutput = true;
+                    break;
                 default:
                     Console.Error.WriteLine($"Unknown flag: {args[i]}");
                     PrintUsage();
@@ -84,6 +89,14 @@ public static class Program
         {
             Console.Error.WriteLine($"Failed to parse GeoJSON: {ex.Message}");
             return 1;
+        }
+
+        if (dumpAll)
+        {
+            var dump = analyzer.GetFullDump();
+            var json = System.Text.Json.JsonSerializer.Serialize(dump, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            Console.Write(json);
+            return 0;
         }
 
         IFormatter formatter = jsonOutput ? new JsonFormatter(Console.Out) : new TextFormatter(Console.Out);
@@ -197,6 +210,7 @@ public static class Program
         Console.WriteLine("  --path <node-id> <twy>   BFS trace from node through taxiway to hold-short");
         Console.WriteLine("  --parking                Show all parking nodes");
         Console.WriteLine("  --spots                  Show all spot/named nodes");
+        Console.WriteLine("  --dump                   Dump everything (nodes, taxiways, runways, exits) as JSON");
         Console.WriteLine("  --json                   Output as JSON");
         Console.WriteLine("  --airport-code <ICAO>    Airport code for NavData runway widths");
         Console.WriteLine("  --navdata <dir>          Path to NavData.dat + FAACIFP18.gz directory");
