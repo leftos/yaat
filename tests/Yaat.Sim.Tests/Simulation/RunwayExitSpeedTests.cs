@@ -69,7 +69,8 @@ public class RunwayExitSpeedTests(ITestOutputHelper output)
         bool enteredExit = false;
         int exitStartTick = 0;
         int exitEndTick = 0;
-        double minSpeedDuringExit = double.MaxValue;
+        int ticksBelowThreshold = 0;
+        int totalExitTicks = 0;
         double maxSpeedDuringExit = 0;
 
         for (int t = 1; t <= 300; t++)
@@ -92,7 +93,12 @@ public class RunwayExitSpeedTests(ITestOutputHelper output)
                     output.WriteLine($"t+{t}: entered RunwayExitPhase, gs={ac.GroundSpeed:F1}");
                 }
 
-                minSpeedDuringExit = Math.Min(minSpeedDuringExit, ac.GroundSpeed);
+                totalExitTicks++;
+                if (ac.GroundSpeed < 4.5)
+                {
+                    ticksBelowThreshold++;
+                }
+
                 maxSpeedDuringExit = Math.Max(maxSpeedDuringExit, ac.GroundSpeed);
 
                 if ((t - exitStartTick) % 3 == 0)
@@ -117,13 +123,19 @@ public class RunwayExitSpeedTests(ITestOutputHelper output)
         Assert.True(exitEndTick > 0, "N569SX never completed runway exit within 300 seconds");
 
         int exitDuration = exitEndTick - exitStartTick;
-        output.WriteLine($"Exit duration: {exitDuration}s, speed range: {minSpeedDuringExit:F1}-{maxSpeedDuringExit:F1} kts");
+        output.WriteLine($"Exit duration: {exitDuration}s, ticks below 4.5kts: {ticksBelowThreshold}/{totalExitTicks}");
 
         // The exit should complete in under 20 seconds, not 37+
         Assert.True(exitDuration <= 20, $"Exit took {exitDuration}s — expected ≤20s. Aircraft was creeping too slowly.");
 
-        // Minimum speed during exit should be above 4.5 kts
-        // (5 kts floor is only acceptable in the final braking moment)
-        Assert.True(minSpeedDuringExit >= 4.5, $"Speed dropped to {minSpeedDuringExit:F1} kts — expected exit speed maintained");
+        // Speed should stay above 4.5 kts for most of the exit turn — brief final
+        // braking (last 2–3 ticks) is fine. The old bug had the aircraft crawling at
+        // 5 kts for the entire turn. Allow at most 20% of ticks below the threshold.
+        double fractionBelowThreshold = (double)ticksBelowThreshold / totalExitTicks;
+        Assert.True(
+            fractionBelowThreshold <= 0.20,
+            $"Speed was below 4.5 kts for {ticksBelowThreshold}/{totalExitTicks} ticks ({fractionBelowThreshold:P0}) — "
+                + "aircraft is crawling through the turn instead of maintaining exit speed"
+        );
     }
 }

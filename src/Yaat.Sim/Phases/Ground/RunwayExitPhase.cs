@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -42,6 +43,11 @@ public sealed class RunwayExitPhase : Phase
     private GroundNode? _holdShortNode;
     private string? _exitTaxiway;
 
+    // Virtual stop target: halfLength past the hold-short node so the tail clears the line.
+    private double _virtualTargetLat;
+    private double _virtualTargetLon;
+    private bool _hasVirtualTarget;
+
     // Waypoint-following state (from ResolvedExitInfo or BFS path)
     private List<GroundNode>? _exitWaypoints;
     private int _currentWaypointIndex;
@@ -75,6 +81,8 @@ public sealed class RunwayExitPhase : Phase
             // Path includes branch point as first node — skip it (we're already there)
             _exitWaypoints = committed.Path.Count > 1 ? committed.Path.GetRange(1, committed.Path.Count - 1) : [committed.HoldShortNode];
             _currentWaypointIndex = 0;
+
+            ComputeVirtualTarget(ctx);
 
             ctx.Logger.LogDebug(
                 "[Exit] {Callsign}: using committed exit {Twy}, {WpCount} waypoints to hold-short {HsId}",
@@ -269,6 +277,21 @@ public sealed class RunwayExitPhase : Phase
             total = GeoMath.DistanceNm(prevLat, prevLon, _holdShortNode.Latitude, _holdShortNode.Longitude);
         }
 
+        // Include distance from hold-short node to virtual stop target (halfLength past it).
+        // When all waypoints have been passed, measure directly from aircraft to virtual target.
+        if (_hasVirtualTarget)
+        {
+            bool pastAllWaypoints = (_exitWaypoints is null) || (_currentWaypointIndex >= _exitWaypoints.Count);
+            if (pastAllWaypoints)
+            {
+                total = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _virtualTargetLat, _virtualTargetLon);
+            }
+            else if (_holdShortNode is not null)
+            {
+                total += GeoMath.DistanceNm(_holdShortNode.Latitude, _holdShortNode.Longitude, _virtualTargetLat, _virtualTargetLon);
+            }
+        }
+
         return total;
     }
 
@@ -328,6 +351,49 @@ public sealed class RunwayExitPhase : Phase
             _exitWaypoints = [result.Value.Node];
             _currentWaypointIndex = 0;
         }
+
+        ComputeVirtualTarget(ctx);
+    }
+
+    /// <summary>
+    /// Computes a virtual stop target halfLength past the hold-short node (away from runway)
+    /// so the aircraft center stops with its tail at the hold-short line.
+    /// </summary>
+    private void ComputeVirtualTarget(PhaseContext ctx)
+    {
+        if (_holdShortNode is null || ctx.GroundLayout is null)
+        {
+            _hasVirtualTarget = false;
+            return;
+        }
+
+        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
+        double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+
+        double? awayBearing = FindBearingAwayFromRunway(ctx.GroundLayout, _holdShortNode);
+        if (awayBearing is null && _currentCenterlineNode is not null)
+        {
+            awayBearing = GeoMath.BearingTo(
+                _currentCenterlineNode.Latitude,
+                _currentCenterlineNode.Longitude,
+                _holdShortNode.Latitude,
+                _holdShortNode.Longitude
+            );
+        }
+
+        if (awayBearing is null)
+        {
+            _hasVirtualTarget = false;
+            return;
+        }
+
+        (_virtualTargetLat, _virtualTargetLon) = GeoMath.ProjectPointRaw(
+            _holdShortNode.Latitude,
+            _holdShortNode.Longitude,
+            awayBearing.Value,
+            halfLengthNm
+        );
+        _hasVirtualTarget = true;
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
@@ -338,6 +404,13 @@ public sealed class RunwayExitPhase : Phase
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
+
+            // Snap to virtual target so the tail clears the hold-short line
+            if (_hasVirtualTarget)
+            {
+                ctx.Aircraft.Latitude = _virtualTargetLat;
+                ctx.Aircraft.Longitude = _virtualTargetLon;
+            }
 
             // Face away from the runway
             if (_holdShortNode is not null && _exitTaxiway is not null && ctx.GroundLayout is not null)
@@ -457,6 +530,8 @@ public sealed class RunwayExitPhase : Phase
             TimeSinceLastLog = _timeSinceLastLog,
             StoppedForLahso = false,
             Braking = _braking,
+            VirtualTargetLat = _hasVirtualTarget ? _virtualTargetLat : null,
+            VirtualTargetLon = _hasVirtualTarget ? _virtualTargetLon : null,
             CurrentCenterlineNodeId = _currentCenterlineNode?.Id,
             NextCenterlineNodeId = _nextCenterlineNode?.Id,
             RunwayHeadingDeg = _runwayHeading.Degrees,
@@ -476,6 +551,13 @@ public sealed class RunwayExitPhase : Phase
         phase._coastSpeed = dto.ExitSpeed;
         phase._braking = dto.Braking;
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
+
+        if (dto.VirtualTargetLat.HasValue && dto.VirtualTargetLon.HasValue)
+        {
+            phase._virtualTargetLat = dto.VirtualTargetLat.Value;
+            phase._virtualTargetLon = dto.VirtualTargetLon.Value;
+            phase._hasVirtualTarget = true;
+        }
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);

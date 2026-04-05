@@ -319,6 +319,8 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     public required double RunwayHeadingDeg { get; init; } = 0.0;
     public required int ExitStateValue { get; init; } = 0;
     public required bool Braking { get; init; } = false;
+    public double? VirtualTargetLat { get; init; }
+    public double? VirtualTargetLon { get; init; }
 }
 
 // --- Tower phases ---

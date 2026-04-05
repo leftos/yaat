@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -101,6 +102,13 @@ public sealed class CrossingRunwayPhase : Phase
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
+
+            // Offset forward by half the aircraft length so the tail clears the runway edge
+            double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
+            double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+            var (newLat, newLon) = GeoMath.ProjectPoint(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, ctx.Aircraft.TrueHeading, halfLengthNm);
+            ctx.Aircraft.Latitude = newLat;
+            ctx.Aircraft.Longitude = newLon;
         }
     }
 
