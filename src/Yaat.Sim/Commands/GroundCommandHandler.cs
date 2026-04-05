@@ -1012,7 +1012,13 @@ internal static class GroundCommandHandler
 
         if (preference.Taxiway is not null)
         {
-            return CommandDispatcher.Ok($"Exit at {preference.Taxiway}");
+            var sideText = preference.Side switch
+            {
+                ExitSide.Left => "left ",
+                ExitSide.Right => "right ",
+                _ => "",
+            };
+            return CommandDispatcher.Ok($"Exit {sideText}at {preference.Taxiway}");
         }
 
         return CommandDispatcher.Ok(preference.Side == ExitSide.Left ? "Exit left" : "Exit right");
