@@ -157,6 +157,19 @@ internal static class GroundCommandHandler
             aircraft.DepartureRunway = detectedRunway.Designator;
         }
 
+        // Zero-segment route to parking: aircraft is already at the destination node.
+        // Skip TaxiingPhase entirely and go straight to AtParkingPhase.
+        var parkingName = route.DestinationParking ?? route.DestinationSpot;
+        if (route.Segments.Count == 0 && parkingName is not null)
+        {
+            aircraft.ParkingSpot = parkingName;
+            aircraft.Phases.Add(new AtParkingPhase());
+            ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+            aircraft.Phases.Start(ctx);
+
+            return CommandDispatcher.Ok($"Taxi via @{parkingName}");
+        }
+
         aircraft.Phases.Add(new TaxiingPhase());
         ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
         aircraft.Phases.Start(ctx);
@@ -327,7 +340,7 @@ internal static class GroundCommandHandler
 
     internal static CommandResult TryPushback(AircraftState aircraft, PushbackCommand push, AirportGroundLayout? groundLayout)
     {
-        if (aircraft.Phases?.CurrentPhase is not AtParkingPhase)
+        if (aircraft.Phases?.CurrentPhase is not (AtParkingPhase or HoldingAfterPushbackPhase))
         {
             return new CommandResult(false, "Pushback requires aircraft to be at parking");
         }

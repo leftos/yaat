@@ -538,7 +538,16 @@ public sealed class TaxiingPhase : Phase
             var phases = ctx.Aircraft.Phases;
             if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
             {
-                phases.InsertAfterCurrent(new HoldingInPositionPhase());
+                var parkingName = route.DestinationParking ?? route.DestinationSpot;
+                if (parkingName is not null)
+                {
+                    ctx.Aircraft.ParkingSpot = parkingName;
+                    phases.InsertAfterCurrent(new AtParkingPhase());
+                }
+                else
+                {
+                    phases.InsertAfterCurrent(new HoldingInPositionPhase());
+                }
             }
 
             return true;

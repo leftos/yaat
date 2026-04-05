@@ -40,6 +40,7 @@ public sealed class HoldingAfterPushbackPhase : Phase
     {
         return cmd switch
         {
+            CanonicalCommandType.Pushback => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Taxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.AirTaxi => CommandAcceptance.ClearsPhase,
             CanonicalCommandType.Land => CommandAcceptance.ClearsPhase,
