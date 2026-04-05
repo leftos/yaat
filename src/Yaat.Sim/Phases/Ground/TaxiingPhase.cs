@@ -518,6 +518,18 @@ public sealed class TaxiingPhase : Phase
         {
             ctx.Logger.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
 
+            // Snap to the final destination node so the aircraft ends up exactly
+            // at the spot/parking position, not slightly offset from the arrival threshold.
+            if (route.Segments.Count > 0 && ctx.GroundLayout is not null)
+            {
+                int finalNodeId = route.Segments[^1].ToNodeId;
+                if (ctx.GroundLayout.Nodes.TryGetValue(finalNodeId, out var finalNode))
+                {
+                    ctx.Aircraft.Latitude = finalNode.Latitude;
+                    ctx.Aircraft.Longitude = finalNode.Longitude;
+                }
+            }
+
             ApplyDepartureClearanceIfPending(ctx);
 
             // If no departure clearance was consumed, insert an idle phase so the

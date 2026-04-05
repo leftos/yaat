@@ -147,6 +147,7 @@ public static class TaxiPathfinder
             bool isFirstTw = twIdx == 0;
             var passedHint = destinationHint;
             var passedStopId = nextTwName is null ? effectiveDestRunway : null;
+            int? passedStopNodeId = nextTwName is null ? destinationHintNode?.Id : null;
 
             if (layout.Nodes.TryGetValue(currentNodeId, out var curNode))
             {
@@ -168,6 +169,7 @@ public static class TaxiPathfinder
                 allowCurrentTaxiwayWalk: isFirstTw,
                 destinationHint: passedHint,
                 stopAtRunwayId: passedStopId,
+                stopAtNodeId: passedStopNodeId,
                 diagnosticLog: diagnosticLog
             );
 
@@ -427,6 +429,7 @@ public static class TaxiPathfinder
         bool allowCurrentTaxiwayWalk = true,
         GroundNode? destinationHint = null,
         string? stopAtRunwayId = null,
+        int? stopAtNodeId = null,
         Action<string>? diagnosticLog = null
     )
     {
@@ -669,6 +672,13 @@ public static class TaxiPathfinder
 
             visited.Add(nextNodeId);
             currentId = nextNodeId;
+
+            // Stop when we've reached the destination node (spot or parking)
+            if (stopAtNodeId is not null && currentId == stopAtNodeId.Value)
+            {
+                diagnosticLog?.Invoke($"[WalkTaxiway] {taxiwayName}: stopping at destination node={currentId}");
+                break;
+            }
 
             // Stop early if this node connects to the next taxiway in the path
             if (nextTaxiwayName is not null && NodeHasEdgeTo(layout, currentId, nextTaxiwayName))
