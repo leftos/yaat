@@ -21,6 +21,13 @@ public sealed class RunwayExitPhase : Phase
     private const double StoppedSpeedKts = 1.0;
     private const double LogIntervalSeconds = 3.0;
 
+    /// <summary>
+    /// How far ahead (nm) to search the next centerline node for exits.
+    /// This enables turn anticipation: the aircraft starts pre-turning before
+    /// reaching the intersection, creating a smooth arc instead of a sharp snap.
+    /// </summary>
+    private const double LookAheadSearchNm = 0.10;
+
     private enum ExitState
     {
         RollingOnCenterline,
@@ -51,6 +58,10 @@ public sealed class RunwayExitPhase : Phase
     // Waypoint-following state (from ResolvedExitInfo or BFS path)
     private List<GroundNode>? _exitWaypoints;
     private int _currentWaypointIndex;
+
+    // Look-ahead: when an exit is found at the next centerline node, this stores
+    // that node so we can compute the turn lead distance and start pre-turning.
+    private GroundNode? _pendingBranchNode;
 
     public override string Name => "Runway Exit";
 
@@ -136,7 +147,9 @@ public sealed class RunwayExitPhase : Phase
 
     private bool TickRolling(PhaseContext ctx)
     {
-        if (_holdShortNode is not null)
+        // Transition to TurningOff when the exit is resolved and we've passed the branch node
+        // (or it was resolved from the current node with no look-ahead needed).
+        if (_holdShortNode is not null && _pendingBranchNode is null)
         {
             _state = ExitState.TurningOff;
             ctx.Logger.LogDebug(
@@ -155,24 +168,99 @@ public sealed class RunwayExitPhase : Phase
             return true;
         }
 
-        // Maintain rollout coast speed while searching for exit
-        AdjustSpeed(ctx, _coastSpeed);
-        ctx.Targets.TargetSpeed = null;
-
-        // Steer toward next centerline node
-        double bearing = GeoMath.BearingTo(
+        double distToNext = GeoMath.DistanceNm(
             ctx.Aircraft.Latitude,
             ctx.Aircraft.Longitude,
             _nextCenterlineNode.Latitude,
             _nextCenterlineNode.Longitude
         );
+
+        // Look-ahead: search the next centerline node for exits before arriving,
+        // so we can start pre-turning and create a smooth arc.
+        if (_holdShortNode is null && ctx.GroundLayout is not null && distToNext < LookAheadSearchNm)
+        {
+            TryFindHoldShortFromNode(ctx, _nextCenterlineNode);
+            if (_holdShortNode is not null)
+            {
+                _pendingBranchNode = _nextCenterlineNode;
+                ctx.Logger.LogDebug(
+                    "[Exit] {Callsign}: look-ahead found {Twy} at next node {NodeId}, pre-turning",
+                    ctx.Aircraft.Callsign,
+                    _exitTaxiway ?? "?",
+                    _nextCenterlineNode.Id
+                );
+            }
+        }
+
+        // Compute steering: either pre-turn toward exit or follow centerline
+        double steerBearing;
+        if (_holdShortNode is not null && _pendingBranchNode is not null && _exitWaypoints is not null && _exitWaypoints.Count > 0)
+        {
+            // Pre-turning: compute lead distance based on speed, heading change, and turn rate
+            var firstWaypoint = _exitWaypoints[0];
+            double exitBearing = GeoMath.BearingTo(
+                _pendingBranchNode.Latitude,
+                _pendingBranchNode.Longitude,
+                firstWaypoint.Latitude,
+                firstWaypoint.Longitude
+            );
+            double headingChangeRad = Math.Abs(ctx.Aircraft.TrueHeading.SignedAngleTo(new TrueHeading(exitBearing))) * Math.PI / 180.0;
+            double turnRateRadPerSec = CategoryPerformance.GroundTurnRate(ctx.Category) * Math.PI / 180.0;
+            double speedNmPerSec = ctx.Aircraft.GroundSpeed / 3600.0;
+            double leadDistNm = speedNmPerSec * headingChangeRad / turnRateRadPerSec;
+
+            double distToBranch = GeoMath.DistanceNm(
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                _pendingBranchNode.Latitude,
+                _pendingBranchNode.Longitude
+            );
+
+            if (distToBranch <= leadDistNm)
+            {
+                // Within lead distance — start steering toward the exit waypoint
+                steerBearing = exitBearing;
+
+                // Slow down for sharp turns
+                if (headingChangeRad > 0.5) // ~30°
+                {
+                    AdjustSpeed(ctx, CategoryPerformance.StandardExitSpeed(ctx.Category));
+                }
+                else
+                {
+                    AdjustSpeed(ctx, _coastSpeed);
+                }
+            }
+            else
+            {
+                // Not yet within lead distance — follow centerline normally
+                steerBearing = GeoMath.BearingTo(
+                    ctx.Aircraft.Latitude,
+                    ctx.Aircraft.Longitude,
+                    _nextCenterlineNode.Latitude,
+                    _nextCenterlineNode.Longitude
+                );
+                AdjustSpeed(ctx, _coastSpeed);
+            }
+        }
+        else
+        {
+            // No pending exit — follow centerline
+            steerBearing = GeoMath.BearingTo(
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                _nextCenterlineNode.Latitude,
+                _nextCenterlineNode.Longitude
+            );
+            AdjustSpeed(ctx, _coastSpeed);
+        }
+
+        ctx.Targets.TargetSpeed = null;
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, steerBearing, maxTurn);
 
         // Check arrival at next centerline node
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _nextCenterlineNode.Latitude, _nextCenterlineNode.Longitude);
-
-        if (dist <= CenterlineNodeArrivalNm)
+        if (distToNext <= CenterlineNodeArrivalNm)
         {
             ctx.Aircraft.Latitude = _nextCenterlineNode.Latitude;
             ctx.Aircraft.Longitude = _nextCenterlineNode.Longitude;
@@ -180,10 +268,19 @@ public sealed class RunwayExitPhase : Phase
             _currentCenterlineNode = _nextCenterlineNode;
             _nextCenterlineNode = ctx.GroundLayout?.FindCenterlineNeighborAhead(_currentCenterlineNode, _runwayHeading, _runwayId);
 
-            TryFindHoldShort(ctx);
+            // If we had a pending look-ahead exit at this node, clear the pending marker
+            // so the transition check at the top of the next tick fires.
+            if (_pendingBranchNode is not null && _holdShortNode is not null)
+            {
+                _pendingBranchNode = null;
+            }
+            else
+            {
+                TryFindHoldShort(ctx);
+            }
         }
 
-        LogPeriodic(ctx, dist);
+        LogPeriodic(ctx, distToNext);
         return false;
     }
 
@@ -240,7 +337,21 @@ public sealed class RunwayExitPhase : Phase
         }
         else
         {
-            AdjustSpeed(ctx, _coastSpeed);
+            // Limit speed based on heading change to current waypoint. For sharp turns (>30°),
+            // cap speed to the standard exit speed instead of accelerating to coast speed.
+            // Without this, a 90° exit at 15kts accelerates to 40kts and overshoots onto grass.
+            double headingDiff = Math.Abs(ctx.Aircraft.TrueHeading.SignedAngleTo(new TrueHeading(bearing)));
+            double maxSpeed;
+            if (headingDiff > 30.0)
+            {
+                maxSpeed = CategoryPerformance.StandardExitSpeed(ctx.Category);
+            }
+            else
+            {
+                maxSpeed = _coastSpeed;
+            }
+
+            AdjustSpeed(ctx, maxSpeed);
         }
 
         ctx.Targets.TargetSpeed = null;
@@ -293,6 +404,53 @@ public sealed class RunwayExitPhase : Phase
         }
 
         return total;
+    }
+
+    /// <summary>
+    /// Search a specific centerline node for exits. Used for look-ahead searching
+    /// the next node before the aircraft arrives.
+    /// </summary>
+    private void TryFindHoldShortFromNode(PhaseContext ctx, GroundNode centerlineNode)
+    {
+        if (ctx.GroundLayout is null)
+        {
+            return;
+        }
+
+        var result = ctx.GroundLayout.FindAdjacentHoldShort(centerlineNode, _runwayId, _runwayHeading, _lastResolvedPreference);
+        if (result is null)
+        {
+            return;
+        }
+
+        double? exitAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, _runwayHeading);
+        bool isExplicitPreference = (_lastResolvedPreference?.Taxiway is not null) || (_lastResolvedPreference?.Side is not null);
+
+        if ((exitAngle is not null) && (exitAngle.Value > 90) && !isExplicitPreference)
+        {
+            return;
+        }
+
+        if (ctx.IsHoldShortNodeOccupied?.Invoke(result.Value.Node.Id) == true)
+        {
+            return;
+        }
+
+        _holdShortNode = result.Value.Node;
+        _exitTaxiway = result.Value.Taxiway;
+
+        if (result.Value.Path.Count > 1)
+        {
+            _exitWaypoints = result.Value.Path.GetRange(1, result.Value.Path.Count - 1);
+            _currentWaypointIndex = 0;
+        }
+        else
+        {
+            _exitWaypoints = [result.Value.Node];
+            _currentWaypointIndex = 0;
+        }
+
+        ComputeVirtualTarget(ctx);
     }
 
     private void TryFindHoldShort(PhaseContext ctx)

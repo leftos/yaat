@@ -1,5 +1,6 @@
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 
 namespace Yaat.LayoutInspector;
 
@@ -208,16 +209,34 @@ public sealed class LayoutAnalyzer
 
             TrueHeading rwyHeading = globalRwyHeading ?? EstimateRunwayHeading(node, designator);
 
-            var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, null);
-            if (result is null)
+            // Search each non-RWY taxiway edge independently so multi-hop exits
+            // (like high-speed T at SFO, 8 hops) aren't hidden by shorter exits
+            // (like E, 1 hop) that share the same centerline node.
+            var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var edge in node.Edges)
             {
-                continue;
+                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!searched.Add(edge.TaxiwayName))
+                {
+                    continue;
+                }
+
+                var pref = new ExitPreference { Taxiway = edge.TaxiwayName };
+                var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
+                if (result is null)
+                {
+                    continue;
+                }
+
+                double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
+                double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
+
+                exits.Add(new ExitCandidate(node.Id, result.Value.Node.Id, result.Value.Taxiway, 1, totalDist, angle, [result.Value.Node.Id]));
             }
-
-            double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
-            double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
-
-            exits.Add(new ExitCandidate(node.Id, result.Value.Node.Id, result.Value.Taxiway, 1, totalDist, angle, [result.Value.Node.Id]));
         }
 
         return new ExitsResult(designator, exits.OrderBy(e => e.CenterlineNodeId).ToList());

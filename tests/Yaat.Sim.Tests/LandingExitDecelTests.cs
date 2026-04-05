@@ -174,8 +174,10 @@ public class LandingExitDecelTests
 
         var (_, finalSpeed) = SimulateRollout(phase, ctx);
 
-        // High-speed exit (≤45°) → HighSpeedExitSpeed for jets = 30 kts
-        Assert.InRange(finalSpeed, 28, 31);
+        // High-speed exit (≤45°) → HighSpeedExitSpeed for jets = 30 kts.
+        // TurnOffSpeedToleranceKts (3.0) allows committing slightly over turn-off speed
+        // at the branch point to avoid missing the exit due to discrete-tick overshoot.
+        Assert.InRange(finalSpeed, 28, 33);
     }
 
     [Fact]

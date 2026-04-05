@@ -20,6 +20,13 @@ public sealed class LandingPhase : Phase
     private const double MaxCenterlineCorrectionDeg = 10.0;
     private const double MaxDecelRateKtsPerSec = 10.0;
 
+    /// <summary>
+    /// Tolerance for turn-off speed commit check. Discrete-tick deceleration can overshoot
+    /// the target by up to decelRate * deltaSeconds (~2.5 kts). Without tolerance, an aircraft
+    /// at 30.2 kts misses a 30 kt turn-off by a hair and falls back to the next exit.
+    /// </summary>
+    private const double TurnOffSpeedToleranceKts = 3.0;
+
     private double _fieldElevation;
     private TrueHeading _runwayHeading;
     private double _thresholdLat;
@@ -295,17 +302,40 @@ public sealed class LandingPhase : Phase
 
             if (distToBranchPoint <= 0)
             {
-                // At or past the branch point but still too fast — abandon and try next candidate
+                // At or past the branch point — commit if within tolerance of turn-off speed.
+                // Discrete-tick deceleration can overshoot by a few kts; don't abandon the
+                // preferred exit over a marginal speed difference.
+                if (ctx.Aircraft.IndicatedAirspeed <= _candidateExit.TurnOffSpeed + TurnOffSpeedToleranceKts)
+                {
+                    ctx.Aircraft.Phases!.ResolvedExit = _candidateExit;
+                    ctx.Logger.LogDebug(
+                        "[Landing] {Callsign}: committing to exit {Taxiway} at branch point, gs={Gs:F1}kts (tolerance)",
+                        ctx.Aircraft.Callsign,
+                        _candidateExit.TaxiwayName,
+                        ctx.Aircraft.GroundSpeed
+                    );
+                    return true;
+                }
+
+                // Too fast even with tolerance — abandon and try next candidate
+                string missedTaxiway = _candidateExit.TaxiwayName;
                 ctx.Logger.LogDebug(
                     "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts), relaxing preference",
                     ctx.Aircraft.Callsign,
-                    _candidateExit.TaxiwayName,
+                    missedTaxiway,
                     ctx.Aircraft.GroundSpeed,
                     _candidateExit.TurnOffSpeed
                 );
                 RelaxPreference();
                 _candidateExit = null;
                 ResolveNextCandidate(ctx);
+
+                // Pilot broadcast: tell ATC we couldn't make the preferred exit
+                if (_originalPreference?.Taxiway is not null)
+                {
+                    string fallbackInfo = _candidateExit is not null ? $", will exit at {_candidateExit.TaxiwayName}" : "";
+                    ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}{fallbackInfo}");
+                }
             }
 
             // Before the branch point: brake toward turn-off speed

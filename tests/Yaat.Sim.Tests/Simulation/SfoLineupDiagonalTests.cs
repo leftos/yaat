@@ -75,9 +75,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         output.WriteLine($"Runway true heading: {Rwy28RTrueHeading:F1}°");
         output.WriteLine($"Perpendicular heading: {perpHeading:F1}°");
         output.WriteLine("");
-        output.WriteLine(
-            $"{"tick",5}  {"Phase",-22}  {"Hdg",7}  {"GS",5}  {"XTrack",8}  {"HdgDiff",8}  {"Lat",12}  {"Lon",13}"
-        );
+        output.WriteLine($"{"tick", 5}  {"Phase", -22}  {"Hdg", 7}  {"GS", 5}  {"XTrack", 8}  {"HdgDiff", 8}  {"Lat", 12}  {"Lon", 13}");
         output.WriteLine(new string('-', 100));
 
         bool enteredLineUp = false;
@@ -113,9 +111,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
             bool atPerp = perpDiff < 2;
             bool atRwy = hdgDiff < 2;
 
-            if (enteredLineUp && (prevHeading >= 0)
-                && (Math.Abs(ac.TrueHeading.Degrees - prevHeading) < 0.1)
-                && !atPerp && !atRwy)
+            if (enteredLineUp && (prevHeading >= 0) && (Math.Abs(ac.TrueHeading.Degrees - prevHeading) < 0.1) && !atPerp && !atRwy)
             {
                 stuckHeadingTicks++;
                 output.WriteLine(
@@ -169,22 +165,15 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         }
 
         output.WriteLine(
-            $"{tick,5}  {phaseName,-22}  {ac.TrueHeading.Degrees,7:F1}  {ac.GroundSpeed,5:F1}  {crossTrackFt,5:F0}ft  "
-                + $"{hdgDiff,7:F1}°  {ac.Latitude,12:F7}  {ac.Longitude,13:F7}"
+            $"{tick, 5}  {phaseName, -22}  {ac.TrueHeading.Degrees, 7:F1}  {ac.GroundSpeed, 5:F1}  {crossTrackFt, 5:F0}ft  "
+                + $"{hdgDiff, 7:F1}°  {ac.Latitude, 12:F7}  {ac.Longitude, 13:F7}"
         );
     }
 
     private static double GetCrossTrackFt(AircraftState ac, TrueHeading rwyHdg)
     {
-        return Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(
-                ac.Latitude,
-                ac.Longitude,
-                Rwy28RThresholdLat,
-                Rwy28RThresholdLon,
-                rwyHdg
-            )
-        ) * GeoMath.FeetPerNm;
+        return Math.Abs(GeoMath.SignedCrossTrackDistanceNm(ac.Latitude, ac.Longitude, Rwy28RThresholdLat, Rwy28RThresholdLon, rwyHdg))
+            * GeoMath.FeetPerNm;
     }
 
     private static double NormalizeAngle(double deg)
