@@ -434,17 +434,24 @@ public sealed class TaxiingPhase : Phase
         }
 
         int? holdShortNodeId = null;
+        int? explicitFallbackNodeId = null;
         var route = ctx.Aircraft.AssignedTaxiRoute;
         if (route is not null)
         {
             foreach (var hs in route.HoldShortPoints)
             {
-                if (hs.Reason is HoldShortReason.DestinationRunway or HoldShortReason.ExplicitHoldShort)
+                if (hs.Reason is HoldShortReason.DestinationRunway)
                 {
                     holdShortNodeId = hs.NodeId;
                 }
+                else if (hs.Reason is HoldShortReason.ExplicitHoldShort)
+                {
+                    explicitFallbackNodeId = hs.NodeId;
+                }
             }
         }
+
+        holdShortNodeId ??= explicitFallbackNodeId;
 
         var lineup = new LineUpPhase(holdShortNodeId);
         var luaw = new LinedUpAndWaitingPhase();

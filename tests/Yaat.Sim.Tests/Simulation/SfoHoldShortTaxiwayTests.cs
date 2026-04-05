@@ -23,6 +23,7 @@ namespace Yaat.Sim.Tests.Simulation;
 public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/sfo-hs-taxiway-recording.zip";
+    private const string SeparateHsRecordingPath = "TestData/sfo-cto-taxiway-holdshort-recording.yaat-bug-report-bundle.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -246,5 +247,78 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
         // After LUAW, the departure clearance should be stored on the phase list
         Assert.NotNull(aircraft.Phases!.DepartureClearance);
         output.WriteLine($"Departure clearance stored: type={aircraft.Phases.DepartureClearance.Type}");
+    }
+
+    /// <summary>
+    /// Reproduces the bug where CTO after a separate HS command fails with
+    /// "Cannot resolve runway E". When HS E is issued as a separate command
+    /// (not part of the taxi string), ExplicitHoldShort("E") is appended AFTER
+    /// DestinationRunway("28R"), so the last-match loop picks "E" as the runway.
+    ///
+    /// Recording: S1-SFO-2 Ground Control — N346G given TAXI C E RWY 28R at t=31,
+    /// then HS E at t=33 as a separate command. CTO at ~t=96 should succeed with 28R.
+    /// </summary>
+    [Fact]
+    public void N346G_CtoFromSeparateHsCommand_ResolvesDestinationRunway()
+    {
+        var recording = RecordingLoader.Load(SeparateHsRecordingPath);
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        // Replay to t=34 — after TAXI C E RWY 28R (t=31) and separate HS E (t=33)
+        engine.Replay(recording, 34);
+
+        var aircraft = engine.FindAircraft("N346G");
+        if (aircraft is null)
+        {
+            return;
+        }
+
+        // Tick until N346G is in HoldingShortPhase for taxiway E
+        HoldingShortPhase? holdingPhase = null;
+        for (int t = 0; t < 600; t++)
+        {
+            engine.ReplayOneSecond();
+            aircraft = engine.FindAircraft("N346G");
+            if (aircraft is null)
+            {
+                break;
+            }
+
+            if (
+                aircraft.Phases?.CurrentPhase is HoldingShortPhase hs
+                && string.Equals(hs.HoldShort.TargetName, "E", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                holdingPhase = hs;
+                output.WriteLine($"N346G reached hold-short for E after {t}s of ticking");
+                break;
+            }
+        }
+
+        if (holdingPhase is null || aircraft is null)
+        {
+            output.WriteLine("N346G never reached HoldingShortPhase for E");
+            return;
+        }
+
+        // Verify the hold-short list has ExplicitHoldShort AFTER DestinationRunway
+        // (this is the condition that triggers the bug)
+        var route = aircraft.AssignedTaxiRoute;
+        Assert.NotNull(route);
+        foreach (var hs in route.HoldShortPoints)
+        {
+            output.WriteLine($"  HS: node={hs.NodeId} target={hs.TargetName} reason={hs.Reason}");
+        }
+
+        // Issue CTO while holding short of taxiway E — should resolve runway 28R, not "E"
+        var result = engine.SendCommand("N346G", "CTO");
+        output.WriteLine($"CTO result: success={result.Success}, message={result.Message}");
+
+        Assert.True(result.Success, $"CTO from taxiway hold-short should succeed: {result.Message}");
+        Assert.Equal("28R", aircraft.DepartureRunway);
     }
 }

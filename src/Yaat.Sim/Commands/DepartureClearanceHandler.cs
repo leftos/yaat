@@ -186,15 +186,24 @@ internal static class DepartureClearanceHandler
             return new CommandResult(false, "No taxi route assigned");
         }
 
-        // Find the destination runway hold-short (last one in the route)
+        // Find the destination runway hold-short. Prefer DestinationRunway (authoritative);
+        // fall back to the last ExplicitHoldShort only when no destination exists
+        // (handles "TAXI C E" + "HS 28R" + "CTO" without a RWY directive).
         HoldShortPoint? depHoldShort = null;
+        HoldShortPoint? explicitFallback = null;
         foreach (var hs in route.HoldShortPoints)
         {
-            if (hs.Reason is HoldShortReason.DestinationRunway or HoldShortReason.ExplicitHoldShort)
+            if (hs.Reason is HoldShortReason.DestinationRunway)
             {
                 depHoldShort = hs;
             }
+            else if (hs.Reason is HoldShortReason.ExplicitHoldShort)
+            {
+                explicitFallback = hs;
+            }
         }
+
+        depHoldShort ??= explicitFallback;
 
         if (depHoldShort?.TargetName is null)
         {
