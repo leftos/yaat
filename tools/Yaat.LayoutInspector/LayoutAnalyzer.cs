@@ -53,18 +53,322 @@ public sealed class LayoutAnalyzer
         );
     }
 
-    // Stub query methods — implemented in later tasks
-    public NodeInfo? GetNodeDetail(int id) => null;
+    private NodeInfo BuildNodeInfo(GroundNode node)
+    {
+        var edges = new List<EdgeInfo>();
+        foreach (var edge in node.Edges)
+        {
+            int neighborId = (edge.FromNodeId == node.Id) ? edge.ToNodeId : edge.FromNodeId;
+            Layout.Nodes.TryGetValue(neighborId, out var neighbor);
+            edges.Add(
+                new EdgeInfo(
+                    neighborId,
+                    edge.TaxiwayName,
+                    edge.DistanceNm,
+                    neighbor?.Type.ToString() ?? "Unknown",
+                    neighbor?.Name,
+                    neighbor?.RunwayId?.ToString()
+                )
+            );
+        }
 
-    public TaxiwayResult GetTaxiwayDetail(string name) => new(name, [], [], 0);
+        return new NodeInfo(
+            node.Id,
+            node.Latitude,
+            node.Longitude,
+            node.Type.ToString(),
+            node.Name,
+            node.RunwayId?.ToString(),
+            node.TrueHeading?.Degrees,
+            edges
+        );
+    }
 
-    public RunwayResult GetRunwayDetail(string designator) => new(designator, [], []);
+    public NodeInfo? GetNodeDetail(int id)
+    {
+        return Layout.Nodes.TryGetValue(id, out var node) ? BuildNodeInfo(node) : null;
+    }
 
-    public ExitsResult GetExits(string designator) => new(designator, []);
+    public TaxiwayResult GetTaxiwayDetail(string name)
+    {
+        var nodeIds = new HashSet<int>();
+        var connectedTaxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int holdShortCount = 0;
 
-    public BfsPathResult GetBfsPath(int nodeId, string taxiway) => new(nodeId, taxiway, [], null, null, null);
+        foreach (var edge in Layout.Edges)
+        {
+            if (string.Equals(edge.TaxiwayName, name, StringComparison.OrdinalIgnoreCase))
+            {
+                nodeIds.Add(edge.FromNodeId);
+                nodeIds.Add(edge.ToNodeId);
+            }
+        }
 
-    public List<NodeInfo> GetParking() => [];
+        var nodes = new List<NodeInfo>();
+        foreach (int id in nodeIds.OrderBy(id => id))
+        {
+            if (!Layout.Nodes.TryGetValue(id, out var node))
+            {
+                continue;
+            }
 
-    public List<NodeInfo> GetSpots() => [];
+            nodes.Add(BuildNodeInfo(node));
+            if (node.Type == GroundNodeType.RunwayHoldShort)
+            {
+                holdShortCount++;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                if (
+                    (!edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                    && (!string.Equals(edge.TaxiwayName, name, StringComparison.OrdinalIgnoreCase))
+                )
+                {
+                    connectedTaxiways.Add(edge.TaxiwayName);
+                }
+            }
+        }
+
+        return new TaxiwayResult(name, nodes, connectedTaxiways.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(), holdShortCount);
+    }
+
+    public List<NodeInfo> GetParking()
+    {
+        return Layout
+            .Nodes.Values.Where(n => n.Type == GroundNodeType.Parking)
+            .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(BuildNodeInfo)
+            .ToList();
+    }
+
+    public List<NodeInfo> GetSpots()
+    {
+        return Layout
+            .Nodes.Values.Where(n => (n.Type == GroundNodeType.Spot) || ((n.Name is not null) && (n.Type == GroundNodeType.TaxiwayIntersection)))
+            .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(BuildNodeInfo)
+            .ToList();
+    }
+
+    public RunwayResult GetRunwayDetail(string designator)
+    {
+        var centerlineNodes = new List<NodeInfo>();
+        var holdShortNodes = new List<NodeInfo>();
+
+        foreach (var node in Layout.Nodes.Values)
+        {
+            bool isHoldShort = (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } rwyId) && rwyId.Contains(designator);
+            bool hasCenterlineEdge = node.Edges.Any(e =>
+                e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
+            );
+
+            if (isHoldShort)
+            {
+                holdShortNodes.Add(BuildNodeInfo(node));
+            }
+            else if (hasCenterlineEdge)
+            {
+                centerlineNodes.Add(BuildNodeInfo(node));
+            }
+        }
+
+        return new RunwayResult(designator, centerlineNodes, holdShortNodes);
+    }
+
+    public ExitsResult GetExits(string designator)
+    {
+        var exits = new List<ExitCandidate>();
+        var rwy = Layout.FindGroundRunway(designator);
+        TrueHeading? globalRwyHeading = null;
+
+        if (rwy is not null)
+        {
+            double rwBearing = GeoMath.BearingTo(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon, rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon);
+            var id = RunwayIdentifier.Parse(rwy.Name);
+            if (string.Equals(designator, id.End2, StringComparison.OrdinalIgnoreCase))
+            {
+                rwBearing = (rwBearing + 180) % 360;
+            }
+
+            globalRwyHeading = new TrueHeading(rwBearing);
+        }
+
+        foreach (var node in Layout.Nodes.Values)
+        {
+            bool isCenterline = node.Edges.Any(e =>
+                e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
+            );
+            if (!isCenterline)
+            {
+                continue;
+            }
+
+            TrueHeading rwyHeading = globalRwyHeading ?? EstimateRunwayHeading(node, designator);
+
+            var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, null);
+            if (result is null)
+            {
+                continue;
+            }
+
+            double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
+
+            double totalDist = 0;
+            var path = result.Value.Path;
+            if (path.Count > 0)
+            {
+                totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, path[0].Latitude, path[0].Longitude);
+                for (int j = 0; j < path.Count - 1; j++)
+                {
+                    totalDist += GeoMath.DistanceNm(path[j].Latitude, path[j].Longitude, path[j + 1].Latitude, path[j + 1].Longitude);
+                }
+            }
+
+            exits.Add(
+                new ExitCandidate(node.Id, result.Value.Node.Id, result.Value.Taxiway, path.Count, totalDist, angle, path.Select(n => n.Id).ToList())
+            );
+        }
+
+        return new ExitsResult(designator, exits.OrderBy(e => e.CenterlineNodeId).ToList());
+    }
+
+    private TrueHeading EstimateRunwayHeading(GroundNode node, string designator)
+    {
+        foreach (var edge in node.Edges)
+        {
+            if (
+                edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                && edge.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                int neighborId = (edge.FromNodeId == node.Id) ? edge.ToNodeId : edge.FromNodeId;
+                if (Layout.Nodes.TryGetValue(neighborId, out var neighbor))
+                {
+                    return new TrueHeading(GeoMath.BearingTo(node.Latitude, node.Longitude, neighbor.Latitude, neighbor.Longitude));
+                }
+            }
+        }
+
+        return new TrueHeading(0);
+    }
+
+    public BfsPathResult GetBfsPath(int startNodeId, string taxiway)
+    {
+        if (!Layout.Nodes.TryGetValue(startNodeId, out var startNode))
+        {
+            return new BfsPathResult(startNodeId, taxiway, [new BfsStep(startNodeId, "NotFound", 0, [])], null, null, null);
+        }
+
+        const int maxDepth = 6;
+        var steps = new List<BfsStep>();
+        var visited = new HashSet<int> { startNodeId };
+        var queue = new Queue<(GroundNode Node, string BranchTaxiway, List<int> Path, double TotalDist, int Depth)>();
+
+        var seedEdges = new List<BfsEdgeExplored>();
+        foreach (var edge in startNode.Edges)
+        {
+            int neighborId = (edge.FromNodeId == startNodeId) ? edge.ToNodeId : edge.FromNodeId;
+            Layout.Nodes.TryGetValue(neighborId, out var neighbor);
+            string neighborType = neighbor?.Type.ToString() ?? "Unknown";
+
+            if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            {
+                seedEdges.Add(new BfsEdgeExplored(neighborId, edge.TaxiwayName, edge.DistanceNm, neighborType, "SKIP", "runway edge"));
+                continue;
+            }
+
+            if (!string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+            {
+                seedEdges.Add(
+                    new BfsEdgeExplored(
+                        neighborId,
+                        edge.TaxiwayName,
+                        edge.DistanceNm,
+                        neighborType,
+                        "SKIP",
+                        $"taxiway {edge.TaxiwayName} != {taxiway}"
+                    )
+                );
+                continue;
+            }
+
+            if (neighbor is null)
+            {
+                seedEdges.Add(new BfsEdgeExplored(neighborId, edge.TaxiwayName, edge.DistanceNm, "Unknown", "SKIP", "node not found"));
+                continue;
+            }
+
+            visited.Add(neighborId);
+            queue.Enqueue((neighbor, edge.TaxiwayName, [startNodeId, neighborId], edge.DistanceNm, 1));
+            seedEdges.Add(new BfsEdgeExplored(neighborId, edge.TaxiwayName, edge.DistanceNm, neighborType, "FOLLOW", $"matches taxiway {taxiway}"));
+        }
+
+        steps.Add(new BfsStep(startNodeId, startNode.Type.ToString(), 0, seedEdges));
+
+        while (queue.Count > 0)
+        {
+            var (current, branchTwy, path, totalDist, depth) = queue.Dequeue();
+            var edgesExplored = new List<BfsEdgeExplored>();
+
+            if (current.Type == GroundNodeType.RunwayHoldShort)
+            {
+                edgesExplored.Add(
+                    new BfsEdgeExplored(current.Id, branchTwy, 0, current.Type.ToString(), "FOUND", $"RunwayHoldShort, rwy={current.RunwayId}")
+                );
+                steps.Add(new BfsStep(current.Id, current.Type.ToString(), depth, edgesExplored));
+                return new BfsPathResult(startNodeId, taxiway, steps, path, totalDist, current.RunwayId?.ToString());
+            }
+
+            if (depth >= maxDepth)
+            {
+                edgesExplored.Add(new BfsEdgeExplored(current.Id, branchTwy, 0, current.Type.ToString(), "STOP", $"max depth {maxDepth} reached"));
+                steps.Add(new BfsStep(current.Id, current.Type.ToString(), depth, edgesExplored));
+                continue;
+            }
+
+            foreach (var edge in current.Edges)
+            {
+                int nextId = (edge.FromNodeId == current.Id) ? edge.ToNodeId : edge.FromNodeId;
+                Layout.Nodes.TryGetValue(nextId, out var next);
+                string nextType = next?.Type.ToString() ?? "Unknown";
+
+                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    edgesExplored.Add(new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, nextType, "SKIP", "runway edge"));
+                    continue;
+                }
+
+                if (!string.Equals(edge.TaxiwayName, branchTwy, StringComparison.OrdinalIgnoreCase))
+                {
+                    edgesExplored.Add(
+                        new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, nextType, "SKIP", $"taxiway {edge.TaxiwayName} != {branchTwy}")
+                    );
+                    continue;
+                }
+
+                if (!visited.Add(nextId))
+                {
+                    edgesExplored.Add(new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, nextType, "SKIP", "already visited"));
+                    continue;
+                }
+
+                if (next is null)
+                {
+                    edgesExplored.Add(new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, "Unknown", "SKIP", "node not found"));
+                    continue;
+                }
+
+                var nextPath = new List<int>(path) { nextId };
+                queue.Enqueue((next, branchTwy, nextPath, totalDist + edge.DistanceNm, depth + 1));
+                edgesExplored.Add(new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, nextType, "FOLLOW", $"matches taxiway {branchTwy}"));
+            }
+
+            steps.Add(new BfsStep(current.Id, current.Type.ToString(), depth, edgesExplored));
+        }
+
+        return new BfsPathResult(startNodeId, taxiway, steps, null, null, null);
+    }
 }
