@@ -118,6 +118,26 @@ internal static class RunwayCrossingDetector
         };
     }
 
+    internal static RunwayRectangle BuildRunwayRectangle(GroundRunway rwy)
+    {
+        var coords = rwy.Coordinates;
+        double bearing = GeoMath.BearingTo(coords[0].Lat, coords[0].Lon, coords[^1].Lat, coords[^1].Lon);
+        double lengthNm = GeoMath.DistanceNm(coords[0].Lat, coords[0].Lon, coords[^1].Lat, coords[^1].Lon);
+        double halfWidthNm = (rwy.WidthFt / 2.0) / GeoMath.FeetPerNm;
+        double holdShortNm = HoldShortDistanceForWidth(rwy.WidthFt) / GeoMath.FeetPerNm;
+
+        return new RunwayRectangle
+        {
+            RefLat = coords[0].Lat,
+            RefLon = coords[0].Lon,
+            TrueHeading = new TrueHeading(bearing),
+            LengthNm = lengthNm,
+            HalfWidthNm = halfWidthNm,
+            HoldShortNm = holdShortNm,
+            CombinedId = RunwayIdentifier.Parse(rwy.Name),
+        };
+    }
+
     internal static bool IsOnRunway(double lat, double lon, in RunwayRectangle rect)
     {
         double crossTrack = Math.Abs(GeoMath.SignedCrossTrackDistanceNm(lat, lon, rect.RefLat, rect.RefLon, rect.TrueHeading));

@@ -178,6 +178,11 @@ public static class TaxiPathfinder
 
             if (!found)
             {
+                if (isFirstTw)
+                {
+                    failReason = $"Cannot reach taxiway {twName} from current position";
+                }
+
                 return null;
             }
 
@@ -560,6 +565,15 @@ public static class TaxiPathfinder
 
                         if (nearestId == -1)
                         {
+                            return false;
+                        }
+
+                        // Reject if the straight-line RAMP would cross a runway
+                        if (layout.Nodes.TryGetValue(nearestId, out var rampTarget) &&
+                            RampCrossesRunway(layout, currentNode, rampTarget))
+                        {
+                            diagnosticLog?.Invoke(
+                                $"[WalkTaxiway] RAMP {startNodeId}→{nearestId} rejected: crosses runway");
                             return false;
                         }
 
@@ -1375,6 +1389,43 @@ public static class TaxiPathfinder
         }
 
         return (nearestId, nearestDist, nearestEdge);
+    }
+
+    /// <summary>
+    /// Check whether a straight-line RAMP segment between two nodes would cross
+    /// any runway. Samples interior points along the line and tests each against
+    /// every runway rectangle in the layout.
+    /// </summary>
+    private static bool RampCrossesRunway(AirportGroundLayout layout, GroundNode fromNode, GroundNode toNode)
+    {
+        if (layout.Runways.Count == 0)
+        {
+            return false;
+        }
+
+        var rects = new RunwayRectangle[layout.Runways.Count];
+        for (int i = 0; i < layout.Runways.Count; i++)
+        {
+            rects[i] = RunwayCrossingDetector.BuildRunwayRectangle(layout.Runways[i]);
+        }
+
+        // Sample 9 interior points (fractions 0.1..0.9), excluding endpoints
+        for (int step = 1; step <= 9; step++)
+        {
+            double frac = step / 10.0;
+            double lat = fromNode.Latitude + ((toNode.Latitude - fromNode.Latitude) * frac);
+            double lon = fromNode.Longitude + ((toNode.Longitude - fromNode.Longitude) * frac);
+
+            foreach (ref readonly var rect in rects.AsSpan())
+            {
+                if (RunwayCrossingDetector.IsOnRunway(lat, lon, rect))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static TaxiRoute ReconstructRoute(AirportGroundLayout layout, Dictionary<int, (int NodeId, GroundEdge Edge)> cameFrom, int endNodeId)
