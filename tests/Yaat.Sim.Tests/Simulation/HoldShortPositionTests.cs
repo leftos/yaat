@@ -21,7 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class HoldShortPositionTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/hold-short-position-recording.zip";
+    private const string RecordingPath = "TestData/09304e0c727e.zip";
     private const double DefaultAircraftLengthFt = 60.0;
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);

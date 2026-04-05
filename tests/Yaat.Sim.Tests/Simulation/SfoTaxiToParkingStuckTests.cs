@@ -25,7 +25,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class SfoTaxiToParkingStuckTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/sfo-taxi-parking-stuck-recording.zip";
+    private const string RecordingPath = "TestData/09304e0c727e.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
