@@ -145,6 +145,13 @@ public sealed class PhaseList
     public ExitPreference? RequestedExit { get; set; }
 
     /// <summary>
+    /// Full exit info resolved by LandingPhase during rollout: hold-short node,
+    /// taxiway name, turn-off speed, and ordered path from centerline branch
+    /// point to hold-short. Consumed by RunwayExitPhase on start, then cleared.
+    /// </summary>
+    public ResolvedExitInfo? ResolvedExit { get; set; }
+
+    /// <summary>
     /// Active approach clearance. Set by JFAC/CAPP/JAPP/PTAC commands.
     /// Used by FinalApproachPhase and approach navigation phases.
     /// </summary>

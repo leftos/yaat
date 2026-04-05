@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -328,6 +329,18 @@ public sealed class LandingPhase : Phase
                 double? exitAngle = taxiwayName is not null ? ctx.GroundLayout.ComputeExitAngle(hsNode, taxiwayName, _runwayHeading) : null;
                 _exitTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
 
+                if (ctx.Aircraft.Phases is not null && taxiwayName is not null)
+                {
+                    var exitPath = ctx.GroundLayout.FindExitPath(hsNode, taxiwayName, rwyDesignator) ?? [hsNode];
+                    ctx.Aircraft.Phases.ResolvedExit = new ResolvedExitInfo
+                    {
+                        HoldShortNode = hsNode,
+                        TaxiwayName = taxiwayName,
+                        TurnOffSpeed = _exitTurnOffSpeed,
+                        Path = exitPath,
+                    };
+                }
+
                 ctx.Logger.LogDebug(
                     "[Landing] {Callsign}: resolved exit at {Taxiway}, angle={Angle}, turnOffSpeed={Speed:F0}kts",
                     ctx.Aircraft.Callsign,
@@ -350,6 +363,19 @@ public sealed class LandingPhase : Phase
         _resolvedExitNode = result.Value.Node;
         double? fallbackAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, _runwayHeading);
         _exitTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, fallbackAngle);
+
+        if (ctx.Aircraft.Phases is not null)
+        {
+            var exitPath = ctx.GroundLayout.FindExitPath(result.Value.Node, result.Value.Taxiway, rwyDesignator)
+                ?? [result.Value.Node];
+            ctx.Aircraft.Phases.ResolvedExit = new ResolvedExitInfo
+            {
+                HoldShortNode = result.Value.Node,
+                TaxiwayName = result.Value.Taxiway,
+                TurnOffSpeed = _exitTurnOffSpeed,
+                Path = exitPath,
+            };
+        }
 
         ctx.Logger.LogDebug(
             "[Landing] {Callsign}: resolved exit (fallback) at {Taxiway}, turnOffSpeed={Speed:F0}kts",
