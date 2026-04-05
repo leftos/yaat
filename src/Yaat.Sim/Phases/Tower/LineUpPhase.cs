@@ -208,12 +208,41 @@ public sealed class LineUpPhase : Phase
 
             _stage1Complete = true;
 
-            // Recompute centerline target from current position — the on-runway node
-            // may be at a different along-track position than the initial hold-short.
-            // Without this, Stage 2 would navigate back toward the threshold.
-            ComputeCenterlineTarget(ctx);
+            // The on-runway node is already close to the centerline (it was chosen
+            // because it has less cross-track than the hold-short node). Check if
+            // we're close enough to skip Stage 2 and just turn to runway heading.
+            double postStage1CrossTrack = Math.Abs(
+                GeoMath.SignedCrossTrackDistanceNm(
+                    ctx.Aircraft.Latitude,
+                    ctx.Aircraft.Longitude,
+                    ctx.Runway!.ThresholdLatitude,
+                    ctx.Runway.ThresholdLongitude,
+                    _runwayHeading
+                )
+            );
 
-            ctx.Logger.LogDebug("[LineUp] {Callsign}: reached on-runway node, correcting to centerline", ctx.Aircraft.Callsign);
+            if (postStage1CrossTrack <= OnRunwayNodeThresholdNm)
+            {
+                // Close enough — skip diagonal Stage 2 navigation and align directly.
+                _aligningOnly = true;
+                ctx.Logger.LogDebug(
+                    "[LineUp] {Callsign}: reached on-runway node near centerline (crossTrack={Cross:F4}nm), aligning directly",
+                    ctx.Aircraft.Callsign,
+                    postStage1CrossTrack
+                );
+            }
+            else
+            {
+                // Recompute centerline target from current position — the on-runway node
+                // may be at a different along-track position than the initial hold-short.
+                // Without this, Stage 2 would navigate back toward the threshold.
+                ComputeCenterlineTarget(ctx);
+                ctx.Logger.LogDebug(
+                    "[LineUp] {Callsign}: reached on-runway node, correcting to centerline (crossTrack={Cross:F4}nm)",
+                    ctx.Aircraft.Callsign,
+                    postStage1CrossTrack
+                );
+            }
         }
 
         // Stage 2: navigate to centerline projection

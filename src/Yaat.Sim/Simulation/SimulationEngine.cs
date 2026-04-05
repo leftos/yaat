@@ -438,6 +438,16 @@ public sealed class SimulationEngine
         _terminalEntries.Clear();
     }
 
+    /// <summary>
+    /// Advance one physics sub-tick (0.25 s). Does NOT run pre/post-physics or
+    /// advance <c>ElapsedSeconds</c> — call this in a manual tick loop for
+    /// fine-grained inspection (e.g., tick-by-tick test traces).
+    /// </summary>
+    public void TickOnce()
+    {
+        TickPhysics(1.0 / PhysicsSubTickRate);
+    }
+
     // --- Replay ---
 
     /// <summary>
