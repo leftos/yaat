@@ -62,7 +62,7 @@ A `.yaat-bug-report-bundle.zip` packages a recording with client and server logs
 | `yaat-client.log` | Client log at the time of the report |
 | `yaat-server.log` | Server log (only included when connected to a local server) |
 
-**Using bundles in tests:** Extract the recording from the zip and place it in TestData as a standalone file. `RecordingLoader.Load()` in `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` handles `.br`, `.json.gz`, `.json`, and `.zip` formats transparently.
+**Using bundles in tests:** Place the bundle directly in TestData — no need to extract the recording manually. `RecordingLoader.Load()` in `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` handles all formats transparently: `.br` (Brotli), `.json.gz`, `.json`, `.zip` (v4 archives with `manifest.json`), and legacy bug-report bundles (nested `.br`/`.json.gz`/`.json` inside a zip).
 
 ## Step-by-Step: From Issue to Test
 
