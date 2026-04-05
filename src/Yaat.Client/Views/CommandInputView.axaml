@@ -180,7 +180,7 @@
                         <StackPanel Spacing="2">
                             <TextBlock Text="Auto-Accept Delay:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <NumericUpDown Value="{Binding SessionAutoAcceptDelaySeconds}" Minimum="-1" Maximum="60" Increment="1" Width="80" FormatString="0" />
+                                <NumericUpDown Value="{Binding SessionAutoAcceptDelaySeconds}" Minimum="-1" Maximum="60" Increment="1" Width="100" FormatString="0" Foreground="{DynamicResource TextControlForeground}" />
                                 <TextBlock Text="sec (-1 = off)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
                             </StackPanel>
                         </StackPanel>
