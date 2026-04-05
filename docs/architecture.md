@@ -132,6 +132,7 @@ CommandQueue.cs                # CommandBlock (trigger + closure + TrackedComman
                                # SourceCommandText on CommandBlock/DeferredDispatch for snapshot restore
 AircraftCategory.cs            # Enum + AircraftCategorization (static Init from AircraftSpecs.json)
                                # CategoryPerformance: fallback aviation constants (taxi, pattern geometry, flare, etc.)
+                               # CornerSpeedForAngle: piecewise taxi speed curve (0-30° max, 30-90° corner, 90-150° tight corner)
 AircraftPerformance.cs         # Unified perf API: profile-first with category fallback. Altitude-banded
                                # climb/descent rates, Mach-aware speeds, 91.117 waiver support
 GroundConflictDetector.cs      # Static pairwise ground proximity → max-speed overrides
@@ -231,6 +232,7 @@ UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase
 # Phases/Ground/
 AtParkingPhase / PushbackPhase / PushbackToSpotPhase / TaxiingPhase / HoldingShortPhase
 CrossingRunwayPhase / HoldingAfterExitPhase / FollowingPhase
+GroundNavigator.cs             # Core ground nav: angle-based speed scaling, multi-segment kinematic braking, turn anticipation (early arrival for smooth arcs)
 RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 
@@ -251,6 +253,7 @@ AirportGroundLayout.cs         # Graph: Nodes + Edges; FindAdjacentHoldShort (BF
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
 TaxiRoute.cs                   # Resolved path: Segments + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiPathfinder.cs              # ResolveExplicitPath (destinationHintNode for parking direction), FindRoute (A*), variant inference
+                               # Multi-candidate bridge scoring: BFS + WalkCurrentTaxiway scored by transitions+distance
 TaxiVariantResolver.cs         # Variant path resolution (e.g., A vs A1)
 TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
 GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode

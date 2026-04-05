@@ -34,6 +34,7 @@ public sealed class GroundNavigator
     public double CornerSpeedKts { get; set; }
 
     private double _currentNodeRequiredSpeed;
+    private double? _nextSegmentBearing;
     private List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
 
     /// <summary>
@@ -63,6 +64,7 @@ public sealed class GroundNavigator
         if (!isHoldShortCleared(TargetNodeId))
         {
             _currentNodeRequiredSpeed = 0;
+            _nextSegmentBearing = null;
         }
         else if (!isLastSegment)
         {
@@ -73,17 +75,19 @@ public sealed class GroundNavigator
                 double segBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, nextNode.Latitude, nextNode.Longitude);
                 double inboundBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, targetNode.Latitude, targetNode.Longitude);
                 double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, segBearing);
-                double frac = Math.Clamp((turnAngle - 30.0) / 60.0, 0.0, 1.0);
-                _currentNodeRequiredSpeed = MaxSpeedKts - (MaxSpeedKts - CornerSpeedKts) * frac;
+                _currentNodeRequiredSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngle);
+                _nextSegmentBearing = segBearing;
             }
             else
             {
                 _currentNodeRequiredSpeed = MaxSpeedKts;
+                _nextSegmentBearing = null;
             }
         }
         else
         {
             _currentNodeRequiredSpeed = 0;
+            _nextSegmentBearing = null;
         }
 
         // B. Forward walk: collect speed constraints at future nodes
@@ -121,8 +125,7 @@ public sealed class GroundNavigator
                     double inBearing = GeoMath.BearingTo(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
                     double outBearing = GeoMath.BearingTo(toNode.Latitude, toNode.Longitude, nextNextNode.Latitude, nextNextNode.Longitude);
                     double turnAngle = GeoMath.AbsBearingDifference(inBearing, outBearing);
-                    double frac = Math.Clamp((turnAngle - 30.0) / 60.0, 0.0, 1.0);
-                    reqSpeed = MaxSpeedKts - (MaxSpeedKts - CornerSpeedKts) * frac;
+                    reqSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngle);
                 }
                 else
                 {
@@ -177,6 +180,24 @@ public sealed class GroundNavigator
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
 
         double arrivalThreshold = isLastSegment ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+
+        // Turn anticipation: declare early arrival when approaching a turn node so the
+        // aircraft starts steering toward the next segment sooner, creating a smooth arc
+        // (like real taxiway fillet markings). Skip for hold-short nodes and last segment.
+        if (!isLastSegment && (_nextSegmentBearing is not null) && (_currentNodeRequiredSpeed > 0.5))
+        {
+            double inboundBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+            double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, _nextSegmentBearing.Value);
+            if (turnAngle > 20)
+            {
+                double turnRateRad = CategoryPerformance.GroundTurnRate(ctx.Category) * Math.PI / 180.0;
+                double speedNmSec = Math.Max(ctx.Aircraft.GroundSpeed, _currentNodeRequiredSpeed) / 3600.0;
+                double radiusNm = speedNmSec / turnRateRad;
+                double halfAngleRad = turnAngle * Math.PI / 360.0;
+                double anticipation = radiusNm * Math.Tan(halfAngleRad);
+                arrivalThreshold = Math.Max(arrivalThreshold, Math.Min(anticipation, 0.05));
+            }
+        }
 
         bool overshot = (dist > PrevDistToTarget) && (PrevDistToTarget < OvershootDetectionNm);
         bool stoppedByConflict = (ctx.Aircraft.GroundSpeedLimit is not null) && (ctx.Aircraft.GroundSpeedLimit.Value < 0.5);
@@ -258,6 +279,7 @@ public sealed class GroundNavigator
             CurrentNodeRequiredSpeed = _currentNodeRequiredSpeed,
             MaxSpeedKts = MaxSpeedKts,
             CornerSpeedKts = CornerSpeedKts,
+            NextSegmentBearing = _nextSegmentBearing,
             SpeedConstraints =
                 _speedConstraints.Count > 0
                     ? _speedConstraints
@@ -282,6 +304,7 @@ public sealed class GroundNavigator
             _currentNodeRequiredSpeed = dto.CurrentNodeRequiredSpeed,
             MaxSpeedKts = dto.MaxSpeedKts,
             CornerSpeedKts = dto.CornerSpeedKts,
+            _nextSegmentBearing = dto.NextSegmentBearing,
         };
 
         if (dto.SpeedConstraints is not null)

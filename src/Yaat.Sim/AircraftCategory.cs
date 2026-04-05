@@ -482,6 +482,50 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>Target speed (kts) for very tight taxiway turns (150°+ reversal). Near crawl speed.</summary>
+    public static double TaxiTightCornerSpeed(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => 8,
+            AircraftCategory.Turboprop => 8,
+            AircraftCategory.Piston => 10,
+            AircraftCategory.Helicopter => 5,
+            _ => 8,
+        };
+    }
+
+    /// <summary>
+    /// Angle-dependent taxi speed for turns at taxiway nodes.
+    /// 0-30° → TaxiSpeed (straight), 30-90° → TaxiCornerSpeed (standard turn),
+    /// 90-150° → TaxiTightCornerSpeed (sharp turn), 150°+ → TaxiTightCornerSpeed.
+    /// </summary>
+    public static double CornerSpeedForAngle(AircraftCategory cat, double turnAngleDeg)
+    {
+        double maxSpeed = TaxiSpeed(cat);
+        double cornerSpeed = TaxiCornerSpeed(cat);
+        double tightCornerSpeed = TaxiTightCornerSpeed(cat);
+
+        if (turnAngleDeg <= 30.0)
+        {
+            return maxSpeed;
+        }
+
+        if (turnAngleDeg <= 90.0)
+        {
+            double frac = (turnAngleDeg - 30.0) / 60.0;
+            return maxSpeed - ((maxSpeed - cornerSpeed) * frac);
+        }
+
+        if (turnAngleDeg <= 150.0)
+        {
+            double frac = (turnAngleDeg - 90.0) / 60.0;
+            return cornerSpeed - ((cornerSpeed - tightCornerSpeed) * frac);
+        }
+
+        return tightCornerSpeed;
+    }
+
     /// <summary>Taxi acceleration rate (kts/sec).</summary>
     public static double TaxiAccelRate(AircraftCategory cat)
     {

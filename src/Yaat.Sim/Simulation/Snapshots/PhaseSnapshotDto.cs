@@ -281,6 +281,7 @@ public sealed class GroundNavigatorDto
     public double CurrentNodeRequiredSpeed { get; init; }
     public double MaxSpeedKts { get; init; }
     public double CornerSpeedKts { get; init; }
+    public double? NextSegmentBearing { get; init; }
     public List<SpeedConstraintDto>? SpeedConstraints { get; init; }
 }
 
