@@ -31,6 +31,7 @@ public partial class MainViewModel : ObservableObject
     private string _connectedServerUrl = "";
     private bool _isSyncingSelection;
     private string? _studentPositionType;
+    private bool _isAutoClearedToLand;
 
     public GroundViewModel Ground { get; }
     public RadarViewModel Radar { get; }
@@ -1284,7 +1285,13 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            await _connection.SetAutoClearedToLandAsync(_preferences.GetAutoClearedToLand(_studentPositionType));
+            _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
+            await _connection.SetAutoClearedToLandAsync(_isAutoClearedToLand);
+            foreach (var ac in Aircraft)
+            {
+                ac.IsAutoClearedToLand = _isAutoClearedToLand;
+                ac.ComputeSmartStatus();
+            }
         }
         catch (Exception ex)
         {

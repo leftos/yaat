@@ -99,7 +99,9 @@ public partial class MainViewModel
                 {
                     foreach (var dto in result.Aircraft)
                     {
-                        Aircraft.Add(Models.AircraftModel.FromDto(dto, ComputeDistance));
+                        var model = Models.AircraftModel.FromDto(dto, ComputeDistance);
+                        ApplyAutoClearedToLand(model);
+                        Aircraft.Add(model);
                     }
                 }
 
@@ -406,16 +408,19 @@ public partial class MainViewModel
             SetDistanceReference(result.PrimaryAirportId);
         }
 
+        _studentPositionType = result.StudentPositionType;
+        _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
+
         Aircraft.Clear();
         if (result.Aircraft is not null)
         {
             foreach (var dto in result.Aircraft)
             {
-                Aircraft.Add(Models.AircraftModel.FromDto(dto, ComputeDistance));
+                var model = Models.AircraftModel.FromDto(dto, ComputeDistance);
+                ApplyAutoClearedToLand(model);
+                Aircraft.Add(model);
             }
         }
-
-        _studentPositionType = result.StudentPositionType;
 
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {

@@ -434,7 +434,9 @@ public partial class MainViewModel
         Aircraft.Clear();
         foreach (var dto in state.AllAircraft)
         {
-            Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
+            var model = AircraftModel.FromDto(dto, ComputeDistance);
+            ApplyAutoClearedToLand(model);
+            Aircraft.Add(model);
         }
 
         _ = SendAutoAcceptDelay();

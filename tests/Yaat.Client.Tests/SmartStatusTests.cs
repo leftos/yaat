@@ -23,6 +23,20 @@ public class SmartStatusTests
     }
 
     [Fact]
+    public void FinalApproach_NoLandingClearance_AutoCtl_Normal()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "FinalApproach";
+        ac.LandingClearance = "";
+        ac.IsAutoClearedToLand = true;
+        ac.ActiveApproachId = "ILS28R";
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("ILS28R final", ac.SmartStatus);
+        Assert.Equal(SmartStatusSeverity.Normal, ac.SmartStatusSeverity);
+    }
+
+    [Fact]
     public void FinalApproach_WithLandingClearance_Normal()
     {
         var ac = CreateModel();
@@ -58,6 +72,20 @@ public class SmartStatusTests
 
         Assert.Equal("Landing — no clnc!", ac.SmartStatus);
         Assert.Equal(SmartStatusSeverity.Critical, ac.SmartStatusSeverity);
+    }
+
+    [Fact]
+    public void Landing_NoLandingClearance_AutoCtl_Normal()
+    {
+        var ac = CreateModel();
+        ac.CurrentPhase = "Landing";
+        ac.LandingClearance = "";
+        ac.AssignedRunway = "28R";
+        ac.IsAutoClearedToLand = true;
+        ac.ComputeSmartStatus();
+
+        Assert.Equal("Landing 28R", ac.SmartStatus);
+        Assert.Equal(SmartStatusSeverity.Normal, ac.SmartStatusSeverity);
     }
 
     [Fact]

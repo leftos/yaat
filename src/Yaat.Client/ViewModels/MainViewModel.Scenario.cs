@@ -306,13 +306,17 @@ public partial class MainViewModel
             SetDistanceReference(result.PrimaryAirportId);
         }
 
+        _studentPositionType = result.StudentPositionType;
+        _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
+
         Aircraft.Clear();
         foreach (var dto in result.AllAircraft)
         {
-            Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
+            var model = AircraftModel.FromDto(dto, ComputeDistance);
+            ApplyAutoClearedToLand(model);
+            Aircraft.Add(model);
         }
 
-        _studentPositionType = result.StudentPositionType;
         _ = SendAutoAcceptDelay();
         _ = SendAutoDeleteMode();
         _ = SendValidateDctFixes();
@@ -357,10 +361,15 @@ public partial class MainViewModel
                 _ = Ground.LoadLayoutAsync(dto.PrimaryAirportId);
             }
 
+            _studentPositionType = dto.StudentPositionType;
+            _isAutoClearedToLand = _preferences.GetAutoClearedToLand(_studentPositionType);
+
             Aircraft.Clear();
             foreach (var ac in dto.AllAircraft)
             {
-                Aircraft.Add(AircraftModel.FromDto(ac, ComputeDistance));
+                var model = AircraftModel.FromDto(ac, ComputeDistance);
+                ApplyAutoClearedToLand(model);
+                Aircraft.Add(model);
             }
 
             if (!string.IsNullOrEmpty(_preferences.ArtccId))
@@ -373,7 +382,6 @@ public partial class MainViewModel
                 Radar.ApplyPositionDisplayConfig(dto.PositionDisplayConfig);
             }
 
-            _studentPositionType = dto.StudentPositionType;
             _ = SendAutoAcceptDelay();
             _ = SendAutoDeleteMode();
             _ = SendValidateDctFixes();
@@ -401,6 +409,7 @@ public partial class MainViewModel
         ActiveScenarioId = null;
         ActiveScenarioName = null;
         _studentPositionType = null;
+        _isAutoClearedToLand = false;
         _commandInput.PrimaryAirportId = null;
         Radar.SetPrimaryAirportId(null);
         Radar.ClearShownPaths();

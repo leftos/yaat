@@ -75,6 +75,7 @@ public partial class MainViewModel
             {
                 var wasDelayed = existing.IsDelayed;
                 existing.UpdateFromDto(dto, ComputeDistance);
+                ApplyAutoClearedToLand(existing);
                 if (existing.IsDelayed != wasDelayed)
                 {
                     RefreshAircraftView();
@@ -82,7 +83,9 @@ public partial class MainViewModel
             }
             else
             {
-                Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
+                var model = AircraftModel.FromDto(dto, ComputeDistance);
+                ApplyAutoClearedToLand(model);
+                Aircraft.Add(model);
             }
 
             Radar.RefreshShownPaths();
@@ -114,6 +117,7 @@ public partial class MainViewModel
             {
                 var wasDelayed = existing.IsDelayed;
                 existing.UpdateFromDto(dto, ComputeDistance);
+                ApplyAutoClearedToLand(existing);
                 if (existing.IsDelayed != wasDelayed)
                 {
                     RefreshAircraftView();
@@ -121,7 +125,9 @@ public partial class MainViewModel
             }
             else
             {
-                Aircraft.Add(AircraftModel.FromDto(dto, ComputeDistance));
+                var model = AircraftModel.FromDto(dto, ComputeDistance);
+                ApplyAutoClearedToLand(model);
+                Aircraft.Add(model);
             }
         });
     }
@@ -144,5 +150,11 @@ public partial class MainViewModel
             }
         }
         return null;
+    }
+
+    private void ApplyAutoClearedToLand(AircraftModel model)
+    {
+        model.IsAutoClearedToLand = _isAutoClearedToLand;
+        model.ComputeSmartStatus();
     }
 }

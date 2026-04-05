@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Yaat.Client.Services;
@@ -131,6 +130,12 @@ public partial class AircraftModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PhaseSequenceDisplay))]
     private int _activePhaseIndex = -1;
+
+    /// <summary>
+    /// When true, the scenario has auto-CTL enabled (e.g. GND/APP/CTR positions),
+    /// so missing landing clearance should not trigger alerts.
+    /// </summary>
+    public bool IsAutoClearedToLand { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ClearanceDisplay))]
@@ -670,12 +675,12 @@ public partial class AircraftModel : ObservableObject
 
     private (string Text, SmartStatusSeverity Severity)? CheckAlerts()
     {
-        if (CurrentPhase is "FinalApproach" && string.IsNullOrEmpty(LandingClearance))
+        if (CurrentPhase is "FinalApproach" && string.IsNullOrEmpty(LandingClearance) && !IsAutoClearedToLand)
         {
             return ("No landing clnc", SmartStatusSeverity.Critical);
         }
 
-        if (CurrentPhase is "Landing" or "Landing-H" && string.IsNullOrEmpty(LandingClearance))
+        if (CurrentPhase is "Landing" or "Landing-H" && string.IsNullOrEmpty(LandingClearance) && !IsAutoClearedToLand)
         {
             return ("Landing — no clnc!", SmartStatusSeverity.Critical);
         }
