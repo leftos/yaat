@@ -239,11 +239,51 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
-    /// From a runway centerline node, find any hold-short node directly connected
-    /// to it via a non-RWY edge. Optionally filters by runway designator, exit side,
-    /// or taxiway name. Returns the hold-short node and the taxiway name of the
-    /// connecting edge, or null if none found.
+    /// Walk centerline nodes ahead of the aircraft and search outward at each one
+    /// for an exit matching the preference. Returns the first match with its path
+    /// (starting at the centerline branch point, ending at the hold-short).
+    /// This is the correct search direction: runway → taxiway → hold-short.
     /// </summary>
+    public (GroundNode HoldShort, string Taxiway, List<GroundNode> Path, double ExitAngle)? FindExitFromCenterline(
+        double lat,
+        double lon,
+        TrueHeading runwayHeading,
+        string runwayDesignator,
+        ExitPreference? preference
+    )
+    {
+        var startNode = FindNearestCenterlineNode(lat, lon, runwayHeading, runwayDesignator);
+        if (startNode is null)
+        {
+            return null;
+        }
+
+        // Walk along-track: only consider centerline nodes ahead of the aircraft
+        const int maxCenterlineHops = 30;
+        var current = startNode;
+        for (int hop = 0; hop < maxCenterlineHops && current is not null; hop++)
+        {
+            double alongTrack = GeoMath.AlongTrackDistanceNm(current.Latitude, current.Longitude, lat, lon, runwayHeading);
+            if (alongTrack < -0.05)
+            {
+                // Node is behind the aircraft — skip
+                current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
+                continue;
+            }
+
+            var result = FindAdjacentHoldShort(current, runwayDesignator, runwayHeading, preference);
+            if (result is not null)
+            {
+                double? exitAngle = ComputeExitAngle(result.Value.Node, result.Value.Taxiway, runwayHeading);
+                return (result.Value.Node, result.Value.Taxiway, result.Value.Path, exitAngle ?? 90);
+            }
+
+            current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// From a runway centerline node, find a hold-short node reachable via
     /// non-RWY edges using BFS (max 12 hops). Each branch is constrained by

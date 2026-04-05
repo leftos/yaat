@@ -434,10 +434,11 @@ public sealed class LandingPhase : Phase
 
         string? rwyDesignator = ctx.Aircraft.Phases?.AssignedRunway?.Designator;
 
-        // Primary: find nearest hold-short node ahead (works with or without preference)
+        // Primary: walk centerline nodes ahead, search outward at each for a matching exit.
+        // This searches runway → taxiway → hold-short (the correct direction).
         if (rwyDesignator is not null)
         {
-            var hsNode = ctx.GroundLayout.FindNearestHoldShortAhead(
+            var exit = ctx.GroundLayout.FindExitFromCenterline(
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude,
                 _runwayHeading,
@@ -445,35 +446,27 @@ public sealed class LandingPhase : Phase
                 _activePreference
             );
 
-            if (hsNode is not null)
+            if (exit is not null)
             {
-                string? taxiwayName = ctx.GroundLayout.GetExitTaxiwayName(hsNode);
-                if (taxiwayName is not null)
+                double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exit.Value.ExitAngle);
+                _candidateExit = new ResolvedExitInfo
                 {
-                    List<GroundNode>? path = ctx.GroundLayout.FindExitPath(hsNode, taxiwayName);
-                    if (path is not null && path.Count > 0)
-                    {
-                        double? exitAngle = ctx.GroundLayout.ComputeExitAngle(hsNode, taxiwayName, _runwayHeading);
-                        double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
-                        _candidateExit = new ResolvedExitInfo
-                        {
-                            HoldShortNode = hsNode,
-                            TaxiwayName = taxiwayName,
-                            TurnOffSpeed = turnOffSpeed,
-                            Path = path,
-                            BranchPointNode = path[0],
-                        };
+                    HoldShortNode = exit.Value.HoldShort,
+                    TaxiwayName = exit.Value.Taxiway,
+                    TurnOffSpeed = turnOffSpeed,
+                    Path = exit.Value.Path,
+                    BranchPointNode = exit.Value.Path[0],
+                };
 
-                        ctx.Logger.LogDebug(
-                            "[Landing] {Callsign}: candidate exit {Taxiway}, angle={Angle}, turnOffSpeed={Speed:F0}kts",
-                            ctx.Aircraft.Callsign,
-                            taxiwayName,
-                            exitAngle?.ToString("F0") ?? "?",
-                            turnOffSpeed
-                        );
-                        return;
-                    }
-                }
+                ctx.Logger.LogDebug(
+                    "[Landing] {Callsign}: candidate exit {Taxiway}, angle={Angle:F0}, turnOffSpeed={Speed:F0}kts, path=[{Path}]",
+                    ctx.Aircraft.Callsign,
+                    exit.Value.Taxiway,
+                    exit.Value.ExitAngle,
+                    turnOffSpeed,
+                    string.Join("→", exit.Value.Path.Select(n => n.Id))
+                );
+                return;
             }
         }
 

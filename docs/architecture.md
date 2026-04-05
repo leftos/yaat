@@ -231,7 +231,8 @@ UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase
 # Phases/Ground/
 AtParkingPhase / PushbackPhase / PushbackToSpotPhase / TaxiingPhase / HoldingShortPhase
 CrossingRunwayPhase / HoldingAfterExitPhase / FollowingPhase
-RunwayExitPhase.cs             # Follows ResolvedExitInfo waypoints (branch→intermediates→hold-short); BFS for multi-hop high-speed exits
+RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase
+HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 
 # Data/
 Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways/airways/SID/STAR indexes + lazy CIFP procedures.

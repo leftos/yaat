@@ -244,7 +244,11 @@ public sealed class HoldingInPositionPhaseDto : PhaseDto;
 
 public sealed class HoldingAfterPushbackPhaseDto : PhaseDto;
 
-public sealed class HoldingAfterExitPhaseDto : PhaseDto;
+public sealed class HoldingAfterExitPhaseDto : PhaseDto
+{
+    public string? RunwayId { get; init; }
+    public string? ExitTaxiway { get; init; }
+}
 
 public sealed class AtParkingPhaseDto : PhaseDto;
 
@@ -258,6 +262,7 @@ public sealed class TaxiingPhaseDto : PhaseDto
     public required double PrevDistToTarget { get; init; }
     public required double CurrentNodeRequiredSpeed { get; init; }
     public List<SpeedConstraintDto>? SpeedConstraints { get; init; }
+    public GroundNavigatorDto? Navigator { get; init; }
 }
 
 public sealed class SpeedConstraintDto
@@ -265,6 +270,18 @@ public sealed class SpeedConstraintDto
     public required double PathDistNm { get; init; }
     public required double RequiredSpeedKts { get; init; }
     public required int NodeId { get; init; }
+}
+
+public sealed class GroundNavigatorDto
+{
+    public int TargetNodeId { get; init; }
+    public double TargetLat { get; init; }
+    public double TargetLon { get; init; }
+    public double PrevDistToTarget { get; init; }
+    public double CurrentNodeRequiredSpeed { get; init; }
+    public double MaxSpeedKts { get; init; }
+    public double CornerSpeedKts { get; init; }
+    public List<SpeedConstraintDto>? SpeedConstraints { get; init; }
 }
 
 public sealed class FollowingPhaseDto : PhaseDto
@@ -321,6 +338,7 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     public required bool Braking { get; init; } = false;
     public double? VirtualTargetLat { get; init; }
     public double? VirtualTargetLon { get; init; }
+    public GroundNavigatorDto? Navigator { get; init; }
 }
 
 // --- Tower phases ---

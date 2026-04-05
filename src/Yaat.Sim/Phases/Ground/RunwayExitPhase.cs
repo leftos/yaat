@@ -8,17 +8,16 @@ namespace Yaat.Sim.Phases.Ground;
 
 /// <summary>
 /// After landing rollout completes, rolls the aircraft forward along runway
-/// centerline edges until a hold-short exit is found, then follows the graph
-/// edges off the runway and stops at the hold-short node.
+/// centerline edges until a hold-short exit is found, then follows the exit
+/// path using <see cref="GroundNavigator"/> with exit-appropriate speed.
 ///
 /// States:
 ///   RollingOnCenterline — following RWY edges forward, checking for exits
-///   TurningOff — following taxiway edges from centerline to hold-short node
+///   FollowingExitPath — GroundNavigator follows exit taxiway edges to hold-short
 /// </summary>
 public sealed class RunwayExitPhase : Phase
 {
     private const double CenterlineNodeArrivalNm = 0.015;
-    private const double StoppedSpeedKts = 1.0;
     private const double LogIntervalSeconds = 3.0;
 
     /// <summary>
@@ -31,7 +30,7 @@ public sealed class RunwayExitPhase : Phase
     private enum ExitState
     {
         RollingOnCenterline,
-        TurningOff,
+        FollowingExitPath,
     }
 
     private ExitState _state = ExitState.RollingOnCenterline;
@@ -40,7 +39,6 @@ public sealed class RunwayExitPhase : Phase
     private ExitPreference? _lastResolvedPreference;
     private double _coastSpeed;
     private double _timeSinceLastLog;
-    private bool _braking;
 
     // Centerline walking state
     private GroundNode? _currentCenterlineNode;
@@ -50,18 +48,16 @@ public sealed class RunwayExitPhase : Phase
     private GroundNode? _holdShortNode;
     private string? _exitTaxiway;
 
-    // Virtual stop target: halfLength past the hold-short node so the tail clears the line.
-    private double _virtualTargetLat;
-    private double _virtualTargetLon;
-    private bool _hasVirtualTarget;
-
-    // Waypoint-following state (from ResolvedExitInfo or BFS path)
-    private List<GroundNode>? _exitWaypoints;
-    private int _currentWaypointIndex;
+    // Full exit path including branch point: [branchNode, wp1, wp2, ..., holdShort]
+    private List<GroundNode>? _exitPath;
 
     // Look-ahead: when an exit is found at the next centerline node, this stores
     // that node so we can compute the turn lead distance and start pre-turning.
     private GroundNode? _pendingBranchNode;
+
+    // Exit path navigation (FollowingExitPath state)
+    private TaxiRoute? _exitRoute;
+    private GroundNavigator? _navigator;
 
     public override string Name => "Runway Exit";
 
@@ -79,27 +75,20 @@ public sealed class RunwayExitPhase : Phase
             return;
         }
 
-        // If LandingPhase committed to a specific exit, use it directly rather than re-searching.
-        // This guarantees the aircraft exits at the pre-resolved taxiway even when the aircraft
-        // position at handoff is past the branch point.
+        // If LandingPhase committed to a specific exit, store the path.
+        // Navigation starts on the first OnTick.
         if (ctx.Aircraft.Phases?.ResolvedExit is { } committed)
         {
             ctx.Aircraft.Phases.ResolvedExit = null;
             _holdShortNode = committed.HoldShortNode;
             _exitTaxiway = committed.TaxiwayName;
-            _state = ExitState.TurningOff;
-
-            // Path includes branch point as first node — skip it (we're already there)
-            _exitWaypoints = committed.Path.Count > 1 ? committed.Path.GetRange(1, committed.Path.Count - 1) : [committed.HoldShortNode];
-            _currentWaypointIndex = 0;
-
-            ComputeVirtualTarget(ctx);
+            _exitPath = committed.Path;
 
             ctx.Logger.LogDebug(
-                "[Exit] {Callsign}: using committed exit {Twy}, {WpCount} waypoints to hold-short {HsId}",
+                "[Exit] {Callsign}: committed exit {Twy}, {PathCount} nodes to hold-short {HsId}",
                 ctx.Aircraft.Callsign,
                 _exitTaxiway,
-                _exitWaypoints.Count,
+                _exitPath.Count,
                 _holdShortNode.Id
             );
             return;
@@ -127,40 +116,37 @@ public sealed class RunwayExitPhase : Phase
 
     public override bool OnTick(PhaseContext ctx)
     {
+        if (_state == ExitState.FollowingExitPath)
+        {
+            return TickFollowingExitPath(ctx);
+        }
+
         // Re-check preference if changed mid-phase
         var currentPref = ctx.Aircraft.Phases?.RequestedExit;
-        if (currentPref != _lastResolvedPreference && _state == ExitState.RollingOnCenterline)
+        if (currentPref != _lastResolvedPreference && _holdShortNode is null)
         {
             _lastResolvedPreference = currentPref;
             _holdShortNode = null;
             _exitTaxiway = null;
+            _exitPath = null;
             TryFindHoldShort(ctx);
         }
 
-        return _state switch
+        // Exit found and no pending look-ahead — start following exit path
+        if (_holdShortNode is not null && _pendingBranchNode is null && _state == ExitState.RollingOnCenterline)
         {
-            ExitState.RollingOnCenterline => TickRolling(ctx),
-            ExitState.TurningOff => TickTurningOff(ctx),
-            _ => true,
-        };
+            if (StartExitNavigation(ctx))
+            {
+                return TickFollowingExitPath(ctx);
+            }
+            return true;
+        }
+
+        return TickRolling(ctx);
     }
 
     private bool TickRolling(PhaseContext ctx)
     {
-        // Transition to TurningOff when the exit is resolved and we've passed the branch node
-        // (or it was resolved from the current node with no look-ahead needed).
-        if (_holdShortNode is not null && _pendingBranchNode is null)
-        {
-            _state = ExitState.TurningOff;
-            ctx.Logger.LogDebug(
-                "[Exit] {Callsign}: turning off toward hold-short {NodeId} on {Twy}",
-                ctx.Aircraft.Callsign,
-                _holdShortNode.Id,
-                _exitTaxiway ?? "?"
-            );
-            return TickTurningOff(ctx);
-        }
-
         if (_nextCenterlineNode is null)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
@@ -175,8 +161,7 @@ public sealed class RunwayExitPhase : Phase
             _nextCenterlineNode.Longitude
         );
 
-        // Look-ahead: search the next centerline node for exits before arriving,
-        // so we can start pre-turning and create a smooth arc.
+        // Look-ahead: search the next centerline node for exits before arriving
         if (_holdShortNode is null && ctx.GroundLayout is not null && distToNext < LookAheadSearchNm)
         {
             TryFindHoldShortFromNode(ctx, _nextCenterlineNode);
@@ -194,10 +179,9 @@ public sealed class RunwayExitPhase : Phase
 
         // Compute steering: either pre-turn toward exit or follow centerline
         double steerBearing;
-        if (_holdShortNode is not null && _pendingBranchNode is not null && _exitWaypoints is not null && _exitWaypoints.Count > 0)
+        if (_holdShortNode is not null && _pendingBranchNode is not null && _exitPath is not null && _exitPath.Count > 1)
         {
-            // Pre-turning: compute lead distance based on speed, heading change, and turn rate
-            var firstWaypoint = _exitWaypoints[0];
+            var firstWaypoint = _exitPath[1];
             double exitBearing = GeoMath.BearingTo(
                 _pendingBranchNode.Latitude,
                 _pendingBranchNode.Longitude,
@@ -218,10 +202,7 @@ public sealed class RunwayExitPhase : Phase
 
             if (distToBranch <= leadDistNm)
             {
-                // Within lead distance — start steering toward the exit waypoint
                 steerBearing = exitBearing;
-
-                // Slow down for sharp turns
                 if (headingChangeRad > 0.5) // ~30°
                 {
                     AdjustSpeed(ctx, CategoryPerformance.StandardExitSpeed(ctx.Category));
@@ -233,7 +214,6 @@ public sealed class RunwayExitPhase : Phase
             }
             else
             {
-                // Not yet within lead distance — follow centerline normally
                 steerBearing = GeoMath.BearingTo(
                     ctx.Aircraft.Latitude,
                     ctx.Aircraft.Longitude,
@@ -245,7 +225,6 @@ public sealed class RunwayExitPhase : Phase
         }
         else
         {
-            // No pending exit — follow centerline
             steerBearing = GeoMath.BearingTo(
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude,
@@ -259,7 +238,6 @@ public sealed class RunwayExitPhase : Phase
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, steerBearing, maxTurn);
 
-        // Check arrival at next centerline node
         if (distToNext <= CenterlineNodeArrivalNm)
         {
             ctx.Aircraft.Latitude = _nextCenterlineNode.Latitude;
@@ -268,8 +246,6 @@ public sealed class RunwayExitPhase : Phase
             _currentCenterlineNode = _nextCenterlineNode;
             _nextCenterlineNode = ctx.GroundLayout?.FindCenterlineNeighborAhead(_currentCenterlineNode, _runwayHeading, _runwayId);
 
-            // If we had a pending look-ahead exit at this node, clear the pending marker
-            // so the transition check at the top of the next tick fires.
             if (_pendingBranchNode is not null && _holdShortNode is not null)
             {
                 _pendingBranchNode = null;
@@ -284,132 +260,145 @@ public sealed class RunwayExitPhase : Phase
         return false;
     }
 
-    private bool TickTurningOff(PhaseContext ctx)
+    /// <summary>
+    /// Build a TaxiRoute from the exit path and start GroundNavigator with
+    /// exit-appropriate speed (HighSpeedExitSpeed for shallow exits).
+    /// </summary>
+    private bool StartExitNavigation(PhaseContext ctx)
     {
-        if (_holdShortNode is null)
+        if (_exitPath is null || _exitPath.Count < 2 || _exitTaxiway is null || ctx.GroundLayout is null)
+        {
+            ctx.Logger.LogWarning("[Exit] {Callsign}: cannot build exit route", ctx.Aircraft.Callsign);
+            return false;
+        }
+
+        var segments = new List<TaxiRouteSegment>();
+        for (int i = 0; i < _exitPath.Count - 1; i++)
+        {
+            var fromNode = _exitPath[i];
+            var toNode = _exitPath[i + 1];
+            var edge = FindEdgeBetween(fromNode, toNode.Id);
+            if (edge is null)
+            {
+                ctx.Logger.LogWarning("[Exit] {Callsign}: no edge between nodes {From} and {To}", ctx.Aircraft.Callsign, fromNode.Id, toNode.Id);
+                return false;
+            }
+
+            segments.Add(
+                new TaxiRouteSegment
+                {
+                    FromNodeId = fromNode.Id,
+                    ToNodeId = toNode.Id,
+                    TaxiwayName = _exitTaxiway,
+                    Edge = edge,
+                }
+            );
+        }
+
+        _exitRoute = new TaxiRoute { Segments = segments, HoldShortPoints = [] };
+
+        double exitAngle = ctx.GroundLayout.ComputeExitAngle(_holdShortNode!, _exitTaxiway, _runwayHeading) ?? 90;
+        double maxSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
+
+        _navigator = new GroundNavigator { MaxSpeedKts = maxSpeed, CornerSpeedKts = CategoryPerformance.TaxiCornerSpeed(ctx.Category) };
+        _navigator.SetupSegment(_exitRoute, ctx, _ => true);
+
+        _state = ExitState.FollowingExitPath;
+        ctx.Aircraft.CurrentTaxiway = _exitTaxiway;
+
+        ctx.Logger.LogDebug(
+            "[Exit] {Callsign}: following exit path, {SegCount} segments on {Twy}, maxSpeed={Speed:F0}kts, path=[{Path}]",
+            ctx.Aircraft.Callsign,
+            segments.Count,
+            _exitTaxiway,
+            maxSpeed,
+            string.Join("→", _exitPath.Select(n => n.Id))
+        );
+        return true;
+    }
+
+    private bool TickFollowingExitPath(PhaseContext ctx)
+    {
+        if (_exitRoute is null || _navigator is null)
         {
             return true;
         }
 
-        // Determine current steering target
-        GroundNode target;
-        if ((_exitWaypoints is not null) && (_currentWaypointIndex < _exitWaypoints.Count))
+        bool isLastSegment = _exitRoute.CurrentSegmentIndex + 1 >= _exitRoute.Segments.Count;
+        var result = _navigator.Tick(ctx, isLastSegment, _ => true);
+
+        if (result == NavigatorResult.ArrivedAtNode)
         {
-            target = _exitWaypoints[_currentWaypointIndex];
-        }
-        else
-        {
-            target = _holdShortNode;
-        }
-
-        double distToTarget = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
-
-        // Steer toward current waypoint
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
-
-        // Check arrival at current waypoint — snap and advance
-        if (distToTarget <= CenterlineNodeArrivalNm)
-        {
-            ctx.Aircraft.Latitude = target.Latitude;
-            ctx.Aircraft.Longitude = target.Longitude;
-
-            if ((_exitWaypoints is not null) && (_currentWaypointIndex < _exitWaypoints.Count))
+            if (_exitRoute.CurrentSegment is { } seg)
             {
-                _currentWaypointIndex++;
-            }
-        }
-
-        // Compute total remaining distance through all remaining waypoints
-        double totalRemainingDist = ComputeRemainingDistance(ctx);
-
-        // Braking: decelerate to stop at hold-short using total remaining path distance.
-        // Once braking starts, commit — don't re-accelerate (prevents orbiting).
-        double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-        double speed = ctx.Aircraft.GroundSpeed;
-        double stoppingDistNm = (speed * speed) / (2.0 * decelRate * 3600.0);
-
-        if (_braking || (stoppingDistNm >= totalRemainingDist))
-        {
-            _braking = true;
-            AdjustSpeed(ctx, 0);
-        }
-        else
-        {
-            // Limit speed based on heading change to current waypoint. For sharp turns (>30°),
-            // cap speed to the standard exit speed instead of accelerating to coast speed.
-            // Without this, a 90° exit at 15kts accelerates to 40kts and overshoots onto grass.
-            double headingDiff = Math.Abs(ctx.Aircraft.TrueHeading.SignedAngleTo(new TrueHeading(bearing)));
-            double maxSpeed;
-            if (headingDiff > 30.0)
-            {
-                maxSpeed = CategoryPerformance.StandardExitSpeed(ctx.Category);
-            }
-            else
-            {
-                maxSpeed = _coastSpeed;
+                ctx.Aircraft.CurrentTaxiway = seg.TaxiwayName;
             }
 
-            AdjustSpeed(ctx, maxSpeed);
+            _exitRoute.CurrentSegmentIndex++;
+
+            if (_exitRoute.IsComplete)
+            {
+                return CompleteExit(ctx);
+            }
+
+            _navigator.SetupSegment(_exitRoute, ctx, _ => true);
         }
 
-        ctx.Targets.TargetSpeed = null;
-
-        if (ctx.Aircraft.IndicatedAirspeed <= StoppedSpeedKts)
-        {
-            ctx.Aircraft.IndicatedAirspeed = 0;
-            ctx.Aircraft.CurrentTaxiway = _exitTaxiway;
-            return true;
-        }
-
-        LogPeriodic(ctx, totalRemainingDist);
         return false;
     }
 
-    private double ComputeRemainingDistance(PhaseContext ctx)
+    private bool CompleteExit(PhaseContext ctx)
     {
-        double total = 0;
-        double prevLat = ctx.Aircraft.Latitude;
-        double prevLon = ctx.Aircraft.Longitude;
+        ctx.Aircraft.IndicatedAirspeed = 0;
+        ctx.Targets.TargetSpeed = 0;
 
-        if (_exitWaypoints is not null)
+        // Snap to the hold-short node
+        if (_holdShortNode is not null && ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_holdShortNode.Id, out var finalNode))
         {
-            for (int i = _currentWaypointIndex; i < _exitWaypoints.Count; i++)
-            {
-                var wp = _exitWaypoints[i];
-                total += GeoMath.DistanceNm(prevLat, prevLon, wp.Latitude, wp.Longitude);
-                prevLat = wp.Latitude;
-                prevLon = wp.Longitude;
-            }
-        }
-        else if (_holdShortNode is not null)
-        {
-            total = GeoMath.DistanceNm(prevLat, prevLon, _holdShortNode.Latitude, _holdShortNode.Longitude);
+            ctx.Aircraft.Latitude = finalNode.Latitude;
+            ctx.Aircraft.Longitude = finalNode.Longitude;
         }
 
-        // Include distance from hold-short node to virtual stop target (halfLength past it).
-        // When all waypoints have been passed, measure directly from aircraft to virtual target.
-        if (_hasVirtualTarget)
-        {
-            bool pastAllWaypoints = (_exitWaypoints is null) || (_currentWaypointIndex >= _exitWaypoints.Count);
-            if (pastAllWaypoints)
-            {
-                total = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _virtualTargetLat, _virtualTargetLon);
-            }
-            else if (_holdShortNode is not null)
-            {
-                total += GeoMath.DistanceNm(_holdShortNode.Latitude, _holdShortNode.Longitude, _virtualTargetLat, _virtualTargetLon);
-            }
-        }
+        // Offset forward by half the aircraft length so the tail clears the hold-short line
+        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
+        double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+        var (newLat, newLon) = GeoMath.ProjectPoint(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, ctx.Aircraft.TrueHeading, halfLengthNm);
+        ctx.Aircraft.Latitude = newLat;
+        ctx.Aircraft.Longitude = newLon;
 
-        return total;
+        // Broadcast "clear of runway"
+        string rwy = _runwayId ?? "unknown";
+        string twy = _exitTaxiway ?? "taxiway";
+        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} clear of runway {rwy} at {twy}");
+
+        // Insert HoldingAfterExitPhase
+        ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingAfterExitPhase(_runwayId, _exitTaxiway));
+
+        ctx.Logger.LogDebug(
+            "[Exit] {Callsign}: exit complete on {Twy}, holding at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",
+            ctx.Aircraft.Callsign,
+            _exitTaxiway,
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            ctx.Aircraft.TrueHeading.Degrees
+        );
+
+        return true;
     }
 
-    /// <summary>
-    /// Search a specific centerline node for exits. Used for look-ahead searching
-    /// the next node before the aircraft arrives.
-    /// </summary>
+    private static GroundEdge? FindEdgeBetween(GroundNode fromNode, int toNodeId)
+    {
+        foreach (var edge in fromNode.Edges)
+        {
+            int other = edge.FromNodeId == fromNode.Id ? edge.ToNodeId : edge.FromNodeId;
+            if (other == toNodeId)
+            {
+                return edge;
+            }
+        }
+        return null;
+    }
+
     private void TryFindHoldShortFromNode(PhaseContext ctx, GroundNode centerlineNode)
     {
         if (ctx.GroundLayout is null)
@@ -424,13 +413,11 @@ public sealed class RunwayExitPhase : Phase
         }
 
         double? exitAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, _runwayHeading);
-        bool isExplicitPreference = (_lastResolvedPreference?.Taxiway is not null) || (_lastResolvedPreference?.Side is not null);
-
-        if ((exitAngle is not null) && (exitAngle.Value > 90) && !isExplicitPreference)
+        bool isExplicit = (_lastResolvedPreference?.Taxiway is not null) || (_lastResolvedPreference?.Side is not null);
+        if ((exitAngle is not null) && (exitAngle.Value > 90) && !isExplicit)
         {
             return;
         }
-
         if (ctx.IsHoldShortNodeOccupied?.Invoke(result.Value.Node.Id) == true)
         {
             return;
@@ -438,19 +425,7 @@ public sealed class RunwayExitPhase : Phase
 
         _holdShortNode = result.Value.Node;
         _exitTaxiway = result.Value.Taxiway;
-
-        if (result.Value.Path.Count > 1)
-        {
-            _exitWaypoints = result.Value.Path.GetRange(1, result.Value.Path.Count - 1);
-            _currentWaypointIndex = 0;
-        }
-        else
-        {
-            _exitWaypoints = [result.Value.Node];
-            _currentWaypointIndex = 0;
-        }
-
-        ComputeVirtualTarget(ctx);
+        _exitPath = result.Value.Path;
     }
 
     private void TryFindHoldShort(PhaseContext ctx)
@@ -461,21 +436,19 @@ public sealed class RunwayExitPhase : Phase
         }
 
         var result = ctx.GroundLayout.FindAdjacentHoldShort(_currentCenterlineNode, _runwayId, _runwayHeading, _lastResolvedPreference);
-
         if (result is null)
         {
             return;
         }
 
-        // Check exit angle — skip exits requiring >90° turn if more runway ahead
         double? exitAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, _runwayHeading);
         bool hasMoreRunway = _nextCenterlineNode is not null;
-        bool isExplicitPreference = (_lastResolvedPreference?.Taxiway is not null) || (_lastResolvedPreference?.Side is not null);
+        bool isExplicit = (_lastResolvedPreference?.Taxiway is not null) || (_lastResolvedPreference?.Side is not null);
 
-        if ((exitAngle is not null) && (exitAngle.Value > 90) && hasMoreRunway && !isExplicitPreference)
+        if ((exitAngle is not null) && (exitAngle.Value > 90) && hasMoreRunway && !isExplicit)
         {
             ctx.Logger.LogDebug(
-                "[Exit] {Callsign}: skipping {Twy} (angle={Angle:F0}° > 90°, more runway ahead)",
+                "[Exit] {Callsign}: skipping {Twy} (angle={Angle:F0}° > 90°)",
                 ctx.Aircraft.Callsign,
                 result.Value.Taxiway,
                 exitAngle.Value
@@ -483,146 +456,20 @@ public sealed class RunwayExitPhase : Phase
             return;
         }
 
-        // Skip occupied hold-short nodes if more runway ahead — don't queue on active runway
         if (hasMoreRunway && (ctx.IsHoldShortNodeOccupied?.Invoke(result.Value.Node.Id) == true))
         {
-            ctx.Logger.LogDebug(
-                "[Exit] {Callsign}: skipping {Twy} (hold-short node {NodeId} occupied, more runway ahead)",
-                ctx.Aircraft.Callsign,
-                result.Value.Taxiway,
-                result.Value.Node.Id
-            );
+            ctx.Logger.LogDebug("[Exit] {Callsign}: skipping {Twy} (hold-short occupied)", ctx.Aircraft.Callsign, result.Value.Taxiway);
             return;
         }
 
         _holdShortNode = result.Value.Node;
         _exitTaxiway = result.Value.Taxiway;
-
-        // Store BFS path as waypoints (skip the centerline node at index 0)
-        if (result.Value.Path.Count > 1)
-        {
-            _exitWaypoints = result.Value.Path.GetRange(1, result.Value.Path.Count - 1);
-            _currentWaypointIndex = 0;
-        }
-        else
-        {
-            _exitWaypoints = [result.Value.Node];
-            _currentWaypointIndex = 0;
-        }
-
-        ComputeVirtualTarget(ctx);
-    }
-
-    /// <summary>
-    /// Computes a virtual stop target halfLength past the hold-short node (away from runway)
-    /// so the aircraft center stops with its tail at the hold-short line.
-    /// </summary>
-    private void ComputeVirtualTarget(PhaseContext ctx)
-    {
-        if (_holdShortNode is null || ctx.GroundLayout is null)
-        {
-            _hasVirtualTarget = false;
-            return;
-        }
-
-        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
-        double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
-
-        double? awayBearing = FindBearingAwayFromRunway(ctx.GroundLayout, _holdShortNode);
-        if (awayBearing is null && _currentCenterlineNode is not null)
-        {
-            awayBearing = GeoMath.BearingTo(
-                _currentCenterlineNode.Latitude,
-                _currentCenterlineNode.Longitude,
-                _holdShortNode.Latitude,
-                _holdShortNode.Longitude
-            );
-        }
-
-        if (awayBearing is null)
-        {
-            _hasVirtualTarget = false;
-            return;
-        }
-
-        (_virtualTargetLat, _virtualTargetLon) = GeoMath.ProjectPointRaw(
-            _holdShortNode.Latitude,
-            _holdShortNode.Longitude,
-            awayBearing.Value,
-            halfLengthNm
-        );
-        _hasVirtualTarget = true;
+        _exitPath = result.Value.Path;
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
     {
         ctx.Logger.LogDebug("[Exit] {Callsign}: OnEnd ({Status}), taxiway={Twy}", ctx.Aircraft.Callsign, endStatus, _exitTaxiway ?? "none");
-
-        if (endStatus == PhaseStatus.Completed)
-        {
-            ctx.Aircraft.IndicatedAirspeed = 0;
-            ctx.Targets.TargetSpeed = 0;
-
-            // Snap to virtual target so the tail clears the hold-short line
-            if (_hasVirtualTarget)
-            {
-                ctx.Aircraft.Latitude = _virtualTargetLat;
-                ctx.Aircraft.Longitude = _virtualTargetLon;
-            }
-
-            // Face away from the runway
-            if (_holdShortNode is not null && _exitTaxiway is not null && ctx.GroundLayout is not null)
-            {
-                double? awayBearing = FindBearingAwayFromRunway(ctx.GroundLayout, _holdShortNode);
-                if (awayBearing is not null)
-                {
-                    ctx.Aircraft.TrueHeading = new TrueHeading(awayBearing.Value);
-                }
-            }
-
-            string rwy = _runwayId ?? "unknown";
-            string taxiway = _exitTaxiway ?? "taxiway";
-            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} clear of runway {rwy} at {taxiway}");
-        }
-    }
-
-    /// <summary>
-    /// Find the bearing along an edge at the hold-short node that leads AWAY
-    /// from the runway (neighbor is not on the runway centerline).
-    /// </summary>
-    private static double? FindBearingAwayFromRunway(AirportGroundLayout layout, GroundNode holdShortNode)
-    {
-        foreach (var edge in holdShortNode.Edges)
-        {
-            if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            int neighborId = edge.FromNodeId == holdShortNode.Id ? edge.ToNodeId : edge.FromNodeId;
-            if (!layout.Nodes.TryGetValue(neighborId, out var neighbor))
-            {
-                continue;
-            }
-
-            // Skip neighbors that are on the runway centerline (back toward the runway)
-            bool neighborOnRunway = false;
-            foreach (var nEdge in neighbor.Edges)
-            {
-                if (nEdge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
-                {
-                    neighborOnRunway = true;
-                    break;
-                }
-            }
-
-            if (!neighborOnRunway)
-            {
-                return GeoMath.BearingTo(holdShortNode.Latitude, holdShortNode.Longitude, neighbor.Latitude, neighbor.Longitude);
-            }
-        }
-
-        return null;
     }
 
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
@@ -646,9 +493,8 @@ public sealed class RunwayExitPhase : Phase
         {
             _timeSinceLastLog = 0;
             ctx.Logger.LogTrace(
-                "[Exit] {Callsign}: {State}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
+                "[Exit] {Callsign}: rolling, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
                 ctx.Aircraft.Callsign,
-                _state,
                 dist,
                 ctx.Aircraft.GroundSpeed,
                 ctx.Aircraft.TrueHeading.Degrees
@@ -677,23 +523,24 @@ public sealed class RunwayExitPhase : Phase
             Requirements = SnapshotRequirements(),
             ExitNodeId = _holdShortNode?.Id,
             ClearNodeId = null,
-            ReachedExitNode = _state == ExitState.TurningOff,
+            ReachedExitNode = _state == ExitState.FollowingExitPath,
             ExitTaxiway = _exitTaxiway,
             RunwayId = _runwayId,
             LastResolvedPreference = (int?)_lastResolvedPreference?.Side,
             LastResolvedPreferenceTaxiway = _lastResolvedPreference?.Taxiway,
-            ExitWaypointNodeIds = _exitWaypoints?.Select(n => n.Id).ToList(),
-            ExitWaypointIndex = _currentWaypointIndex,
+            ExitWaypointNodeIds = _exitPath?.Select(n => n.Id).ToList(),
+            ExitWaypointIndex = _exitRoute?.CurrentSegmentIndex ?? 0,
             ExitSpeed = _coastSpeed,
             TimeSinceLastLog = _timeSinceLastLog,
             StoppedForLahso = false,
-            Braking = _braking,
-            VirtualTargetLat = _hasVirtualTarget ? _virtualTargetLat : null,
-            VirtualTargetLon = _hasVirtualTarget ? _virtualTargetLon : null,
+            Braking = false,
+            VirtualTargetLat = null,
+            VirtualTargetLon = null,
             CurrentCenterlineNodeId = _currentCenterlineNode?.Id,
             NextCenterlineNodeId = _nextCenterlineNode?.Id,
             RunwayHeadingDeg = _runwayHeading.Degrees,
             ExitStateValue = (int)_state,
+            Navigator = _navigator?.ToSnapshot(),
         };
 
     public static RunwayExitPhase FromSnapshot(RunwayExitPhaseDto dto, AirportGroundLayout? groundLayout)
@@ -707,15 +554,7 @@ public sealed class RunwayExitPhase : Phase
             ? new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value, Taxiway = dto.LastResolvedPreferenceTaxiway }
             : null;
         phase._coastSpeed = dto.ExitSpeed;
-        phase._braking = dto.Braking;
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
-
-        if (dto.VirtualTargetLat.HasValue && dto.VirtualTargetLon.HasValue)
-        {
-            phase._virtualTargetLat = dto.VirtualTargetLat.Value;
-            phase._virtualTargetLon = dto.VirtualTargetLon.Value;
-            phase._hasVirtualTarget = true;
-        }
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
@@ -726,32 +565,32 @@ public sealed class RunwayExitPhase : Phase
             {
                 phase._currentCenterlineNode = groundLayout.Nodes.GetValueOrDefault(dto.CurrentCenterlineNodeId.Value);
             }
-
             if (dto.NextCenterlineNodeId.HasValue)
             {
                 phase._nextCenterlineNode = groundLayout.Nodes.GetValueOrDefault(dto.NextCenterlineNodeId.Value);
             }
-
             if (dto.ExitNodeId.HasValue)
             {
                 phase._holdShortNode = groundLayout.Nodes.GetValueOrDefault(dto.ExitNodeId.Value);
             }
-
             if (dto.ExitWaypointNodeIds is not null)
             {
-                var waypoints = new List<GroundNode>();
+                var path = new List<GroundNode>();
                 foreach (int id in dto.ExitWaypointNodeIds)
                 {
                     if (groundLayout.Nodes.TryGetValue(id, out var n))
                     {
-                        waypoints.Add(n);
+                        path.Add(n);
                     }
                 }
-                if (waypoints.Count > 0)
+                if (path.Count > 0)
                 {
-                    phase._exitWaypoints = waypoints;
-                    phase._currentWaypointIndex = dto.ExitWaypointIndex;
+                    phase._exitPath = path;
                 }
+            }
+            if (dto.Navigator is not null)
+            {
+                phase._navigator = GroundNavigator.FromSnapshot(dto.Navigator);
             }
         }
 

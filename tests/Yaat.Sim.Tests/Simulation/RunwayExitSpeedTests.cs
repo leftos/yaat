@@ -84,15 +84,24 @@ public class RunwayExitSpeedTests(ITestOutputHelper output)
 
             string? phaseName = ac.Phases?.CurrentPhase?.GetType().Name;
 
-            if (phaseName == "RunwayExitPhase")
-            {
-                if (!enteredExit)
-                {
-                    enteredExit = true;
-                    exitStartTick = t;
-                    output.WriteLine($"t+{t}: entered RunwayExitPhase, gs={ac.GroundSpeed:F1}");
-                }
+            // The exit sequence is: RunwayExitPhase (may be instant) → TaxiingPhase (follows exit path)
+            // → HoldingAfterExitPhase (stopped). RunwayExitPhase hands off to TaxiingPhase within
+            // one tick, so at 1-second resolution we may only see TaxiingPhase. Detect the exit start
+            // by the phase name (RunwayExitPhase or TaxiingPhase following LandingPhase).
+            bool isExitPhase =
+                phaseName == "RunwayExitPhase"
+                || (phaseName == "TaxiingPhase" && ac.CurrentTaxiway is not null && !enteredExit)
+                || (enteredExit && phaseName == "TaxiingPhase");
 
+            if (isExitPhase && !enteredExit)
+            {
+                enteredExit = true;
+                exitStartTick = t;
+                output.WriteLine($"t+{t}: entered exit ({phaseName}), gs={ac.GroundSpeed:F1}");
+            }
+
+            if (isExitPhase)
+            {
                 totalExitTicks++;
                 if (ac.GroundSpeed < 4.5)
                 {
@@ -106,7 +115,7 @@ public class RunwayExitSpeedTests(ITestOutputHelper output)
                     output.WriteLine($"  exit t+{t}: gs={ac.GroundSpeed:F1} hdg={ac.TrueHeading.Degrees:F0}");
                 }
             }
-            else if (enteredExit && phaseName != "RunwayExitPhase")
+            else if (enteredExit && !isExitPhase)
             {
                 exitEndTick = t;
                 output.WriteLine($"t+{t}: exit completed, gs={ac.GroundSpeed:F1}, phase={phaseName}");

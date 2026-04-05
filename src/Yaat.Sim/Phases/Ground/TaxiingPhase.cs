@@ -11,22 +11,19 @@ namespace Yaat.Sim.Phases.Ground;
 /// Turns at nodes using ground turn rate.
 /// Auto-stops at hold-short points (inserts HoldingShortPhase).
 /// Completes when all segments have been traversed.
+///
+/// Core navigation (steering, speed profiling, braking, arrival detection) is
+/// delegated to <see cref="GroundNavigator"/>. This phase handles route
+/// management: hold-short insertion, runway crossing, departure clearance,
+/// parking, and route completion.
 /// </summary>
 public sealed class TaxiingPhase : Phase
 {
-    private const double NodeArrivalThresholdNm = 0.015;
-    private const double FinalNodeArrivalThresholdNm = 0.0003;
-    private const double OvershootDetectionNm = 0.03;
     private const double LogIntervalSeconds = 3.0;
 
-    private int _targetNodeId;
-    private double _targetLat;
-    private double _targetLon;
+    private GroundNavigator _nav = new();
     private bool _initialized;
     private double _timeSinceLastLog;
-    private double _prevDistToTarget = double.MaxValue;
-    private double _currentNodeRequiredSpeed;
-    private List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
 
     public override string Name => "Taxiing";
 
@@ -44,15 +41,17 @@ public sealed class TaxiingPhase : Phase
         }
 
         ctx.Aircraft.IsOnGround = true;
-        SetupCurrentSegment(ctx);
+        _nav.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
+        _nav.CornerSpeedKts = CategoryPerformance.TaxiCornerSpeed(ctx.Category);
+        SetupCurrentSegment(ctx, route);
 
         ctx.Logger.LogDebug(
             "[Taxi] {Callsign}: started, {SegCount} segments, first target node {NodeId} at ({Lat:F6}, {Lon:F6})",
             ctx.Aircraft.Callsign,
             route.Segments.Count,
-            _targetNodeId,
-            _targetLat,
-            _targetLon
+            _nav.TargetNodeId,
+            _nav.TargetLat,
+            _nav.TargetLon
         );
     }
 
@@ -72,120 +71,35 @@ public sealed class TaxiingPhase : Phase
                 ctx.Aircraft.Callsign,
                 ctx.GroundLayout is not null ? "present" : "NULL"
             );
-            SetupCurrentSegment(ctx);
+            _nav.MaxSpeedKts = CategoryPerformance.TaxiSpeed(ctx.Category);
+            _nav.CornerSpeedKts = CategoryPerformance.TaxiCornerSpeed(ctx.Category);
+            SetupCurrentSegment(ctx, route);
         }
 
-        // Check if held
         if (ctx.Aircraft.IsHeld)
         {
-            AdjustSpeed(ctx, 0);
+            ctx.Aircraft.IndicatedAirspeed = Math.Max(
+                0,
+                ctx.Aircraft.IndicatedAirspeed - CategoryPerformance.TaxiDecelRate(ctx.Category) * ctx.DeltaSeconds
+            );
             return false;
         }
 
-        // Navigate toward the current target node
-        double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
-
-        // Use a tighter threshold for the final node so the aircraft stops close to its
-        // destination instead of 91ft short. Intermediate nodes keep the wider threshold
-        // to ensure smooth turns toward the next segment.
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
-        double arrivalThreshold = isLastSegment ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
+        var result = _nav.Tick(ctx, isLastSegment, nodeId => IsHoldShortCleared(route, nodeId));
 
-        bool overshot = dist > _prevDistToTarget && _prevDistToTarget < OvershootDetectionNm;
-        // When the braking curve decelerates to near-zero, floating-point precision can leave
-        // dist slightly above the threshold. Detect this stall and force arrival.
-        // But don't trigger when the aircraft was stopped by GroundConflictDetector — that
-        // stop is intentional (e.g., traffic ahead at a hold-short node).
-        bool stoppedByConflict = (ctx.Aircraft.GroundSpeedLimit is not null) && (ctx.Aircraft.GroundSpeedLimit.Value < 0.5);
-        bool stalledAtThreshold = !stoppedByConflict && ctx.Aircraft.GroundSpeed < 0.5 && dist < arrivalThreshold + 0.001;
-        _prevDistToTarget = dist;
-
-        if (dist <= arrivalThreshold || overshot || stalledAtThreshold)
+        if (result == NavigatorResult.ArrivedAtNode)
         {
-            if (overshot)
-            {
-                ctx.Logger.LogDebug(
-                    "[Taxi] {Callsign}: overshoot detected at node {NodeId} (dist={Dist:F4}nm, prev={Prev:F4}nm)",
-                    ctx.Aircraft.Callsign,
-                    _targetNodeId,
-                    dist,
-                    _prevDistToTarget
-                );
-            }
-
-            _prevDistToTarget = double.MaxValue;
             return ArriveAtNode(ctx, route);
         }
 
-        // Turn toward target
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
-        TurnToward(ctx, bearing);
-
-        // Speed scales with current heading error: straight = full, turning = crawl
-        double angleDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
-        double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
-        double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.15, 1.0);
-        double targetSpeed = maxSpeed * speedFraction;
-
-        // Multi-segment braking: use precomputed speed profile from SetupCurrentSegment.
-        // Braking targets speed=0 at the node itself (dist=0), not at the arrival threshold.
-        double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-
-        // Brake for current target node
-        double brakingLimit = Math.Sqrt(_currentNodeRequiredSpeed * _currentNodeRequiredSpeed + 2.0 * decelRate * dist * 3600.0);
-        targetSpeed = Math.Min(targetSpeed, brakingLimit);
-
-        // Brake for all future constraints
-        foreach (var (pathDist, reqSpeed, nodeId) in _speedConstraints)
-        {
-            if (reqSpeed == 0 && route.GetHoldShortAt(nodeId) is null or { IsCleared: true })
-            {
-                continue;
-            }
-
-            double totalDist = dist + pathDist;
-            double limit = Math.Sqrt(reqSpeed * reqSpeed + 2.0 * decelRate * totalDist * 3600.0);
-            brakingLimit = Math.Min(brakingLimit, limit);
-        }
-        targetSpeed = Math.Min(targetSpeed, brakingLimit);
-
-        // Safety backstop: cap speed so we can't overshoot the target node in one tick.
-        if (ctx.DeltaSeconds > 0 && dist > 0)
-        {
-            double maxSpeedForDist = dist * 0.8 / ctx.DeltaSeconds * 3600.0;
-            targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
-        }
-
-        AdjustSpeed(ctx, targetSpeed);
-
         // Update current taxiway name
-        var seg = route.CurrentSegment;
-        if (seg is not null)
+        if (route.CurrentSegment is { } seg)
         {
             ctx.Aircraft.CurrentTaxiway = seg.TaxiwayName;
         }
 
-        // Periodic logging
-        _timeSinceLastLog += ctx.DeltaSeconds;
-        if (_timeSinceLastLog >= LogIntervalSeconds)
-        {
-            _timeSinceLastLog = 0;
-            ctx.Logger.LogTrace(
-                "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}, bearing={Brg:F0}, pos=({Lat:F6},{Lon:F6})",
-                ctx.Aircraft.Callsign,
-                route.CurrentSegmentIndex,
-                route.Segments.Count,
-                seg?.TaxiwayName ?? "?",
-                _targetNodeId,
-                dist,
-                ctx.Aircraft.GroundSpeed,
-                ctx.Aircraft.TrueHeading.Degrees,
-                bearing,
-                ctx.Aircraft.Latitude,
-                ctx.Aircraft.Longitude
-            );
-        }
-
+        LogPeriodic(ctx, route);
         return false;
     }
 
@@ -214,231 +128,82 @@ public sealed class TaxiingPhase : Phase
         };
     }
 
-    public override PhaseDto ToSnapshot()
-    {
-        List<SpeedConstraintDto>? constraints = null;
-        if (_speedConstraints.Count > 0)
-        {
-            constraints = new List<SpeedConstraintDto>(_speedConstraints.Count);
-            foreach (var (pathDist, reqSpeed, nodeId) in _speedConstraints)
-            {
-                constraints.Add(
-                    new SpeedConstraintDto
-                    {
-                        PathDistNm = pathDist,
-                        RequiredSpeedKts = reqSpeed,
-                        NodeId = nodeId,
-                    }
-                );
-            }
-        }
-
-        return new TaxiingPhaseDto
+    public override PhaseDto ToSnapshot() =>
+        new TaxiingPhaseDto
         {
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
             Requirements = SnapshotRequirements(),
-            TargetNodeId = _targetNodeId,
-            TargetLat = _targetLat,
-            TargetLon = _targetLon,
+            TargetNodeId = _nav.TargetNodeId,
+            TargetLat = _nav.TargetLat,
+            TargetLon = _nav.TargetLon,
             Initialized = _initialized,
             TimeSinceLastLog = _timeSinceLastLog,
-            PrevDistToTarget = _prevDistToTarget,
-            CurrentNodeRequiredSpeed = _currentNodeRequiredSpeed,
-            SpeedConstraints = constraints,
+            PrevDistToTarget = _nav.PrevDistToTarget,
+            CurrentNodeRequiredSpeed = 0,
+            SpeedConstraints = null,
+            Navigator = _nav.ToSnapshot(),
         };
-    }
 
     public static TaxiingPhase FromSnapshot(TaxiingPhaseDto dto)
     {
         var phase = new TaxiingPhase();
-        phase._targetNodeId = dto.TargetNodeId;
-        phase._targetLat = dto.TargetLat;
-        phase._targetLon = dto.TargetLon;
         phase._initialized = dto.Initialized;
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
-        phase._prevDistToTarget = dto.PrevDistToTarget;
-        phase._currentNodeRequiredSpeed = dto.CurrentNodeRequiredSpeed;
-
-        if (dto.SpeedConstraints is not null)
-        {
-            phase._speedConstraints = new List<(double PathDistNm, double RequiredSpeedKts, int NodeId)>(dto.SpeedConstraints.Count);
-            foreach (var sc in dto.SpeedConstraints)
-            {
-                phase._speedConstraints.Add((sc.PathDistNm, sc.RequiredSpeedKts, sc.NodeId));
-            }
-        }
-
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
+
+        if (dto.Navigator is not null)
+        {
+            phase._nav = GroundNavigator.FromSnapshot(dto.Navigator);
+        }
+        else
+        {
+            // Legacy snapshot without navigator — reconstruct from old fields
+            phase._nav = new GroundNavigator
+            {
+                TargetLat = dto.TargetLat,
+                TargetLon = dto.TargetLon,
+                PrevDistToTarget = dto.PrevDistToTarget,
+                MaxSpeedKts = 30,
+                CornerSpeedKts = 15,
+            };
+            phase._nav.SetTargetNodeId(dto.TargetNodeId);
+        }
+
         return phase;
     }
 
-    private void SetupCurrentSegment(PhaseContext ctx)
+    private void SetupCurrentSegment(PhaseContext ctx, TaxiRoute route)
     {
-        var route = ctx.Aircraft.AssignedTaxiRoute;
-        if (route?.CurrentSegment is null)
+        if (route.CurrentSegment is null)
         {
             ctx.Logger.LogWarning(
                 "[Taxi] {Callsign}: SetupCurrentSegment — no current segment (index={Idx})",
                 ctx.Aircraft.Callsign,
-                route?.CurrentSegmentIndex ?? -1
+                route.CurrentSegmentIndex
             );
             return;
         }
 
-        var seg = route.CurrentSegment;
-        _targetNodeId = seg.ToNodeId;
+        _nav.SetupSegment(route, ctx, nodeId => IsHoldShortCleared(route, nodeId));
 
-        if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var targetNode))
+        // Override target position with hold-short offset if applicable
+        var hs = route.GetHoldShortAt(_nav.TargetNodeId);
+        if (hs is not null && !hs.IsCleared && hs.Latitude is not null && hs.Longitude is not null)
         {
-            _targetLat = targetNode.Latitude;
-            _targetLon = targetNode.Longitude;
-
-            double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category);
-            double cornerSpeed = CategoryPerformance.TaxiCornerSpeed(ctx.Category);
-
-            // A. Compute _currentNodeRequiredSpeed for the immediate target node
-            var nextHoldShort = route.GetHoldShortAt(_targetNodeId);
-            if (nextHoldShort is not null && !nextHoldShort.IsCleared)
-            {
-                _currentNodeRequiredSpeed = 0;
-
-                // Use the hold-short's computed position (offset from intersection) as the
-                // braking target so the aircraft stops at the correct distance before the node.
-                if (nextHoldShort.Latitude is not null && nextHoldShort.Longitude is not null)
-                {
-                    _targetLat = nextHoldShort.Latitude.Value;
-                    _targetLon = nextHoldShort.Longitude.Value;
-                }
-            }
-            else
-            {
-                int nextIdx = route.CurrentSegmentIndex + 1;
-                if (nextIdx < route.Segments.Count)
-                {
-                    int nextToNodeId = route.Segments[nextIdx].ToNodeId;
-                    if (ctx.GroundLayout.Nodes.TryGetValue(nextToNodeId, out var nextNode))
-                    {
-                        double segBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, nextNode.Latitude, nextNode.Longitude);
-                        double inboundBearing = GeoMath.BearingTo(
-                            ctx.Aircraft.Latitude,
-                            ctx.Aircraft.Longitude,
-                            targetNode.Latitude,
-                            targetNode.Longitude
-                        );
-                        double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, segBearing);
-                        double frac = Math.Clamp((turnAngle - 30.0) / 60.0, 0.0, 1.0);
-                        _currentNodeRequiredSpeed = maxSpeed - (maxSpeed - cornerSpeed) * frac;
-                    }
-                    else
-                    {
-                        _currentNodeRequiredSpeed = maxSpeed;
-                    }
-                }
-                else
-                {
-                    // Last segment — route ends at this node, stop
-                    _currentNodeRequiredSpeed = 0;
-                }
-            }
-
-            // B. Forward walk: collect speed constraints at future nodes
-            _speedConstraints = [];
-            double cumulativeDistNm = 0;
-            int prevNodeId = _targetNodeId;
-            for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
-            {
-                var futureSeg = route.Segments[i];
-                if (
-                    !ctx.GroundLayout.Nodes.TryGetValue(prevNodeId, out var fromNode)
-                    || !ctx.GroundLayout.Nodes.TryGetValue(futureSeg.ToNodeId, out var toNode)
-                )
-                {
-                    break;
-                }
-
-                cumulativeDistNm += GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
-                prevNodeId = futureSeg.ToNodeId;
-
-                // Determine required speed at this node
-                double reqSpeed;
-                var hs = route.GetHoldShortAt(futureSeg.ToNodeId);
-                if (hs is not null && !hs.IsCleared)
-                {
-                    reqSpeed = 0;
-                    _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId));
-                    break; // No need to look past an uncleared hold-short
-                }
-
-                // Check turn angle to the next-next segment
-                int nextNextIdx = i + 1;
-                if (nextNextIdx < route.Segments.Count)
-                {
-                    int nextNextNodeId = route.Segments[nextNextIdx].ToNodeId;
-                    if (ctx.GroundLayout.Nodes.TryGetValue(nextNextNodeId, out var nextNextNode))
-                    {
-                        double inBearing = GeoMath.BearingTo(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
-                        double outBearing = GeoMath.BearingTo(toNode.Latitude, toNode.Longitude, nextNextNode.Latitude, nextNextNode.Longitude);
-                        double turnAngle = GeoMath.AbsBearingDifference(inBearing, outBearing);
-                        double frac = Math.Clamp((turnAngle - 30.0) / 60.0, 0.0, 1.0);
-                        reqSpeed = maxSpeed - (maxSpeed - cornerSpeed) * frac;
-                    }
-                    else
-                    {
-                        reqSpeed = maxSpeed;
-                    }
-                }
-                else
-                {
-                    // Last segment — route ends, stop
-                    reqSpeed = 0;
-                }
-
-                if (reqSpeed < maxSpeed)
-                {
-                    _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId));
-                }
-            }
-
-            // C. Backward pass: back-propagate constraints using v = sqrt(v_next² + 2·a·d·3600)
-            double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            for (int i = _speedConstraints.Count - 2; i >= 0; i--)
-            {
-                var (dist, speed, nodeId) = _speedConstraints[i];
-                var (nextDist, nextSpeed, _) = _speedConstraints[i + 1];
-                double legDist = nextDist - dist;
-                double backPropSpeed = Math.Sqrt(nextSpeed * nextSpeed + 2.0 * decelRate * legDist * 3600.0);
-                if (backPropSpeed < speed)
-                {
-                    _speedConstraints[i] = (dist, backPropSpeed, nodeId);
-                }
-            }
-
-            // D. Back-propagate first constraint into _currentNodeRequiredSpeed
-            if (_speedConstraints.Count > 0)
-            {
-                var (firstDist, firstSpeed, _) = _speedConstraints[0];
-                double backProp = Math.Sqrt(firstSpeed * firstSpeed + 2.0 * decelRate * firstDist * 3600.0);
-                if (backProp < _currentNodeRequiredSpeed)
-                {
-                    _currentNodeRequiredSpeed = backProp;
-                }
-            }
-        }
-        else
-        {
-            ctx.Logger.LogWarning(
-                "[Taxi] {Callsign}: cannot resolve node {NodeId} — groundLayout {HasLayout}",
-                ctx.Aircraft.Callsign,
-                _targetNodeId,
-                ctx.GroundLayout is not null ? "present but node missing" : "NULL"
-            );
+            _nav.TargetLat = hs.Latitude.Value;
+            _nav.TargetLon = hs.Longitude.Value;
         }
 
         _initialized = true;
-        _prevDistToTarget = double.MaxValue;
+    }
+
+    private static bool IsHoldShortCleared(TaxiRoute route, int nodeId)
+    {
+        var hs = route.GetHoldShortAt(nodeId);
+        return hs is null || hs.IsCleared;
     }
 
     private bool ArriveAtNode(PhaseContext ctx, TaxiRoute route)
@@ -446,7 +211,7 @@ public sealed class TaxiingPhase : Phase
         ctx.Logger.LogTrace(
             "[Taxi] {Callsign}: arrived at node {NodeId} (seg {SegIdx}/{SegCount})",
             ctx.Aircraft.Callsign,
-            _targetNodeId,
+            _nav.TargetNodeId,
             route.CurrentSegmentIndex,
             route.Segments.Count
         );
@@ -458,19 +223,18 @@ public sealed class TaxiingPhase : Phase
         }
 
         // Check if this node is a hold-short point
-        var holdShort = route.GetHoldShortAt(_targetNodeId);
+        var holdShort = route.GetHoldShortAt(_nav.TargetNodeId);
         if (holdShort is not null && !holdShort.IsCleared)
         {
             // Safety net: if another aircraft is already holding at this node, don't snap to it.
-            // Stop at the current position and let GroundConflictDetector manage separation.
-            if (ctx.IsHoldShortNodeOccupied?.Invoke(_targetNodeId) == true)
+            if (ctx.IsHoldShortNodeOccupied?.Invoke(_nav.TargetNodeId) == true)
             {
                 ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
                 ctx.Logger.LogDebug(
                     "[Taxi] {Callsign}: hold-short node {NodeId} occupied by another aircraft, waiting",
                     ctx.Aircraft.Callsign,
-                    _targetNodeId
+                    _nav.TargetNodeId
                 );
                 return false;
             }
@@ -478,26 +242,24 @@ public sealed class TaxiingPhase : Phase
             ctx.Logger.LogDebug(
                 "[Taxi] {Callsign}: hold short at node {NodeId} (target {Target}, reason {Reason})",
                 ctx.Aircraft.Callsign,
-                _targetNodeId,
+                _nav.TargetNodeId,
                 holdShort.TargetName,
                 holdShort.Reason
             );
 
-            // Snap to exact hold-short position. Use the computed offset position
-            // if available (dynamic taxiway hold-short), else fall back to node position.
+            // Snap to exact hold-short position
             if (holdShort.Latitude is not null && holdShort.Longitude is not null)
             {
                 ctx.Aircraft.Latitude = holdShort.Latitude.Value;
                 ctx.Aircraft.Longitude = holdShort.Longitude.Value;
             }
-            else if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var hsNode))
+            else if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_nav.TargetNodeId, out var hsNode))
             {
                 ctx.Aircraft.Latitude = hsNode.Latitude;
                 ctx.Aircraft.Longitude = hsNode.Longitude;
             }
 
-            // Mark this node occupied so subsequent aircraft in the same tick don't stack here.
-            ctx.MarkHoldShortNodeOccupied?.Invoke(_targetNodeId);
+            ctx.MarkHoldShortNodeOccupied?.Invoke(_nav.TargetNodeId);
 
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
@@ -518,8 +280,7 @@ public sealed class TaxiingPhase : Phase
         {
             ctx.Logger.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
 
-            // Snap to the final destination node so the aircraft ends up exactly
-            // at the spot/parking position, not slightly offset from the arrival threshold.
+            // Snap to the final destination node
             if (route.Segments.Count > 0 && ctx.GroundLayout is not null)
             {
                 int finalNodeId = route.Segments[^1].ToNodeId;
@@ -532,9 +293,6 @@ public sealed class TaxiingPhase : Phase
 
             ApplyDepartureClearanceIfPending(ctx);
 
-            // If no departure clearance was consumed, insert an idle phase so the
-            // aircraft remains in a ground state that accepts subsequent commands.
-            // ApplyDepartureClearanceIfPending inserts after current; check if anything follows.
             var phases = ctx.Aircraft.Phases;
             if (phases is not null && phases.Phases.Count <= phases.CurrentIndex + 1)
             {
@@ -553,25 +311,17 @@ public sealed class TaxiingPhase : Phase
             return true;
         }
 
-        SetupCurrentSegment(ctx);
+        SetupCurrentSegment(ctx, route);
         return false;
     }
 
-    /// <summary>
-    /// Build the phases to insert after a HoldingShortPhase, depending on the hold-short reason.
-    /// Advances CurrentSegmentIndex past the hold-short segment (and crossing segments for runway crossings).
-    /// </summary>
     private static List<Phase> BuildResumePhases(PhaseContext ctx, TaxiRoute route, HoldShortPoint holdShort)
     {
         var phases = new List<Phase>();
-
-        // Advance past the hold-short segment
         route.CurrentSegmentIndex++;
 
         if (holdShort.Reason == HoldShortReason.DestinationRunway)
         {
-            // Destination runway: departure clearance takes over if present,
-            // otherwise hold in position so the aircraft stays in a ground state.
             ApplyDepartureClearanceIfPending(ctx);
             var phaseList = ctx.Aircraft.Phases;
             if (phaseList is not null && phaseList.Phases.Count <= phaseList.CurrentIndex + 1)
@@ -588,7 +338,6 @@ public sealed class TaxiingPhase : Phase
             {
                 phases.Add(new CrossingRunwayPhase(exitNodeId.Value));
 
-                // Advance past crossing segments (runway edges) up to and including the exit node
                 while (!route.IsComplete)
                 {
                     var seg = route.CurrentSegment;
@@ -606,8 +355,6 @@ public sealed class TaxiingPhase : Phase
             }
         }
 
-        // If there are remaining segments, resume taxiing;
-        // otherwise hold in position so the aircraft stays in a ground state.
         if (!route.IsComplete)
         {
             phases.Add(new TaxiingPhase());
@@ -620,20 +367,14 @@ public sealed class TaxiingPhase : Phase
         return phases;
     }
 
-    /// <summary>
-    /// Scan remaining segments for the paired exit hold-short node (same RunwayId) on the far side of the crossing.
-    /// Falls back to the next segment's ToNodeId if no explicit exit node is found.
-    /// </summary>
     private static int? FindRunwayCrossingExitNode(TaxiRoute route, HoldShortPoint entryHoldShort, AirportGroundLayout? layout)
     {
-        // Parse the entry runway identifier for matching
         var entryRwyId = entryHoldShort.TargetName is not null ? RunwayIdentifier.Parse(entryHoldShort.TargetName) : (RunwayIdentifier?)null;
 
         for (int i = route.CurrentSegmentIndex; i < route.Segments.Count; i++)
         {
             var seg = route.Segments[i];
 
-            // Check the layout node directly — exit-side HS nodes are not in HoldShortPoints
             if (
                 layout is not null
                 && layout.Nodes.TryGetValue(seg.ToNodeId, out var node)
@@ -644,7 +385,6 @@ public sealed class TaxiingPhase : Phase
                 && nodeRwyId.Equals(entryRwyId.Value)
             )
             {
-                // Mark exit hold-short as cleared if it exists in the route's hold-short list
                 if (route.GetHoldShortAt(seg.ToNodeId) is { } exitHs)
                 {
                     exitHs.IsCleared = true;
@@ -654,7 +394,6 @@ public sealed class TaxiingPhase : Phase
             }
         }
 
-        // Fallback: use the next segment's target node
         if (route.CurrentSegmentIndex < route.Segments.Count)
         {
             return route.Segments[route.CurrentSegmentIndex].ToNodeId;
@@ -663,30 +402,25 @@ public sealed class TaxiingPhase : Phase
         return null;
     }
 
-    private static void TurnToward(PhaseContext ctx, double targetBearing)
+    private void LogPeriodic(PhaseContext ctx, TaxiRoute route)
     {
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, targetBearing, maxTurn);
-    }
-
-    private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)
-    {
-        // Respect ground conflict speed limit set by GroundConflictDetector.
-        if (ctx.Aircraft.GroundSpeedLimit is { } limit)
+        _timeSinceLastLog += ctx.DeltaSeconds;
+        if (_timeSinceLastLog >= LogIntervalSeconds)
         {
-            targetSpeed = Math.Min(targetSpeed, limit);
-        }
-
-        double current = ctx.Aircraft.IndicatedAirspeed;
-        if (current < targetSpeed)
-        {
-            double rate = CategoryPerformance.TaxiAccelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Min(targetSpeed, current + rate * ctx.DeltaSeconds);
-        }
-        else if (current > targetSpeed)
-        {
-            double rate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-            ctx.Aircraft.IndicatedAirspeed = Math.Max(targetSpeed, current - rate * ctx.DeltaSeconds);
+            _timeSinceLastLog = 0;
+            var seg = route.CurrentSegment;
+            double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _nav.TargetLat, _nav.TargetLon);
+            ctx.Logger.LogTrace(
+                "[Taxi] {Callsign}: seg {SegIdx}/{SegCount} on {Taxiway}, target node {NodeId}, dist={Dist:F4}nm, gs={Gs:F1}kts, hdg={Hdg:F0}",
+                ctx.Aircraft.Callsign,
+                route.CurrentSegmentIndex,
+                route.Segments.Count,
+                seg?.TaxiwayName ?? "?",
+                _nav.TargetNodeId,
+                dist,
+                ctx.Aircraft.GroundSpeed,
+                ctx.Aircraft.TrueHeading.Degrees
+            );
         }
     }
 
@@ -699,7 +433,6 @@ public sealed class TaxiingPhase : Phase
             return;
         }
 
-        // Find the last hold-short node ID from the taxi route
         int? holdShortNodeId = null;
         var route = ctx.Aircraft.AssignedTaxiRoute;
         if (route is not null)

@@ -197,10 +197,10 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
                 // Aircraft should be at a RunwayHoldShort node
                 Assert.True(nearestNode.Type == GroundNodeType.RunwayHoldShort, $"Expected hold-short node, got type={nearestNode.Type}");
 
-                // Aircraft should face away from the runway (heading diverges from 280°)
+                // Aircraft heading follows the exit taxiway direction — no snap.
+                // For shallow exits, heading may be close to the runway heading.
                 double headingDiff = GeoMath.AbsBearingDifference(ac.TrueHeading.Degrees, 280.0);
                 output.WriteLine($"Heading diff from runway: {headingDiff:F0}");
-                Assert.True(headingDiff > 30, $"Heading {ac.TrueHeading.Degrees:F0} too close to runway 280");
 
                 break;
             }

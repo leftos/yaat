@@ -28,28 +28,29 @@ A `SessionRecording` contains everything needed to reproduce a session from scra
 
 Actions include commands (`RecordedCommand`), spawns, deletes, warps, flight plan amendments, weather changes, and setting changes. Replay applies them in timestamp order, ticking physics 4x/second between them.
 
-### v2 Recordings (with State Snapshots)
+### Recording Format (v4)
 
-v2 recordings add complete simulation state snapshots captured every second. This allows:
+Recordings use a ZIP archive (`.zip`) with individually Brotli-compressed entries:
 
-1. **Exact state restore** — load the snapshot at time T and get the precise state the user saw, regardless of code changes since the recording
-2. **Hybrid replay** — restore snapshot at time T, then replay commands from T onward with current (fixed) code to test whether a fix works
-3. **Faster rewind** — instead of replaying from t=0, restore the nearest snapshot and replay only the remaining seconds
-
-| Field | Purpose |
+| Entry | Purpose |
 |-------|---------|
-| `Version` | `1` = commands only (original format), `2` = commands + snapshots |
-| `Snapshots` | `List<TimedSnapshot>` — one per second, each containing full `StateSnapshotDto` |
+| `manifest.json` | Version, metadata, snapshot timestamps |
+| `scenario.json.br` | Full scenario JSON |
+| `actions.json.br` | All recorded actions with timestamps |
+| `weather.json.br` | Weather profile |
+| `snapshots/{t}.json.br` | State snapshot at time `t` (on-demand loading) |
+| `layouts/{airportId}.json.br` | Ground layouts (deduplicated, shared across aircraft) |
 
-Each `StateSnapshotDto` captures: all aircraft (position, physics, control targets, command queue, phases, track ownership, scratchpads, procedures), scenario state (queues, generators, settings, coordination), and RNG state. Snapshots are versioned via `SchemaVersion` with a migration chain (`SnapshotSchemaMigrator`) — old snapshots are upgraded on load, and breaking changes throw `SnapshotSchemaException` (fallback to command replay).
+Each snapshot (`StateSnapshotDto`) captures: all aircraft (position, physics, control targets, command queue, phases, track ownership, scratchpads, procedures), scenario state (queues, generators, settings, coordination), and RNG state. Snapshots are versioned via `SchemaVersion` with a migration chain (`SnapshotSchemaMigrator`).
 
-**File format:** v2 recordings are Brotli-compressed JSON (`.yaat-recording.br`). `RecordingCompression.Decompress()` auto-detects the format (Brotli, gzip, or plain JSON) and decompresses transparently. v1 `.yaat-recording.json` files still load without issue. Snapshots are captured every 5 seconds.
+**Snapshots enable:**
+1. **Exact state restore** — load the snapshot at time T and get the precise state the user saw
+2. **Hybrid replay** — restore snapshot at T, then replay commands from T onward with current (fixed) code
+3. **Faster rewind** — restore nearest snapshot instead of replaying from t=0
 
-**v4 archive format (current):** Recordings use a ZIP archive (`.zip`) with individually Brotli-compressed entries for scenario, actions, weather, and each snapshot. Ground layouts are stored as separate `layouts/{airportId}.json.br` entries instead of being embedded in every aircraft — `AircraftState.GroundLayout` is `[JsonIgnore]`, and `GroundLayoutAirportId` preserves the reference for restore. `RecordingArchive` supports on-demand snapshot loading via `SnapshotTimestamps`, `FindNearestSnapshotIndex()`, and `ReadSnapshotAt()`. `RecordingLoader.Load()` uses `ToBaseSessionRecording()` which loads zero snapshots — tests that need snapshots use `RecordingLoader.OpenArchive()` directly. The client/server export pipeline (`RecordingArchiveWriter`) already produces v4.
+**Loading:** `RecordingLoader.Load()` uses `ToBaseSessionRecording()` (zero snapshots). Tests that need snapshots use `RecordingLoader.OpenArchive()` and `ReadSnapshotAt()`.
 
-**Generating snapshots:** Snapshots are generated at export time, not during runtime. The server replays the recording through a temporary isolated room with the full server pipeline (including track commands, coordination, etc.) and captures a snapshot every second. Zero runtime memory overhead.
-
-**Migration:** The `MigrateRecording` SignalR endpoint accepts a v1 JSON string and returns v2 gzip bytes with snapshots generated via replay.
+**Generating snapshots:** Generated at export time, not runtime. The server replays through a temporary isolated room and captures a snapshot every second. Zero runtime memory overhead.
 
 ## Bug Report Bundles
 
@@ -58,32 +59,19 @@ A `.yaat-bug-report-bundle.zip` packages a recording with client and server logs
 **Contents:**
 | Entry | Description |
 |-------|-------------|
-| `recording.yaat-recording.br` | The session recording (Brotli-compressed v2 format) |
+| `recording.yaat-recording.zip` | The session recording (v4 archive) |
 | `yaat-client.log` | Client log at the time of the report |
 | `yaat-server.log` | Server log (only included when connected to a local server) |
 
-**Using bundles in tests:** Place the bundle directly in TestData — no need to extract the recording manually. `RecordingLoader.Load()` in `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` handles all formats transparently: `.br` (Brotli), `.json.gz`, `.json`, `.zip` (v4 archives with `manifest.json`), and legacy bug-report bundles (nested `.br`/`.json.gz`/`.json` inside a zip).
+**Using bundles in tests:** Place the bundle directly in TestData — no need to extract the recording manually. `RecordingLoader.Load()` handles all formats transparently (v4 archives, legacy bundles, plain JSON).
 
 ## Step-by-Step: From Issue to Test
 
 ### 1. Get the recording into TestData
 
-Download the recording from the issue. **If it's a v1 `.yaat-recording.json` file, upgrade it to v2 before investigating:**
+Download the recording or bug report bundle from the issue and place it in TestData. Bug report bundles (`.yaat-bug-report-bundle.zip`) can be placed directly — `RecordingLoader` handles them transparently.
 
-```bash
-cd yaat-server
-dotnet run --project tools/Yaat.RecordingUpgrader -- ../yaat/tests/Yaat.Sim.Tests/TestData/issue123-some-bug-recording.json
-```
-
-This generates a `.br` file with state snapshots alongside the original. Place both in TestData:
-
-```
-tests/Yaat.Sim.Tests/TestData/issue77-alwys-descent-recording.br
-```
-
-If the attachment is a `.yaat-bug-report-bundle.zip`, extract the recording from it (it may be `.br`, `.json.gz`, or `.json`). Upgrade to v2 if needed, then rename to the convention below. The zip also contains logs which may help diagnose the issue but don't need to go into TestData.
-
-Convention: `issue{N}-{short-description}-recording.br` (v2) or `.json` (v1). Including the issue number makes it easy to trace back to the GitHub thread.
+Convention: `issue{N}-{short-description}-recording.zip` or `-recording.yaat-bug-report-bundle.zip`. Including the issue number makes it easy to trace back to the GitHub thread.
 
 ### 2. Understand the bug from the issue
 
@@ -119,53 +107,24 @@ The class doc comment should summarize: what issue, what recording, what aircraf
 Every replay test needs two helpers — recording loader and engine builder:
 
 ```csharp
-private static SessionRecording? LoadRecording()
-{
-    if (!File.Exists(RecordingPath))
-    {
-        return null;
-    }
-
-    var bytes = File.ReadAllBytes(RecordingPath);
-    string json;
-
-    // Detect gzip (magic bytes 0x1F 0x8B) for v2 .json.gz recordings
-    if (bytes.Length >= 2 && bytes[0] == 0x1F && bytes[1] == 0x8B)
-    {
-        using var ms = new MemoryStream(bytes);
-        using var gz = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionMode.Decompress);
-        using var reader = new StreamReader(gz);
-        json = reader.ReadToEnd();
-    }
-    else
-    {
-        json = System.Text.Encoding.UTF8.GetString(bytes);
-    }
-
-    return JsonSerializer.Deserialize<SessionRecording>(
-        json,
-        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-}
+private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
 private SimulationEngine? BuildEngine()
 {
+    TestVnasData.EnsureInitialized();
     var navDb = TestVnasData.NavigationDb;
-    if (navDb is null)
-    {
-        return null;
-    }
+    if (navDb is null) return null;
 
     var groundData = new TestAirportGroundData();
     var loggerFactory = LoggerFactory.Create(builder =>
         builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
     SimLog.Initialize(loggerFactory);
 
-    NavigationDatabase.SetInstance(navDb);
     return new SimulationEngine(groundData);
 }
 ```
 
-Both return `null` when data files are missing (NavData.dat, FAACIFP18.gz, GeoJSON). Tests that get `null` silently skip — CI stays green on machines without test data.
+Both return `null` when data files are missing. Tests that get `null` silently skip — CI stays green on machines without test data.
 
 ### 5. Find the right replay time
 
@@ -208,6 +167,20 @@ Run this, read the output. You'll see exactly where things go wrong — the head
 
 **Prefer `ReplayOneSecond()` over `TickOneSecond()`** when continuing a recording. `TickOneSecond()` only advances physics — it does **not** apply recording actions. `ReplayOneSecond()` ticks physics **and** applies any recorded commands/settings at the new time, so the replay stays faithful to what the user did. Call `engine.Replay(recording, startTime)` first (which sets up the replay cursor), then `engine.ReplayOneSecond()` in a loop.
 
+**Always include nearest-node context for ground bugs.** Use `NearestNodeHelper` from `tests/Yaat.Sim.Tests/Helpers/NearestNodeHelper.cs` to report the 3 closest ground layout nodes at each tick. This immediately shows whether the aircraft is on the expected taxiway edges or has drifted onto grass:
+
+```csharp
+// In your diagnostic loop (requires a ground layout reference):
+var layout = new TestAirportGroundData().GetLayout("SFO");
+if (layout is not null)
+{
+    NearestNodeHelper.Log(output, $"t={t}:", ac, layout);
+    // Output: t=397: nearestNodes=[#231 Twy[T] 42ft, #232 Twy[T] 118ft, #230 Twy[T/RWY10L/28R/E] 134ft]
+}
+```
+
+The helper reports each node's ID, type (HS/Twy/Parking), taxiway names, and distance in feet. If the nearest nodes are all on the expected taxiway, the aircraft is following the path correctly. If the nearest node is a RWY node or on a different taxiway, the aircraft has strayed.
+
 **What to log depends on the bug type:**
 
 | Bug type | Log these fields |
@@ -216,59 +189,46 @@ Run this, read the output. You'll see exactly where things go wrong — the head
 | Stays too high / wrong descent | `Altitude`, `VerticalSpeed`, `Targets.TargetAltitude`, next fix |
 | Doesn't follow route | `Targets.NavigationRoute` (all fixes), `Heading`, bearing to next fix |
 | Wrong approach / transition | `Phases.ActiveApproach`, `Phases.Phases` list, nav targets |
-| Ground taxi overshoot | `AssignedTaxiRoute.Segments`, lat/lon, current segment index |
+| Ground taxi overshoot | `AssignedTaxiRoute.Segments`, lat/lon, current segment index, **nearest nodes** |
+| Runway exit wrong path | Phase name, gs, hdg, **nearest nodes**, exit waypoint IDs |
 
-### 5b. Hybrid replay with v2 snapshots
+### 5b. Hybrid replay with snapshots
 
-When a bug involves command/phase logic that has changed since the recording was made, a full command replay from t=0 may produce different state than what the user saw (because the new code runs from the start). **Hybrid replay** solves this: restore a snapshot captured with the old code, then replay commands from that point with the current (fixed) code.
-
-This is the workflow for testing a fix against a recording where the old behavior diverges early:
+When a full command replay from t=0 produces different state than what the user saw (because code has changed), use **hybrid replay**: restore a snapshot from the recording, then replay commands from that point with current code.
 
 ```csharp
 [Fact]
 public void HybridReplay_FixAppliesAfterSnapshot()
 {
-    var recording = LoadRecording();
-    var engine = BuildEngine();
-    if (recording is null || engine is null) return;
+    var archive = RecordingLoader.OpenArchive(RecordingPath);
+    if (archive is null) return;
 
-    // 1. Find the snapshot just before the bug manifests
-    var snapshots = recording.Snapshots;
-    if (snapshots is null || snapshots.Count == 0) return; // v1 recording, no snapshots
+    using (archive)
+    {
+        var recording = archive.ToBaseSessionRecording();
+        var engine = BuildEngine();
+        if (engine is null) return;
 
-    int bugTime = 1350; // the bug happens around t=1353
-    var snapshot = snapshots.LastOrDefault(s => s.ElapsedSeconds <= bugTime);
-    if (snapshot is null) return;
+        engine.Replay(recording, 0); // load scenario + weather
 
-    // 2. Replay to t=0 (loads scenario + weather), then restore the snapshot.
-    //    This gives us exact state from the OLD code at snapshot time.
-    engine.Replay(recording, 0);
-    engine.RestoreFromSnapshot(snapshot.State);
+        // Restore snapshot just before the bug
+        var snapshot = archive.ReadSnapshotAt(1350);
+        if (snapshot is null) return;
 
-    // 3. Replay commands from snapshot time onward with CURRENT code.
-    //    This applies the fix to all commands after the snapshot.
-    engine.ReplayRange(
-        snapshot.ElapsedSeconds,
-        bugTime + 120, // replay past the bug
-        recording.Actions
-    );
+        engine.RestoreFromSnapshot(snapshot.State);
 
-    // 4. Assert the fix worked
-    var aircraft = engine.FindAircraft("N427MX");
-    Assert.NotNull(aircraft);
-    // ... assertions about correct behavior ...
+        // Replay commands from snapshot onward with CURRENT code
+        int startTime = (int)snapshot.ElapsedSeconds;
+        engine.ReplayRange(startTime, startTime + 120, recording.Actions);
+
+        var aircraft = engine.FindAircraft("N427MX");
+        Assert.NotNull(aircraft);
+        // ... assertions ...
+    }
 }
 ```
 
-**When to use hybrid replay:**
-- The bug is in command dispatch, phase transitions, or physics that runs from the start
-- A full command replay from t=0 produces different state than the user saw
-- You need the exact pre-bug state to test whether your fix corrects the behavior from that point
-
-**When full command replay is fine:**
-- The bug is localized (e.g., wrong approach transition, missing constraint)
-- Code changes don't affect earlier simulation state
-- Most issue fixes — hybrid replay is the exception, not the rule
+**When to use hybrid replay:** full command replay from t=0 diverges from what the user saw. **Most issue fixes don't need it** — full replay is fine when the bug is localized.
 
 ### 6. Write the real assertion
 
@@ -557,6 +517,7 @@ dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData
 
 | Class | Location | Purpose |
 |-------|----------|---------|
+| `NearestNodeHelper` | `tests/Yaat.Sim.Tests/Helpers/NearestNodeHelper.cs` | Reports 3 closest ground nodes to an aircraft with ID, type, taxiway names, and distance in feet. Use in all ground/exit diagnostic tests. |
 | `RecordingLoader` | `tests/Yaat.Sim.Tests/Helpers/RecordingLoader.cs` | Loads `SessionRecording` from `.json`, `.zip` archive, or `.yaat-bug-report-bundle.zip`. Uses `ToBaseSessionRecording()` (zero snapshots). |
 | `RecordingArchive` | `src/Yaat.Sim/Simulation/RecordingArchive.cs` | On-demand archive reader: `ReadSnapshotAt()`, `FindNearestSnapshotIndex()`, `ToBaseSessionRecording()` |
 | `migrate-recordings-v4.ps1` | `tools/migrate-recordings-v4.ps1` | Migrates v3 recordings to v4 (strips inline GroundLayout, ~75% smaller). Run before committing new recordings. |
@@ -566,6 +527,6 @@ dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData
 | `SimulationEngine.Replay()` | `src/Yaat.Sim/Simulation/SimulationEngine.cs` | Loads scenario, applies weather, replays actions to target time; sets up cursor for `ReplayOneSecond()` |
 | `SimulationEngine.ReplayOneSecond()` | same | Continue replay by 1 second — ticks physics AND applies recorded actions. Use after `Replay()` for tick-by-tick inspection |
 | `SimulationEngine.TickOneSecond()` | same | Advance physics only by 1 second (no recording actions). Use for post-replay manual ticking |
-| `SimulationEngine.RestoreFromSnapshot()` | same | Restore exact simulation state from a v2 snapshot. Use with `ReplayRange()` for hybrid replay |
+| `SimulationEngine.RestoreFromSnapshot()` | same | Restore exact simulation state from a snapshot. Use with `ReplayRange()` for hybrid replay |
 | `SimulationEngine.FindAircraft()` | same | Look up live aircraft state by callsign |
 | `SimulationEngine.SendCommand()` | same | Dispatch a command string to an aircraft mid-replay |
