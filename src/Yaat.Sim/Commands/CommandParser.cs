@@ -33,13 +33,11 @@ public static class CommandParser
             isCompound =
                 upperCheck.StartsWith("LV ") || upperCheck.StartsWith("AT ") || upperCheck.StartsWith("ATFN ") || upperCheck.StartsWith("ONHO ");
 
-            // GIVEWAY/BEHIND/GW are compound only when followed by callsign + TAXI or RWY command
+            // GIVEWAY/BEHIND/GW are compound only when followed by callsign + a known ground command verb
             if (!isCompound && (upperCheck.StartsWith("GIVEWAY ") || upperCheck.StartsWith("BEHIND ") || upperCheck.StartsWith("GW ")))
             {
                 var tokens = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                isCompound =
-                    tokens.Length >= 4
-                    && (tokens[2].Equals("TAXI", StringComparison.OrdinalIgnoreCase) || tokens[2].Equals("RWY", StringComparison.OrdinalIgnoreCase));
+                isCompound = tokens.Length >= 4 && IsGiveWayConditionVerb(tokens[2]);
             }
         }
 
@@ -138,16 +136,13 @@ public static class CommandParser
         }
         else if (upper.StartsWith("GIVEWAY ") || upper.StartsWith("BEHIND ") || upper.StartsWith("GW "))
         {
-            // GW is a condition only when followed by callsign + TAXI or RWY command.
+            // GW is a condition only when followed by callsign + a known ground command verb.
             // "GW JBU987 TAXI T U" → condition. "GW JBU987 N" → standalone command with location.
             var gwTokens = remaining.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (
-                gwTokens.Length < 3
-                || (!gwTokens[2].Equals("TAXI", StringComparison.OrdinalIgnoreCase) && !gwTokens[2].Equals("RWY", StringComparison.OrdinalIgnoreCase))
-            )
+            if (gwTokens.Length < 3 || !IsGiveWayConditionVerb(gwTokens[2]))
             {
                 // Not a condition form — fall through to command list parsing
-                debugLog?.WriteLine($"  [ParseBlock] GW not in condition form (no TAXI/RWY after callsign), treating as command");
+                debugLog?.WriteLine($"  [ParseBlock] GW not in condition form (no known command verb after callsign), treating as command");
             }
             else
             {
@@ -416,6 +411,15 @@ public static class CommandParser
 
         _lastBlockFailure = $"'{token}' is not a known fix or valid altitude";
         return null;
+    }
+
+    private static bool IsGiveWayConditionVerb(string token)
+    {
+        return token.Equals("TAXI", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("RWY", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("PUSH", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("FOLLOWG", StringComparison.OrdinalIgnoreCase)
+            || token.Equals("FOLG", StringComparison.OrdinalIgnoreCase);
     }
 
     private static (BlockCondition Condition, string Remainder)? ParseGiveWayCondition(string input)

@@ -1133,7 +1133,7 @@ public static class FlightPhysics
         };
     }
 
-    private static bool IsGiveWayMet(AircraftState aircraft, BlockTrigger trigger, Func<string, AircraftState?>? aircraftLookup)
+    internal static bool IsGiveWayMet(AircraftState aircraft, BlockTrigger trigger, Func<string, AircraftState?>? aircraftLookup)
     {
         if (trigger.TargetCallsign is null || aircraftLookup is null)
         {

@@ -115,7 +115,8 @@ foreach (var (hash, files) in duplicateGroups)
 
 // Step 3: Update .cs file references
 Console.WriteLine("Scanning .cs files for references to update...");
-var csFiles = Directory.GetFiles(repoRoot, "*.cs", SearchOption.AllDirectories)
+var csFiles = Directory
+    .GetFiles(repoRoot, "*.cs", SearchOption.AllDirectories)
     .Where(f => !f.Replace('\\', '/').Contains("/bin/"))
     .Where(f => !f.Replace('\\', '/').Contains("/obj/"))
     .ToList();

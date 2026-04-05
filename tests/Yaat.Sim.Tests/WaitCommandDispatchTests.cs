@@ -188,4 +188,73 @@ public class WaitCommandDispatchTests
         // Payload has 2 blocks: [WAIT 10, FH 270]
         Assert.Equal(2, ac.DeferredDispatches[0].Payload.Blocks.Count);
     }
+
+    // -------------------------------------------------------------------------
+    // BEHIND + PUSH compound (deferred dispatch via give-way)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void BehindPush_AtParking_CreatesDeferredDispatch()
+    {
+        var ac = MakeGroundAircraft();
+        StartPhase(ac, new AtParkingPhase());
+
+        // BEHIND UAL999 PUSH T9
+        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new PushbackCommand(null, "T9", null, null, null)])]);
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new SerializableRandom(42), true);
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        // Phases preserved — aircraft stays at parking
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<AtParkingPhase>(ac.Phases.CurrentPhase);
+        // Queue untouched
+        Assert.Empty(ac.Queue.Blocks);
+        // GiveWay target set on aircraft
+        Assert.Equal("UAL999", ac.GiveWayTarget);
+        // One deferred dispatch with GiveWay target
+        Assert.Single(ac.DeferredDispatches);
+        Assert.Equal("UAL999", ac.DeferredDispatches[0].GiveWayTarget);
+        // Payload is just PUSH T9 without the condition
+        Assert.Single(ac.DeferredDispatches[0].Payload.Blocks);
+        Assert.Null(ac.DeferredDispatches[0].Payload.Blocks[0].Condition);
+        Assert.IsType<PushbackCommand>(ac.DeferredDispatches[0].Payload.Blocks[0].Commands[0]);
+    }
+
+    [Fact]
+    public void BehindTaxi_AfterPushback_CreatesDeferredDispatch()
+    {
+        var ac = MakeGroundAircraft();
+        StartPhase(ac, new HoldingAfterPushbackPhase());
+
+        // BEHIND UAL999 TAXI A B
+        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new TaxiCommand(["A", "B"], [])])]);
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new SerializableRandom(42), true);
+
+        Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        // Phases preserved — aircraft stays in holding-after-pushback
+        Assert.NotNull(ac.Phases);
+        Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases.CurrentPhase);
+        // GiveWay deferred
+        Assert.Equal("UAL999", ac.GiveWayTarget);
+        Assert.Single(ac.DeferredDispatches);
+        Assert.Equal("UAL999", ac.DeferredDispatches[0].GiveWayTarget);
+        Assert.IsType<TaxiCommand>(ac.DeferredDispatches[0].Payload.Blocks[0].Commands[0]);
+    }
+
+    [Fact]
+    public void BehindPush_MessageDescribesDeferred()
+    {
+        var ac = MakeGroundAircraft();
+        StartPhase(ac, new AtParkingPhase());
+
+        var compound = new CompoundCommand([new ParsedBlock(new GiveWayCondition("UAL999"), [new PushbackCommand(null, "T9", null, null, null)])]);
+
+        var result = CommandDispatcher.DispatchCompound(compound, ac, null, new SerializableRandom(42), true);
+
+        Assert.True(result.Success);
+        Assert.Contains("UAL999", result.Message);
+        Assert.Contains("ush", result.Message); // "Pushing back" or "Push back"
+    }
 }

@@ -41,6 +41,14 @@ public static class CommandDispatcher
             return deferredResult;
         }
 
+        // GiveWay condition → deferred dispatch: the aircraft stays in its current phase
+        // and the payload dispatches when the target aircraft passes.
+        var gwResult = TryDeferGiveWay(compound, aircraft);
+        if (gwResult is not null)
+        {
+            return gwResult;
+        }
+
         // Phase-transparent commands (squawk, ident, say, etc.) — apply directly
         // without consulting phases, clearing the queue, or clearing deferred dispatches.
         if (aircraft.Phases?.CurrentPhase is not null && IsAllTransparent(compound))
@@ -725,6 +733,36 @@ public static class CommandDispatcher
 
         aircraft.DeferredDispatches.Add(deferred);
         return new CommandResult(true, $"Will execute in {timerDesc}: {payloadDesc}");
+    }
+
+    /// <summary>
+    /// If the first block has a GiveWay condition, defer the entire compound as a
+    /// give-way-gated deferred dispatch. The aircraft stays in its current phase
+    /// (e.g. AtParkingPhase) and the payload dispatches fresh when the target passes.
+    /// Returns null if the compound doesn't start with a GiveWay condition.
+    /// </summary>
+    private static CommandResult? TryDeferGiveWay(CompoundCommand compound, AircraftState aircraft)
+    {
+        if (compound.Blocks[0].Condition is not GiveWayCondition gw)
+        {
+            return null;
+        }
+
+        // Strip the condition from the first block; keep the commands and subsequent blocks
+        var payloadBlocks = new List<ParsedBlock>();
+        payloadBlocks.Add(new ParsedBlock(null, compound.Blocks[0].Commands));
+        for (int i = 1; i < compound.Blocks.Count; i++)
+        {
+            payloadBlocks.Add(compound.Blocks[i]);
+        }
+
+        var payload = new CompoundCommand(payloadBlocks) { SourceText = compound.SourceText };
+
+        var payloadDesc = string.Join(" ; then ", payloadBlocks.Select(b => string.Join(", ", b.Commands.Select(CommandDescriber.DescribeNatural))));
+
+        aircraft.GiveWayTarget = gw.TargetCallsign;
+        aircraft.DeferredDispatches.Add(new DeferredDispatch(payload, gw.TargetCallsign) { SourceText = compound.SourceText });
+        return new CommandResult(true, $"After {gw.TargetCallsign} passes: {payloadDesc}");
     }
 
     /// <summary>

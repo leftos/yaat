@@ -245,6 +245,12 @@ public sealed class DeferredDispatch
     public Commands.CompoundCommand Payload { get; }
 
     /// <summary>
+    /// When non-null, this deferred dispatch is gated on a give-way condition:
+    /// the payload dispatches only after the named aircraft has passed.
+    /// </summary>
+    public string? GiveWayTarget { get; init; }
+
+    /// <summary>
     /// Original canonical command text (including the WAIT prefix) that produced this dispatch.
     /// Used by snapshot serialization to re-derive the payload on restore.
     /// </summary>
@@ -263,12 +269,19 @@ public sealed class DeferredDispatch
         Payload = payload;
     }
 
+    public DeferredDispatch(Commands.CompoundCommand payload, string giveWayTarget)
+    {
+        GiveWayTarget = giveWayTarget;
+        Payload = payload;
+    }
+
     public DeferredDispatchDto ToSnapshot() =>
         new()
         {
             RemainingSeconds = RemainingSeconds,
             RemainingDistanceNm = RemainingDistanceNm,
             IsDistanceBased = IsDistanceBased,
+            GiveWayTarget = GiveWayTarget,
             SourceText = SourceText,
         };
 
@@ -283,6 +296,11 @@ public sealed class DeferredDispatch
         if (!parseResult.IsSuccess)
         {
             return null;
+        }
+
+        if (dto.GiveWayTarget is not null)
+        {
+            return new DeferredDispatch(parseResult.Value!, dto.GiveWayTarget) { SourceText = dto.SourceText };
         }
 
         if (dto.IsDistanceBased)

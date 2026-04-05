@@ -49,5 +49,6 @@ public sealed class DeferredDispatchDto
     public required double RemainingSeconds { get; init; }
     public required double RemainingDistanceNm { get; init; }
     public required bool IsDistanceBased { get; init; }
+    public string? GiveWayTarget { get; init; }
     public string? SourceText { get; init; }
 }

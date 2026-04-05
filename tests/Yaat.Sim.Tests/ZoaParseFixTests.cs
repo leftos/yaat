@@ -214,7 +214,7 @@ public class ZoaParseFixTests : IDisposable
         Assert.IsType(expectedType, result.Value);
     }
 
-    // --- GW as compound condition (only with TAXI/RWY) ---
+    // --- GW as compound condition ---
 
     [Fact]
     public void ParseCompound_GW_WithTaxi_AsCondition()
@@ -246,6 +246,34 @@ public class ZoaParseFixTests : IDisposable
         var gw = Assert.IsType<GiveWayCommand>(result.Value!.Blocks[0].Commands[0]);
         Assert.Equal("AAL1944", gw.TargetCallsign);
         Assert.Equal("G", gw.Location);
+    }
+
+    [Fact]
+    public void ParseCompound_GW_WithPush_AsCondition()
+    {
+        var result = CommandParser.ParseCompound("BEHIND UAL1744 PUSH T9");
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!.Blocks);
+        Assert.IsType<GiveWayCondition>(result.Value!.Blocks[0].Condition);
+        var cond = (GiveWayCondition)result.Value!.Blocks[0].Condition!;
+        Assert.Equal("UAL1744", cond.TargetCallsign);
+        Assert.Single(result.Value!.Blocks[0].Commands);
+        var push = Assert.IsType<PushbackCommand>(result.Value!.Blocks[0].Commands[0]);
+        Assert.Equal("T9", push.Taxiway);
+    }
+
+    [Fact]
+    public void ParseCompound_GW_WithFollowG_AsCondition()
+    {
+        var result = CommandParser.ParseCompound("BEHIND UAL1744 FOLLOWG SWA123");
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!.Blocks);
+        Assert.IsType<GiveWayCondition>(result.Value!.Blocks[0].Condition);
+        var cond = (GiveWayCondition)result.Value!.Blocks[0].Condition!;
+        Assert.Equal("UAL1744", cond.TargetCallsign);
+        Assert.Single(result.Value!.Blocks[0].Commands);
+        var follow = Assert.IsType<FollowGroundCommand>(result.Value!.Blocks[0].Commands[0]);
+        Assert.Equal("SWA123", follow.TargetCallsign);
     }
 
     // --- CTOMRT/CTOMLT ---

@@ -569,11 +569,9 @@ public static class TaxiPathfinder
                         }
 
                         // Reject if the straight-line RAMP would cross a runway
-                        if (layout.Nodes.TryGetValue(nearestId, out var rampTarget) &&
-                            RampCrossesRunway(layout, currentNode, rampTarget))
+                        if (layout.Nodes.TryGetValue(nearestId, out var rampTarget) && RampCrossesRunway(layout, currentNode, rampTarget))
                         {
-                            diagnosticLog?.Invoke(
-                                $"[WalkTaxiway] RAMP {startNodeId}→{nearestId} rejected: crosses runway");
+                            diagnosticLog?.Invoke($"[WalkTaxiway] RAMP {startNodeId}→{nearestId} rejected: crosses runway");
                             return false;
                         }
 

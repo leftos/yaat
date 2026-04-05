@@ -23,12 +23,10 @@ namespace Yaat.Sim.Tests.Simulation;
 [Collection("NavDbMutator")]
 public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
 {
-
     private AirportGroundLayout? LoadSfoLayout()
     {
         TestVnasData.EnsureInitialized();
-        var loggerFactory = LoggerFactory.Create(
-            builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
         var groundData = new TestAirportGroundData();
@@ -134,9 +132,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
             // Pick a node on M2 that's north (higher lat) of spot 2
             if (node.Latitude > spot2.Latitude)
             {
-                double dist = GeoMath.DistanceNm(
-                    node.Latitude, node.Longitude,
-                    spot2.Latitude, spot2.Longitude);
+                double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, spot2.Latitude, spot2.Longitude);
                 if (dist < bestDist)
                 {
                     bestDist = dist;
@@ -146,16 +142,11 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(startNode);
-        output.WriteLine(
-            $"Start node: {startNode.Id} at ({startNode.Latitude:F6}, {startNode.Longitude:F6})");
-        output.WriteLine(
-            $"Spot 2 node: {spot2.Id} at ({spot2.Latitude:F6}, {spot2.Longitude:F6})");
+        output.WriteLine($"Start node: {startNode.Id} at ({startNode.Latitude:F6}, {startNode.Longitude:F6})");
+        output.WriteLine($"Spot 2 node: {spot2.Id} at ({spot2.Latitude:F6}, {spot2.Longitude:F6})");
 
         var aircraft = MakeSfoGroundAircraft(startNode.Latitude, startNode.Longitude);
-        var taxi = new TaxiCommand(
-            Path: ["M2"],
-            HoldShorts: [],
-            DestinationSpot: "2");
+        var taxi = new TaxiCommand(Path: ["M2"], HoldShorts: [], DestinationSpot: "2");
 
         var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
@@ -175,9 +166,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         Assert.Equal(spot2.Id, lastToNode);
 
         // The route should NOT backtrack (no U-turn)
-        Assert.False(
-            RouteContainsBacktracking(route),
-            "Route contains backtracking — aircraft overshoots spot then U-turns back");
+        Assert.False(RouteContainsBacktracking(route), "Route contains backtracking — aircraft overshoots spot then U-turns back");
     }
 
     [Fact]
@@ -215,9 +204,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
                 continue;
             }
 
-            double dist = GeoMath.DistanceNm(
-                node.Latitude, node.Longitude,
-                spot1.Latitude, spot1.Longitude);
+            double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, spot1.Latitude, spot1.Longitude);
             if (dist > bestStartDist)
             {
                 bestStartDist = dist;
@@ -226,16 +213,11 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(startNode);
-        output.WriteLine(
-            $"Start node: {startNode.Id} at ({startNode.Latitude:F6}, {startNode.Longitude:F6})");
-        output.WriteLine(
-            $"Spot 1 node: {spot1.Id} at ({spot1.Latitude:F6}, {spot1.Longitude:F6})");
+        output.WriteLine($"Start node: {startNode.Id} at ({startNode.Latitude:F6}, {startNode.Longitude:F6})");
+        output.WriteLine($"Spot 1 node: {spot1.Id} at ({spot1.Latitude:F6}, {spot1.Longitude:F6})");
 
         var aircraft = MakeSfoGroundAircraft(startNode.Latitude, startNode.Longitude);
-        var taxi = new TaxiCommand(
-            Path: ["M4", "M1"],
-            HoldShorts: [],
-            DestinationSpot: "1");
+        var taxi = new TaxiCommand(Path: ["M4", "M1"], HoldShorts: [], DestinationSpot: "1");
 
         var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
@@ -255,17 +237,12 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         Assert.Equal(spot1.Id, lastToNode);
 
         // The route should NOT backtrack (no U-turn)
-        Assert.False(
-            RouteContainsBacktracking(route),
-            "Route contains backtracking — aircraft overshoots spot then U-turns back");
+        Assert.False(RouteContainsBacktracking(route), "Route contains backtracking — aircraft overshoots spot then U-turns back");
 
         // The route should NOT have a hold-short for runway 1L —
         // spot 1 is before 1L on M1, so the route shouldn't reach 1L at all
-        bool has1LHoldShort = route.HoldShortPoints
-            .Any(hs => hs.TargetName is not null && hs.TargetName.Contains("1L"));
-        Assert.False(
-            has1LHoldShort,
-            "Route to spot 1 should not cross runway 1L — spot is before the runway on M1");
+        bool has1LHoldShort = route.HoldShortPoints.Any(hs => hs.TargetName is not null && hs.TargetName.Contains("1L"));
+        Assert.False(has1LHoldShort, "Route to spot 1 should not cross runway 1L — spot is before the runway on M1");
     }
 
     [Fact]
@@ -302,9 +279,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
             }
 
             // Pick a node on T9 that's further from spot 9 to simulate starting from parking
-            double dist = GeoMath.DistanceNm(
-                node.Latitude, node.Longitude,
-                spot9.Latitude, spot9.Longitude);
+            double dist = GeoMath.DistanceNm(node.Latitude, node.Longitude, spot9.Latitude, spot9.Longitude);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -313,16 +288,11 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(startNode);
-        output.WriteLine(
-            $"Start node: {startNode.Id} at ({startNode.Latitude:F6}, {startNode.Longitude:F6})");
-        output.WriteLine(
-            $"Spot 9 node: {spot9.Id} at ({spot9.Latitude:F6}, {spot9.Longitude:F6})");
+        output.WriteLine($"Start node: {startNode.Id} at ({startNode.Latitude:F6}, {startNode.Longitude:F6})");
+        output.WriteLine($"Spot 9 node: {spot9.Id} at ({spot9.Latitude:F6}, {spot9.Longitude:F6})");
 
         var aircraft = MakeSfoGroundAircraft(startNode.Latitude, startNode.Longitude);
-        var taxi = new TaxiCommand(
-            Path: ["T9"],
-            HoldShorts: [],
-            DestinationSpot: "9");
+        var taxi = new TaxiCommand(Path: ["T9"], HoldShorts: [], DestinationSpot: "9");
 
         var result = GroundCommandHandler.TryTaxi(aircraft, taxi, layout);
         Assert.True(result.Success, $"TryTaxi failed: {result.Message}");
@@ -342,8 +312,6 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
         Assert.Equal(spot9.Id, lastToNode);
 
         // The route should NOT backtrack
-        Assert.False(
-            RouteContainsBacktracking(route),
-            "Route contains backtracking — aircraft overshoots spot then U-turns back");
+        Assert.False(RouteContainsBacktracking(route), "Route contains backtracking — aircraft overshoots spot then U-turns back");
     }
 }

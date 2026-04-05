@@ -432,13 +432,13 @@ public static class CategoryPerformance
         {
             return cwt switch
             {
-                "A" => 0.013,        // Super (A388): ~80ft
-                "B" => 0.012,        // Upper Heavy (B744): ~70ft
-                "C" => 0.010,        // Lower Heavy (B763): ~60ft
-                "D" => 0.008,        // Upper Large (B738): ~50ft
-                "E" => 0.007,        // Lower Large (E170): ~45ft
-                "F" => 0.007,        // Upper Small (C560): ~40ft
-                _ => 0.005,          // G-I Small/Light: ~30ft
+                "A" => 0.013, // Super (A388): ~80ft
+                "B" => 0.012, // Upper Heavy (B744): ~70ft
+                "C" => 0.010, // Lower Heavy (B763): ~60ft
+                "D" => 0.008, // Upper Large (B738): ~50ft
+                "E" => 0.007, // Lower Large (E170): ~45ft
+                "F" => 0.007, // Upper Small (C560): ~40ft
+                _ => 0.005, // G-I Small/Light: ~30ft
             };
         }
 

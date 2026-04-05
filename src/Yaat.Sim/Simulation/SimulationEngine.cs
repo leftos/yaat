@@ -830,7 +830,18 @@ public sealed class SimulationEngine
             {
                 var d = aircraft.DeferredDispatches[i];
 
-                if (d.IsDistanceBased)
+                if (d.GiveWayTarget is not null)
+                {
+                    if (!IsGiveWayDeferredMet(aircraft, d.GiveWayTarget))
+                    {
+                        continue;
+                    }
+
+                    // Condition met — clear the aircraft's give-way hold state
+                    aircraft.GiveWayTarget = null;
+                    aircraft.IsHeld = false;
+                }
+                else if (d.IsDistanceBased)
                 {
                     double distNm = aircraft.GroundSpeed * deltaSeconds / 3600.0;
                     d.RemainingDistanceNm -= distNm;
@@ -860,6 +871,18 @@ public sealed class SimulationEngine
                 );
             }
         }
+    }
+
+    private bool IsGiveWayDeferredMet(AircraftState aircraft, string targetCallsign)
+    {
+        var target = FindAircraft(targetCallsign);
+        if (target is null || !target.IsOnGround)
+        {
+            return true; // Target gone or airborne — no conflict
+        }
+
+        var trigger = new BlockTrigger { Type = BlockTriggerType.GiveWay, TargetCallsign = targetCallsign };
+        return FlightPhysics.IsGiveWayMet(aircraft, trigger, FindAircraft);
     }
 
     private void EmitTerminal(string kind, string callsign, string message)

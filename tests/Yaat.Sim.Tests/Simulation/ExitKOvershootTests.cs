@@ -102,10 +102,7 @@ public class ExitKOvershootTests(ITestOutputHelper output)
                 // No near-180 reversal — heading change should be ≤100°.
                 // K at SFO is a ~90° perpendicular taxiway, so 90° is expected.
                 // The old broken behavior was ~135° (overshoot + reversal).
-                Assert.True(
-                    headingChange <= 100,
-                    $"Heading change {headingChange:F0}° exceeds 100° — aircraft likely overshot and reversed"
-                );
+                Assert.True(headingChange <= 100, $"Heading change {headingChange:F0}° exceeds 100° — aircraft likely overshot and reversed");
                 return;
             }
         }
@@ -209,14 +206,16 @@ public class ExitKOvershootTests(ITestOutputHelper output)
             double minDistFt = minDistNm * GeoMath.FeetPerNm;
 
             output.WriteLine(
-                $"t+{t,-3} | {ac.Latitude,11:F6} | {ac.Longitude,12:F6} | {ac.TrueHeading.Degrees,5:F1} | {ac.GroundSpeed,5:F1} | {phaseName,-18} | {minDistFt,12:F1} | {ac.CurrentTaxiway ?? "(none)"}"
+                $"t+{t, -3} | {ac.Latitude, 11:F6} | {ac.Longitude, 12:F6} | {ac.TrueHeading.Degrees, 5:F1} | {ac.GroundSpeed, 5:F1} | {phaseName, -18} | {minDistFt, 12:F1} | {ac.CurrentTaxiway ?? "(none)"}"
             );
 
             if (ac.CurrentTaxiway is not null)
             {
                 double finalHdg = ac.TrueHeading.Degrees;
                 double hdgChange = new TrueHeading(finalHdg).AbsAngleTo(new TrueHeading(runwayHeading));
-                output.WriteLine($"--- EXITED at taxiway {ac.CurrentTaxiway}, hdg={finalHdg:F0} (change={hdgChange:F0}° from rwy {runwayHeading:F0}) ---");
+                output.WriteLine(
+                    $"--- EXITED at taxiway {ac.CurrentTaxiway}, hdg={finalHdg:F0} (change={hdgChange:F0}° from rwy {runwayHeading:F0}) ---"
+                );
                 break;
             }
 

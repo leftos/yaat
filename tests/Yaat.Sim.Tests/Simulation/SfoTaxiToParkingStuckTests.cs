@@ -44,8 +44,7 @@ public class SfoTaxiToParkingStuckTests(ITestOutputHelper output)
             return null;
         }
 
-        var loggerFactory = LoggerFactory.Create(builder =>
-            builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -73,7 +72,8 @@ public class SfoTaxiToParkingStuckTests(ITestOutputHelper output)
 
         output.WriteLine(
             $"ASA20 after TAXI @D7: phase={ac.Phases?.CurrentPhase?.Name ?? "null"} "
-            + $"pos=({ac.Latitude:F6},{ac.Longitude:F6}) gs={ac.GroundSpeed:F1}");
+                + $"pos=({ac.Latitude:F6},{ac.Longitude:F6}) gs={ac.GroundSpeed:F1}"
+        );
 
         // Tick until the taxi completes (aircraft stops moving) or 120s elapse
         for (int t = 1; t <= 120; t++)
@@ -88,8 +88,8 @@ public class SfoTaxiToParkingStuckTests(ITestOutputHelper output)
             if (t % 10 == 0)
             {
                 output.WriteLine(
-                    $"  t+{t}: phase={ac.Phases?.CurrentPhase?.Name ?? "null"} "
-                    + $"gs={ac.GroundSpeed:F1} parking={ac.ParkingSpot ?? "null"}");
+                    $"  t+{t}: phase={ac.Phases?.CurrentPhase?.Name ?? "null"} " + $"gs={ac.GroundSpeed:F1} parking={ac.ParkingSpot ?? "null"}"
+                );
             }
 
             // If the aircraft is already at parking, stop ticking
