@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -19,6 +17,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S1-SFO-2 Ground Control 28_01
 /// </summary>
+[Collection("NavDbMutator")]
 public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue-amx-taxi-overshoot-recording.yaat-bug-report-bundle.zip";
@@ -35,8 +34,7 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

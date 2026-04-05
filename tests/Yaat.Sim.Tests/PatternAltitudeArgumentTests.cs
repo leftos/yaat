@@ -6,6 +6,7 @@ using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class PatternAltitudeArgumentTests
 {
     // -------------------------------------------------------------------------

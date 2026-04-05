@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -19,6 +17,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S2-OAK-1 VFR Takeoff/Landing — N172SP (C172) taxiing from ramp
 /// to runway 28L via taxiway B, crossing runway 28R.
 /// </summary>
+[Collection("NavDbMutator")]
 public class OakCross28RHoldShortTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/oak-cross-28r-recording.yaat-recording.zip";
@@ -35,8 +34,7 @@ public class OakCross28RHoldShortTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

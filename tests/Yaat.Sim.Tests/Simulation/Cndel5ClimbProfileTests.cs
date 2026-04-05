@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -13,6 +11,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// with SUSEY enroute transition. Verifies the aircraft meets each altitude
 /// constraint at each fix using step-climb planning with variable climb rate.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Cndel5ClimbProfileTests(ITestOutputHelper output)
 {
     /// <summary>
@@ -30,8 +29,7 @@ public class Cndel5ClimbProfileTests(ITestOutputHelper output)
             return;
         }
 
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         // Resolve CNDEL5 SID from CIFP
         var sid = navDb.GetSid("KOAK", "CNDEL5");

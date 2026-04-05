@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -15,6 +13,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// argument and exits at E instead, because CommandDispatcher drops the
 /// Taxiway field from ExitRightCommand/ExitLeftCommand.
 /// </summary>
+[Collection("NavDbMutator")]
 public class ExitRightTaxiwaySelectionTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/er-d-wrong-exit-recording.zip";
@@ -31,8 +30,7 @@ public class ExitRightTaxiwaySelectionTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

@@ -10,6 +10,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// E2E replay tests that load oak-taxi-recording.json and replay it through SimulationEngine.
 /// Silently skip if NavData.dat or oak.geojson is not present in TestData/.
 /// </summary>
+[Collection("NavDbMutator")]
 public class SimulationEngineReplayTests
 {
     private const string RecordingPath = "TestData/oak-taxi-recording.json";

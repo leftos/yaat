@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -15,6 +14,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// have LandingPhase resolve K ahead, commit a ResolvedExitInfo, and hand off
 /// to RunwayExitPhase which follows the exit path smoothly.
 /// </summary>
+[Collection("NavDbMutator")]
 public class ExitKOvershootTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/09304e0c727e.zip";
@@ -31,8 +31,7 @@ public class ExitKOvershootTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

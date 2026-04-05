@@ -12,6 +12,7 @@ namespace Yaat.Sim.Tests;
 /// Tests for approach transition selection, fix name resolution, and programmed fix expansion
 /// using real NavData.dat + FAACIFP18 data. All tests silently skip if navdata is absent.
 /// </summary>
+[Collection("NavDbMutator")]
 public class ApproachTransitionTests(ITestOutputHelper output)
 {
     private static NavigationDatabase? GetNavDb()

@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases;
@@ -15,6 +13,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Multiple aircraft receive CLAND but the clearance state is lost before
 /// FinalApproachPhase checks it, causing unexpected go-arounds.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue131ClearToLandTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue131-clear-to-land-recording.json";
@@ -31,8 +30,7 @@ public class Issue131ClearToLandTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -15,6 +14,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// T exit from 28R is a 9-node, 0.11nm path (nodes 230→231→...→835) with a
 /// shallow 19° exit angle — the longest exit on 28R.
 /// </summary>
+[Collection("NavDbMutator")]
 public class SfoExitLeftTTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue-sfo-28r-el-t-recording.zip";
@@ -31,8 +31,7 @@ public class SfoExitLeftTTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

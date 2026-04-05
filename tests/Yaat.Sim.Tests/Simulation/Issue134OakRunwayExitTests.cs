@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -15,6 +13,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// on 28L with no exit instruction. The aircraft exits between taxiways J and P
 /// into the grass area instead of at a proper taxiway intersection.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue134OakRunwayExitTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue134-oak-runway-exit-recording.json";
@@ -31,8 +30,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

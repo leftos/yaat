@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -17,6 +15,7 @@ namespace Yaat.Sim.Tests;
 /// TryApplyTowerCommand (phase-dependent path), so they failed with
 /// "requires an active runway assignment" when no phases existed.
 /// </summary>
+[Collection("NavDbMutator")]
 public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
 {
     private static AircraftState MakeAirborneAircraft()
@@ -128,8 +127,7 @@ public class MakeTurnWithoutPhasesTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

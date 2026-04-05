@@ -3,6 +3,7 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class ProgrammedFixResolverTests
 {
     public ProgrammedFixResolverTests()

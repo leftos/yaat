@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
@@ -21,6 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S1-SFO-2 Ground Control 28/01 — N346G gets CTO at t=250.
 /// </summary>
+[Collection("NavDbMutator")]
 public class SfoLineupDiagonalTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/09304e0c727e.zip";
@@ -30,7 +29,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
-    private SimulationEngine? BuildEngine(LogLevel minLevel)
+    private SimulationEngine? BuildEngine()
     {
         TestVnasData.EnsureInitialized();
         if (TestVnasData.NavigationDb is null)
@@ -39,8 +38,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(minLevel));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }
@@ -54,7 +52,7 @@ public class SfoLineupDiagonalTests(ITestOutputHelper output)
     public void N346G_LineUp28R_TickByTickTrace()
     {
         var recording = LoadRecording();
-        var engine = BuildEngine(LogLevel.Debug);
+        var engine = BuildEngine();
         if (recording is null || engine is null)
         {
             output.WriteLine("SKIP: recording or navdata not available");

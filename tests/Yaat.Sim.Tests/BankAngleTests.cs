@@ -2,6 +2,7 @@ using Xunit;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class BankAngleTests
 {
     public BankAngleTests()

@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data;
@@ -17,6 +15,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// onAltitudeProfile=false. After reaching PIRAT, the aircraft should turn
 /// toward SAU, but instead goes straight.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue70RouteFollowingTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue70-route-following-recording.json";
@@ -42,8 +41,7 @@ public class Issue70RouteFollowingTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

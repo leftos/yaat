@@ -11,6 +11,7 @@ namespace Yaat.Sim.Tests;
 /// Tests that aircraft queue behind a hold-short point instead of stacking
 /// on top of each other at the same node.
 /// </summary>
+[Collection("NavDbMutator")]
 public class HoldShortQueueTests
 {
     private const double FtPerNm = 6076.12;

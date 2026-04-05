@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -17,6 +15,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// onAltitudeProfile=true, starts at FL290. Should descend ahead of STAR
 /// constraints to meet crossing restrictions, not wait until passing each fix.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue72DescentProfileTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue70-route-following-recording.json";
@@ -42,8 +41,7 @@ public class Issue72DescentProfileTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

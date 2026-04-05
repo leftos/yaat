@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -18,6 +17,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Land 28R → ER H → TAXI C B HS 28R → CROSS 28R → hold short 28L → CTO 060.
 /// Validates nose-behind-line and tail-past-line at each hold-short/crossing.
 /// </summary>
+[Collection("NavDbMutator")]
 public class OakFullLifecycleTests(ITestOutputHelper output)
 {
     private SimulationEngine? BuildEngine()
@@ -29,8 +29,7 @@ public class OakFullLifecycleTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

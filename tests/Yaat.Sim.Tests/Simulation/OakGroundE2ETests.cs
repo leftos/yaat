@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -22,6 +20,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Preset commands at t=0: N436MS TAXI B 28R, N172SP TAXI D C B 28R, N346G TAXI C B 28R.
 /// Manual commands: N569SX CLAND (when on final), then TAXI G @SIG1 (after runway exit).
 /// </summary>
+[Collection("NavDbMutator")]
 public class OakGroundE2ETests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue134-oak-runway-exit-recording.json";
@@ -38,8 +37,7 @@ public class OakGroundE2ETests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

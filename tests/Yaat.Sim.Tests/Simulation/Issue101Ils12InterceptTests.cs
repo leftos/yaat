@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Approach;
@@ -24,6 +22,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   t=1412: FHN 150
 ///   t=1415: CAPP (3rd attempt)
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue101Ils12InterceptTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue101-ils12-intercept-recording.json";
@@ -49,8 +48,7 @@ public class Issue101Ils12InterceptTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Information));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

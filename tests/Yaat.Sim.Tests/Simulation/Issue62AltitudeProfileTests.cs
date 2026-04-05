@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -15,6 +13,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S3-NCTC-2 Area C Sequencing — all aircraft have onAltitudeProfile: true
 /// and STARs in their NavigationPath (e.g., "SKIZM EMZOH4.30").
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue62AltitudeProfileTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue62-altitude-profile-recording.json";
@@ -40,8 +39,7 @@ public class Issue62AltitudeProfileTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

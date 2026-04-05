@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -18,6 +16,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// the hold-short point — FindAdjacentHoldShort's single-hop search never
 /// finds it.
 /// </summary>
+[Collection("NavDbMutator")]
 public class ElTHighSpeedExitTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/el-t-high-speed-exit-recording.zip";
@@ -34,8 +33,7 @@ public class ElTHighSpeedExitTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

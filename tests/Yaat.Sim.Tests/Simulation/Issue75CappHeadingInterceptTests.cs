@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Approach;
@@ -27,6 +25,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   t=928: FH 240 (explicit heading → AssignedHeading = 240)
 ///   t=984: CAPP → should use InterceptCoursePhase (aircraft was vectored)
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue75-capp-heading-intercept-recording.json";
@@ -52,8 +51,7 @@ public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

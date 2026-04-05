@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -14,6 +12,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// ERB 28R at t=919, CLAND at t=920, then TAXI E RWY 28R at t=953.
 /// The aircraft is still airborne at t=953, so the TAXI command should fail.
 /// </summary>
+[Collection("NavDbMutator")]
 public class TaxiAirborneRejectionTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/taxi-airborne-recording.zip";
@@ -30,8 +29,7 @@ public class TaxiAirborneRejectionTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

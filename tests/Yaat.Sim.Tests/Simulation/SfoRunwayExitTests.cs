@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -20,6 +18,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: SFO scenario, SKW3398 (CRJ2) landing 28R, "EL T" at t=382.
 /// </summary>
+[Collection("NavDbMutator")]
 public class SfoRunwayExitTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/sfo-exit-el-t-recording.yaat-bug-report-bundle.zip";
@@ -36,8 +35,7 @@ public class SfoRunwayExitTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -17,6 +15,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// with route SNS HOSNU. Scenario primaryApproach is I30L, primaryAirportId is SJC.
 /// HOSNU connects to the R32L approach at NUQ.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue128CappWrongAirportTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue121-ctopp-recording.json";
@@ -42,8 +41,7 @@ public class Issue128CappWrongAirportTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

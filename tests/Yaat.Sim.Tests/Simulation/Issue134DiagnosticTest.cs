@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -8,6 +6,7 @@ using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
+[Collection("NavDbMutator")]
 public class Issue134DiagnosticTest(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue134-v3-commands-only.json";
@@ -31,8 +30,7 @@ public class Issue134DiagnosticTest(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
         var engine = new SimulationEngine(groundData);
 
         // Replay to first CLAND minus some buffer

@@ -7,6 +7,7 @@ using Yaat.Sim.Testing;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class PatternAltitudeMemoryTests
 {
     private static RunwayInfo DefaultRunway() => TestRunwayFactory.Make(designator: "28", heading: 280, elevationFt: 100);

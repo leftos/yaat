@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
@@ -18,6 +16,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Before the fix, the aircraft decelerates to 5 kts floor immediately
 /// on entering the turn-off, taking ~37 seconds to complete the exit.
 /// </summary>
+[Collection("NavDbMutator")]
 public class RunwayExitSpeedTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/oak-slow-exit-recording.yaat-recording.zip";
@@ -34,8 +33,7 @@ public class RunwayExitSpeedTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

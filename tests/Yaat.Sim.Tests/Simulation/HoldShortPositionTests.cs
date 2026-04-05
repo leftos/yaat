@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Data.Faa;
@@ -19,6 +17,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S1-SFO-2 Ground Control 28/01 — UAL300 (B772) pushes from gate,
 /// taxis via A F, holds short of runway 1L, then crosses 1L and 1R.
 /// </summary>
+[Collection("NavDbMutator")]
 public class HoldShortPositionTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/09304e0c727e.zip";
@@ -36,8 +35,7 @@ public class HoldShortPositionTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

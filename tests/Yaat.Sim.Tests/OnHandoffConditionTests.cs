@@ -4,6 +4,7 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
+[Collection("NavDbMutator")]
 public class OnHandoffConditionTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();

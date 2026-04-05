@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -14,6 +12,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S1-SFO-2 Ground Control 28/01 — N70234 on the ground at SFO.
 /// </summary>
+[Collection("NavDbMutator")]
 public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/09304e0c727e.zip";
@@ -30,8 +29,7 @@ public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

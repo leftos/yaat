@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
@@ -23,6 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S1-SFO-2 | Ground Control 28/01.
 /// Timeline: t=1212 ASA20 PUSH, t=1305 ASA20 TAXI @D7.
 /// </summary>
+[Collection("NavDbMutator")]
 public class SfoTaxiToParkingStuckTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/09304e0c727e.zip";
@@ -44,8 +43,7 @@ public class SfoTaxiToParkingStuckTests(ITestOutputHelper output)
             return null;
         }
 
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

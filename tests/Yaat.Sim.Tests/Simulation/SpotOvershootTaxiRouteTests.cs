@@ -26,8 +26,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
     private AirportGroundLayout? LoadSfoLayout()
     {
         TestVnasData.EnsureInitialized();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         var groundData = new TestAirportGroundData();
         return groundData.GetLayout("SFO");

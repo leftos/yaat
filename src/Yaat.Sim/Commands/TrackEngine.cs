@@ -132,6 +132,22 @@ public static class TrackEngine
         return new CommandResult(true, $"Acknowledged {ac.Callsign}");
     }
 
+    public static CommandResult HandlePointOut(AircraftState ac, TrackOwner identity, Tcp targetTcp, Tcp senderTcp)
+    {
+        if (ac.Owner is null || ac.Owner.Callsign != identity.Callsign)
+        {
+            return NotOwnedError(ac, identity);
+        }
+
+        if (ac.Pointout is { IsPending: true })
+        {
+            return new CommandResult(false, $"Pointout already pending for {ac.Callsign}");
+        }
+
+        ac.Pointout = new StarsPointout(targetTcp, senderTcp);
+        return new CommandResult(true, $"Point out {ac.Callsign} to {targetTcp}");
+    }
+
     public static CommandResult HandlePointOutNoArgs(AircraftState ac, TrackOwner identity)
     {
         if (ac.Pointout is not { IsPending: true })

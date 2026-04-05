@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -19,6 +17,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// BERKS as a transition leg, selecting the CCR transition and routing the aircraft
 /// to CCR (miles off course). The fix excludes common leg fixes from transition matching.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue74-capp-wrong-transition-recording.json";
@@ -44,8 +43,7 @@ public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

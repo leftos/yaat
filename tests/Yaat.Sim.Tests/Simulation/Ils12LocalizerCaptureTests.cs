@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases;
@@ -22,6 +20,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   t=1156: FH 210, CM 030
 ///   t=1232: PTAC 150 030 (heading 150°, 3000ft, cleared ILS 12)
 /// </summary>
+[Collection("NavDbMutator")]
 public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/ils12-localizer-capture-recording.json";
@@ -47,8 +46,7 @@ public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Information));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

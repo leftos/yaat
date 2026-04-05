@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
@@ -26,6 +24,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S2-OAK-4 VFR Transitions/Radar Concepts — OAK tower scenario.
 /// N436MS starts at hold-short of 28R on taxiway B, gets CTO at t=47.
 /// </summary>
+[Collection("NavDbMutator")]
 public class DiagonalLineup28rTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/diagonal-lineup-28r-recording.zip";
@@ -41,8 +40,7 @@ public class DiagonalLineup28rTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

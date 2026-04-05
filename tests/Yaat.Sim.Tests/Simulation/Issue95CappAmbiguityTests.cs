@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -23,6 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Bug 2: After CAPP, StarViaMode/ActiveStarId/StarViaFloor were not cleared, causing
 ///         stale STAR descent logic to conflict with approach phases.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue95CappAmbiguityTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue95-capp-ambiguity-recording.json";
@@ -48,8 +47,7 @@ public class Issue95CappAmbiguityTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

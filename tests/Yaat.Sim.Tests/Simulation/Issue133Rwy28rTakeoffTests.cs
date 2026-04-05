@@ -1,5 +1,3 @@
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Phases.Ground;
@@ -22,6 +20,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// N172SP taxis via D C B to 28R. LUAW at t=449 stores departure clearance but
 /// the aircraft never reaches the hold-short node, so the clearance is never applied.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue133-rwy28r-takeoff-recording.json";
@@ -38,8 +37,7 @@ public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

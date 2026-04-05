@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -20,6 +18,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S3-NCTA-1 | Area A Familiarization — CMD02 is an EC35 helicopter
 /// airborne at low altitude near SJC.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue121CtoppTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue121-ctopp-recording.json";
@@ -45,8 +44,7 @@ public class Issue121CtoppTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -16,6 +14,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// onAltitudeProfile=true. BERKS has an altitude constraint (cross at 5000)
 /// in the RW19B runway transition, but aircraft stay too high.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue77AlwysDescentTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue77-alwys-descent-recording.json";
@@ -41,8 +40,7 @@ public class Issue77AlwysDescentTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

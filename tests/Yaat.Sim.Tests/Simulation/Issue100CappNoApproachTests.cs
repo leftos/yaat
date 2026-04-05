@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Commands;
@@ -15,6 +13,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S2-OAK-5 (1) — JSX170 on final rwy 30, CAPP issued at t=727s.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue100CappNoApproachTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue100-capp-no-approach-recording.json";
@@ -40,8 +39,7 @@ public class Issue100CappNoApproachTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

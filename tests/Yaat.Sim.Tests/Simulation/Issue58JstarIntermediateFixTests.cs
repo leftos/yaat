@@ -1,7 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -19,6 +17,7 @@ namespace Yaat.Sim.Tests.Simulation;
 ///    (e.g., "SKIZM EMZOH4.30") that cause 180° turns because PopulateNavigationRoute
 ///    strips the STAR name to a fix and creates a backwards route.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
 {
     private static SessionRecording LoadRecording(string path)
@@ -34,8 +33,7 @@ public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
         Assert.NotNull(navDb);
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

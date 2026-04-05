@@ -119,31 +119,26 @@ public static class TestVnasData
 
     public static void EnsureInitialized()
     {
-        if (_initialized)
+        if (!_initialized)
         {
-            return;
+            lock (_lock)
+            {
+                if (!_initialized)
+                {
+                    LoadAircraftSpecs();
+                    LoadAircraftCwt();
+                    LoadFaaAcd();
+                    LoadAircraftProfiles();
+                    _initialized = true;
+                }
+            }
         }
 
-        lock (_lock)
+        // Always re-set the NavigationDatabase singleton. Other tests (e.g. parser tests)
+        // may have replaced it with a synthetic ForTesting() instance.
+        if (NavigationDb is { } navDb)
         {
-            if (_initialized)
-            {
-                return;
-            }
-
-            LoadAircraftSpecs();
-            LoadAircraftCwt();
-            LoadFaaAcd();
-            LoadAircraftProfiles();
-
-            // Initialize the NavigationDatabase singleton so production code
-            // that uses NavigationDatabase.Instance works in tests.
-            if (NavigationDb is { } navDb)
-            {
-                NavigationDatabase.SetInstance(navDb);
-            }
-
-            _initialized = true;
+            NavigationDatabase.SetInstance(navDb);
         }
     }
 

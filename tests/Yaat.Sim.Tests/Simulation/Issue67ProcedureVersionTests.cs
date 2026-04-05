@@ -1,6 +1,4 @@
 using System.Text.Json;
-using MartinCostello.Logging.XUnit;
-using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
 using Yaat.Sim.Simulation;
@@ -16,6 +14,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// BDEGA3 → BDEGA4, expand the STAR body, and enable descend-via when
 /// onAltitudeProfile is true.
 /// </summary>
+[Collection("NavDbMutator")]
 public class Issue67ProcedureVersionTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue67-procedure-version-recording.json";
@@ -41,8 +40,7 @@ public class Issue67ProcedureVersionTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
-        SimLog.Initialize(loggerFactory);
+        SimLogBuilder.CreateForTest(output).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }

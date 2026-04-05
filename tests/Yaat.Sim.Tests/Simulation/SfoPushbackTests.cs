@@ -12,6 +12,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Loads a real scenario, sends PUSH @spot commands, and verifies aircraft push
 /// backwards to the named parking spot via SimulationEngine ticking.
 /// </summary>
+[Collection("NavDbMutator")]
 public class SfoPushbackTests(ITestOutputHelper output)
 {
     private readonly ITestOutputHelper _output = output;
