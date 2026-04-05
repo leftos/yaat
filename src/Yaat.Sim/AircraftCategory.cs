@@ -420,6 +420,39 @@ public static class CategoryPerformance
     }
 
     /// <summary>
+    /// How far past the target taxiway node the aircraft overshoots during pushback (nm).
+    /// Simulates the tug pushing and turning simultaneously — larger aircraft need more room
+    /// to complete the turn, so the overshoot is bigger.
+    /// Uses CWT code (A-I) with fallback to AircraftCategory.
+    /// </summary>
+    public static double PushbackOvershootNm(string aircraftType)
+    {
+        var cwt = WakeTurbulenceData.GetCwt(aircraftType);
+        if (cwt is not null)
+        {
+            return cwt switch
+            {
+                "A" => 0.013,        // Super (A388): ~80ft
+                "B" => 0.012,        // Upper Heavy (B744): ~70ft
+                "C" => 0.010,        // Lower Heavy (B763): ~60ft
+                "D" => 0.008,        // Upper Large (B738): ~50ft
+                "E" => 0.007,        // Lower Large (E170): ~45ft
+                "F" => 0.007,        // Upper Small (C560): ~40ft
+                _ => 0.005,          // G-I Small/Light: ~30ft
+            };
+        }
+
+        var cat = AircraftCategorization.Categorize(aircraftType);
+        return cat switch
+        {
+            AircraftCategory.Jet => 0.008,
+            AircraftCategory.Turboprop => 0.007,
+            AircraftCategory.Piston => 0.005,
+            _ => 0.008,
+        };
+    }
+
+    /// <summary>
     /// Ground turn rate while taxiing (deg/sec).
     /// Calibrated at 15 kt corner speed: jet → 22 m radius (B737/A320 outer main gear sweep),
     /// turboprop → 18 m (ATR-72/CRJ-700), piston → 13 m (C172).

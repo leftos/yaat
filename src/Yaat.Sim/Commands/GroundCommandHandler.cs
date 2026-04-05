@@ -411,6 +411,30 @@ internal static class GroundCommandHandler
                     );
                 }
             }
+
+            // Offset the target position away from the facing direction along the push taxiway.
+            // This simulates the tug pushing and turning simultaneously — the aircraft ends up
+            // slightly past the intersection rather than rotating fully in place.
+            if (resolvedHeading is not null)
+            {
+                double awayBearing = (resolvedHeading.Value + 180) % 360;
+                double? awayEdgeBearing = groundLayout.GetEdgeBearingForTaxiway(targetNode, push.Taxiway!, awayBearing);
+                if (awayEdgeBearing is not null)
+                {
+                    double overshootNm = CategoryPerformance.PushbackOvershootNm(aircraft.AircraftType);
+                    var offset = GeoMath.ProjectPointRaw(targetLat!.Value, targetLon!.Value, awayEdgeBearing.Value, overshootNm);
+                    targetLat = offset.Lat;
+                    targetLon = offset.Lon;
+                    Log.LogDebug(
+                        "[Pushback] {Callsign}: overshoot {Dist:F4}nm along bearing {Brg:F0} → ({Lat:F6}, {Lon:F6})",
+                        aircraft.Callsign,
+                        overshootNm,
+                        awayEdgeBearing.Value,
+                        targetLat,
+                        targetLon
+                    );
+                }
+            }
         }
 
         var ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
