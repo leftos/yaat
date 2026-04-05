@@ -439,9 +439,10 @@ public partial class MainViewModel
             Aircraft.Add(model);
         }
 
-        _ = SendAutoAcceptDelay();
-        _ = SendAutoDeleteMode();
-        _ = SendValidateDctFixes();
+        // Apply the room's session settings from the server.
+        // Do NOT send our preferences — use the session settings flyout to change them.
+        ApplySessionSettingsFromRoom(state);
+
         _ = RefreshCrcLobbyAsync();
         _ = FetchAssignmentsAsync();
     }

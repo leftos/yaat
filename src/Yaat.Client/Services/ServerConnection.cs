@@ -28,6 +28,7 @@ public sealed class ServerConnection : IAsyncDisposable
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
     public event Action? ScenarioUnloaded;
     public event Action<AircraftAssignmentsDto>? AircraftAssignmentsChanged;
+    public event Action<SessionSettingsDto>? SessionSettingsChanged;
     public event Action<string>? KickedFromRoom;
     public event Action<int, int>? ExportRecordingProgress;
 
@@ -71,6 +72,7 @@ public sealed class ServerConnection : IAsyncDisposable
         _connection.On<ScenarioLoadedDto>("ScenarioLoaded", dto => ScenarioLoaded?.Invoke(dto));
         _connection.On("ScenarioUnloaded", () => ScenarioUnloaded?.Invoke());
         _connection.On<AircraftAssignmentsDto>("AircraftAssignmentsChanged", dto => AircraftAssignmentsChanged?.Invoke(dto));
+        _connection.On<SessionSettingsDto>("SessionSettingsChanged", dto => SessionSettingsChanged?.Invoke(dto));
         _connection.On<string>("KickedFromRoom", msg => KickedFromRoom?.Invoke(msg));
         _connection.On<int, int>("ExportRecordingProgress", (current, total) => ExportRecordingProgress?.Invoke(current, total));
 
@@ -539,7 +541,12 @@ public record RoomStateDto(
     PositionDisplayConfigDto? PositionDisplayConfig = null,
     double ElapsedSeconds = 0,
     bool IsPlayback = false,
-    double TapeEnd = 0
+    double TapeEnd = 0,
+    string? AutoDeleteMode = null,
+    int AutoAcceptDelaySeconds = -1,
+    bool AutoClearedToLand = false,
+    bool AutoCrossRunway = false,
+    bool ValidateDctFixes = true
 );
 
 public record ScenarioLoadedDto(
@@ -550,9 +557,21 @@ public record ScenarioLoadedDto(
     int SimRate,
     List<AircraftDto> AllAircraft,
     PositionDisplayConfigDto? PositionDisplayConfig = null,
-    bool AutoClearedToLand = false,
     bool IsStudentTowerPosition = true,
-    string? StudentPositionType = null
+    string? StudentPositionType = null,
+    string? AutoDeleteMode = null,
+    int AutoAcceptDelaySeconds = -1,
+    bool AutoClearedToLand = false,
+    bool AutoCrossRunway = false,
+    bool ValidateDctFixes = true
+);
+
+public record SessionSettingsDto(
+    string? AutoDeleteMode,
+    int AutoAcceptDelaySeconds,
+    bool AutoClearedToLand,
+    bool AutoCrossRunway,
+    bool ValidateDctFixes
 );
 
 public record RoomMemberDto(string Cid, string Initials, string ArtccId);

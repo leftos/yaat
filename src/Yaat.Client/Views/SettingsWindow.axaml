@@ -92,6 +92,12 @@
             <TabItem Header="Scenarios">
                 <ScrollViewer>
                 <StackPanel Margin="12" Spacing="12">
+                    <TextBlock Text="These are your default preferences, applied when you load a scenario. Once in a session, use the gear icon in the command bar to change the active settings for all RPOs."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource SubtleTextBrush}"
+                               FontSize="11"
+                               FontStyle="Italic"
+                               Margin="0,0,0,4" />
                     <StackPanel Spacing="4">
                         <CheckBox Content="Auto-accept handoffs to unattended positions"
                                   IsChecked="{Binding AutoAcceptEnabled}" />
@@ -113,13 +119,13 @@
                         </StackPanel>
                     </StackPanel>
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Auto-Delete Aircraft:"
+                        <TextBlock Text="Default Auto-Delete:"
                                    Foreground="{DynamicResource SubtleTextBrush}" />
                         <ComboBox ItemsSource="{Binding AutoDeleteOptions}"
                                   SelectedIndex="{Binding SelectedAutoDeleteIndex}"
                                   Width="220"
                                   HorizontalAlignment="Left" />
-                        <TextBlock Text="Controls whether aircraft are automatically removed after landing or parking. 'Use Scenario Setting' defers to the scenario's autoDeleteMode field."
+                        <TextBlock Text="Your default preference, applied when you load a scenario. Other RPOs can change the active setting via the session dropdown in the command bar."
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource SubtleTextBrush}"
                                    FontSize="11" />

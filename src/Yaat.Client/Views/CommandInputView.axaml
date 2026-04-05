@@ -5,7 +5,7 @@
              x:Class="Yaat.Client.Views.CommandInputView">
 
     <Grid Margin="0,8,0,0"
-          ColumnDefinitions="Auto,*,Auto,Auto">
+          ColumnDefinitions="Auto,*,Auto,Auto,Auto">
 
         <!-- Selected aircraft label -->
         <TextBlock Grid.Column="0"
@@ -156,6 +156,53 @@
                 </DataTemplate>
             </ComboBox.ItemTemplate>
         </ComboBox>
+
+        <!-- Session settings flyout -->
+        <Button Grid.Column="4"
+                Margin="8,0,0,0"
+                Content="&#x2699;"
+                FontSize="14"
+                Padding="6,2"
+                ToolTip.Tip="Session settings"
+                IsVisible="{Binding ActiveScenarioName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <Button.Flyout>
+                <Flyout Placement="TopEdgeAlignedRight" ShowMode="TransientWithDismissOnPointerMoveAway">
+                    <StackPanel Spacing="8" MinWidth="240">
+                        <TextBlock Text="Session Settings" FontWeight="Bold" FontSize="13" Margin="0,0,0,4" />
+
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Auto-Delete:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                            <ComboBox ItemsSource="{Binding SessionAutoDeleteOptions}"
+                                      SelectedIndex="{Binding SessionAutoDeleteIndex}"
+                                      HorizontalAlignment="Stretch" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Auto-Accept Delay:" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <NumericUpDown Value="{Binding SessionAutoAcceptDelaySeconds}" Minimum="-1" Maximum="60" Increment="1" Width="80" FormatString="0" />
+                                <TextBlock Text="sec (-1 = off)" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <CheckBox Content="Auto Cleared-to-Land"
+                                  IsChecked="{Binding SessionAutoClearedToLand}" />
+
+                        <CheckBox Content="Auto Cross-Runway"
+                                  IsChecked="{Binding SessionAutoCrossRunway}" />
+
+                        <CheckBox Content="Validate DCT Fixes"
+                                  IsChecked="{Binding SessionValidateDctFixes}" />
+
+                        <TextBlock Text="Changes apply to all RPOs in this session."
+                                   Foreground="{DynamicResource SubtleTextBrush}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                </Flyout>
+            </Button.Flyout>
+        </Button>
 
     </Grid>
 </UserControl>

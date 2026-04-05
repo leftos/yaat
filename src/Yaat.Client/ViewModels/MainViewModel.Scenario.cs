@@ -382,11 +382,10 @@ public partial class MainViewModel
                 Radar.ApplyPositionDisplayConfig(dto.PositionDisplayConfig);
             }
 
-            _ = SendAutoAcceptDelay();
-            _ = SendAutoDeleteMode();
-            _ = SendValidateDctFixes();
-            _ = SendAutoClearedToLand();
-            _ = SendAutoCrossRunway();
+            // Apply session settings from the server (set by the loading RPO).
+            // Do NOT send our preferences — only the loading RPO applies theirs.
+            // Other RPOs can change settings via the session settings flyout.
+            ApplySessionSettingsFromScenarioLoaded(dto);
 
             StatusText = $"Scenario loaded: {dto.ScenarioName}";
             AddSystemEntry($"Scenario loaded: {dto.ScenarioName} ({dto.AllAircraft.Count} aircraft)");
@@ -417,6 +416,7 @@ public partial class MainViewModel
         Aircraft.Clear();
         Ground.ClearLayout();
         Radar.ClearVideoMaps();
+        ApplySessionSettings(new SessionSettingsDto(null, -1, false, false, true));
     }
 }
 

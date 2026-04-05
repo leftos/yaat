@@ -75,6 +75,31 @@ public partial class MainViewModel : ObservableObject
 
     public static int[] SimRateOptions { get; } = [1, 2, 4, 8, 16];
 
+    // Session-level settings (room state, not user preferences).
+    // Displayed in the session settings flyout. Synced via server broadcasts.
+    public static string[] SessionAutoDeleteOptions { get; } = ["Scenario Default", "Never", "On Landing", "On Parking"];
+
+    [ObservableProperty]
+    private int _sessionAutoDeleteIndex;
+
+    [ObservableProperty]
+    private string? _activeAutoDeleteMode;
+
+    [ObservableProperty]
+    private int _sessionAutoAcceptDelaySeconds = -1;
+
+    [ObservableProperty]
+    private bool _sessionAutoClearedToLand;
+
+    [ObservableProperty]
+    private bool _sessionAutoCrossRunway;
+
+    [ObservableProperty]
+    private bool _sessionValidateDctFixes = true;
+
+    [ObservableProperty]
+    private bool _isSessionSettingsOpen;
+
     [ObservableProperty]
     private double _scenarioElapsedSeconds;
 
@@ -487,6 +512,7 @@ public partial class MainViewModel : ObservableObject
         _connection.ScenarioLoaded += OnScenarioLoaded;
         _connection.ScenarioUnloaded += OnScenarioUnloaded;
         _connection.AircraftAssignmentsChanged += OnAircraftAssignmentsChanged;
+        _connection.SessionSettingsChanged += OnSessionSettingsChanged;
         _connection.KickedFromRoom += OnKickedFromRoom;
 
         RefreshCommandScheme();
@@ -1268,6 +1294,109 @@ public partial class MainViewModel : ObservableObject
             _log.LogWarning(ex, "Failed to set auto-delete mode");
         }
     }
+
+    // --- Session settings (flyout) ---
+
+    private bool _isApplyingSessionSettings;
+
+    private void OnSessionSettingsChanged(SessionSettingsDto dto)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => ApplySessionSettings(dto));
+    }
+
+    private void ApplySessionSettings(SessionSettingsDto dto)
+    {
+        _isApplyingSessionSettings = true;
+        ActiveAutoDeleteMode = dto.AutoDeleteMode;
+        SessionAutoDeleteIndex = AutoDeleteModeToIndex(dto.AutoDeleteMode);
+        SessionAutoAcceptDelaySeconds = dto.AutoAcceptDelaySeconds;
+        SessionAutoClearedToLand = dto.AutoClearedToLand;
+        SessionAutoCrossRunway = dto.AutoCrossRunway;
+        SessionValidateDctFixes = dto.ValidateDctFixes;
+        _isApplyingSessionSettings = false;
+    }
+
+    private void ApplySessionSettingsFromRoom(RoomStateDto state)
+    {
+        ApplySessionSettings(
+            new SessionSettingsDto(
+                state.AutoDeleteMode,
+                state.AutoAcceptDelaySeconds,
+                state.AutoClearedToLand,
+                state.AutoCrossRunway,
+                state.ValidateDctFixes
+            )
+        );
+    }
+
+    private void ApplySessionSettingsFromScenarioLoaded(ScenarioLoadedDto dto)
+    {
+        ApplySessionSettings(
+            new SessionSettingsDto(dto.AutoDeleteMode, dto.AutoAcceptDelaySeconds, dto.AutoClearedToLand, dto.AutoCrossRunway, dto.ValidateDctFixes)
+        );
+    }
+
+    partial void OnSessionAutoDeleteIndexChanged(int value)
+    {
+        if (_isApplyingSessionSettings)
+        {
+            return;
+        }
+
+        var mode = IndexToActiveAutoDeleteMode(value);
+        ActiveAutoDeleteMode = mode;
+        _ = _connection.SetAutoDeleteModeAsync(mode);
+    }
+
+    partial void OnSessionAutoAcceptDelaySecondsChanged(int value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetAutoAcceptDelayAsync(value);
+        }
+    }
+
+    partial void OnSessionAutoClearedToLandChanged(bool value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetAutoClearedToLandAsync(value);
+        }
+    }
+
+    partial void OnSessionAutoCrossRunwayChanged(bool value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetAutoCrossRunwayAsync(value);
+        }
+    }
+
+    partial void OnSessionValidateDctFixesChanged(bool value)
+    {
+        if (!_isApplyingSessionSettings)
+        {
+            _ = _connection.SetValidateDctFixesAsync(value);
+        }
+    }
+
+    private static int AutoDeleteModeToIndex(string? mode) =>
+        mode switch
+        {
+            "Never" => 1,
+            "OnLanding" => 2,
+            "Parked" => 3,
+            _ => 0,
+        };
+
+    private static string? IndexToActiveAutoDeleteMode(int index) =>
+        index switch
+        {
+            1 => "Never",
+            2 => "OnLanding",
+            3 => "Parked",
+            _ => null,
+        };
 
     private async Task SendValidateDctFixes()
     {
