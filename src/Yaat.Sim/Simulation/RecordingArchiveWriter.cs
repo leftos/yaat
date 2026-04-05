@@ -70,6 +70,16 @@ public sealed class RecordingArchiveWriter : IDisposable
     }
 
     /// <summary>
+    /// Write an arbitrary entry to the archive (e.g., log files from bug report bundles).
+    /// </summary>
+    public void WriteExtraEntry(string entryName, byte[] data)
+    {
+        var entry = _zip.CreateEntry(entryName, CompressionLevel.Optimal);
+        using var entryStream = entry.Open();
+        entryStream.Write(data);
+    }
+
+    /// <summary>
     /// Writes <c>manifest.json</c> as the final entry and closes the archive.
     /// </summary>
     public void Finish(
