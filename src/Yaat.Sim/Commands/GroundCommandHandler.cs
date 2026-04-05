@@ -78,8 +78,8 @@ internal static class GroundCommandHandler
         }
 
         // Compute dynamic hold-short positions based on aircraft fuselage length
-        double aircraftLengthFt = FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt
-            ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
+        double aircraftLengthFt =
+            FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
         HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
 
         var hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
@@ -642,8 +642,8 @@ internal static class GroundCommandHandler
         }
 
         // Compute offset position for the newly added hold-short
-        double aircraftLengthFt = FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt
-            ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
+        double aircraftLengthFt =
+            FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
         HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
 
         Log.LogDebug("[HS] {Callsign}: added hold short of {Target}", aircraft.Callsign, hs.Target);

@@ -198,7 +198,7 @@ Phases/PhaseContext.cs         # Readonly tick context; includes Weather, TowerP
 Phases/PhaseStatus.cs          # Enum: phase lifecycle status
 Phases/CommandAcceptance.cs    # Enum: Allowed, Rejected, ClearsPhase
 Phases/ClearanceRequirement.cs # Clearance requirement definitions
-Phases/ExitPreference.cs       # ExitSide enum + ExitPreference class for exit commands
+Phases/ExitPreference.cs       # ExitSide enum, ExitPreference class, ResolvedExitInfo (branch point + path + turn-off speed)
 Phases/ClearanceType.cs        # Enum: LineUpAndWait, ClearedForTakeoff/Land/Option/TouchAndGo/StopAndGo, RunwayCrossing
 Phases/RunwayInfo.cs           # Runway geometry
 Phases/GlideSlopeGeometry.cs   # Altitude/descent rate calculations (3° default)
@@ -211,7 +211,7 @@ LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
 InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode; RV SID heading hold until handoff+5s
 FinalApproachPhase.cs          # Glideslope; auto-go-around at 0.5nm; illegal intercept check (§5-9-1)
-LandingPhase.cs                # Flare→touchdown→rollout; exit-aware (maintains coast speed, decels to angle-dependent turn-off speed); LAHSO-aware
+LandingPhase.cs                # Flare→touchdown→rollout; continuous exit evaluation (resolve→brake→commit/abandon→relax preference); LAHSO-aware
 RunwayHoldingPhase.cs          # LAHSO: hold at 0kts on runway after landing; clearance-gated (RunwayCrossing)
 GoAroundPhase.cs               # TOGA, runway heading, climb 2000ft AGL (pattern alt for VFR/pattern traffic)
 TouchAndGoPhase.cs / StopAndGoPhase.cs / LowApproachPhase.cs
@@ -230,7 +230,8 @@ UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase
 
 # Phases/Ground/
 AtParkingPhase / PushbackPhase / PushbackToSpotPhase / TaxiingPhase / HoldingShortPhase
-CrossingRunwayPhase / RunwayExitPhase / HoldingAfterExitPhase / FollowingPhase
+CrossingRunwayPhase / HoldingAfterExitPhase / FollowingPhase
+RunwayExitPhase.cs             # Follows ResolvedExitInfo waypoints (branch→intermediates→hold-short); BFS for multi-hop high-speed exits
 
 # Data/
 Data/NavigationDatabase.cs     # Static singleton: unified NavData fixes/runways/airways/SID/STAR indexes + lazy CIFP procedures.
@@ -245,7 +246,7 @@ Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 
 # Data/Airport/
 IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGroundLayout?
-AirportGroundLayout.cs         # Graph: Nodes + Edges (GroundNode, GroundEdge); FindNearestExit/FindExitBySide/FindExitAheadOnRunway (runway-aware filtering), FindGroundRunway, GetRunwayHoldShortNodes
+AirportGroundLayout.cs         # Graph: Nodes + Edges; FindAdjacentHoldShort (BFS, max 12 hops), FindExitPath (hold-short→centerline), FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
 TaxiRoute.cs                   # Resolved path: Segments + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiPathfinder.cs              # ResolveExplicitPath (destinationHintNode for parking direction), FindRoute (A*), variant inference
@@ -322,6 +323,19 @@ SnapshotSchemaMigrator.cs      # Sequential migration chain for snapshot DTO ver
 TestVnasData.cs                # Shared test data loader: NavData, CIFP, AircraftSpecs, AircraftCwt, FaaAcd, AircraftProfiles
 
 Proto/nav_data.proto           # Compiled by Grpc.Tools → NavDataSet
+```
+
+## Yaat.LayoutInspector — CLI tool (`tools/Yaat.LayoutInspector/`)
+
+Loads airport GeoJSON and queries the ground graph: node/edge detail, taxiway connectivity, runway exits with angles, BFS path traces for multi-hop exits, parking/spots.
+
+```
+Program.cs                     # CLI entry: flag parsing, NavData loading, formatter dispatch
+LayoutAnalyzer.cs              # Core: loads GeoJSON, query methods (overview, node, taxiway, runway, exits, BFS path, parking, spots)
+QueryResults.cs                # Result record types for all queries
+IFormatter.cs                  # Output formatter interface
+TextFormatter.cs               # Human-readable output
+JsonFormatter.cs               # JSON output (--json flag)
 ```
 
 ## Yaat.ScenarioValidator — CLI tool (`tools/Yaat.ScenarioValidator/`)

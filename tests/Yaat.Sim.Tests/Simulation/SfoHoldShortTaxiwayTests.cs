@@ -68,7 +68,9 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
             output.WriteLine($"Route: {route.ToSummary()}, segIdx={route.CurrentSegmentIndex}/{route.Segments.Count}");
             foreach (var hs in route.HoldShortPoints)
             {
-                output.WriteLine($"  HS: node={hs.NodeId} target={hs.TargetName} reason={hs.Reason} cleared={hs.IsCleared} lat={hs.Latitude:F6} lon={hs.Longitude:F6}");
+                output.WriteLine(
+                    $"  HS: node={hs.NodeId} target={hs.TargetName} reason={hs.Reason} cleared={hs.IsCleared} lat={hs.Latitude:F6} lon={hs.Longitude:F6}"
+                );
             }
 
             foreach (var seg in route.Segments)
@@ -171,8 +173,10 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
 
         // The hold-short position should be offset from the intersection node
         double distFromIntersection = GeoMath.DistanceNm(
-            hsE.Latitude.Value, hsE.Longitude.Value,
-            intersectionNode.Latitude, intersectionNode.Longitude
+            hsE.Latitude.Value,
+            hsE.Longitude.Value,
+            intersectionNode.Latitude,
+            intersectionNode.Longitude
         );
         double distFt = distFromIntersection * 6076.12;
 
@@ -216,8 +220,10 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
                 break;
             }
 
-            if (aircraft.Phases?.CurrentPhase is HoldingShortPhase hs &&
-                string.Equals(hs.HoldShort.TargetName, "E", StringComparison.OrdinalIgnoreCase))
+            if (
+                aircraft.Phases?.CurrentPhase is HoldingShortPhase hs
+                && string.Equals(hs.HoldShort.TargetName, "E", StringComparison.OrdinalIgnoreCase)
+            )
             {
                 holdingPhase = hs;
                 output.WriteLine($"N346G reached hold-short for E after {t}s of ticking");

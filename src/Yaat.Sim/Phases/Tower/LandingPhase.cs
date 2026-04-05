@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
-using Yaat.Sim.Phases;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Tower;
@@ -30,10 +29,14 @@ public sealed class LandingPhase : Phase
     private double _lahsoHoldShortDistNm;
     private bool _hasLahso;
 
-    // Exit-aware braking state
-    private GroundNode? _resolvedExitNode;
-    private double _exitTurnOffSpeed;
-    private ExitPreference? _lastResolvedPreference;
+    // Exit-aware braking state (continuous evaluation)
+    private ResolvedExitInfo? _candidateExit;
+    private ExitPreference? _activePreference;
+    private ExitPreference? _originalPreference;
+
+    // True only when a controller has explicitly assigned an exit preference.
+    // Without an explicit preference, LandingPhase coasts and hands off to RunwayExitPhase.
+    private bool _exitResolutionEnabled;
 
     public bool StoppedForLahso { get; private set; }
 
@@ -53,9 +56,16 @@ public sealed class LandingPhase : Phase
             CanGoAround = _canGoAround,
             LahsoHoldShortDistNm = _lahsoHoldShortDistNm,
             HasLahso = _hasLahso,
-            ResolvedExitNodeId = _resolvedExitNode?.Id,
-            ExitTurnOffSpeed = _exitTurnOffSpeed,
-            LastResolvedPreference = (int?)_lastResolvedPreference?.Side,
+            CandidateExitHoldShortId = _candidateExit?.HoldShortNode.Id,
+            CandidateExitBranchPointId = _candidateExit?.BranchPointNode.Id,
+            CandidateExitTaxiway = _candidateExit?.TaxiwayName,
+            CandidateExitTurnOffSpeed = _candidateExit?.TurnOffSpeed ?? 0,
+            CandidateExitPathNodeIds = _candidateExit?.Path.Select(n => n.Id).ToList(),
+            ActivePreferenceSide = (int?)_activePreference?.Side,
+            ActivePreferenceTaxiway = _activePreference?.Taxiway,
+            OriginalPreferenceSide = (int?)_originalPreference?.Side,
+            OriginalPreferenceTaxiway = _originalPreference?.Taxiway,
+            ExitResolutionEnabled = _exitResolutionEnabled,
             StoppedForLahso = StoppedForLahso,
         };
 
@@ -73,15 +83,52 @@ public sealed class LandingPhase : Phase
         phase._canGoAround = dto.CanGoAround;
         phase._lahsoHoldShortDistNm = dto.LahsoHoldShortDistNm;
         phase._hasLahso = dto.HasLahso;
-        phase._exitTurnOffSpeed = dto.ExitTurnOffSpeed;
+        phase._exitResolutionEnabled = dto.ExitResolutionEnabled;
         phase.StoppedForLahso = dto.StoppedForLahso;
-        if (dto.LastResolvedPreference.HasValue)
+        if (dto.ActivePreferenceSide.HasValue || dto.ActivePreferenceTaxiway is not null)
         {
-            phase._lastResolvedPreference = new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value };
+            phase._activePreference = new ExitPreference
+            {
+                Side = dto.ActivePreferenceSide.HasValue ? (ExitSide)dto.ActivePreferenceSide.Value : null,
+                Taxiway = dto.ActivePreferenceTaxiway,
+            };
         }
-        if (dto.ResolvedExitNodeId.HasValue && groundLayout is not null)
+        if (dto.OriginalPreferenceSide.HasValue || dto.OriginalPreferenceTaxiway is not null)
         {
-            groundLayout.Nodes.TryGetValue(dto.ResolvedExitNodeId.Value, out phase._resolvedExitNode);
+            phase._originalPreference = new ExitPreference
+            {
+                Side = dto.OriginalPreferenceSide.HasValue ? (ExitSide)dto.OriginalPreferenceSide.Value : null,
+                Taxiway = dto.OriginalPreferenceTaxiway,
+            };
+        }
+        if (
+            groundLayout is not null
+            && dto.CandidateExitHoldShortId.HasValue
+            && dto.CandidateExitBranchPointId.HasValue
+            && dto.CandidateExitTaxiway is not null
+            && groundLayout.Nodes.TryGetValue(dto.CandidateExitHoldShortId.Value, out var holdShortNode)
+            && groundLayout.Nodes.TryGetValue(dto.CandidateExitBranchPointId.Value, out var branchPointNode)
+        )
+        {
+            List<GroundNode> path = [];
+            if (dto.CandidateExitPathNodeIds is not null)
+            {
+                foreach (int nodeId in dto.CandidateExitPathNodeIds)
+                {
+                    if (groundLayout.Nodes.TryGetValue(nodeId, out var pathNode))
+                    {
+                        path.Add(pathNode);
+                    }
+                }
+            }
+            phase._candidateExit = new ResolvedExitInfo
+            {
+                HoldShortNode = holdShortNode,
+                BranchPointNode = branchPointNode,
+                TaxiwayName = dto.CandidateExitTaxiway,
+                TurnOffSpeed = dto.CandidateExitTurnOffSpeed,
+                Path = path,
+            };
         }
         return phase;
     }
@@ -99,6 +146,10 @@ public sealed class LandingPhase : Phase
             _hasLahso = true;
             _lahsoHoldShortDistNm = lahso.DistFromThresholdNm;
         }
+
+        _originalPreference = ctx.Aircraft.Phases?.RequestedExit;
+        _activePreference = _originalPreference;
+        _exitResolutionEnabled = _originalPreference is not null;
 
         // Continue approach descent toward field elevation
         ctx.Targets.TargetAltitude = _fieldElevation;
@@ -171,11 +222,14 @@ public sealed class LandingPhase : Phase
         double correction = Math.Clamp(signedXte * CenterlineGainDegPerNm, -MaxCenterlineCorrectionDeg, MaxCenterlineCorrectionDeg);
         ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeading.Degrees - correction);
 
-        // Re-resolve exit if preference changed mid-rollout
+        // Re-resolve candidate from scratch if the controller changed the preference mid-rollout
         var currentPref = ctx.Aircraft.Phases?.RequestedExit;
-        if (currentPref != _lastResolvedPreference)
+        if (currentPref != _originalPreference)
         {
-            ResolveExit(ctx);
+            _originalPreference = currentPref;
+            _activePreference = currentPref;
+            _candidateExit = null;
+            _exitResolutionEnabled = currentPref is not null;
         }
 
         double decelRate = CategoryPerformance.RolloutDecelRate(ctx.Category);
@@ -186,7 +240,7 @@ public sealed class LandingPhase : Phase
             double distFromThreshold = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _thresholdLat, _thresholdLon);
             double distToHoldShort = _lahsoHoldShortDistNm - distFromThreshold;
 
-            if (distToHoldShort > 0 && ctx.Aircraft.IndicatedAirspeed > 1.0)
+            if ((distToHoldShort > 0) && (ctx.Aircraft.IndicatedAirspeed > 1.0))
             {
                 double lahsoDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, 0, distToHoldShort);
                 if (lahsoDecel > decelRate)
@@ -207,52 +261,98 @@ public sealed class LandingPhase : Phase
         // Coast speed: decelerate to this speed and hold it while searching for exits
         double coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
 
-        // Exit-aware braking: if an exit is resolved, compute braking to reach it
-        if (_resolvedExitNode is not null)
+        // Continuous exit evaluation: resolve a candidate if we don't have one
+        // Only when exit resolution was enabled by an explicit controller preference.
+        if (_exitResolutionEnabled && (_candidateExit is null))
         {
-            double distToExit = GeoMath.AlongTrackDistanceNm(
-                _resolvedExitNode.Latitude,
-                _resolvedExitNode.Longitude,
+            ResolveNextCandidate(ctx);
+        }
+
+        if (_candidateExit is not null)
+        {
+            // Commit as soon as the aircraft is slow enough, regardless of whether it
+            // has reached the branch point. This covers the case where the aircraft
+            // decelerates below turn-off speed before reaching the branch point.
+            if (ctx.Aircraft.IndicatedAirspeed <= _candidateExit.TurnOffSpeed)
+            {
+                ctx.Aircraft.Phases!.ResolvedExit = _candidateExit;
+                ctx.Logger.LogDebug(
+                    "[Landing] {Callsign}: committing to exit {Taxiway}, gs={Gs:F1}kts",
+                    ctx.Aircraft.Callsign,
+                    _candidateExit.TaxiwayName,
+                    ctx.Aircraft.GroundSpeed
+                );
+                return true;
+            }
+
+            double distToBranchPoint = GeoMath.AlongTrackDistanceNm(
+                _candidateExit.BranchPointNode.Latitude,
+                _candidateExit.BranchPointNode.Longitude,
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude,
                 _runwayHeading
             );
 
-            if (distToExit > 0 && ctx.Aircraft.IndicatedAirspeed > _exitTurnOffSpeed)
+            if (distToBranchPoint <= 0)
             {
-                double exitDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, _exitTurnOffSpeed, distToExit);
+                // At or past the branch point but still too fast — abandon and try next candidate
+                ctx.Logger.LogDebug(
+                    "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts), relaxing preference",
+                    ctx.Aircraft.Callsign,
+                    _candidateExit.TaxiwayName,
+                    ctx.Aircraft.GroundSpeed,
+                    _candidateExit.TurnOffSpeed
+                );
+                RelaxPreference();
+                _candidateExit = null;
+                ResolveNextCandidate(ctx);
+            }
 
-                if (exitDecel > decelRate)
+            // Before the branch point: brake toward turn-off speed
+            if (_candidateExit is not null)
+            {
+                double distToUse = GeoMath.AlongTrackDistanceNm(
+                    _candidateExit.BranchPointNode.Latitude,
+                    _candidateExit.BranchPointNode.Longitude,
+                    ctx.Aircraft.Latitude,
+                    ctx.Aircraft.Longitude,
+                    _runwayHeading
+                );
+
+                if ((distToUse > 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed))
                 {
-                    // Need to brake harder to make the exit
-                    decelRate = Math.Min(exitDecel, MaxDecelRateKtsPerSec);
-                }
-                else if (ctx.Aircraft.IndicatedAirspeed <= coastSpeed)
-                {
-                    // At or below coast speed — hold until braking point
-                    decelRate = 0;
-                }
-                else
-                {
-                    // Above coast speed — allow normal decel down to coast speed
-                    double coastLimited = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
-                    if (coastLimited < coastSpeed)
+                    double exitDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, _candidateExit.TurnOffSpeed, distToUse);
+
+                    if (exitDecel > decelRate)
                     {
+                        decelRate = Math.Min(exitDecel, MaxDecelRateKtsPerSec);
+                    }
+                    else if (ctx.Aircraft.IndicatedAirspeed <= coastSpeed)
+                    {
+                        // At or below coast speed — hold until braking point
                         decelRate = 0;
+                    }
+                    else
+                    {
+                        // Above coast speed — decel to coast speed but not below
+                        double coastLimited = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
+                        if (coastLimited < coastSpeed)
+                        {
+                            decelRate = 0;
+                        }
                     }
                 }
             }
         }
         else
         {
-            // No exit resolved — decelerate to coast speed and hold it
+            // No candidate — decelerate to coast speed and hold
             if (ctx.Aircraft.IndicatedAirspeed <= coastSpeed)
             {
                 decelRate = 0;
             }
             else
             {
-                // Allow normal decel down to coast speed, but not below it
                 double coastLimited = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
                 if (coastLimited < coastSpeed)
                 {
@@ -278,32 +378,25 @@ public sealed class LandingPhase : Phase
         _canGoAround = ctx.Aircraft.IndicatedAirspeed >= CategoryPerformance.RejectedLandingMinSpeed(cat);
 
         // LAHSO: complete when stopped (speed ≤ 0)
-        if (_hasLahso && ctx.Aircraft.IndicatedAirspeed <= 0)
+        if (_hasLahso && (ctx.Aircraft.IndicatedAirspeed <= 0))
         {
             StoppedForLahso = true;
             ctx.Logger.LogDebug("[Landing] {Callsign}: LAHSO rollout complete, stopped", ctx.Aircraft.Callsign);
             return true;
         }
 
-        // Completion threshold: exit turn-off speed if resolved, coast speed otherwise.
-        // RunwayExitPhase will continue rolling at coast speed while searching for exits.
-        double completeSpeed = _resolvedExitNode is not null ? _exitTurnOffSpeed : coastSpeed;
-
-        if (!_hasLahso && ctx.Aircraft.IndicatedAirspeed <= completeSpeed)
+        // No candidate and at coast speed: hand off to RunwayExitPhase with no exit info
+        if (!_hasLahso && (_candidateExit is null) && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
         {
-            ctx.Logger.LogDebug("[Landing] {Callsign}: rollout complete, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+            ctx.Logger.LogDebug("[Landing] {Callsign}: rollout complete (no exit), gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
             return true;
         }
 
         return false;
     }
 
-    private void ResolveExit(PhaseContext ctx)
+    private void ResolveNextCandidate(PhaseContext ctx)
     {
-        var preference = ctx.Aircraft.Phases?.RequestedExit;
-        _lastResolvedPreference = preference;
-        _resolvedExitNode = null;
-
         if (ctx.GroundLayout is null)
         {
             return;
@@ -319,70 +412,98 @@ public sealed class LandingPhase : Phase
                 ctx.Aircraft.Longitude,
                 _runwayHeading,
                 rwyDesignator,
-                preference
+                _activePreference
             );
 
             if (hsNode is not null)
             {
-                _resolvedExitNode = hsNode;
                 string? taxiwayName = ctx.GroundLayout.GetExitTaxiwayName(hsNode);
-                double? exitAngle = taxiwayName is not null ? ctx.GroundLayout.ComputeExitAngle(hsNode, taxiwayName, _runwayHeading) : null;
-                _exitTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
-
-                if (ctx.Aircraft.Phases is not null && taxiwayName is not null)
+                if (taxiwayName is not null)
                 {
-                    var exitPath = ctx.GroundLayout.FindExitPath(hsNode, taxiwayName, rwyDesignator) ?? [hsNode];
-                    ctx.Aircraft.Phases.ResolvedExit = new ResolvedExitInfo
+                    List<GroundNode>? path = ctx.GroundLayout.FindExitPath(hsNode, taxiwayName);
+                    if (path is not null && path.Count > 0)
                     {
-                        HoldShortNode = hsNode,
-                        TaxiwayName = taxiwayName,
-                        TurnOffSpeed = _exitTurnOffSpeed,
-                        Path = exitPath,
-                    };
-                }
+                        double? exitAngle = ctx.GroundLayout.ComputeExitAngle(hsNode, taxiwayName, _runwayHeading);
+                        double turnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, exitAngle);
+                        _candidateExit = new ResolvedExitInfo
+                        {
+                            HoldShortNode = hsNode,
+                            TaxiwayName = taxiwayName,
+                            TurnOffSpeed = turnOffSpeed,
+                            Path = path,
+                            BranchPointNode = path[0],
+                        };
 
-                ctx.Logger.LogDebug(
-                    "[Landing] {Callsign}: resolved exit at {Taxiway}, angle={Angle}, turnOffSpeed={Speed:F0}kts",
-                    ctx.Aircraft.Callsign,
-                    taxiwayName ?? "?",
-                    exitAngle?.ToString("F0") ?? "?",
-                    _exitTurnOffSpeed
-                );
-                return;
+                        ctx.Logger.LogDebug(
+                            "[Landing] {Callsign}: candidate exit {Taxiway}, angle={Angle}, turnOffSpeed={Speed:F0}kts",
+                            ctx.Aircraft.Callsign,
+                            taxiwayName,
+                            exitAngle?.ToString("F0") ?? "?",
+                            turnOffSpeed
+                        );
+                        return;
+                    }
+                }
             }
         }
 
         // Fallback: straight-line search (airports without hold-short data)
-        var result = ctx.GroundLayout.FindExitAheadOnRunway(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _runwayHeading, preference, rwyDesignator);
+        var result = ctx.GroundLayout.FindExitAheadOnRunway(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            _runwayHeading,
+            _activePreference,
+            rwyDesignator
+        );
 
         if (result is null)
         {
             return;
         }
 
-        _resolvedExitNode = result.Value.Node;
         double? fallbackAngle = ctx.GroundLayout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, _runwayHeading);
-        _exitTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, fallbackAngle);
+        double fallbackTurnOffSpeed = CategoryPerformance.ExitTurnOffSpeed(ctx.Category, fallbackAngle);
 
-        if (ctx.Aircraft.Phases is not null)
+        // For the fallback path, branch point = the exit node itself
+        _candidateExit = new ResolvedExitInfo
         {
-            var exitPath = ctx.GroundLayout.FindExitPath(result.Value.Node, result.Value.Taxiway, rwyDesignator)
-                ?? [result.Value.Node];
-            ctx.Aircraft.Phases.ResolvedExit = new ResolvedExitInfo
-            {
-                HoldShortNode = result.Value.Node,
-                TaxiwayName = result.Value.Taxiway,
-                TurnOffSpeed = _exitTurnOffSpeed,
-                Path = exitPath,
-            };
-        }
+            HoldShortNode = result.Value.Node,
+            TaxiwayName = result.Value.Taxiway,
+            TurnOffSpeed = fallbackTurnOffSpeed,
+            Path = [result.Value.Node],
+            BranchPointNode = result.Value.Node,
+        };
 
         ctx.Logger.LogDebug(
-            "[Landing] {Callsign}: resolved exit (fallback) at {Taxiway}, turnOffSpeed={Speed:F0}kts",
+            "[Landing] {Callsign}: candidate exit (fallback) {Taxiway}, turnOffSpeed={Speed:F0}kts",
             ctx.Aircraft.Callsign,
             result.Value.Taxiway,
-            _exitTurnOffSpeed
+            fallbackTurnOffSpeed
         );
+    }
+
+    /// <summary>
+    /// Steps the active preference down the fallback chain:
+    /// specific taxiway + side → side only → any exit → coast to end.
+    /// Disables exit resolution once we reach the coast-to-end state.
+    /// </summary>
+    private void RelaxPreference()
+    {
+        if (_activePreference?.Taxiway is not null)
+        {
+            // Drop taxiway, keep side preference
+            _activePreference = new ExitPreference { Side = _activePreference.Side };
+        }
+        else if (_activePreference?.Side is not null)
+        {
+            // Drop side — accept any exit
+            _activePreference = null;
+        }
+        else
+        {
+            // Already at "any exit" and still missed — coast to end
+            _exitResolutionEnabled = false;
+        }
     }
 
     /// <summary>

@@ -41,6 +41,8 @@ public sealed class RunwayExitPhase : Phase
     // Exit target (set when a hold-short is found)
     private GroundNode? _holdShortNode;
     private string? _exitTaxiway;
+
+    // Waypoint-following state (from ResolvedExitInfo or BFS path)
     private List<GroundNode>? _exitWaypoints;
     private int _currentWaypointIndex;
 
@@ -60,6 +62,30 @@ public sealed class RunwayExitPhase : Phase
             return;
         }
 
+        // If LandingPhase committed to a specific exit, use it directly rather than re-searching.
+        // This guarantees the aircraft exits at the pre-resolved taxiway even when the aircraft
+        // position at handoff is past the branch point.
+        if (ctx.Aircraft.Phases?.ResolvedExit is { } committed)
+        {
+            ctx.Aircraft.Phases.ResolvedExit = null;
+            _holdShortNode = committed.HoldShortNode;
+            _exitTaxiway = committed.TaxiwayName;
+            _state = ExitState.TurningOff;
+
+            // Path includes branch point as first node — skip it (we're already there)
+            _exitWaypoints = committed.Path.Count > 1 ? committed.Path.GetRange(1, committed.Path.Count - 1) : [committed.HoldShortNode];
+            _currentWaypointIndex = 0;
+
+            ctx.Logger.LogDebug(
+                "[Exit] {Callsign}: using committed exit {Twy}, {WpCount} waypoints to hold-short {HsId}",
+                ctx.Aircraft.Callsign,
+                _exitTaxiway,
+                _exitWaypoints.Count,
+                _holdShortNode.Id
+            );
+            return;
+        }
+
         _currentCenterlineNode = ctx.GroundLayout.FindNearestCenterlineNode(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _runwayHeading, _runwayId);
         if (_currentCenterlineNode is null)
         {
@@ -68,25 +94,7 @@ public sealed class RunwayExitPhase : Phase
         }
 
         _nextCenterlineNode = ctx.GroundLayout.FindCenterlineNeighborAhead(_currentCenterlineNode, _runwayHeading, _runwayId);
-
-        // Use exit resolved by LandingPhase if available — includes the full
-        // path from centerline branch point through intermediate nodes to hold-short
-        var resolved = ctx.Aircraft.Phases?.ResolvedExit;
-        if (resolved is not null)
-        {
-            _holdShortNode = resolved.HoldShortNode;
-            _exitTaxiway = resolved.TaxiwayName;
-            _exitWaypoints = resolved.Path;
-            _currentWaypointIndex = 0;
-            _coastSpeed = resolved.TurnOffSpeed;
-
-            // Clear the resolved exit so a re-issued EL/ER command can override
-            ctx.Aircraft.Phases!.ResolvedExit = null;
-        }
-        else
-        {
-            TryFindHoldShort(ctx);
-        }
+        TryFindHoldShort(ctx);
 
         ctx.Logger.LogDebug(
             "[Exit] {Callsign}: rwy {Rwy}, centerline={CNode}, next={NNode}, holdShort={HS}",
@@ -178,41 +186,41 @@ public sealed class RunwayExitPhase : Phase
             return true;
         }
 
-        // Follow waypoints sequentially if available (high-speed exits have
-        // intermediate nodes between the centerline and hold-short).
-        GroundNode currentTarget = GetCurrentWaypointTarget();
-        double distToTarget = GeoMath.DistanceNm(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            currentTarget.Latitude, currentTarget.Longitude
-        );
-
-        // Advance through intermediate waypoints on arrival
-        if (distToTarget <= CenterlineNodeArrivalNm && !IsAtFinalWaypoint())
+        // Determine current steering target
+        GroundNode target;
+        if ((_exitWaypoints is not null) && (_currentWaypointIndex < _exitWaypoints.Count))
         {
-            ctx.Aircraft.Latitude = currentTarget.Latitude;
-            ctx.Aircraft.Longitude = currentTarget.Longitude;
-            _currentWaypointIndex++;
-            currentTarget = GetCurrentWaypointTarget();
-            distToTarget = GeoMath.DistanceNm(
-                ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-                currentTarget.Latitude, currentTarget.Longitude
-            );
+            target = _exitWaypoints[_currentWaypointIndex];
+        }
+        else
+        {
+            target = _holdShortNode;
         }
 
-        // Steer toward current waypoint target
-        double bearing = GeoMath.BearingTo(
-            ctx.Aircraft.Latitude, ctx.Aircraft.Longitude,
-            currentTarget.Latitude, currentTarget.Longitude
-        );
+        double distToTarget = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
+
+        // Steer toward current waypoint
+        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
-        // Braking uses total remaining path distance (all waypoints ahead)
-        double totalRemainingDist = ComputeRemainingPathDistance(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
+        // Check arrival at current waypoint — snap and advance
+        if (distToTarget <= CenterlineNodeArrivalNm)
+        {
+            ctx.Aircraft.Latitude = target.Latitude;
+            ctx.Aircraft.Longitude = target.Longitude;
 
-        // Maintain coast speed; kinematic braking decelerates to stop at the hold-short.
-        // Once braking starts, commit to it — don't re-accelerate if the aircraft
-        // overshoots slightly (prevents orbiting the node).
+            if ((_exitWaypoints is not null) && (_currentWaypointIndex < _exitWaypoints.Count))
+            {
+                _currentWaypointIndex++;
+            }
+        }
+
+        // Compute total remaining distance through all remaining waypoints
+        double totalRemainingDist = ComputeRemainingDistance(ctx);
+
+        // Braking: decelerate to stop at hold-short using total remaining path distance.
+        // Once braking starts, commit — don't re-accelerate (prevents orbiting).
         double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
         double speed = ctx.Aircraft.GroundSpeed;
         double stoppingDistNm = (speed * speed) / (2.0 * decelRate * 3600.0);
@@ -227,13 +235,8 @@ public sealed class RunwayExitPhase : Phase
             AdjustSpeed(ctx, _coastSpeed);
         }
 
-        // Phase controls speed directly — null prevents FlightPhysics from
-        // applying a second deceleration on top of AdjustSpeed.
         ctx.Targets.TargetSpeed = null;
 
-        // Complete when the aircraft has come to a stop (or near enough).
-        // No position snapping — downstream code (taxi pathfinding, node
-        // occupation) uses FindNearestNode with generous tolerances.
         if (ctx.Aircraft.IndicatedAirspeed <= StoppedSpeedKts)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
@@ -245,43 +248,25 @@ public sealed class RunwayExitPhase : Phase
         return false;
     }
 
-    private GroundNode GetCurrentWaypointTarget()
+    private double ComputeRemainingDistance(PhaseContext ctx)
     {
-        if (_exitWaypoints is { Count: > 0 } && _currentWaypointIndex < _exitWaypoints.Count)
+        double total = 0;
+        double prevLat = ctx.Aircraft.Latitude;
+        double prevLon = ctx.Aircraft.Longitude;
+
+        if (_exitWaypoints is not null)
         {
-            return _exitWaypoints[_currentWaypointIndex];
+            for (int i = _currentWaypointIndex; i < _exitWaypoints.Count; i++)
+            {
+                var wp = _exitWaypoints[i];
+                total += GeoMath.DistanceNm(prevLat, prevLon, wp.Latitude, wp.Longitude);
+                prevLat = wp.Latitude;
+                prevLon = wp.Longitude;
+            }
         }
-
-        return _holdShortNode!;
-    }
-
-    private bool IsAtFinalWaypoint()
-    {
-        if (_exitWaypoints is null || _exitWaypoints.Count == 0)
+        else if (_holdShortNode is not null)
         {
-            return true;
-        }
-
-        return _currentWaypointIndex >= _exitWaypoints.Count - 1;
-    }
-
-    private double ComputeRemainingPathDistance(double lat, double lon)
-    {
-        if (_exitWaypoints is not { Count: > 0 } || _currentWaypointIndex >= _exitWaypoints.Count)
-        {
-            return GeoMath.DistanceNm(lat, lon, _holdShortNode!.Latitude, _holdShortNode.Longitude);
-        }
-
-        // Distance from aircraft to current waypoint
-        var wp = _exitWaypoints[_currentWaypointIndex];
-        double total = GeoMath.DistanceNm(lat, lon, wp.Latitude, wp.Longitude);
-
-        // Sum distances between remaining waypoints
-        for (int i = _currentWaypointIndex; i < _exitWaypoints.Count - 1; i++)
-        {
-            var from = _exitWaypoints[i];
-            var to = _exitWaypoints[i + 1];
-            total += GeoMath.DistanceNm(from.Latitude, from.Longitude, to.Latitude, to.Longitude);
+            total = GeoMath.DistanceNm(prevLat, prevLon, _holdShortNode.Latitude, _holdShortNode.Longitude);
         }
 
         return total;
@@ -331,8 +316,18 @@ public sealed class RunwayExitPhase : Phase
 
         _holdShortNode = result.Value.Node;
         _exitTaxiway = result.Value.Taxiway;
-        _exitWaypoints = result.Value.Path;
-        _currentWaypointIndex = 0;
+
+        // Store BFS path as waypoints (skip the centerline node at index 0)
+        if (result.Value.Path.Count > 1)
+        {
+            _exitWaypoints = result.Value.Path.GetRange(1, result.Value.Path.Count - 1);
+            _currentWaypointIndex = 0;
+        }
+        else
+        {
+            _exitWaypoints = [result.Value.Node];
+            _currentWaypointIndex = 0;
+        }
     }
 
     public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
@@ -456,6 +451,8 @@ public sealed class RunwayExitPhase : Phase
             RunwayId = _runwayId,
             LastResolvedPreference = (int?)_lastResolvedPreference?.Side,
             LastResolvedPreferenceTaxiway = _lastResolvedPreference?.Taxiway,
+            ExitWaypointNodeIds = _exitWaypoints?.Select(n => n.Id).ToList(),
+            ExitWaypointIndex = _currentWaypointIndex,
             ExitSpeed = _coastSpeed,
             TimeSinceLastLog = _timeSinceLastLog,
             StoppedForLahso = false,
@@ -464,8 +461,6 @@ public sealed class RunwayExitPhase : Phase
             NextCenterlineNodeId = _nextCenterlineNode?.Id,
             RunwayHeadingDeg = _runwayHeading.Degrees,
             ExitStateValue = (int)_state,
-            ExitWaypointNodeIds = _exitWaypoints?.Select(n => n.Id).ToList(),
-            ExitWaypointIndex = _currentWaypointIndex,
         };
 
     public static RunwayExitPhase FromSnapshot(RunwayExitPhaseDto dto, AirportGroundLayout? groundLayout)
@@ -477,9 +472,7 @@ public sealed class RunwayExitPhase : Phase
         phase._state = (ExitState)dto.ExitStateValue;
         phase._lastResolvedPreference = dto.LastResolvedPreference.HasValue
             ? new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value, Taxiway = dto.LastResolvedPreferenceTaxiway }
-            : dto.LastResolvedPreferenceTaxiway is not null
-                ? new ExitPreference { Taxiway = dto.LastResolvedPreferenceTaxiway }
-                : null;
+            : null;
         phase._coastSpeed = dto.ExitSpeed;
         phase._braking = dto.Braking;
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
@@ -504,18 +497,21 @@ public sealed class RunwayExitPhase : Phase
                 phase._holdShortNode = groundLayout.Nodes.GetValueOrDefault(dto.ExitNodeId.Value);
             }
 
-            if (dto.ExitWaypointNodeIds is { Count: > 0 })
+            if (dto.ExitWaypointNodeIds is not null)
             {
-                phase._exitWaypoints = new List<GroundNode>();
-                foreach (int wpId in dto.ExitWaypointNodeIds)
+                var waypoints = new List<GroundNode>();
+                foreach (int id in dto.ExitWaypointNodeIds)
                 {
-                    if (groundLayout.Nodes.TryGetValue(wpId, out var wpNode))
+                    if (groundLayout.Nodes.TryGetValue(id, out var n))
                     {
-                        phase._exitWaypoints.Add(wpNode);
+                        waypoints.Add(n);
                     }
                 }
-
-                phase._currentWaypointIndex = dto.ExitWaypointIndex;
+                if (waypoints.Count > 0)
+                {
+                    phase._exitWaypoints = waypoints;
+                    phase._currentWaypointIndex = dto.ExitWaypointIndex;
+                }
             }
         }
 

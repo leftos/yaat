@@ -32,12 +32,7 @@ public sealed record EdgeInfo(
     string? NeighborRunwayId
 );
 
-public sealed record TaxiwayResult(
-    string Name,
-    List<NodeInfo> Nodes,
-    List<string> ConnectedTaxiways,
-    int HoldShortCount
-);
+public sealed record TaxiwayResult(string Name, List<NodeInfo> Nodes, List<string> ConnectedTaxiways, int HoldShortCount);
 
 public sealed record RunwayResult(string Designator, List<NodeInfo> CenterlineNodes, List<NodeInfo> HoldShortNodes);
 
@@ -55,14 +50,7 @@ public sealed record ExitsResult(string Designator, List<ExitCandidate> Exits);
 
 public sealed record BfsStep(int NodeId, string NodeType, int Depth, List<BfsEdgeExplored> EdgesExplored);
 
-public sealed record BfsEdgeExplored(
-    int NeighborId,
-    string TaxiwayName,
-    double DistanceNm,
-    string NeighborType,
-    string Action,
-    string Reason
-);
+public sealed record BfsEdgeExplored(int NeighborId, string TaxiwayName, double DistanceNm, string NeighborType, string Action, string Reason);
 
 public sealed record BfsPathResult(
     int FromNodeId,

@@ -207,11 +207,7 @@ internal static class HoldShortAnnotator
     /// Taxiway hold-shorts (ExplicitHoldShort targeting a taxiway) are offset back from
     /// the intersection node along the approach edge by <paramref name="aircraftLengthFt"/> + buffer.
     /// </summary>
-    internal static void ComputeHoldShortPositions(
-        AirportGroundLayout layout,
-        TaxiRoute route,
-        double aircraftLengthFt
-    )
+    internal static void ComputeHoldShortPositions(AirportGroundLayout layout, TaxiRoute route, double aircraftLengthFt)
     {
         const double bufferFt = 30.0;
         const double ftPerNm = 6076.12;
@@ -262,17 +258,11 @@ internal static class HoldShortAnnotator
             }
 
             // Bearing from intersection back toward approach node
-            double backBearing = GeoMath.BearingTo(
-                hsNode.Latitude, hsNode.Longitude,
-                approachNode.Latitude, approachNode.Longitude
-            );
+            double backBearing = GeoMath.BearingTo(hsNode.Latitude, hsNode.Longitude, approachNode.Latitude, approachNode.Longitude);
 
             // Clamp offset to 90% of edge length so the aircraft doesn't end up
             // at or past the approach node (which would confuse segment navigation).
-            double edgeLenNm = GeoMath.DistanceNm(
-                approachNode.Latitude, approachNode.Longitude,
-                hsNode.Latitude, hsNode.Longitude
-            );
+            double edgeLenNm = GeoMath.DistanceNm(approachNode.Latitude, approachNode.Longitude, hsNode.Latitude, hsNode.Longitude);
             double clampedOffsetNm = Math.Min(offsetNm, edgeLenNm * 0.9);
 
             var (lat, lon) = GeoMath.ProjectPointRaw(hsNode.Latitude, hsNode.Longitude, backBearing, clampedOffsetNm);

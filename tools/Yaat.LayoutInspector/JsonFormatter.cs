@@ -4,8 +4,7 @@ namespace Yaat.LayoutInspector;
 
 public sealed class JsonFormatter(TextWriter writer) : IFormatter
 {
-    private static readonly JsonSerializerOptions Opts =
-        new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    private static readonly JsonSerializerOptions Opts = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public void WriteOverview(OverviewResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
 
@@ -19,6 +18,5 @@ public sealed class JsonFormatter(TextWriter writer) : IFormatter
 
     public void WriteBfsPath(BfsPathResult r) => writer.WriteLine(JsonSerializer.Serialize(r, Opts));
 
-    public void WriteNodeList(string title, List<NodeInfo> nodes) =>
-        writer.WriteLine(JsonSerializer.Serialize(new { title, nodes }, Opts));
+    public void WriteNodeList(string title, List<NodeInfo> nodes) => writer.WriteLine(JsonSerializer.Serialize(new { title, nodes }, Opts));
 }

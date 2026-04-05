@@ -509,6 +509,50 @@ curl -o tests/Yaat.Sim.Tests/TestData/mia.geojson \
 
 `TestAirportGroundData` picks up any `{airportid}.geojson` in TestData automatically.
 
+## Layout Inspector Tool
+
+The `Yaat.LayoutInspector` tool (`tools/Yaat.LayoutInspector/`) loads an airport GeoJSON and exposes detailed graph queries. Use it during bug investigation to understand airport ground layout topology without staring at raw GeoJSON.
+
+### Running
+
+```bash
+dotnet run --project tools/Yaat.LayoutInspector -- <geojson-path> [options]
+```
+
+### Common Investigation Queries
+
+| Query | Flag | Use case |
+|-------|------|----------|
+| Overview | (default) | Node/edge counts, taxiway list, runways |
+| Node detail | `--node 230` | Inspect a specific node's edges and neighbors |
+| Taxiway detail | `--taxiway T` | All nodes/edges on a taxiway, connected taxiways, hold-short count |
+| Runway detail | `--runway 28R` | Centerline nodes and hold-short nodes for a runway |
+| Exits | `--exits 28R` | All exit candidates from a runway with angles and distances |
+| BFS path | `--path 230 T` | Step-by-step BFS trace from a centerline node through taxiway T to hold-short |
+| Parking | `--parking` | All parking nodes with positions and headings |
+| Spots | `--spots` | Taxiway intersection spots |
+| JSON output | `--json` | Machine-readable output for scripting |
+
+### When to Use
+
+- **Runway exit bugs** — use `--exits 28R` to see all exits and `--path <node> <twy>` to trace the graph path from centerline to hold-short
+- **Taxi routing bugs** — use `--taxiway T` to see connectivity, then `--node <id>` to inspect specific intersections
+- **Hold-short bugs** — use `--runway 28R` to find all hold-short nodes and verify their runway IDs
+- **Understanding multi-hop exits** — high-speed exits like T at SFO have 9 hops between centerline and hold-short; `--path` shows each hop with edge distances and node types
+
+### Example: Investigating EL T at SFO
+
+```bash
+# See all exits from 28R
+dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson --exits 28R
+
+# Trace T's path from centerline node 230
+dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson --path 230 T
+
+# Inspect the branch point
+dotnet run --project tools/Yaat.LayoutInspector -- tests/Yaat.Sim.Tests/TestData/sfo.geojson --node 230
+```
+
 ## Key Helpers
 
 | Class | Location | Purpose |

@@ -239,13 +239,17 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
-    /// From a runway centerline node, find a hold-short node reachable via non-RWY
-    /// edges. For standard 90° exits the hold-short is a direct neighbor; for
-    /// high-speed exits it may be multiple hops away through intermediate on-runway
-    /// nodes. A bounded BFS (max 6 hops) walks outward, constraining each branch
-    /// to edges with the same taxiway name. Returns the hold-short node, the
-    /// taxiway name, and the ordered path of intermediate nodes from centerline to
-    /// hold-short (for waypoint-following during the exit turn).
+    /// From a runway centerline node, find any hold-short node directly connected
+    /// to it via a non-RWY edge. Optionally filters by runway designator, exit side,
+    /// or taxiway name. Returns the hold-short node and the taxiway name of the
+    /// connecting edge, or null if none found.
+    /// </summary>
+    /// <summary>
+    /// From a runway centerline node, find a hold-short node reachable via
+    /// non-RWY edges using BFS (max 12 hops). Each branch is constrained by
+    /// the taxiway name of its first non-RWY edge. Optionally filters by
+    /// runway designator, exit side, or taxiway name preference.
+    /// Returns the hold-short node, taxiway name, and path from centerline.
     /// </summary>
     public (GroundNode Node, string Taxiway, List<GroundNode> Path)? FindAdjacentHoldShort(
         GroundNode centerlineNode,
@@ -255,17 +259,14 @@ public sealed class AirportGroundLayout
     )
     {
         const int maxDepth = 12;
-
         GroundNode? best = null;
         string? bestTaxiway = null;
         List<GroundNode>? bestPath = null;
         double bestScore = double.MaxValue;
 
-        // BFS state: (current node, taxiway name for this branch, path so far, total distance)
-        var queue = new Queue<(GroundNode Node, string TaxiwayName, List<GroundNode> Path, double TotalDist)>();
         var visited = new HashSet<int> { centerlineNode.Id };
+        var queue = new Queue<(GroundNode Node, string Taxiway, List<GroundNode> Path, double TotalDist, int Depth)>();
 
-        // Seed BFS with direct non-RWY neighbors of the centerline node
         foreach (var edge in centerlineNode.Edges)
         {
             if (IsRunwayEdge(edge))
@@ -279,25 +280,25 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            // Filter by taxiway preference at the first hop
+            if (!visited.Add(neighborId))
+            {
+                continue;
+            }
+
             if (preference?.Taxiway is { } prefTwy && !string.Equals(edge.TaxiwayName, prefTwy, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (visited.Add(neighborId))
-            {
-                queue.Enqueue((neighbor, edge.TaxiwayName, [neighbor], edge.DistanceNm));
-            }
+            queue.Enqueue((neighbor, edge.TaxiwayName, [centerlineNode, neighbor], edge.DistanceNm, 1));
         }
 
         while (queue.Count > 0)
         {
-            var (current, branchTaxiway, path, totalDist) = queue.Dequeue();
+            var (current, branchTwy, path, totalDist, depth) = queue.Dequeue();
 
             if (current.Type == GroundNodeType.RunwayHoldShort)
             {
-                // Apply filters to the candidate hold-short
                 if (runwayDesignator is not null && current.RunwayId is { } rwyId && !rwyId.Contains(runwayDesignator))
                 {
                     continue;
@@ -305,10 +306,7 @@ public sealed class AirportGroundLayout
 
                 if (preference?.Side is { } side)
                 {
-                    double bearing = GeoMath.BearingTo(
-                        centerlineNode.Latitude, centerlineNode.Longitude,
-                        current.Latitude, current.Longitude
-                    );
+                    double bearing = GeoMath.BearingTo(centerlineNode.Latitude, centerlineNode.Longitude, current.Latitude, current.Longitude);
                     double relative = runwayHeading.SignedAngleTo(new TrueHeading(bearing));
                     bool isOnRequestedSide = side == ExitSide.Left ? relative < 0 : relative > 0;
                     if (!isOnRequestedSide)
@@ -323,16 +321,13 @@ public sealed class AirportGroundLayout
                 {
                     bestScore = score;
                     best = current;
-                    bestTaxiway = branchTaxiway;
+                    bestTaxiway = branchTwy;
                     bestPath = path;
                 }
-
-                // Don't expand past a hold-short node
                 continue;
             }
 
-            // Expand further if under depth limit
-            if (path.Count >= maxDepth)
+            if (depth >= maxDepth)
             {
                 continue;
             }
@@ -344,25 +339,24 @@ public sealed class AirportGroundLayout
                     continue;
                 }
 
-                // Constrain to edges with the same taxiway name as this branch
-                if (!string.Equals(edge.TaxiwayName, branchTaxiway, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(edge.TaxiwayName, branchTwy, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
                 int nextId = edge.FromNodeId == current.Id ? edge.ToNodeId : edge.FromNodeId;
-                if (!Nodes.TryGetValue(nextId, out var next))
-                {
-                    continue;
-                }
-
                 if (!visited.Add(nextId))
                 {
                     continue;
                 }
 
+                if (!Nodes.TryGetValue(nextId, out var next))
+                {
+                    continue;
+                }
+
                 var nextPath = new List<GroundNode>(path) { next };
-                queue.Enqueue((next, branchTaxiway, nextPath, totalDist + edge.DistanceNm));
+                queue.Enqueue((next, branchTwy, nextPath, totalDist + edge.DistanceNm, depth + 1));
             }
         }
 
@@ -376,17 +370,13 @@ public sealed class AirportGroundLayout
 
     /// <summary>
     /// Walk backward from a hold-short node through same-name taxiway edges
-    /// until reaching a node with a RWY centerline edge. Returns the path
-    /// ordered from the centerline-adjacent node to the hold-short, or null
-    /// if no centerline connection is found within maxDepth hops.
+    /// until reaching a runway centerline node. Returns the ordered path
+    /// [branch-point, intermediates..., hold-short]. Returns null if no path
+    /// to the centerline is found.
     /// </summary>
-    public List<GroundNode>? FindExitPath(
-        GroundNode holdShortNode,
-        string taxiwayName,
-        string? runwayDesignator
-    )
+    public List<GroundNode>? FindExitPath(GroundNode holdShortNode, string taxiwayName)
     {
-        const int maxDepth = 12;
+        const int maxDepth = 15;
         var visited = new HashSet<int> { holdShortNode.Id };
         var queue = new Queue<(GroundNode Node, List<GroundNode> Path)>();
         queue.Enqueue((holdShortNode, [holdShortNode]));
@@ -394,27 +384,6 @@ public sealed class AirportGroundLayout
         while (queue.Count > 0)
         {
             var (current, path) = queue.Dequeue();
-
-            // Check if this node has a RWY centerline edge for the target runway
-            bool hasCenterlineEdge = false;
-            foreach (var edge in current.Edges)
-            {
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (runwayDesignator is null || edge.TaxiwayName.Contains(runwayDesignator, StringComparison.OrdinalIgnoreCase))
-                    {
-                        hasCenterlineEdge = true;
-                        break;
-                    }
-                }
-            }
-
-            if (hasCenterlineEdge && current.Id != holdShortNode.Id)
-            {
-                path.Reverse();
-                return path;
-            }
-
             if (path.Count > maxDepth)
             {
                 continue;
@@ -422,29 +391,41 @@ public sealed class AirportGroundLayout
 
             foreach (var edge in current.Edges)
             {
-                if (IsRunwayEdge(edge))
-                {
-                    continue;
-                }
-
                 if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                int nextId = edge.FromNodeId == current.Id ? edge.ToNodeId : edge.FromNodeId;
-                if (!visited.Add(nextId))
+                int neighborId = edge.FromNodeId == current.Id ? edge.ToNodeId : edge.FromNodeId;
+                if (!visited.Add(neighborId))
                 {
                     continue;
                 }
 
-                if (!Nodes.TryGetValue(nextId, out var next))
+                if (!Nodes.TryGetValue(neighborId, out var neighbor))
                 {
                     continue;
                 }
 
-                var nextPath = new List<GroundNode>(path) { next };
-                queue.Enqueue((next, nextPath));
+                var nextPath = new List<GroundNode>(path) { neighbor };
+
+                bool onCenterline = false;
+                foreach (var nEdge in neighbor.Edges)
+                {
+                    if (IsRunwayEdge(nEdge))
+                    {
+                        onCenterline = true;
+                        break;
+                    }
+                }
+
+                if (onCenterline)
+                {
+                    nextPath.Reverse();
+                    return nextPath;
+                }
+
+                queue.Enqueue((neighbor, nextPath));
             }
         }
 

@@ -308,6 +308,9 @@ public sealed class RunwayExitPhaseDto : PhaseDto
     public string? ExitTaxiway { get; init; }
     public string? RunwayId { get; init; }
     public int? LastResolvedPreference { get; init; }
+    public string? LastResolvedPreferenceTaxiway { get; init; }
+    public List<int>? ExitWaypointNodeIds { get; init; }
+    public int ExitWaypointIndex { get; init; }
     public required double ExitSpeed { get; init; }
     public required double TimeSinceLastLog { get; init; }
     public required bool StoppedForLahso { get; init; }
@@ -497,9 +500,16 @@ public sealed class LandingPhaseDto : PhaseDto
     public required bool CanGoAround { get; init; }
     public required double LahsoHoldShortDistNm { get; init; }
     public required bool HasLahso { get; init; }
-    public int? ResolvedExitNodeId { get; init; }
-    public required double ExitTurnOffSpeed { get; init; }
-    public int? LastResolvedPreference { get; init; }
+    public int? CandidateExitHoldShortId { get; init; }
+    public int? CandidateExitBranchPointId { get; init; }
+    public string? CandidateExitTaxiway { get; init; }
+    public double CandidateExitTurnOffSpeed { get; init; }
+    public List<int>? CandidateExitPathNodeIds { get; init; }
+    public int? ActivePreferenceSide { get; init; }
+    public string? ActivePreferenceTaxiway { get; init; }
+    public int? OriginalPreferenceSide { get; init; }
+    public string? OriginalPreferenceTaxiway { get; init; }
+    public bool ExitResolutionEnabled { get; init; }
     public required bool StoppedForLahso { get; init; }
 }
 
