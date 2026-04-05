@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
@@ -75,6 +76,11 @@ internal static class GroundCommandHandler
             var pathStr = string.Join(" ", taxi.Path);
             return new CommandResult(false, $"Cannot resolve taxi route: {pathStr}");
         }
+
+        // Compute dynamic hold-short positions based on aircraft fuselage length
+        double aircraftLengthFt = FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt
+            ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
+        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
 
         var hsDetails = string.Join(", ", route.HoldShortPoints.Select(h => $"{h.TargetName}@{h.NodeId}({h.Reason})"));
         Log.LogInformation(
@@ -634,6 +640,11 @@ internal static class GroundCommandHandler
         {
             return new CommandResult(false, $"No intersection with {hs.Target} along remaining taxi route");
         }
+
+        // Compute offset position for the newly added hold-short
+        double aircraftLengthFt = FaaAircraftDatabase.Get(aircraft.AircraftType)?.LengthFt
+            ?? HoldShortAnnotator.CwtFallbackLengthFt(aircraft.AircraftType);
+        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
 
         Log.LogDebug("[HS] {Callsign}: added hold short of {Target}", aircraft.Callsign, hs.Target);
         return CommandDispatcher.Ok($"Hold short of {hs.Target}");

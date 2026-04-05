@@ -304,6 +304,14 @@ public sealed class TaxiingPhase : Phase
             if (nextHoldShort is not null && !nextHoldShort.IsCleared)
             {
                 _currentNodeRequiredSpeed = 0;
+
+                // Use the hold-short's computed position (offset from intersection) as the
+                // braking target so the aircraft stops at the correct distance before the node.
+                if (nextHoldShort.Latitude is not null && nextHoldShort.Longitude is not null)
+                {
+                    _targetLat = nextHoldShort.Latitude.Value;
+                    _targetLon = nextHoldShort.Longitude.Value;
+                }
             }
             else
             {
@@ -475,8 +483,14 @@ public sealed class TaxiingPhase : Phase
                 holdShort.Reason
             );
 
-            // Snap to exact hold-short node position to prevent runway encroachment.
-            if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var hsNode))
+            // Snap to exact hold-short position. Use the computed offset position
+            // if available (dynamic taxiway hold-short), else fall back to node position.
+            if (holdShort.Latitude is not null && holdShort.Longitude is not null)
+            {
+                ctx.Aircraft.Latitude = holdShort.Latitude.Value;
+                ctx.Aircraft.Longitude = holdShort.Longitude.Value;
+            }
+            else if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var hsNode))
             {
                 ctx.Aircraft.Latitude = hsNode.Latitude;
                 ctx.Aircraft.Longitude = hsNode.Longitude;

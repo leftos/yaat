@@ -122,7 +122,11 @@ internal static class DepartureClearanceHandler
         var runway = CommandDispatcher.ResolveRunway(aircraft, runwayId);
         if (runway is null)
         {
-            return new CommandResult(false, $"Cannot resolve runway {runwayId}");
+            // Target is a taxiway (e.g., "HS E"), not a runway.
+            // Clear the hold-short and store the departure clearance so the
+            // aircraft resumes taxiing to its destination runway.
+            holding.SatisfyClearance(ClearanceType.RunwayCrossing);
+            return StoreDepartureClearanceDuringTaxi(aircraft, clearanceType, departure, assignedAltitude);
         }
 
         // If the controller previously assigned a specific runway end (via RWY command) and it refers

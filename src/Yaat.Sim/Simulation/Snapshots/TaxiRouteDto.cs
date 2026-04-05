@@ -26,4 +26,6 @@ public sealed class HoldShortPointDto
     public required int NodeId { get; init; }
     public required string RunwayId { get; init; }
     public required bool IsSatisfied { get; init; }
+    public double? Latitude { get; init; }
+    public double? Longitude { get; init; }
 }

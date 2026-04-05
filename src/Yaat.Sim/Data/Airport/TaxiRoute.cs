@@ -72,7 +72,6 @@ public sealed class TaxiRoute
     /// </summary>
     public bool AddHoldShortAtIntersection(string target, AirportGroundLayout layout)
     {
-        int? previousNodeId = null;
         for (int segIdx = CurrentSegmentIndex; segIdx < Segments.Count; segIdx++)
         {
             var seg = Segments[segIdx];
@@ -80,13 +79,11 @@ public sealed class TaxiRoute
 
             if (GetHoldShortAt(nodeId) is not null)
             {
-                previousNodeId = nodeId;
                 continue;
             }
 
             if (!layout.Nodes.TryGetValue(nodeId, out var node))
             {
-                previousNodeId = nodeId;
                 continue;
             }
 
@@ -105,27 +102,23 @@ public sealed class TaxiRoute
             }
 
             // Check if any adjacent edge has a matching taxiway name.
-            // Use the previous node so the aircraft stops before the intersection.
+            // Hold-short is placed at the intersection node; actual stop position
+            // is offset by ComputeHoldShortPositions.
             foreach (var edge in node.Edges)
             {
                 if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
                 {
-                    int holdNodeId = previousNodeId ?? nodeId;
-                    if (GetHoldShortAt(holdNodeId) is null)
-                    {
-                        HoldShortPoints.Add(
-                            new HoldShortPoint
-                            {
-                                NodeId = holdNodeId,
-                                Reason = HoldShortReason.ExplicitHoldShort,
-                                TargetName = target.ToUpperInvariant(),
-                            }
-                        );
-                    }
+                    HoldShortPoints.Add(
+                        new HoldShortPoint
+                        {
+                            NodeId = nodeId,
+                            Reason = HoldShortReason.ExplicitHoldShort,
+                            TargetName = target.ToUpperInvariant(),
+                        }
+                    );
                     return true;
                 }
             }
-            previousNodeId = nodeId;
         }
 
         return false;
@@ -198,6 +191,8 @@ public sealed class TaxiRoute
                     NodeId = hs.NodeId,
                     RunwayId = hs.TargetName ?? "",
                     IsSatisfied = hs.IsCleared,
+                    Latitude = hs.Latitude,
+                    Longitude = hs.Longitude,
                 })
                 .ToList(),
             Description = ToSummary(),
@@ -256,6 +251,8 @@ public sealed class TaxiRoute
                         Reason = HoldShortReason.ExplicitHoldShort,
                         TargetName = hs.RunwayId,
                         IsCleared = hs.IsSatisfied,
+                        Latitude = hs.Latitude,
+                        Longitude = hs.Longitude,
                     }
                 );
             }
@@ -295,4 +292,16 @@ public sealed class HoldShortPoint
 
     /// <summary>Whether this hold-short has been cleared (e.g., CROSS command issued).</summary>
     public bool IsCleared { get; set; }
+
+    /// <summary>
+    /// Computed hold-short position. For taxiway hold-shorts, this is offset from the
+    /// intersection node by the aircraft's fuselage length + buffer. For runway hold-shorts,
+    /// this is the node position itself. Null when not yet computed (legacy snapshots).
+    /// </summary>
+    public double? Latitude { get; set; }
+
+    /// <summary>
+    /// Computed hold-short position longitude. See <see cref="Latitude"/>.
+    /// </summary>
+    public double? Longitude { get; set; }
 }

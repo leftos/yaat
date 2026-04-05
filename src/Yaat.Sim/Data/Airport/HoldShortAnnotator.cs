@@ -137,14 +137,13 @@ internal static class HoldShortAnnotator
         }
 
         // Second pass: taxiway intersection — find the first node with an
-        // adjacent edge on the target taxiway, then use the PREVIOUS node
-        // so the aircraft stops before the intersection, not on it.
-        int? previousToNodeId = null;
+        // adjacent edge on the target taxiway. The hold-short is placed at
+        // this intersection node; the actual stop position is offset back
+        // along the approach edge by ComputeHoldShortPositions later.
         foreach (var seg in segments)
         {
             if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var node))
             {
-                previousToNodeId = seg.ToNodeId;
                 continue;
             }
 
@@ -152,13 +151,12 @@ internal static class HoldShortAnnotator
             {
                 if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
                 {
-                    int holdNodeId = previousToNodeId ?? seg.ToNodeId;
-                    if (!HoldShortExists(holdShorts, holdNodeId))
+                    if (!HoldShortExists(holdShorts, seg.ToNodeId))
                     {
                         holdShorts.Add(
                             new HoldShortPoint
                             {
-                                NodeId = holdNodeId,
+                                NodeId = seg.ToNodeId,
                                 Reason = HoldShortReason.ExplicitHoldShort,
                                 TargetName = target.ToUpperInvariant(),
                             }
@@ -167,7 +165,6 @@ internal static class HoldShortAnnotator
                     return;
                 }
             }
-            previousToNodeId = seg.ToNodeId;
         }
     }
 
@@ -202,6 +199,116 @@ internal static class HoldShortAnnotator
                 TargetName = runwayId,
             }
         );
+    }
+
+    /// <summary>
+    /// Computes hold-short stop positions for all hold-short points in the route.
+    /// Runway hold-shorts (RunwayCrossing, DestinationRunway) use the node position directly.
+    /// Taxiway hold-shorts (ExplicitHoldShort targeting a taxiway) are offset back from
+    /// the intersection node along the approach edge by <paramref name="aircraftLengthFt"/> + buffer.
+    /// </summary>
+    internal static void ComputeHoldShortPositions(
+        AirportGroundLayout layout,
+        TaxiRoute route,
+        double aircraftLengthFt
+    )
+    {
+        const double bufferFt = 30.0;
+        const double ftPerNm = 6076.12;
+        double offsetNm = (aircraftLengthFt + bufferFt) / ftPerNm;
+
+        foreach (var hs in route.HoldShortPoints)
+        {
+            if (!layout.Nodes.TryGetValue(hs.NodeId, out var hsNode))
+            {
+                continue;
+            }
+
+            // Runway hold-shorts and destination holds: use node position directly.
+            // RunwayHoldShort nodes are already placed at the hold line in the GeoJSON.
+            if (hs.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway)
+            {
+                hs.Latitude = hsNode.Latitude;
+                hs.Longitude = hsNode.Longitude;
+                continue;
+            }
+
+            // ExplicitHoldShort: check if it's a runway HS node (first pass matched a runway)
+            if (hsNode.Type == GroundNodeType.RunwayHoldShort)
+            {
+                hs.Latitude = hsNode.Latitude;
+                hs.Longitude = hsNode.Longitude;
+                continue;
+            }
+
+            // Taxiway hold-short: offset back from intersection along approach edge.
+            // Find the segment that arrives at this node to determine approach direction.
+            int approachFromNodeId = -1;
+            foreach (var seg in route.Segments)
+            {
+                if (seg.ToNodeId == hs.NodeId)
+                {
+                    approachFromNodeId = seg.FromNodeId;
+                    break;
+                }
+            }
+
+            if (approachFromNodeId < 0 || !layout.Nodes.TryGetValue(approachFromNodeId, out var approachNode))
+            {
+                // Can't determine approach direction — fall back to node position
+                hs.Latitude = hsNode.Latitude;
+                hs.Longitude = hsNode.Longitude;
+                continue;
+            }
+
+            // Bearing from intersection back toward approach node
+            double backBearing = GeoMath.BearingTo(
+                hsNode.Latitude, hsNode.Longitude,
+                approachNode.Latitude, approachNode.Longitude
+            );
+
+            // Clamp offset to 90% of edge length so the aircraft doesn't end up
+            // at or past the approach node (which would confuse segment navigation).
+            double edgeLenNm = GeoMath.DistanceNm(
+                approachNode.Latitude, approachNode.Longitude,
+                hsNode.Latitude, hsNode.Longitude
+            );
+            double clampedOffsetNm = Math.Min(offsetNm, edgeLenNm * 0.9);
+
+            var (lat, lon) = GeoMath.ProjectPointRaw(hsNode.Latitude, hsNode.Longitude, backBearing, clampedOffsetNm);
+            hs.Latitude = lat;
+            hs.Longitude = lon;
+
+            Log.LogDebug(
+                "[HoldShortAnnotator] Taxiway HS at node {NodeId} for {Target}: offset {OffsetFt:F0}ft back from intersection ({Lat:F6}, {Lon:F6})",
+                hs.NodeId,
+                hs.TargetName,
+                clampedOffsetNm * ftPerNm,
+                lat,
+                lon
+            );
+        }
+    }
+
+    /// <summary>
+    /// Estimates aircraft fuselage length (ft) from CWT code when FAA ACD data is unavailable.
+    /// </summary>
+    internal static double CwtFallbackLengthFt(string? aircraftType)
+    {
+        var cwt = WakeTurbulenceData.GetCwt(aircraftType ?? "");
+        return cwt switch
+        {
+            "A" => 250.0, // Super (A388)
+            "B" => 220.0, // Upper Heavy (B744, B77W)
+            "C" => 200.0, // Lower Heavy (B763, A332, B788)
+            "D" => 155.0, // B757
+            "E" => 130.0, // Large Low (DC85, IL76)
+            "F" => 110.0, // Upper Medium (B738, A320)
+            "G" => 80.0, // Lower Medium (CRJ7, E170)
+            "H" => 60.0, // Upper Small (C208, PC12)
+            "I" => 40.0, // Small (C172, PA28)
+            _ => 80.0, // Unknown — assume medium
+        };
     }
 
     internal static bool HoldShortExists(List<HoldShortPoint> holdShorts, int nodeId)
