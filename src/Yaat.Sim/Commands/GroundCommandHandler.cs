@@ -157,17 +157,72 @@ internal static class GroundCommandHandler
             aircraft.DepartureRunway = detectedRunway.Designator;
         }
 
-        // Zero-segment route to parking: aircraft is already at the destination node.
-        // Skip TaxiingPhase entirely and go straight to AtParkingPhase.
+        // Zero-segment route to parking: A* snapped the aircraft to the destination node.
+        // Only skip TaxiingPhase when the aircraft is genuinely at the spot; if it's
+        // physically distant (e.g. after pushback), re-route from the nearest neighbor
+        // so TaxiingPhase drives the aircraft back to the parking position.
         var parkingName = route.DestinationParking ?? route.DestinationSpot;
         if (route.Segments.Count == 0 && parkingName is not null)
         {
-            aircraft.ParkingSpot = parkingName;
-            aircraft.Phases.Add(new AtParkingPhase());
-            ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
-            aircraft.Phases.Start(ctx);
+            GroundNode? destNode = taxi.DestinationSpot is not null
+                ? groundLayout.FindSpotNodeByName(taxi.DestinationSpot)
+                : (groundLayout.FindHelipadByName(taxi.DestinationParking!) ?? groundLayout.FindParkingByName(taxi.DestinationParking!));
 
-            return CommandDispatcher.Ok($"Taxi via @{parkingName}");
+            const double atParkingThresholdNm = 50.0 / GeoMath.FeetPerNm;
+            double distToDest = destNode is not null
+                ? GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, destNode.Latitude, destNode.Longitude)
+                : 0;
+
+            bool rerouted = false;
+            if (destNode is not null && distToDest > atParkingThresholdNm)
+            {
+                // Aircraft is far from parking but snapped to the same node.
+                // Re-route from the neighbor of destNode closest to the aircraft.
+                GroundNode? bestNeighbor = null;
+                double bestNeighborDist = double.MaxValue;
+                foreach (var edge in destNode.Edges)
+                {
+                    int neighborId = edge.FromNodeId == destNode.Id ? edge.ToNodeId : edge.FromNodeId;
+                    if (groundLayout.Nodes.TryGetValue(neighborId, out var neighbor))
+                    {
+                        double d = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, neighbor.Latitude, neighbor.Longitude);
+                        if (d < bestNeighborDist)
+                        {
+                            bestNeighborDist = d;
+                            bestNeighbor = neighbor;
+                        }
+                    }
+                }
+
+                if (bestNeighbor is not null)
+                {
+                    var reroute = TaxiPathfinder.FindRoute(groundLayout, bestNeighbor.Id, destNode.Id);
+                    if (reroute is not null && reroute.Segments.Count > 0)
+                    {
+                        route = SetDestination(reroute, taxi);
+                        aircraft.AssignedTaxiRoute = route;
+                        HoldShortAnnotator.ComputeHoldShortPositions(groundLayout, route, aircraftLengthFt);
+                        rerouted = true;
+
+                        Log.LogInformation(
+                            "[TryTaxi] {Callsign}: zero-segment re-route via neighbor {NeighborId} to @{Parking} ({SegCount} segments)",
+                            aircraft.Callsign,
+                            bestNeighbor.Id,
+                            parkingName,
+                            route.Segments.Count
+                        );
+                    }
+                }
+            }
+
+            if (!rerouted)
+            {
+                aircraft.ParkingSpot = parkingName;
+                aircraft.Phases.Add(new AtParkingPhase());
+                ctx = CommandDispatcher.BuildMinimalContext(aircraft, groundLayout);
+                aircraft.Phases.Start(ctx);
+                return CommandDispatcher.Ok($"Taxi via @{parkingName}");
+            }
         }
 
         aircraft.Phases.Add(new TaxiingPhase());
