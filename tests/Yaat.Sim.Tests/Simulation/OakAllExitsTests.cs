@@ -89,7 +89,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
         string relaxed = (requested is not null && result.FinalTaxiway != requested) ? $" (relaxed from {requested})" : "";
         output.WriteLine(
             $"EXIT {label}: actual={result.FinalTaxiway}{relaxed}, hdg={result.FinalHeading:F0}°, "
-                + $"turn={result.TotalHeadingChange:F0}°, exitTime={result.ExitDurationSeconds}s"
+                + $"turn={result.TotalHeadingChange:F0}°, exitTime={result.ExitDurationSeconds}s, total={result.TotalSeconds}s"
         );
     }
 
@@ -263,6 +263,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
             FinalTaxiway = aircraft.CurrentTaxiway,
             FinalHeading = aircraft.TrueHeading.Degrees,
             TotalHeadingChange = totalHeadingChange,
+            TotalSeconds = exitEndTime,
             ExitDurationSeconds = exitEndTime - exitStartTime,
             MaxReversal = maxReversal,
             MaxReversalTime = maxReversalTime,
@@ -292,6 +293,7 @@ public class OakAllExitsTests(ITestOutputHelper output)
         public required string? FinalTaxiway { get; init; }
         public required double FinalHeading { get; init; }
         public required double TotalHeadingChange { get; init; }
+        public required int TotalSeconds { get; init; }
         public required int ExitDurationSeconds { get; init; }
         public required double MaxReversal { get; init; }
         public required int MaxReversalTime { get; init; }

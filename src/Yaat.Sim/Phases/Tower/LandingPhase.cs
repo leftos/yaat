@@ -60,6 +60,11 @@ public sealed class LandingPhase : Phase
     // Without an explicit preference, LandingPhase coasts and hands off to RunwayExitPhase.
     private bool _exitResolutionEnabled;
 
+    // Inferred default exit side from runway layout (high-speed exits + parking).
+    // Used as a soft tiebreaker in ResolveNextCandidate when the preference has a
+    // taxiway but no side — tries inferred side first, falls back to no side.
+    private ExitSide? _inferredSide;
+
     // Branch-point node IDs where the aircraft was declared "unable" (too fast).
     // Prevents ResolveNextCandidate from re-finding the same exit after it was
     // already missed — without this, the aircraft re-discovers L at node 327
@@ -179,15 +184,21 @@ public sealed class LandingPhase : Phase
         _activePreference = _originalPreference;
         _exitResolutionEnabled = _originalPreference is not null;
 
-        // When no explicit exit preference is set, infer a side preference from the
-        // runway's high-speed exit layout and parking proximity. This biases default
-        // selection toward the natural exit side without requiring an explicit command.
-        if ((_activePreference is null) && (ctx.GroundLayout is not null) && (ctx.Aircraft.Phases?.AssignedRunway?.Designator is { } rwyDesignator))
+        // Infer a side preference from the runway's high-speed exit layout and parking
+        // proximity. Applied when no side is set (default selection or after unable-replan).
+        // For taxiway-only commands (EXIT K), the inferred side is stored separately and
+        // used as a soft tiebreaker in ResolveNextCandidate — not merged into _activePreference,
+        // since the taxiway might only exist on the other side (e.g., C3 is right-only at SFO).
+        if (
+            (_activePreference?.Side is null)
+            && (ctx.GroundLayout is not null)
+            && (ctx.Aircraft.Phases?.AssignedRunway?.Designator is { } rwyDesignator)
+        )
         {
-            var inferredSide = ctx.GroundLayout.InferPreferredExitSide(rwyDesignator, _runwayHeading);
-            if (inferredSide is not null)
+            _inferredSide = ctx.GroundLayout.InferPreferredExitSide(rwyDesignator, _runwayHeading);
+            if ((_inferredSide is not null) && (_activePreference?.Taxiway is null))
             {
-                _activePreference = new ExitPreference { Side = inferredSide.Value };
+                _activePreference = new ExitPreference { Side = _inferredSide.Value };
             }
         }
 
@@ -516,16 +527,41 @@ public sealed class LandingPhase : Phase
         // This searches runway → taxiway → hold-short (the correct direction).
         // Skip exits whose branch points were already declared "unable" to prevent
         // re-discovering a missed exit after the aircraft has slowed near it.
+        //
+        // Soft tiebreaker: when the preference has a taxiway but no side (EXIT K),
+        // try with the inferred side first. If the taxiway doesn't exist on that
+        // side (e.g., C3 is right-only at SFO), fall back to taxiway-only.
         if (rwyDesignator is not null)
         {
+            var searchPref = _activePreference;
+
+            // Try inferred side first for taxiway-only preferences
+            if ((_activePreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
+            {
+                searchPref = new ExitPreference { Taxiway = _activePreference.Taxiway, Side = _inferredSide.Value };
+            }
+
             var exit = ctx.GroundLayout.FindExitFromCenterline(
                 ctx.Aircraft.Latitude,
                 ctx.Aircraft.Longitude,
                 _runwayHeading,
                 rwyDesignator,
-                _activePreference,
+                searchPref,
                 _unableBranchPoints
             );
+
+            // Fall back to taxiway-only if inferred side found nothing
+            if ((exit is null) && (searchPref != _activePreference))
+            {
+                exit = ctx.GroundLayout.FindExitFromCenterline(
+                    ctx.Aircraft.Latitude,
+                    ctx.Aircraft.Longitude,
+                    _runwayHeading,
+                    rwyDesignator,
+                    _activePreference,
+                    _unableBranchPoints
+                );
+            }
 
             if (exit is not null)
             {

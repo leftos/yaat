@@ -191,7 +191,9 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(result.FinalTaxiway);
-        output.WriteLine($"Default exit: {result.FinalTaxiway}, hdg={result.FinalHeading:F0}°, turn={result.TotalHeadingChange:F0}°");
+        output.WriteLine(
+            $"Default exit: {result.FinalTaxiway}, hdg={result.FinalHeading:F0}°, turn={result.TotalHeadingChange:F0}°, total={result.TotalSeconds}s"
+        );
         AssertSmoothExit(result, "default");
     }
 
@@ -224,7 +226,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
 
         output.WriteLine(
             $"EXIT {taxiway}: actual={result.FinalTaxiway}, hdg={result.FinalHeading:F0}°, "
-                + $"turn={result.TotalHeadingChange:F0}°, exitTime={result.ExitDurationSeconds}s"
+                + $"turn={result.TotalHeadingChange:F0}°, exitTime={result.ExitDurationSeconds}s, total={result.TotalSeconds}s"
         );
 
         if (result.FinalTaxiway != taxiway)
@@ -421,6 +423,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
             FinalHeading = aircraft.TrueHeading.Degrees,
             InitialExitHeading = initialExitHeading,
             TotalHeadingChange = totalHeadingChange,
+            TotalSeconds = exitEndTime,
             ExitDurationSeconds = exitEndTime - exitStartTime,
             MaxReversal = maxReversal,
             MaxReversalTime = maxReversalTime,
@@ -469,6 +472,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         public required double FinalHeading { get; init; }
         public required double InitialExitHeading { get; init; }
         public required double TotalHeadingChange { get; init; }
+        public required int TotalSeconds { get; init; }
         public required int ExitDurationSeconds { get; init; }
         public required double MaxReversal { get; init; }
         public required int MaxReversalTime { get; init; }

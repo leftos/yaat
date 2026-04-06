@@ -37,6 +37,7 @@ public sealed class RunwayExitPhase : Phase
     private string? _runwayId;
     private TrueHeading _runwayHeading;
     private ExitPreference? _lastResolvedPreference;
+    private ExitSide? _inferredSide;
     private double _coastSpeed;
     private double _timeSinceLastLog;
 
@@ -61,13 +62,15 @@ public sealed class RunwayExitPhase : Phase
         _lastResolvedPreference = ctx.Aircraft.Phases?.RequestedExit;
         _coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
 
-        // When no explicit preference, infer a side from runway layout.
-        if ((_lastResolvedPreference is null) && (ctx.GroundLayout is not null) && (_runwayId is not null))
+        // Infer a side from runway layout. For default (no preference), merge directly.
+        // For taxiway-only (EXIT K), store separately — TryFindExitAhead uses it as
+        // a soft tiebreaker so taxiways that only exist on one side still work.
+        if ((_lastResolvedPreference?.Side is null) && (ctx.GroundLayout is not null) && (_runwayId is not null))
         {
-            var inferredSide = ctx.GroundLayout.InferPreferredExitSide(_runwayId, _runwayHeading);
-            if (inferredSide is not null)
+            _inferredSide = ctx.GroundLayout.InferPreferredExitSide(_runwayId, _runwayHeading);
+            if ((_inferredSide is not null) && (_lastResolvedPreference?.Taxiway is null))
             {
-                _lastResolvedPreference = new ExitPreference { Side = inferredSide.Value };
+                _lastResolvedPreference = new ExitPreference { Side = _inferredSide.Value };
             }
         }
 
@@ -173,6 +176,29 @@ public sealed class RunwayExitPhase : Phase
         if (ctx.GroundLayout is null || _runwayId is null)
         {
             return;
+        }
+
+        // Soft tiebreaker: when the preference has a taxiway but no side, try
+        // with the inferred side first. If nothing found, fall through to the
+        // normal relaxation loop with the original preference.
+        if ((_lastResolvedPreference is { Taxiway: not null, Side: null }) && (_inferredSide is not null))
+        {
+            var tiebreakerPref = new ExitPreference { Taxiway = _lastResolvedPreference.Taxiway, Side = _inferredSide.Value };
+            var tiebreakerResult = ctx.GroundLayout.FindExitFromCenterline(
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                _runwayHeading,
+                _runwayId,
+                tiebreakerPref
+            );
+
+            if (tiebreakerResult is not null)
+            {
+                _holdShortNode = tiebreakerResult.Value.HoldShort;
+                _exitTaxiway = tiebreakerResult.Value.Taxiway;
+                _exitPath = tiebreakerResult.Value.Path;
+                return;
+            }
         }
 
         // Try with current preference, then relax until we find something
