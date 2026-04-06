@@ -19,8 +19,7 @@ namespace Yaat.Sim.Tests.Simulation;
 [Collection("NavDbMutator")]
 public class GroundConflictConvergenceTests(ITestOutputHelper output)
 {
-    private const string RecordingPath =
-        "TestData/ground-conflict-bundle.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/ground-conflict-bundle.yaat-bug-report-bundle.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -34,9 +33,7 @@ public class GroundConflictConvergenceTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        SimLogBuilder.CreateForTest(output)
-            .EnableCategory("GroundConflictDetector", Microsoft.Extensions.Logging.LogLevel.Trace)
-            .InitializeSimLog();
+        SimLogBuilder.CreateForTest(output).EnableCategory("GroundConflictDetector", Microsoft.Extensions.Logging.LogLevel.Trace).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }
@@ -75,9 +72,7 @@ public class GroundConflictConvergenceTests(ITestOutputHelper output)
                 continue;
             }
 
-            double distNm = GeoMath.DistanceNm(
-                ual.Latitude, ual.Longitude,
-                thy.Latitude, thy.Longitude);
+            double distNm = GeoMath.DistanceNm(ual.Latitude, ual.Longitude, thy.Latitude, thy.Longitude);
             double distFt = distNm * 6076.12;
 
             if (distFt < minDistFt)
@@ -86,8 +81,9 @@ public class GroundConflictConvergenceTests(ITestOutputHelper output)
                 minDistTime = 80 + t;
                 output.WriteLine(
                     $"t={80 + t}: new min dist={distFt:F0}ft "
-                    + $"UAL194 hdg={ual.TrueHeading.Degrees:F0} gs={ual.GroundSpeed:F1} gsl={ual.GroundSpeedLimit?.ToString("F0") ?? "null"} "
-                    + $"THY9WC hdg={thy.TrueHeading.Degrees:F0} gs={thy.GroundSpeed:F1} gsl={thy.GroundSpeedLimit?.ToString("F0") ?? "null"}");
+                        + $"UAL194 hdg={ual.TrueHeading.Degrees:F0} gs={ual.GroundSpeed:F1} gsl={ual.GroundSpeedLimit?.ToString("F0") ?? "null"} "
+                        + $"THY9WC hdg={thy.TrueHeading.Degrees:F0} gs={thy.GroundSpeed:F1} gsl={thy.GroundSpeedLimit?.ToString("F0") ?? "null"}"
+                );
             }
         }
 
@@ -96,6 +92,7 @@ public class GroundConflictConvergenceTests(ITestOutputHelper output)
         Assert.True(
             minDistFt >= 60,
             $"UAL194 and THY9WC overlapped: minimum separation was {minDistFt:F0}ft at t={minDistTime} "
-            + "(expected >=60ft). Convergence winner must be stopped by closing proximity check.");
+                + "(expected >=60ft). Convergence winner must be stopped by closing proximity check."
+        );
     }
 }

@@ -139,7 +139,11 @@ public class LandingExitDecelTests
         }
 
         var rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
-        var ac = MakeLandedAircraft(37.724806, -122.204721, 280.0, ias: 130);
+        // Start at 60kts partway down the runway (after initial decel) so H is
+        // reachable with firm braking (≤5kts/s). At 130kts from the threshold,
+        // H is too close for firm braking and the aircraft coasts instead.
+        var (midLat, midLon) = GeoMath.ProjectPointRaw(37.724806, -122.204721, 280.0, 0.25);
+        var ac = MakeLandedAircraft(midLat, midLon, 280.0, ias: 60);
         ac.Phases!.RequestedExit = new ExitPreference { Taxiway = "H" };
         ac.Phases.AssignedRunway = rwy;
 

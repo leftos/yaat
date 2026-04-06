@@ -21,6 +21,13 @@ public sealed class LandingPhase : Phase
     private const double MaxDecelRateKtsPerSec = 10.0;
 
     /// <summary>
+    /// Maximum deceleration the pilot will use to make a requested exit.
+    /// Above this, the pilot says "unable" — it would require emergency braking.
+    /// Normal rollout is ~2.5kts/s; firm braking is ~5kts/s; emergency is 10kts/s.
+    /// </summary>
+    private const double ReasonableBrakingRateKtsPerSec = 5.0;
+
+    /// <summary>
     /// Tolerance for turn-off speed commit check. Discrete-tick deceleration can overshoot
     /// the target by up to decelRate * deltaSeconds (~2.5 kts). Without tolerance, an aircraft
     /// at 30.2 kts misses a 30 kt turn-off by a hair and falls back to the next exit.
@@ -268,8 +275,9 @@ public sealed class LandingPhase : Phase
         // Coast speed: decelerate to this speed and hold it while searching for exits
         double coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
 
-        // Continuous exit evaluation: resolve a candidate if we don't have one
-        // Only when exit resolution was enabled by an explicit controller preference.
+        // Continuous exit evaluation for "unable" pilot broadcasts: track whether
+        // the aircraft passes a preferred exit too fast so the pilot can inform ATC.
+        // The actual exit turn is handled entirely by RunwayExitPhase after handoff.
         if (_exitResolutionEnabled && (_candidateExit is null))
         {
             ResolveNextCandidate(ctx);
@@ -277,21 +285,6 @@ public sealed class LandingPhase : Phase
 
         if (_candidateExit is not null)
         {
-            // Commit as soon as the aircraft is slow enough, regardless of whether it
-            // has reached the branch point. This covers the case where the aircraft
-            // decelerates below turn-off speed before reaching the branch point.
-            if (ctx.Aircraft.IndicatedAirspeed <= _candidateExit.TurnOffSpeed)
-            {
-                ctx.Aircraft.Phases!.ResolvedExit = _candidateExit;
-                ctx.Logger.LogDebug(
-                    "[Landing] {Callsign}: committing to exit {Taxiway}, gs={Gs:F1}kts",
-                    ctx.Aircraft.Callsign,
-                    _candidateExit.TaxiwayName,
-                    ctx.Aircraft.GroundSpeed
-                );
-                return true;
-            }
-
             double distToBranchPoint = GeoMath.AlongTrackDistanceNm(
                 _candidateExit.BranchPointNode.Latitude,
                 _candidateExit.BranchPointNode.Longitude,
@@ -300,97 +293,77 @@ public sealed class LandingPhase : Phase
                 _runwayHeading
             );
 
-            if (distToBranchPoint <= 0)
+            if ((distToBranchPoint <= 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed + TurnOffSpeedToleranceKts))
             {
-                // At or past the branch point — commit if within tolerance of turn-off speed.
-                // Discrete-tick deceleration can overshoot by a few kts; don't abandon the
-                // preferred exit over a marginal speed difference.
-                if (ctx.Aircraft.IndicatedAirspeed <= _candidateExit.TurnOffSpeed + TurnOffSpeedToleranceKts)
-                {
-                    ctx.Aircraft.Phases!.ResolvedExit = _candidateExit;
-                    ctx.Logger.LogDebug(
-                        "[Landing] {Callsign}: committing to exit {Taxiway} at branch point, gs={Gs:F1}kts (tolerance)",
-                        ctx.Aircraft.Callsign,
-                        _candidateExit.TaxiwayName,
-                        ctx.Aircraft.GroundSpeed
-                    );
-                    return true;
-                }
-
-                // Too fast even with tolerance — abandon and try next candidate
+                // Too fast for this exit — broadcast unable, stop planning, coast
                 string missedTaxiway = _candidateExit.TaxiwayName;
                 ctx.Logger.LogDebug(
-                    "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts), relaxing preference",
+                    "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts)",
                     ctx.Aircraft.Callsign,
                     missedTaxiway,
                     ctx.Aircraft.GroundSpeed,
                     _candidateExit.TurnOffSpeed
                 );
-                RelaxPreference();
-                _candidateExit = null;
-                ResolveNextCandidate(ctx);
 
-                // Pilot broadcast: tell ATC we couldn't make the preferred exit
                 if (_originalPreference?.Taxiway is not null)
                 {
-                    string fallbackInfo = _candidateExit is not null ? $", will exit at {_candidateExit.TaxiwayName}" : "";
-                    ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}{fallbackInfo}");
+                    ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}");
                 }
+
+                // Stop targeting a specific exit — just decelerate to coast speed
+                // and let RunwayExitPhase pick the next available exit.
+                _candidateExit = null;
+                _exitResolutionEnabled = false;
             }
+        }
 
-            // Before the branch point: brake toward turn-off speed
-            if (_candidateExit is not null)
+        // Speed planning: if we have a candidate exit ahead, compute the required
+        // decel to reach its turn-off speed by the branch point. If reasonable
+        // (within firm-braking limits), brake harder to make it. Otherwise the
+        // default decel rate will coast through and RunwayExitPhase picks the
+        // next exit ahead.
+        double targetSpeed = coastSpeed;
+        if (_candidateExit is not null)
+        {
+            double distToBranch = GeoMath.AlongTrackDistanceNm(
+                _candidateExit.BranchPointNode.Latitude,
+                _candidateExit.BranchPointNode.Longitude,
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                _runwayHeading
+            );
+
+            if ((distToBranch > 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed))
             {
-                double distToUse = GeoMath.AlongTrackDistanceNm(
-                    _candidateExit.BranchPointNode.Latitude,
-                    _candidateExit.BranchPointNode.Longitude,
-                    ctx.Aircraft.Latitude,
-                    ctx.Aircraft.Longitude,
-                    _runwayHeading
-                );
+                double requiredDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, _candidateExit.TurnOffSpeed, distToBranch);
 
-                if ((distToUse > 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed))
+                if (requiredDecel <= ReasonableBrakingRateKtsPerSec)
                 {
-                    double exitDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, _candidateExit.TurnOffSpeed, distToUse);
+                    // Firm but achievable braking — increase decel to make the exit
+                    if (requiredDecel > decelRate)
+                    {
+                        decelRate = requiredDecel;
+                    }
 
-                    if (exitDecel > decelRate)
-                    {
-                        decelRate = Math.Min(exitDecel, MaxDecelRateKtsPerSec);
-                    }
-                    else if (ctx.Aircraft.IndicatedAirspeed <= coastSpeed)
-                    {
-                        // At or below coast speed — hold until braking point
-                        decelRate = 0;
-                    }
-                    else
-                    {
-                        // Above coast speed — decel to coast speed but not below
-                        double coastLimited = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
-                        if (coastLimited < coastSpeed)
-                        {
-                            decelRate = 0;
-                        }
-                    }
+                    targetSpeed = _candidateExit.TurnOffSpeed;
                 }
             }
         }
+
+        // Clamp deceleration so we don't go below the target speed
+        if (ctx.Aircraft.IndicatedAirspeed <= targetSpeed)
+        {
+            decelRate = 0;
+        }
         else
         {
-            // No candidate — decelerate to coast speed and hold
-            if (ctx.Aircraft.IndicatedAirspeed <= coastSpeed)
+            double projected = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
+            if (projected < targetSpeed)
             {
-                decelRate = 0;
-            }
-            else
-            {
-                double coastLimited = ctx.Aircraft.IndicatedAirspeed - decelRate * ctx.DeltaSeconds;
-                if (coastLimited < coastSpeed)
+                decelRate = (ctx.Aircraft.IndicatedAirspeed - targetSpeed) / ctx.DeltaSeconds;
+                if (decelRate < 0)
                 {
-                    decelRate = (ctx.Aircraft.IndicatedAirspeed - coastSpeed) / ctx.DeltaSeconds;
-                    if (decelRate < 0)
-                    {
-                        decelRate = 0;
-                    }
+                    decelRate = 0;
                 }
             }
         }
@@ -415,10 +388,17 @@ public sealed class LandingPhase : Phase
             return true;
         }
 
-        // No candidate and at coast speed: hand off to RunwayExitPhase with no exit info
-        if (!_hasLahso && (_candidateExit is null) && (ctx.Aircraft.IndicatedAirspeed <= coastSpeed))
+        // Hand off to RunwayExitPhase when at or below the target speed.
+        // The aircraft is still ahead of the exit — RunwayExitPhase handles
+        // the turn with a virtual approach segment.
+        if (!_hasLahso && (ctx.Aircraft.IndicatedAirspeed <= targetSpeed))
         {
-            ctx.Logger.LogDebug("[Landing] {Callsign}: rollout complete (no exit), gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+            ctx.Logger.LogDebug(
+                "[Landing] {Callsign}: rollout complete, gs={Gs:F1}kts, target={Target:F0}kts",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.GroundSpeed,
+                targetSpeed
+            );
             return true;
         }
 

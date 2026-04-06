@@ -264,7 +264,7 @@ public sealed class AirportGroundLayout
         for (int hop = 0; hop < maxCenterlineHops && current is not null; hop++)
         {
             double alongTrack = GeoMath.AlongTrackDistanceNm(current.Latitude, current.Longitude, lat, lon, runwayHeading);
-            if (alongTrack < -0.05)
+            if (alongTrack < -0.005)
             {
                 // Node is behind the aircraft — skip
                 current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
@@ -356,7 +356,20 @@ public sealed class AirportGroundLayout
                 }
 
                 double parkingBias = AverageNearestParkingDistanceNm(current, ParkingSampleCount) * ParkingProximityWeight;
-                double score = totalDist + parkingBias;
+
+                // Penalize exits that go backward (>90° from runway heading).
+                // Without this, a short backward exit (e.g. E at 111° from node 230
+                // at SFO) can outscore a longer forward exit (T at 19°) due to
+                // distance alone, causing the caller to filter the result and miss
+                // the valid forward exit entirely.
+                double anglePenalty = 0;
+                double? exitAngle = ComputeExitAngle(current, branchTwy, runwayHeading);
+                if ((exitAngle is not null) && (exitAngle.Value > 100) && (preference is null))
+                {
+                    anglePenalty = 10.0;
+                }
+
+                double score = totalDist + parkingBias + anglePenalty;
                 if (score < bestScore)
                 {
                     bestScore = score;
