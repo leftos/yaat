@@ -228,7 +228,13 @@ public static class GroundConflictDetector
 
         // Stationary: specific holding/parked phases
         bool isStationaryPhase =
-            phaseName is "At Parking" or "Holding After Pushback" or "LinedUpAndWaiting" or "LiningUp"
+            phaseName
+                is "At Parking"
+                    or "Holding After Pushback"
+                    or "Holding After Exit"
+                    or "Holding In Position"
+                    or "LinedUpAndWaiting"
+                    or "LiningUp"
             || (phaseName is not null && phaseName.StartsWith("Holding Short", StringComparison.Ordinal));
 
         if (isStationaryPhase)
@@ -466,6 +472,17 @@ public static class GroundConflictDetector
             return;
         }
 
+        // Aircraft on the runway are not slowed by stationary off-runway traffic.
+        // The hold-short line is the boundary — once past it and stopped, the
+        // aircraft is not a runway conflict. This preserves conflicts between
+        // two runway aircraft (e.g., landing + LUAW) and between runway aircraft
+        // and moving ground traffic (e.g., crossing runway).
+        if (IsOnRunway(mover) && !IsOnRunway(obstacle) && obstacle.GroundSpeed <= 0)
+        {
+            diagnosticLog?.Invoke($"    [Closing] {mover.Callsign}→{obstacle.Callsign}: mover on runway, obstacle stationary off-runway, skip");
+            return;
+        }
+
         var (stopDist, trailDist) = GetSeparation(obstacle);
         if (distFt <= stopDist)
         {
@@ -514,6 +531,17 @@ public static class GroundConflictDetector
     }
 
     // --- Helpers ---
+
+    /// <summary>
+    /// True if the aircraft is on the runway surface (landing, taking off, lined up, etc.).
+    /// Used to exempt runway aircraft from closing-proximity limits against stationary
+    /// off-runway traffic — the hold-short line is the boundary.
+    /// </summary>
+    private static bool IsOnRunway(AircraftState ac)
+    {
+        string? phase = ac.Phases?.CurrentPhase?.Name;
+        return phase is "Landing" or "Runway Exit" or "Takeoff" or "LiningUp" or "LinedUpAndWaiting" or "StopAndGo" or "TouchAndGo";
+    }
 
     /// <summary>
     /// Returns dimension-aware stop/trail distances based on the leader aircraft's length

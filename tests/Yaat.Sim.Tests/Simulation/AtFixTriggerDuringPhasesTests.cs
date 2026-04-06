@@ -21,8 +21,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
 {
-    private const string RecordingPath =
-        "TestData/sfo-ground-spd-until-bundle.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/sfo-ground-spd-until-bundle.yaat-bug-report-bundle.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -36,8 +35,7 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        var loggerFactory = LoggerFactory.Create(builder =>
-            builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
+        var loggerFactory = LoggerFactory.Create(builder => builder.AddXUnit(output).SetMinimumLevel(LogLevel.Debug));
         SimLog.Initialize(loggerFactory);
 
         return new SimulationEngine(groundData);
@@ -82,7 +80,8 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
                 cepinSequencedAt = 100 + t;
                 output.WriteLine(
                     $"CEPIN sequenced at t={cepinSequencedAt}: ias={aircraft.IndicatedAirspeed:F0} "
-                    + $"tgtSpd={aircraft.Targets.TargetSpeed?.ToString() ?? "null"}");
+                        + $"tgtSpd={aircraft.Targets.TargetSpeed?.ToString() ?? "null"}"
+                );
             }
 
             cepinWasInRoute = cepinInRoute;
@@ -93,9 +92,7 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
             {
                 if (aircraft.Targets.TargetSpeed == 180)
                 {
-                    output.WriteLine(
-                        $"PASS: TargetSpeed=180 at t={100 + t}, "
-                        + $"{(100 + t) - cepinSequencedAt.Value}s after CEPIN sequenced");
+                    output.WriteLine($"PASS: TargetSpeed=180 at t={100 + t}, " + $"{(100 + t) - cepinSequencedAt.Value}s after CEPIN sequenced");
                     return;
                 }
             }
@@ -105,7 +102,8 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
             {
                 Assert.Fail(
                     $"AT CEPIN SPD 180 trigger did not fire within 10s of CEPIN being sequenced at t={cepinSequencedAt}. "
-                    + $"Current tgtSpd={aircraft.Targets.TargetSpeed?.ToString() ?? "null"}");
+                        + $"Current tgtSpd={aircraft.Targets.TargetSpeed?.ToString() ?? "null"}"
+                );
             }
         }
 
