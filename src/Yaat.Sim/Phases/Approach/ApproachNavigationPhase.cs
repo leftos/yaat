@@ -97,6 +97,9 @@ public sealed class ApproachNavigationPhase : Phase
 
             _currentFixIndex++;
 
+            // Fire any AT fix triggers in the command queue for this fix
+            FlightPhysics.NotifyFixSequenced(ctx.Aircraft, fix.Name);
+
             if (_currentFixIndex >= Fixes.Count)
             {
                 return true;

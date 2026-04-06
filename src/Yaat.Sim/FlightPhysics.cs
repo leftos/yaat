@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Vnas;
-using Yaat.Sim.Phases;
 
 namespace Yaat.Sim;
 
@@ -110,6 +109,9 @@ public static class FlightPhysics
         {
             var sequenced = nav;
             route.RemoveAt(0);
+
+            // Fire any AT fix triggers in the command queue for this fix
+            NotifyFixSequenced(aircraft, sequenced.Name);
 
             // Restore altitude/speed from revert fields when sequencing past a constrained fix
             if (sequenced.RevertAltitude is not null)
@@ -930,13 +932,17 @@ public static class FlightPhysics
 
     private static void UpdateCommandQueue(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
-        if (aircraft.Phases?.CurrentPhase is not null)
+        var queue = aircraft.Queue;
+        if (queue.IsComplete)
         {
             return;
         }
 
-        var queue = aircraft.Queue;
-        if (queue.IsComplete)
+        // During active phases, the phase system owns control targets. The full
+        // command queue logic (block advancement, block application) is skipped.
+        // AT fix triggers fire via NotifyFixSequenced when the navigation route
+        // or approach phase sequences past the fix.
+        if (aircraft.Phases?.CurrentPhase is not null)
         {
             return;
         }
@@ -1299,6 +1305,46 @@ public static class FlightPhysics
         {
             var desc = block.NaturalDescription.Length > 0 ? block.NaturalDescription : block.Description;
             aircraft.PendingNotifications.Add($"[Executing] {desc}");
+        }
+    }
+
+    /// <summary>
+    /// Called when a fix is sequenced from the navigation route or an approach phase.
+    /// Scans the command queue for any pending block with a ReachFix trigger matching
+    /// the given fix name and fires it immediately. This ensures AT fix triggers work
+    /// even when phases are active (where UpdateCommandQueue is normally skipped) and
+    /// when turn anticipation sequences the fix at a distance greater than NavArrivalNm.
+    /// </summary>
+    public static void NotifyFixSequenced(AircraftState aircraft, string fixName)
+    {
+        var queue = aircraft.Queue;
+        if (queue.IsComplete)
+        {
+            return;
+        }
+
+        for (int i = 0; i < queue.Blocks.Count; i++)
+        {
+            var block = queue.Blocks[i];
+            if (block.IsApplied)
+            {
+                continue;
+            }
+
+            if (block.Trigger is not { Type: BlockTriggerType.ReachFix } trigger)
+            {
+                continue;
+            }
+
+            if (!string.Equals(trigger.FixName, fixName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Log.LogDebug("[AtFix] {Callsign}: fix {Fix} sequenced from route, firing block {Idx}", aircraft.Callsign, fixName, i);
+
+            block.TriggerMet = true;
+            ApplyBlock(aircraft, block);
         }
     }
 
