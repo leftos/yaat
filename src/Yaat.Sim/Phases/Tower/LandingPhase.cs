@@ -28,6 +28,14 @@ public sealed class LandingPhase : Phase
     private const double ReasonableBrakingRateKtsPerSec = 5.0;
 
     /// <summary>
+    /// Comfortable braking multiplier for default exit selection (no explicit preference).
+    /// The pilot picks an exit achievable at this multiple of the default rollout decel rate.
+    /// 1.5× default gives a natural, unhurried deceleration — not the first exit that
+    /// requires maximum effort, but the first one that's comfortable.
+    /// </summary>
+    private const double ComfortableBrakingMultiplier = 1.5;
+
+    /// <summary>
     /// Tolerance for turn-off speed commit check. Discrete-tick deceleration can overshoot
     /// the target by up to decelRate * deltaSeconds (~2.5 kts). Without tolerance, an aircraft
     /// at 30.2 kts misses a 30 kt turn-off by a hair and falls back to the next exit.
@@ -275,10 +283,9 @@ public sealed class LandingPhase : Phase
         // Coast speed: decelerate to this speed and hold it while searching for exits
         double coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
 
-        // Continuous exit evaluation for "unable" pilot broadcasts: track whether
-        // the aircraft passes a preferred exit too fast so the pilot can inform ATC.
-        // The actual exit turn is handled entirely by RunwayExitPhase after handoff.
-        if (_exitResolutionEnabled && (_candidateExit is null))
+        // Always search for the next exit ahead — even without an explicit
+        // preference, the pilot plans deceleration for the first reachable exit.
+        if (_candidateExit is null)
         {
             ResolveNextCandidate(ctx);
         }
@@ -310,7 +317,7 @@ public sealed class LandingPhase : Phase
                     ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}");
                 }
 
-                // Stop targeting a specific exit — just decelerate to coast speed
+                // Stop targeting a specific exit — decelerate to coast speed
                 // and let RunwayExitPhase pick the next available exit.
                 _candidateExit = null;
                 _exitResolutionEnabled = false;
@@ -319,9 +326,9 @@ public sealed class LandingPhase : Phase
 
         // Speed planning: if we have a candidate exit ahead, compute the required
         // decel to reach its turn-off speed by the branch point. If reasonable
-        // (within firm-braking limits), brake harder to make it. Otherwise the
-        // default decel rate will coast through and RunwayExitPhase picks the
-        // next exit ahead.
+        // (within firm-braking limits), brake harder when needed. The aircraft
+        // coasts at coast speed and only brakes below it when kinematically
+        // required — no premature crawling at 15kts with the exit far ahead.
         double targetSpeed = coastSpeed;
         if (_candidateExit is not null)
         {
@@ -337,15 +344,40 @@ public sealed class LandingPhase : Phase
             {
                 double requiredDecel = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, _candidateExit.TurnOffSpeed, distToBranch);
 
-                if (requiredDecel <= ReasonableBrakingRateKtsPerSec)
+                // Braking limit depends on whether the pilot was told to exit here
+                // or is choosing on their own. Explicit preference = firm braking
+                // (5kts/s). No preference = comfortable braking (1.5× default).
+                double defaultDecel = CategoryPerformance.RolloutDecelRate(ctx.Category);
+                double brakingLimit = _exitResolutionEnabled ? ReasonableBrakingRateKtsPerSec : defaultDecel * ComfortableBrakingMultiplier;
+
+                if (requiredDecel <= brakingLimit)
                 {
-                    // Firm but achievable braking — increase decel to make the exit
+                    // This exit is reachable. Only increase decel when the
+                    // kinematic requirement exceeds the current rate — the
+                    // aircraft coasts at normal speed and only brakes harder
+                    // as the branch point approaches.
                     if (requiredDecel > decelRate)
                     {
                         decelRate = requiredDecel;
                     }
 
-                    targetSpeed = _candidateExit.TurnOffSpeed;
+                    if (_exitResolutionEnabled)
+                    {
+                        // Explicit preference — target the turn-off speed directly.
+                        // The pilot is committed to this exit.
+                        targetSpeed = _candidateExit.TurnOffSpeed;
+                    }
+                    else
+                    {
+                        // Default selection — only brake below coast speed when
+                        // kinematically needed. Prevents premature crawling when
+                        // the exit is still far ahead.
+                        targetSpeed = Math.Max(_candidateExit.TurnOffSpeed, coastSpeed);
+                        if (requiredDecel > defaultDecel)
+                        {
+                            targetSpeed = _candidateExit.TurnOffSpeed;
+                        }
+                    }
                 }
             }
         }

@@ -37,7 +37,7 @@ public class Sfo28rAllExitsTests(ITestOutputHelper output)
         }
 
         var groundData = new TestAirportGroundData();
-        SimLogBuilder.CreateForTest(output).InitializeSimLog();
+        SimLogBuilder.CreateForTest(output).EnableCategory("SimulationEngine", Microsoft.Extensions.Logging.LogLevel.Debug).InitializeSimLog();
 
         return new SimulationEngine(groundData);
     }
