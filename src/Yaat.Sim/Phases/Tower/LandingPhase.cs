@@ -60,6 +60,12 @@ public sealed class LandingPhase : Phase
     // Without an explicit preference, LandingPhase coasts and hands off to RunwayExitPhase.
     private bool _exitResolutionEnabled;
 
+    // Branch-point node IDs where the aircraft was declared "unable" (too fast).
+    // Prevents ResolveNextCandidate from re-finding the same exit after it was
+    // already missed — without this, the aircraft re-discovers L at node 327
+    // after coasting to a lower speed and takes it with a near-zero turn.
+    private readonly HashSet<int> _unableBranchPoints = [];
+
     public bool StoppedForLahso { get; private set; }
 
     public override string Name => "Landing";
@@ -312,9 +318,21 @@ public sealed class LandingPhase : Phase
                 _runwayHeading
             );
 
-            if ((distToBranchPoint <= 0) && (ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed + TurnOffSpeedToleranceKts))
+            // Two "unable" conditions:
+            // 1. Past branch AND too fast (original condition)
+            // 2. Past branch AND standard exit (>45°, turn-off = standard speed).
+            //    Standard exits need room for a 70-90° turn arc. If the aircraft
+            //    arrives at the branch at exactly the turn-off speed, the virtual
+            //    segment has ~0 length and the turn degenerates to a point turn.
+            //    High-speed exits (≤45°) tolerate short virtual segments since
+            //    the turn angle is small.
+            double highSpeedTurnOff = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
+            bool tooFast = ctx.Aircraft.IndicatedAirspeed > _candidateExit.TurnOffSpeed + TurnOffSpeedToleranceKts;
+            bool standardExitAtBranch = _candidateExit.TurnOffSpeed < highSpeedTurnOff;
+
+            if ((distToBranchPoint <= 0) && (tooFast || standardExitAtBranch))
             {
-                // Too fast for this exit — broadcast unable, stop planning, coast
+                // Missed this exit — broadcast unable, replan
                 string missedTaxiway = _candidateExit.TaxiwayName;
                 ctx.Logger.LogDebug(
                     "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts)",
@@ -328,6 +346,9 @@ public sealed class LandingPhase : Phase
                 {
                     ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}");
                 }
+
+                // Remember this branch point so ResolveNextCandidate won't re-find it.
+                _unableBranchPoints.Add(_candidateExit.BranchPointNode.Id);
 
                 // Replan: keep the side from EL/ER commands but drop the failed taxiway.
                 // EXIT T (no side) → null preference. EL T → Side=Left. ER → Side=Right.
@@ -443,9 +464,32 @@ public sealed class LandingPhase : Phase
         }
 
         // Hand off to RunwayExitPhase when at or below the target speed.
-        // The aircraft is still ahead of the exit — RunwayExitPhase handles
-        // the turn with a virtual approach segment.
-        if (!_hasLahso && (ctx.Aircraft.IndicatedAirspeed <= targetSpeed))
+        // For standard exits (>45°), ensure enough distance to the branch point
+        // for a proper turn arc. If the aircraft is too close, skip this exit
+        // (the unable check at the top of next tick will catch it).
+        bool handoffBlocked = false;
+        if ((_candidateExit is not null) && (ctx.Aircraft.IndicatedAirspeed <= targetSpeed))
+        {
+            double distToBranch = GeoMath.AlongTrackDistanceNm(
+                _candidateExit.BranchPointNode.Latitude,
+                _candidateExit.BranchPointNode.Longitude,
+                ctx.Aircraft.Latitude,
+                ctx.Aircraft.Longitude,
+                _runwayHeading
+            );
+
+            double hsExitSpeed = CategoryPerformance.HighSpeedExitSpeed(ctx.Category);
+            bool isStandardExit = _candidateExit.TurnOffSpeed < hsExitSpeed;
+
+            // Standard exits need ~0.02nm (~120ft) for a turn arc at 15kts.
+            // If less distance remains, the virtual segment will be too short.
+            if (isStandardExit && (distToBranch < 0.02))
+            {
+                handoffBlocked = true;
+            }
+        }
+
+        if (!_hasLahso && !handoffBlocked && (ctx.Aircraft.IndicatedAirspeed <= targetSpeed))
         {
             ctx.Logger.LogDebug(
                 "[Landing] {Callsign}: rollout complete, gs={Gs:F1}kts, target={Target:F0}kts",
@@ -470,6 +514,8 @@ public sealed class LandingPhase : Phase
 
         // Primary: walk centerline nodes ahead, search outward at each for a matching exit.
         // This searches runway → taxiway → hold-short (the correct direction).
+        // Skip exits whose branch points were already declared "unable" to prevent
+        // re-discovering a missed exit after the aircraft has slowed near it.
         if (rwyDesignator is not null)
         {
             var exit = ctx.GroundLayout.FindExitFromCenterline(
@@ -477,7 +523,8 @@ public sealed class LandingPhase : Phase
                 ctx.Aircraft.Longitude,
                 _runwayHeading,
                 rwyDesignator,
-                _activePreference
+                _activePreference,
+                _unableBranchPoints
             );
 
             if (exit is not null)

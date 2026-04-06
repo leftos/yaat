@@ -248,7 +248,8 @@ public sealed class AirportGroundLayout
         double lon,
         TrueHeading runwayHeading,
         string runwayDesignator,
-        ExitPreference? preference
+        ExitPreference? preference,
+        HashSet<int>? excludeBranchPoints = null
     )
     {
         var startNode = FindNearestCenterlineNode(lat, lon, runwayHeading, runwayDesignator);
@@ -266,6 +267,13 @@ public sealed class AirportGroundLayout
             if (alongTrack < -0.005)
             {
                 // Node is behind the aircraft — skip
+                current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
+                continue;
+            }
+
+            // Skip centerline nodes where the aircraft already declared "unable"
+            if ((excludeBranchPoints is not null) && excludeBranchPoints.Contains(current.Id))
+            {
                 current = FindCenterlineNeighborAhead(current, runwayHeading, runwayDesignator);
                 continue;
             }
