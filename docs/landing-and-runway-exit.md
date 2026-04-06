@@ -37,9 +37,10 @@ LandingPhase's job is to decelerate the aircraft to coast speed. That's it. It d
 
 The pilot picks the first comfortable exit. "Comfortable" means achievable at 1.5x the default rollout decel rate — not the first exit that requires maximum effort.
 
-- Decelerate at the default rollout rate
-- Only brake harder when kinematically required (the exit is close enough that default braking won't suffice)
-- Target speed is coast speed unless braking below coast is kinematically needed
+- Target coast speed with a braking buffer, same as explicit exits
+- Subtract a braking buffer: the distance RunwayExitPhase needs to brake from coast speed to the exit's turn-off speed (using the default decel rate)
+- Plan decel to reach coast speed at that buffer point — not at the exit itself
+- If the exit is far enough that normal braking would reach coast too early, use a gentler rate (floored at 0.5 kts/s) to avoid a long pointless coast
 
 ### Explicit exits (EXIT T, EL, ER, etc.)
 

@@ -76,13 +76,16 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
             Assert.NotNull(wja);
 
             string phase = wja.Phases?.CurrentPhase?.Name ?? "";
-            if (phase is "Landing" or "Runway Exit")
+            if (phase == "Landing")
             {
                 if (wja.GroundSpeed < minObservedGs)
                 {
                     minObservedGs = wja.GroundSpeed;
                 }
+            }
 
+            if (phase is "Landing" or "Runway Exit")
+            {
                 output.WriteLine($"t={430 + t} phase={phase} gs={wja.GroundSpeed:F1} spdLimit={wja.GroundSpeedLimit?.ToString("F1") ?? "null"}");
             }
         }
@@ -95,6 +98,53 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
             $"WJA1508 ground speed dropped to {minObservedGs:F1} kts on the runway — "
                 + "ground conflict detector should not limit runway aircraft for stationary off-runway traffic"
         );
+    }
+
+    /// <summary>
+    /// WJA1508 lands 28R with no explicit exit preference. It should take a
+    /// standard exit (D, L, P, or N) rather than skipping all of them and
+    /// falling through to the high-speed exit Q. Before the fix, the default
+    /// exit path never planned braking below coast speed, so the aircraft
+    /// arrived at standard exits too close for the handoff buffer.
+    /// </summary>
+    [Fact]
+    public void WJA1508_TakesStandardExitWithDefaultSelection()
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        engine.Replay(recording, 420);
+
+        string? exitTaxiway = null;
+        for (int t = 1; t <= 200; t++)
+        {
+            engine.ReplayOneSecond();
+            var wja = engine.FindAircraft("WJA1508");
+            if (wja is null)
+            {
+                break;
+            }
+
+            string phase = wja.Phases?.CurrentPhase?.Name ?? "";
+            if (t % 10 == 0)
+            {
+                output.WriteLine($"t={420 + t} phase={phase} gs={wja.GroundSpeed:F1}");
+            }
+
+            if (phase == "Holding After Exit")
+            {
+                exitTaxiway = wja.CurrentTaxiway;
+                output.WriteLine($"t={420 + t} WJA1508 exited on taxiway {exitTaxiway}");
+                break;
+            }
+        }
+
+        Assert.NotNull(exitTaxiway);
+        Assert.NotEqual("Q", exitTaxiway);
     }
 
     [Fact]

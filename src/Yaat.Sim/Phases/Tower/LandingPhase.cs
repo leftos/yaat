@@ -446,13 +446,22 @@ public sealed class LandingPhase : Phase
                     }
                     else
                     {
-                        // Default selection — only brake below coast speed when
-                        // kinematically needed. Prevents premature crawling when
-                        // the exit is still far ahead.
-                        targetSpeed = Math.Max(_candidateExit.TurnOffSpeed, coastSpeed);
-                        if (requiredDecel > defaultDecel)
+                        // Default selection — hand off at coast speed with a braking
+                        // buffer, same strategy as explicit exits. RunwayExitPhase
+                        // handles braking from coast to turn-off speed within the
+                        // buffer zone, creating a proper virtual segment.
+                        targetSpeed = coastSpeed;
+
+                        double brakingBufferNm = ComputeBrakingDistance(coastSpeed, _candidateExit.TurnOffSpeed, defaultDecel);
+                        double effectiveDist = distToBranch - brakingBufferNm;
+
+                        if (effectiveDist > 0)
                         {
-                            targetSpeed = _candidateExit.TurnOffSpeed;
+                            double requiredDecelToCoast = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
+                            if ((requiredDecelToCoast > 0) && (requiredDecelToCoast < decelRate))
+                            {
+                                decelRate = Math.Max(requiredDecelToCoast, MinSoftBrakingRateKtsPerSec);
+                            }
                         }
                     }
                 }
