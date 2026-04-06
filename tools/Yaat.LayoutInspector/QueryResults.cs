@@ -43,10 +43,23 @@ public sealed record ExitCandidate(
     int PathLength,
     double TotalDistanceNm,
     double? AngleDeg,
+    string Side,
+    bool IsHighSpeed,
     List<int> PathNodeIds
 );
 
-public sealed record ExitsResult(string Designator, List<ExitCandidate> Exits);
+public sealed record ExitsResult(
+    string Designator,
+    List<ExitCandidate> Exits,
+    int HighSpeedLeft,
+    int HighSpeedRight,
+    double AvgParkingDistLeft,
+    double AvgParkingDistRight,
+    int ReachableParkingLeft,
+    int ReachableParkingRight,
+    string? ParallelHsSide,
+    string? InferredDefaultSide
+);
 
 public sealed record BfsStep(int NodeId, string NodeType, int Depth, List<BfsEdgeExplored> EdgesExplored);
 

@@ -173,6 +173,18 @@ public sealed class LandingPhase : Phase
         _activePreference = _originalPreference;
         _exitResolutionEnabled = _originalPreference is not null;
 
+        // When no explicit exit preference is set, infer a side preference from the
+        // runway's high-speed exit layout and parking proximity. This biases default
+        // selection toward the natural exit side without requiring an explicit command.
+        if ((_activePreference is null) && (ctx.GroundLayout is not null) && (ctx.Aircraft.Phases?.AssignedRunway?.Designator is { } rwyDesignator))
+        {
+            var inferredSide = ctx.GroundLayout.InferPreferredExitSide(rwyDesignator, _runwayHeading);
+            if (inferredSide is not null)
+            {
+                _activePreference = new ExitPreference { Side = inferredSide.Value };
+            }
+        }
+
         // Continue approach descent toward field elevation
         ctx.Targets.TargetAltitude = _fieldElevation;
 
@@ -317,10 +329,20 @@ public sealed class LandingPhase : Phase
                     ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to exit at {missedTaxiway}");
                 }
 
-                // Stop targeting a specific exit — decelerate to coast speed
-                // and let RunwayExitPhase pick the next available exit.
+                // Replan: keep the side from EL/ER commands but drop the failed taxiway.
+                // EXIT T (no side) → null preference. EL T → Side=Left. ER → Side=Right.
+                // ResolveNextCandidate will fire next tick with the relaxed preference and
+                // find the next comfortable exit — same as default behavior for that side.
                 _candidateExit = null;
+                var keepSide = _originalPreference?.Side;
+                _activePreference = keepSide is not null ? new ExitPreference { Side = keepSide } : null;
+                _originalPreference = _activePreference;
                 _exitResolutionEnabled = false;
+
+                if (ctx.Aircraft.Phases is not null)
+                {
+                    ctx.Aircraft.Phases.RequestedExit = _activePreference;
+                }
             }
         }
 

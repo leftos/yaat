@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -357,19 +356,29 @@ public sealed class AirportGroundLayout
 
                 double parkingBias = AverageNearestParkingDistanceNm(current, ParkingSampleCount) * ParkingProximityWeight;
 
-                // Penalize exits that go backward (>90° from runway heading).
+                // Penalize exits that go backward (>100° from runway heading).
                 // Without this, a short backward exit (e.g. E at 111° from node 230
                 // at SFO) can outscore a longer forward exit (T at 19°) due to
                 // distance alone, causing the caller to filter the result and miss
                 // the valid forward exit entirely.
                 double anglePenalty = 0;
                 double? exitAngle = ComputeExitAngle(current, branchTwy, runwayHeading);
-                if ((exitAngle is not null) && (exitAngle.Value > 100) && (preference is null))
+                if ((exitAngle is not null) && (exitAngle.Value > 100) && (preference?.Taxiway is null))
                 {
                     anglePenalty = 10.0;
                 }
 
-                double score = totalDist + parkingBias + anglePenalty;
+                // Bonus for high-speed exits (≤45°): these have higher turn-off speeds
+                // (30kts vs 15kts) and gentler turns, making them strongly preferred for
+                // default selection. The bonus ensures T (19°, 0.11nm) beats E (70°, 0.03nm)
+                // at the same centerline node.
+                double highSpeedBonus = 0;
+                if ((exitAngle is not null) && (exitAngle.Value <= 45.0) && (preference?.Taxiway is null))
+                {
+                    highSpeedBonus = HighSpeedExitBonus;
+                }
+
+                double score = totalDist + parkingBias + anglePenalty - highSpeedBonus;
                 if (score < bestScore)
                 {
                     bestScore = score;
@@ -882,6 +891,202 @@ public sealed class AirportGroundLayout
     }
 
     /// <summary>
+    /// Infers the preferred exit side for a runway using layered signals:
+    /// 1. High-speed exits (≤45°), validated by parking proximity
+    /// 2. Parallel runway HS inheritance (for runways with no HS exits)
+    /// 3. Parking proximity (fallback)
+    /// Returns null if no preference can be determined.
+    /// </summary>
+    public ExitSide? InferPreferredExitSide(string runwayDesignator, TrueHeading runwayHeading)
+    {
+        // Enumerate all exits on both sides
+        var exits = EnumerateExitsBothSides(runwayDesignator, runwayHeading);
+        if (exits.Count == 0)
+        {
+            return null;
+        }
+
+        int hsLeft = exits.Count(e => e.IsHighSpeed && (e.Side == ExitSide.Left));
+        int hsRight = exits.Count(e => e.IsHighSpeed && (e.Side == ExitSide.Right));
+
+        // Parking proximity per side: average distance from hold-shorts to nearest parking
+        double avgParkLeft = AvgParkingDistForSide(exits.Where(e => e.Side == ExitSide.Left));
+        double avgParkRight = AvgParkingDistForSide(exits.Where(e => e.Side == ExitSide.Right));
+
+        ExitSide? hsSide =
+            (hsLeft > hsRight) ? ExitSide.Left
+            : (hsRight > hsLeft) ? ExitSide.Right
+            : null;
+        ExitSide? parkingSide =
+            (avgParkLeft < avgParkRight) ? ExitSide.Left
+            : (avgParkRight < avgParkLeft) ? ExitSide.Right
+            : null;
+
+        if (hsSide is not null)
+        {
+            // HS exits are a strong signal, but if parking proximity favors the
+            // other side, the HS exit leads to a dead end (e.g., OAK 28R J exits
+            // left toward 28L with no parking). Override with parking side.
+            return (parkingSide is not null) && (parkingSide != hsSide) ? parkingSide : hsSide;
+        }
+
+        // No HS exits — check parallel runway for traffic flow inheritance.
+        ExitSide? parallelHsSide = FindParallelRunwayHsSide(runwayDesignator, runwayHeading);
+        if (parallelHsSide is not null)
+        {
+            return parallelHsSide;
+        }
+
+        return parkingSide;
+    }
+
+    /// <summary>
+    /// Enumerate all exits for a runway, searching both sides per taxiway.
+    /// </summary>
+    private List<(int HoldShortId, ExitSide Side, bool IsHighSpeed)> EnumerateExitsBothSides(string designator, TrueHeading rwyHeading)
+    {
+        var exits = new List<(int HoldShortId, ExitSide Side, bool IsHighSpeed)>();
+        var seen = new HashSet<int>();
+
+        foreach (var node in Nodes.Values)
+        {
+            bool isCenterline = node.Edges.Any(e =>
+                e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
+            );
+            if (!isCenterline)
+            {
+                continue;
+            }
+
+            var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var edge in node.Edges)
+            {
+                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!searched.Add(edge.TaxiwayName))
+                {
+                    continue;
+                }
+
+                ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
+                foreach (var side in sides)
+                {
+                    var pref = new ExitPreference { Taxiway = edge.TaxiwayName, Side = side };
+                    var result = FindAdjacentHoldShort(node, designator, rwyHeading, pref);
+                    if (result is null)
+                    {
+                        continue;
+                    }
+
+                    if (!seen.Add(result.Value.Node.Id))
+                    {
+                        continue;
+                    }
+
+                    double? angle = ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
+                    bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
+                    exits.Add((result.Value.Node.Id, side, isHighSpeed));
+                }
+            }
+        }
+
+        return exits;
+    }
+
+    /// <summary>
+    /// Average distance from a side's hold-short nodes to their 3 nearest parking nodes.
+    /// </summary>
+    private double AvgParkingDistForSide(IEnumerable<(int HoldShortId, ExitSide Side, bool IsHighSpeed)> sideExits)
+    {
+        var holdShortIds = sideExits.Select(e => e.HoldShortId).Distinct().ToList();
+        if (holdShortIds.Count == 0)
+        {
+            return double.MaxValue;
+        }
+
+        double totalAvg = 0;
+        int counted = 0;
+        foreach (int hsId in holdShortIds)
+        {
+            if (!Nodes.TryGetValue(hsId, out var hsNode))
+            {
+                continue;
+            }
+
+            totalAvg += AverageNearestParkingDistanceNm(hsNode, ParkingSampleCount);
+            counted++;
+        }
+
+        return counted > 0 ? totalAvg / counted : double.MaxValue;
+    }
+
+    /// <summary>
+    /// Find a parallel runway (same heading ±10°) and return the side where its
+    /// high-speed exits are. Used for traffic flow inheritance when this runway
+    /// has no high-speed exits of its own.
+    /// </summary>
+    private ExitSide? FindParallelRunwayHsSide(string designator, TrueHeading runwayHeading)
+    {
+        foreach (var rwy in Runways)
+        {
+            var id = RunwayIdentifier.Parse(rwy.Name);
+
+            if (
+                string.Equals(id.End1, designator, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(id.End2, designator, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                continue;
+            }
+
+            double rwBearing = GeoMath.BearingTo(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon, rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon);
+            double end1Heading = rwBearing;
+            double end2Heading = (rwBearing + 180) % 360;
+
+            double diff1 = Math.Abs(new TrueHeading(end1Heading).SignedAngleTo(runwayHeading));
+            double diff2 = Math.Abs(new TrueHeading(end2Heading).SignedAngleTo(runwayHeading));
+
+            string? parallelDesignator = null;
+            double parallelBearing = 0;
+            if (diff1 <= 10)
+            {
+                parallelDesignator = id.End1;
+                parallelBearing = end1Heading;
+            }
+            else if (diff2 <= 10)
+            {
+                parallelDesignator = id.End2;
+                parallelBearing = end2Heading;
+            }
+
+            if (parallelDesignator is null)
+            {
+                continue;
+            }
+
+            var parallelExits = EnumerateExitsBothSides(parallelDesignator, new TrueHeading(parallelBearing));
+            int pHsLeft = parallelExits.Count(e => e.IsHighSpeed && (e.Side == ExitSide.Left));
+            int pHsRight = parallelExits.Count(e => e.IsHighSpeed && (e.Side == ExitSide.Right));
+
+            if (pHsLeft > pHsRight)
+            {
+                return ExitSide.Left;
+            }
+
+            if (pHsRight > pHsLeft)
+            {
+                return ExitSide.Right;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Find a runway exit that is ahead of the aircraft along the runway heading.
     /// Applies the given exit preference (taxiway name, side, or nearest).
     /// Returns the exit node and its taxiway name, or null if no suitable exit is ahead.
@@ -985,6 +1190,13 @@ public sealed class AirportGroundLayout
     /// Higher values make exits near parking more strongly preferred.
     /// </summary>
     private const double ParkingProximityWeight = 2.0;
+
+    /// <summary>
+    /// Score bonus (subtracted from score) for high-speed exits (≤45°) when no
+    /// specific taxiway is requested. Ensures high-speed exits beat steeper exits
+    /// at the same centerline node despite longer taxiway paths.
+    /// </summary>
+    private const double HighSpeedExitBonus = 0.15;
 
     /// <summary>
     /// Compute the average distance from a node to the N nearest parking nodes.

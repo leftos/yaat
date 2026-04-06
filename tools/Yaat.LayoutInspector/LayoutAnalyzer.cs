@@ -212,6 +212,8 @@ public sealed class LayoutAnalyzer
             // Search each non-RWY taxiway edge independently so multi-hop exits
             // (like high-speed T at SFO, 8 hops) aren't hidden by shorter exits
             // (like E, 1 hop) that share the same centerline node.
+            // Search both sides per taxiway to enumerate hold-shorts on each side
+            // (e.g., SFO E has HS 836 south and HS 837 north from the same centerline node).
             var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var edge in node.Edges)
             {
@@ -225,21 +227,341 @@ public sealed class LayoutAnalyzer
                     continue;
                 }
 
-                var pref = new ExitPreference { Taxiway = edge.TaxiwayName };
-                var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
-                if (result is null)
+                ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
+                foreach (var side in sides)
+                {
+                    var pref = new ExitPreference { Taxiway = edge.TaxiwayName, Side = side };
+                    var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
+                    if (result is null)
+                    {
+                        continue;
+                    }
+
+                    // Deduplicate: same centerline + same hold-short already found
+                    if (exits.Any(e => (e.CenterlineNodeId == node.Id) && (e.HoldShortNodeId == result.Value.Node.Id)))
+                    {
+                        continue;
+                    }
+
+                    double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
+                    double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
+                    bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
+                    string sideName = side == ExitSide.Left ? "Left" : "Right";
+
+                    exits.Add(
+                        new ExitCandidate(
+                            node.Id,
+                            result.Value.Node.Id,
+                            result.Value.Taxiway,
+                            1,
+                            totalDist,
+                            angle,
+                            sideName,
+                            isHighSpeed,
+                            [result.Value.Node.Id]
+                        )
+                    );
+                }
+            }
+        }
+
+        var sorted = exits.OrderBy(e => e.CenterlineNodeId).ThenBy(e => e.Side).ToList();
+        int hsLeft = sorted.Count(e => e.IsHighSpeed && (e.Side == "Left"));
+        int hsRight = sorted.Count(e => e.IsHighSpeed && (e.Side == "Right"));
+
+        // Compute average parking distance for hold-shorts on each side.
+        // Lower = closer to parking = better.
+        var parkingNodes = Layout.Nodes.Values.Where(n => n.Type == GroundNodeType.Parking).ToList();
+        double avgParkLeft = ComputeAvgParkingDist(sorted.Where(e => e.Side == "Left"), parkingNodes);
+        double avgParkRight = ComputeAvgParkingDist(sorted.Where(e => e.Side == "Right"), parkingNodes);
+
+        // Connectivity check: from each side's hold-shorts, walk the taxiway graph
+        // (no runway crossings) and count reachable parking nodes. A side that can't
+        // reach parking without crossing a runway is a dead end.
+        int reachableParkingLeft = CountReachableParking(sorted.Where(e => e.Side == "Left"));
+        int reachableParkingRight = CountReachableParking(sorted.Where(e => e.Side == "Right"));
+
+        // Adjacent runway check: for parallel runways, if one has HS exits on a side,
+        // the parallel should prefer the same side (traffic flow). Check if a parallel
+        // runway's HS exits point in the same direction as our candidate side.
+        string? parallelHsSide = FindParallelRunwayHsSide(designator, globalRwyHeading);
+
+        // Infer default side using layered signals:
+        // 1. High-speed exits, validated by parking proximity (dead-end override)
+        // 2. Parallel runway HS inheritance (traffic flow, trusted without validation)
+        // 3. Parking proximity (fallback)
+        string? inferredSide;
+        string? hsSide =
+            (hsLeft > hsRight) ? "Left"
+            : (hsRight > hsLeft) ? "Right"
+            : null;
+        string? parkingSide =
+            (avgParkLeft < avgParkRight) ? "Left"
+            : (avgParkRight < avgParkLeft) ? "Right"
+            : null;
+
+        if (hsSide is not null)
+        {
+            // HS exits are a strong signal, but validate: if parking proximity
+            // favors the other side, the HS exit leads to a dead end (e.g.,
+            // OAK 28R J exits left toward 28L with no parking on that side).
+            inferredSide = (parkingSide is not null) && (parkingSide != hsSide) ? parkingSide : hsSide;
+        }
+        else if (parallelHsSide is not null)
+        {
+            // No HS exits on this runway, but a parallel runway has them.
+            // Inherit the same side — traffic flow from the parallel runway's
+            // HS exits crosses this runway in that direction.
+            inferredSide = parallelHsSide;
+        }
+        else
+        {
+            inferredSide = parkingSide;
+        }
+
+        return new ExitsResult(
+            designator,
+            sorted,
+            hsLeft,
+            hsRight,
+            avgParkLeft,
+            avgParkRight,
+            reachableParkingLeft,
+            reachableParkingRight,
+            parallelHsSide,
+            inferredSide
+        );
+    }
+
+    /// <summary>
+    /// From a set of exits' hold-short nodes, walk the taxiway graph (no runway
+    /// edge crossings) and count distinct reachable parking nodes.
+    /// </summary>
+    private int CountReachableParking(IEnumerable<ExitCandidate> sideExits)
+    {
+        var startIds = sideExits.Select(e => e.HoldShortNodeId).Distinct().ToHashSet();
+        if (startIds.Count == 0)
+        {
+            return 0;
+        }
+
+        var visited = new HashSet<int>(startIds);
+        var queue = new Queue<int>(startIds);
+        int parkingCount = 0;
+
+        while (queue.Count > 0)
+        {
+            int nodeId = queue.Dequeue();
+            if (!Layout.Nodes.TryGetValue(nodeId, out var node))
+            {
+                continue;
+            }
+
+            if (node.Type == GroundNodeType.Parking)
+            {
+                parkingCount++;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                // Don't cross runways — runway edges connect centerline nodes
+                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
-                double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
-                double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
-
-                exits.Add(new ExitCandidate(node.Id, result.Value.Node.Id, result.Value.Taxiway, 1, totalDist, angle, [result.Value.Node.Id]));
+                int neighborId = (edge.FromNodeId == nodeId) ? edge.ToNodeId : edge.FromNodeId;
+                if (visited.Add(neighborId))
+                {
+                    queue.Enqueue(neighborId);
+                }
             }
         }
 
-        return new ExitsResult(designator, exits.OrderBy(e => e.CenterlineNodeId).ToList());
+        return parkingCount;
+    }
+
+    /// <summary>
+    /// Find a parallel runway (same heading ±10°, different designator) and return
+    /// the side where its high-speed exits are, or null if none found.
+    /// </summary>
+    private string? FindParallelRunwayHsSide(string designator, TrueHeading? runwayHeading)
+    {
+        if (runwayHeading is null)
+        {
+            return null;
+        }
+
+        foreach (var rwy in Layout.Runways)
+        {
+            var id = RunwayIdentifier.Parse(rwy.Name);
+            string? parallelDesignator = null;
+
+            // Check both ends of this runway
+            if (
+                string.Equals(id.End1, designator, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(id.End2, designator, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                continue; // Same runway
+            }
+
+            // Check if either end is parallel to our designator
+            double rwBearing = GeoMath.BearingTo(rwy.Coordinates[0].Lat, rwy.Coordinates[0].Lon, rwy.Coordinates[^1].Lat, rwy.Coordinates[^1].Lon);
+            double end1Heading = rwBearing;
+            double end2Heading = (rwBearing + 180) % 360;
+
+            double diff1 = Math.Abs(new TrueHeading(end1Heading).SignedAngleTo(runwayHeading.Value));
+            double diff2 = Math.Abs(new TrueHeading(end2Heading).SignedAngleTo(runwayHeading.Value));
+
+            if (diff1 <= 10)
+            {
+                parallelDesignator = id.End1;
+            }
+            else if (diff2 <= 10)
+            {
+                parallelDesignator = id.End2;
+            }
+
+            if (parallelDesignator is null)
+            {
+                continue;
+            }
+
+            // Found a parallel runway. Get its exits and check HS distribution.
+            TrueHeading parallelHeading = new(diff1 <= 10 ? end1Heading : end2Heading);
+            var parallelExits = GetExitsRaw(parallelDesignator, parallelHeading);
+
+            int parallelHsLeft = parallelExits.Count(e => e.IsHighSpeed && (e.Side == "Left"));
+            int parallelHsRight = parallelExits.Count(e => e.IsHighSpeed && (e.Side == "Right"));
+
+            if (parallelHsLeft > parallelHsRight)
+            {
+                return "Left";
+            }
+
+            if (parallelHsRight > parallelHsLeft)
+            {
+                return "Right";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Raw exit enumeration (without summary stats) for use by parallel runway check.
+    /// </summary>
+    private List<ExitCandidate> GetExitsRaw(string designator, TrueHeading rwyHeading)
+    {
+        var exits = new List<ExitCandidate>();
+
+        foreach (var node in Layout.Nodes.Values)
+        {
+            bool isCenterline = node.Edges.Any(e =>
+                e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
+            );
+            if (!isCenterline)
+            {
+                continue;
+            }
+
+            var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var edge in node.Edges)
+            {
+                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!searched.Add(edge.TaxiwayName))
+                {
+                    continue;
+                }
+
+                ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
+                foreach (var side in sides)
+                {
+                    var pref = new ExitPreference { Taxiway = edge.TaxiwayName, Side = side };
+                    var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
+                    if (result is null)
+                    {
+                        continue;
+                    }
+
+                    if (exits.Any(e => (e.CenterlineNodeId == node.Id) && (e.HoldShortNodeId == result.Value.Node.Id)))
+                    {
+                        continue;
+                    }
+
+                    double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
+                    double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
+                    bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
+                    string sideName = side == ExitSide.Left ? "Left" : "Right";
+
+                    exits.Add(
+                        new ExitCandidate(
+                            node.Id,
+                            result.Value.Node.Id,
+                            result.Value.Taxiway,
+                            1,
+                            totalDist,
+                            angle,
+                            sideName,
+                            isHighSpeed,
+                            [result.Value.Node.Id]
+                        )
+                    );
+                }
+            }
+        }
+
+        return exits;
+    }
+
+    /// <summary>
+    /// Average distance from each side's hold-short nodes to their 3 nearest parking nodes.
+    /// Lower values mean the hold-shorts on that side are closer to parking.
+    /// </summary>
+    private double ComputeAvgParkingDist(IEnumerable<ExitCandidate> sideExits, List<GroundNode> parkingNodes)
+    {
+        if (parkingNodes.Count == 0)
+        {
+            return 0;
+        }
+
+        var holdShortIds = sideExits.Select(e => e.HoldShortNodeId).Distinct().ToList();
+        if (holdShortIds.Count == 0)
+        {
+            return double.MaxValue;
+        }
+
+        const int sampleCount = 3;
+        double totalAvg = 0;
+        int counted = 0;
+        foreach (int hsId in holdShortIds)
+        {
+            if (!Layout.Nodes.TryGetValue(hsId, out var hsNode))
+            {
+                continue;
+            }
+
+            // Find the 3 nearest parking nodes
+            var nearest = parkingNodes
+                .Select(p => GeoMath.DistanceNm(hsNode.Latitude, hsNode.Longitude, p.Latitude, p.Longitude))
+                .OrderBy(d => d)
+                .Take(sampleCount)
+                .ToList();
+
+            if (nearest.Count > 0)
+            {
+                totalAvg += nearest.Average();
+                counted++;
+            }
+        }
+
+        return counted > 0 ? totalAvg / counted : double.MaxValue;
     }
 
     private TrueHeading EstimateRunwayHeading(GroundNode node, string designator)

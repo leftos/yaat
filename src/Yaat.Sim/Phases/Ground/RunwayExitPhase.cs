@@ -61,6 +61,16 @@ public sealed class RunwayExitPhase : Phase
         _lastResolvedPreference = ctx.Aircraft.Phases?.RequestedExit;
         _coastSpeed = CategoryPerformance.RolloutCoastSpeed(ctx.Category);
 
+        // When no explicit preference, infer a side from runway layout.
+        if ((_lastResolvedPreference is null) && (ctx.GroundLayout is not null) && (_runwayId is not null))
+        {
+            var inferredSide = ctx.GroundLayout.InferPreferredExitSide(_runwayId, _runwayHeading);
+            if (inferredSide is not null)
+            {
+                _lastResolvedPreference = new ExitPreference { Side = inferredSide.Value };
+            }
+        }
+
         if (ctx.GroundLayout is null)
         {
             ctx.Logger.LogDebug("[Exit] {Callsign}: no ground layout, will stop immediately", ctx.Aircraft.Callsign);

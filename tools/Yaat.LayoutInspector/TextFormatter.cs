@@ -99,10 +99,22 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         foreach (var e in r.Exits)
         {
             string angle = (e.AngleDeg is not null) ? $"{e.AngleDeg:F0}°" : "?";
+            string hs = e.IsHighSpeed ? "  [high-speed]" : "";
             w.WriteLine(
-                $"  Centerline {e.CenterlineNodeId} -> HS {e.HoldShortNodeId} via {e.Taxiway}  angle={angle}  path={string.Join("->", e.PathNodeIds)}  dist={e.TotalDistanceNm:F4}nm"
+                $"  Centerline {e.CenterlineNodeId} -> HS {e.HoldShortNodeId} via {e.Taxiway, -3} angle={angle, -5} side={e.Side, -5}{hs}  dist={e.TotalDistanceNm:F4}nm"
             );
         }
+
+        w.WriteLine();
+        w.WriteLine($"High-speed exits: {r.HighSpeedLeft} Left, {r.HighSpeedRight} Right");
+        w.WriteLine($"Avg parking dist: Left={r.AvgParkingDistLeft:F4}nm, Right={r.AvgParkingDistRight:F4}nm");
+        w.WriteLine($"Reachable parking: Left={r.ReachableParkingLeft}, Right={r.ReachableParkingRight}");
+        if (r.ParallelHsSide is not null)
+        {
+            w.WriteLine($"Parallel runway HS side: {r.ParallelHsSide}");
+        }
+
+        w.WriteLine($"Inferred default side: {r.InferredDefaultSide ?? "(none)"}");
     }
 
     public void WriteBfsPath(BfsPathResult r)
