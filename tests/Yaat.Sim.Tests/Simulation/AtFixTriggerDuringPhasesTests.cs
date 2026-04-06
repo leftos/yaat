@@ -22,7 +22,7 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/sfo-ground-spd-until-bundle.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/af532381c459.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 
@@ -58,10 +58,12 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
             return;
         }
 
-        // SKW3398 spawns at t=0, approaches CEPIN on the CAPP 28R approach.
-        engine.Replay(recording, 100);
+        // SKW3398 spawns at t=0 with CFIX CEPIN 3000 210 presets.
+        // CEPIN is sequenced at ~t=99, so start early enough to observe it.
+        engine.Replay(recording, 50);
 
-        bool cepinWasInRoute = false;
+        var initialAc = engine.FindAircraft("SKW3398");
+        bool cepinWasInRoute = initialAc?.Targets.NavigationRoute.Any(f => f.Name == "CEPIN") ?? false;
         int? cepinSequencedAt = null;
 
         for (int t = 1; t <= 400; t++)
@@ -78,7 +80,7 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
             // Detect when CEPIN is sequenced
             if (cepinWasInRoute && !cepinInRoute && cepinSequencedAt is null)
             {
-                cepinSequencedAt = 100 + t;
+                cepinSequencedAt = 50 + t;
                 output.WriteLine(
                     $"CEPIN sequenced at t={cepinSequencedAt}: ias={aircraft.IndicatedAirspeed:F0} "
                         + $"tgtSpd={aircraft.Targets.TargetSpeed?.ToString() ?? "null"}"
@@ -89,17 +91,17 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
 
             // Within 10 seconds of CEPIN being sequenced, the speed target
             // must be 180 from the AT CEPIN SPD 180 command.
-            if (cepinSequencedAt is not null && (100 + t) - cepinSequencedAt.Value <= 10)
+            if (cepinSequencedAt is not null && (50 + t) - cepinSequencedAt.Value <= 10)
             {
                 if (aircraft.Targets.TargetSpeed == 180)
                 {
-                    output.WriteLine($"PASS: TargetSpeed=180 at t={100 + t}, " + $"{(100 + t) - cepinSequencedAt.Value}s after CEPIN sequenced");
+                    output.WriteLine($"PASS: TargetSpeed=180 at t={50 + t}, " + $"{(50 + t) - cepinSequencedAt.Value}s after CEPIN sequenced");
                     return;
                 }
             }
 
             // If 10 seconds passed since CEPIN sequenced and we didn't see 180, fail
-            if (cepinSequencedAt is not null && (100 + t) - cepinSequencedAt.Value > 10)
+            if (cepinSequencedAt is not null && (50 + t) - cepinSequencedAt.Value > 10)
             {
                 Assert.Fail(
                     $"AT CEPIN SPD 180 trigger did not fire within 10s of CEPIN being sequenced at t={cepinSequencedAt}. "

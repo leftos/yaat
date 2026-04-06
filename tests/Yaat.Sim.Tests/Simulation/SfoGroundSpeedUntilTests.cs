@@ -18,7 +18,7 @@ using Yaat.Sim.Tests.Helpers;
 /// </summary>
 public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
 {
-    private const string RecordingPath = "TestData/sfo-ground-spd-until-bundle.yaat-bug-report-bundle.zip";
+    private const string RecordingPath = "TestData/af532381c459.zip";
 
     private static SessionRecording? LoadRecording() => RecordingLoader.Load(RecordingPath);
 

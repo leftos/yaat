@@ -78,7 +78,42 @@ public static class CommandParser
             return ParseResult<CompoundCommand>.Fail("no blocks parsed");
         }
 
+        // CFIX implicit AT: when the first block is a CFIX command, subsequent blocks
+        // without an explicit condition get an implicit AT <fixname> condition.
+        if (blocks.Count >= 2)
+        {
+            InjectCfixImplicitAtCondition(blocks);
+        }
+
         return ParseResult<CompoundCommand>.Ok(new CompoundCommand(blocks) { SourceText = trimmed });
+    }
+
+    /// <summary>
+    /// When the first block is a CFIX command, inject AT {fixname} on subsequent
+    /// blocks that don't already have a condition. Mutates <paramref name="blocks"/> in place.
+    /// </summary>
+    private static void InjectCfixImplicitAtCondition(List<ParsedBlock> blocks)
+    {
+        if (blocks[0].Condition is not null)
+        {
+            return;
+        }
+
+        var firstCmd = blocks[0].Commands.FirstOrDefault();
+        if (firstCmd is not CrossFixCommand cfix)
+        {
+            return;
+        }
+
+        for (int i = 1; i < blocks.Count; i++)
+        {
+            if (blocks[i].Condition is not null)
+            {
+                continue;
+            }
+
+            blocks[i] = blocks[i] with { Condition = new AtFixCondition(cfix.FixName, cfix.FixLat, cfix.FixLon) };
+        }
     }
 
     // Thread-local storage for propagating block/command failure reasons through ParseBlock

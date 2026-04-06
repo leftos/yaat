@@ -1272,6 +1272,29 @@ public sealed class SimulationEngine
     /// </summary>
     public Action<LoadedAircraft>? PresetOverride { get; set; }
 
+    private void DispatchSinglePreset(string command, AircraftState aircraft)
+    {
+        var presetResult = CommandParser.ParseCompound(command, aircraft.Route);
+        if (!presetResult.IsSuccess)
+        {
+            _logger.LogWarning("Preset parse failed for {Callsign}: \"{Command}\" — {Reason}", aircraft.Callsign, command, presetResult.Reason);
+            EmitTerminal("Warning", aircraft.Callsign, $"[Preset] Unparseable: {command}");
+            return;
+        }
+
+        var compound = presetResult.Value!;
+        if (compound.Blocks is [{ Commands: [SayCommand say], Condition: null }])
+        {
+            EmitTerminal("Say", aircraft.Callsign, say.Text);
+            return;
+        }
+
+        var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
+        CommandDispatcher.DispatchCompound(compound, aircraft, groundLayout, World.Rng, Scenario!.ValidateDctFixes, Scenario!.AutoCrossRunway);
+
+        EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
+    }
+
     public void DispatchPresetCommands(LoadedAircraft loaded)
     {
         var scenario = Scenario!;
@@ -1284,6 +1307,8 @@ public sealed class SimulationEngine
             loaded.State.Destination = scenario.PrimaryAirportId;
         }
 
+        // Separate immediate presets from delayed ones.
+        var immediatePresets = new List<string>();
         foreach (var preset in loaded.PresetCommands)
         {
             if (preset.TimeOffset > 0)
@@ -1296,34 +1321,28 @@ public sealed class SimulationEngine
                         FireAtSeconds = scenario.ElapsedSeconds + preset.TimeOffset,
                     }
                 );
-                continue;
             }
-
-            var presetResult = CommandParser.ParseCompound(preset.Command, loaded.State.Route);
-            if (!presetResult.IsSuccess)
+            else
             {
-                _logger.LogWarning(
-                    "Preset parse failed for {Callsign}: \"{Command}\" — {Reason}",
-                    loaded.State.Callsign,
-                    preset.Command,
-                    presetResult.Reason
-                );
-                EmitTerminal("Warning", loaded.State.Callsign, $"[Preset] Unparseable: {preset.Command}");
-                continue;
+                immediatePresets.Add(preset.Command);
             }
+        }
 
-            var compound = presetResult.Value!;
-            // Check for single SAY command — emit as Say terminal entry, don't dispatch
-            if (compound.Blocks is [{ Commands: [SayCommand say], Condition: null }])
-            {
-                EmitTerminal("Say", loaded.State.Callsign, say.Text);
-                continue;
-            }
+        // CFIX preset composition: when the first preset is a CFIX command and
+        // there are multiple presets, compose them into a single compound command.
+        // Without this, each DispatchCompound call clears conflicting dimensions
+        // from the previous (e.g. CAPP clears CFIX's lateral+vertical, losing
+        // the speed target). Composing keeps them as sequential blocks in one queue.
+        if (immediatePresets.Count >= 2 && immediatePresets[0].TrimStart().StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase))
+        {
+            var composed = string.Join("; ", immediatePresets);
+            DispatchSinglePreset(composed, loaded.State);
+            return;
+        }
 
-            var groundLayout = loaded.State.GroundLayout ?? ResolveGroundLayout(loaded.State);
-            CommandDispatcher.DispatchCompound(compound, loaded.State, groundLayout, World.Rng, scenario.ValidateDctFixes, scenario.AutoCrossRunway);
-
-            EmitTerminal("System", loaded.State.Callsign, $"[Preset] {preset.Command}");
+        foreach (var cmd in immediatePresets)
+        {
+            DispatchSinglePreset(cmd, loaded.State);
         }
     }
 
