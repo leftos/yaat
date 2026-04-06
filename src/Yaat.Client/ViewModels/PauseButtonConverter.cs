@@ -9,7 +9,7 @@ public class PauseButtonConverter : IValueConverter
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        return value is true ? "Resume" : "Pause";
+        return value is true ? "Unpause" : "Pause";
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
