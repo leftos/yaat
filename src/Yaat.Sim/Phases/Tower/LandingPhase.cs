@@ -36,6 +36,12 @@ public sealed class LandingPhase : Phase
     private const double ComfortableBrakingMultiplier = 1.5;
 
     /// <summary>
+    /// Floor for gentle braking on explicit far exits. Prevents near-zero decel rates
+    /// when the exit is extremely far ahead.
+    /// </summary>
+    private const double MinSoftBrakingRateKtsPerSec = 0.5;
+
+    /// <summary>
     /// Tolerance for turn-off speed commit check. Discrete-tick deceleration can overshoot
     /// the target by up to decelRate * deltaSeconds (~2.5 kts). Without tolerance, an aircraft
     /// at 30.2 kts misses a 30 kt turn-off by a hair and falls back to the next exit.
@@ -417,9 +423,26 @@ public sealed class LandingPhase : Phase
 
                     if (_exitResolutionEnabled)
                     {
-                        // Explicit preference — target the turn-off speed directly.
-                        // The pilot is committed to this exit.
-                        targetSpeed = _candidateExit.TurnOffSpeed;
+                        // Hand off at coast speed. RunwayExitPhase + GroundNavigator
+                        // handle braking below coast for the turn.
+                        targetSpeed = coastSpeed;
+
+                        // Reserve distance for RunwayExitPhase to brake from coast
+                        // to turn-off speed. Aim to reach coast speed that far
+                        // before the exit — not at the exit itself.
+                        double brakingBufferNm = ComputeBrakingDistance(coastSpeed, _candidateExit.TurnOffSpeed, defaultDecel);
+                        double effectiveDist = distToBranch - brakingBufferNm;
+
+                        // Gentle decel when the exit is far enough that normal
+                        // braking would reach coast speed too early.
+                        if (effectiveDist > 0)
+                        {
+                            double requiredDecelToCoast = ComputeRequiredDecel(ctx.Aircraft.GroundSpeed, coastSpeed, effectiveDist);
+                            if ((requiredDecelToCoast > 0) && (requiredDecelToCoast < decelRate))
+                            {
+                                decelRate = Math.Max(requiredDecelToCoast, MinSoftBrakingRateKtsPerSec);
+                            }
+                        }
                     }
                     else
                     {
@@ -664,6 +687,24 @@ public sealed class LandingPhase : Phase
         // a = (v_initial² - v_final²) / (2d)
         double requiredDecelFps2 = (currentFps * currentFps - targetFps * targetFps) / (2.0 * distFt);
         return requiredDecelFps2 * 3600.0 / 6076.12;
+    }
+
+    /// <summary>
+    /// Compute distance (nm) required to brake from one speed to another at a given decel rate.
+    /// Inverse of ComputeRequiredDecel: d = (v_i² - v_f²) / (2a).
+    /// </summary>
+    private static double ComputeBrakingDistance(double fromSpeedKts, double toSpeedKts, double decelRateKtsPerSec)
+    {
+        if (decelRateKtsPerSec <= 0)
+        {
+            return 0;
+        }
+
+        double fromFps = fromSpeedKts * 6076.12 / 3600.0;
+        double toFps = toSpeedKts * 6076.12 / 3600.0;
+        double decelFps2 = decelRateKtsPerSec * 6076.12 / 3600.0;
+        double distFt = (fromFps * fromFps - toFps * toFps) / (2.0 * decelFps2);
+        return distFt / 6076.12;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

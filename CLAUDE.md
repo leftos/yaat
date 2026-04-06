@@ -100,6 +100,7 @@ Registry commands (`CommandRegistry`) get both automatically. **Special rewrite 
 - `../yaat-server/docs/crc-decompiled/` (gitignored) — ILSpy-decompiled CRC.dll. Key: `DisplayElementTracks.cs`, `ConsolidationManager.cs`, `Track.cs`, `TrackOwnerExtensions.cs`
 - [`docs/scenario-validation.md`](docs/scenario-validation.md) — Validating scenario preset commands. Download via `tools/refresh-scenarios.py`, test via `VnasScenarioParseTests`.
 - [`docs/discord-integration.md`](docs/discord-integration.md) — Discord bot and GitHub Actions workflows
+- [`docs/landing-and-runway-exit.md`](docs/landing-and-runway-exit.md) — **Landing rollout & runway exit design**. Read before touching LandingPhase, RunwayExitPhase, or GroundNavigator. Covers the analog (non-node-based) approach, braking strategy, virtual segments, and anti-patterns.
 
 ## Aviation Realism — MANDATORY
 

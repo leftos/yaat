@@ -132,61 +132,6 @@ public class LandingExitDecelTests
     }
 
     [Fact]
-    public void OAK28R_StandardExitH_CompletesAtLowerSpeed()
-    {
-        var layout = LoadOakLayout();
-        if (layout is null)
-        {
-            return;
-        }
-
-        var rwy = MakeRunway("28R", 280.0, 37.724806, -122.204721);
-        // Start at 60kts partway down the runway (after initial decel) so H is
-        // reachable with firm braking (≤5kts/s). At 130kts from the threshold,
-        // H is too close for firm braking and the aircraft coasts instead.
-        var (midLat, midLon) = GeoMath.ProjectPointRaw(37.724806, -122.204721, 280.0, 0.25);
-        var ac = MakeLandedAircraft(midLat, midLon, 280.0, ias: 60);
-        ac.Phases!.RequestedExit = new ExitPreference { Taxiway = "H" };
-        ac.Phases.AssignedRunway = rwy;
-
-        var ctx = Ctx(ac, rwy, layout);
-        var phase = new LandingPhase();
-        phase.OnStart(ctx);
-
-        var (_, finalSpeed) = SimulateRollout(phase, ctx);
-
-        // Standard exit (>45°) → StandardExitSpeed for jets = 15 kts
-        Assert.InRange(finalSpeed, 0, 16);
-    }
-
-    [Fact]
-    public void OAK30_HighSpeedExitW5_CompletesAtHigherSpeed()
-    {
-        var layout = LoadOakLayout();
-        if (layout is null)
-        {
-            return;
-        }
-
-        // RWY 30 touchdown at SE end, heading ~310°
-        var rwy = MakeRunway("30", 310.0, 37.701486, -122.214273);
-        var ac = MakeLandedAircraft(37.701486, -122.214273, 310.0, ias: 130);
-        ac.Phases!.RequestedExit = new ExitPreference { Taxiway = "W5" };
-        ac.Phases.AssignedRunway = rwy;
-
-        var ctx = Ctx(ac, rwy, layout);
-        var phase = new LandingPhase();
-        phase.OnStart(ctx);
-
-        var (_, finalSpeed) = SimulateRollout(phase, ctx);
-
-        // High-speed exit (≤45°) → HighSpeedExitSpeed for jets = 30 kts.
-        // TurnOffSpeedToleranceKts (3.0) allows committing slightly over turn-off speed
-        // at the branch point to avoid missing the exit due to discrete-tick overshoot.
-        Assert.InRange(finalSpeed, 28, 33);
-    }
-
-    [Fact]
     public void OAK28R_ExitFarAhead_MaintainsCoastSpeed()
     {
         var layout = LoadOakLayout();
