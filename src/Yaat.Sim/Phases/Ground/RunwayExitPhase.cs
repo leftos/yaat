@@ -52,6 +52,21 @@ public sealed class RunwayExitPhase : Phase
     private TaxiRoute? _exitRoute;
     private GroundNavigator? _navigator;
 
+    /// <summary>
+    /// The hold-short node ID this aircraft is targeting (or null if still searching).
+    /// Used by <see cref="SimulationEngine"/> to mark the exit as occupied so other
+    /// aircraft don't select the same exit.
+    /// </summary>
+    public int? TargetHoldShortNodeId => _holdShortNode?.Id;
+
+    /// <summary>
+    /// True while the aircraft is rolling along the runway centerline searching for
+    /// an exit. False once it has committed to an exit and is following the taxiway
+    /// path. Used by <see cref="GroundConflictDetector"/> to decide whether the
+    /// aircraft should be exempt from ground conflict checks (only while on centerline).
+    /// </summary>
+    public bool IsOnCenterline => _state == ExitState.RollingOnCenterline;
+
     public override string Name => "Runway Exit";
 
     public override void OnStart(PhaseContext ctx)
@@ -178,6 +193,12 @@ public sealed class RunwayExitPhase : Phase
             return;
         }
 
+        // Occupied hold-short nodes are excluded at the BFS level so the finder
+        // returns the next-best unoccupied exit at each centerline node, rather
+        // than returning an occupied exit that we'd have to skip post-hoc (which
+        // would miss other exits from the same centerline node).
+        var occupied = ctx.OccupiedHoldShortNodes;
+
         // Soft tiebreaker: when the preference has a taxiway but no side, try
         // with the inferred side first. If nothing found, fall through to the
         // normal relaxation loop with the original preference.
@@ -189,7 +210,8 @@ public sealed class RunwayExitPhase : Phase
                 ctx.Aircraft.Longitude,
                 _runwayHeading,
                 _runwayId,
-                tiebreakerPref
+                tiebreakerPref,
+                excludeHoldShortNodes: occupied
             );
 
             if (tiebreakerResult is not null)
@@ -210,7 +232,8 @@ public sealed class RunwayExitPhase : Phase
                 ctx.Aircraft.Longitude,
                 _runwayHeading,
                 _runwayId,
-                preference
+                preference,
+                excludeHoldShortNodes: occupied
             );
 
             if (result is not null)
@@ -219,10 +242,6 @@ public sealed class RunwayExitPhase : Phase
                 if ((result.Value.ExitAngle > 100) && !isExplicit)
                 {
                     // Skip backward exits when no explicit preference
-                }
-                else if (ctx.IsHoldShortNodeOccupied?.Invoke(result.Value.HoldShort.Id) == true)
-                {
-                    // Skip occupied hold-shorts
                 }
                 else
                 {
@@ -391,27 +410,19 @@ public sealed class RunwayExitPhase : Phase
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Targets.TargetSpeed = 0;
 
-        // Snap to the hold-short node
-        if (_holdShortNode is not null && ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_holdShortNode.Id, out var finalNode))
+        // No position snap — the GroundNavigator already brakes to 0 at the
+        // final node (FinalNodeArrivalThresholdNm ≈ 1.8ft). The aircraft is
+        // close enough; teleporting to exact node coords causes overlap when
+        // another aircraft is already there.
+
+        // Mark this hold-short as occupied so same-tick aircraft see it
+        if (_holdShortNode is not null)
         {
-            ctx.Aircraft.Latitude = finalNode.Latitude;
-            ctx.Aircraft.Longitude = finalNode.Longitude;
+            ctx.MarkHoldShortNodeOccupied?.Invoke(_holdShortNode.Id);
         }
 
-        // Offset forward by half the aircraft length so the tail clears the hold-short line
-        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
-        double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
-        var (newLat, newLon) = GeoMath.ProjectPoint(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, ctx.Aircraft.TrueHeading, halfLengthNm);
-        ctx.Aircraft.Latitude = newLat;
-        ctx.Aircraft.Longitude = newLon;
-
-        // Broadcast "clear of runway"
-        string rwy = _runwayId ?? "unknown";
-        string twy = _exitTaxiway ?? "taxiway";
-        ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} clear of runway {rwy} at {twy}");
-
         // Insert HoldingAfterExitPhase
-        ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingAfterExitPhase(_runwayId, _exitTaxiway));
+        ctx.Aircraft.Phases?.InsertAfterCurrent(new HoldingAfterExitPhase(_runwayId, _exitTaxiway, _holdShortNode?.Id));
 
         ctx.Logger.LogDebug(
             "[Exit] {Callsign}: exit complete on {Twy}, holding at ({Lat:F6},{Lon:F6}), hdg={Hdg:F0}",

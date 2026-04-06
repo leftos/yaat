@@ -948,18 +948,17 @@ public sealed class SimulationEngine
                 continue;
             }
 
-            // Aircraft holding after runway exit are also occupying their hold-short node
-            if ((ac.Phases?.CurrentPhase is HoldingAfterExitPhase) && (ac.GroundSpeed < 1) && (ac.GroundLayout is not null))
+            // Aircraft navigating toward an exit are claiming their target hold-short node
+            if (ac.Phases?.CurrentPhase is RunwayExitPhase rep && rep.TargetHoldShortNodeId is { } repNodeId)
             {
-                var nearestNode = ac.GroundLayout.FindNearestNode(ac.Latitude, ac.Longitude);
-                if (nearestNode is not null && nearestNode.Type == GroundNodeType.RunwayHoldShort)
-                {
-                    double dist = GeoMath.DistanceNm(ac.Latitude, ac.Longitude, nearestNode.Latitude, nearestNode.Longitude);
-                    if (dist < 0.02)
-                    {
-                        occupied.Add(nearestNode.Id);
-                    }
-                }
+                occupied.Add(repNodeId);
+                continue;
+            }
+
+            // Aircraft holding after runway exit occupy their hold-short node
+            if (ac.Phases?.CurrentPhase is HoldingAfterExitPhase haep && haep.HoldShortNodeId is { } haepNodeId)
+            {
+                occupied.Add(haepNodeId);
             }
         }
 
@@ -992,6 +991,7 @@ public sealed class SimulationEngine
             ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
             AutoClearedToLand = Scenario?.AutoClearedToLand ?? false,
             IsHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Contains(nodeId) : null,
+            OccupiedHoldShortNodes = occupiedNodes,
             MarkHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Add(nodeId) : null,
             TowerPosition = (Scenario?.IsStudentTowerPosition == true) ? Scenario.StudentPosition : null,
         };

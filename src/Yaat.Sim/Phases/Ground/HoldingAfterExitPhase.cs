@@ -18,13 +18,22 @@ public sealed class HoldingAfterExitPhase : Phase
 {
     private string? _runwayId;
     private string? _exitTaxiway;
+    private int? _holdShortNodeId;
+
+    /// <summary>
+    /// The hold-short node this aircraft is occupying. Used by
+    /// <see cref="SimulationEngine"/> to mark the node as occupied so other
+    /// aircraft don't select the same exit.
+    /// </summary>
+    public int? HoldShortNodeId => _holdShortNodeId;
 
     public HoldingAfterExitPhase() { }
 
-    public HoldingAfterExitPhase(string? runwayId, string? exitTaxiway)
+    public HoldingAfterExitPhase(string? runwayId, string? exitTaxiway, int? holdShortNodeId)
     {
         _runwayId = runwayId;
         _exitTaxiway = exitTaxiway;
+        _holdShortNodeId = holdShortNodeId;
     }
 
     public override string Name => "Holding After Exit";
@@ -86,6 +95,7 @@ public sealed class HoldingAfterExitPhase : Phase
             Requirements = SnapshotRequirements(),
             RunwayId = _runwayId,
             ExitTaxiway = _exitTaxiway,
+            HoldShortNodeId = _holdShortNodeId,
         };
 
     public static HoldingAfterExitPhase FromSnapshot(HoldingAfterExitPhaseDto dto)
@@ -93,6 +103,7 @@ public sealed class HoldingAfterExitPhase : Phase
         var phase = new HoldingAfterExitPhase();
         phase._runwayId = dto.RunwayId;
         phase._exitTaxiway = dto.ExitTaxiway;
+        phase._holdShortNodeId = dto.HoldShortNodeId;
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);

@@ -50,6 +50,13 @@ public sealed class PhaseContext
     public Func<int, bool>? IsHoldShortNodeOccupied { get; init; }
 
     /// <summary>
+    /// The set of occupied hold-short node IDs. Passed directly to
+    /// <see cref="AirportGroundLayout.FindExitFromCenterline"/> so the BFS
+    /// excludes occupied exits during scoring (not just after).
+    /// </summary>
+    public HashSet<int>? OccupiedHoldShortNodes { get; init; }
+
+    /// <summary>
     /// Marks a hold-short node as occupied within the current tick.
     /// Called when an aircraft snaps to a hold-short, so subsequent aircraft
     /// in the same tick see it as occupied.

@@ -249,7 +249,8 @@ public sealed class AirportGroundLayout
         TrueHeading runwayHeading,
         string runwayDesignator,
         ExitPreference? preference,
-        HashSet<int>? excludeBranchPoints = null
+        HashSet<int>? excludeBranchPoints = null,
+        HashSet<int>? excludeHoldShortNodes = null
     )
     {
         var startNode = FindNearestCenterlineNode(lat, lon, runwayHeading, runwayDesignator);
@@ -278,7 +279,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            var result = FindAdjacentHoldShort(current, runwayDesignator, runwayHeading, preference);
+            var result = FindAdjacentHoldShort(current, runwayDesignator, runwayHeading, preference, excludeHoldShortNodes);
             if (result is not null)
             {
                 double? exitAngle = ComputeExitAngle(result.Value.Node, result.Value.Taxiway, runwayHeading);
@@ -302,7 +303,8 @@ public sealed class AirportGroundLayout
         GroundNode centerlineNode,
         string? runwayDesignator,
         TrueHeading runwayHeading,
-        ExitPreference? preference
+        ExitPreference? preference,
+        HashSet<int>? excludeHoldShortNodes = null
     )
     {
         const int maxDepth = 12;
@@ -347,6 +349,12 @@ public sealed class AirportGroundLayout
             if (current.Type == GroundNodeType.RunwayHoldShort)
             {
                 if (runwayDesignator is not null && current.RunwayId is { } rwyId && !rwyId.Contains(runwayDesignator))
+                {
+                    continue;
+                }
+
+                // Skip hold-short nodes already occupied by another aircraft
+                if ((excludeHoldShortNodes is not null) && excludeHoldShortNodes.Contains(current.Id))
                 {
                     continue;
                 }

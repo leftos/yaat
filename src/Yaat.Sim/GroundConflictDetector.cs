@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
+using Yaat.Sim.Phases.Ground;
 
 namespace Yaat.Sim;
 
@@ -540,7 +541,20 @@ public static class GroundConflictDetector
     private static bool IsOnRunway(AircraftState ac)
     {
         string? phase = ac.Phases?.CurrentPhase?.Name;
-        return phase is "Landing" or "Runway Exit" or "Takeoff" or "LiningUp" or "LinedUpAndWaiting" or "StopAndGo" or "TouchAndGo";
+        if (phase is "Landing" or "Takeoff" or "LiningUp" or "LinedUpAndWaiting" or "StopAndGo" or "TouchAndGo")
+        {
+            return true;
+        }
+
+        // RunwayExitPhase: only "on runway" while rolling on centerline searching
+        // for an exit. Once following the exit path (on a taxiway), it's a ground
+        // movement that should respect ground conflict checks.
+        if (phase is "Runway Exit" && ac.Phases?.CurrentPhase is RunwayExitPhase rep)
+        {
+            return rep.IsOnCenterline;
+        }
+
+        return false;
     }
 
     /// <summary>
