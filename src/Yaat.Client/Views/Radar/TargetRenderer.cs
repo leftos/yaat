@@ -132,7 +132,7 @@ public sealed class TargetRenderer : IDisposable
 
             if (ptlLengthMinutes > 0 && ShouldShowPtl(ac, ptlOwn, ptlAll))
             {
-                DrawPtlLine(canvas, vp, sx, sy, ac, symbolColor, ptlLengthMinutes);
+                DrawPtlLine(canvas, vp, sx, sy, ac, ptlLengthMinutes);
             }
 
             DrawPositionSymbol(canvas, sx, sy, symbolColor);
@@ -140,7 +140,7 @@ public sealed class TargetRenderer : IDisposable
         }
     }
 
-    private void DrawPtlLine(SKCanvas canvas, MapViewport vp, float sx, float sy, AircraftModel ac, SKColor color, double minutes)
+    private void DrawPtlLine(SKCanvas canvas, MapViewport vp, float sx, float sy, AircraftModel ac, double minutes)
     {
         if (ac.GroundSpeed < 1)
         {
@@ -151,7 +151,7 @@ public sealed class TargetRenderer : IDisposable
         var (endLat, endLon) = GeoMath.ProjectPoint(ac.Latitude, ac.Longitude, new TrueHeading(ac.Heading), distNm);
         var (ex, ey) = vp.LatLonToScreen(endLat, endLon);
 
-        _ptlPaint.Color = color;
+        _ptlPaint.Color = SKColors.White;
         canvas.DrawLine(sx, sy, ex, ey, _ptlPaint);
     }
 
