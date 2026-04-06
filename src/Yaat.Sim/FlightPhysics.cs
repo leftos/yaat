@@ -461,7 +461,10 @@ public static class FlightPhysics
             double speedDelta = Math.Abs(aircraft.IndicatedAirspeed - constraintSpeed);
             if (speedDelta < SpeedSnapKts)
             {
-                break; // Already at constraint speed
+                // Pin TargetSpeed to the constraint so the auto speed schedule
+                // doesn't override it while the constrained fix is still ahead.
+                aircraft.Targets.TargetSpeed = constraintSpeed;
+                break;
             }
 
             bool needsDecel = aircraft.IndicatedAirspeed > constraintSpeed;
@@ -472,8 +475,11 @@ public static class FlightPhysics
             double changeTimeSeconds = speedDelta / rate;
             double timeToFixSeconds = cumulativeDistNm / (aircraft.GroundSpeed / 3600.0);
 
-            // Start speed change with 10% margin to ensure constraint is met at the fix
-            if (timeToFixSeconds <= changeTimeSeconds * 1.1)
+            // Acceleration: set TargetSpeed immediately — there's no benefit to
+            // delaying, and starting early ensures the aircraft meets the constraint.
+            // Deceleration: wait until time-to-fix is within 10% of change time so the
+            // aircraft doesn't slow down prematurely.
+            if (!needsDecel || (timeToFixSeconds <= changeTimeSeconds * 1.1))
             {
                 aircraft.Targets.TargetSpeed = constraintSpeed;
             }

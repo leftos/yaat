@@ -1266,9 +1266,17 @@ public sealed class SimulationEngine
         return $"{verb}: {count} aircraft updated";
     }
 
+    /// <summary>
+    /// Optional callback invoked per aircraft before its presets are dispatched.
+    /// Tests can use this to replace, modify, or clear presets for specific aircraft.
+    /// </summary>
+    public Action<LoadedAircraft>? PresetOverride { get; set; }
+
     public void DispatchPresetCommands(LoadedAircraft loaded)
     {
         var scenario = Scenario!;
+
+        PresetOverride?.Invoke(loaded);
 
         // Ensure destination is set from scenario primary airport for arrivals
         if (string.IsNullOrWhiteSpace(loaded.State.Destination) && !string.IsNullOrWhiteSpace(scenario.PrimaryAirportId))

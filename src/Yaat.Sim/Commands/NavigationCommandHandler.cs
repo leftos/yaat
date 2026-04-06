@@ -181,9 +181,17 @@ internal static class NavigationCommandHandler
         // But do set AssignedAltitude for the datablock display.
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
 
-        if (cmd.Speed is not null)
+        if (cmd.Speed is { } spdVal)
         {
-            aircraft.Targets.AssignedSpeed = cmd.Speed;
+            aircraft.Targets.AssignedSpeed = spdVal;
+
+            // For acceleration, set TargetSpeed immediately so the aircraft starts
+            // accelerating toward the CFIX speed right away. For deceleration,
+            // the look-ahead planner (UpdateSpeedPlanning) handles timing.
+            if (spdVal > aircraft.IndicatedAirspeed)
+            {
+                aircraft.Targets.TargetSpeed = spdVal;
+            }
         }
 
         var altTypeStr = cmd.AltType switch

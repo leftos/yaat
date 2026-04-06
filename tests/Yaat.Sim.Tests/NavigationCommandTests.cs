@@ -987,6 +987,45 @@ public class NavigationCommandTests : IDisposable
     }
 
     [Fact]
+    public void Cfix_WithSpeed_SetsTargetSpeedWhenBelowTarget()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.IndicatedAirspeed = 182;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 3000, CrossFixAltitudeType.At, 210);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        Assert.Equal(210.0, aircraft.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void Cfix_WithSpeed_NoTargetSpeedWhenAboveTarget()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.IndicatedAirspeed = 250;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        Assert.Null(aircraft.Targets.TargetSpeed);
+    }
+
+    [Fact]
+    public void Cfix_WithSpeed_NoTargetSpeedWhenAtTarget()
+    {
+        var aircraft = MakeAircraft(heading: 090, altitude: 8000);
+        aircraft.IndicatedAirspeed = 210;
+
+        var cmd = new CrossFixCommand("SUNOL", 37.6, -121.9, 5000, CrossFixAltitudeType.At, 210);
+
+        CommandDispatcher.Dispatch(cmd, aircraft, null, Random.Shared, true);
+
+        Assert.Null(aircraft.Targets.TargetSpeed);
+    }
+
+    [Fact]
     public void Cfix_RevertFieldsOnTarget_CaptureAssigned()
     {
         var aircraft = MakeAircraft(heading: 090, altitude: 8000);

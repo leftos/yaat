@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit;
 using Xunit.Abstractions;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Tests.Helpers;
 
@@ -108,5 +109,120 @@ public class AtFixTriggerDuringPhasesTests(ITestOutputHelper output)
         }
 
         Assert.NotNull(cepinSequencedAt);
+    }
+
+    /// <summary>
+    /// Full speed profile for SKW3398 from spawn through landing on 28R.
+    /// Tests original presets and two corrected variants that defer CAPP to CEPIN.
+    ///
+    /// For override presets: replays the recording to capture SKW3398's spawn position,
+    /// then creates a fresh aircraft at that position and dispatches the new presets.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "original recording presets")]
+    [InlineData("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R; AT CEPIN SPD 180 AXMUL", "separate AT triggers")]
+    [InlineData("CFIX CEPIN 3000 210; AT CEPIN CAPP 28R, SPD 180 AXMUL", "parallel AT trigger")]
+    public void Diagnostic_SKW3398_SpeedProfile(string? overridePreset, string label)
+    {
+        var recording = LoadRecording();
+        var engine = BuildEngine();
+        if (recording is null || engine is null)
+        {
+            return;
+        }
+
+        output.WriteLine($"=== {label} ===\n");
+
+        if (overridePreset is not null)
+        {
+            engine.PresetOverride = loaded =>
+            {
+                if (loaded.State.Callsign == "SKW3398")
+                {
+                    loaded.PresetCommands.Clear();
+                    loaded.PresetCommands.Add(new PresetCommand { Command = overridePreset });
+                }
+            };
+        }
+
+        engine.Replay(recording, 0);
+
+        var skw = engine.FindAircraft("SKW3398");
+        Assert.NotNull(skw);
+
+        output.WriteLine(
+            $"Spawn: IAS={skw.IndicatedAirspeed:F0} alt={skw.Altitude:F0} "
+                + $"phase={skw.Phases?.CurrentPhase?.Name ?? "-"} route={skw.Targets.NavigationRoute.Count} "
+                + $"tgtSpd={skw.Targets.TargetSpeed?.ToString("F0") ?? "null"} asnSpd={skw.Targets.AssignedSpeed?.ToString("F0") ?? "null"}\n"
+        );
+
+        // SFO 28R threshold
+        double threshLat = 37.6131,
+            threshLon = -122.3575;
+
+        output.WriteLine($"{"t", 5} {"IAS", 7} {"tgtSpd", 7} {"asnSpd", 7} {"alt", 7} {"phase", 18} {"distThr", 8} {"route", 5} {"event", 0}");
+        output.WriteLine(new string('-', 100));
+
+        bool hadCepin = skw.Targets.NavigationRoute.Any(f => f.Name == "CEPIN");
+        bool hadAxmul = skw.Targets.NavigationRoute.Any(f => f.Name == "AXMUL");
+        bool logged5nm = false;
+
+        for (int t = 1; t <= 800; t++)
+        {
+            engine.ReplayOneSecond();
+
+            var aircraft = engine.FindAircraft("SKW3398");
+            if (aircraft is null)
+            {
+                output.WriteLine($"{t, 5} -- aircraft deleted --");
+                break;
+            }
+
+            bool hasCepin = aircraft.Targets.NavigationRoute.Any(f => f.Name == "CEPIN");
+            bool hasAxmul = aircraft.Targets.NavigationRoute.Any(f => f.Name == "AXMUL");
+            string phase = aircraft.Phases?.CurrentPhase?.Name ?? "-";
+            double distThr = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, threshLat, threshLon);
+            string evt = "";
+
+            if (hadCepin && !hasCepin)
+            {
+                evt = "<<< CEPIN sequenced";
+            }
+
+            if (hadAxmul && !hasAxmul)
+            {
+                evt = "<<< AXMUL sequenced";
+            }
+
+            if (!logged5nm && distThr <= 5.0)
+            {
+                evt = "<<< 5nm from threshold";
+                logged5nm = true;
+            }
+
+            if (aircraft.IsOnGround && t > 10)
+            {
+                output.WriteLine(
+                    $"{t, 5} {aircraft.IndicatedAirspeed, 7:F1} "
+                        + $"{aircraft.Targets.TargetSpeed?.ToString("F1") ?? "null", 7} "
+                        + $"{aircraft.Targets.AssignedSpeed?.ToString("F0") ?? "null", 7} "
+                        + $"{aircraft.Altitude, 7:F0} {phase, 18} {distThr, 8:F2} {aircraft.Targets.NavigationRoute.Count, 5} <<< TOUCHDOWN"
+                );
+                break;
+            }
+
+            if (t % 10 == 0 || t <= 3 || evt.Length > 0)
+            {
+                output.WriteLine(
+                    $"{t, 5} {aircraft.IndicatedAirspeed, 7:F1} "
+                        + $"{aircraft.Targets.TargetSpeed?.ToString("F1") ?? "null", 7} "
+                        + $"{aircraft.Targets.AssignedSpeed?.ToString("F0") ?? "null", 7} "
+                        + $"{aircraft.Altitude, 7:F0} {phase, 18} {distThr, 8:F2} {aircraft.Targets.NavigationRoute.Count, 5} {evt}"
+                );
+            }
+
+            hadCepin = hasCepin;
+            hadAxmul = hasAxmul;
+        }
     }
 }
