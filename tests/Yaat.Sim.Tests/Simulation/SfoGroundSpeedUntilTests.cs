@@ -112,7 +112,7 @@ public class SfoGroundSpeedUntilTests(ITestOutputHelper output)
 
         var wja = engine.FindAircraft("WJA1508");
         var skw = engine.FindAircraft("SKW3398");
-        output.WriteLine($"t=300: WJA1508={wja is not null}, SKW3398={skw is not null}");
+        output.WriteLine($"t=300: WJA1508={wja is not null} type={wja?.AircraftType}, SKW3398={skw is not null} type={skw?.AircraftType}");
 
         if (wja is null || skw is null)
         {
