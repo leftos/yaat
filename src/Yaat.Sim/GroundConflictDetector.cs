@@ -127,17 +127,15 @@ public static class GroundConflictDetector
                 double distFt = distNm * FtPerNm;
                 diagnosticLog?.Invoke($"[Pair] {a.Callsign}({stateA})+{b.Callsign}({stateB}): dist={distFt:F0}ft");
 
-                // 1. Same-edge (both taxiing with layout)
+                // 1. Same-edge + convergence (both taxiing with layout).
+                // These apply trail/yield limits but do NOT skip closing
+                // proximity — same-edge trailing and convergence handle
+                // sequencing, closing proximity prevents physical overlap.
                 if (layout is not null && stateA == MovementState.Taxiing && stateB == MovementState.Taxiing)
                 {
-                    if (TrySameEdge(a, b, distFt, diagnosticLog))
+                    if (!TrySameEdge(a, b, distFt, diagnosticLog))
                     {
-                        continue;
-                    }
-
-                    if (TryConvergence(a, b, layout, diagnosticLog))
-                    {
-                        continue;
+                        TryConvergence(a, b, layout, diagnosticLog);
                     }
                 }
 
