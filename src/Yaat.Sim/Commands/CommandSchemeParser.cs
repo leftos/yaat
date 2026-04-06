@@ -78,7 +78,59 @@ public static class CommandSchemeParser
             return null;
         }
 
+        // CFIX implicit AT: when the first block is a CFIX command, subsequent blocks
+        // without an explicit condition get an implicit AT <fixname> prefix.
+        if (canonicalBlocks.Count >= 2)
+        {
+            InjectCfixImplicitAtCondition(canonicalBlocks);
+        }
+
         return new CompoundParseResult(string.Join("; ", canonicalBlocks));
+    }
+
+    private static readonly HashSet<string> CanonicalConditionKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "LV",
+        "AT",
+        "ATFN",
+        "ONHO",
+        "GIVEWAY",
+        "WAIT",
+    };
+
+    /// <summary>
+    /// When the first canonical block is a CFIX command, inject AT {fixname} on subsequent
+    /// blocks that don't already have a condition prefix (AT, LV, ATFN, ONHO, GIVEWAY, WAIT).
+    /// Mutates <paramref name="canonicalBlocks"/> in place.
+    /// </summary>
+    private static void InjectCfixImplicitAtCondition(List<string> canonicalBlocks)
+    {
+        var firstBlock = canonicalBlocks[0];
+        if (!firstBlock.StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // Extract fix name: canonical form is "CFIX <fixname> <alt> [speed]"
+        var tokens = firstBlock.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length < 2)
+        {
+            return;
+        }
+
+        var fixName = tokens[1];
+
+        for (int i = 1; i < canonicalBlocks.Count; i++)
+        {
+            var block = canonicalBlocks[i];
+            var firstToken = block.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries)[0];
+            if (CanonicalConditionKeywords.Contains(firstToken))
+            {
+                continue;
+            }
+
+            canonicalBlocks[i] = $"AT {fixName} {block}";
+        }
     }
 
     private static string? ParseBlockToCanonical(string block, CommandScheme scheme, out ParseFailure? failure)
