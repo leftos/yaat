@@ -9,74 +9,83 @@ Rewrote `RunwayExitPhase` from a centerline-node-walking state machine to an ana
 3. **Exit-aware braking in LandingPhase**: LandingPhase finds the first reachable exit ahead and plans deceleration to reach the turn-off speed by the branch point. Hands off at the target speed while still ahead of the exit
 4. **Comfortable vs firm braking**: Explicit exit commands (EXIT T) use firm braking (5kts/s). Default (no preference) uses comfortable braking (1.5× default rollout rate), so the pilot picks a natural exit — not the first one requiring maximum effort
 5. **Unable broadcasts**: When an exit requires more than firm braking, the pilot broadcasts "unable" and stops planning for it
+6. **Unable-replan**: After "unable", LandingPhase clears the failed taxiway but preserves the side from EL/ER commands. Replans with comfortable braking to find the next natural exit — same behavior as the default case for that side
+7. **Inferred exit side**: `InferPreferredExitSide` uses high-speed exit distribution (validated by parking proximity), parallel runway HS inheritance, and parking proximity as a fallback to determine the default exit side for each runway
+8. **High-speed exit scoring**: `FindAdjacentHoldShort` gives a 0.15nm bonus to exits ≤45°, so T (19°) beats E (70°) at the same centerline node
+9. **Soft side tiebreaker**: Taxiway-only commands (EXIT K) try the inferred side first, falling back to taxiway-only if the exit doesn't exist on that side
+10. **Degenerate exit prevention**: Standard exits (>45°) at/past the branch point are rejected, and branch points declared "unable" are excluded from future searches via `_unableBranchPoints`
 
 ### Commits
 
+- `bed1454` — Inferred side as soft tiebreaker for taxiway-only commands, TotalSeconds in test output
+- `3a4fbce` — Degenerate exit fix (handoff distance check, unable branch-point exclusion)
+- `5740e3a` — Unable-replan, inferred exit side, high-speed exit scoring
+- `d6e31f3` — Exit-aware braking, comfortable defaults, OAK/SFO E2E exit tests
 - `1158c65` — Main rewrite (virtual nodes, analog rolling, LandingPhase simplification)
-- Previous: `1eb1d24` (exit rewrite to GroundNavigator), `8debc6d` (taxi overshoot fix)
 
 ### Test Coverage
 
-- `Sfo28rAllExitsTests` — All 13 SFO 28R exits, B738 at 145kts on 1nm final
+- `Sfo28rAllExitsTests` — All 13 SFO 28R exits + default, B738 at 145kts on 1nm final
 - `OakAllExitsTests` — All 7 OAK 30 exits (B738 at 130kts) + all 7 OAK 28R exits (C172 at 70kts)
-- `OakSpeedProfileTests` — Tick-by-tick speed/heading/distance visualization
+- `OakSpeedProfileTests` — Tick-by-tick speed/heading/distance visualization (W5, W6, H)
 - `IssueSfo28rExitTests` — Original bug recording test
 
 ### What Works Well
 
-All exits tested produce smooth monotonic turns (no heading reversals). The virtual node approach gives clean 70-85° arcs for 90° exits and 17-37° arcs for high-speed exits. Speed planning decelerates naturally — the aircraft doesn't brake hard until kinematically needed.
+- All exits tested produce smooth monotonic turns (no heading reversals)
+- Default exits go to the correct side: SFO 28R Left, SFO 28L Left (inherited), OAK 30 Right, OAK 28R Right
+- Unable exits replan to the same exit as the default case (W2→W5 at OAK, L→T at SFO)
+- Taxiway-only commands (EXIT K) prefer the inferred side as a tiebreaker
+- High-speed exits are strongly preferred over steep exits at the same centerline node
+
+### LayoutInspector
+
+`--exits` now shows side, high-speed tags, parking proximity per side, reachable parking counts, parallel runway detection, and inferred default side summary.
+
+## Resolved Issues
+
+### ~~1. SFO L instant exit (1s, 4° turn)~~ — FIXED
+
+**Was**: EXIT L produced an instant exit with no turn. LandingPhase braked to 15kts right at L's branch point, then RunwayExitPhase created a near-zero virtual segment.
+
+**Fix**: Standard exits (>45°) at/past the branch point are rejected even if at the correct speed (the virtual segment would be too short for a turn arc). Branch points declared "unable" are excluded from future `FindExitFromCenterline` searches. EXIT L now replans to T (19° high-speed, 43s smooth turn).
+
+### ~~2. SFO default picks E (111° / 140° turn)~~ — FIXED
+
+**Was**: Without an exit command, the B738 on SFO 28R exited at E with a 140° heading change.
+
+**Fix**: Two changes: (1) High-speed exit bonus (0.15nm) in `FindAdjacentHoldShort` scoring ensures T (19°) beats E (70°) at the same centerline node despite shorter path distance. (2) Inferred Side=Left preference constrains default selection to left-side exits where both T and Q are high-speed options.
+
+### ~~3. Relaxed exits go too far down the runway~~ — FIXED
+
+**Was**: EXIT W1/W2/W3 at OAK 30 relaxed to W6 (far), not W5 (closer high-speed). EXIT C/C2/N/P at SFO relaxed to D, not T.
+
+**Fix**: After "unable", LandingPhase clears the failed taxiway preference (keeping side from EL/ER) and replans immediately. `ResolveNextCandidate` fires on the next tick with the relaxed preference and finds the next comfortable exit — same as the default case. W2→W5, C→T, N→T, etc.
 
 ## Remaining Issues
 
-### 1. SFO L instant exit (1s, 4° turn)
-
-**Symptom**: `EXIT L` at SFO 28R produces an instant exit with no turn.
-
-**Root cause**: LandingPhase detects "unable" for L (aircraft at 87kts, turn-off 15kts). It stops planning and decelerates to coast speed (40kts). By the time it reaches 40kts, the aircraft is near node 327 (L's branch). RunwayExitPhase starts, `FindExitFromCenterline` finds L at node 327 within the -0.005nm behind-tolerance. The virtual segment has ~0 distance. The exit completes instantly.
-
-**Attempted fixes**:
-- Positive `minAheadNm` threshold in `FindExitFromCenterline` → breaks T exits where the aircraft decelerated correctly and is right at the branch
-- Speed check in `TryFindExitAhead` → too aggressive, filters valid exits at coast speed
-- Immediate handoff after "unable" → hands off at 87kts, breaks other tests
-
-**Core tension**: The same function (`FindExitFromCenterline`) serves both LandingPhase (needs to find exits even when close, for braking planning) and RunwayExitPhase (needs to reject exits the aircraft blew past). The tolerance that allows T (correctly decelerated, right at the branch) also allows L (blown past, at the branch by coincidence).
-
-**Possible approaches**:
-- `FindExitFromCenterline` parameterized minimum along-track distance. LandingPhase passes 0 (find everything), RunwayExitPhase passes positive (must be ahead). But T needs ~0 tolerance since LandingPhase decelerated right to the branch
-- LandingPhase hands off earlier (before reaching the branch), not at the branch point. RunwayExitPhase always has room for the virtual segment. But this changes the T exit behavior — the aircraft would be further from T when exit phase starts
-- Track whether LandingPhase planned for this exit. If LandingPhase decelerated for it (speed ≈ turn-off), accept it. If LandingPhase didn't (speed = coast), reject exits within tolerance
-
-### 2. SFO default picks E (111° / 140° turn)
-
-**Symptom**: Without an exit command, the B738 on SFO 28R exits at E with a 140° heading change.
-
-**Root cause**: The "always resolve" change makes LandingPhase find a candidate exit even without a preference. E at node 230 has a computed angle of ~70° in the `FindExitFromCenterline` result (not 111° — the angle depends on which hold-short the BFS picks). The comfortable braking threshold allows it, so the aircraft decelerates for E.
-
-**The E angle confusion**: E has two hold-shorts — 836 (south/left, toward terminal) and 837 (north/right). The BFS in `FindAdjacentHoldShort` returns whichever scores best. The exit angle depends on which hold-short is returned. Left E might be ~70° (reasonable), right E might be 111° (backward). The angle penalty in `FindAdjacentHoldShort` penalizes >100° exits, so the BFS returns the left E at ~70°.
-
-**But**: even at 70°, a 140° turn from the runway heading is a lot. The aircraft turns far past perpendicular. This suggests the hold-short position or the angle computation is producing unexpected geometry.
-
-**Possible fix**: The default exit should prefer high-speed exits (T at 19°, Q at 20°) over moderate/steep exits (E at 70°). The comfortable braking threshold already biases toward exits reachable with gentle braking — T should score better than E since it needs less braking. Need to investigate why T isn't picked as default.
-
-### 3. Relaxed exits go too far down the runway
-
-**Symptom**: EXIT W1/W2/W3 at OAK 30 relax to W6 (far), not W5 (closer high-speed). EXIT C/C2/N/P at SFO relax to D, not T.
-
-**Root cause**: When LandingPhase says "unable", it stops planning (`_exitResolutionEnabled = false`) and coasts to 40kts. RunwayExitPhase then searches ahead with the relaxed preference. By then the aircraft has rolled past the earlier exits (W5, T) and finds the next 90° exit (W6, D).
-
-**Core issue**: The "unable" path doesn't replan — it just gives up and coasts. A real pilot would immediately start thinking about the next exit. The relaxation should try the next reachable exit with comfortable braking, not just coast.
-
-**Possible fix**: After "unable", instead of setting `_exitResolutionEnabled = false`, clear the preference (no taxiway, no side) and re-resolve. LandingPhase would then find the next comfortable exit (W5, T) and decelerate for it.
-
 ### 4. Far exits cause long coast periods
 
-**Symptom**: EXIT R at SFO (far end) causes the aircraft to brake to coast speed then roll at 40kts for 60+ seconds.
+**Symptom**: EXIT W6 at OAK 30 — LandingPhase hands off at t=77 with speed 15kts, but the aircraft is still **0.53nm from W6's branch point**. RunwayExitPhase accelerates to coast speed (40kts) and rolls straight at 40kts for 43+ seconds before reaching W6. Total exit time: 54s vs 8s for W5.
 
-**Root cause**: LandingPhase plans braking but the turn-off speed for a 90° exit is 15kts. The aircraft decelerates to 15kts but `targetSpeed` only goes below coast when `requiredDecel > defaultDecel`. For far exits, the required decel is very low (gentle coast), so targetSpeed stays at coastSpeed (40kts). The aircraft coasts at 40kts for a long time.
+**Root cause**: LandingPhase targets `Math.Max(turnOffSpeed, coastSpeed)` = 40kts for default exits (no explicit preference). The comfortable braking rate can reach 40kts well before the branch point. Once `speed ≤ targetSpeed`, the handoff fires — even though the aircraft is far from the exit.
 
-**Desired behavior**: For far exits, the pilot should brake softer than default — just enough to reach turn-off speed in time. The aircraft rolls faster than coast, decelerating gently over the full distance. This reduces the boring coast period.
+The aircraft hands off to RunwayExitPhase while still far from the exit. RunwayExitPhase then rolls at coast speed for a long time before reaching the branch. This is the "boring coast period" described in the original plan.
 
-**Possible fix**: Compute the decel rate that exactly reaches turn-off speed at the branch point. If it's below the default rate, use it (softer braking). This spreads the deceleration over the full distance instead of braking hard then coasting.
+**Tick-by-tick comparison (OAK 30, B738 at 130kts):**
+
+| | W5 (28°, high-speed) | W6 (90°, standard) |
+|---|---|---|
+| Handoff time | t=68 | t=77 |
+| Speed at handoff | 30 kts | 15→17 kts |
+| Dist to branch at handoff | 0.003nm (at branch) | 0.528nm (far) |
+| Coast period in RunwayExitPhase | 0s | ~43s at 40kts |
+| Turn duration | 8s | ~11s |
+| Total exit phase time | 8s | 54s |
+
+**Desired behavior**: For far exits, the pilot should brake softer than default — just enough to reach turn-off speed at the branch point. The aircraft rolls faster than coast, decelerating gently over the full distance. This eliminates the long coast period.
+
+**Possible fix**: Compute the decel rate that exactly reaches turn-off speed at the branch point. If it's below the default rate, use it (softer braking). This spreads deceleration over the full distance instead of braking to coast speed early and then coasting.
 
 ## Architecture Notes
 
@@ -86,12 +95,13 @@ All exits tested produce smooth monotonic turns (no heading reversals). The virt
 LandingPhase (rollout)
   → finds candidate exit via FindExitFromCenterline
   → plans braking to reach turn-off speed at branch
-  → hands off when speed ≤ targetSpeed
+  → hands off when speed ≤ targetSpeed AND enough distance for turn
+  → after "unable": keeps side, drops taxiway, replans
 
 RunwayExitPhase
-  → OnStart: clears any ResolvedExit, calls TryFindExitAhead
+  → OnStart: clears any ResolvedExit, infers side if none set
   → TickRolling: steers along runway heading, searches for exits
-  → TryFindExitAhead: FindExitFromCenterline + preference relaxation
+  → TryFindExitAhead: FindExitFromCenterline + soft side tiebreaker + preference relaxation
   → StartExitNavigation: builds [virtual → branch → ... → holdShort] route
   → GroundNavigator: handles approach, turn anticipation, arrival
 ```
@@ -106,15 +116,18 @@ RunwayExitPhase
 | `RolloutCoastSpeed` | 40 kts (jet) | `CategoryPerformance` | Speed at LandingPhase handoff |
 | `HighSpeedExitSpeed` | 30 kts (jet) | `CategoryPerformance` | Turn-off for exits ≤45° |
 | `StandardExitSpeed` | 15 kts (jet) | `CategoryPerformance` | Turn-off for exits >45° |
+| `HighSpeedExitBonus` | 0.15nm | `AirportGroundLayout` | Scoring bonus for ≤45° exits |
 | `VirtualNodeId` | -1 | `RunwayExitPhase` | Sentinel for virtual segments |
 | `-0.005nm` | 30ft | `FindExitFromCenterline` | Behind-node tolerance |
+| `0.02nm` | 120ft | `LandingPhase` | Min distance to branch for standard exit handoff |
 
 ### Key files
 
-- `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — analog rolling, virtual nodes, TryFindExitAhead
-- `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — exit-aware braking, unable handling
-- `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — FindExitFromCenterline, FindAdjacentHoldShort, angle penalty
+- `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — analog rolling, virtual nodes, TryFindExitAhead, inferred side
+- `src/Yaat.Sim/Phases/Tower/LandingPhase.cs` — exit-aware braking, unable-replan, degenerate exit prevention
+- `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — FindExitFromCenterline, FindAdjacentHoldShort, InferPreferredExitSide, high-speed bonus, angle penalty
 - `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — steering, turn anticipation, arrival detection
 - `tests/Yaat.Sim.Tests/Simulation/Sfo28rAllExitsTests.cs` — SFO 28R comprehensive exit tests
 - `tests/Yaat.Sim.Tests/Simulation/OakAllExitsTests.cs` — OAK 30 + 28R exit tests
-- `tests/Yaat.Sim.Tests/Simulation/OakSpeedProfileTests.cs` — speed visualization
+- `tests/Yaat.Sim.Tests/Simulation/OakSpeedProfileTests.cs` — speed visualization (W5, W6, H)
+- `tools/Yaat.LayoutInspector/` — `--exits` with side, high-speed, parking, parallel runway analysis

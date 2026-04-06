@@ -39,6 +39,12 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void OAK30_W6_SpeedProfile()
+    {
+        RunSpeedProfile("OAK", "30", "B738", 130, 1.0, "EXIT W6", 60);
+    }
+
+    [Fact]
     public void OAK28R_H_SpeedProfile()
     {
         RunSpeedProfile("OAK", "28R", "C172", 70, 0.5, "ER H", 364);
