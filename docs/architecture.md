@@ -207,7 +207,7 @@ Phases/PatternGeometry.cs      # 7 pattern waypoints from RunwayInfo + category 
 Phases/PatternBuilder.cs       # BuildCircuit, BuildNextCircuit, UpdateWaypoints
 
 # Phases/Tower/
-LineUpPhase.cs                 # Taxi from hold-short to runway centerline + align heading
+LineUpPhase.cs                 # Analog lineup: turn perpendicular → drive to centerline (cross-track) → align runway heading; no ground graph node dependency
 LinedUpAndWaitingPhase.cs      # Hold at threshold; await ClearedForTakeoff
 TakeoffPhase.cs                # Ground roll→Vr→400ft AGL
 InitialClimbPhase.cs           # Climb to 1500ft AGL or assigned; activates SID via mode; RV SID heading hold until handoff+5s
@@ -232,7 +232,7 @@ UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase
 # Phases/Ground/
 AtParkingPhase / PushbackPhase / PushbackToSpotPhase / TaxiingPhase / HoldingShortPhase
 CrossingRunwayPhase / HoldingAfterExitPhase / FollowingPhase
-GroundNavigator.cs             # Core ground nav: angle-based speed scaling, multi-segment kinematic braking, turn anticipation (early arrival for smooth arcs)
+GroundNavigator.cs             # Core ground nav: angle-based speed scaling, multi-segment kinematic braking, bezier arc following (carrot-on-a-stick path tracking with dynamic curvature speed)
 RunwayExitPhase.cs             # Rolls on centerline until exit found; builds TaxiRoute from exit path and hands off to TaxiingPhase
 HoldingAfterExitPhase.cs       # Post-exit hold: broadcasts "clear of runway", faces away from runway, awaits taxi command
 
@@ -249,14 +249,15 @@ Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 
 # Data/Airport/
 IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGroundLayout?
-AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (circular fillet arc: center+radius), DirectionalEdge (traversal direction)
+AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt), DirectionalEdge (traversal direction)
                                # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
-FilletArcGenerator.cs          # Replaces intersection nodes with fillet arcs; plan-then-execute: compute tangent points → create arcs → rebuild edges → delete node
-                               # Radius fits to edge length, collinear merges produce inner straight edges, orphans reconnect. Not auto-applied yet.
+CubicBezier.cs                 # Bezier math: evaluate, derivative, curvature, arc length (polyline sum), closest-t projection (coarse scan + ternary search), tangent bearing
+FilletArcGenerator.cs          # Replaces intersection nodes with bezier fillet arcs; plan-then-execute: compute tangent points → create arcs → rebuild edges → delete node
+                               # Radius fits to edge length, collinear merges produce inner straight edges, coincident node merge pass, applied as Step 8 in GeoJsonParser
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
 TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
-TaxiPathfinder.cs              # ResolveExplicitPath (destinationHintNode for parking direction), FindRoute (A*), variant inference
-                               # Multi-candidate bridge scoring: BFS + WalkCurrentTaxiway scored by transitions+distance
+TaxiPathfinder.cs              # 3-strategy A* + Yen's K-shortest: FewestTurns (minimize taxiway transitions), Shortest (distance), Fastest (time with arc speed limits)
+                               # ResolveExplicitPath, FindRoute (single best), FindRoutes (multi-route suggestions), variant inference
 TaxiVariantResolver.cs         # Variant path resolution (e.g., A vs A1)
 VirtualNode.cs                 # Factory for virtual ground nodes (negative IDs); CreateEdge, CreateSegment, OffsetBefore/OffsetPast
 TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges

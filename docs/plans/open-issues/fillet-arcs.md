@@ -268,7 +268,7 @@ List<TaxiRoute> FindRoutes(layout, from, to,
 - [x] Rework LineUpPhase to analog navigation (no ground graph node dependency)
 - [x] All 2253 tests pass (0 failures)
 - [x] Add `GroundArcDto` to `ServerConnection.cs` and update `GroundLayoutDto` / `ReconstructLayout` for client-server transmission
-- [ ] Update `docs/architecture.md`
+- [x] Update `docs/architecture.md`
 
 #### Remaining work
 
