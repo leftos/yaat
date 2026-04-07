@@ -282,11 +282,7 @@ public sealed class GroundNavigator
     /// computes a lookahead point along the curve, and returns the bearing to steer toward.
     /// Also returns the max speed for the arc radius.
     /// </summary>
-    private static (double Bearing, double MaxSpeedKts) ComputeArcSteering(
-        PhaseContext ctx,
-        GroundArc arc,
-        bool fromNodeIsZero
-    )
+    private static (double Bearing, double MaxSpeedKts) ComputeArcSteering(PhaseContext ctx, GroundArc arc, bool fromNodeIsZero)
     {
         double acLat = ctx.Aircraft.Latitude;
         double acLon = ctx.Aircraft.Longitude;

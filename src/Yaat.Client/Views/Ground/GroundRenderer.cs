@@ -681,14 +681,7 @@ public sealed class GroundRenderer : IDisposable
         return false;
     }
 
-    private static void DrawArcSegment(
-        SKCanvas canvas,
-        MapViewport vp,
-        GroundArc arc,
-        (float X, float Y) from,
-        (float X, float Y) to,
-        SKPaint paint
-    )
+    private static void DrawArcSegment(SKCanvas canvas, MapViewport vp, GroundArc arc, (float X, float Y) from, (float X, float Y) to, SKPaint paint)
     {
         double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
         double bearingStart = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[0].Latitude, arc.Nodes[0].Longitude);
