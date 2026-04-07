@@ -69,8 +69,7 @@ public class FilletAngleSweepTests
         // 6. Radius plausible — should be ≤ max configured for runway exit (100ft) or fit constraint
         foreach (var arc in layout.Arcs)
         {
-            Assert.True(arc.MinRadiusOfCurvatureFt <= 200,
-                $"MinRadius {arc.MinRadiusOfCurvatureFt:F0}ft seems too large at {exitAngle}°");
+            Assert.True(arc.MinRadiusOfCurvatureFt <= 200, $"MinRadius {arc.MinRadiusOfCurvatureFt:F0}ft seems too large at {exitAngle}°");
         }
     }
 
@@ -96,9 +95,11 @@ public class FilletAngleSweepTests
             double arcMidToCenter = GeoMath.DistanceNm(midLat, midLon, CenterLat, CenterLon);
             double chordMidToCenter = GeoMath.DistanceNm(chordMidLat, chordMidLon, CenterLat, CenterLon);
 
-            Assert.True(arcMidToCenter < chordMidToCenter,
-                $"Arc midpoint should be closer to intersection than chord midpoint at {exitAngle}°. " +
-                $"Arc={arcMidToCenter:F6}nm, Chord={chordMidToCenter:F6}nm");
+            Assert.True(
+                arcMidToCenter < chordMidToCenter,
+                $"Arc midpoint should be closer to intersection than chord midpoint at {exitAngle}°. "
+                    + $"Arc={arcMidToCenter:F6}nm, Chord={chordMidToCenter:F6}nm"
+            );
         }
     }
 
@@ -109,26 +110,48 @@ public class FilletAngleSweepTests
         var (lLat, lLon) = GeoMath.ProjectPoint(CenterLat, CenterLon, new TrueHeading(270), EdgeLenNm);
         var (rLat, rLon) = GeoMath.ProjectPoint(CenterLat, CenterLon, new TrueHeading(90), EdgeLenNm);
 
-        var nodeL = new GroundNode { Id = 0, Latitude = lLat, Longitude = lLon, Type = GroundNodeType.TaxiwayIntersection };
-        var nodeC = new GroundNode { Id = 1, Latitude = CenterLat, Longitude = CenterLon, Type = GroundNodeType.TaxiwayIntersection };
-        var nodeR = new GroundNode { Id = 2, Latitude = rLat, Longitude = rLon, Type = GroundNodeType.TaxiwayIntersection };
+        var nodeL = new GroundNode
+        {
+            Id = 0,
+            Latitude = lLat,
+            Longitude = lLon,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var nodeC = new GroundNode
+        {
+            Id = 1,
+            Latitude = CenterLat,
+            Longitude = CenterLon,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var nodeR = new GroundNode
+        {
+            Id = 2,
+            Latitude = rLat,
+            Longitude = rLon,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
 
         layout.Nodes[nodeL.Id] = nodeL;
         layout.Nodes[nodeC.Id] = nodeC;
         layout.Nodes[nodeR.Id] = nodeR;
 
-        layout.Edges.Add(new GroundEdge
-        {
-            Nodes = [nodeL, nodeC],
-            TaxiwayName = "RWY10/28",
-            DistanceNm = GeoMath.DistanceNm(lLat, lLon, CenterLat, CenterLon),
-        });
-        layout.Edges.Add(new GroundEdge
-        {
-            Nodes = [nodeC, nodeR],
-            TaxiwayName = "RWY10/28",
-            DistanceNm = GeoMath.DistanceNm(CenterLat, CenterLon, rLat, rLon),
-        });
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [nodeL, nodeC],
+                TaxiwayName = "RWY10/28",
+                DistanceNm = GeoMath.DistanceNm(lLat, lLon, CenterLat, CenterLon),
+            }
+        );
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [nodeC, nodeR],
+                TaxiwayName = "RWY10/28",
+                DistanceNm = GeoMath.DistanceNm(CenterLat, CenterLon, rLat, rLon),
+            }
+        );
 
         // Branch taxiway at the given angle relative to runway heading (090)
         double branchBearing = 90 + exitAngle;
@@ -143,12 +166,14 @@ public class FilletAngleSweepTests
         };
         layout.Nodes[nodeB.Id] = nodeB;
 
-        layout.Edges.Add(new GroundEdge
-        {
-            Nodes = [nodeC, nodeB],
-            TaxiwayName = $"T{exitAngle:F0}",
-            DistanceNm = GeoMath.DistanceNm(CenterLat, CenterLon, bLat, bLon),
-        });
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [nodeC, nodeB],
+                TaxiwayName = $"T{exitAngle:F0}",
+                DistanceNm = GeoMath.DistanceNm(CenterLat, CenterLon, bLat, bLon),
+            }
+        );
 
         layout.RebuildAdjacencyLists();
         return layout;

@@ -42,12 +42,18 @@ public class CubicBezierTests
     // A straight bezier (control points on the line between endpoints)
     private const double StraightEndLat = IntersectionLat;
     private const double StraightEndLon = IntersectionLon + 0.001; // ~288ft east
-    private static CubicBezier MakeStraight() => new(
-        IntersectionLat, IntersectionLon,
-        IntersectionLat, IntersectionLon + 0.000333,
-        IntersectionLat, IntersectionLon + 0.000667,
-        StraightEndLat, StraightEndLon
-    );
+
+    private static CubicBezier MakeStraight() =>
+        new(
+            IntersectionLat,
+            IntersectionLon,
+            IntersectionLat,
+            IntersectionLon + 0.000333,
+            IntersectionLat,
+            IntersectionLon + 0.000667,
+            StraightEndLat,
+            StraightEndLon
+        );
 
     // --- Evaluate ---
 
@@ -223,8 +229,20 @@ public class CubicBezierTests
 
     private static GroundArc MakeGroundArc(double minRadiusFt)
     {
-        var nodeA = new GroundNode { Id = 1, Latitude = NodeALat, Longitude = NodeALon, Type = GroundNodeType.TaxiwayIntersection };
-        var nodeB = new GroundNode { Id = 2, Latitude = NodeBLat, Longitude = NodeBLon, Type = GroundNodeType.TaxiwayIntersection };
+        var nodeA = new GroundNode
+        {
+            Id = 1,
+            Latitude = NodeALat,
+            Longitude = NodeALon,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var nodeB = new GroundNode
+        {
+            Id = 2,
+            Latitude = NodeBLat,
+            Longitude = NodeBLon,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
         return new GroundArc
         {
             Nodes = [nodeA, nodeB],

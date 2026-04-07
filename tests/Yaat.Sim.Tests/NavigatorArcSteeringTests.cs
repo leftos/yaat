@@ -29,12 +29,18 @@ public class NavigatorArcSteeringTests
 
     private static readonly GroundNode NodeA = new()
     {
-        Id = 1, Latitude = NodeALat, Longitude = NodeALon, Type = GroundNodeType.TaxiwayIntersection
+        Id = 1,
+        Latitude = NodeALat,
+        Longitude = NodeALon,
+        Type = GroundNodeType.TaxiwayIntersection,
     };
 
     private static readonly GroundNode NodeB = new()
     {
-        Id = 2, Latitude = NodeBLat, Longitude = NodeBLon, Type = GroundNodeType.TaxiwayIntersection
+        Id = 2,
+        Latitude = NodeBLat,
+        Longitude = NodeBLon,
+        Type = GroundNodeType.TaxiwayIntersection,
     };
 
     private static GroundArc MakeArc(double minRadiusFt = 75.0)

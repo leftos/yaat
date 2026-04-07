@@ -431,6 +431,10 @@ public partial class MainViewModel
         if (!string.IsNullOrEmpty(artccId))
         {
             _ = Radar.LoadVideoMapsForArtccAsync(artccId, result.PrimaryAirportId, result.ScenarioId);
+            if (!string.IsNullOrEmpty(result.PrimaryAirportId))
+            {
+                _ = Ground.LoadTowerCabLayersAsync(artccId, result.PrimaryAirportId);
+            }
         }
 
         ShowTimelineBar = true;

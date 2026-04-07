@@ -24,6 +24,8 @@ public partial class MainViewModel : ObservableObject
     private readonly UserPreferences _preferences = new();
     private readonly CommandInputController _commandInput = new();
     private readonly VideoMapService _videoMapService = new();
+    private readonly VnasConfigService _vnasConfigService = new();
+    private readonly TowerCabImageService _towerCabImageService = new();
 
     public UserPreferences Preferences => _preferences;
     public CommandInputController CommandInput => _commandInput;
@@ -487,6 +489,7 @@ public partial class MainViewModel : ObservableObject
         _showChatEntries = !hidden.Contains(TerminalEntryKind.Chat);
         Ground = new GroundViewModel(_connection, SendCommandForViewAsync, OnChildSelectionChanged, _preferences);
         Ground.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
+        Ground.SetTowerCabServices(_vnasConfigService, _towerCabImageService, _airportResolver);
         Radar = new RadarViewModel(_connection, _videoMapService, SendCommandForViewAsync, OnChildSelectionChanged);
         Radar.SetPreferences(_preferences);
         Radar.SetAircraftLookup(cs => Aircraft.FirstOrDefault(a => a.Callsign == cs));
@@ -520,6 +523,7 @@ public partial class MainViewModel : ObservableObject
         RefreshDisplayFavorites();
 
         _ = InitializeNavDataAsync();
+        _ = _vnasConfigService.InitializeAsync();
     }
 
     private async Task InitializeNavDataAsync()

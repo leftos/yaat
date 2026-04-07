@@ -36,7 +36,10 @@ Services/
   AddCommandSuggester.cs        # ADD command callsign/model suggestions
   SuggestionItem.cs             # Suggestion display model (text, kind, description)
   ScenarioDifficultyHelper.cs   # Scenario difficulty classification
-  VideoMapService.cs            # Video map download/cache/parse
+  VideoMapService.cs            # Video map download/cache/parse (conditional HTTP freshness check)
+  VnasConfigService.cs          # Fetches vNAS configuration (base URLs for video maps, tower cab images)
+  TowerCabImageService.cs       # Downloads/caches tower cab JPEG backgrounds with EXIF geo-referencing
+  TowerCabMapParser.cs          # Parses tower cab GeoJSON video maps into filled polygons + colored lines
   LiveWeatherService.cs         # Fetches live METARs + FD winds from aviationweather.gov → WeatherProfile
   ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached)
   FdRegionMapping.cs            # Static ARTCC → FD region code mapping
@@ -80,10 +83,10 @@ Views/Map/
   MapCanvasBase.cs              # ICustomDrawOperation base + pan/zoom input handling
 
 Views/Ground/
-  GroundView.axaml.cs           # Ground view control with context menus
+  GroundView.axaml.cs           # Ground view control with context menus + layer toggles (SAT/MAP/GND)
   GroundViewWindow.axaml.cs     # Pop-out ground window
   GroundCanvas.cs               # SkiaSharp canvas with StyledProperties + hit-testing
-  GroundRenderer.cs             # Stateless SkiaSharp ground renderer
+  GroundRenderer.cs             # Stateless SkiaSharp ground renderer (3 layers: satellite, video map, YAAT layout)
 
 Views/Radar/
   RadarView.axaml.cs            # Radar view control with DCB (range, map shortcuts, FIX, LOCK)

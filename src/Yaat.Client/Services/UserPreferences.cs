@@ -133,6 +133,12 @@ public sealed class UserPreferences
     public GroundFilterMode GroundShowSpot => (GroundFilterMode)_data.GroundShowSpot;
     public bool GroundPanZoomLocked => _data.GroundPanZoomLocked;
     public bool GroundHideDataBlocksByDefault => _data.GroundHideDataBlocksByDefault;
+    public bool GroundShowSatelliteImage => _data.GroundShowSatelliteImage;
+    public int GroundSatelliteImageBrightness => _data.GroundSatelliteImageBrightness;
+    public bool GroundShowVideoMapOverlay => _data.GroundShowVideoMapOverlay;
+    public int GroundVideoMapOverlayBrightness => _data.GroundVideoMapOverlayBrightness;
+    public bool GroundShowYaatLayout => _data.GroundShowYaatLayout;
+    public int GroundYaatLayoutBrightness => _data.GroundYaatLayoutBrightness;
     public bool AssignmentTintEnabled => _data.AssignmentTintEnabled;
     public string AssignmentTintColor => _data.AssignmentTintColor;
     public bool UnassignedTintEnabled => _data.UnassignedTintEnabled;
@@ -413,6 +419,24 @@ public sealed class UserPreferences
         Save();
     }
 
+    public void SetGroundLayerSettings(
+        bool showSatellite,
+        int satelliteBrightness,
+        bool showVideoMap,
+        int videoMapBrightness,
+        bool showYaatLayout,
+        int yaatLayoutBrightness
+    )
+    {
+        _data.GroundShowSatelliteImage = showSatellite;
+        _data.GroundSatelliteImageBrightness = Math.Clamp(satelliteBrightness, 10, 100);
+        _data.GroundShowVideoMapOverlay = showVideoMap;
+        _data.GroundVideoMapOverlayBrightness = Math.Clamp(videoMapBrightness, 10, 100);
+        _data.GroundShowYaatLayout = showYaatLayout;
+        _data.GroundYaatLayoutBrightness = Math.Clamp(yaatLayoutBrightness, 10, 100);
+        Save();
+    }
+
     public void SetHiddenTerminalKinds(HashSet<TerminalEntryKind> hidden)
     {
         HiddenTerminalKinds = hidden;
@@ -646,6 +670,12 @@ public sealed class UserPreferences
             GroundShowSpot = GetFieldOr(obj, "groundShowSpot", 0),
             GroundPanZoomLocked = GetFieldOr(obj, "groundPanZoomLocked", false),
             GroundHideDataBlocksByDefault = GetFieldOr(obj, "groundHideDataBlocksByDefault", false),
+            GroundShowSatelliteImage = GetFieldOr(obj, "groundShowSatelliteImage", false),
+            GroundSatelliteImageBrightness = GetFieldOr(obj, "groundSatelliteImageBrightness", 50),
+            GroundShowVideoMapOverlay = GetFieldOr(obj, "groundShowVideoMapOverlay", false),
+            GroundVideoMapOverlayBrightness = GetFieldOr(obj, "groundVideoMapOverlayBrightness", 70),
+            GroundShowYaatLayout = GetFieldOr(obj, "groundShowYaatLayout", true),
+            GroundYaatLayoutBrightness = GetFieldOr(obj, "groundYaatLayoutBrightness", 100),
             AssignmentTintEnabled = GetFieldOr(obj, "assignmentTintEnabled", false),
             AssignmentTintColor = GetFieldOr(obj, "assignmentTintColor", "#00FF00"),
             UnassignedTintEnabled = GetFieldOr(obj, "unassignedTintEnabled", false),
@@ -826,6 +856,12 @@ public sealed class UserPreferences
         public int GroundShowSpot { get; set; }
         public bool GroundPanZoomLocked { get; set; }
         public bool GroundHideDataBlocksByDefault { get; set; }
+        public bool GroundShowSatelliteImage { get; set; }
+        public int GroundSatelliteImageBrightness { get; set; } = 50;
+        public bool GroundShowVideoMapOverlay { get; set; }
+        public int GroundVideoMapOverlayBrightness { get; set; } = 70;
+        public bool GroundShowYaatLayout { get; set; } = true;
+        public int GroundYaatLayoutBrightness { get; set; } = 100;
         public bool AssignmentTintEnabled { get; set; }
         public string AssignmentTintColor { get; set; } = "#00FF00";
         public bool UnassignedTintEnabled { get; set; }

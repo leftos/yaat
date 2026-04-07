@@ -20,6 +20,9 @@ public partial class GroundViewModel : ObservableObject
     private readonly Action<AircraftModel?>? _onSelectionChanged;
     private AirportGroundLayout? _domainLayout;
     private Func<string, double?>? _getAirportElevation;
+    private VnasConfigService? _vnasConfigService;
+    private TowerCabImageService? _towerCabImageService;
+    private ArtccAirportResolver? _artccResolver;
 
     public UserPreferences? Preferences { get; }
 
@@ -79,6 +82,30 @@ public partial class GroundViewModel : ObservableObject
 
     [ObservableProperty]
     private GroundColorScheme _colorScheme = GroundColorScheme.Default;
+
+    [ObservableProperty]
+    private TowerCabImage? _backgroundImage;
+
+    [ObservableProperty]
+    private TowerCabMapData? _towerCabMap;
+
+    [ObservableProperty]
+    private bool _showSatelliteImage;
+
+    [ObservableProperty]
+    private int _satelliteImageBrightness = 50;
+
+    [ObservableProperty]
+    private bool _showVideoMapOverlay;
+
+    [ObservableProperty]
+    private int _videoMapOverlayBrightness = 70;
+
+    [ObservableProperty]
+    private bool _showYaatLayout = true;
+
+    [ObservableProperty]
+    private int _yaatLayoutBrightness = 100;
 
     [ObservableProperty]
     private double _viewCenterLat;
@@ -143,12 +170,160 @@ public partial class GroundViewModel : ObservableObject
             ShowSpot = preferences.GroundShowSpot;
             IsPanZoomLocked = preferences.GroundPanZoomLocked;
             ColorScheme = preferences.GroundColors;
+            ShowSatelliteImage = preferences.GroundShowSatelliteImage;
+            SatelliteImageBrightness = preferences.GroundSatelliteImageBrightness;
+            ShowVideoMapOverlay = preferences.GroundShowVideoMapOverlay;
+            VideoMapOverlayBrightness = preferences.GroundVideoMapOverlayBrightness;
+            ShowYaatLayout = preferences.GroundShowYaatLayout;
+            YaatLayoutBrightness = preferences.GroundYaatLayoutBrightness;
         }
     }
 
     public void SetElevationLookup(Func<string, double?> lookup)
     {
         _getAirportElevation = lookup;
+    }
+
+    public void SetTowerCabServices(
+        VnasConfigService vnasConfigService,
+        TowerCabImageService towerCabImageService,
+        ArtccAirportResolver artccResolver
+    )
+    {
+        _vnasConfigService = vnasConfigService;
+        _towerCabImageService = towerCabImageService;
+        _artccResolver = artccResolver;
+    }
+
+    public async Task LoadTowerCabLayersAsync(string artccId, string airportId)
+    {
+        if (_vnasConfigService is null || _towerCabImageService is null)
+        {
+            _log.LogDebug("Tower cab services not initialized; skipping layer load");
+            return;
+        }
+
+        if (!_vnasConfigService.IsInitialized)
+        {
+            _log.LogDebug("vNAS config not available; skipping tower cab layers");
+            return;
+        }
+
+        // Load satellite image
+        if (!string.IsNullOrEmpty(_vnasConfigService.TowerCabImagesBaseUrl))
+        {
+            try
+            {
+                var image = await _towerCabImageService.GetImageAsync(_vnasConfigService.TowerCabImagesBaseUrl, artccId, airportId, highRes: false);
+                BackgroundImage = image;
+                if (image is not null)
+                {
+                    _log.LogInformation("Tower cab background image loaded for {AirportId}", airportId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Failed to load tower cab image for {AirportId}", airportId);
+            }
+        }
+
+        // Load tower cab video map
+        if (!string.IsNullOrEmpty(_vnasConfigService.VideoMapBaseUrl))
+        {
+            try
+            {
+                var videoMapId = await GetTowerCabVideoMapIdAsync(artccId, airportId);
+                if (videoMapId is not null)
+                {
+                    var mapData = await DownloadAndParseTowerCabMapAsync(_vnasConfigService.VideoMapBaseUrl, artccId, videoMapId);
+                    TowerCabMap = mapData;
+                    if (mapData is not null)
+                    {
+                        _log.LogInformation(
+                            "Tower cab video map loaded for {AirportId}: {Polys} polygons, {Lines} lines",
+                            airportId,
+                            mapData.Polygons.Count,
+                            mapData.Lines.Count
+                        );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Failed to load tower cab video map for {AirportId}", airportId);
+            }
+        }
+    }
+
+    private async Task<string?> GetTowerCabVideoMapIdAsync(string artccId, string airportId)
+    {
+        if (_artccResolver is null)
+        {
+            return null;
+        }
+
+        return await _artccResolver.GetTowerCabVideoMapIdAsync(artccId, airportId);
+    }
+
+    private static async Task<TowerCabMapData?> DownloadAndParseTowerCabMapAsync(string videoMapBaseUrl, string artccId, string videoMapId)
+    {
+        var cacheDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "yaat",
+            "cache",
+            "towercab-maps",
+            artccId
+        );
+        Directory.CreateDirectory(cacheDir);
+        var cachePath = Path.Combine(cacheDir, $"{videoMapId}.geojson");
+
+        // Conditional download
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var url = $"{videoMapBaseUrl}/{artccId}/{videoMapId}.geojson";
+
+        try
+        {
+            if (File.Exists(cachePath))
+            {
+                var fileInfo = new FileInfo(cachePath);
+                var request = new HttpRequestMessage(HttpMethod.Head, url);
+                request.Headers.IfModifiedSince = fileInfo.LastWriteTimeUtc;
+                var headResponse = await http.SendAsync(request);
+
+                if (headResponse.StatusCode == System.Net.HttpStatusCode.NotModified)
+                {
+                    var cachedJson = await File.ReadAllTextAsync(cachePath);
+                    return TowerCabMapParser.Parse(cachedJson);
+                }
+            }
+
+            var json = await http.GetStringAsync(url);
+            await File.WriteAllTextAsync(cachePath, json);
+            return TowerCabMapParser.Parse(json);
+        }
+        catch (Exception)
+        {
+            // Fall back to cache if available
+            if (File.Exists(cachePath))
+            {
+                var cachedJson = await File.ReadAllTextAsync(cachePath);
+                return TowerCabMapParser.Parse(cachedJson);
+            }
+
+            throw;
+        }
+    }
+
+    public void SaveLayerSettings()
+    {
+        Preferences?.SetGroundLayerSettings(
+            ShowSatelliteImage,
+            SatelliteImageBrightness,
+            ShowVideoMapOverlay,
+            VideoMapOverlayBrightness,
+            ShowYaatLayout,
+            YaatLayoutBrightness
+        );
     }
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
@@ -236,6 +411,9 @@ public partial class GroundViewModel : ObservableObject
         AirportCenterLat = 0;
         AirportCenterLon = 0;
         AirportElevation = 0;
+        BackgroundImage?.Bitmap.Dispose();
+        BackgroundImage = null;
+        TowerCabMap = null;
         GroundAircraft.Clear();
         ClearShownTaxiRoutes();
     }
@@ -1227,8 +1405,7 @@ public partial class GroundViewModel : ObservableObject
         {
             foreach (var arcDto in dto.Arcs)
             {
-                if (!layout.Nodes.TryGetValue(arcDto.FromNodeId, out var arcFrom) ||
-                    !layout.Nodes.TryGetValue(arcDto.ToNodeId, out var arcTo))
+                if (!layout.Nodes.TryGetValue(arcDto.FromNodeId, out var arcFrom) || !layout.Nodes.TryGetValue(arcDto.ToNodeId, out var arcTo))
                 {
                     continue;
                 }

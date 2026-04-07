@@ -327,6 +327,10 @@ public partial class MainViewModel
         if (!string.IsNullOrEmpty(result.PrimaryAirportId))
         {
             _ = Ground.LoadLayoutAsync(result.PrimaryAirportId);
+            if (!string.IsNullOrEmpty(_preferences.ArtccId))
+            {
+                _ = Ground.LoadTowerCabLayersAsync(_preferences.ArtccId, result.PrimaryAirportId);
+            }
         }
 
         if (!string.IsNullOrEmpty(_preferences.ArtccId))
@@ -359,6 +363,10 @@ public partial class MainViewModel
             {
                 SetDistanceReference(dto.PrimaryAirportId);
                 _ = Ground.LoadLayoutAsync(dto.PrimaryAirportId);
+                if (!string.IsNullOrEmpty(_preferences.ArtccId))
+                {
+                    _ = Ground.LoadTowerCabLayersAsync(_preferences.ArtccId, dto.PrimaryAirportId);
+                }
             }
 
             _studentPositionType = dto.StudentPositionType;

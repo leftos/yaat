@@ -418,6 +418,10 @@ public partial class MainViewModel
             {
                 SetDistanceReference(state.PrimaryAirportId);
                 _ = Ground.LoadLayoutAsync(state.PrimaryAirportId);
+                if (!string.IsNullOrEmpty(_preferences.ArtccId))
+                {
+                    _ = Ground.LoadTowerCabLayersAsync(_preferences.ArtccId, state.PrimaryAirportId);
+                }
             }
 
             if (!string.IsNullOrEmpty(_preferences.ArtccId))

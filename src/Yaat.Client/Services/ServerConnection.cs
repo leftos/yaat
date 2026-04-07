@@ -590,7 +590,13 @@ public record CrcRoomMemberDto(string ClientId, string? Cid, string? DisplayName
 
 public record CrcRoomMembersChangedDto(string RoomId, List<CrcRoomMemberDto> Members);
 
-public record GroundLayoutDto(string AirportId, List<GroundNodeDto> Nodes, List<GroundEdgeDto> Edges, List<GroundArcDto>? Arcs, List<GroundRunwayDto>? Runways);
+public record GroundLayoutDto(
+    string AirportId,
+    List<GroundNodeDto> Nodes,
+    List<GroundEdgeDto> Edges,
+    List<GroundArcDto>? Arcs,
+    List<GroundRunwayDto>? Runways
+);
 
 public record GroundNodeDto(int Id, double Latitude, double Longitude, string Type, string? Name, double? Heading, string? RunwayId);
 

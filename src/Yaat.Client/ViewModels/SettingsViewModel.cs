@@ -220,6 +220,15 @@ public partial class SettingsViewModel : ObservableObject
     private int _groundBrightness = GroundColorScheme.DefaultBrightness;
 
     [ObservableProperty]
+    private int _groundSatelliteImageBrightness = 50;
+
+    [ObservableProperty]
+    private int _groundVideoMapOverlayBrightness = 70;
+
+    [ObservableProperty]
+    private int _groundYaatLayoutBrightness = 100;
+
+    [ObservableProperty]
     private int _selectedSignatureHelpPlacementIndex;
 
     [ObservableProperty]
@@ -295,6 +304,9 @@ public partial class SettingsViewModel : ObservableObject
         _groundAircraftColor = groundColors.Aircraft;
         _groundDatablockTextColor = groundColors.DatablockText;
         _groundBrightness = groundColors.Brightness;
+        _groundSatelliteImageBrightness = _preferences.GroundSatelliteImageBrightness;
+        _groundVideoMapOverlayBrightness = _preferences.GroundVideoMapOverlayBrightness;
+        _groundYaatLayoutBrightness = _preferences.GroundYaatLayoutBrightness;
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
         _dataGridFontSize = _preferences.DataGridFontSize;
         _groundHideDataBlocksByDefault = _preferences.GroundHideDataBlocksByDefault;
@@ -356,6 +368,14 @@ public partial class SettingsViewModel : ObservableObject
                 GroundDatablockTextColor,
                 GroundBrightness
             )
+        );
+        _preferences.SetGroundLayerSettings(
+            _preferences.GroundShowSatelliteImage,
+            GroundSatelliteImageBrightness,
+            _preferences.GroundShowVideoMapOverlay,
+            GroundVideoMapOverlayBrightness,
+            _preferences.GroundShowYaatLayout,
+            GroundYaatLayoutBrightness
         );
         _preferences.SetSignatureHelpPlacement(SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above");
         _preferences.SetDataGridFontSize(DataGridFontSize);

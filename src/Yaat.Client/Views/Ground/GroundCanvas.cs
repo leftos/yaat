@@ -8,6 +8,8 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Sim.Data.Airport;
 
+// ReSharper disable MemberCanBePrivate.Global — Avalonia styled properties must be public
+
 namespace Yaat.Client.Views.Ground;
 
 /// <summary>
@@ -100,6 +102,42 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     );
 
     public static readonly StyledProperty<bool> IsPanZoomLockedProperty = AvaloniaProperty.Register<GroundCanvas, bool>(nameof(IsPanZoomLocked));
+
+    public static readonly StyledProperty<TowerCabImage?> BackgroundImageProperty = AvaloniaProperty.Register<GroundCanvas, TowerCabImage?>(
+        nameof(BackgroundImage)
+    );
+
+    public static readonly StyledProperty<TowerCabMapData?> TowerCabMapProperty = AvaloniaProperty.Register<GroundCanvas, TowerCabMapData?>(
+        nameof(TowerCabMap)
+    );
+
+    public static readonly StyledProperty<bool> ShowSatelliteImageProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
+        nameof(ShowSatelliteImage)
+    );
+
+    public static readonly StyledProperty<int> SatelliteImageBrightnessProperty = AvaloniaProperty.Register<GroundCanvas, int>(
+        nameof(SatelliteImageBrightness),
+        defaultValue: 50
+    );
+
+    public static readonly StyledProperty<bool> ShowVideoMapOverlayProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
+        nameof(ShowVideoMapOverlay)
+    );
+
+    public static readonly StyledProperty<int> VideoMapOverlayBrightnessProperty = AvaloniaProperty.Register<GroundCanvas, int>(
+        nameof(VideoMapOverlayBrightness),
+        defaultValue: 70
+    );
+
+    public static readonly StyledProperty<bool> ShowYaatLayoutProperty = AvaloniaProperty.Register<GroundCanvas, bool>(
+        nameof(ShowYaatLayout),
+        defaultValue: true
+    );
+
+    public static readonly StyledProperty<int> YaatLayoutBrightnessProperty = AvaloniaProperty.Register<GroundCanvas, int>(
+        nameof(YaatLayoutBrightness),
+        defaultValue: 100
+    );
 
     public static readonly StyledProperty<double> ViewCenterLatProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewCenterLat));
     public static readonly StyledProperty<double> ViewCenterLonProperty = AvaloniaProperty.Register<GroundCanvas, double>(nameof(ViewCenterLon));
@@ -221,6 +259,54 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(ColorSchemeProperty);
         set => SetValue(ColorSchemeProperty, value);
+    }
+
+    public TowerCabImage? BackgroundImage
+    {
+        get => GetValue(BackgroundImageProperty);
+        set => SetValue(BackgroundImageProperty, value);
+    }
+
+    public TowerCabMapData? TowerCabMap
+    {
+        get => GetValue(TowerCabMapProperty);
+        set => SetValue(TowerCabMapProperty, value);
+    }
+
+    public bool ShowSatelliteImage
+    {
+        get => GetValue(ShowSatelliteImageProperty);
+        set => SetValue(ShowSatelliteImageProperty, value);
+    }
+
+    public int SatelliteImageBrightness
+    {
+        get => GetValue(SatelliteImageBrightnessProperty);
+        set => SetValue(SatelliteImageBrightnessProperty, value);
+    }
+
+    public bool ShowVideoMapOverlay
+    {
+        get => GetValue(ShowVideoMapOverlayProperty);
+        set => SetValue(ShowVideoMapOverlayProperty, value);
+    }
+
+    public int VideoMapOverlayBrightness
+    {
+        get => GetValue(VideoMapOverlayBrightnessProperty);
+        set => SetValue(VideoMapOverlayBrightnessProperty, value);
+    }
+
+    public bool ShowYaatLayout
+    {
+        get => GetValue(ShowYaatLayoutProperty);
+        set => SetValue(ShowYaatLayoutProperty, value);
+    }
+
+    public int YaatLayoutBrightness
+    {
+        get => GetValue(YaatLayoutBrightnessProperty);
+        set => SetValue(YaatLayoutBrightnessProperty, value);
     }
 
     public bool IsPanZoomLocked
@@ -381,6 +467,14 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             || change.Property == ShowHoldShortProperty
             || change.Property == ShowParkingProperty
             || change.Property == ShowSpotProperty
+            || change.Property == BackgroundImageProperty
+            || change.Property == TowerCabMapProperty
+            || change.Property == ShowSatelliteImageProperty
+            || change.Property == SatelliteImageBrightnessProperty
+            || change.Property == ShowVideoMapOverlayProperty
+            || change.Property == VideoMapOverlayBrightnessProperty
+            || change.Property == ShowYaatLayoutProperty
+            || change.Property == YaatLayoutBrightnessProperty
         )
         {
             MarkDirty();
@@ -437,7 +531,15 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         GroundFilterMode ShowSpot,
         IReadOnlyList<ShownTaxiRouteEntry>? ShownTaxiRoutes,
         IReadOnlySet<string> HighlightedCallsigns,
-        IReadOnlySet<string> HiddenDataBlockCallsigns
+        IReadOnlySet<string> HiddenDataBlockCallsigns,
+        TowerCabImage? BackgroundImage,
+        TowerCabMapData? TowerCabMap,
+        bool ShowSatelliteImage,
+        int SatelliteImageBrightness,
+        bool ShowVideoMapOverlay,
+        int VideoMapOverlayBrightness,
+        bool ShowYaatLayout,
+        int YaatLayoutBrightness
     );
 
     protected override object? CreateRenderSnapshot()
@@ -487,7 +589,15 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             ShowSpot,
             ShownTaxiRoutes,
             new HashSet<string>(_highlightedCallsigns),
-            hiddenDbs
+            hiddenDbs,
+            BackgroundImage,
+            TowerCabMap,
+            ShowSatelliteImage,
+            SatelliteImageBrightness,
+            ShowVideoMapOverlay,
+            VideoMapOverlayBrightness,
+            ShowYaatLayout,
+            YaatLayoutBrightness
         );
     }
 
@@ -523,7 +633,15 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
             s.ShowSpot,
             s.ShownTaxiRoutes,
             s.HighlightedCallsigns,
-            s.HiddenDataBlockCallsigns
+            s.HiddenDataBlockCallsigns,
+            s.BackgroundImage,
+            s.TowerCabMap,
+            s.ShowSatelliteImage,
+            s.SatelliteImageBrightness,
+            s.ShowVideoMapOverlay,
+            s.VideoMapOverlayBrightness,
+            s.ShowYaatLayout,
+            s.YaatLayoutBrightness
         );
     }
 
@@ -865,6 +983,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
     public void ResetView()
     {
         _hasFitBounds = false;
+        Viewport.RotationDeg = 0;
         FitToLayout();
     }
 

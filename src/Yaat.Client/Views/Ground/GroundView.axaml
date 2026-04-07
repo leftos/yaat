@@ -67,6 +67,14 @@
                              ShowParking="{Binding ShowParking}"
                              ShowSpot="{Binding ShowSpot}"
                              ColorScheme="{Binding ColorScheme}"
+                             BackgroundImage="{Binding BackgroundImage}"
+                             TowerCabMap="{Binding TowerCabMap}"
+                             ShowSatelliteImage="{Binding ShowSatelliteImage}"
+                             SatelliteImageBrightness="{Binding SatelliteImageBrightness}"
+                             ShowVideoMapOverlay="{Binding ShowVideoMapOverlay}"
+                             VideoMapOverlayBrightness="{Binding VideoMapOverlayBrightness}"
+                             ShowYaatLayout="{Binding ShowYaatLayout}"
+                             YaatLayoutBrightness="{Binding YaatLayoutBrightness}"
                              ShownTaxiRoutes="{Binding ShownTaxiRoutes}"
                              IsPanZoomLocked="{Binding IsPanZoomLocked}"
                              ViewCenterLat="{Binding ViewCenterLat, Mode=TwoWay}"
@@ -79,6 +87,10 @@
                     HorizontalAlignment="Right" VerticalAlignment="Top"
                     Margin="0,6,6,0"
                     IsVisible="{Binding Layout, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowSatelliteImage}" Content="SAT" Click="OnToggleSatelliteImage" ToolTip.Tip="Toggle satellite background image" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowVideoMapOverlay}" Content="MAP" Click="OnToggleVideoMapOverlay" ToolTip.Tip="Toggle video map overlay" />
+            <Button Classes="gnd-filter" Classes.active="{Binding ShowYaatLayout}" Content="GND" Click="OnToggleYaatLayout" ToolTip.Tip="Toggle YAAT ground layout" />
+            <Border Width="1" Background="#555" Margin="4,2" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowRunwayLabels}" Content="RWY" Click="OnToggleRunwayLabels" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowTaxiwayLabels}" Content="TWY" Click="OnToggleTaxiwayLabels" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowHoldShort, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="HS" Click="OnToggleHoldShort" />

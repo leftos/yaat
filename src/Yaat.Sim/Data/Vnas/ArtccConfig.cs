@@ -251,6 +251,9 @@ public class TcpConfig
 
 public class TowerCabConfig
 {
+    [JsonPropertyName("videoMapId")]
+    public string? VideoMapId { get; set; }
+
     [JsonPropertyName("aircraftVisibilityCeiling")]
     public double AircraftVisibilityCeiling { get; set; } = 6000;
 

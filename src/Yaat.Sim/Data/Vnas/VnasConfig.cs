@@ -25,4 +25,10 @@ public class VnasConfig
 
     [JsonPropertyName("aircraftCwtUrl")]
     public string AircraftCwtUrl { get; set; } = "";
+
+    [JsonPropertyName("videoMapBaseUrl")]
+    public string VideoMapBaseUrl { get; set; } = "";
+
+    [JsonPropertyName("towerCabImagesBaseUrl")]
+    public string TowerCabImagesBaseUrl { get; set; } = "";
 }

@@ -81,21 +81,39 @@ public sealed class VideoMapService
     private async Task<VideoMapData?> LoadSingleMapAsync(string artccId, string mapId, string artccCacheDir)
     {
         var cachePath = Path.Combine(artccCacheDir, $"{mapId}.geojson");
+        var url = $"{DataApiBase}/{artccId}/{mapId}.geojson";
 
-        // Try download first
-        if (!File.Exists(cachePath))
+        // Conditional download: if cached, check freshness via If-Modified-Since
+        try
         {
-            try
+            if (File.Exists(cachePath))
             {
-                var url = $"{DataApiBase}/{artccId}/{mapId}.geojson";
+                var fileInfo = new FileInfo(cachePath);
+                var request = new HttpRequestMessage(HttpMethod.Head, url);
+                request.Headers.IfModifiedSince = fileInfo.LastWriteTimeUtc;
+                var response = await _http.SendAsync(request);
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NotModified)
+                {
+                    _log.LogDebug("Video map {Id} is up to date", mapId);
+                }
+                else if (response.IsSuccessStatusCode)
+                {
+                    _log.LogDebug("Video map {Id} has been updated, re-downloading", mapId);
+                    var json = await _http.GetStringAsync(url);
+                    await File.WriteAllTextAsync(cachePath, json);
+                }
+            }
+            else
+            {
                 var json = await _http.GetStringAsync(url);
                 await File.WriteAllTextAsync(cachePath, json);
                 _log.LogDebug("Downloaded video map {Id}", mapId);
             }
-            catch (Exception ex)
-            {
-                _log.LogWarning(ex, "Failed to download video map {Id}", mapId);
-            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to download/check video map {Id}", mapId);
         }
 
         // Parse from cache

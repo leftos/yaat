@@ -277,6 +277,24 @@
                                 <TextBlock Text="{Binding GroundBrightness, StringFormat='{}{0}%'}" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                             </StackPanel>
                             <TextBlock Text="Brightness scales the opacity of infrastructure elements (taxiways, runways, nodes) while keeping aircraft at full visibility." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" />
+                            <Separator Margin="0,8" />
+                            <TextBlock Text="Layer Brightness" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="Satellite Image:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <Slider Value="{Binding GroundSatelliteImageBrightness}" Minimum="10" Maximum="100" Width="200" TickFrequency="10" IsSnapToTickEnabled="True" />
+                                <TextBlock Text="{Binding GroundSatelliteImageBrightness, StringFormat='{}{0}%'}" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                <TextBlock Text="Video Map Overlay:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <Slider Value="{Binding GroundVideoMapOverlayBrightness}" Minimum="10" Maximum="100" Width="200" TickFrequency="10" IsSnapToTickEnabled="True" />
+                                <TextBlock Text="{Binding GroundVideoMapOverlayBrightness, StringFormat='{}{0}%'}" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                <TextBlock Text="YAAT Layout:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+                                <Slider Value="{Binding GroundYaatLayoutBrightness}" Minimum="10" Maximum="100" Width="200" TickFrequency="10" IsSnapToTickEnabled="True" />
+                                <TextBlock Text="{Binding GroundYaatLayoutBrightness, StringFormat='{}{0}%'}" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
+                            </StackPanel>
+                            <TextBlock Text="Adjust opacity for each ground view layer independently. Satellite and video map layers come from vNAS tower cab data." TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}" FontSize="11" Margin="0,4,0,0" />
                         </StackPanel>
                         <Separator Margin="0,4" />
                         <TextBlock Text="Radar View"

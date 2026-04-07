@@ -413,10 +413,30 @@ public sealed class GroundRenderer : IDisposable
         GroundFilterMode showSpot,
         IReadOnlyList<ShownTaxiRouteEntry>? shownTaxiRoutes,
         IReadOnlySet<string>? highlightedCallsigns,
-        IReadOnlySet<string>? hiddenDataBlockCallsigns
+        IReadOnlySet<string>? hiddenDataBlockCallsigns,
+        TowerCabImage? backgroundImage,
+        TowerCabMapData? towerCabMap,
+        bool showSatelliteImage,
+        int satelliteImageBrightness,
+        bool showVideoMapOverlay,
+        int videoMapOverlayBrightness,
+        bool showYaatLayout,
+        int yaatLayoutBrightness
     )
     {
         canvas.Clear(_backgroundColor);
+
+        // Layer 1: Satellite background image
+        if (showSatelliteImage && backgroundImage is not null)
+        {
+            DrawBackgroundImage(canvas, vp, backgroundImage, satelliteImageBrightness);
+        }
+
+        // Layer 2: Tower cab video map overlay
+        if (showVideoMapOverlay && towerCabMap is not null)
+        {
+            DrawVideoMapOverlay(canvas, vp, towerCabMap, videoMapOverlayBrightness);
+        }
 
         if (layout is null)
         {
@@ -425,15 +445,35 @@ public sealed class GroundRenderer : IDisposable
 
         _labelCandidates.Clear();
 
-        DrawRunways(canvas, vp, layout, showRunwayLabels);
-        DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels, showParking);
-        DrawActiveRoute(canvas, vp, layout, activeRoute);
-        DrawPreviewRoute(canvas, vp, layout, previewRoute);
-        DrawShownTaxiRoutes(canvas, vp, layout, shownTaxiRoutes);
-        DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
-        DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
-        DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShort, showParking, showSpot);
-        DrawLabels(canvas, hoveredOnly: false);
+        // Runways render when GND or MAP is on (video map overlays may not include them)
+        if (showYaatLayout || showVideoMapOverlay)
+        {
+            DrawRunways(canvas, vp, layout, showRunwayLabels && showYaatLayout);
+        }
+
+        // Layer 3: YAAT ground layout (conditionally rendered with brightness)
+        if (showYaatLayout)
+        {
+            if (yaatLayoutBrightness < 100)
+            {
+                SetBrightness(yaatLayoutBrightness / 100f);
+            }
+
+            DrawEdges(canvas, vp, layout, showDebugInfo, showTaxiwayLabels, showParking);
+            DrawActiveRoute(canvas, vp, layout, activeRoute);
+            DrawPreviewRoute(canvas, vp, layout, previewRoute);
+            DrawShownTaxiRoutes(canvas, vp, layout, shownTaxiRoutes);
+            DrawDrawnRoute(canvas, vp, layout, drawnRoutePreview, drawWaypoints);
+            DrawDrawHoverPreview(canvas, vp, layout, drawHoverPreview);
+            DrawNodes(canvas, vp, layout, hoveredNodeId, showDebugInfo, showHoldShort, showParking, showSpot);
+            DrawLabels(canvas, hoveredOnly: false);
+
+            if (yaatLayoutBrightness < 100)
+            {
+                SetBrightness(1f);
+            }
+        }
+
         DrawAircraft(canvas, vp, aircraft, selectedAircraft, airportCenterLat, airportCenterLon, airportElevation);
         DrawDataBlocks(
             canvas,
@@ -447,7 +487,11 @@ public sealed class GroundRenderer : IDisposable
             highlightedCallsigns,
             hiddenDataBlockCallsigns
         );
-        DrawLabels(canvas, hoveredOnly: true);
+
+        if (showYaatLayout)
+        {
+            DrawLabels(canvas, hoveredOnly: true);
+        }
 
         if (showDebugInfo)
         {
@@ -457,6 +501,137 @@ public sealed class GroundRenderer : IDisposable
         if (weatherInfo is not null)
         {
             DrawWeatherOverlay(canvas, weatherInfo);
+        }
+    }
+
+    private static void DrawBackgroundImage(SKCanvas canvas, MapViewport vp, TowerCabImage image, int brightness)
+    {
+        // Project all 4 corners through the viewport (handles rotation)
+        var (blX, blY) = vp.LatLonToScreen(image.BottomLeftLat, image.BottomLeftLon);
+        var (trX, trY) = vp.LatLonToScreen(image.TopRightLat, image.TopRightLon);
+        var (brX, brY) = vp.LatLonToScreen(image.BottomLeftLat, image.TopRightLon);
+        var (tlX, tlY) = vp.LatLonToScreen(image.TopRightLat, image.BottomLeftLon);
+
+        // Source: bitmap rectangle
+        var srcRect = new SKRect(0, 0, image.Bitmap.Width, image.Bitmap.Height);
+
+        // Destination: the 4 projected screen corners
+        // Bitmap top-left → screen top-left, bitmap top-right → screen top-right, etc.
+        // Note: bitmap Y=0 is top, geo top-right lat is the "top" of the image
+        var matrix = ComputeBitmapTransform(srcRect, new SKPoint(tlX, tlY), new SKPoint(trX, trY), new SKPoint(brX, brY), new SKPoint(blX, blY));
+
+        byte alpha = (byte)Math.Clamp(brightness * 255 / 100, 0, 255);
+        using var paint = new SKPaint { Color = new SKColor(255, 255, 255, alpha), FilterQuality = SKFilterQuality.Low };
+
+        canvas.Save();
+        canvas.Concat(ref matrix);
+        canvas.DrawBitmap(image.Bitmap, 0, 0, paint);
+        canvas.Restore();
+    }
+
+    /// <summary>
+    /// Computes an affine matrix mapping 3 source points to 3 destination points.
+    /// Maps: src(0,0)→dstTL, src(w,0)→dstTR, src(0,h)→dstBL.
+    /// Solves the 2x3 affine system directly.
+    /// </summary>
+    private static SKMatrix ComputeBitmapTransform(SKRect src, SKPoint dstTL, SKPoint dstTR, SKPoint dstBR, SKPoint dstBL)
+    {
+        float sx0 = src.Left,
+            sy0 = src.Top;
+        float sx1 = src.Right,
+            sy1 = src.Top;
+        float sx2 = src.Left,
+            sy2 = src.Bottom;
+
+        // Solve: dst = A * src + T for affine coefficients
+        // Using 3 point pairs: (sx0,sy0)→dstTL, (sx1,sy1)→dstTR, (sx2,sy2)→dstBL
+        float dx1 = sx1 - sx0,
+            dy1 = sy1 - sy0;
+        float dx2 = sx2 - sx0,
+            dy2 = sy2 - sy0;
+        float det = (dx1 * dy2) - (dx2 * dy1);
+
+        if (MathF.Abs(det) < 1e-10f)
+        {
+            return SKMatrix.CreateTranslation(dstTL.X, dstTL.Y);
+        }
+
+        float invDet = 1f / det;
+
+        float ddx1 = dstTR.X - dstTL.X,
+            ddy1 = dstTR.Y - dstTL.Y;
+        float ddx2 = dstBL.X - dstTL.X,
+            ddy2 = dstBL.Y - dstTL.Y;
+
+        float scaleX = ((ddx1 * dy2) - (ddx2 * dy1)) * invDet;
+        float skewX = ((ddx2 * dx1) - (ddx1 * dx2)) * invDet;
+        float skewY = ((ddy1 * dy2) - (ddy2 * dy1)) * invDet;
+        float scaleY = ((ddy2 * dx1) - (ddy1 * dx2)) * invDet;
+        float transX = dstTL.X - (scaleX * sx0) - (skewX * sy0);
+        float transY = dstTL.Y - (skewY * sx0) - (scaleY * sy0);
+
+        return new SKMatrix(scaleX, skewX, transX, skewY, scaleY, transY, 0, 0, 1);
+    }
+
+    private static void DrawVideoMapOverlay(SKCanvas canvas, MapViewport vp, TowerCabMapData mapData, int brightness)
+    {
+        byte alpha = (byte)Math.Clamp(brightness * 255 / 100, 0, 255);
+
+        // Draw filled polygons
+        foreach (var poly in mapData.Polygons)
+        {
+            if (poly.Points.Count < 3)
+            {
+                continue;
+            }
+
+            using var path = new SKPath();
+            var (firstX, firstY) = vp.LatLonToScreen(poly.Points[0].Lat, poly.Points[0].Lon);
+            path.MoveTo(firstX, firstY);
+
+            for (int i = 1; i < poly.Points.Count; i++)
+            {
+                var (px, py) = vp.LatLonToScreen(poly.Points[i].Lat, poly.Points[i].Lon);
+                path.LineTo(px, py);
+            }
+
+            path.Close();
+
+            using var paint = new SKPaint
+            {
+                Style = SKPaintStyle.Fill,
+                Color = poly.Color.WithAlpha(alpha),
+                IsAntialias = true,
+            };
+            canvas.DrawPath(path, paint);
+        }
+
+        // Draw lines
+        foreach (var line in mapData.Lines)
+        {
+            if (line.Points.Count < 2)
+            {
+                continue;
+            }
+
+            using var path = new SKPath();
+            var (firstX, firstY) = vp.LatLonToScreen(line.Points[0].Lat, line.Points[0].Lon);
+            path.MoveTo(firstX, firstY);
+
+            for (int i = 1; i < line.Points.Count; i++)
+            {
+                var (px, py) = vp.LatLonToScreen(line.Points[i].Lat, line.Points[i].Lon);
+                path.LineTo(px, py);
+            }
+
+            using var paint = new SKPaint
+            {
+                Style = SKPaintStyle.Stroke,
+                Color = line.Color.WithAlpha(alpha),
+                StrokeWidth = line.Thickness,
+                IsAntialias = true,
+            };
+            canvas.DrawPath(path, paint);
         }
     }
 
@@ -682,10 +857,12 @@ public sealed class GroundRenderer : IDisposable
         {
             foreach (var arcDto in layout.Arcs)
             {
-                if (!nodeScreenPos.TryGetValue(arcDto.FromNodeId, out var from) ||
-                    !nodeScreenPos.TryGetValue(arcDto.ToNodeId, out var to) ||
-                    !nodeLatLon.TryGetValue(arcDto.FromNodeId, out var fromLL) ||
-                    !nodeLatLon.TryGetValue(arcDto.ToNodeId, out var toLL))
+                if (
+                    !nodeScreenPos.TryGetValue(arcDto.FromNodeId, out var from)
+                    || !nodeScreenPos.TryGetValue(arcDto.ToNodeId, out var to)
+                    || !nodeLatLon.TryGetValue(arcDto.FromNodeId, out var fromLL)
+                    || !nodeLatLon.TryGetValue(arcDto.ToNodeId, out var toLL)
+                )
                 {
                     continue;
                 }

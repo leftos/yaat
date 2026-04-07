@@ -114,6 +114,33 @@ public partial class GroundView : UserControl
         }
     }
 
+    private void OnToggleSatelliteImage(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.ShowSatelliteImage = !vm.ShowSatelliteImage;
+            vm.SaveLayerSettings();
+        }
+    }
+
+    private void OnToggleVideoMapOverlay(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.ShowVideoMapOverlay = !vm.ShowVideoMapOverlay;
+            vm.SaveLayerSettings();
+        }
+    }
+
+    private void OnToggleYaatLayout(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is GroundViewModel vm)
+        {
+            vm.ShowYaatLayout = !vm.ShowYaatLayout;
+            vm.SaveLayerSettings();
+        }
+    }
+
     private void OnToggleRunwayLabels(object? sender, RoutedEventArgs e)
     {
         if (DataContext is GroundViewModel vm)
