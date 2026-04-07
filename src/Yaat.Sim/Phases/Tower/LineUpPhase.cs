@@ -7,45 +7,28 @@ namespace Yaat.Sim.Phases.Tower;
 
 /// <summary>
 /// Taxis the aircraft from the hold-short point onto the runway centerline
-/// and aligns with the runway heading. Completes when aligned.
-/// Three-stage navigation:
-///   Stage 0 — turn perpendicular to the runway centerline (face toward it).
-///   Stage 1 — cross straight ahead to the on-runway node (no heading change).
-///   Stage 2 — correct laterally to the centerline projection, then align.
+/// and aligns with the runway heading. Completes when aligned and on centerline.
+/// Analog navigation — no ground graph nodes, just cross-track and heading.
+///
+///   Stage 1 — turn perpendicular to the runway centerline (face toward it).
+///   Stage 2 — drive straight across onto the centerline (no heading change).
+///   Stage 3 — turn 90° to align with the runway heading.
+///
 /// Inserted before LinedUpAndWaitingPhase when LUAW/CTO is issued.
 /// </summary>
 public sealed class LineUpPhase : Phase
 {
-    private const double CenterlineArrivalThresholdNm = 0.003;
-    private const double OnRunwayNodeThresholdNm = 0.015;
+    private const double CenterlineThresholdNm = 0.005;
     private const double HeadingToleranceDeg = 2.0;
     private const double LogIntervalSeconds = 3.0;
-
-    private readonly int? _holdShortNodeId;
 
     private TrueHeading _runwayHeading;
     private bool _initialized;
     private double _timeSinceLastLog;
 
-    // Stage 0: turn perpendicular to the runway centerline
     private TrueHeading _perpHeading;
     private bool _perpAligned;
-
-    // Stage 1: cross straight ahead to on-runway node (if available)
-    private double _stage1Lat;
-    private double _stage1Lon;
-    private bool _hasStage1;
-    private bool _stage1Complete;
-
-    // Stage 2: navigate to centerline projection
-    private double _centerlineLat;
-    private double _centerlineLon;
-    private bool _aligningOnly;
-
-    public LineUpPhase(int? holdShortNodeId = null)
-    {
-        _holdShortNodeId = holdShortNodeId;
-    }
+    private bool _onCenterline;
 
     public override string Name => "LiningUp";
 
@@ -55,24 +38,17 @@ public sealed class LineUpPhase : Phase
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
             Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
-            HoldShortNodeId = _holdShortNodeId,
             RunwayHeadingDeg = _runwayHeading.Degrees,
             Initialized = _initialized,
             TimeSinceLastLog = _timeSinceLastLog,
             PerpHeadingDeg = _perpHeading.Degrees,
             PerpAligned = _perpAligned,
-            Stage1Lat = _stage1Lat,
-            Stage1Lon = _stage1Lon,
-            HasStage1 = _hasStage1,
-            Stage1Complete = _stage1Complete,
-            CenterlineLat = _centerlineLat,
-            CenterlineLon = _centerlineLon,
-            AligningOnly = _aligningOnly,
+            OnCenterline = _onCenterline,
         };
 
     public static LineUpPhase FromSnapshot(LineUpPhaseDto dto)
     {
-        var phase = new LineUpPhase(dto.HoldShortNodeId);
+        var phase = new LineUpPhase();
         phase.Status = (PhaseStatus)dto.Status;
         phase.ElapsedSeconds = dto.ElapsedSeconds;
         phase.RestoreRequirements(dto.Requirements);
@@ -81,13 +57,7 @@ public sealed class LineUpPhase : Phase
         phase._timeSinceLastLog = dto.TimeSinceLastLog;
         phase._perpHeading = new TrueHeading(dto.PerpHeadingDeg);
         phase._perpAligned = dto.PerpAligned;
-        phase._stage1Lat = dto.Stage1Lat;
-        phase._stage1Lon = dto.Stage1Lon;
-        phase._hasStage1 = dto.HasStage1;
-        phase._stage1Complete = dto.Stage1Complete;
-        phase._centerlineLat = dto.CenterlineLat;
-        phase._centerlineLon = dto.CenterlineLon;
-        phase._aligningOnly = dto.AligningOnly;
+        phase._onCenterline = dto.OnCenterline;
         return phase;
     }
 
@@ -115,18 +85,13 @@ public sealed class LineUpPhase : Phase
         double perpOffset = signedCross >= 0 ? -90.0 : 90.0;
         _perpHeading = new TrueHeading(_runwayHeading.Degrees + perpOffset);
 
-        ComputeCenterlineTarget(ctx);
-        FindOnRunwayNode(ctx);
-
         _initialized = true;
 
         ctx.Logger.LogDebug(
-            "[LineUp] {Callsign}: perpHdg={PerpHdg:F0}, stage1={HasStage1}, centerline ({CLat:F6}, {CLon:F6}), rwy hdg {Hdg:F0}",
+            "[LineUp] {Callsign}: perpHdg={PerpHdg:F0}, crossTrack={Cross:F4}nm, rwy hdg {Hdg:F0}",
             ctx.Aircraft.Callsign,
             _perpHeading.Degrees,
-            _hasStage1,
-            _centerlineLat,
-            _centerlineLon,
+            Math.Abs(signedCross),
             _runwayHeading
         );
     }
@@ -138,9 +103,7 @@ public sealed class LineUpPhase : Phase
             return true;
         }
 
-        // Stage 0: turn perpendicular to the runway centerline before crossing.
-        // The aircraft rotates in place (slow speed) to face toward the centerline,
-        // then proceeds straight ahead in Stage 1.
+        // Stage 1: turn perpendicular to the runway centerline before crossing.
         if (!_perpAligned)
         {
             double perpDiff = _perpHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
@@ -162,9 +125,8 @@ public sealed class LineUpPhase : Phase
             );
         }
 
-        // Stage 1 (no on-runway node): taxi forward without turning until the
-        // aircraft crosses onto the runway centerline.
-        if (!_hasStage1 && !_stage1Complete)
+        // Stage 2: drive straight across the runway (no heading change) until on centerline.
+        if (!_onCenterline)
         {
             double crossTrack = Math.Abs(
                 GeoMath.SignedCrossTrackDistanceNm(
@@ -176,91 +138,18 @@ public sealed class LineUpPhase : Phase
                 )
             );
 
-            if (crossTrack > OnRunwayNodeThresholdNm)
+            if (crossTrack > CenterlineThresholdNm)
             {
                 AdjustSpeed(ctx, CategoryPerformance.TaxiSpeed(ctx.Category) * 0.8);
                 LogPeriodic(ctx);
                 return false;
             }
 
-            _stage1Complete = true;
-            _aligningOnly = true;
-            ctx.Aircraft.IndicatedAirspeed = 0;
-            ctx.Targets.TargetSpeed = 0;
-            ctx.Logger.LogDebug(
-                "[LineUp] {Callsign}: crossed onto centerline (crossTrack={Cross:F4}nm), turning to align",
-                ctx.Aircraft.Callsign,
-                crossTrack
-            );
+            _onCenterline = true;
+            ctx.Logger.LogDebug("[LineUp] {Callsign}: on centerline (crossTrack={Cross:F4}nm), turning to align", ctx.Aircraft.Callsign, crossTrack);
         }
 
-        // Stage 1: navigate to on-runway node
-        if (_hasStage1 && !_stage1Complete)
-        {
-            double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _stage1Lat, _stage1Lon);
-
-            if (dist > OnRunwayNodeThresholdNm)
-            {
-                AdjustSpeed(ctx, CategoryPerformance.TaxiSpeed(ctx.Category) * 0.8);
-                LogPeriodic(ctx);
-                return false;
-            }
-
-            _stage1Complete = true;
-
-            // The on-runway node is already close to the centerline (it was chosen
-            // because it has less cross-track than the hold-short node). Check if
-            // we're close enough to skip Stage 2 and just turn to runway heading.
-            double postStage1CrossTrack = Math.Abs(
-                GeoMath.SignedCrossTrackDistanceNm(
-                    ctx.Aircraft.Latitude,
-                    ctx.Aircraft.Longitude,
-                    ctx.Runway!.ThresholdLatitude,
-                    ctx.Runway.ThresholdLongitude,
-                    _runwayHeading
-                )
-            );
-
-            if (postStage1CrossTrack <= OnRunwayNodeThresholdNm)
-            {
-                // Close enough — skip diagonal Stage 2 navigation and align directly.
-                _aligningOnly = true;
-                ctx.Logger.LogDebug(
-                    "[LineUp] {Callsign}: reached on-runway node near centerline (crossTrack={Cross:F4}nm), aligning directly",
-                    ctx.Aircraft.Callsign,
-                    postStage1CrossTrack
-                );
-            }
-            else
-            {
-                // Recompute centerline target from current position — the on-runway node
-                // may be at a different along-track position than the initial hold-short.
-                // Without this, Stage 2 would navigate back toward the threshold.
-                ComputeCenterlineTarget(ctx);
-                ctx.Logger.LogDebug(
-                    "[LineUp] {Callsign}: reached on-runway node, correcting to centerline (crossTrack={Cross:F4}nm)",
-                    ctx.Aircraft.Callsign,
-                    postStage1CrossTrack
-                );
-            }
-        }
-
-        // Stage 2: navigate to centerline projection
-        if (!_aligningOnly)
-        {
-            double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _centerlineLat, _centerlineLon);
-
-            if (dist > CenterlineArrivalThresholdNm)
-            {
-                NavigateToTarget(ctx, _centerlineLat, _centerlineLon);
-                LogPeriodic(ctx);
-                return false;
-            }
-
-            _aligningOnly = true;
-        }
-
-        // Align with runway heading
+        // Stage 3: turn to align with runway heading.
         double alignDiff = _runwayHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
 
         if (alignDiff > HeadingToleranceDeg)
@@ -299,155 +188,24 @@ public sealed class LineUpPhase : Phase
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            double clDist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _centerlineLat, _centerlineLon);
-            double hdgDiff = _runwayHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
-            ctx.Logger.LogTrace(
-                "[LineUp] {Callsign}: clDist={Dist:F4}nm, hdgDiff={Diff:F1}, gs={Gs:F1}kts",
-                ctx.Aircraft.Callsign,
-                clDist,
-                hdgDiff,
-                ctx.Aircraft.GroundSpeed
-            );
-        }
-    }
-
-    private void ComputeCenterlineTarget(PhaseContext ctx)
-    {
-        double threshLat = ctx.Runway!.ThresholdLatitude;
-        double threshLon = ctx.Runway.ThresholdLongitude;
-
-        double along = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, threshLat, threshLon, _runwayHeading);
-
-        // Bias the target forward along the runway so the aircraft curves
-        // toward the centerline instead of turning in place. Without this,
-        // TurnHeadingToward may pick the wrong 180° turn direction when the
-        // hold-short heading is perpendicular to the runway, causing brief
-        // backtracking toward the threshold.
-        double crossTrack = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, threshLat, threshLon, _runwayHeading)
-        );
-        along += crossTrack + 0.02;
-
-        var target = GeoMath.ProjectPoint(threshLat, threshLon, _runwayHeading, along);
-        _centerlineLat = target.Lat;
-        _centerlineLon = target.Lon;
-    }
-
-    private void FindOnRunwayNode(PhaseContext ctx)
-    {
-        if (_holdShortNodeId is not { } nodeId)
-        {
-            return;
-        }
-
-        if (ctx.GroundLayout is not { } layout)
-        {
-            return;
-        }
-
-        if (!layout.Nodes.TryGetValue(nodeId, out var holdShortNode))
-        {
-            return;
-        }
-
-        double holdShortAlong = GeoMath.AlongTrackDistanceNm(
-            holdShortNode.Latitude,
-            holdShortNode.Longitude,
-            ctx.Runway!.ThresholdLatitude,
-            ctx.Runway.ThresholdLongitude,
-            _runwayHeading
-        );
-
-        double holdShortCrossTrack = Math.Abs(
-            GeoMath.SignedCrossTrackDistanceNm(
-                holdShortNode.Latitude,
-                holdShortNode.Longitude,
-                ctx.Runway.ThresholdLatitude,
-                ctx.Runway.ThresholdLongitude,
-                _runwayHeading
-            )
-        );
-
-        GroundNode? bestNeighbor = null;
-        double bestCrossTrack = holdShortCrossTrack;
-
-        foreach (var edge in holdShortNode.Edges)
-        {
-            var neighbor = edge.OtherNode(holdShortNode);
-
-            // Skip neighbors that are behind the hold-short along the runway.
-            // Navigating backward toward the threshold is never correct for line-up.
-            double neighborAlong = GeoMath.AlongTrackDistanceNm(
-                neighbor.Latitude,
-                neighbor.Longitude,
-                ctx.Runway.ThresholdLatitude,
-                ctx.Runway.ThresholdLongitude,
-                _runwayHeading
-            );
-
-            if (neighborAlong < holdShortAlong - 0.005)
-            {
-                continue;
-            }
-
             double crossTrack = Math.Abs(
                 GeoMath.SignedCrossTrackDistanceNm(
-                    neighbor.Latitude,
-                    neighbor.Longitude,
-                    ctx.Runway.ThresholdLatitude,
+                    ctx.Aircraft.Latitude,
+                    ctx.Aircraft.Longitude,
+                    ctx.Runway!.ThresholdLatitude,
                     ctx.Runway.ThresholdLongitude,
                     _runwayHeading
                 )
             );
-
-            if (crossTrack < bestCrossTrack)
-            {
-                bestCrossTrack = crossTrack;
-                bestNeighbor = neighbor;
-            }
-        }
-
-        if (bestNeighbor is not null)
-        {
-            _stage1Lat = bestNeighbor.Latitude;
-            _stage1Lon = bestNeighbor.Longitude;
-            _hasStage1 = true;
-
-            ctx.Logger.LogDebug(
-                "[LineUp] {Callsign}: on-runway node {NodeId} at ({Lat:F6}, {Lon:F6})",
+            double hdgDiff = _runwayHeading.AbsAngleTo(ctx.Aircraft.TrueHeading);
+            ctx.Logger.LogTrace(
+                "[LineUp] {Callsign}: crossTrack={Cross:F4}nm, hdgDiff={Diff:F1}, gs={Gs:F1}kts",
                 ctx.Aircraft.Callsign,
-                bestNeighbor.Id,
-                _stage1Lat,
-                _stage1Lon
+                crossTrack,
+                hdgDiff,
+                ctx.Aircraft.GroundSpeed
             );
         }
-    }
-
-    private void NavigateToTarget(PhaseContext ctx, double targetLat, double targetLon)
-    {
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, targetLat, targetLon);
-
-        double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
-        double diff = ctx.Aircraft.TrueHeading.SignedAngleTo(new TrueHeading(bearing));
-
-        if (Math.Abs(diff) > 90)
-        {
-            // Large turn needed — prefer the direction that passes through the
-            // runway heading first, avoiding backtracking toward the threshold.
-            double rwyDiff = ctx.Aircraft.TrueHeading.SignedAngleTo(_runwayHeading);
-            double turnDir = rwyDiff >= 0 ? 1.0 : -1.0;
-            ctx.Aircraft.TrueHeading = new TrueHeading(ctx.Aircraft.TrueHeading.Degrees + turnDir * maxTurn);
-        }
-        else
-        {
-            ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
-        }
-
-        // Near-normal taxi speed, reduced during sharp turns
-        double angleDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
-        double maxSpeed = CategoryPerformance.TaxiSpeed(ctx.Category) * 0.8;
-        double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.4, 1.0);
-        AdjustSpeed(ctx, maxSpeed * speedFraction);
     }
 
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)

@@ -147,7 +147,7 @@ public class LineUpPhaseTests
         };
         aircraft.Phases = new PhaseList();
 
-        var lineUpPhase = new LineUpPhase(node.Id);
+        var lineUpPhase = new LineUpPhase();
         aircraft.Phases.Add(lineUpPhase);
 
         var ctx = new PhaseContext
@@ -247,7 +247,7 @@ public class LineUpPhaseTests
         };
         aircraft.Phases = new PhaseList();
 
-        var lineUpPhase = new LineUpPhase(node.Id);
+        var lineUpPhase = new LineUpPhase();
         aircraft.Phases.Add(lineUpPhase);
 
         var ctx = new PhaseContext

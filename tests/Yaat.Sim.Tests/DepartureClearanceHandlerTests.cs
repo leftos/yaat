@@ -185,7 +185,7 @@ public class DepartureClearanceHandlerTests
         var rwy = DefaultRunway();
         ac.Phases!.AssignedRunway = rwy;
 
-        var lineUp = new LineUpPhase(null);
+        var lineUp = new LineUpPhase();
         var luaw = new LinedUpAndWaitingPhase();
         var takeoff = new TakeoffPhase();
         var climb = new InitialClimbPhase { Departure = new DefaultDeparture() };
@@ -213,7 +213,7 @@ public class DepartureClearanceHandlerTests
     public void TryDepartureClearance_FromLineUp_LUAW_Rejected()
     {
         var ac = MakeAircraft();
-        var lineUp = new LineUpPhase(null);
+        var lineUp = new LineUpPhase();
         ac.Phases!.Add(lineUp);
         ac.Phases.Start(MinCtx(ac));
 

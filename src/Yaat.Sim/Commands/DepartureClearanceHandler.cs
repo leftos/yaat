@@ -271,7 +271,7 @@ internal static class DepartureClearanceHandler
     {
         var routeResult = ResolveDepartureRoute(departure, aircraft);
 
-        var lineup = new LineUpPhase(holdShortNodeId);
+        var lineup = new LineUpPhase();
         var luawPhase = new LinedUpAndWaitingPhase();
         var cat = AircraftCategorization.Categorize(aircraft.AircraftType);
         bool isHeli = cat == AircraftCategory.Helicopter;

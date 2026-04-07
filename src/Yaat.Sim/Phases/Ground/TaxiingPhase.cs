@@ -410,27 +410,7 @@ public sealed class TaxiingPhase : Phase
             return;
         }
 
-        int? holdShortNodeId = null;
-        int? explicitFallbackNodeId = null;
-        var route = ctx.Aircraft.AssignedTaxiRoute;
-        if (route is not null)
-        {
-            foreach (var hs in route.HoldShortPoints)
-            {
-                if (hs.Reason is HoldShortReason.DestinationRunway)
-                {
-                    holdShortNodeId = hs.NodeId;
-                }
-                else if (hs.Reason is HoldShortReason.ExplicitHoldShort)
-                {
-                    explicitFallbackNodeId = hs.NodeId;
-                }
-            }
-        }
-
-        holdShortNodeId ??= explicitFallbackNodeId;
-
-        var lineup = new LineUpPhase(holdShortNodeId);
+        var lineup = new LineUpPhase();
         var luaw = new LinedUpAndWaitingPhase();
         bool isHeli = ctx.Category == AircraftCategory.Helicopter;
         Phase takeoffPhase = isHeli ? new HelicopterTakeoffPhase() : new TakeoffPhase();

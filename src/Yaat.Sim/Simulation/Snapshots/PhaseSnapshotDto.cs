@@ -475,19 +475,12 @@ public sealed class InitialClimbPhaseDto : PhaseDto
 
 public sealed class LineUpPhaseDto : PhaseDto
 {
-    public int? HoldShortNodeId { get; init; }
     public required double RunwayHeadingDeg { get; init; }
     public required bool Initialized { get; init; }
     public required double TimeSinceLastLog { get; init; }
-    public required double PerpHeadingDeg { get; init; } = 0.0;
-    public required bool PerpAligned { get; init; } = false;
-    public required double Stage1Lat { get; init; }
-    public required double Stage1Lon { get; init; }
-    public required bool HasStage1 { get; init; }
-    public required bool Stage1Complete { get; init; }
-    public required double CenterlineLat { get; init; }
-    public required double CenterlineLon { get; init; }
-    public required bool AligningOnly { get; init; }
+    public required double PerpHeadingDeg { get; init; }
+    public required bool PerpAligned { get; init; }
+    public required bool OnCenterline { get; init; }
 }
 
 public sealed class LinedUpAndWaitingPhaseDto : PhaseDto
