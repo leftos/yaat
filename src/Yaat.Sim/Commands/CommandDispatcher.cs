@@ -1167,12 +1167,12 @@ public static class CommandDispatcher
             bool hasTwy2 = false;
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, taxiway1, StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway(taxiway1))
                 {
                     hasTwy1 = true;
                 }
 
-                if (string.Equals(edge.TaxiwayName, taxiway2, StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway(taxiway2))
                 {
                     hasTwy2 = true;
                 }

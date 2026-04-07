@@ -34,19 +34,19 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
     [Fact]
     public void OAK30_W5_SpeedProfile()
     {
-        RunSpeedProfile("OAK", "30", "B738", 130, 1.0, "EXIT W5", 104);
+        RunSpeedProfile("OAK", "30", "B738", 130, 1.0, "EXIT W5", "W5");
     }
 
     [Fact]
     public void OAK30_W6_SpeedProfile()
     {
-        RunSpeedProfile("OAK", "30", "B738", 130, 1.0, "EXIT W6", 60);
+        RunSpeedProfile("OAK", "30", "B738", 130, 1.0, "EXIT W6", "W6");
     }
 
     [Fact]
     public void OAK28R_H_SpeedProfile()
     {
-        RunSpeedProfile("OAK", "28R", "C172", 70, 0.5, "ER H", 364);
+        RunSpeedProfile("OAK", "28R", "C172", 70, 0.5, "ER H", "H");
     }
 
     private void RunSpeedProfile(
@@ -56,7 +56,7 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
         double touchdownSpeed,
         double finalDistNm,
         string exitCommand,
-        int exitBranchNodeId
+        string exitTaxiway
     )
     {
         var engine = BuildEngine();
@@ -72,7 +72,9 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
         var layout = new TestAirportGroundData().GetLayout(airportId);
         Assert.NotNull(layout);
 
-        Assert.True(layout.Nodes.TryGetValue(exitBranchNodeId, out var branchNode));
+        // Find the branch node dynamically: a node that has edges on both the runway and the exit taxiway
+        var branchNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.IsRunway) && n.Edges.Any(e => e.MatchesTaxiway(exitTaxiway)));
+        Assert.True(branchNode is not null, $"No branch node found for exit taxiway {exitTaxiway} on runway {runwayId}");
 
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
         var (acLat, acLon) = GeoMath.ProjectPointRaw(runway.ThresholdLatitude, runway.ThresholdLongitude, reciprocal, finalDistNm);

@@ -29,9 +29,7 @@ public static class FilletArcGenerator
         int nextNodeId = layout.Nodes.Keys.DefaultIfEmpty(0).Max() + 1;
 
         // Snapshot the intersection nodes to process — we'll be mutating the graph.
-        var intersections = layout.Nodes.Values
-            .Where(IsEligibleForFilleting)
-            .ToList();
+        var intersections = layout.Nodes.Values.Where(IsEligibleForFilleting).ToList();
 
         int filletedCount = 0;
         int arcCount = 0;
@@ -93,7 +91,7 @@ public static class FilletArcGenerator
         int runwayEdgeCount = 0;
         foreach (var edge in node.Edges)
         {
-            if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            if (edge.IsRunway)
             {
                 runwayEdgeCount++;
             }
@@ -169,14 +167,10 @@ public static class FilletArcGenerator
                     double tanHalf = Math.Tan(halfAngleRad);
 
                     // Compute edge lengths from intersection to the other endpoint
-                    double edgeALenFt = GeoMath.DistanceNm(
-                        intersection.Latitude, intersection.Longitude,
-                        otherA.Latitude, otherA.Longitude
-                    ) * GeoMath.FeetPerNm;
-                    double edgeBLenFt = GeoMath.DistanceNm(
-                        intersection.Latitude, intersection.Longitude,
-                        otherB.Latitude, otherB.Longitude
-                    ) * GeoMath.FeetPerNm;
+                    double edgeALenFt =
+                        GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherA.Latitude, otherA.Longitude) * GeoMath.FeetPerNm;
+                    double edgeBLenFt =
+                        GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherB.Latitude, otherB.Longitude) * GeoMath.FeetPerNm;
 
                     // Max radius that fits both edges: R = edgeLen / tan(θ/2)
                     double maxFitRadiusFt = Math.Min(edgeALenFt, edgeBLenFt) / tanHalf;
@@ -223,8 +217,7 @@ public static class FilletArcGenerator
         int arcsCreated = 0;
         foreach (var (edgeA, edgeB, radiusFt, turnAngleDeg) in plannedArcs)
         {
-            if (!edgeTangentNodes.TryGetValue(edgeA, out var tanNodeA) ||
-                !edgeTangentNodes.TryGetValue(edgeB, out var tanNodeB))
+            if (!edgeTangentNodes.TryGetValue(edgeA, out var tanNodeA) || !edgeTangentNodes.TryGetValue(edgeB, out var tanNodeB))
             {
                 continue;
             }
@@ -239,19 +232,19 @@ public static class FilletArcGenerator
             double sweepRad = (180.0 - turnAngleDeg) * (Math.PI / 180.0);
             double arcLengthNm = (radiusFt * sweepRad) / GeoMath.FeetPerNm;
 
-            string taxiwayName = string.Equals(edgeA.TaxiwayName, edgeB.TaxiwayName, StringComparison.OrdinalIgnoreCase)
-                ? edgeA.TaxiwayName
-                : edgeA.TaxiwayName;
+            bool sameTaxiway = edgeA.SharesTaxiway(edgeB);
 
-            layout.Arcs.Add(new GroundArc
-            {
-                Nodes = [tanNodeA, tanNodeB],
-                TaxiwayName = taxiwayName,
-                CenterLat = centerLat,
-                CenterLon = centerLon,
-                RadiusFt = radiusFt,
-                DistanceNm = arcLengthNm,
-            });
+            layout.Arcs.Add(
+                new GroundArc
+                {
+                    Nodes = [tanNodeA, tanNodeB],
+                    TaxiwayNames = sameTaxiway ? [edgeA.TaxiwayName] : [edgeA.TaxiwayName, edgeB.TaxiwayName],
+                    CenterLat = centerLat,
+                    CenterLon = centerLon,
+                    RadiusFt = radiusFt,
+                    DistanceNm = arcLengthNm,
+                }
+            );
             arcsCreated++;
         }
 
@@ -267,17 +260,16 @@ public static class FilletArcGenerator
         foreach (var (edge, tangentNode) in edgeTangentNodes)
         {
             var otherNode = edge.OtherNode(intersection);
-            double newDist = GeoMath.DistanceNm(
-                otherNode.Latitude, otherNode.Longitude,
-                tangentNode.Latitude, tangentNode.Longitude
-            );
+            double newDist = GeoMath.DistanceNm(otherNode.Latitude, otherNode.Longitude, tangentNode.Latitude, tangentNode.Longitude);
 
-            layout.Edges.Add(new GroundEdge
-            {
-                Nodes = [otherNode, tangentNode],
-                TaxiwayName = edge.TaxiwayName,
-                DistanceNm = newDist,
-            });
+            layout.Edges.Add(
+                new GroundEdge
+                {
+                    Nodes = [otherNode, tangentNode],
+                    TaxiwayName = edge.TaxiwayName,
+                    DistanceNm = newDist,
+                }
+            );
             consumedEdges.Add(edge);
         }
 
@@ -293,16 +285,15 @@ public static class FilletArcGenerator
             GroundNode endB = bHasTangent ? tanB! : otherB;
 
             // Create the merged edge between the effective endpoints
-            double mergedDist = GeoMath.DistanceNm(
-                endA.Latitude, endA.Longitude,
-                endB.Latitude, endB.Longitude
+            double mergedDist = GeoMath.DistanceNm(endA.Latitude, endA.Longitude, endB.Latitude, endB.Longitude);
+            layout.Edges.Add(
+                new GroundEdge
+                {
+                    Nodes = [endA, endB],
+                    TaxiwayName = edgeA.TaxiwayName,
+                    DistanceNm = mergedDist,
+                }
             );
-            layout.Edges.Add(new GroundEdge
-            {
-                Nodes = [endA, endB],
-                TaxiwayName = edgeA.TaxiwayName,
-                DistanceNm = mergedDist,
-            });
 
             consumedEdges.Add(edgeA);
             consumedEdges.Add(edgeB);
@@ -329,16 +320,15 @@ public static class FilletArcGenerator
             GroundNode? bestTarget = FindNearestNode(otherNode, reconnectCandidates);
             if (bestTarget is not null)
             {
-                double newDist = GeoMath.DistanceNm(
-                    otherNode.Latitude, otherNode.Longitude,
-                    bestTarget.Latitude, bestTarget.Longitude
+                double newDist = GeoMath.DistanceNm(otherNode.Latitude, otherNode.Longitude, bestTarget.Latitude, bestTarget.Longitude);
+                layout.Edges.Add(
+                    new GroundEdge
+                    {
+                        Nodes = [otherNode, bestTarget],
+                        TaxiwayName = edge.TaxiwayName,
+                        DistanceNm = newDist,
+                    }
                 );
-                layout.Edges.Add(new GroundEdge
-                {
-                    Nodes = [otherNode, bestTarget],
-                    TaxiwayName = edge.TaxiwayName,
-                    DistanceNm = newDist,
-                });
             }
             else
             {
@@ -376,9 +366,7 @@ public static class FilletArcGenerator
             return;
         }
 
-        var (lat, lon) = GeoMath.ProjectPointRaw(
-            intersection.Latitude, intersection.Longitude, bearing, tangentDistNm
-        );
+        var (lat, lon) = GeoMath.ProjectPointRaw(intersection.Latitude, intersection.Longitude, bearing, tangentDistNm);
         specs[edge] = (lat, lon, tangentDistNm);
     }
 
@@ -388,10 +376,7 @@ public static class FilletArcGenerator
         double bestDist = double.MaxValue;
         foreach (var candidate in candidates)
         {
-            double dist = GeoMath.DistanceNm(
-                target.Latitude, target.Longitude,
-                candidate.Latitude, candidate.Longitude
-            );
+            double dist = GeoMath.DistanceNm(target.Latitude, target.Longitude, candidate.Latitude, candidate.Longitude);
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -402,12 +387,7 @@ public static class FilletArcGenerator
         return best;
     }
 
-    private static (double Lat, double Lon) ComputeArcCenter(
-        GroundNode intersection,
-        double bearingA,
-        double bearingB,
-        double radiusFt
-    )
+    private static (double Lat, double Lon) ComputeArcCenter(GroundNode intersection, double bearingA, double bearingB, double radiusFt)
     {
         // The arc center is at distance R / cos(halfAngle) from the intersection,
         // along the bisector of the two edge bearings, on the inside of the turn.
@@ -420,10 +400,7 @@ public static class FilletArcGenerator
         double centerDistFt = radiusFt / Math.Cos(halfAngleRad);
         double centerDistNm = centerDistFt / GeoMath.FeetPerNm;
 
-        return GeoMath.ProjectPointRaw(
-            intersection.Latitude, intersection.Longitude,
-            bisector, centerDistNm
-        );
+        return GeoMath.ProjectPointRaw(intersection.Latitude, intersection.Longitude, bisector, centerDistNm);
     }
 
     /// <summary>
@@ -487,16 +464,13 @@ public static class FilletArcGenerator
             }
         }
 
-        return GeoMath.BearingTo(
-            intersection.Latitude, intersection.Longitude,
-            otherNode.Latitude, otherNode.Longitude
-        );
+        return GeoMath.BearingTo(intersection.Latitude, intersection.Longitude, otherNode.Latitude, otherNode.Longitude);
     }
 
     private static double SelectMaxRadius(GroundEdge edgeA, GroundEdge edgeB, double turnAngleDeg)
     {
-        bool hasRunway = IsRunwayEdge(edgeA) || IsRunwayEdge(edgeB);
-        bool hasRamp = IsRampEdge(edgeA) || IsRampEdge(edgeB);
+        bool hasRunway = edgeA.IsRunway || edgeB.IsRunway;
+        bool hasRamp = edgeA.IsRamp || edgeB.IsRamp;
 
         if (hasRamp)
         {
@@ -515,10 +489,4 @@ public static class FilletArcGenerator
 
         return DefaultRadiusFt;
     }
-
-    private static bool IsRunwayEdge(GroundEdge edge) =>
-        edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsRampEdge(GroundEdge edge) =>
-        string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
 }

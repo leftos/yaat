@@ -59,7 +59,7 @@ internal static class RunwayCrossingDetector
 
         foreach (var edge in edgeSnapshot)
         {
-            if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            if (edge.IsRunway)
             {
                 continue;
             }
@@ -390,7 +390,7 @@ internal static class RunwayCrossingDetector
 
             foreach (var edge in layout.Edges)
             {
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                if (edge.IsRunway)
                 {
                     continue;
                 }
@@ -441,7 +441,7 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            if (edge.IsRunway)
             {
                 continue;
             }
@@ -450,7 +450,7 @@ internal static class RunwayCrossingDetector
             {
                 firstTaxiway = edge.TaxiwayName;
             }
-            else if (!string.Equals(edge.TaxiwayName, firstTaxiway, StringComparison.OrdinalIgnoreCase))
+            else if (!edge.MatchesTaxiway(firstTaxiway))
             {
                 return true;
             }

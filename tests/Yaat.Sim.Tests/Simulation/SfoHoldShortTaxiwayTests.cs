@@ -157,16 +157,8 @@ public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
 
         Assert.True(layout.Nodes.TryGetValue(hsE.NodeId, out var intersectionNode), $"Node {hsE.NodeId} not found in layout");
 
-        // Verify this node has an edge on taxiway E
-        bool hasEdgeOnE = false;
-        foreach (var edge in intersectionNode.Edges)
-        {
-            if (string.Equals(edge.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase))
-            {
-                hasEdgeOnE = true;
-                break;
-            }
-        }
+        // Verify this node has an edge on taxiway E (may be a junction arc after filleting)
+        bool hasEdgeOnE = intersectionNode.Edges.Any(e => e.MatchesTaxiway("E"));
         Assert.True(hasEdgeOnE, $"Node {hsE.NodeId} should have an edge on taxiway E");
 
         // The hold-short position should be offset from the intersection node

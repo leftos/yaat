@@ -20,25 +20,18 @@ public class FilletArcDumpTests
             return;
         }
 
+        // GeoJsonParser now auto-applies fillets
         var layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
 
         string outPath = Path.Combine(".tmp", "fillet-trace.txt");
         Directory.CreateDirectory(".tmp");
 
         using var writer = new StreamWriter(outPath);
-        writer.WriteLine("=== OAK Fillet Arc Trace ===");
+        writer.WriteLine("=== OAK Fillet Arc Dump (auto-filleted) ===");
         writer.WriteLine();
 
-        // Dump initial state
-        writer.WriteLine("--- INITIAL STATE ---");
-        DumpGraph(writer, layout);
-
-        // Run filleting with per-node tracing
-        FilletArcGeneratorTraced.Apply(layout, writer);
-
-        // Dump final state
-        writer.WriteLine();
-        writer.WriteLine("--- FINAL STATE ---");
+        // Dump filleted state
+        writer.WriteLine("--- FILLETED STATE ---");
         DumpGraph(writer, layout);
 
         // Count components
@@ -120,9 +113,7 @@ internal static class FilletArcGeneratorTraced
     {
         int nextNodeId = layout.Nodes.Keys.DefaultIfEmpty(0).Max() + 1;
 
-        var intersections = layout.Nodes.Values
-            .Where(IsEligible)
-            .ToList();
+        var intersections = layout.Nodes.Values.Where(IsEligible).ToList();
 
         w.WriteLine($"\nEligible intersections: {intersections.Count}");
 
@@ -159,7 +150,9 @@ internal static class FilletArcGeneratorTraced
 
             FilletNodeTraced(layout, node, ref nextNodeId, w);
 
-            w.WriteLine($"  RESULT: nodes {nodesBefore}→{layout.Nodes.Count}, edges {edgesBefore}→{layout.Edges.Count}, arcs {arcsBefore}→{layout.Arcs.Count}");
+            w.WriteLine(
+                $"  RESULT: nodes {nodesBefore}→{layout.Nodes.Count}, edges {edgesBefore}→{layout.Edges.Count}, arcs {arcsBefore}→{layout.Arcs.Count}"
+            );
 
             // Check for anomalies after each node
             layout.RebuildAdjacencyLists();
@@ -248,8 +241,10 @@ internal static class FilletArcGeneratorTraced
                     double halfAngleRad = (turnAngle / 2.0) * (Math.PI / 180.0);
                     double tanHalf = Math.Tan(halfAngleRad);
 
-                    double edgeALenFt = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherA.Latitude, otherA.Longitude) * GeoMath.FeetPerNm;
-                    double edgeBLenFt = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherB.Latitude, otherB.Longitude) * GeoMath.FeetPerNm;
+                    double edgeALenFt =
+                        GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherA.Latitude, otherA.Longitude) * GeoMath.FeetPerNm;
+                    double edgeBLenFt =
+                        GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherB.Latitude, otherB.Longitude) * GeoMath.FeetPerNm;
 
                     double maxFitRadiusFt = Math.Min(edgeALenFt, edgeBLenFt) / tanHalf;
                     double maxRadiusFt = SelectRadius(edgeA, edgeB, turnAngle);
@@ -261,7 +256,9 @@ internal static class FilletArcGeneratorTraced
                     RecordTangentPoint(edgeTangentSpecs, edgeA, intersection, bearingA, tangentDistNm);
                     RecordTangentPoint(edgeTangentSpecs, edgeB, intersection, bearingB, tangentDistNm);
                     plannedArcs.Add((edgeA, edgeB, radiusFt, turnAngle));
-                    w?.WriteLine($"  PLAN ARC: {edgeA.TaxiwayName}({otherA.Id}) + {edgeB.TaxiwayName}({otherB.Id}), turn={turnAngle:F1}°, R={radiusFt:F0}ft (max={maxRadiusFt:F0}, fit={maxFitRadiusFt:F0})");
+                    w?.WriteLine(
+                        $"  PLAN ARC: {edgeA.TaxiwayName}({otherA.Id}) + {edgeB.TaxiwayName}({otherB.Id}), turn={turnAngle:F1}°, R={radiusFt:F0}ft (max={maxRadiusFt:F0}, fit={maxFitRadiusFt:F0})"
+                    );
                 }
             }
         }
@@ -278,7 +275,13 @@ internal static class FilletArcGeneratorTraced
         foreach (var (edge, (lat, lon, _)) in edgeTangentSpecs)
         {
             int id = nextNodeId++;
-            var node = new GroundNode { Id = id, Latitude = lat, Longitude = lon, Type = GroundNodeType.TaxiwayIntersection };
+            var node = new GroundNode
+            {
+                Id = id,
+                Latitude = lat,
+                Longitude = lon,
+                Type = GroundNodeType.TaxiwayIntersection,
+            };
             layout.Nodes[id] = node;
             edgeTangentNodes[edge] = node;
             w?.WriteLine($"  CREATE TANGENT NODE {id} on edge {edge.TaxiwayName}({edge.Nodes[0].Id}--{edge.Nodes[1].Id})");
@@ -301,20 +304,21 @@ internal static class FilletArcGeneratorTraced
             double sweepRad = (180.0 - turnAngleDeg) * (Math.PI / 180.0);
             double arcLenNm = (radiusFt * sweepRad) / GeoMath.FeetPerNm;
 
-            string name = string.Equals(edgeA.TaxiwayName, edgeB.TaxiwayName, StringComparison.OrdinalIgnoreCase)
-                ? edgeA.TaxiwayName : edgeA.TaxiwayName;
+            bool sameTaxiway = edgeA.SharesTaxiway(edgeB);
 
-            layout.Arcs.Add(new GroundArc
-            {
-                Nodes = [tanA, tanB],
-                TaxiwayName = name,
-                CenterLat = cLat,
-                CenterLon = cLon,
-                RadiusFt = radiusFt,
-                DistanceNm = arcLenNm,
-            });
+            layout.Arcs.Add(
+                new GroundArc
+                {
+                    Nodes = [tanA, tanB],
+                    TaxiwayNames = sameTaxiway ? [edgeA.TaxiwayName] : [edgeA.TaxiwayName, edgeB.TaxiwayName],
+                    CenterLat = cLat,
+                    CenterLon = cLon,
+                    RadiusFt = radiusFt,
+                    DistanceNm = arcLenNm,
+                }
+            );
             arcsCreated++;
-            w?.WriteLine($"  CREATE ARC: {name} {tanA.Id}--{tanB.Id}");
+            w?.WriteLine($"  CREATE ARC: {edgeA.TaxiwayName}/{edgeB.TaxiwayName} {tanA.Id}--{tanB.Id}");
         }
 
         // Phase D: Rebuild edges
@@ -350,12 +354,14 @@ internal static class FilletArcGeneratorTraced
                 continue;
             }
 
-            layout.Edges.Add(new GroundEdge
-            {
-                Nodes = [otherA, otherB],
-                TaxiwayName = edgeA.TaxiwayName,
-                DistanceNm = edgeA.DistanceNm + edgeB.DistanceNm,
-            });
+            layout.Edges.Add(
+                new GroundEdge
+                {
+                    Nodes = [otherA, otherB],
+                    TaxiwayName = edgeA.TaxiwayName,
+                    DistanceNm = edgeA.DistanceNm + edgeB.DistanceNm,
+                }
+            );
             consumedEdges.Add(edgeA);
             consumedEdges.Add(edgeB);
             edgesMerged++;
@@ -383,12 +389,14 @@ internal static class FilletArcGeneratorTraced
             if (bestTarget is not null)
             {
                 double newDist = GeoMath.DistanceNm(otherNode.Latitude, otherNode.Longitude, bestTarget.Latitude, bestTarget.Longitude);
-                layout.Edges.Add(new GroundEdge
-                {
-                    Nodes = [otherNode, bestTarget],
-                    TaxiwayName = edge.TaxiwayName,
-                    DistanceNm = newDist,
-                });
+                layout.Edges.Add(
+                    new GroundEdge
+                    {
+                        Nodes = [otherNode, bestTarget],
+                        TaxiwayName = edge.TaxiwayName,
+                        DistanceNm = newDist,
+                    }
+                );
                 w?.WriteLine($"  ORPHAN RECONNECT: {edge.TaxiwayName} {otherNode.Id} → {bestTarget.Id}");
             }
             else
@@ -408,7 +416,11 @@ internal static class FilletArcGeneratorTraced
 
     private static void RecordTangentPoint(
         Dictionary<GroundEdge, (double Lat, double Lon, double TangentDistNm)> specs,
-        GroundEdge edge, GroundNode intersection, double bearing, double tangentDistNm)
+        GroundEdge edge,
+        GroundNode intersection,
+        double bearing,
+        double tangentDistNm
+    )
     {
         if (specs.TryGetValue(edge, out var existing) && (existing.TangentDistNm >= tangentDistNm))
         {
@@ -474,13 +486,27 @@ internal static class FilletArcGeneratorTraced
 
     private static double SelectRadius(GroundEdge edgeA, GroundEdge edgeB, double turnAngleDeg)
     {
-        bool hasRwy = edgeA.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) ||
-                      edgeB.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
-        bool hasRamp = string.Equals(edgeA.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase) ||
-                       string.Equals(edgeB.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
-        if (hasRamp) return RampRadiusFt;
-        if (hasRwy && (turnAngleDeg <= 45.0)) return HighSpeedExitRadiusFt;
-        if (hasRwy) return RunwayExitRadiusFt;
+        bool hasRwy =
+            edgeA.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+            || edgeB.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+        bool hasRamp =
+            string.Equals(edgeA.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(edgeB.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
+        if (hasRamp)
+        {
+            return RampRadiusFt;
+        }
+
+        if (hasRwy && (turnAngleDeg <= 45.0))
+        {
+            return HighSpeedExitRadiusFt;
+        }
+
+        if (hasRwy)
+        {
+            return RunwayExitRadiusFt;
+        }
+
         return DefaultRadiusFt;
     }
 }

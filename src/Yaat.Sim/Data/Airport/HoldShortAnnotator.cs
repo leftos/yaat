@@ -149,7 +149,7 @@ internal static class HoldShortAnnotator
 
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway(target))
                 {
                     if (!HoldShortExists(holdShorts, seg.ToNodeId))
                     {

@@ -122,24 +122,13 @@ public class GeoJsonParserTests
         var layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null);
 
         // T and TC share an endpoint at [-122.215874, 37.708816]
-        // That node should have edges from both taxiways
+        // After filleting, the intersection node is replaced by tangent points and arcs.
+        // Look for a node that has edges belonging to both taxiways (via MatchesTaxiway).
         GroundNode? sharedNode = null;
         foreach (var node in layout.Nodes.Values)
         {
-            bool hasT = false;
-            bool hasTC = false;
-            foreach (var edge in node.Edges)
-            {
-                if (edge.TaxiwayName == "T")
-                {
-                    hasT = true;
-                }
-
-                if (edge.TaxiwayName == "TC")
-                {
-                    hasTC = true;
-                }
-            }
+            bool hasT = node.Edges.Any(e => e.MatchesTaxiway("T"));
+            bool hasTC = node.Edges.Any(e => e.MatchesTaxiway("TC"));
 
             if (hasT && hasTC)
             {

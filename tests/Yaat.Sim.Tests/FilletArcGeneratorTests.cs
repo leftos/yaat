@@ -126,23 +126,39 @@ public class FilletArcGeneratorTests
         };
         layout.Nodes[0] = holdShort;
 
-        var nodeA = new GroundNode { Id = 1, Latitude = 0.01, Longitude = 0, Type = GroundNodeType.TaxiwayIntersection };
-        var nodeB = new GroundNode { Id = 2, Latitude = 0, Longitude = 0.01, Type = GroundNodeType.TaxiwayIntersection };
+        var nodeA = new GroundNode
+        {
+            Id = 1,
+            Latitude = 0.01,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var nodeB = new GroundNode
+        {
+            Id = 2,
+            Latitude = 0,
+            Longitude = 0.01,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
         layout.Nodes[1] = nodeA;
         layout.Nodes[2] = nodeB;
 
-        layout.Edges.Add(new GroundEdge
-        {
-            Nodes = [holdShort, nodeA],
-            TaxiwayName = "A",
-            DistanceNm = GeoMath.DistanceNm(0, 0, 0.01, 0),
-        });
-        layout.Edges.Add(new GroundEdge
-        {
-            Nodes = [holdShort, nodeB],
-            TaxiwayName = "B",
-            DistanceNm = GeoMath.DistanceNm(0, 0, 0, 0.01),
-        });
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [holdShort, nodeA],
+                TaxiwayName = "A",
+                DistanceNm = GeoMath.DistanceNm(0, 0, 0.01, 0),
+            }
+        );
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [holdShort, nodeB],
+                TaxiwayName = "B",
+                DistanceNm = GeoMath.DistanceNm(0, 0, 0, 0.01),
+            }
+        );
         layout.RebuildAdjacencyLists();
 
         FilletArcGenerator.Apply(layout);
@@ -168,23 +184,39 @@ public class FilletArcGeneratorTests
         };
         layout.Nodes[0] = parking;
 
-        var nodeA = new GroundNode { Id = 1, Latitude = 0.01, Longitude = 0, Type = GroundNodeType.TaxiwayIntersection };
-        var nodeB = new GroundNode { Id = 2, Latitude = 0, Longitude = 0.01, Type = GroundNodeType.TaxiwayIntersection };
+        var nodeA = new GroundNode
+        {
+            Id = 1,
+            Latitude = 0.01,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var nodeB = new GroundNode
+        {
+            Id = 2,
+            Latitude = 0,
+            Longitude = 0.01,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
         layout.Nodes[1] = nodeA;
         layout.Nodes[2] = nodeB;
 
-        layout.Edges.Add(new GroundEdge
-        {
-            Nodes = [parking, nodeA],
-            TaxiwayName = "A",
-            DistanceNm = GeoMath.DistanceNm(0, 0, 0.01, 0),
-        });
-        layout.Edges.Add(new GroundEdge
-        {
-            Nodes = [parking, nodeB],
-            TaxiwayName = "B",
-            DistanceNm = GeoMath.DistanceNm(0, 0, 0, 0.01),
-        });
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [parking, nodeA],
+                TaxiwayName = "A",
+                DistanceNm = GeoMath.DistanceNm(0, 0, 0.01, 0),
+            }
+        );
+        layout.Edges.Add(
+            new GroundEdge
+            {
+                Nodes = [parking, nodeB],
+                TaxiwayName = "B",
+                DistanceNm = GeoMath.DistanceNm(0, 0, 0, 0.01),
+            }
+        );
         layout.RebuildAdjacencyLists();
 
         FilletArcGenerator.Apply(layout);
@@ -270,12 +302,8 @@ public class FilletArcGeneratorTests
             return; // Silently skip if test data absent
         }
 
+        // GeoJsonParser.Parse now auto-applies fillets
         var layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
-
-        int originalNodes = layout.Nodes.Count;
-        int originalEdges = layout.Edges.Count;
-
-        FilletArcGenerator.Apply(layout);
 
         // Should have created arcs
         Assert.True(layout.Arcs.Count > 0, "Expected arcs to be generated for OAK");

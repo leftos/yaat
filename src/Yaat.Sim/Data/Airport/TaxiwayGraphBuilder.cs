@@ -82,7 +82,7 @@ internal static class TaxiwayGraphBuilder
             {
                 if (e.HasNode(fromId) && e.HasNode(toId))
                 {
-                    if (string.Equals(e.TaxiwayName, tw.Name, StringComparison.OrdinalIgnoreCase))
+                    if (e.MatchesTaxiway(tw.Name))
                     {
                         exists = true;
                         break;

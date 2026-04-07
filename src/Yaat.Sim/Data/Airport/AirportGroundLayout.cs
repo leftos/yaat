@@ -49,6 +49,36 @@ public interface IGroundEdge
     string TaxiwayName { get; }
     double DistanceNm { get; }
 
+    /// <summary>
+    /// Returns true if this edge belongs to the given taxiway.
+    /// For <see cref="GroundArc"/>s at junctions this also checks the secondary taxiway name.
+    /// </summary>
+    bool MatchesTaxiway(string name);
+
+    /// <summary>True if this edge is a runway centerline segment (TaxiwayName starts with "RWY").</summary>
+    bool IsRunway { get; }
+
+    /// <summary>True if this edge is a ramp connection (TaxiwayName is "RAMP").</summary>
+    bool IsRamp { get; }
+
+    /// <summary>
+    /// Maximum safe speed (kts) for traversing this edge given an aircraft ground turn rate.
+    /// Straight edges return <see cref="double.MaxValue"/>; arcs compute from radius and turn rate.
+    /// </summary>
+    double MaxSafeSpeedKts(double turnRateDegPerSec);
+
+    /// <summary>
+    /// Returns true if this edge shares any taxiway name with <paramref name="other"/>.
+    /// W overlaps W/W3 → true. Use for "could these be part of the same route?" checks.
+    /// </summary>
+    bool SharesTaxiway(IGroundEdge other);
+
+    /// <summary>
+    /// Returns true if this edge has the exact same taxiway identity as <paramref name="other"/>.
+    /// W == W → true, W != W/W3 → false. Use for "is this the same taxiway continuing?" checks.
+    /// </summary>
+    bool SameTaxiway(IGroundEdge other);
+
     GroundNode OtherNode(GroundNode node);
     int OtherNodeId(int nodeId);
     bool HasNode(int nodeId);
@@ -77,8 +107,27 @@ public sealed class GroundEdge : IGroundEdge
     /// </summary>
     public List<(double Lat, double Lon)> IntermediatePoints { get; init; } = [];
 
+    public bool MatchesTaxiway(string name) => string.Equals(TaxiwayName, name, StringComparison.OrdinalIgnoreCase);
+
+    public double MaxSafeSpeedKts(double turnRateDegPerSec) => double.MaxValue;
+
+    public bool SharesTaxiway(IGroundEdge other) => other.MatchesTaxiway(TaxiwayName);
+
+    public bool SameTaxiway(IGroundEdge other) =>
+        other switch
+        {
+            GroundEdge e => string.Equals(TaxiwayName, e.TaxiwayName, StringComparison.OrdinalIgnoreCase),
+            GroundArc { TaxiwayNames.Length: 1 } a => string.Equals(TaxiwayName, a.TaxiwayNames[0], StringComparison.OrdinalIgnoreCase),
+            _ => false, // junction arc has multiple names — never "same" as a single-name edge
+        };
+
+    public bool IsRunway => TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+    public bool IsRamp => string.Equals(TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
+
     public GroundNode OtherNode(GroundNode node) => Nodes[0].Id == node.Id ? Nodes[1] : Nodes[0];
+
     public int OtherNodeId(int nodeId) => Nodes[0].Id == nodeId ? Nodes[1].Id : Nodes[0].Id;
+
     public bool HasNode(int nodeId) => Nodes[0].Id == nodeId || Nodes[1].Id == nodeId;
 
     public DirectionalEdge Directed(GroundNode fromNode, GroundNode toNode) =>
@@ -103,14 +152,89 @@ public sealed class GroundEdge : IGroundEdge
 public sealed class GroundArc : IGroundEdge
 {
     public required GroundNode[] Nodes { get; init; }
-    public required string TaxiwayName { get; init; }
     public required double CenterLat { get; init; }
     public required double CenterLon { get; init; }
     public required double RadiusFt { get; init; }
     public required double DistanceNm { get; init; }
 
+    /// <summary>
+    /// The taxiway(s) this arc belongs to. Length 1 when both edges share the same name,
+    /// length 2 at a junction between different taxiways (e.g., ["W", "W3"]).
+    /// No implied precedence — the arc belongs equally to both.
+    /// </summary>
+    public required string[] TaxiwayNames { get; init; }
+
+    /// <summary>
+    /// Display name for the arc: single name for same-taxiway arcs, "W/W3" for junctions.
+    /// For membership checks, use <see cref="MatchesTaxiway"/> instead.
+    /// </summary>
+    public string TaxiwayName => TaxiwayNames.Length == 1 ? TaxiwayNames[0] : string.Join("/", TaxiwayNames);
+
+    public bool MatchesTaxiway(string name)
+    {
+        foreach (string twName in TaxiwayNames)
+        {
+            if (string.Equals(twName, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public double MaxSafeSpeedKts(double turnRateDegPerSec)
+    {
+        double turnRateRadSec = turnRateDegPerSec * (Math.PI / 180.0);
+        double radiusNm = RadiusFt / GeoMath.FeetPerNm;
+        return turnRateRadSec * radiusNm * 3600.0;
+    }
+
+    public bool SharesTaxiway(IGroundEdge other)
+    {
+        foreach (string twName in TaxiwayNames)
+        {
+            if (other.MatchesTaxiway(twName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool SameTaxiway(IGroundEdge other)
+    {
+        if (other is GroundArc otherArc)
+        {
+            // Same if name sets are identical
+            if (TaxiwayNames.Length != otherArc.TaxiwayNames.Length)
+            {
+                return false;
+            }
+
+            foreach (string name in TaxiwayNames)
+            {
+                if (!otherArc.MatchesTaxiway(name))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Arc vs straight edge: same only if the arc has a single name that matches
+        return TaxiwayNames.Length == 1 && other.MatchesTaxiway(TaxiwayNames[0]);
+    }
+
+    public bool IsRunway => TaxiwayNames[0].StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+    public bool IsRamp => string.Equals(TaxiwayNames[0], "RAMP", StringComparison.OrdinalIgnoreCase);
+
     public GroundNode OtherNode(GroundNode node) => Nodes[0].Id == node.Id ? Nodes[1] : Nodes[0];
+
     public int OtherNodeId(int nodeId) => Nodes[0].Id == nodeId ? Nodes[1].Id : Nodes[0].Id;
+
     public bool HasNode(int nodeId) => Nodes[0].Id == nodeId || Nodes[1].Id == nodeId;
 
     public DirectionalEdge Directed(GroundNode fromNode, GroundNode toNode) =>
@@ -307,7 +431,7 @@ public sealed class AirportGroundLayout
     {
         foreach (var edge in node.Edges)
         {
-            if (IsRunwayEdge(edge) && edge.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase))
+            if (edge.IsRunway && edge.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -328,7 +452,7 @@ public sealed class AirportGroundLayout
 
         foreach (var edge in currentNode.Edges)
         {
-            if (!IsRunwayEdge(edge))
+            if (!edge.IsRunway)
             {
                 continue;
             }
@@ -433,7 +557,7 @@ public sealed class AirportGroundLayout
 
         foreach (var edge in centerlineNode.Edges)
         {
-            if (IsRunwayEdge(edge))
+            if (edge.IsRunway)
             {
                 continue;
             }
@@ -445,7 +569,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            if (preference?.Taxiway is { } prefTwy && !string.Equals(edge.TaxiwayName, prefTwy, StringComparison.OrdinalIgnoreCase))
+            if (preference?.Taxiway is { } prefTwy && !edge.MatchesTaxiway(prefTwy))
             {
                 continue;
             }
@@ -523,12 +647,12 @@ public sealed class AirportGroundLayout
 
             foreach (var edge in current.Edges)
             {
-                if (IsRunwayEdge(edge))
+                if (edge.IsRunway)
                 {
                     continue;
                 }
 
-                if (!string.Equals(edge.TaxiwayName, branchTwy, StringComparison.OrdinalIgnoreCase))
+                if (!edge.MatchesTaxiway(branchTwy))
                 {
                     continue;
                 }
@@ -575,7 +699,7 @@ public sealed class AirportGroundLayout
 
             foreach (var edge in current.Edges)
             {
-                if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                if (!edge.MatchesTaxiway(taxiwayName))
                 {
                     continue;
                 }
@@ -591,7 +715,7 @@ public sealed class AirportGroundLayout
                 bool onCenterline = false;
                 foreach (var nEdge in neighbor.Edges)
                 {
-                    if (IsRunwayEdge(nEdge))
+                    if (nEdge.IsRunway)
                     {
                         onCenterline = true;
                         break;
@@ -650,7 +774,7 @@ public sealed class AirportGroundLayout
                 bool hasMatchingEdge = false;
                 foreach (var edge in node.Edges)
                 {
-                    if (!IsRunwayEdge(edge) && string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+                    if (!edge.IsRunway && edge.MatchesTaxiway(taxiway))
                     {
                         hasMatchingEdge = true;
                         break;
@@ -820,7 +944,7 @@ public sealed class AirportGroundLayout
             bool hasMatchingEdge = false;
             foreach (var edge in node.Edges)
             {
-                if (!IsRunwayEdge(edge) && string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                if (!edge.IsRunway && edge.MatchesTaxiway(taxiwayName))
                 {
                     hasMatchingEdge = true;
                     break;
@@ -854,12 +978,12 @@ public sealed class AirportGroundLayout
 
         foreach (var edge in node.Edges)
         {
-            if (IsRunwayEdge(edge))
+            if (edge.IsRunway)
             {
                 continue;
             }
 
-            if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+            if (!edge.MatchesTaxiway(taxiwayName))
             {
                 continue;
             }
@@ -886,7 +1010,7 @@ public sealed class AirportGroundLayout
     {
         foreach (var edge in exitNode.Edges)
         {
-            if (!IsRunwayEdge(edge))
+            if (!edge.IsRunway)
             {
                 return edge.TaxiwayName;
             }
@@ -924,12 +1048,12 @@ public sealed class AirportGroundLayout
 
         foreach (var edge in exitNode.Edges)
         {
-            if (IsRunwayEdge(edge))
+            if (edge.IsRunway)
             {
                 continue;
             }
 
-            if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+            if (!edge.MatchesTaxiway(taxiwayName))
             {
                 continue;
             }
@@ -965,12 +1089,12 @@ public sealed class AirportGroundLayout
 
         foreach (var edge in exitNode.Edges)
         {
-            if (IsRunwayEdge(edge))
+            if (edge.IsRunway)
             {
                 continue;
             }
 
-            if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+            if (!edge.MatchesTaxiway(taxiwayName))
             {
                 continue;
             }
@@ -1055,10 +1179,7 @@ public sealed class AirportGroundLayout
 
         foreach (var node in Nodes.Values)
         {
-            bool isCenterline = node.Edges.Any(e =>
-                e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
-            );
+            bool isCenterline = node.Edges.Any(e => e.IsRunway && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase));
             if (!isCenterline)
             {
                 continue;
@@ -1067,7 +1188,7 @@ public sealed class AirportGroundLayout
             var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var edge in node.Edges)
             {
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                if (edge.IsRunway)
                 {
                     continue;
                 }
@@ -1236,7 +1357,7 @@ public sealed class AirportGroundLayout
             {
                 foreach (var edge in node.Edges)
                 {
-                    if (!IsRunwayEdge(edge) && string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+                    if (!edge.IsRunway && edge.MatchesTaxiway(taxiway))
                     {
                         matchesPreference = true;
                         break;
@@ -1467,7 +1588,7 @@ public sealed class AirportGroundLayout
         bool hasTaxiwayEdge = false;
         foreach (var edge in node.Edges)
         {
-            if (!IsRunwayEdge(edge))
+            if (!edge.IsRunway)
             {
                 hasTaxiwayEdge = true;
                 break;
@@ -1501,16 +1622,11 @@ public sealed class AirportGroundLayout
         return true;
     }
 
-    private static bool IsRunwayEdge(IGroundEdge edge)
-    {
-        return edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
-    }
-
     private static bool HasRunwayCenterlineEdge(GroundNode node)
     {
         foreach (var edge in node.Edges)
         {
-            if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            if (edge.IsRunway)
             {
                 return true;
             }

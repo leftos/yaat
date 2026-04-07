@@ -1114,7 +1114,7 @@ public class AirportE2ETests
 
         // Find a node on M1 (not at a multi-taxiway junction)
         var m1Node = layout.Nodes.Values.FirstOrDefault(n =>
-            n.Edges.Any(e => string.Equals(e.TaxiwayName, "M1", StringComparison.OrdinalIgnoreCase)) && n.Type == GroundNodeType.TaxiwayIntersection
+            n.Edges.Any(e => e.MatchesTaxiway("M1")) && n.Type == GroundNodeType.TaxiwayIntersection
         );
         Assert.NotNull(m1Node);
 
@@ -1140,10 +1140,7 @@ public class AirportE2ETests
             return;
         }
 
-        var ceJunction = layout.Nodes.Values.FirstOrDefault(n =>
-            n.Edges.Any(e => string.Equals(e.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase))
-            && n.Edges.Any(e => string.Equals(e.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase))
-        );
+        var ceJunction = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.MatchesTaxiway("C")) && n.Edges.Any(e => e.MatchesTaxiway("E")));
         Assert.NotNull(ceJunction);
 
         // Walk E — goes west, misses 28R hold-shorts
@@ -1165,7 +1162,7 @@ public class AirportE2ETests
                 n.Type == GroundNodeType.RunwayHoldShort
                 && n.RunwayId is { } rId
                 && (rId.Contains("28R") || rId.Contains("10L"))
-                && n.Edges.Any(e => string.Equals(e.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase))
+                && n.Edges.Any(e => e.MatchesTaxiway("E"))
             )
             .ToList();
         Assert.True(hs28RWithE.Count > 0, "28R hold-shorts with E edges should exist");

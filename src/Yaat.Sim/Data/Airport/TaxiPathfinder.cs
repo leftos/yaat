@@ -3,6 +3,22 @@ using Yaat.Sim.Phases;
 namespace Yaat.Sim.Data.Airport;
 
 /// <summary>
+/// Route preference for A* pathfinding. Each strategy uses a different cost function.
+/// When null, all three strategies are evaluated and results are merged.
+/// </summary>
+public enum RoutePreference
+{
+    /// <summary>Minimize taxiway transitions (fewest differently-named taxiways).</summary>
+    FewestTurns,
+
+    /// <summary>Minimize total distance in nautical miles.</summary>
+    Shortest,
+
+    /// <summary>Minimize estimated travel time (accounts for arc speed limits).</summary>
+    Fastest,
+}
+
+/// <summary>
 /// Pathfinding on the airport ground layout graph.
 /// Supports explicit path validation (user specifies taxiways) and A* auto-routing.
 /// </summary>
@@ -13,17 +29,26 @@ public static class TaxiPathfinder
     private const double MaxRunwayBridgeNm = 3000.0 / GeoMath.FeetPerNm;
 
     /// <summary>
-    /// Heavy cost penalty (nm-equivalent) added when A* traverses a runway
-    /// centerline edge. Prevents backtaxi/through-taxi on runways unless no
-    /// taxiway-only path exists.
+    /// Heavy cost penalty added when A* traverses a runway centerline edge.
+    /// Prevents backtaxi/through-taxi on runways unless no taxiway-only path exists.
+    /// Applied uniformly across all strategies.
     /// </summary>
-    internal const double RunwayEdgePenaltyNm = 50.0;
+    internal const double RunwayEdgePenaltyCost = 50.0;
 
     /// <summary>
-    /// Cost penalty (nm-equivalent) added when A* transitions from one taxiway
-    /// to another. Biases toward routes with fewer taxiway changes.
+    /// Large cost added per taxiway transition in the FewestTurns strategy.
+    /// Must dwarf any realistic distance to ensure transition count dominates.
     /// </summary>
-    internal const double TaxiwayTransitionPenaltyNm = 0.15;
+    private const double FewestTurnsPenalty = 10.0;
+
+    /// <summary>
+    /// Small tiebreaker weight on distance in the FewestTurns strategy.
+    /// Breaks ties between routes with the same number of transitions.
+    /// </summary>
+    private const double FewestTurnsDistanceWeight = 0.001;
+
+    /// <summary>Assumed max taxi speed (kts) for straight edges in the Fastest strategy.</summary>
+    private const double FastestStraightSpeedKts = 30.0;
 
     /// <summary>
     /// Returns true if the token is a node reference (e.g., "#42").
@@ -246,21 +271,157 @@ public static class TaxiPathfinder
     }
 
     /// <summary>
-    /// Find shortest route between two nodes using A*.
+    /// Find the best route between two nodes. Uses the FewestTurns strategy
+    /// (the most natural taxi instruction a controller would give).
     /// </summary>
     public static TaxiRoute? FindRoute(AirportGroundLayout layout, int fromNodeId, int toNodeId)
     {
-        return FindRouteInternal(layout, fromNodeId, toNodeId, null, null);
+        var routes = FindRoutes(layout, fromNodeId, toNodeId, RoutePreference.FewestTurns, 1);
+        return routes.Count > 0 ? routes[0] : null;
     }
 
     /// <summary>
-    /// Find up to <paramref name="maxRoutes"/> distinct routes between two nodes
-    /// using Yen's K-shortest paths algorithm. Routes are deduplicated by taxiway
-    /// sequence (two routes with the same taxiway key keep only the shorter one).
+    /// Find up to <paramref name="maxRoutes"/> distinct routes between two nodes.
+    /// When <paramref name="preference"/> is null, all three strategies (fewest turns,
+    /// shortest, fastest) are evaluated via Yen's K-shortest; otherwise only the specified
+    /// strategy runs. Each candidate route is scored by every strategy on a 0.0–1.0 scale
+    /// (1.0 = best possible for that metric). A route's final score is the max across
+    /// strategies. Results are deduplicated by taxiway sequence and ranked by score descending.
+    /// <para>
+    /// <paramref name="aircraftType"/> is used by the Fastest strategy to compute arc
+    /// speed limits from the aircraft's ground turn rate. When null, defaults to Jet.
+    /// </para>
     /// </summary>
-    public static List<TaxiRoute> FindRoutes(AirportGroundLayout layout, int fromNodeId, int toNodeId, int maxRoutes = 4)
+    public static List<TaxiRoute> FindRoutes(
+        AirportGroundLayout layout,
+        int fromNodeId,
+        int toNodeId,
+        RoutePreference? preference = null,
+        int maxRoutes = 4,
+        string? aircraftType = null
+    )
     {
-        var first = FindRouteInternal(layout, fromNodeId, toNodeId, null, null);
+        var strategies = preference is not null
+            ? [preference.Value]
+            : new[] { RoutePreference.FewestTurns, RoutePreference.Shortest, RoutePreference.Fastest };
+
+        var category = aircraftType is not null ? AircraftCategorization.Categorize(aircraftType) : AircraftCategory.Jet;
+        double turnRateDegSec = CategoryPerformance.GroundTurnRate(category);
+        double taxiSpeedKts = CategoryPerformance.TaxiSpeed(category);
+
+        // Phase 1: Collect candidates from each strategy via Yen's K-shortest.
+        // Each strategy produces up to maxRoutes candidates.
+        var allCandidates = new List<TaxiRoute>();
+        var seenKeys = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var strategy in strategies)
+        {
+            Func<IGroundEdge, IGroundEdge?, double> costFn = strategy switch
+            {
+                RoutePreference.Shortest => (edge, _) => CostShortest(edge),
+                RoutePreference.FewestTurns => (edge, prev) => CostFewestTurns(edge, prev),
+                RoutePreference.Fastest => (edge, _) => CostFastest(edge, turnRateDegSec, taxiSpeedKts),
+                _ => (edge, _) => CostShortest(edge),
+            };
+
+            var strategyRoutes = YenKShortest(layout, fromNodeId, toNodeId, costFn, maxRoutes);
+            foreach (var route in strategyRoutes)
+            {
+                var key = BuildTaxiwayKey(route);
+                if (seenKeys.Add(key))
+                {
+                    allCandidates.Add(route);
+                }
+            }
+        }
+
+        if (allCandidates.Count == 0)
+        {
+            return [];
+        }
+
+        // Phase 2: Score every candidate by every strategy (normalized 0.0–1.0).
+        // Find best raw value per metric across all candidates.
+        double bestDistance = double.MaxValue;
+        int fewestTransitions = int.MaxValue;
+        double bestTime = double.MaxValue;
+
+        foreach (var route in allCandidates)
+        {
+            double dist = route.TotalDistanceNm;
+            int trans = CountTaxiwayTransitions(route);
+            double time = EstimateTime(route, turnRateDegSec, taxiSpeedKts);
+
+            if (dist < bestDistance)
+            {
+                bestDistance = dist;
+            }
+
+            if (trans < fewestTransitions)
+            {
+                fewestTransitions = trans;
+            }
+
+            if (time < bestTime)
+            {
+                bestTime = time;
+            }
+        }
+
+        // Phase 3: Assign final score = max normalized score across strategies.
+        var scored = new List<(TaxiRoute Route, double Score)>();
+        foreach (var route in allCandidates)
+        {
+            double distScore = bestDistance / Math.Max(route.TotalDistanceNm, 1e-9);
+            double transScore = (fewestTransitions + 1.0) / (CountTaxiwayTransitions(route) + 1.0);
+            double timeScore = bestTime / Math.Max(EstimateTime(route, turnRateDegSec, taxiSpeedKts), 1e-9);
+
+            double finalScore = Math.Max(distScore, Math.Max(transScore, timeScore));
+            scored.Add((route, finalScore));
+        }
+
+        // Phase 4: Sort by score descending, take top N.
+        scored.Sort((a, b) => b.Score.CompareTo(a.Score));
+
+        var results = new List<TaxiRoute>();
+        for (int i = 0; i < Math.Min(scored.Count, maxRoutes); i++)
+        {
+            results.Add(scored[i].Route);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Estimate travel time (hours) for a route given aircraft performance.
+    /// Straight edges use taxi speed; arcs use min(taxiSpeed, arcSafeSpeed).
+    /// </summary>
+    private static double EstimateTime(TaxiRoute route, double turnRateDegSec, double taxiSpeedKts)
+    {
+        double totalTime = 0;
+        foreach (var seg in route.Segments)
+        {
+            double speed = Math.Min(taxiSpeedKts, seg.Edge.Edge.MaxSafeSpeedKts(turnRateDegSec));
+            speed = Math.Max(speed, 1.0);
+            totalTime += seg.Edge.DistanceNm / speed;
+        }
+
+        return totalTime;
+    }
+
+    /// <summary>
+    /// Yen's K-shortest paths using a pluggable A* cost function.
+    /// Returns up to <paramref name="maxRoutes"/> routes, deduplicated by taxiway sequence.
+    /// </summary>
+    private static List<TaxiRoute> YenKShortest(
+        AirportGroundLayout layout,
+        int fromNodeId,
+        int toNodeId,
+        Func<IGroundEdge, IGroundEdge?, double> costFn,
+        int maxRoutes
+    )
+    {
+        var first = FindRouteInternal(layout, fromNodeId, toNodeId, null, null, costFn);
         if (first is null)
         {
             return [];
@@ -279,8 +440,6 @@ public static class TaxiPathfinder
             {
                 int spurNodeId = i == 0 ? prevSegments[0].FromNodeId : prevSegments[i - 1].ToNodeId;
 
-                // Build blocked edges: for each existing result, if root matches,
-                // block the edge at the spur index
                 var blockedEdges = new HashSet<(int, int)>();
                 foreach (var result in results)
                 {
@@ -307,20 +466,18 @@ public static class TaxiPathfinder
                     }
                 }
 
-                // Block nodes in root path except spur node
                 var blockedNodes = new HashSet<int>();
                 for (int j = 0; j < i; j++)
                 {
                     blockedNodes.Add(prevSegments[j].FromNodeId);
                 }
 
-                var spurPath = FindRouteInternal(layout, spurNodeId, toNodeId, blockedEdges, blockedNodes);
+                var spurPath = FindRouteInternal(layout, spurNodeId, toNodeId, blockedEdges, blockedNodes, costFn);
                 if (spurPath is null)
                 {
                     continue;
                 }
 
-                // Combine root + spur
                 var combinedSegments = new List<TaxiRouteSegment>();
                 for (int j = 0; j < i; j++)
                 {
@@ -335,7 +492,6 @@ public static class TaxiPathfinder
                 candidates.Add(new TaxiRoute { Segments = combinedSegments, HoldShortPoints = holdShorts });
             }
 
-            // Pick shortest candidate with a unique taxiway key
             candidates.Sort((a, b) => a.TotalDistanceNm.CompareTo(b.TotalDistanceNm));
 
             TaxiRoute? nextRoute = null;
@@ -359,6 +515,80 @@ public static class TaxiPathfinder
         }
 
         return results;
+    }
+
+    private static double CostShortest(IGroundEdge edge)
+    {
+        double cost = edge.DistanceNm;
+        if (edge.IsRunway)
+        {
+            cost += RunwayEdgePenaltyCost;
+        }
+
+        return cost;
+    }
+
+    private static double CostFewestTurns(IGroundEdge edge, IGroundEdge? prevEdge)
+    {
+        double cost = edge.DistanceNm * FewestTurnsDistanceWeight;
+        if (edge.IsRunway)
+        {
+            cost += RunwayEdgePenaltyCost;
+        }
+
+        if (prevEdge is not null && !edge.SharesTaxiway(prevEdge))
+        {
+            cost += FewestTurnsPenalty;
+        }
+
+        // Junction arcs (2 names) always represent a taxiway transition
+        if (edge is GroundArc { TaxiwayNames.Length: > 1 })
+        {
+            cost += FewestTurnsPenalty;
+        }
+
+        return cost;
+    }
+
+    private static double CostFastest(IGroundEdge edge, double turnRateDegSec, double taxiSpeedKts)
+    {
+        if (edge.IsRunway)
+        {
+            return edge.DistanceNm + RunwayEdgePenaltyCost;
+        }
+
+        double speedKts = Math.Min(taxiSpeedKts, edge.MaxSafeSpeedKts(turnRateDegSec));
+        speedKts = Math.Max(speedKts, 1.0); // avoid division by zero
+        double timeHours = edge.DistanceNm / speedKts;
+        return timeHours;
+    }
+
+    /// <summary>
+    /// Count distinct taxiway transitions in a route (excluding RWY and RAMP segments).
+    /// </summary>
+    private static int CountTaxiwayTransitions(TaxiRoute route)
+    {
+        int transitions = 0;
+        string? prev = null;
+        foreach (var seg in route.Segments)
+        {
+            if (
+                seg.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(seg.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                continue;
+            }
+
+            if (prev is not null && !string.Equals(prev, seg.TaxiwayName, StringComparison.OrdinalIgnoreCase))
+            {
+                transitions++;
+            }
+
+            prev = seg.TaxiwayName;
+        }
+
+        return transitions;
     }
 
     /// <summary>
@@ -407,7 +637,7 @@ public static class TaxiPathfinder
 
         foreach (var edge in node.Edges)
         {
-            if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+            if (edge.MatchesTaxiway(taxiwayName))
             {
                 return true;
             }
@@ -444,15 +674,30 @@ public static class TaxiPathfinder
             return false;
         }
 
-        // Find all edges on this taxiway from the current node
-        var candidateEdges = new List<IGroundEdge>();
+        // Find all edges on this taxiway from the current node.
+        // Find all edges on this taxiway from the current node.
+        // Prefer straight edges over junction arcs — arcs are for transitions between taxiways,
+        // not for continuing along the same taxiway.
+        var straightCandidates = new List<IGroundEdge>();
+        var arcCandidates = new List<IGroundEdge>();
         foreach (var edge in currentNode.Edges)
         {
-            if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+            if (!edge.MatchesTaxiway(taxiwayName))
             {
-                candidateEdges.Add(edge);
+                continue;
+            }
+
+            if (edge is GroundArc)
+            {
+                arcCandidates.Add(edge);
+            }
+            else
+            {
+                straightCandidates.Add(edge);
             }
         }
+
+        var candidateEdges = straightCandidates.Count > 0 ? straightCandidates : arcCandidates;
 
         diagnosticLog?.Invoke(
             $"[WalkTaxiway] {taxiwayName}: startNode={startNodeId} candidateEdges={candidateEdges.Count} nextTw={nextTaxiwayName ?? "null"} stopAtRunwayId={stopAtRunwayId ?? "null"}"
@@ -477,7 +722,7 @@ public static class TaxiPathfinder
                     continue;
                 }
 
-                if (!node.Edges.Any(e => string.Equals(e.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase)))
+                if (!node.Edges.Any(e => e.MatchesTaxiway(taxiwayName)))
                 {
                     continue;
                 }
@@ -631,21 +876,30 @@ public static class TaxiPathfinder
                 break;
             }
 
-            // Collect all unvisited edges on this taxiway
-            var candidates = new List<(IGroundEdge Edge, int NodeId)>();
+            // Collect all unvisited edges on this taxiway.
+            // Prefer straight edges over junction arcs to stay on collinear segments
+            // rather than detouring through arcs at intersections.
+            var straightCands = new List<(IGroundEdge Edge, int NodeId)>();
+            var arcCands = new List<(IGroundEdge Edge, int NodeId)>();
             foreach (var edge in node.Edges)
             {
-                if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                int otherId = edge.OtherNodeId(currentId);
+                if (visited.Contains(otherId) || !edge.MatchesTaxiway(taxiwayName))
                 {
                     continue;
                 }
 
-                int otherId = edge.OtherNodeId(currentId);
-                if (!visited.Contains(otherId))
+                if (edge is GroundArc)
                 {
-                    candidates.Add((edge, otherId));
+                    arcCands.Add((edge, otherId));
+                }
+                else
+                {
+                    straightCands.Add((edge, otherId));
                 }
             }
+
+            var candidates = straightCands.Count > 0 ? straightCands : arcCands;
 
             IGroundEdge? nextEdge;
             int nextNodeId;
@@ -880,7 +1134,7 @@ public static class TaxiPathfinder
 
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway(taxiwayName))
                 {
                     double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, node.Latitude, node.Longitude);
                     if (dist < minDist)
@@ -896,12 +1150,18 @@ public static class TaxiPathfinder
         return minDist;
     }
 
+    /// <summary>
+    /// A* pathfinding with a pluggable cost function.
+    /// <paramref name="costFn"/> receives (currentEdge, previousEdge) and returns the cost.
+    /// previousEdge is null for the first edge from the start node.
+    /// </summary>
     private static TaxiRoute? FindRouteInternal(
         AirportGroundLayout layout,
         int fromNodeId,
         int toNodeId,
         HashSet<(int, int)>? blockedEdges,
-        HashSet<int>? blockedNodes
+        HashSet<int>? blockedNodes,
+        Func<IGroundEdge, IGroundEdge?, double> costFn
     )
     {
         if (!layout.Nodes.TryGetValue(fromNodeId, out var startNode) || !layout.Nodes.TryGetValue(toNodeId, out var endNode))
@@ -945,21 +1205,8 @@ public static class TaxiPathfinder
                     continue;
                 }
 
-                double penalty = 0;
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
-                {
-                    penalty += RunwayEdgePenaltyNm;
-                }
-
-                if (
-                    cameFrom.TryGetValue(current, out var prev)
-                    && !string.Equals(prev.Edge.TaxiwayName, edge.TaxiwayName, StringComparison.OrdinalIgnoreCase)
-                )
-                {
-                    penalty += TaxiwayTransitionPenaltyNm;
-                }
-
-                double tentativeG = currentG + edge.DistanceNm + penalty;
+                IGroundEdge? prevEdge = cameFrom.TryGetValue(current, out var prevEntry) ? prevEntry.Edge : null;
+                double tentativeG = currentG + costFn(edge, prevEdge);
 
                 if (tentativeG >= gScore.GetValueOrDefault(neighbor, double.MaxValue))
                 {
@@ -1023,7 +1270,7 @@ public static class TaxiPathfinder
             foreach (var edge in currentNode.Edges)
             {
                 // Only follow runway centerline edges
-                if (!edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                if (!edge.IsRunway)
                 {
                     continue;
                 }
@@ -1075,7 +1322,7 @@ public static class TaxiPathfinder
         {
             foreach (var edge in endNode.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway(taxiwayName))
                 {
                     foundEdge = edge;
                     break;
@@ -1109,11 +1356,7 @@ public static class TaxiPathfinder
         var candidateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var edge in startNode.Edges)
         {
-            if (
-                !string.Equals(edge.TaxiwayName, targetTaxiwayName, StringComparison.OrdinalIgnoreCase)
-                && !edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
-            )
+            if (!edge.MatchesTaxiway(targetTaxiwayName) && !edge.IsRunway && !edge.IsRamp)
             {
                 candidateNames.Add(edge.TaxiwayName);
             }
@@ -1179,7 +1422,7 @@ public static class TaxiPathfinder
             var candidates = new List<(IGroundEdge Edge, int NodeId)>();
             foreach (var edge in node.Edges)
             {
-                if (!string.Equals(edge.TaxiwayName, walkTaxiwayName, StringComparison.OrdinalIgnoreCase))
+                if (!edge.MatchesTaxiway(walkTaxiwayName))
                 {
                     continue;
                 }
@@ -1225,7 +1468,7 @@ public static class TaxiPathfinder
                 {
                     foreach (var edge in targetNode.Edges)
                     {
-                        if (string.Equals(edge.TaxiwayName, targetTaxiwayName, StringComparison.OrdinalIgnoreCase))
+                        if (edge.MatchesTaxiway(targetTaxiwayName))
                         {
                             targetEdge = edge;
                             break;
@@ -1258,7 +1501,7 @@ public static class TaxiPathfinder
             }
         }
 
-        return (transitions * TaxiwayTransitionPenaltyNm) + dist;
+        return (transitions * FewestTurnsPenalty) + dist;
     }
 
     /// <summary>
@@ -1305,7 +1548,7 @@ public static class TaxiPathfinder
                 {
                     foreach (var nEdge in neighborNode.Edges)
                     {
-                        if (string.Equals(nEdge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                        if (nEdge.MatchesTaxiway(taxiwayName))
                         {
                             foundId = neighborId;
                             foundEdge = nEdge;
@@ -1381,7 +1624,7 @@ public static class TaxiPathfinder
 
             foreach (var edge in node.Edges)
             {
-                if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                if (!edge.MatchesTaxiway(taxiwayName))
                 {
                     continue;
                 }
@@ -1439,6 +1682,32 @@ public static class TaxiPathfinder
         return false;
     }
 
+    /// <summary>
+    /// For a junction arc with multiple taxiway names, pick the name that matches the
+    /// adjacent segment to keep the route summary clean. Falls back to TaxiwayNames[0].
+    /// Note: during reconstruction segments are built in reverse, so the "adjacent" segment
+    /// is the last one added (which is the next segment in forward order).
+    /// </summary>
+    private static string ResolveArcSegmentName(IGroundEdge edge, List<TaxiRouteSegment> segments)
+    {
+        if (edge is not GroundArc { TaxiwayNames.Length: > 1 } arc)
+        {
+            return edge.TaxiwayName;
+        }
+
+        // segments are in reverse order — last added = next segment in forward direction
+        if (segments.Count > 0)
+        {
+            string nextName = segments[^1].TaxiwayName;
+            if (arc.MatchesTaxiway(nextName))
+            {
+                return nextName;
+            }
+        }
+
+        return arc.TaxiwayNames[0];
+    }
+
     private static TaxiRoute ReconstructRoute(AirportGroundLayout layout, Dictionary<int, (int NodeId, IGroundEdge Edge)> cameFrom, int endNodeId)
     {
         var segments = new List<TaxiRouteSegment>();
@@ -1448,7 +1717,10 @@ public static class TaxiPathfinder
         {
             if (layout.Nodes.TryGetValue(prev.NodeId, out var reconFromNode) && layout.Nodes.TryGetValue(current, out var reconToNode))
             {
-                segments.Add(new TaxiRouteSegment { TaxiwayName = prev.Edge.TaxiwayName, Edge = prev.Edge.Directed(reconFromNode, reconToNode) });
+                // For junction arcs connecting two taxiways, use the name that's
+                // consistent with the adjacent segment to avoid spurious transitions.
+                string segName = ResolveArcSegmentName(prev.Edge, segments);
+                segments.Add(new TaxiRouteSegment { TaxiwayName = segName, Edge = prev.Edge.Directed(reconFromNode, reconToNode) });
             }
 
             current = prev.NodeId;

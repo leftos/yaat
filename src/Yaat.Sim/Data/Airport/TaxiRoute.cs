@@ -106,7 +106,7 @@ public sealed class TaxiRoute
             // is offset by ComputeHoldShortPositions.
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway(target))
                 {
                     HoldShortPoints.Add(
                         new HoldShortPoint

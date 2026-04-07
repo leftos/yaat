@@ -226,11 +226,15 @@ public static class GeoJsonParser
         // Step 7: Wire up adjacency lists
         layout.RebuildAdjacencyLists();
 
+        // Step 8: Generate fillet arcs at intersections
+        FilletArcGenerator.Apply(layout);
+
         Log.LogInformation(
-            "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, " + "{ParkingCount} parking, {HelipadCount} helipads",
+            "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, {ArcCount} arcs, " + "{ParkingCount} parking, {HelipadCount} helipads",
             airportId,
             layout.Nodes.Count,
             layout.Edges.Count,
+            layout.Arcs.Count,
             parkings.Count,
             helipads.Count
         );

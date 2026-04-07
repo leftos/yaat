@@ -399,11 +399,7 @@ public partial class GroundViewModel : ObservableObject
         var names = new List<string>();
         foreach (var edge in node.Edges)
         {
-            if (
-                !edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
-                && !names.Contains(edge.TaxiwayName)
-            )
+            if (!edge.IsRunway && !edge.IsRamp && !names.Contains(edge.TaxiwayName))
             {
                 names.Add(edge.TaxiwayName);
             }
@@ -850,7 +846,7 @@ public partial class GroundViewModel : ObservableObject
                     continue;
                 }
 
-                if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "RAMP", StringComparison.OrdinalIgnoreCase))
+                if (adj.IsRunway || adj.IsRamp)
                 {
                     continue;
                 }
@@ -902,7 +898,7 @@ public partial class GroundViewModel : ObservableObject
             {
                 foreach (var edge in node.Edges)
                 {
-                    if (string.Equals(edge.TaxiwayName, target, StringComparison.OrdinalIgnoreCase))
+                    if (edge.MatchesTaxiway(target))
                     {
                         matches = true;
                         break;

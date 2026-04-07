@@ -43,8 +43,15 @@ Both `GroundEdge` (straight) and `GroundArc` (curved) implement a common interfa
 public interface IGroundEdge
 {
     GroundNode[] Nodes { get; }          // [endpointA, endpointB] — no implied direction
-    string TaxiwayName { get; }
+    string TaxiwayName { get; }          // display name ("W" or "W/W3" for junction arcs)
     double DistanceNm { get; }           // straight-line length or arc length
+
+    bool MatchesTaxiway(string name);    // does this edge belong to the given taxiway?
+    bool SharesTaxiway(IGroundEdge other); // any overlap in taxiway names (W shares with W/W3)
+    bool SameTaxiway(IGroundEdge other);   // exact identity (W != W/W3, W == W)
+    bool IsRunway { get; }               // TaxiwayName starts with "RWY"
+    bool IsRamp { get; }                 // TaxiwayName is "RAMP"
+    double MaxSafeSpeedKts(double turnRateDegPerSec); // speed limit for arc radius + turn rate
 
     GroundNode OtherNode(GroundNode node);
     int OtherNodeId(int nodeId);
@@ -53,20 +60,36 @@ public interface IGroundEdge
 }
 ```
 
-`GroundArc` stores only **center + radius** — angles are derived from `BearingTo(center, node)`, and the minor arc (≤180°) is used by convention. Sweep direction is determined at traversal time by which node is "from" vs "to" in the `DirectionalEdge`.
+**No bare `string.Equals` on TaxiwayName** — all taxiway name comparisons go through these interface methods. This ensures junction arcs at taxiway intersections are matched correctly.
+
+`GroundArc` stores **center + radius + taxiway names** — angles are derived from `BearingTo(center, node)`, and the minor arc (≤180°) is used by convention. Sweep direction is determined at traversal time by which node is "from" vs "to" in the `DirectionalEdge`.
 
 ```csharp
 public sealed class GroundArc : IGroundEdge
 {
     public required GroundNode[] Nodes { get; init; }
-    public required string TaxiwayName { get; init; }
+    public required string[] TaxiwayNames { get; init; } // ["W"] or ["W", "W3"] — no precedence
     public required double CenterLat { get; init; }
     public required double CenterLon { get; init; }
     public required double RadiusFt { get; init; }
     public required double DistanceNm { get; init; }
+    // TaxiwayName => "W" or "W/W3" (display only — use MatchesTaxiway for checks)
+    // MaxSafeSpeedKts => V = ω × R (computed from radius and aircraft turn rate)
     // IGroundEdge methods...
 }
 ```
+
+Junction arcs (2 names) belong equally to both taxiways — no precedence between names. A same-taxiway arc (1 name, e.g. an L-curve on taxiway A) is fully "same taxiway" as straight edges on A.
+
+### Taxiway name comparison semantics
+
+Three levels of comparison, each for different use cases:
+
+| Method | W vs W | W vs W/W3 | W/W3 vs W/W3 | Use case |
+|--------|--------|-----------|---------------|----------|
+| `MatchesTaxiway("W")` | ✓ | ✓ | ✓ | "Does this edge belong to taxiway W?" — walker, pathfinder |
+| `SharesTaxiway(other)` | ✓ | ✓ | ✓ | "Any overlap?" — A* transition penalty |
+| `SameTaxiway(other)` | ✓ | ✗ | ✓ | "Exact identity?" — continuation checks |
 
 ### How the navigator follows an arc
 
@@ -148,6 +171,9 @@ Nodes **are** filleted if they are `TaxiwayIntersection` with 2+ edges, includin
 - [x] Update `RebuildAdjacencyLists` to include arcs
 - [x] Update all consumers: `TaxiPathfinder`, `TaxiRouteSegment`, `GroundNavigator`, `GroundRenderer`, `RunwayExitPhase`, `FlightCommandHandler`, `VirtualNode`, tests
 - [x] Build with zero warnings, all 2527 tests pass
+- [x] Add `MatchesTaxiway`, `SharesTaxiway`, `SameTaxiway`, `IsRunway`, `IsRamp` to `IGroundEdge`
+- [x] Replace all bare `string.Equals`/`StartsWith` on `TaxiwayName` with interface methods across entire codebase
+- [x] `GroundArc.TaxiwayNames` array (no precedence), display name `"W/W3"` for junctions
 
 ### Phase 2: Arc Generation ✅
 
@@ -160,8 +186,8 @@ Nodes **are** filleted if they are `TaxiwayIntersection` with 2+ edges, includin
   - Skips `RunwayHoldShort`, `Parking`, `Spot`, `Helipad`, runway endpoints
 - [x] Unit tests: 90° intersection, collinear merge, 3-way, 4-way, hold-short/parking skip, short-edge radius reduction, arc center position, endpoint radius validation
 - [x] Integration test: OAK filleted graph — all nodes reachable, graph connected, A* finds routes, centerline walk works, exit search works
-- [ ] Call from `GeoJsonParser.Parse()` — **deferred** (breaks 64+ tests that depend on unfilleted node IDs/topology)
-- [ ] Add `--fillets` flag to LayoutInspector
+- [x] Call from `GeoJsonParser.Parse()` as Step 8 after `RebuildAdjacencyLists`
+- [ ] Add `--fillets` flag to LayoutInspector (no longer needed — fillets always on; consider `--no-fillets` for debugging)
 
 ### Phase 3: Pathfinding Integration ✅
 
@@ -169,6 +195,36 @@ Nodes **are** filleted if they are `TaxiwayIntersection` with 2+ edges, includin
 - [x] `TaxiRouteSegment` uses `DirectionalEdge` wrapping `IGroundEdge`
 - [x] Exit path resolution (`FindExitFromCenterline`) works with filleted graph (validated with OAK)
 - [x] Centerline walking works through tangent-point nodes (inner RWY segment edges)
+- [x] Multi-strategy pathfinder: FewestTurns, Shortest, Fastest (see below)
+- [x] Walker prefers straight edges over arcs when staying on a taxiway
+- [x] `ResolveArcSegmentName` picks contextually correct name for route summaries
+
+### Multi-Strategy Pathfinder
+
+Replaced the single-strategy A* (distance + transition penalty hack) with a proper 3-strategy system:
+
+**Strategies:**
+- **FewestTurns**: Minimizes taxiway transitions. Junction arcs (2 names) count as transitions; same-taxiway arcs don't. Distance used as tiebreaker only.
+- **Shortest**: Pure distance minimization. Runway edges penalized to prevent backtaxi.
+- **Fastest**: Minimizes estimated time. Straight edges use category taxi speed (Jet 30kts, Turboprop 25, Piston 20, Helicopter 15). Arcs use `min(taxiSpeed, arcSafeSpeed)` where safe speed = `ω × R`.
+
+**API:**
+```csharp
+// Single best route (FewestTurns strategy — most natural taxi instruction)
+TaxiRoute? FindRoute(layout, fromNodeId, toNodeId)
+
+// Multi-route suggestions (like a navigation app)
+List<TaxiRoute> FindRoutes(layout, from, to,
+    preference: null,        // null = all 3 strategies, or specify one
+    maxRoutes: 4,
+    aircraftType: "B738")    // affects Fastest strategy's arc speed limits
+```
+
+**Scoring & ranking:**
+1. Each strategy runs Yen's K-shortest, producing up to `maxRoutes` candidates
+2. Every candidate is scored by every strategy on 0.0–1.0 (1.0 = best for that metric)
+3. A route's final score = max across strategies (surfaces it if it's best at anything)
+4. Deduplicated by taxiway sequence, sorted by score descending, top N returned
 
 ### Phase 4: Navigator Arc Following ✅
 
@@ -187,14 +243,42 @@ Nodes **are** filleted if they are `TaxiwayIntersection` with 2+ edges, includin
 - [x] `FrameRenderer` (TickAnimator): draws arc edges in green polyline
 - [ ] Verify visual quality in Ground View at various zoom levels — **deferred** (needs fillets enabled in production)
 
-### Phase 6: Integration & Validation — NOT STARTED
+### Phase 6: Integration & Validation — IN PROGRESS
 
 #### Enabling fillets in production
 
-- [ ] Hook `FilletArcGenerator.Apply` into `GeoJsonParser.Parse()` as Step 8 after `RebuildAdjacencyLists`
-- [ ] Update or rewrite 64+ tests that depend on specific unfilleted node IDs, edge counts, or graph topology
+- [x] Hook `FilletArcGenerator.Apply` into `GeoJsonParser.Parse()` as Step 8 after `RebuildAdjacencyLists`
+- [x] Fix double-filleting in fillet test files (removed manual `Apply` calls)
+- [x] Fix hardcoded node ID references (`OakSpeedProfileTests` → dynamic branch node lookup)
+- [x] Taxi route resolution working — walker uses `MatchesTaxiway` for junction arcs
+- [x] Walker prefers straight edges over arcs when staying on the same taxiway
+- [x] A* transition penalty uses `SharesTaxiway` to avoid penalizing junction arcs
+- [x] `ResolveArcSegmentName` picks contextually correct name for route summaries
+- [ ] Fix remaining 15 test failures (down from 39 at start)
 - [ ] Add `GroundArcDto` to `ServerConnection.cs` and update `GroundLayoutDto` / `ReconstructLayout` for client-server transmission
 - [ ] Update `docs/architecture.md`
+
+#### Remaining test failures (10 of 2253)
+
+Route quality and walk-regression tests are all fixed. Remaining failures are all behavioral/simulation:
+
+**Exit smoothness (2):**
+- [ ] `OAK30_B738_ExitsSmoothly(W4)` — heading reversal of 15.8°
+- [ ] `OAK28R_C172_ExitsSmoothly(E)`
+
+**Exit behavior (3):**
+- [ ] `ExitKOvershootTests.DAL2581_ExitsAtK_NoHeadingReversal`
+- [ ] `ExitRightTaxiwaySelectionTests.WJA1508_ExitsAtTaxiwayD_NotE`
+- [ ] `RunwayExitSpeedTests.N569SX_ExitsRunwayWithinReasonableTime`
+
+**Taxi/ground (3):**
+- [ ] `OakFullLifecycleTests.LandExitTaxiCrossDepart`
+- [ ] `OakGroundE2ETests.OAK_FullGroundSequence_NoOverlapAndSIG1Reached`
+- [ ] `SfoTaxiToParkingStuckTests.ASA20_RePushAfterPushback_Accepted`
+
+**Lineup/approach (2):**
+- [ ] `SfoLineupDiagonalTests.N346G_LineUp28R_TickByTickTrace`
+- [ ] `CvaPatternEntryVeerTests.CvaAfterErd_AircraftDoesNotVeerAway`
 
 #### Known problem exits (must pass before merge)
 
@@ -223,15 +307,32 @@ Nodes **are** filleted if they are `TaxiwayIntersection` with 2+ edges, includin
 - **`RequiredOutboundHeading`** — backed out previously. Fillet arcs solve heading alignment structurally.
 - **Virtual segments in `RunwayExitPhase`** — may be simplified since the arc handles turn geometry.
 
+## Decisions & Learnings
+
+### Arc taxiway naming (decided)
+An arc at a junction between taxiways W and W3 has `TaxiwayNames = ["W", "W3"]` — no precedence. Display name is `"W/W3"`. A same-taxiway arc (L-bend on taxiway A) has `TaxiwayNames = ["A"]` and is fully "same taxiway" as straight edges on A.
+
+### Walker straight-edge preference (decided)
+When `WalkTaxiway` walks along a taxiway, it prefers straight `GroundEdge`s over `GroundArc`s. Arcs are only used as fallback when no straight edge continues the taxiway. This prevents the walker from detouring through junction arcs when collinear straight edges exist.
+
+### Pathfinder redesign (decided)
+Replaced the single A* with transition penalty hack with a 3-strategy system (FewestTurns/Shortest/Fastest). Each runs Yen's K-shortest. Routes scored 0.0–1.0 per strategy, final score = max across strategies. Deduplicated by taxiway sequence. `FindRoute` defaults to FewestTurns (most natural taxi instruction).
+
+### No bare string comparisons on TaxiwayName (enforced)
+All taxiway name checks go through `IGroundEdge` methods (`MatchesTaxiway`, `SharesTaxiway`, `SameTaxiway`, `IsRunway`, `IsRamp`). This is critical for junction arcs where the display name ("W/W3") doesn't match either individual taxiway. Tests still have some bare comparisons on `TaxiRouteSegment.TaxiwayName` (plain string on the segment, not `IGroundEdge`) — those are fine.
+
+### Test fixup approach (learned)
+Enabling fillets broke 39 tests. Most were fixable by: (1) removing manual `FilletArcGenerator.Apply` calls (double-filleting), (2) replacing bare `string.Equals` with `MatchesTaxiway`, (3) replacing hardcoded node IDs with semantic lookups. The remaining 10 are behavioral — the filleted graph changes how aircraft navigate, which needs navigator/exit phase investigation.
+
 ## Key Files
 
-- `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — `IGroundEdge`, `GroundArc`, `DirectionalEdge`, graph structure
+- `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — `IGroundEdge`, `GroundArc`, `DirectionalEdge`, graph structure, `MatchesTaxiway`/`SharesTaxiway`/`SameTaxiway`
 - `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` — arc generation algorithm
-- `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs` — hook point for arc generation (Step 8, currently not called)
+- `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs` — Step 8: `FilletArcGenerator.Apply` after `RebuildAdjacencyLists`
 - `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — arc-following mode (`ComputeArcSteering`)
 - `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — exit route building
 - `src/Yaat.Sim/Data/Airport/TaxiRoute.cs` — route segments supporting `IGroundEdge`
-- `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` — A* traversal over `IGroundEdge`
+- `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` — 3-strategy A* + Yen's K-shortest, `RoutePreference` enum
 - `src/Yaat.Client/Views/Ground/GroundRenderer.cs` — `DrawArcSegment` for route rendering
 - `tools/Yaat.TickAnimator/FrameRenderer.cs` — arc edge rendering
 - `tests/Yaat.Sim.Tests/FilletArcGeneratorTests.cs` — unit tests

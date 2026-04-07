@@ -10,7 +10,7 @@ public class FilletPathfindingTests
 
     public FilletPathfindingTests(ITestOutputHelper output) => _output = output;
 
-    private static AirportGroundLayout? LoadAndFilletOak()
+    private static AirportGroundLayout? LoadOak()
     {
         string path = Path.Combine("TestData", "oak.geojson");
         if (!File.Exists(path))
@@ -18,12 +18,10 @@ public class FilletPathfindingTests
             return null;
         }
 
-        var layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
-        FilletArcGenerator.Apply(layout);
-        return layout;
+        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
     }
 
-    private static AirportGroundLayout? LoadAndFilletSfo()
+    private static AirportGroundLayout? LoadSfo()
     {
         string path = Path.Combine("TestData", "sfo.geojson");
         if (!File.Exists(path))
@@ -31,15 +29,13 @@ public class FilletPathfindingTests
             return null;
         }
 
-        var layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), null);
-        FilletArcGenerator.Apply(layout);
-        return layout;
+        return GeoJsonParser.Parse("SFO", File.ReadAllText(path), null);
     }
 
     [Fact]
     public void OAK_Filleted_AStarFindsRoute_ParkingToRunway30()
     {
-        var layout = LoadAndFilletOak();
+        var layout = LoadOak();
         if (layout is null)
         {
             return;
@@ -49,8 +45,7 @@ public class FilletPathfindingTests
         var parking = layout.FindParkingByName("NEW7");
         Assert.NotNull(parking);
 
-        var holdShort = layout.Nodes.Values
-            .FirstOrDefault(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } r && r.Contains("30"));
+        var holdShort = layout.Nodes.Values.FirstOrDefault(n => n.Type == GroundNodeType.RunwayHoldShort && n.RunwayId is { } r && r.Contains("30"));
 
         if (holdShort is null)
         {
@@ -73,16 +68,11 @@ public class FilletPathfindingTests
     [Fact]
     public void OAK_Filleted_AllNodesReachable()
     {
-        var layout = LoadAndFilletOak();
+        var layout = LoadOak();
         if (layout is null)
         {
             return;
         }
-
-        // Compare with unfilleted
-        string path2 = Path.Combine("TestData", "oak.geojson");
-        var unfilleted = GeoJsonParser.Parse("OAK", File.ReadAllText(path2), null);
-        _output.WriteLine($"UNFILLETED: {unfilleted.Nodes.Count} nodes, {unfilleted.Edges.Count} edges");
 
         // Count connected components
         var remaining = new HashSet<int>(layout.Nodes.Keys);
@@ -229,7 +219,7 @@ public class FilletPathfindingTests
     [Fact]
     public void OAK_Filleted_RunwayCenterlineWalkWorks()
     {
-        var layout = LoadAndFilletOak();
+        var layout = LoadOak();
         if (layout is null)
         {
             return;
@@ -260,7 +250,7 @@ public class FilletPathfindingTests
     [Fact]
     public void OAK_Filleted_FindExitFromCenterline_Works()
     {
-        var layout = LoadAndFilletOak();
+        var layout = LoadOak();
         if (layout is null)
         {
             return;
@@ -270,13 +260,7 @@ public class FilletPathfindingTests
         var centerlineNode = layout.FindNearestCenterlineNode(37.7213, -122.2208, rwy30Heading, "30");
         Assert.NotNull(centerlineNode);
 
-        var exit = layout.FindExitFromCenterline(
-            centerlineNode.Latitude,
-            centerlineNode.Longitude,
-            rwy30Heading,
-            "30",
-            null
-        );
+        var exit = layout.FindExitFromCenterline(centerlineNode.Latitude, centerlineNode.Longitude, rwy30Heading, "30", null);
 
         Assert.NotNull(exit);
         _output.WriteLine($"Exit found: taxiway={exit.Value.Taxiway}, holdShort={exit.Value.HoldShort.Id}, path length={exit.Value.Path.Count}");
@@ -285,17 +269,14 @@ public class FilletPathfindingTests
     [Fact]
     public void SFO_Filleted_AStarFindsRoute()
     {
-        var layout = LoadAndFilletSfo();
+        var layout = LoadSfo();
         if (layout is null)
         {
             return;
         }
 
         // Find any two connected non-parking nodes
-        var nodes = layout.Nodes.Values
-            .Where(n => n.Type == GroundNodeType.TaxiwayIntersection && n.Edges.Count >= 2)
-            .Take(2)
-            .ToList();
+        var nodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection && n.Edges.Count >= 2).Take(2).ToList();
 
         if (nodes.Count < 2)
         {

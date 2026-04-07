@@ -13,7 +13,7 @@ public class FilletVisualizerTests
     public FilletVisualizerTests(ITestOutputHelper output) => _output = output;
 
     [Fact]
-    public void OAK_VisualizeNode52Fillet()
+    public void OAK_VisualizeFillet()
     {
         string path = Path.Combine("TestData", "oak.geojson");
         if (!File.Exists(path))
@@ -21,100 +21,39 @@ public class FilletVisualizerTests
             return;
         }
 
-        int targetId = 52;
+        // GeoJsonParser now auto-applies fillets
+        var layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
 
-        // --- BEFORE ---
-        var before = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
-        var targetNode = before.Nodes[targetId];
+        // Pick a node near where the old node 52 was (~37.7213, -122.2208) to visualize arcs in that area
+        var probe = layout.Nodes.Values.OrderBy(n => GeoMath.DistanceNm(n.Latitude, n.Longitude, 37.7213, -122.2208)).First();
 
-        // Collect 2 hops of neighbors for context
-        var beforeNodes = Collect2Hops(before, targetId);
-        string beforeSvg = GenerateSvg(before, targetId, beforeNodes, $"BEFORE — node {targetId}");
+        var visibleNodes = Collect2Hops(layout, probe.Id);
+        string svg = GenerateSvg(layout, probe.Id, visibleNodes, $"Filleted area near node {probe.Id}");
 
-        // Log the before state
-        _output.WriteLine($"Node {targetId}: {targetNode.Edges.Count} edges");
-        foreach (var e in targetNode.Edges)
+        _output.WriteLine($"Probe node {probe.Id} ({probe.Type}): {probe.Edges.Count} edges");
+        foreach (var e in probe.Edges)
         {
-            string type = e is GroundArc ? "ARC" : "EDGE";
+            string type = e is GroundArc a ? $"ARC R={a.RadiusFt:F1}ft" : "EDGE";
             _output.WriteLine($"  {type} {e.TaxiwayName}: {e.Nodes[0].Id}--{e.Nodes[1].Id}");
         }
 
-        // --- AFTER ---
-        var after = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null);
-        FilletArcGenerator.Apply(after);
+        _output.WriteLine($"\nLayout: {layout.Nodes.Count} nodes, {layout.Edges.Count} edges, {layout.Arcs.Count} arcs");
 
-        // Node 52 should be gone. Find all nodes near its position.
-        var afterNodes = new HashSet<int>();
-        foreach (var node in after.Nodes.Values)
-        {
-            double dist = GeoMath.DistanceNm(targetNode.Latitude, targetNode.Longitude, node.Latitude, node.Longitude);
-            if (dist < 0.02) // ~120ft — tight radius around the deleted node
-            {
-                afterNodes.Add(node.Id);
-            }
-        }
-
-        // Add 1 hop from those nearby nodes
-        var expanded = new HashSet<int>(afterNodes);
-        foreach (var nid in afterNodes)
-        {
-            if (after.Nodes.TryGetValue(nid, out var n))
-            {
-                foreach (var e in n.Edges)
-                {
-                    expanded.Add(e.OtherNodeId(nid));
-                }
-            }
-        }
-
-        // Also keep the original neighbor IDs if they survived
-        foreach (var e in targetNode.Edges)
-        {
-            int otherId = e.OtherNodeId(targetId);
-            if (after.Nodes.ContainsKey(otherId))
-            {
-                expanded.Add(otherId);
-            }
-        }
-
-        string afterSvg = GenerateSvg(after, -1, expanded, $"AFTER — node {targetId} removed");
-
-        // Log after state
-        _output.WriteLine($"\nAfter filleting, node {targetId} exists: {after.Nodes.ContainsKey(targetId)}");
-        _output.WriteLine($"Nearby nodes ({afterNodes.Count}):");
-        foreach (var nid in afterNodes)
-        {
-            if (after.Nodes.TryGetValue(nid, out var n))
-            {
-                double distFrom52 = GeoMath.DistanceNm(targetNode.Latitude, targetNode.Longitude, n.Latitude, n.Longitude) * GeoMath.FeetPerNm;
-                _output.WriteLine($"  Node {nid} ({n.Type}): {n.Edges.Count} edges, {distFrom52:F1}ft from old node {targetId}");
-                foreach (var e in n.Edges)
-                {
-                    string type = e is GroundArc a ? $"ARC R={a.RadiusFt:F1}ft" : "EDGE";
-                    _output.WriteLine($"    {type} {e.TaxiwayName}: {e.Nodes[0].Id}--{e.Nodes[1].Id} ({e.DistanceNm * GeoMath.FeetPerNm:F1}ft)");
-                }
-            }
-        }
-
-        // Write HTML
-        string outPath = Path.Combine(".tmp", "fillet-node52.html");
+        string outPath = Path.Combine(".tmp", "fillet-viz.html");
         Directory.CreateDirectory(".tmp");
-        File.WriteAllText(outPath, $"""
+        File.WriteAllText(
+            outPath,
+            $"""
             <!DOCTYPE html>
             <html>
-            <head><title>Fillet Visualization — Node {targetId}</title></head>
-            <body style="background: #1a1a1a; color: white; font-family: monospace; display: flex; gap: 20px; padding: 20px;">
-            <div>
-            <h2>BEFORE (node {targetId} in red)</h2>
-            {beforeSvg}
-            </div>
-            <div>
-            <h2>AFTER (node {targetId} removed)</h2>
-            {afterSvg}
-            </div>
+            <head><title>Fillet Visualization — OAK</title></head>
+            <body style="background: #1a1a1a; color: white; font-family: monospace; padding: 20px;">
+            <h2>Filleted area near node {probe.Id}</h2>
+            {svg}
             </body>
             </html>
-            """);
+            """
+        );
 
         _output.WriteLine($"\nVisualization: {Path.GetFullPath(outPath)}");
     }
@@ -195,14 +134,20 @@ public class FilletVisualizerTests
             double x2 = ScaleX(edge.Nodes[1].Longitude);
             double y2 = ScaleY(edge.Nodes[1].Latitude);
 
-            string color = edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) ? "#ff6666" :
-                           edge.TaxiwayName == "RAMP" ? "#888" : "#66aaff";
+            string color =
+                edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) ? "#ff6666"
+                : edge.TaxiwayName == "RAMP" ? "#888"
+                : "#66aaff";
 
             sb.AppendLine(Fmt($"<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{color}\" stroke-width=\"2\" />"));
 
             double mx = (x1 + x2) / 2;
             double my = (y1 + y2) / 2;
-            sb.AppendLine(Fmt($"<text x=\"{mx}\" y=\"{my - 5}\" fill=\"{color}\" font-size=\"10\" text-anchor=\"middle\">{edge.TaxiwayName} ({id0}-{id1})</text>"));
+            sb.AppendLine(
+                Fmt(
+                    $"<text x=\"{mx}\" y=\"{my - 5}\" fill=\"{color}\" font-size=\"10\" text-anchor=\"middle\">{edge.TaxiwayName} ({id0}-{id1})</text>"
+                )
+            );
         }
 
         // Draw arcs
@@ -220,8 +165,15 @@ public class FilletVisualizerTests
             double bearingEnd = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[1].Latitude, arc.Nodes[1].Longitude);
 
             double diff = bearingEnd - bearingStart;
-            if (diff > 180) diff -= 360;
-            if (diff < -180) diff += 360;
+            if (diff > 180)
+            {
+                diff -= 360;
+            }
+
+            if (diff < -180)
+            {
+                diff += 360;
+            }
 
             int steps = 20;
             var arcPoints = new List<(double X, double Y)>();
@@ -235,11 +187,19 @@ public class FilletVisualizerTests
 
             for (int s = 0; s < arcPoints.Count - 1; s++)
             {
-                sb.AppendLine(Fmt($"<line x1=\"{arcPoints[s].X}\" y1=\"{arcPoints[s].Y}\" x2=\"{arcPoints[s + 1].X}\" y2=\"{arcPoints[s + 1].Y}\" stroke=\"#44ff44\" stroke-width=\"2\" />"));
+                sb.AppendLine(
+                    Fmt(
+                        $"<line x1=\"{arcPoints[s].X}\" y1=\"{arcPoints[s].Y}\" x2=\"{arcPoints[s + 1].X}\" y2=\"{arcPoints[s + 1].Y}\" stroke=\"#44ff44\" stroke-width=\"2\" />"
+                    )
+                );
             }
 
             var mid = arcPoints[arcPoints.Count / 2];
-            sb.AppendLine(Fmt($"<text x=\"{mid.X}\" y=\"{mid.Y - 5}\" fill=\"#44ff44\" font-size=\"9\" text-anchor=\"middle\">{arc.TaxiwayName} arc ({id0}-{id1}) R={arc.RadiusFt:F0}ft</text>"));
+            sb.AppendLine(
+                Fmt(
+                    $"<text x=\"{mid.X}\" y=\"{mid.Y - 5}\" fill=\"#44ff44\" font-size=\"9\" text-anchor=\"middle\">{arc.TaxiwayName} arc ({id0}-{id1}) R={arc.RadiusFt:F0}ft</text>"
+                )
+            );
 
             // Arc center marker
             double cx = ScaleX(arc.CenterLon);
