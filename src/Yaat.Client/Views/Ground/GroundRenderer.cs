@@ -762,11 +762,11 @@ public sealed class GroundRenderer : IDisposable
                 continue;
             }
 
-            if (seg.Edge.IntermediatePoints.Count > 0)
+            if (seg.Edge.Edge.IntermediatePoints.Count > 0)
             {
                 using var path = new SKPath();
                 path.MoveTo(from.X, from.Y);
-                foreach (var (lat, lon) in seg.Edge.IntermediatePoints)
+                foreach (var (lat, lon) in seg.Edge.Edge.IntermediatePoints)
                 {
                     var (sx, sy) = vp.LatLonToScreen(lat, lon);
                     path.LineTo(sx, sy);

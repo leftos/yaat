@@ -444,8 +444,7 @@ public class RecordingArchiveTests
 
         var edge = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [node1, node2],
             TaxiwayName = "J",
             DistanceNm = 0.05,
             IntermediatePoints = [(37.725, -122.225)],
@@ -467,6 +466,7 @@ public class RecordingArchiveTests
 
         var json = JsonSerializer.Serialize(layout, RecordingJsonOptions.Default);
         var restored = JsonSerializer.Deserialize<AirportGroundLayout>(json, RecordingJsonOptions.Default)!;
+        restored.RebuildAdjacencyLists();
 
         Assert.Equal("KOAK", restored.AirportId);
         Assert.Equal(2, restored.Nodes.Count);

@@ -20,27 +20,6 @@ public sealed class TaxiRoute
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
     /// <summary>
-    /// Populate <see cref="GroundEdge.FromNode"/> and <see cref="GroundEdge.ToNode"/>
-    /// on all segment edges from the layout. Call after constructing a route from
-    /// node IDs (e.g., in <see cref="TaxiPathfinder"/>).
-    /// </summary>
-    public void WireEdgeNodeReferences(AirportGroundLayout layout)
-    {
-        foreach (var seg in Segments)
-        {
-            if (seg.Edge.FromNode is null && layout.Nodes.TryGetValue(seg.Edge.FromNodeId, out var fromNode))
-            {
-                seg.Edge.FromNode = fromNode;
-            }
-
-            if (seg.Edge.ToNode is null && layout.Nodes.TryGetValue(seg.Edge.ToNodeId, out var toNode))
-            {
-                seg.Edge.ToNode = toNode;
-            }
-        }
-    }
-
-    /// <summary>
     /// Returns a shallow copy of this route truncated to end at the segment whose
     /// ToNodeId matches <paramref name="nodeId"/>. If the node is not found, returns this route.
     /// </summary>
@@ -234,10 +213,15 @@ public sealed class TaxiRoute
                 return null;
             }
 
+            if (!layout.Nodes.TryGetValue(seg.ToNodeId, out var toNode))
+            {
+                return null;
+            }
+
             GroundEdge? edge = null;
             foreach (var e in fromNode.Edges)
             {
-                if (e.ToNodeId == seg.ToNodeId)
+                if (e.HasNode(seg.ToNodeId))
                 {
                     edge = e;
                     break;
@@ -249,15 +233,7 @@ public sealed class TaxiRoute
                 return null;
             }
 
-            segments.Add(
-                new TaxiRouteSegment
-                {
-                    FromNodeId = seg.FromNodeId,
-                    ToNodeId = seg.ToNodeId,
-                    TaxiwayName = seg.TaxiwayName ?? edge.TaxiwayName,
-                    Edge = edge,
-                }
-            );
+            segments.Add(new TaxiRouteSegment { TaxiwayName = seg.TaxiwayName ?? edge.TaxiwayName, Edge = edge.Directed(fromNode, toNode) });
         }
 
         var holdShorts = new List<HoldShortPoint>();
@@ -290,21 +266,11 @@ public sealed class TaxiRoute
 
 public sealed class TaxiRouteSegment
 {
-    public required int FromNodeId { get; init; }
-    public required int ToNodeId { get; init; }
+    public required DirectionalGroundEdge Edge { get; init; }
     public required string TaxiwayName { get; init; }
-    public required GroundEdge Edge { get; init; }
 
-    /// <summary>
-    /// The destination node for this segment. Handles the case where the underlying edge
-    /// is stored in the opposite direction (edges are bidirectional).
-    /// </summary>
-    public GroundNode? DestinationNode => (Edge.ToNodeId == ToNodeId) ? Edge.ToNode : Edge.FromNode;
-
-    /// <summary>
-    /// The origin node for this segment. Handles bidirectional edge reversal.
-    /// </summary>
-    public GroundNode? OriginNode => (Edge.FromNodeId == FromNodeId) ? Edge.FromNode : Edge.ToNode;
+    public int FromNodeId => Edge.FromNodeId;
+    public int ToNodeId => Edge.ToNodeId;
 }
 
 public enum HoldShortReason

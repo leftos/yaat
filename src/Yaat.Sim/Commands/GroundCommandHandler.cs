@@ -182,15 +182,12 @@ internal static class GroundCommandHandler
                 double bestNeighborDist = double.MaxValue;
                 foreach (var edge in destNode.Edges)
                 {
-                    int neighborId = edge.FromNodeId == destNode.Id ? edge.ToNodeId : edge.FromNodeId;
-                    if (groundLayout.Nodes.TryGetValue(neighborId, out var neighbor))
+                    var neighbor = edge.OtherNode(destNode);
+                    double d = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, neighbor.Latitude, neighbor.Longitude);
+                    if (d < bestNeighborDist)
                     {
-                        double d = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, neighbor.Latitude, neighbor.Longitude);
-                        if (d < bestNeighborDist)
-                        {
-                            bestNeighborDist = d;
-                            bestNeighbor = neighbor;
-                        }
+                        bestNeighborDist = d;
+                        bestNeighbor = neighbor;
                     }
                 }
 

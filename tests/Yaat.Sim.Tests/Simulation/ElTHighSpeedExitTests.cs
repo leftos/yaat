@@ -141,7 +141,9 @@ public class ElTHighSpeedExitTests(ITestOutputHelper output)
                 continue;
             }
 
-            if (!layout.Nodes.TryGetValue(edge.FromNodeId, out var from) || !layout.Nodes.TryGetValue(edge.ToNodeId, out var to))
+            var from = edge.Nodes[0];
+            var to = edge.Nodes[1];
+            if (from is null || to is null)
             {
                 continue;
             }

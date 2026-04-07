@@ -399,8 +399,8 @@ public class GeoJsonParserTests
             edges.Add(
                 new
                 {
-                    from = edge.FromNodeId,
-                    to = edge.ToNodeId,
+                    from = edge.Nodes[0].Id,
+                    to = edge.Nodes[1].Id,
                     taxiway = edge.TaxiwayName,
                 }
             );

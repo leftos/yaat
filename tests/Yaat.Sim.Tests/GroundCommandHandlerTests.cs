@@ -93,15 +93,13 @@ public class GroundCommandHandlerTests
 
         var edge12 = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [layout.Nodes[1], layout.Nodes[2]],
             TaxiwayName = "A",
             DistanceNm = GeoMath.DistanceNm(node1.Latitude, node1.Longitude, node2.Latitude, node2.Longitude),
         };
         var edge23 = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 3,
+            Nodes = [layout.Nodes[2], layout.Nodes[3]],
             TaxiwayName = "A",
             DistanceNm = GeoMath.DistanceNm(node2.Latitude, node2.Longitude, node3.Latitude, node3.Longitude),
         };
@@ -113,7 +111,7 @@ public class GroundCommandHandlerTests
         node2.Edges.Add(edge23);
         node3.Edges.Add(edge23);
 
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
         return layout;
     }
 
@@ -121,22 +119,7 @@ public class GroundCommandHandlerTests
     {
         return new TaxiRoute
         {
-            Segments =
-            [
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 1,
-                    ToNodeId = 2,
-                    TaxiwayName = "A",
-                    Edge = new GroundEdge
-                    {
-                        FromNodeId = 1,
-                        ToNodeId = 2,
-                        TaxiwayName = "A",
-                        DistanceNm = 0.1,
-                    },
-                },
-            ],
+            Segments = [MakeSegment(1, 2, "A", 0.1)],
             HoldShortPoints =
             [
                 new HoldShortPoint
@@ -152,6 +135,31 @@ public class GroundCommandHandlerTests
     // -------------------------------------------------------------------------
     // TryTaxi
     // -------------------------------------------------------------------------
+
+    private static TaxiRouteSegment MakeSegment(int fromId, int toId, string taxiwayName, double distanceNm = 0.1)
+    {
+        var fromNode = new GroundNode
+        {
+            Id = fromId,
+            Latitude = 0,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var toNode = new GroundNode
+        {
+            Id = toId,
+            Latitude = 0,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var edge = new GroundEdge
+        {
+            Nodes = [fromNode, toNode],
+            TaxiwayName = taxiwayName,
+            DistanceNm = distanceNm,
+        };
+        return new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = edge.Directed(fromNode, toNode) };
+    }
 
     [Fact]
     public void TryTaxi_NoLayout_Fails()
@@ -737,15 +745,12 @@ public class GroundCommandHandlerTests
         minLayout.Nodes[2] = n2;
         var edge = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [n1, n2],
             TaxiwayName = "B",
             DistanceNm = GeoMath.DistanceNm(n1.Latitude, n1.Longitude, n2.Latitude, n2.Longitude),
         };
         minLayout.Edges.Add(edge);
-        n1.Edges.Add(edge);
-        n2.Edges.Add(edge);
-        minLayout.WireEdgeNodeReferences();
+        minLayout.RebuildAdjacencyLists();
 
         var cmd2 = new TaxiCommand(["B"], []);
         var result = GroundCommandHandler.TryTaxi(ac, cmd2, minLayout);

@@ -323,7 +323,7 @@ public class AirportE2ETests
         GroundNode? startNode = null;
         foreach (var edge in dEdges)
         {
-            var node = layout.Nodes[edge.FromNodeId];
+            var node = edge.Nodes[0];
             if (node.Latitude > 37.735)
             {
                 startNode = node;
@@ -363,7 +363,7 @@ public class AirportE2ETests
         GroundNode? startNode = null;
         foreach (var edge in dEdges)
         {
-            var node = layout.Nodes[edge.FromNodeId];
+            var node = edge.Nodes[0];
             if (node.Latitude > 37.735)
             {
                 startNode = node;
@@ -535,10 +535,10 @@ public class AirportE2ETests
         foreach (var (id, node) in layout.Nodes)
         {
             // Each edge should appear exactly once in the node's adjacency list
-            var dupes = node.Edges.GroupBy(e => (e.FromNodeId, e.ToNodeId, e.TaxiwayName)).Where(g => g.Count() > 1).ToList();
+            var dupes = node.Edges.GroupBy(e => (e.Nodes[0].Id, e.Nodes[1].Id, e.TaxiwayName)).Where(g => g.Count() > 1).ToList();
             Assert.True(
                 dupes.Count == 0,
-                $"Node {id} has duplicate edges: {string.Join(", ", dupes.Select(g => $"{g.Key.TaxiwayName}({g.Key.FromNodeId}->{g.Key.ToNodeId}) x{g.Count()}"))}"
+                $"Node {id} has duplicate edges: {string.Join(", ", dupes.Select(g => $"{g.Key.TaxiwayName}({g.Key.Item1}->{g.Key.Item2}) x{g.Count()}"))}"
             );
         }
     }
@@ -801,7 +801,7 @@ public class AirportE2ETests
             return (null, null, null);
         }
 
-        var t7aNodeIds = t7aEdges.SelectMany(e => new[] { e.FromNodeId, e.ToNodeId }).Distinct().ToHashSet();
+        var t7aNodeIds = t7aEdges.SelectMany(e => new[] { e.Nodes[0].Id, e.Nodes[1].Id }).Distinct().ToHashSet();
 
         // Junction: T7A node that also has an A edge
         var junction = layout.Nodes.Values.FirstOrDefault(n =>

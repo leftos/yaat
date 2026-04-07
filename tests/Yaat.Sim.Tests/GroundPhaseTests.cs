@@ -50,22 +50,19 @@ public class GroundPhaseTests
 
         var edge01 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [node0, node1],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
         var edge12 = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [node1, node2],
             TaxiwayName = "RWY28L",
             DistanceNm = 0.06,
         };
         var edge23 = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 3,
+            Nodes = [node2, node3],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
@@ -80,7 +77,7 @@ public class GroundPhaseTests
         layout.Nodes[2] = node2;
         layout.Nodes[3] = node3;
         layout.Edges.AddRange([edge01, edge12, edge23]);
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
 
         return layout;
     }
@@ -221,27 +218,9 @@ public class GroundPhaseTests
         {
             Segments =
             [
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 0,
-                    ToNodeId = 1,
-                    TaxiwayName = "A",
-                    Edge = layout.Edges[0],
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 1,
-                    ToNodeId = 2,
-                    TaxiwayName = "RWY28L",
-                    Edge = layout.Edges[1],
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 2,
-                    ToNodeId = 3,
-                    TaxiwayName = "A",
-                    Edge = layout.Edges[2],
-                },
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) },
+                new TaxiRouteSegment { TaxiwayName = "RWY28L", Edge = layout.Edges[1].Directed(layout.Nodes[1], layout.Nodes[2]) },
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[2].Directed(layout.Nodes[2], layout.Nodes[3]) },
             ],
             HoldShortPoints =
             [
@@ -303,27 +282,9 @@ public class GroundPhaseTests
         {
             Segments =
             [
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 0,
-                    ToNodeId = 1,
-                    TaxiwayName = "A",
-                    Edge = layout.Edges[0],
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 1,
-                    ToNodeId = 2,
-                    TaxiwayName = "A",
-                    Edge = layout.Edges[1],
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 2,
-                    ToNodeId = 3,
-                    TaxiwayName = "A",
-                    Edge = layout.Edges[2],
-                },
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) },
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[1].Directed(layout.Nodes[1], layout.Nodes[2]) },
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[2].Directed(layout.Nodes[2], layout.Nodes[3]) },
             ],
             HoldShortPoints =
             [
@@ -379,16 +340,7 @@ public class GroundPhaseTests
         // Route ends at hold-short node 1 (destination runway)
         var route = new TaxiRoute
         {
-            Segments =
-            [
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 0,
-                    ToNodeId = 1,
-                    TaxiwayName = "A",
-                    Edge = layout.Edges[0],
-                },
-            ],
+            Segments = [new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) }],
             HoldShortPoints =
             [
                 new HoldShortPoint
@@ -746,27 +698,9 @@ public class GroundPhaseTests
         {
             Segments =
             [
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 0,
-                    ToNodeId = 1,
-                    TaxiwayName = "A",
-                    Edge = layout.Edges[0],
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 1,
-                    ToNodeId = 2,
-                    TaxiwayName = "RWY28L",
-                    Edge = layout.Edges[1],
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 2,
-                    ToNodeId = 3,
-                    TaxiwayName = "A",
-                    Edge = layout.Edges[2],
-                },
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[0].Directed(layout.Nodes[0], layout.Nodes[1]) },
+                new TaxiRouteSegment { TaxiwayName = "RWY28L", Edge = layout.Edges[1].Directed(layout.Nodes[1], layout.Nodes[2]) },
+                new TaxiRouteSegment { TaxiwayName = "A", Edge = layout.Edges[2].Directed(layout.Nodes[2], layout.Nodes[3]) },
             ],
             HoldShortPoints =
             [

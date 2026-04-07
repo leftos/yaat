@@ -30,17 +30,14 @@ public static class VirtualNode
     /// <summary>
     /// Create a virtual edge connecting two nodes with populated node references.
     /// </summary>
-    public static GroundEdge CreateEdge(GroundNode fromNode, GroundNode toNode, string taxiwayName)
+    public static GroundEdge CreateEdge(GroundNode nodeA, GroundNode nodeB, string taxiwayName)
     {
-        double dist = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
+        double dist = GeoMath.DistanceNm(nodeA.Latitude, nodeA.Longitude, nodeB.Latitude, nodeB.Longitude);
         return new GroundEdge
         {
-            FromNodeId = fromNode.Id,
-            ToNodeId = toNode.Id,
+            Nodes = [nodeA, nodeB],
             TaxiwayName = taxiwayName,
             DistanceNm = dist,
-            FromNode = fromNode,
-            ToNode = toNode,
         };
     }
 
@@ -51,13 +48,8 @@ public static class VirtualNode
     /// </summary>
     public static TaxiRouteSegment CreateSegment(GroundNode fromNode, GroundNode toNode, string taxiwayName)
     {
-        return new TaxiRouteSegment
-        {
-            FromNodeId = fromNode.Id,
-            ToNodeId = toNode.Id,
-            TaxiwayName = taxiwayName,
-            Edge = CreateEdge(fromNode, toNode, taxiwayName),
-        };
+        var edge = CreateEdge(fromNode, toNode, taxiwayName);
+        return new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = edge.Directed(fromNode, toNode) };
     }
 
     /// <summary>

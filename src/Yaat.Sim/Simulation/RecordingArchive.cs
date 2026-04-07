@@ -107,8 +107,11 @@ public sealed class RecordingArchive : IDisposable
     public AirportGroundLayout ReadLayout(string airportId)
     {
         var json = ReadBrotliEntry($"layouts/{airportId}.json.br");
-        return JsonSerializer.Deserialize<AirportGroundLayout>(json, RecordingJsonOptions.Default)
+        var layout =
+            JsonSerializer.Deserialize<AirportGroundLayout>(json, RecordingJsonOptions.Default)
             ?? throw new InvalidOperationException($"Failed to deserialize layout for {airportId}.");
+        layout.RebuildAdjacencyLists();
+        return layout;
     }
 
     /// <summary>

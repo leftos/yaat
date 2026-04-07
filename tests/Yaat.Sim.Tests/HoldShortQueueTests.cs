@@ -46,8 +46,7 @@ public class HoldShortQueueTests
         {
             var edge = new GroundEdge
             {
-                FromNodeId = i,
-                ToNodeId = i + 1,
+                Nodes = [nodes[i], nodes[i + 1]],
                 TaxiwayName = "B",
                 DistanceNm = 150.0 / FtPerNm,
             };
@@ -61,7 +60,7 @@ public class HoldShortQueueTests
             layout.Nodes[n.Id] = n;
         }
 
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
         return (layout, 4);
     }
 
@@ -70,16 +69,8 @@ public class HoldShortQueueTests
         var segments = new List<TaxiRouteSegment>();
         for (int i = startNodeId; i < holdShortNodeId; i++)
         {
-            var edge = layout.Edges.First(e => (e.FromNodeId == i && e.ToNodeId == i + 1) || (e.FromNodeId == i + 1 && e.ToNodeId == i));
-            segments.Add(
-                new TaxiRouteSegment
-                {
-                    FromNodeId = i,
-                    ToNodeId = i + 1,
-                    TaxiwayName = "B",
-                    Edge = edge,
-                }
-            );
+            var edge = layout.Edges.First(e => e.HasNode(i) && e.HasNode(i + 1));
+            segments.Add(new TaxiRouteSegment { TaxiwayName = "B", Edge = edge.Directed(layout.Nodes[i], layout.Nodes[i + 1]) });
         }
 
         var holdShortPoints = new List<HoldShortPoint>
@@ -222,16 +213,7 @@ public class HoldShortQueueTests
         var lastEdge = layout.Edges.Last(); // node 3 → node 4
         var route = new TaxiRoute
         {
-            Segments =
-            [
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 3,
-                    ToNodeId = hsNodeId,
-                    TaxiwayName = "B",
-                    Edge = lastEdge,
-                },
-            ],
+            Segments = [new TaxiRouteSegment { TaxiwayName = "B", Edge = lastEdge.Directed(layout.Nodes[3], layout.Nodes[hsNodeId]) }],
             HoldShortPoints =
             [
                 new HoldShortPoint

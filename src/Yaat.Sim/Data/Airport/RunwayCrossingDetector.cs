@@ -64,8 +64,8 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            bool fromOn = onRunwayNodes.Contains(edge.FromNodeId);
-            bool toOn = onRunwayNodes.Contains(edge.ToNodeId);
+            bool fromOn = onRunwayNodes.Contains(edge.Nodes[0].Id);
+            bool toOn = onRunwayNodes.Contains(edge.Nodes[1].Id);
 
             // Only process boundary edges (one on, one off)
             if (fromOn == toOn)
@@ -73,8 +73,8 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            int onId = fromOn ? edge.FromNodeId : edge.ToNodeId;
-            int offId = fromOn ? edge.ToNodeId : edge.FromNodeId;
+            int onId = fromOn ? edge.Nodes[0].Id : edge.Nodes[1].Id;
+            int offId = fromOn ? edge.Nodes[1].Id : edge.Nodes[0].Id;
 
             // Avoid processing the same boundary pair twice
             var key = (Math.Min(onId, offId), Math.Max(onId, offId));
@@ -287,7 +287,7 @@ internal static class RunwayCrossingDetector
             bool alreadyConnected = false;
             foreach (var edge in layout.Edges)
             {
-                if ((edge.FromNodeId == fromId && edge.ToNodeId == toId) || (edge.FromNodeId == toId && edge.ToNodeId == fromId))
+                if (edge.HasNode(fromId) && edge.HasNode(toId))
                 {
                     alreadyConnected = true;
                     break;
@@ -305,12 +305,9 @@ internal static class RunwayCrossingDetector
 
             var rwyEdge = new GroundEdge
             {
-                FromNodeId = fromId,
-                ToNodeId = toId,
+                Nodes = [from, to],
                 TaxiwayName = rwyEdgeName,
                 DistanceNm = dist,
-                FromNode = from,
-                ToNode = to,
             };
 
             layout.Edges.Add(rwyEdge);
@@ -352,19 +349,12 @@ internal static class RunwayCrossingDetector
 
         foreach (var edge in layout.Edges)
         {
-            int neighborId;
-            if (edge.FromNodeId == hsNodeId)
-            {
-                neighborId = edge.ToNodeId;
-            }
-            else if (edge.ToNodeId == hsNodeId)
-            {
-                neighborId = edge.FromNodeId;
-            }
-            else
+            if (!edge.HasNode(hsNodeId))
             {
                 continue;
             }
+
+            int neighborId = edge.OtherNodeId(hsNodeId);
 
             if (!layout.Nodes.TryGetValue(neighborId, out var neighbor))
             {
@@ -405,19 +395,12 @@ internal static class RunwayCrossingDetector
                     continue;
                 }
 
-                int nextId;
-                if (edge.FromNodeId == current)
-                {
-                    nextId = edge.ToNodeId;
-                }
-                else if (edge.ToNodeId == current)
-                {
-                    nextId = edge.FromNodeId;
-                }
-                else
+                if (!edge.HasNode(current))
                 {
                     continue;
                 }
+
+                int nextId = edge.OtherNodeId(current);
 
                 if (!visited.Add(nextId) || !onRunwaySet.Contains(nextId))
                 {
@@ -453,7 +436,7 @@ internal static class RunwayCrossingDetector
         string? firstTaxiway = null;
         foreach (var edge in layout.Edges)
         {
-            if (edge.FromNodeId != nodeId && edge.ToNodeId != nodeId)
+            if (!edge.HasNode(nodeId))
             {
                 continue;
             }
@@ -484,27 +467,21 @@ internal static class RunwayCrossingDetector
     {
         layout.Edges.Remove(edge);
 
-        var fromNode = layout.Nodes[edge.FromNodeId];
-        var toNode = layout.Nodes[edge.ToNodeId];
+        var nodeA = edge.Nodes[0];
+        var nodeB = edge.Nodes[1];
 
         var edgeA = new GroundEdge
         {
-            FromNodeId = edge.FromNodeId,
-            ToNodeId = midNode.Id,
+            Nodes = [nodeA, midNode],
             TaxiwayName = edge.TaxiwayName,
-            DistanceNm = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, midNode.Latitude, midNode.Longitude),
-            FromNode = fromNode,
-            ToNode = midNode,
+            DistanceNm = GeoMath.DistanceNm(nodeA.Latitude, nodeA.Longitude, midNode.Latitude, midNode.Longitude),
         };
 
         var edgeB = new GroundEdge
         {
-            FromNodeId = midNode.Id,
-            ToNodeId = edge.ToNodeId,
+            Nodes = [midNode, nodeB],
             TaxiwayName = edge.TaxiwayName,
-            DistanceNm = GeoMath.DistanceNm(midNode.Latitude, midNode.Longitude, toNode.Latitude, toNode.Longitude),
-            FromNode = midNode,
-            ToNode = toNode,
+            DistanceNm = GeoMath.DistanceNm(midNode.Latitude, midNode.Longitude, nodeB.Latitude, nodeB.Longitude),
         };
 
         layout.Edges.Add(edgeA);

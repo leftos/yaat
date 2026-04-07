@@ -39,12 +39,11 @@ public class RunwayCrossingDetectorTests
         };
     }
 
-    private static GroundEdge MakeEdge(int from, int to, string taxiway, double dist = 0.1)
+    private static GroundEdge MakeEdge(AirportGroundLayout layout, int from, int to, string taxiway, double dist = 0.1)
     {
         return new GroundEdge
         {
-            FromNodeId = from,
-            ToNodeId = to,
+            Nodes = [layout.Nodes[from], layout.Nodes[to]],
             TaxiwayName = taxiway,
             DistanceNm = dist,
         };
@@ -53,8 +52,7 @@ public class RunwayCrossingDetectorTests
     private static void WireEdge(AirportGroundLayout layout, GroundEdge edge)
     {
         layout.Edges.Add(edge);
-        layout.Nodes[edge.FromNodeId].Edges.Add(edge);
-        layout.Nodes[edge.ToNodeId].Edges.Add(edge);
+        layout.RebuildAdjacencyLists();
     }
 
     // -------------------------------------------------------------------------
@@ -166,9 +164,9 @@ public class RunwayCrossingDetectorTests
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
 
-        var edge = MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude));
+        var edge = MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude));
         WireEdge(layout, edge);
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -202,8 +200,8 @@ public class RunwayCrossingDetectorTests
 
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
-        WireEdge(layout, MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
-        layout.WireEdgeNodeReferences();
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -239,8 +237,8 @@ public class RunwayCrossingDetectorTests
 
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
-        WireEdge(layout, MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
-        layout.WireEdgeNodeReferences();
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -270,8 +268,8 @@ public class RunwayCrossingDetectorTests
 
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
-        WireEdge(layout, MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
-        layout.WireEdgeNodeReferences();
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -307,8 +305,8 @@ public class RunwayCrossingDetectorTests
 
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
-        WireEdge(layout, MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
-        layout.WireEdgeNodeReferences();
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -344,8 +342,8 @@ public class RunwayCrossingDetectorTests
         layout.Nodes[2] = offNode;
 
         // Edge named "RWY18/36" — should be skipped
-        WireEdge(layout, MakeEdge(1, 2, "RWY18/36", 0.1));
-        layout.WireEdgeNodeReferences();
+        WireEdge(layout, MakeEdge(layout, 1, 2, "RWY18/36", 0.1));
+        layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -377,8 +375,8 @@ public class RunwayCrossingDetectorTests
 
         layout.Nodes[1] = node1;
         layout.Nodes[2] = node2;
-        WireEdge(layout, MakeEdge(1, 2, "A", 0.05));
-        layout.WireEdgeNodeReferences();
+        WireEdge(layout, MakeEdge(layout, 1, 2, "A", 0.05));
+        layout.RebuildAdjacencyLists();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);

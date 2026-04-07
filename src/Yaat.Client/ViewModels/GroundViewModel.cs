@@ -775,7 +775,7 @@ public partial class GroundViewModel : ObservableObject
         var directions = new List<(string Label, int Heading)>();
         foreach (var edge in node.Edges)
         {
-            int otherId = edge.FromNodeId == nodeId.Value ? edge.ToNodeId : edge.FromNodeId;
+            int otherId = edge.OtherNodeId(nodeId.Value);
 
             if (!_domainLayout.Nodes.TryGetValue(otherId, out var otherNode))
             {
@@ -1212,29 +1212,22 @@ public partial class GroundViewModel : ObservableObject
                 }
             }
 
+            if (!layout.Nodes.TryGetValue(edgeDto.FromNodeId, out var fromNode) || !layout.Nodes.TryGetValue(edgeDto.ToNodeId, out var toNode))
+            {
+                continue;
+            }
+
             var edge = new GroundEdge
             {
-                FromNodeId = edgeDto.FromNodeId,
-                ToNodeId = edgeDto.ToNodeId,
+                Nodes = [fromNode, toNode],
                 TaxiwayName = edgeDto.TaxiwayName,
                 DistanceNm = edgeDto.DistanceNm,
                 IntermediatePoints = intermediates,
             };
             layout.Edges.Add(edge);
-
-            // Build adjacency
-            if (layout.Nodes.TryGetValue(edge.FromNodeId, out var fromNode))
-            {
-                fromNode.Edges.Add(edge);
-            }
-
-            if (layout.Nodes.TryGetValue(edge.ToNodeId, out var toNode))
-            {
-                // Add reverse edge reference for undirected graph
-                toNode.Edges.Add(edge);
-            }
         }
 
+        layout.RebuildAdjacencyLists();
         return layout;
     }
 }

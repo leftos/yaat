@@ -224,20 +224,7 @@ public static class GeoJsonParser
         }
 
         // Step 7: Wire up adjacency lists
-        foreach (var edge in layout.Edges)
-        {
-            if (layout.Nodes.TryGetValue(edge.FromNodeId, out var fromNode))
-            {
-                fromNode.Edges.Add(edge);
-                edge.FromNode = fromNode;
-            }
-
-            if (layout.Nodes.TryGetValue(edge.ToNodeId, out var toNode))
-            {
-                toNode.Edges.Add(edge);
-                edge.ToNode = toNode;
-            }
-        }
+        layout.RebuildAdjacencyLists();
 
         Log.LogInformation(
             "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, " + "{ParkingCount} parking, {HelipadCount} helipads",
@@ -284,12 +271,9 @@ public static class GeoJsonParser
 
         var edge = new GroundEdge
         {
-            FromNodeId = node.Id,
-            ToNodeId = nearest.Id,
+            Nodes = [node, nearest],
             TaxiwayName = "RAMP",
             DistanceNm = nearestDist,
-            FromNode = node,
-            ToNode = nearest,
         };
 
         layout.Edges.Add(edge);

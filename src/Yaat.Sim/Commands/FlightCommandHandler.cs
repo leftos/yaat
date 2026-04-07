@@ -881,24 +881,19 @@ internal static class FlightCommandHandler
 
     private static double EdgeBearing(AirportGroundLayout layout, GroundNode node, GroundEdge edge)
     {
-        if (edge.FromNodeId == node.Id && edge.IntermediatePoints.Count > 0)
+        if ((edge.Nodes[0] == node) && edge.IntermediatePoints.Count > 0)
         {
             var pt = edge.IntermediatePoints[0];
             return GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
         }
 
-        if (edge.ToNodeId == node.Id && edge.IntermediatePoints.Count > 0)
+        if ((edge.Nodes[1] == node) && edge.IntermediatePoints.Count > 0)
         {
             var pt = edge.IntermediatePoints[^1];
             return GeoMath.BearingTo(node.Latitude, node.Longitude, pt.Lat, pt.Lon);
         }
 
-        int otherId = edge.FromNodeId == node.Id ? edge.ToNodeId : edge.FromNodeId;
-        if (layout.Nodes.TryGetValue(otherId, out var otherNode))
-        {
-            return GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
-        }
-
-        return 0;
+        var otherNode = edge.OtherNode(node);
+        return GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
     }
 }

@@ -80,7 +80,7 @@ internal static class TaxiwayGraphBuilder
             bool exists = false;
             foreach (var e in layout.Edges)
             {
-                if ((e.FromNodeId == fromId && e.ToNodeId == toId) || (e.FromNodeId == toId && e.ToNodeId == fromId))
+                if (e.HasNode(fromId) && e.HasNode(toId))
                 {
                     if (string.Equals(e.TaxiwayName, tw.Name, StringComparison.OrdinalIgnoreCase))
                     {
@@ -99,12 +99,9 @@ internal static class TaxiwayGraphBuilder
 
             var edge = new GroundEdge
             {
-                FromNodeId = fromId,
-                ToNodeId = toId,
+                Nodes = [fromNode, toNode],
                 TaxiwayName = tw.Name,
                 DistanceNm = dist,
-                FromNode = fromNode,
-                ToNode = toNode,
             };
 
             layout.Edges.Add(edge);

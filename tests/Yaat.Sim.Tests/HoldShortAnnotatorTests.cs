@@ -30,23 +30,35 @@ public class HoldShortAnnotatorTests
             RunwayId = new RunwayIdentifier(runwayDesignator),
         };
 
-    private static GroundEdge MakeEdge(int from, int to, string taxiway = "A") =>
-        new()
+    private static GroundEdge MakeEdge(int from, int to, string taxiway = "A")
+    {
+        var fromNode = new GroundNode
         {
-            FromNodeId = from,
-            ToNodeId = to,
+            Id = from,
+            Latitude = 0,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var toNode = new GroundNode
+        {
+            Id = to,
+            Latitude = 0,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        return new GroundEdge
+        {
+            Nodes = [fromNode, toNode],
             TaxiwayName = taxiway,
             DistanceNm = 0.1,
         };
+    }
 
-    private static TaxiRouteSegment Seg(int from, int to, string taxiway = "A") =>
-        new()
-        {
-            FromNodeId = from,
-            ToNodeId = to,
-            TaxiwayName = taxiway,
-            Edge = MakeEdge(from, to, taxiway),
-        };
+    private static TaxiRouteSegment Seg(int from, int to, string taxiway = "A")
+    {
+        var edge = MakeEdge(from, to, taxiway);
+        return new TaxiRouteSegment { TaxiwayName = taxiway, Edge = edge.Directed(edge.Nodes[0], edge.Nodes[1]) };
+    }
 
     private static AirportGroundLayout LayoutWith(params GroundNode[] nodes)
     {

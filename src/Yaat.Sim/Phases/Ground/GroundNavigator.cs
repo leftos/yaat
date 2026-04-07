@@ -48,12 +48,12 @@ public sealed class GroundNavigator
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         var seg = route.CurrentSegment;
-        var targetNode = seg?.DestinationNode;
-        if (seg is null || targetNode is null)
+        if (seg is null)
         {
             return;
         }
 
+        var targetNode = seg.Edge.ToNode;
         TargetNodeId = seg.ToNodeId;
         TargetLat = targetNode.Latitude;
         TargetLon = targetNode.Longitude;
@@ -70,7 +70,7 @@ public sealed class GroundNavigator
         else if (!isLastSegment)
         {
             int nextIdx = route.CurrentSegmentIndex + 1;
-            var nextNode = route.Segments[nextIdx].DestinationNode;
+            var nextNode = route.Segments[nextIdx].Edge.ToNode;
             if (nextNode is not null)
             {
                 double segBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, nextNode.Latitude, nextNode.Longitude);
@@ -97,8 +97,8 @@ public sealed class GroundNavigator
         for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
         {
             var futureSeg = route.Segments[i];
-            var fromNode = futureSeg.OriginNode;
-            var toNode = futureSeg.DestinationNode;
+            var fromNode = futureSeg.Edge.FromNode;
+            var toNode = futureSeg.Edge.ToNode;
             if (fromNode is null || toNode is null)
             {
                 break;
@@ -117,7 +117,7 @@ public sealed class GroundNavigator
             int nextNextIdx = i + 1;
             if (nextNextIdx < route.Segments.Count)
             {
-                var nextNextNode = route.Segments[nextNextIdx].DestinationNode;
+                var nextNextNode = route.Segments[nextNextIdx].Edge.ToNode;
                 if (nextNextNode is not null)
                 {
                     double inBearing = GeoMath.BearingTo(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);

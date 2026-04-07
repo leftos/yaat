@@ -59,7 +59,7 @@ public sealed class LayoutAnalyzer
         var edges = new List<EdgeInfo>();
         foreach (var edge in node.Edges)
         {
-            int neighborId = (edge.FromNodeId == node.Id) ? edge.ToNodeId : edge.FromNodeId;
+            int neighborId = edge.OtherNodeId(node.Id);
             Layout.Nodes.TryGetValue(neighborId, out var neighbor);
             edges.Add(
                 new EdgeInfo(
@@ -100,8 +100,8 @@ public sealed class LayoutAnalyzer
         {
             if (string.Equals(edge.TaxiwayName, name, StringComparison.OrdinalIgnoreCase))
             {
-                nodeIds.Add(edge.FromNodeId);
-                nodeIds.Add(edge.ToNodeId);
+                nodeIds.Add(edge.Nodes[0].Id);
+                nodeIds.Add(edge.Nodes[1].Id);
             }
         }
 
@@ -370,7 +370,7 @@ public sealed class LayoutAnalyzer
                     continue;
                 }
 
-                int neighborId = (edge.FromNodeId == nodeId) ? edge.ToNodeId : edge.FromNodeId;
+                int neighborId = edge.OtherNodeId(nodeId);
                 if (visited.Add(neighborId))
                 {
                     queue.Enqueue(neighborId);
@@ -573,7 +573,7 @@ public sealed class LayoutAnalyzer
                 && edge.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
             )
             {
-                int neighborId = (edge.FromNodeId == node.Id) ? edge.ToNodeId : edge.FromNodeId;
+                int neighborId = edge.OtherNodeId(node.Id);
                 if (Layout.Nodes.TryGetValue(neighborId, out var neighbor))
                 {
                     return new TrueHeading(GeoMath.BearingTo(node.Latitude, node.Longitude, neighbor.Latitude, neighbor.Longitude));
@@ -630,7 +630,7 @@ public sealed class LayoutAnalyzer
         var seedEdges = new List<BfsEdgeExplored>();
         foreach (var edge in startNode.Edges)
         {
-            int neighborId = (edge.FromNodeId == startNodeId) ? edge.ToNodeId : edge.FromNodeId;
+            int neighborId = edge.OtherNodeId(startNodeId);
             Layout.Nodes.TryGetValue(neighborId, out var neighbor);
             string neighborType = neighbor?.Type.ToString() ?? "Unknown";
 
@@ -691,7 +691,7 @@ public sealed class LayoutAnalyzer
 
             foreach (var edge in current.Edges)
             {
-                int nextId = (edge.FromNodeId == current.Id) ? edge.ToNodeId : edge.FromNodeId;
+                int nextId = edge.OtherNodeId(current.Id);
                 Layout.Nodes.TryGetValue(nextId, out var next);
                 string nextType = next?.Type.ToString() ?? "Unknown";
 

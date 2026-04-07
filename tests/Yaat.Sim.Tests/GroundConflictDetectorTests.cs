@@ -81,15 +81,13 @@ public class GroundConflictDetectorTests
 
         var edge01 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [n0, n1],
             TaxiwayName = "A",
             DistanceNm = 200.0 / FtPerNm,
         };
         var edge12 = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [n1, n2],
             TaxiwayName = "A",
             DistanceNm = 200.0 / FtPerNm,
         };
@@ -103,7 +101,7 @@ public class GroundConflictDetectorTests
         layout.Nodes[2] = n2;
         layout.Edges.AddRange([edge01, edge12]);
 
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
         return (layout, n0, n1, n2);
     }
 
@@ -140,15 +138,13 @@ public class GroundConflictDetectorTests
 
         var edge02 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 2,
+            Nodes = [n0, n2],
             TaxiwayName = "A",
             DistanceNm = 200.0 / FtPerNm,
         };
         var edge12 = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [n1, n2],
             TaxiwayName = "B",
             DistanceNm = 200.0 / FtPerNm,
         };
@@ -162,7 +158,7 @@ public class GroundConflictDetectorTests
         layout.Nodes[2] = n2;
         layout.Edges.AddRange([edge02, edge12]);
 
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
         return (layout, n0, n1, n2);
     }
 
@@ -178,13 +174,21 @@ public class GroundConflictDetectorTests
 
     private static TaxiRouteSegment MakeSeg(int from, int to, string taxiway, GroundEdge edge)
     {
-        return new TaxiRouteSegment
+        var fromNode = new GroundNode
         {
-            FromNodeId = from,
-            ToNodeId = to,
-            TaxiwayName = taxiway,
-            Edge = edge,
+            Id = from,
+            Latitude = 0,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
         };
+        var toNode = new GroundNode
+        {
+            Id = to,
+            Latitude = 0,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        return new TaxiRouteSegment { TaxiwayName = taxiway, Edge = edge.Directed(fromNode, toNode) };
     }
 
     [Fact]

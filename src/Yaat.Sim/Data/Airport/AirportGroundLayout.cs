@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Data.Airport;
@@ -31,38 +32,72 @@ public sealed class GroundNode
 
     /// <summary>
     /// Adjacent edges for graph traversal. Populated during layout construction.
+    /// Not serialized — rebuilt by <see cref="AirportGroundLayout.RebuildAdjacencyLists"/> after deserialization.
     /// </summary>
+    [JsonIgnore]
     public List<GroundEdge> Edges { get; init; } = [];
 }
 
+/// <summary>
+/// A non-directional edge in the airport ground graph connecting two nodes.
+/// <c>Nodes[0]</c> and <c>Nodes[1]</c> are the two endpoints — no implied direction.
+/// For directional traversal (routes, navigation), wrap in <see cref="DirectionalGroundEdge"/>.
+/// </summary>
 public sealed class GroundEdge
 {
-    public required int FromNodeId { get; init; }
-    public required int ToNodeId { get; init; }
+    /// <summary>The two endpoint nodes. Fixed-size 2, no implied direction.</summary>
+    public required GroundNode[] Nodes { get; init; }
     public required string TaxiwayName { get; init; }
     public required double DistanceNm { get; init; }
 
     /// <summary>
     /// Intermediate coordinates along this edge (lat, lon pairs) for curved paths.
-    /// Does NOT include the from/to node positions — those are looked up from nodes.
+    /// Does NOT include endpoint node positions — those are looked up from <see cref="Nodes"/>.
     /// </summary>
     public List<(double Lat, double Lon)> IntermediatePoints { get; init; } = [];
 
     /// <summary>
-    /// Node reference, populated during layout construction. Null for virtual sentinel nodes.
-    /// </summary>
-    public GroundNode? FromNode { get; set; }
-
-    /// <summary>
-    /// Node reference, populated during layout construction or for virtual nodes.
-    /// </summary>
-    public GroundNode? ToNode { get; set; }
-
-    /// <summary>
     /// Returns the node on the other end of this edge from <paramref name="node"/>.
-    /// Uses object references — no layout dictionary lookup needed.
     /// </summary>
-    public GroundNode? OtherNode(GroundNode node) => FromNode == node ? ToNode : FromNode;
+    public GroundNode OtherNode(GroundNode node) => Nodes[0].Id == node.Id ? Nodes[1] : Nodes[0];
+
+    /// <summary>
+    /// Returns the ID of the node on the other end from <paramref name="nodeId"/>.
+    /// </summary>
+    public int OtherNodeId(int nodeId) => Nodes[0].Id == nodeId ? Nodes[1].Id : Nodes[0].Id;
+
+    /// <summary>
+    /// Returns true if this edge connects a node with <paramref name="nodeId"/>.
+    /// </summary>
+    public bool HasNode(int nodeId) => Nodes[0].Id == nodeId || Nodes[1].Id == nodeId;
+
+    /// <summary>
+    /// Create a <see cref="DirectionalGroundEdge"/> capturing a specific traversal direction.
+    /// </summary>
+    public DirectionalGroundEdge Directed(GroundNode fromNode, GroundNode toNode) =>
+        new()
+        {
+            Edge = this,
+            FromNode = fromNode,
+            ToNode = toNode,
+        };
+}
+
+/// <summary>
+/// A directional view of a <see cref="GroundEdge"/> — captures a specific traversal direction.
+/// Created when building routes/paths. Multiple instances can reference the same edge
+/// (different directions, or same direction for U-turns).
+/// </summary>
+public sealed class DirectionalGroundEdge
+{
+    public required GroundEdge Edge { get; init; }
+    public required GroundNode FromNode { get; init; }
+    public required GroundNode ToNode { get; init; }
+
+    public string TaxiwayName => Edge.TaxiwayName;
+    public double DistanceNm => Edge.DistanceNm;
+    public int FromNodeId => FromNode.Id;
+    public int ToNodeId => ToNode.Id;
 }
 
 public sealed class GroundRunway
@@ -81,22 +116,26 @@ public sealed class AirportGroundLayout
     public List<GroundRunway> Runways { get; init; } = [];
 
     /// <summary>
-    /// Populate <see cref="GroundEdge.FromNode"/> and <see cref="GroundEdge.ToNode"/>
-    /// on all edges from the <see cref="Nodes"/> dictionary. Call after constructing
-    /// edges outside of <see cref="GeoJsonParser"/> (e.g., in tests).
+    /// Rebuild <see cref="GroundNode.Edges"/> adjacency lists from the <see cref="Edges"/> collection.
+    /// Call after constructing all edges (e.g., in tests or client-side layout reconstruction).
     /// </summary>
-    public void WireEdgeNodeReferences()
+    public void RebuildAdjacencyLists()
     {
+        foreach (var node in Nodes.Values)
+        {
+            node.Edges.Clear();
+        }
+
         foreach (var edge in Edges)
         {
-            if (edge.FromNode is null && Nodes.TryGetValue(edge.FromNodeId, out var fromNode))
+            if (Nodes.TryGetValue(edge.Nodes[0].Id, out var nodeA))
             {
-                edge.FromNode = fromNode;
+                nodeA.Edges.Add(edge);
             }
 
-            if (edge.ToNode is null && Nodes.TryGetValue(edge.ToNodeId, out var toNode))
+            if (Nodes.TryGetValue(edge.Nodes[1].Id, out var nodeB))
             {
-                edge.ToNode = toNode;
+                nodeB.Edges.Add(edge);
             }
         }
     }
@@ -256,11 +295,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            int neighborId = edge.FromNodeId == currentNode.Id ? edge.ToNodeId : edge.FromNodeId;
-            if (!Nodes.TryGetValue(neighborId, out var neighbor))
-            {
-                continue;
-            }
+            var neighbor = edge.OtherNode(currentNode);
 
             double bearing = GeoMath.BearingTo(currentNode.Latitude, currentNode.Longitude, neighbor.Latitude, neighbor.Longitude);
             double diff = runwayHeading.AbsAngleTo(new TrueHeading(bearing));
@@ -360,13 +395,9 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            int neighborId = edge.FromNodeId == centerlineNode.Id ? edge.ToNodeId : edge.FromNodeId;
-            if (!Nodes.TryGetValue(neighborId, out var neighbor))
-            {
-                continue;
-            }
+            var neighbor = edge.OtherNode(centerlineNode);
 
-            if (!visited.Add(neighborId))
+            if (!visited.Add(neighbor.Id))
             {
                 continue;
             }
@@ -459,13 +490,8 @@ public sealed class AirportGroundLayout
                     continue;
                 }
 
-                int nextId = edge.FromNodeId == current.Id ? edge.ToNodeId : edge.FromNodeId;
-                if (!visited.Add(nextId))
-                {
-                    continue;
-                }
-
-                if (!Nodes.TryGetValue(nextId, out var next))
+                var next = edge.OtherNode(current);
+                if (!visited.Add(next.Id))
                 {
                     continue;
                 }
@@ -511,13 +537,8 @@ public sealed class AirportGroundLayout
                     continue;
                 }
 
-                int neighborId = edge.FromNodeId == current.Id ? edge.ToNodeId : edge.FromNodeId;
-                if (!visited.Add(neighborId))
-                {
-                    continue;
-                }
-
-                if (!Nodes.TryGetValue(neighborId, out var neighbor))
+                var neighbor = edge.OtherNode(current);
+                if (!visited.Add(neighbor.Id))
                 {
                     continue;
                 }
@@ -800,11 +821,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            int otherNodeId = edge.FromNodeId == node.Id ? edge.ToNodeId : edge.FromNodeId;
-            if (!Nodes.TryGetValue(otherNodeId, out var otherNode))
-            {
-                continue;
-            }
+            var otherNode = edge.OtherNode(node);
 
             double bearing = GeoMath.BearingTo(node.Latitude, node.Longitude, otherNode.Latitude, otherNode.Longitude);
             double diff = GeoMath.AbsBearingDifference(bearing, preferredBearing);
@@ -874,11 +891,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            int otherNodeId = edge.FromNodeId == exitNode.Id ? edge.ToNodeId : edge.FromNodeId;
-            if (!Nodes.TryGetValue(otherNodeId, out var otherNode))
-            {
-                continue;
-            }
+            var otherNode = edge.OtherNode(exitNode);
 
             // Prefer the direction that doesn't require turning back toward the runway
             double bearing = GeoMath.BearingTo(exitNode.Latitude, exitNode.Longitude, otherNode.Latitude, otherNode.Longitude);
@@ -919,11 +932,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            int otherNodeId = edge.FromNodeId == exitNode.Id ? edge.ToNodeId : edge.FromNodeId;
-            if (!Nodes.TryGetValue(otherNodeId, out var otherNode))
-            {
-                continue;
-            }
+            var otherNode = edge.OtherNode(exitNode);
 
             // Skip edges going toward the runway centerline — we want the away direction
             if (HasRunwayCenterlineEdge(otherNode))

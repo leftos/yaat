@@ -373,12 +373,7 @@ public sealed class LineUpPhase : Phase
 
         foreach (var edge in holdShortNode.Edges)
         {
-            int neighborId = edge.FromNodeId == nodeId ? edge.ToNodeId : edge.FromNodeId;
-
-            if (!layout.Nodes.TryGetValue(neighborId, out var neighbor))
-            {
-                continue;
-            }
+            var neighbor = edge.OtherNode(holdShortNode);
 
             // Skip neighbors that are behind the hold-short along the runway.
             // Navigating backward toward the threshold is never correct for line-up.

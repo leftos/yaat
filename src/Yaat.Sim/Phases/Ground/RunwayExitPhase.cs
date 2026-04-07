@@ -25,8 +25,6 @@ public sealed class RunwayExitPhase : Phase
     /// It never needs to be looked up in the layout — the navigator only resolves
     /// ToNodeId for target coordinates.
     /// </summary>
-    private const int VirtualNodeId = -1;
-
     private enum ExitState
     {
         RollingOnCenterline,
@@ -304,31 +302,18 @@ public sealed class RunwayExitPhase : Phase
         var branchNode = _exitPath[0];
 
         // Virtual approach segment: [aircraft position → branch node].
-        // Uses a synthetic edge with sentinel FromNodeId (-1). The navigator
-        // only looks up ToNodeId in the layout, so the virtual from-node is
-        // never resolved. This gives the navigator the full route context:
-        // approach on centerline → turn at branch → exit to hold-short.
-        // Virtual approach segment: [aircraft position → branch node].
         // Always added — gives the navigator inbound bearing context for turn
         // anticipation at the branch node, whether the aircraft is far away
         // (analog search) or right at the branch (committed exit from LandingPhase).
+        var virtualFromNode = VirtualNode.Create(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude);
         double distToBranch = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, branchNode.Latitude, branchNode.Longitude);
-        segments.Add(
-            new TaxiRouteSegment
-            {
-                FromNodeId = VirtualNodeId,
-                ToNodeId = branchNode.Id,
-                TaxiwayName = _exitTaxiway,
-                Edge = new GroundEdge
-                {
-                    FromNodeId = VirtualNodeId,
-                    ToNodeId = branchNode.Id,
-                    TaxiwayName = $"RWY{_runwayId}",
-                    DistanceNm = Math.Max(distToBranch, 0.001),
-                    ToNode = branchNode,
-                },
-            }
-        );
+        var approachEdge = new GroundEdge
+        {
+            Nodes = [virtualFromNode, branchNode],
+            TaxiwayName = $"RWY{_runwayId}",
+            DistanceNm = Math.Max(distToBranch, 0.001),
+        };
+        segments.Add(new TaxiRouteSegment { TaxiwayName = _exitTaxiway, Edge = approachEdge.Directed(virtualFromNode, branchNode) });
 
         for (int i = 0; i < _exitPath.Count - 1; i++)
         {
@@ -341,15 +326,7 @@ public sealed class RunwayExitPhase : Phase
                 return false;
             }
 
-            segments.Add(
-                new TaxiRouteSegment
-                {
-                    FromNodeId = fromNode.Id,
-                    ToNodeId = toNode.Id,
-                    TaxiwayName = _exitTaxiway,
-                    Edge = edge,
-                }
-            );
+            segments.Add(new TaxiRouteSegment { TaxiwayName = _exitTaxiway, Edge = edge.Directed(fromNode, toNode) });
         }
 
         // Append a virtual segment past the hold-short node so the aircraft's tail
@@ -459,8 +436,7 @@ public sealed class RunwayExitPhase : Phase
     {
         foreach (var edge in fromNode.Edges)
         {
-            int other = edge.FromNodeId == fromNode.Id ? edge.ToNodeId : edge.FromNodeId;
-            if (other == toNodeId)
+            if (edge.OtherNodeId(fromNode.Id) == toNodeId)
             {
                 return edge;
             }

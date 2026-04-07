@@ -65,8 +65,8 @@ public class LineUpPhaseTests
         {
             if (edge.TaxiwayName.Contains(rwyName, StringComparison.OrdinalIgnoreCase))
             {
-                rwyEdgeNodeIds.Add(edge.FromNodeId);
-                rwyEdgeNodeIds.Add(edge.ToNodeId);
+                rwyEdgeNodeIds.Add(edge.Nodes[0].Id);
+                rwyEdgeNodeIds.Add(edge.Nodes[1].Id);
             }
         }
 

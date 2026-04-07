@@ -121,7 +121,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
             .Take(3)
             .ToList();
         var tried = new HashSet<int>();
-        var startNodes = w3Edges.SelectMany(e => new[] { e.FromNodeId, e.ToNodeId }).Where(tried.Add).Take(4).ToList();
+        var startNodes = w3Edges.SelectMany(e => new[] { e.Nodes[0].Id, e.Nodes[1].Id }).Where(tried.Add).Take(4).ToList();
 
         output.WriteLine($"=== OAK W3/W/30 diagnostic — {startNodes.Count} candidate start nodes ===");
         output.WriteLine("");

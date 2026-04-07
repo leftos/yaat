@@ -81,36 +81,31 @@ public class TaxiPathfinderTests
 
         var edgeAB = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [nodeA, nodeB],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
         var edgeBC = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [nodeB, nodeC],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
         var edgeCD = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 3,
+            Nodes = [nodeC, nodeD],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
         var edgeBE = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 4,
+            Nodes = [nodeB, nodeE],
             TaxiwayName = "B",
             DistanceNm = 0.05,
         };
         var edgePB = new GroundEdge
         {
-            FromNodeId = 5,
-            ToNodeId = 1,
+            Nodes = [parking, nodeB],
             TaxiwayName = "RAMP",
             DistanceNm = 0.04,
         };
@@ -125,7 +120,7 @@ public class TaxiPathfinderTests
         nodeE.Edges.Add(edgeBE);
         parking.Edges.Add(edgePB);
 
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
         return layout;
     }
 
@@ -199,36 +194,31 @@ public class TaxiPathfinderTests
 
         var edgeA01 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [node0, node1],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
         var edgeW12 = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [node1, node2],
             TaxiwayName = "W",
             DistanceNm = 0.06,
         };
         var edgeW23 = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 3,
+            Nodes = [node2, node3],
             TaxiwayName = "W",
             DistanceNm = 0.06,
         };
         var edgeW1_2_hs1 = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 10,
+            Nodes = [node2, hs1],
             TaxiwayName = "W1",
             DistanceNm = 0.04,
         };
         var edgeW2_3_hs2 = new GroundEdge
         {
-            FromNodeId = 3,
-            ToNodeId = 11,
+            Nodes = [node3, hs2],
             TaxiwayName = "W2",
             DistanceNm = 0.04,
         };
@@ -242,7 +232,7 @@ public class TaxiPathfinderTests
         hs1.Edges.Add(edgeW1_2_hs1);
         hs2.Edges.Add(edgeW2_3_hs2);
 
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
         return layout;
     }
 
@@ -295,22 +285,19 @@ public class TaxiPathfinderTests
 
         var edgeA01 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [node0, node1],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
         var edgeW12 = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [node1, node2],
             TaxiwayName = "W",
             DistanceNm = 0.06,
         };
         var edgeZ2hs = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 10,
+            Nodes = [node2, hs],
             TaxiwayName = "Z",
             DistanceNm = 0.04,
         };
@@ -322,8 +309,33 @@ public class TaxiPathfinderTests
         node2.Edges.AddRange([edgeW12, edgeZ2hs]);
         hs.Edges.Add(edgeZ2hs);
 
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
         return layout;
+    }
+
+    private static TaxiRouteSegment MakeSegment(int fromId, int toId, string taxiwayName, double distanceNm = 0.1)
+    {
+        var fromNode = new GroundNode
+        {
+            Id = fromId,
+            Latitude = 0,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var toNode = new GroundNode
+        {
+            Id = toId,
+            Latitude = 0,
+            Longitude = 0,
+            Type = GroundNodeType.TaxiwayIntersection,
+        };
+        var edge = new GroundEdge
+        {
+            Nodes = [fromNode, toNode],
+            TaxiwayName = taxiwayName,
+            DistanceNm = distanceNm,
+        };
+        return new TaxiRouteSegment { TaxiwayName = taxiwayName, Edge = edge.Directed(fromNode, toNode) };
     }
 
     [Fact]
@@ -407,35 +419,7 @@ public class TaxiPathfinderTests
     {
         var route = new TaxiRoute
         {
-            Segments =
-            [
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 0,
-                    ToNodeId = 1,
-                    TaxiwayName = "S",
-                    Edge = new GroundEdge
-                    {
-                        FromNodeId = 0,
-                        ToNodeId = 1,
-                        TaxiwayName = "S",
-                        DistanceNm = 0.1,
-                    },
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 1,
-                    ToNodeId = 2,
-                    TaxiwayName = "T",
-                    Edge = new GroundEdge
-                    {
-                        FromNodeId = 1,
-                        ToNodeId = 2,
-                        TaxiwayName = "T",
-                        DistanceNm = 0.1,
-                    },
-                },
-            ],
+            Segments = [MakeSegment(0, 1, "S", 0.1), MakeSegment(1, 2, "T", 0.1)],
             HoldShortPoints =
             [
                 new HoldShortPoint
@@ -525,22 +509,19 @@ public class TaxiPathfinderTests
 
         var edgeA = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [layout.Nodes[0], layout.Nodes[1]],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
         var edgeW = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [layout.Nodes[1], layout.Nodes[2]],
             TaxiwayName = "W",
             DistanceNm = 0.06,
         };
         var edgeW1 = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 10,
+            Nodes = [layout.Nodes[2], layout.Nodes[10]],
             TaxiwayName = "W1",
             DistanceNm = 0.04,
         };
@@ -550,7 +531,7 @@ public class TaxiPathfinderTests
         node1.Edges.AddRange([edgeA, edgeW]);
         node2.Edges.AddRange([edgeW, edgeW1]);
         hs.Edges.Add(edgeW1);
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
 
         var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30");
 
@@ -674,15 +655,13 @@ public class TaxiPathfinderTests
 
         var edgeA = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [layout.Nodes[0], layout.Nodes[1]],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
         var edgeW = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 2,
+            Nodes = [layout.Nodes[1], layout.Nodes[2]],
             TaxiwayName = "W",
             DistanceNm = 0.06,
         };
@@ -691,7 +670,7 @@ public class TaxiPathfinderTests
         node0.Edges.Add(edgeA);
         node1.Edges.AddRange([edgeA, edgeW]);
         node2.Edges.Add(edgeW);
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
 
         var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30");
 
@@ -756,29 +735,25 @@ public class TaxiPathfinderTests
 
         var e01 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [layout.Nodes[0], layout.Nodes[1]],
             TaxiwayName = "T",
             DistanceNm = 0.06,
         };
         var e02 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 2,
+            Nodes = [layout.Nodes[0], layout.Nodes[2]],
             TaxiwayName = "U",
             DistanceNm = 0.06,
         };
         var e13 = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 3,
+            Nodes = [layout.Nodes[1], layout.Nodes[3]],
             TaxiwayName = "V",
             DistanceNm = 0.06,
         };
         var e23 = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 3,
+            Nodes = [layout.Nodes[2], layout.Nodes[3]],
             TaxiwayName = "W",
             DistanceNm = 0.06,
         };
@@ -788,7 +763,7 @@ public class TaxiPathfinderTests
         n1.Edges.AddRange([e01, e13]);
         n2.Edges.AddRange([e02, e23]);
         n3.Edges.AddRange([e13, e23]);
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
 
         var routes = TaxiPathfinder.FindRoutes(layout, 0, 3);
 
@@ -868,29 +843,25 @@ public class TaxiPathfinderTests
 
         var e01 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [layout.Nodes[0], layout.Nodes[1]],
             TaxiwayName = "A",
             DistanceNm = 0.06,
         };
         var e02 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 2,
+            Nodes = [layout.Nodes[0], layout.Nodes[2]],
             TaxiwayName = "A",
             DistanceNm = 0.07,
         };
         var e13 = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 3,
+            Nodes = [layout.Nodes[1], layout.Nodes[3]],
             TaxiwayName = "B",
             DistanceNm = 0.06,
         };
         var e23 = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 3,
+            Nodes = [layout.Nodes[2], layout.Nodes[3]],
             TaxiwayName = "B",
             DistanceNm = 0.05,
         };
@@ -900,7 +871,7 @@ public class TaxiPathfinderTests
         n1.Edges.AddRange([e01, e13]);
         n2.Edges.AddRange([e02, e23]);
         n3.Edges.AddRange([e13, e23]);
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
 
         var routes = TaxiPathfinder.FindRoutes(layout, 0, 3);
 
@@ -959,43 +930,37 @@ public class TaxiPathfinderTests
 
         var e01 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 1,
+            Nodes = [layout.Nodes[0], layout.Nodes[1]],
             TaxiwayName = "T",
             DistanceNm = 0.06,
         };
         var e02 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 2,
+            Nodes = [layout.Nodes[0], layout.Nodes[2]],
             TaxiwayName = "U",
             DistanceNm = 0.06,
         };
         var e03 = new GroundEdge
         {
-            FromNodeId = 0,
-            ToNodeId = 3,
+            Nodes = [layout.Nodes[0], layout.Nodes[3]],
             TaxiwayName = "V",
             DistanceNm = 0.06,
         };
         var e14 = new GroundEdge
         {
-            FromNodeId = 1,
-            ToNodeId = 4,
+            Nodes = [layout.Nodes[1], layout.Nodes[4]],
             TaxiwayName = "W",
             DistanceNm = 0.06,
         };
         var e24 = new GroundEdge
         {
-            FromNodeId = 2,
-            ToNodeId = 4,
+            Nodes = [layout.Nodes[2], layout.Nodes[4]],
             TaxiwayName = "X",
             DistanceNm = 0.06,
         };
         var e34 = new GroundEdge
         {
-            FromNodeId = 3,
-            ToNodeId = 4,
+            Nodes = [layout.Nodes[3], layout.Nodes[4]],
             TaxiwayName = "Y",
             DistanceNm = 0.06,
         };
@@ -1006,7 +971,7 @@ public class TaxiPathfinderTests
         n2.Edges.AddRange([e02, e24]);
         n3.Edges.AddRange([e03, e34]);
         n4.Edges.AddRange([e14, e24, e34]);
-        layout.WireEdgeNodeReferences();
+        layout.RebuildAdjacencyLists();
 
         var routes = TaxiPathfinder.FindRoutes(layout, 0, 4, maxRoutes: 2);
 
@@ -1021,58 +986,10 @@ public class TaxiPathfinderTests
         {
             Segments =
             [
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 0,
-                    ToNodeId = 1,
-                    TaxiwayName = "RAMP",
-                    Edge = new GroundEdge
-                    {
-                        FromNodeId = 0,
-                        ToNodeId = 1,
-                        TaxiwayName = "RAMP",
-                        DistanceNm = 0.01,
-                    },
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 1,
-                    ToNodeId = 2,
-                    TaxiwayName = "T",
-                    Edge = new GroundEdge
-                    {
-                        FromNodeId = 1,
-                        ToNodeId = 2,
-                        TaxiwayName = "T",
-                        DistanceNm = 0.05,
-                    },
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 2,
-                    ToNodeId = 3,
-                    TaxiwayName = "RWY28L",
-                    Edge = new GroundEdge
-                    {
-                        FromNodeId = 2,
-                        ToNodeId = 3,
-                        TaxiwayName = "RWY28L",
-                        DistanceNm = 0.1,
-                    },
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 3,
-                    ToNodeId = 4,
-                    TaxiwayName = "U",
-                    Edge = new GroundEdge
-                    {
-                        FromNodeId = 3,
-                        ToNodeId = 4,
-                        TaxiwayName = "U",
-                        DistanceNm = 0.05,
-                    },
-                },
+                MakeSegment(0, 1, "RAMP", 0.01),
+                MakeSegment(1, 2, "T", 0.05),
+                MakeSegment(2, 3, "RWY28L", 0.1),
+                MakeSegment(3, 4, "U", 0.05),
             ],
             HoldShortPoints = [],
         };
@@ -1083,39 +1000,7 @@ public class TaxiPathfinderTests
     [Fact]
     public void TotalDistanceNm_SumsSegments()
     {
-        var route = new TaxiRoute
-        {
-            Segments =
-            [
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 0,
-                    ToNodeId = 1,
-                    TaxiwayName = "A",
-                    Edge = new GroundEdge
-                    {
-                        FromNodeId = 0,
-                        ToNodeId = 1,
-                        TaxiwayName = "A",
-                        DistanceNm = 0.1,
-                    },
-                },
-                new TaxiRouteSegment
-                {
-                    FromNodeId = 1,
-                    ToNodeId = 2,
-                    TaxiwayName = "B",
-                    Edge = new GroundEdge
-                    {
-                        FromNodeId = 1,
-                        ToNodeId = 2,
-                        TaxiwayName = "B",
-                        DistanceNm = 0.2,
-                    },
-                },
-            ],
-            HoldShortPoints = [],
-        };
+        var route = new TaxiRoute { Segments = [MakeSegment(0, 1, "A", 0.1), MakeSegment(1, 2, "B", 0.2)], HoldShortPoints = [] };
 
         Assert.Equal(0.3, route.TotalDistanceNm, precision: 10);
     }
@@ -1172,12 +1057,12 @@ public class TaxiPathfinderTests
 
         // Check that B's FromNodeId is actually in the graph
         var bEdge = layout.Edges.First(e => string.Equals(e.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase));
-        Assert.True(layout.Nodes.ContainsKey(bEdge.FromNodeId), $"B edge FromNodeId {bEdge.FromNodeId} should exist in nodes");
+        Assert.True(layout.Nodes.ContainsKey(bEdge.Nodes[0].Id), $"B edge Nodes[0].Id {bEdge.Nodes[0].Id} should exist in nodes");
 
         // Check we can walk B from its first node
-        var bStartNode = layout.Nodes[bEdge.FromNodeId];
+        var bStartNode = layout.Nodes[bEdge.Nodes[0].Id];
         bool hasBEdge = bStartNode.Edges.Any(e => string.Equals(e.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase));
-        Assert.True(hasBEdge, $"Node {bEdge.FromNodeId} should have B edges");
+        Assert.True(hasBEdge, $"Node {bEdge.Nodes[0].Id} should have B edges");
     }
 
     [Fact]
@@ -1196,13 +1081,13 @@ public class TaxiPathfinderTests
         // Try walking from each W3 endpoint
         foreach (var edge in w3Edges)
         {
-            var route1 = TaxiPathfinder.ResolveExplicitPath(layout, edge.FromNodeId, ["W3"], out _);
-            var route2 = TaxiPathfinder.ResolveExplicitPath(layout, edge.ToNodeId, ["W3"], out _);
+            var route1 = TaxiPathfinder.ResolveExplicitPath(layout, edge.Nodes[0].Id, ["W3"], out _);
+            var route2 = TaxiPathfinder.ResolveExplicitPath(layout, edge.Nodes[1].Id, ["W3"], out _);
 
             // At least one direction should work
             if (route1 is not null || route2 is not null)
             {
-                int startId = route1 is not null ? edge.FromNodeId : edge.ToNodeId;
+                int startId = route1 is not null ? edge.Nodes[0].Id : edge.Nodes[1].Id;
                 // Now try W3 then W
                 var combined = TaxiPathfinder.ResolveExplicitPath(layout, startId, ["W3", "W"], out _);
                 if (combined is not null)
@@ -1214,9 +1099,9 @@ public class TaxiPathfinderTests
 
         // If we get here, diagnose WHY walking fails
         var firstW3 = w3Edges[0];
-        var node = layout.Nodes[firstW3.FromNodeId];
+        var node = layout.Nodes[firstW3.Nodes[0].Id];
         var edgeNames = string.Join(", ", node.Edges.Select(e => e.TaxiwayName));
-        Assert.Fail($"Could not walk W3. Node {firstW3.FromNodeId} edges: [{edgeNames}]. " + $"W3 edges count: {w3Edges.Count}");
+        Assert.Fail($"Could not walk W3. Node {firstW3.Nodes[0].Id} edges: [{edgeNames}]. " + $"W3 edges count: {w3Edges.Count}");
     }
 
     [Fact]
@@ -1239,7 +1124,7 @@ public class TaxiPathfinderTests
         var triedNodes = new HashSet<int>();
         foreach (var edge in w3Edges)
         {
-            foreach (int nodeId in new[] { edge.FromNodeId, edge.ToNodeId })
+            foreach (int nodeId in new[] { edge.Nodes[0].Id, edge.Nodes[1].Id })
             {
                 if (!triedNodes.Add(nodeId))
                 {
@@ -1298,7 +1183,7 @@ public class TaxiPathfinderTests
         var triedNodes = new HashSet<int>();
         foreach (var edge in w3Edges)
         {
-            foreach (int nodeId in new[] { edge.FromNodeId, edge.ToNodeId })
+            foreach (int nodeId in new[] { edge.Nodes[0].Id, edge.Nodes[1].Id })
             {
                 if (!triedNodes.Add(nodeId))
                 {
@@ -1344,7 +1229,7 @@ public class TaxiPathfinderTests
         var triedNodes = new HashSet<int>();
         foreach (var edge in bEdges)
         {
-            foreach (int nodeId in new[] { edge.FromNodeId, edge.ToNodeId })
+            foreach (int nodeId in new[] { edge.Nodes[0].Id, edge.Nodes[1].Id })
             {
                 if (!triedNodes.Add(nodeId))
                 {
@@ -1444,7 +1329,7 @@ public class TaxiPathfinderTests
 
         foreach (var edge in dEdges)
         {
-            foreach (int nodeId in new[] { edge.FromNodeId, edge.ToNodeId })
+            foreach (int nodeId in new[] { edge.Nodes[0].Id, edge.Nodes[1].Id })
             {
                 if (!triedNodes.Add(nodeId))
                 {
@@ -1621,8 +1506,7 @@ public class TaxiPathfinderTests
             n.Type == GroundNodeType.Parking
             && n.Edges.Any(e => string.Equals(e.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase))
             && layout.Nodes.Values.Any(adj =>
-                adj.Edges.Any(ae => string.Equals(ae.TaxiwayName, "Y", StringComparison.OrdinalIgnoreCase))
-                && n.Edges.Any(pe => pe.FromNodeId == adj.Id || pe.ToNodeId == adj.Id)
+                adj.Edges.Any(ae => string.Equals(ae.TaxiwayName, "Y", StringComparison.OrdinalIgnoreCase)) && n.Edges.Any(pe => pe.HasNode(adj.Id))
             )
         );
         if (parkingNode is null)
