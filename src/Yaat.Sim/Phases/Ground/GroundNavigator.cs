@@ -46,9 +46,6 @@ public sealed class GroundNavigator
     /// </summary>
     private (GroundArc Arc, bool FromNodeIsZero)? _currentArc;
 
-    /// <summary>True when the next segment is a <see cref="GroundArc"/>. Used to suppress turn anticipation.</summary>
-    private bool _nextSegmentIsArc;
-
     /// <summary>
     /// Set up navigation for the current segment of a route. Computes speed
     /// constraints by walking future segments and back-propagating braking limits.
@@ -95,7 +92,6 @@ public sealed class GroundNavigator
 
         // A. Compute required speed at the immediate target node
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
-        _nextSegmentIsArc = false;
 
         if (!isHoldShortCleared(TargetNodeId))
         {
@@ -114,15 +110,13 @@ public sealed class GroundNavigator
                 double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, outboundBearing);
                 _currentNodeRequiredSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngle);
                 _nextSegmentBearing = outboundBearing;
-                _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
                 Log.LogDebug(
-                    "[Nav]   turn at node {NodeId}: inbound={In:F1}° outbound={Out:F1}° angle={Angle:F1}° reqSpeed={Speed:F1}kts nextIsArc={IsArc}",
+                    "[Nav]   turn at node {NodeId}: inbound={In:F1}° outbound={Out:F1}° angle={Angle:F1}° reqSpeed={Speed:F1}kts",
                     TargetNodeId,
                     inboundBearing,
                     outboundBearing,
                     turnAngle,
-                    _currentNodeRequiredSpeed,
-                    _nextSegmentIsArc
+                    _currentNodeRequiredSpeed
                 );
             }
             else
@@ -249,25 +243,6 @@ public sealed class GroundNavigator
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
 
         double arrivalThreshold = isLastSegment ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
-
-        // Turn anticipation: declare early arrival when approaching a turn node so the
-        // aircraft starts steering toward the next segment sooner, creating a smooth arc.
-        // Suppress when arcs are involved — the arc geometry handles the smooth turn;
-        // anticipation would cause early segment advancement that skips the arc.
-        if (!isLastSegment && (_nextSegmentBearing is not null) && (_currentNodeRequiredSpeed > 0.5) && (_currentArc is null) && !_nextSegmentIsArc)
-        {
-            double inboundBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
-            double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, _nextSegmentBearing.Value);
-            if (turnAngle > 20)
-            {
-                double turnRateRad = CategoryPerformance.GroundTurnRate(ctx.Category) * Math.PI / 180.0;
-                double speedNmSec = Math.Max(ctx.Aircraft.GroundSpeed, _currentNodeRequiredSpeed) / 3600.0;
-                double radiusNm = speedNmSec / turnRateRad;
-                double halfAngleRad = turnAngle * Math.PI / 360.0;
-                double anticipation = radiusNm * Math.Tan(halfAngleRad);
-                arrivalThreshold = Math.Max(arrivalThreshold, Math.Min(anticipation, 0.05));
-            }
-        }
 
         bool overshot = (dist > PrevDistToTarget) && (PrevDistToTarget < OvershootDetectionNm);
         bool stoppedByConflict = (ctx.Aircraft.GroundSpeedLimit is not null) && (ctx.Aircraft.GroundSpeedLimit.Value < 0.5);

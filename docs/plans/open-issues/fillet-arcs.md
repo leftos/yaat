@@ -272,7 +272,7 @@ List<TaxiRoute> FindRoutes(layout, from, to,
 
 #### Remaining work
 
-- [ ] Evaluate removing turn anticipation entirely — arcs handle smooth turns now
+- [x] Evaluate removing turn anticipation entirely — arcs handle smooth turns now
 - [ ] Verify visual quality in Ground View at various zoom levels
 - [x] Synthetic fillet test: runway + taxiways at 20°–160° angles (use `tools/Yaat.Scratch`)
 - [x] Navigator bezier following unit tests (projection, lookahead, speed constraint)
