@@ -2,6 +2,8 @@ using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
 
+using static Yaat.Sim.Data.Airport.AirportGroundLayout;
+
 namespace Yaat.LayoutInspector;
 
 public sealed class LayoutAnalyzer
@@ -15,11 +17,11 @@ public sealed class LayoutAnalyzer
         AirportId = layout.AirportId;
     }
 
-    public static LayoutAnalyzer Load(string geoJsonPath, string? airportCode)
+    public static LayoutAnalyzer Load(string geoJsonPath, string? airportCode, bool applyFillets)
     {
         string geoJson = File.ReadAllText(geoJsonPath);
         string airportId = Path.GetFileNameWithoutExtension(geoJsonPath).ToUpperInvariant();
-        var layout = GeoJsonParser.Parse(airportId, geoJson, airportCode);
+        var layout = GeoJsonParser.Parse(airportId, geoJson, airportCode, applyFillets);
         return new LayoutAnalyzer(layout);
     }
 
@@ -33,11 +35,24 @@ public sealed class LayoutAnalyzer
         }
 
         var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var edge in Layout.Edges)
+        foreach (var edge in Layout.AllEdges)
         {
-            if (!edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            if (!edge.IsRunway)
             {
-                taxiwayNames.Add(edge.TaxiwayName);
+                if (edge is GroundArc arc)
+                {
+                    foreach (string name in arc.TaxiwayNames)
+                    {
+                        if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                        {
+                            taxiwayNames.Add(name);
+                        }
+                    }
+                }
+                else
+                {
+                    taxiwayNames.Add(edge.TaxiwayName);
+                }
             }
         }
 
@@ -48,6 +63,7 @@ public sealed class LayoutAnalyzer
             Layout.Nodes.Count,
             countsByType,
             Layout.Edges.Count,
+            Layout.Arcs.Count,
             taxiwayNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList(),
             Layout.Runways.Select(r => r.Name).ToList(),
             runwayWidths
@@ -68,7 +84,10 @@ public sealed class LayoutAnalyzer
                     edge.DistanceNm,
                     neighbor?.Type.ToString() ?? "Unknown",
                     neighbor?.Name,
-                    neighbor?.RunwayId?.ToString()
+                    neighbor?.RunwayId?.ToString(),
+                    edge is GroundArc,
+                    edge.IsRunway,
+                    edge.IsRamp
                 )
             );
         }
@@ -96,9 +115,9 @@ public sealed class LayoutAnalyzer
         var connectedTaxiways = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         int holdShortCount = 0;
 
-        foreach (var edge in Layout.Edges)
+        foreach (var edge in Layout.AllEdges)
         {
-            if (string.Equals(edge.TaxiwayName, name, StringComparison.OrdinalIgnoreCase))
+            if (edge.MatchesTaxiway(name))
             {
                 nodeIds.Add(edge.Nodes[0].Id);
                 nodeIds.Add(edge.Nodes[1].Id);
@@ -121,12 +140,14 @@ public sealed class LayoutAnalyzer
 
             foreach (var edge in node.Edges)
             {
-                if (
-                    (!edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
-                    && (!string.Equals(edge.TaxiwayName, name, StringComparison.OrdinalIgnoreCase))
-                )
+                if (edge.IsRunway || edge.MatchesTaxiway(name))
                 {
-                    connectedTaxiways.Add(edge.TaxiwayName);
+                    continue;
+                }
+
+                foreach (string twyName in CollectNonRunwayTaxiwayNames(edge))
+                {
+                    connectedTaxiways.Add(twyName);
                 }
             }
         }
@@ -160,10 +181,7 @@ public sealed class LayoutAnalyzer
         foreach (var node in Layout.Nodes.Values)
         {
             bool isHoldShort = (node.Type == GroundNodeType.RunwayHoldShort) && (node.RunwayId is { } rwyId) && rwyId.Contains(designator);
-            bool hasCenterlineEdge = node.Edges.Any(e =>
-                e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
-            );
+            bool hasCenterlineEdge = node.Edges.Any(e => e.MatchesRunway(designator));
 
             if (isHoldShort)
             {
@@ -198,10 +216,7 @@ public sealed class LayoutAnalyzer
 
         foreach (var node in Layout.Nodes.Values)
         {
-            bool isCenterline = node.Edges.Any(e =>
-                e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
-            );
+            bool isCenterline = node.Edges.Any(e => e.MatchesRunway(designator));
             if (!isCenterline)
             {
                 continue;
@@ -217,50 +232,50 @@ public sealed class LayoutAnalyzer
             var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var edge in node.Edges)
             {
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                // Collect individual taxiway names from this edge (arcs may have multiple)
+                var edgeTaxiwayNames = CollectNonRunwayTaxiwayNames(edge);
+                foreach (string twyName in edgeTaxiwayNames)
                 {
-                    continue;
-                }
-
-                if (!searched.Add(edge.TaxiwayName))
-                {
-                    continue;
-                }
-
-                ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
-                foreach (var side in sides)
-                {
-                    var pref = new ExitPreference { Taxiway = edge.TaxiwayName, Side = side };
-                    var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
-                    if (result is null)
+                    if (!searched.Add(twyName))
                     {
                         continue;
                     }
 
-                    // Deduplicate: same centerline + same hold-short already found
-                    if (exits.Any(e => (e.CenterlineNodeId == node.Id) && (e.HoldShortNodeId == result.Value.Node.Id)))
+                    ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
+                    foreach (var side in sides)
                     {
-                        continue;
+                        var pref = new ExitPreference { Taxiway = twyName, Side = side };
+                        var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
+                        if (result is null)
+                        {
+                            continue;
+                        }
+
+                        // Deduplicate: same centerline + same hold-short already found
+                        if (exits.Any(e => (e.CenterlineNodeId == node.Id) && (e.HoldShortNodeId == result.Value.Node.Id)))
+                        {
+                            continue;
+                        }
+
+                        double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
+                        double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
+                        bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
+                        string sideName = side == ExitSide.Left ? "Left" : "Right";
+
+                        exits.Add(
+                            new ExitCandidate(
+                                node.Id,
+                                result.Value.Node.Id,
+                                result.Value.Taxiway,
+                                1,
+                                totalDist,
+                                angle,
+                                sideName,
+                                isHighSpeed,
+                                [result.Value.Node.Id]
+                            )
+                        );
                     }
-
-                    double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
-                    double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
-                    bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
-                    string sideName = side == ExitSide.Left ? "Left" : "Right";
-
-                    exits.Add(
-                        new ExitCandidate(
-                            node.Id,
-                            result.Value.Node.Id,
-                            result.Value.Taxiway,
-                            1,
-                            totalDist,
-                            angle,
-                            sideName,
-                            isHighSpeed,
-                            [result.Value.Node.Id]
-                        )
-                    );
                 }
             }
         }
@@ -365,7 +380,7 @@ public sealed class LayoutAnalyzer
             foreach (var edge in node.Edges)
             {
                 // Don't cross runways — runway edges connect centerline nodes
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                if (edge.IsRunway)
                 {
                     continue;
                 }
@@ -458,10 +473,7 @@ public sealed class LayoutAnalyzer
 
         foreach (var node in Layout.Nodes.Values)
         {
-            bool isCenterline = node.Edges.Any(e =>
-                e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
-            );
+            bool isCenterline = node.Edges.Any(e => e.MatchesRunway(designator));
             if (!isCenterline)
             {
                 continue;
@@ -470,49 +482,48 @@ public sealed class LayoutAnalyzer
             var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var edge in node.Edges)
             {
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                var edgeTaxiwayNames = CollectNonRunwayTaxiwayNames(edge);
+                foreach (string twyName in edgeTaxiwayNames)
                 {
-                    continue;
-                }
-
-                if (!searched.Add(edge.TaxiwayName))
-                {
-                    continue;
-                }
-
-                ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
-                foreach (var side in sides)
-                {
-                    var pref = new ExitPreference { Taxiway = edge.TaxiwayName, Side = side };
-                    var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
-                    if (result is null)
+                    if (!searched.Add(twyName))
                     {
                         continue;
                     }
 
-                    if (exits.Any(e => (e.CenterlineNodeId == node.Id) && (e.HoldShortNodeId == result.Value.Node.Id)))
+                    ExitSide[] sides = [ExitSide.Left, ExitSide.Right];
+                    foreach (var side in sides)
                     {
-                        continue;
+                        var pref = new ExitPreference { Taxiway = twyName, Side = side };
+                        var result = Layout.FindAdjacentHoldShort(node, designator, rwyHeading, pref);
+                        if (result is null)
+                        {
+                            continue;
+                        }
+
+                        if (exits.Any(e => (e.CenterlineNodeId == node.Id) && (e.HoldShortNodeId == result.Value.Node.Id)))
+                        {
+                            continue;
+                        }
+
+                        double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
+                        double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
+                        bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
+                        string sideName = side == ExitSide.Left ? "Left" : "Right";
+
+                        exits.Add(
+                            new ExitCandidate(
+                                node.Id,
+                                result.Value.Node.Id,
+                                result.Value.Taxiway,
+                                1,
+                                totalDist,
+                                angle,
+                                sideName,
+                                isHighSpeed,
+                                [result.Value.Node.Id]
+                            )
+                        );
                     }
-
-                    double? angle = Layout.ComputeExitAngle(result.Value.Node, result.Value.Taxiway, rwyHeading);
-                    double totalDist = GeoMath.DistanceNm(node.Latitude, node.Longitude, result.Value.Node.Latitude, result.Value.Node.Longitude);
-                    bool isHighSpeed = (angle is not null) && (angle.Value <= 45.0);
-                    string sideName = side == ExitSide.Left ? "Left" : "Right";
-
-                    exits.Add(
-                        new ExitCandidate(
-                            node.Id,
-                            result.Value.Node.Id,
-                            result.Value.Taxiway,
-                            1,
-                            totalDist,
-                            angle,
-                            sideName,
-                            isHighSpeed,
-                            [result.Value.Node.Id]
-                        )
-                    );
                 }
             }
         }
@@ -568,10 +579,7 @@ public sealed class LayoutAnalyzer
     {
         foreach (var edge in node.Edges)
         {
-            if (
-                edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                && edge.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase)
-            )
+            if (edge.MatchesRunway(designator))
             {
                 int neighborId = edge.OtherNodeId(node.Id);
                 if (Layout.Nodes.TryGetValue(neighborId, out var neighbor))
@@ -634,13 +642,13 @@ public sealed class LayoutAnalyzer
             Layout.Nodes.TryGetValue(neighborId, out var neighbor);
             string neighborType = neighbor?.Type.ToString() ?? "Unknown";
 
-            if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            if (edge.IsRunway)
             {
                 seedEdges.Add(new BfsEdgeExplored(neighborId, edge.TaxiwayName, edge.DistanceNm, neighborType, "SKIP", "runway edge"));
                 continue;
             }
 
-            if (!string.Equals(edge.TaxiwayName, taxiway, StringComparison.OrdinalIgnoreCase))
+            if (!edge.MatchesTaxiway(taxiway))
             {
                 seedEdges.Add(
                     new BfsEdgeExplored(
@@ -649,7 +657,7 @@ public sealed class LayoutAnalyzer
                         edge.DistanceNm,
                         neighborType,
                         "SKIP",
-                        $"taxiway {edge.TaxiwayName} != {taxiway}"
+                        $"taxiway {edge.TaxiwayName} does not match {taxiway}"
                     )
                 );
                 continue;
@@ -662,7 +670,7 @@ public sealed class LayoutAnalyzer
             }
 
             visited.Add(neighborId);
-            queue.Enqueue((neighbor, edge.TaxiwayName, [startNodeId, neighborId], edge.DistanceNm, 1));
+            queue.Enqueue((neighbor, taxiway, [startNodeId, neighborId], edge.DistanceNm, 1));
             seedEdges.Add(new BfsEdgeExplored(neighborId, edge.TaxiwayName, edge.DistanceNm, neighborType, "FOLLOW", $"matches taxiway {taxiway}"));
         }
 
@@ -695,16 +703,16 @@ public sealed class LayoutAnalyzer
                 Layout.Nodes.TryGetValue(nextId, out var next);
                 string nextType = next?.Type.ToString() ?? "Unknown";
 
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                if (edge.IsRunway)
                 {
                     edgesExplored.Add(new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, nextType, "SKIP", "runway edge"));
                     continue;
                 }
 
-                if (!string.Equals(edge.TaxiwayName, branchTwy, StringComparison.OrdinalIgnoreCase))
+                if (!edge.MatchesTaxiway(branchTwy))
                 {
                     edgesExplored.Add(
-                        new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, nextType, "SKIP", $"taxiway {edge.TaxiwayName} != {branchTwy}")
+                        new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, nextType, "SKIP", $"taxiway {edge.TaxiwayName} does not match {branchTwy}")
                     );
                     continue;
                 }
@@ -730,5 +738,32 @@ public sealed class LayoutAnalyzer
         }
 
         return new BfsPathResult(startNodeId, taxiway, steps, null, null, null);
+    }
+
+    /// <summary>
+    /// Returns the individual non-runway taxiway names from an edge.
+    /// For a GroundArc with TaxiwayNames ["RWY28R", "K"], returns ["K"].
+    /// For a GroundEdge named "K", returns ["K"].
+    /// For a runway-only edge, returns an empty list.
+    /// </summary>
+    private static List<string> CollectNonRunwayTaxiwayNames(IGroundEdge edge)
+    {
+        var names = new List<string>();
+        if (edge is GroundArc arc)
+        {
+            foreach (string name in arc.TaxiwayNames)
+            {
+                if (!name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                {
+                    names.Add(name);
+                }
+            }
+        }
+        else if (!edge.IsRunway)
+        {
+            names.Add(edge.TaxiwayName);
+        }
+
+        return names;
     }
 }

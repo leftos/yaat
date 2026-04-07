@@ -20,7 +20,7 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
         }
 
         w.WriteLine();
-        w.WriteLine($"Edges: {r.EdgeCount} total");
+        w.WriteLine($"Edges: {r.EdgeCount} straight, {r.ArcCount} arcs");
         w.WriteLine();
         w.WriteLine($"Taxiways: {string.Join(", ", r.TaxiwayNames)}");
         w.WriteLine($"Runways: {string.Join(", ", r.RunwayNames)}");
@@ -88,7 +88,8 @@ public sealed class TextFormatter(TextWriter w) : IFormatter
             }
 
             neighbor += "]";
-            w.WriteLine($"    -> Node {e.NeighborId} via {e.TaxiwayName} ({e.DistanceNm:F4}nm)  {neighbor}");
+            string edgeType = e.IsArc ? " [arc]" : "";
+            w.WriteLine($"    -> Node {e.NeighborId} via {e.TaxiwayName} ({e.DistanceNm:F4}nm){edgeType}  {neighbor}");
         }
     }
 

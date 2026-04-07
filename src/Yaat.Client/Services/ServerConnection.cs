@@ -594,7 +594,11 @@ public record GroundLayoutDto(string AirportId, List<GroundNodeDto> Nodes, List<
 
 public record GroundNodeDto(int Id, double Latitude, double Longitude, string Type, string? Name, double? Heading, string? RunwayId);
 
-public record GroundEdgeDto(int FromNodeId, int ToNodeId, string TaxiwayName, double DistanceNm, List<double[]>? IntermediatePoints);
+public record GroundEdgeDto(int FromNodeId, int ToNodeId, string TaxiwayName, double DistanceNm, List<double[]>? IntermediatePoints)
+{
+    public bool IsRunway => TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+    public bool IsRamp => string.Equals(TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
+}
 
 public record GroundRunwayDto(string Name, List<double[]> Coordinates, double WidthFt);
 

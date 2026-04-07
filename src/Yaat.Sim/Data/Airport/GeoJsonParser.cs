@@ -31,6 +31,11 @@ public static class GeoJsonParser
 
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode)
     {
+        return Parse(airportId, geoJson, runwayAirportCode, applyFillets: true);
+    }
+
+    public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, bool applyFillets)
+    {
         string sanitized = SanitizeJson(geoJson);
         var doc = JsonDocument.Parse(sanitized, LenientJsonOptions);
         var root = doc.RootElement;
@@ -87,7 +92,7 @@ public static class GeoJsonParser
             Log.LogWarning("Skipped {Count} malformed feature(s) in {Airport}", skipped, airportId);
         }
 
-        return BuildLayout(airportId, parkingFeatures, helipadFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, runwayAirportCode);
+        return BuildLayout(airportId, parkingFeatures, helipadFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, runwayAirportCode, applyFillets);
     }
 
     /// <summary>
@@ -129,7 +134,8 @@ public static class GeoJsonParser
         List<SpotFeature> spots,
         List<TaxiwayFeature> taxiways,
         List<RunwayFeature> runways,
-        string? runwayAirportCode
+        string? runwayAirportCode,
+        bool applyFillets
     )
     {
         var layout = new AirportGroundLayout { AirportId = airportId };
@@ -227,7 +233,10 @@ public static class GeoJsonParser
         layout.RebuildAdjacencyLists();
 
         // Step 8: Generate fillet arcs at intersections
-        FilletArcGenerator.Apply(layout);
+        if (applyFillets)
+        {
+            FilletArcGenerator.Apply(layout);
+        }
 
         Log.LogInformation(
             "Parsed airport {Id}: {NodeCount} nodes, {EdgeCount} edges, {ArcCount} arcs, " + "{ParkingCount} parking, {HelipadCount} helipads",

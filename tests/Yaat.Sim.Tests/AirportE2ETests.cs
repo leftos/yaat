@@ -316,7 +316,7 @@ public class AirportE2ETests
         }
 
         // Start from a D node north of the 15/33 crossing (lat > 37.735)
-        var dEdges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase)).ToList();
+        var dEdges = layout.Edges.Where(e => e.MatchesTaxiway("D")).ToList();
         Assert.True(dEdges.Count > 0);
 
         GroundNode? startNode = null;
@@ -357,7 +357,7 @@ public class AirportE2ETests
             return;
         }
 
-        var dEdges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase)).ToList();
+        var dEdges = layout.Edges.Where(e => e.MatchesTaxiway("D")).ToList();
 
         GroundNode? startNode = null;
         foreach (var edge in dEdges)
@@ -508,7 +508,7 @@ public class AirportE2ETests
             // Hold-short nodes should NOT be at junctions — they should be on a
             // single taxiway between the runway surface and the next intersection.
             var taxiwayNames = hs
-                .Edges.Where(e => !e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                .Edges.Where(e => !e.IsRunway)
                 .Select(e => e.TaxiwayName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -557,7 +557,7 @@ public class AirportE2ETests
 
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway(taxiwayName))
                 {
                     return node;
                 }
@@ -624,12 +624,12 @@ public class AirportE2ETests
             bool hasB = false;
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("C"))
                 {
                     hasC = true;
                 }
 
-                if (string.Equals(edge.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("B"))
                 {
                     hasB = true;
                 }
@@ -794,7 +794,7 @@ public class AirportE2ETests
             return (null, null, null);
         }
 
-        var t7aEdges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "T7A", StringComparison.OrdinalIgnoreCase)).ToList();
+        var t7aEdges = layout.Edges.Where(e => e.MatchesTaxiway("T7A")).ToList();
         if (t7aEdges.Count == 0)
         {
             return (null, null, null);
@@ -804,7 +804,7 @@ public class AirportE2ETests
 
         // Junction: T7A node that also has an A edge
         var junction = layout.Nodes.Values.FirstOrDefault(n =>
-            t7aNodeIds.Contains(n.Id) && n.Edges.Any(e => string.Equals(e.TaxiwayName, "A", StringComparison.OrdinalIgnoreCase))
+            t7aNodeIds.Contains(n.Id) && n.Edges.Any(e => e.MatchesTaxiway("A"))
         );
 
         // Pushback node: T7A point 2 at (37.620251, -122.385900) — the node SKW5966 pushed back to
@@ -1050,8 +1050,8 @@ public class AirportE2ETests
 
         // Find a C-only node (not at C/E junction) to simulate a realistic start
         var cOnlyNode = layout.Nodes.Values.FirstOrDefault(n =>
-            n.Edges.Any(e => string.Equals(e.TaxiwayName, "C", StringComparison.OrdinalIgnoreCase))
-            && !n.Edges.Any(e => string.Equals(e.TaxiwayName, "E", StringComparison.OrdinalIgnoreCase))
+            n.Edges.Any(e => e.MatchesTaxiway("C"))
+            && !n.Edges.Any(e => e.MatchesTaxiway("E"))
             && n.Type == GroundNodeType.TaxiwayIntersection
         );
         Assert.NotNull(cOnlyNode);
@@ -1089,7 +1089,7 @@ public class AirportE2ETests
         {
             foreach (var edge in hs.Edges)
             {
-                if (!edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                if (!edge.IsRunway)
                 {
                     connectingTaxiways.Add(edge.TaxiwayName);
                 }
@@ -1287,7 +1287,7 @@ public class AirportE2ETests
         double bestDist = double.MaxValue;
         foreach (var hs in holdShortNodes)
         {
-            bool onG = hs.Edges.Any(e => string.Equals(e.TaxiwayName, "G", StringComparison.OrdinalIgnoreCase));
+            bool onG = hs.Edges.Any(e => e.MatchesTaxiway("G"));
             if (!onG)
             {
                 continue;

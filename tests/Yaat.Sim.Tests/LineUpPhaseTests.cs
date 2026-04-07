@@ -63,7 +63,7 @@ public class LineUpPhaseTests
 
         foreach (var edge in layout.Edges)
         {
-            if (edge.TaxiwayName.Contains(rwyName, StringComparison.OrdinalIgnoreCase))
+            if (edge.MatchesRunway(rwyName))
             {
                 rwyEdgeNodeIds.Add(edge.Nodes[0].Id);
                 rwyEdgeNodeIds.Add(edge.Nodes[1].Id);
@@ -81,7 +81,7 @@ public class LineUpPhaseTests
             bool hasTaxiEdge = false;
             foreach (var edge in node.Edges)
             {
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                if (edge.IsRunway)
                 {
                     hasRwyEdge = true;
                 }

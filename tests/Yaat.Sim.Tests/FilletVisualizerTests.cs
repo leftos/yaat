@@ -135,7 +135,7 @@ public class FilletVisualizerTests
             double y2 = ScaleY(edge.Nodes[1].Latitude);
 
             string color =
-                edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) ? "#ff6666"
+                edge.IsRunway ? "#ff6666"
                 : edge.TaxiwayName == "RAMP" ? "#888"
                 : "#66aaff";
 

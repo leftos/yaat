@@ -5,6 +5,7 @@ public sealed record OverviewResult(
     int NodeCount,
     Dictionary<string, int> NodeCountsByType,
     int EdgeCount,
+    int ArcCount,
     List<string> TaxiwayNames,
     List<string> RunwayNames,
     List<RunwayWidthInfo> RunwayWidths
@@ -29,7 +30,10 @@ public sealed record EdgeInfo(
     double DistanceNm,
     string NeighborType,
     string? NeighborName,
-    string? NeighborRunwayId
+    string? NeighborRunwayId,
+    bool IsArc,
+    bool IsRunway,
+    bool IsRamp
 );
 
 public sealed record TaxiwayResult(string Name, List<NodeInfo> Nodes, List<string> ConnectedTaxiways, int HoldShortCount);

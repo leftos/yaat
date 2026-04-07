@@ -185,7 +185,7 @@ internal static class FilletArcGeneratorTraced
         int rwyCount = 0;
         foreach (var e in node.Edges)
         {
-            if (e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+            if (e.IsRunway)
             {
                 rwyCount++;
             }
@@ -486,12 +486,8 @@ internal static class FilletArcGeneratorTraced
 
     private static double SelectRadius(GroundEdge edgeA, GroundEdge edgeB, double turnAngleDeg)
     {
-        bool hasRwy =
-            edgeA.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-            || edgeB.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
-        bool hasRamp =
-            string.Equals(edgeA.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(edgeB.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
+        bool hasRwy = edgeA.IsRunway || edgeB.IsRunway;
+        bool hasRamp = edgeA.IsRamp || edgeB.IsRamp;
         if (hasRamp)
         {
             return RampRadiusFt;

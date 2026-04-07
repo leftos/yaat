@@ -58,6 +58,13 @@ public interface IGroundEdge
     /// <summary>True if this edge is a runway centerline segment (TaxiwayName starts with "RWY").</summary>
     bool IsRunway { get; }
 
+    /// <summary>
+    /// Returns true if this edge is a runway edge for the given designator.
+    /// Runway edge names are "RWY{end1}/{end2}" (e.g., "RWY10L/28R");
+    /// this checks if <paramref name="designator"/> matches either end.
+    /// </summary>
+    bool MatchesRunway(string designator);
+
     /// <summary>True if this edge is a ramp connection (TaxiwayName is "RAMP").</summary>
     bool IsRamp { get; }
 
@@ -87,6 +94,30 @@ public interface IGroundEdge
     /// Create a <see cref="DirectionalEdge"/> capturing a specific traversal direction.
     /// </summary>
     DirectionalEdge Directed(GroundNode fromNode, GroundNode toNode);
+
+    /// <summary>
+    /// Checks if a runway edge name (e.g., "RWY10L/28R") contains the given designator
+    /// as an exact segment match. Strips the "RWY" prefix, splits by "/", and checks each part.
+    /// </summary>
+    static bool RunwayNameContainsDesignator(string rwyEdgeName, string designator)
+    {
+        // "RWY10L/28R" → "10L/28R" → ["10L", "28R"]
+        ReadOnlySpan<char> name = rwyEdgeName.AsSpan();
+        if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+        {
+            name = name[3..];
+        }
+
+        foreach (var part in name.Split('/'))
+        {
+            if (name[part].Equals(designator, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 
 /// <summary>
@@ -122,6 +153,7 @@ public sealed class GroundEdge : IGroundEdge
         };
 
     public bool IsRunway => TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+    public bool MatchesRunway(string designator) => IsRunway && IGroundEdge.RunwayNameContainsDesignator(TaxiwayName, designator);
     public bool IsRamp => string.Equals(TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
 
     public GroundNode OtherNode(GroundNode node) => Nodes[0].Id == node.Id ? Nodes[1] : Nodes[0];
@@ -229,6 +261,20 @@ public sealed class GroundArc : IGroundEdge
     }
 
     public bool IsRunway => TaxiwayNames[0].StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+
+    public bool MatchesRunway(string designator)
+    {
+        foreach (string name in TaxiwayNames)
+        {
+            if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase) && IGroundEdge.RunwayNameContainsDesignator(name, designator))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public bool IsRamp => string.Equals(TaxiwayNames[0], "RAMP", StringComparison.OrdinalIgnoreCase);
 
     public GroundNode OtherNode(GroundNode node) => Nodes[0].Id == node.Id ? Nodes[1] : Nodes[0];
@@ -431,7 +477,7 @@ public sealed class AirportGroundLayout
     {
         foreach (var edge in node.Edges)
         {
-            if (edge.IsRunway && edge.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase))
+            if (edge.MatchesRunway(designator))
             {
                 return true;
             }
@@ -457,7 +503,7 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
-            if (runwayDesignator is not null && !edge.TaxiwayName.Contains(runwayDesignator, StringComparison.OrdinalIgnoreCase))
+            if (runwayDesignator is not null && !edge.MatchesRunway(runwayDesignator))
             {
                 continue;
             }
@@ -1179,7 +1225,7 @@ public sealed class AirportGroundLayout
 
         foreach (var node in Nodes.Values)
         {
-            bool isCenterline = node.Edges.Any(e => e.IsRunway && e.TaxiwayName.Contains(designator, StringComparison.OrdinalIgnoreCase));
+            bool isCenterline = node.Edges.Any(e => e.MatchesRunway(designator));
             if (!isCenterline)
             {
                 continue;

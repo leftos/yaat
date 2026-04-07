@@ -138,7 +138,7 @@ public class ExitKOvershootTests(ITestOutputHelper output)
         var kEdgeSegments = new List<(double Lat1, double Lon1, double Lat2, double Lon2)>();
         foreach (var edge in layout.Edges)
         {
-            if (!string.Equals(edge.TaxiwayName, "K", StringComparison.OrdinalIgnoreCase))
+            if (!edge.MatchesTaxiway("K"))
             {
                 continue;
             }

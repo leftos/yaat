@@ -39,7 +39,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
         const double StartLon = -122.383669;
 
         var bNodes = layout
-            .Nodes.Values.Where(n => n.Edges.Any(e => string.Equals(e.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase)))
+            .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("B")))
             .OrderBy(n => Math.Abs(n.Latitude - StartLat) + Math.Abs(n.Longitude - StartLon))
             .Take(5)
             .ToList();
@@ -117,7 +117,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
         // Find W3 edges and use the nodes from the first edge as start candidates
         var w3Edges = layout
             .Nodes.Values.SelectMany(n => n.Edges)
-            .Where(e => string.Equals(e.TaxiwayName, "W3", StringComparison.OrdinalIgnoreCase))
+            .Where(e => e.MatchesTaxiway("W3"))
             .Take(3)
             .ToList();
         var tried = new HashSet<int>();
@@ -226,7 +226,7 @@ public class TaxiPathfinderDiagnosticTests(ITestOutputHelper output)
 
         // Dump M1 nodes for reference
         var m1Nodes = layout
-            .Nodes.Values.Where(n => n.Edges.Any(e => string.Equals(e.TaxiwayName, "M1", StringComparison.OrdinalIgnoreCase)))
+            .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("M1")))
             .OrderBy(n => n.Latitude)
             .ToList();
         output.WriteLine($"\n=== SFO M1 nodes ({m1Nodes.Count}): ===");

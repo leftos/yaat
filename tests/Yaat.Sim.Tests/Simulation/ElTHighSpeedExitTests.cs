@@ -135,7 +135,7 @@ public class ElTHighSpeedExitTests(ITestOutputHelper output)
         var tEdgeSegments = new List<(double Lat1, double Lon1, double Lat2, double Lon2)>();
         foreach (var edge in layout.Edges)
         {
-            if (!string.Equals(edge.TaxiwayName, "T", StringComparison.OrdinalIgnoreCase))
+            if (!edge.MatchesTaxiway("T"))
             {
                 continue;
             }

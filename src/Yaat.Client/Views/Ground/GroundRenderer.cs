@@ -590,8 +590,8 @@ public sealed class GroundRenderer : IDisposable
                 continue;
             }
 
-            bool isRunway = edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
-            bool isRamp = string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
+            bool isRunway = edge.IsRunway;
+            bool isRamp = edge.IsRamp;
 
             // RAMP edges follow the parking filter
             if (isRamp && showParking == GroundFilterMode.Off)
@@ -842,8 +842,8 @@ public sealed class GroundRenderer : IDisposable
         foreach (var edge in layout.Edges)
         {
             if (
-                edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(edge.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase)
+                edge.IsRunway
+                || edge.IsRamp
             )
             {
                 continue;
@@ -1040,7 +1040,7 @@ public sealed class GroundRenderer : IDisposable
         }
 
         // Only use non-runway edges so the bar is perpendicular to the taxiway, not the runway
-        if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+        if (edge.IsRunway)
         {
             return;
         }

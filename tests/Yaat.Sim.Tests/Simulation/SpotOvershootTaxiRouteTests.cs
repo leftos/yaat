@@ -115,7 +115,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
             bool onM2 = false;
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, "M2", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("M2"))
                 {
                     onM2 = true;
                     break;
@@ -190,7 +190,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
             bool onM4 = false;
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, "M4", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("M4"))
                 {
                     onM4 = true;
                     break;
@@ -264,7 +264,7 @@ public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
             bool onT9 = false;
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, "T9", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("T9"))
                 {
                     onT9 = true;
                     break;

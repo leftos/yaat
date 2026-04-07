@@ -31,6 +31,7 @@ public static class Program
         bool showSpots = false;
         bool jsonOutput = false;
         bool dumpAll = false;
+        bool noFillets = false;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -71,6 +72,9 @@ public static class Program
                     dumpAll = true;
                     jsonOutput = true;
                     break;
+                case "--no-fillets":
+                    noFillets = true;
+                    break;
                 default:
                     Console.Error.WriteLine($"Unknown flag: {args[i]}");
                     PrintUsage();
@@ -83,7 +87,7 @@ public static class Program
         LayoutAnalyzer analyzer;
         try
         {
-            analyzer = LayoutAnalyzer.Load(geoJsonPath, airportCode);
+            analyzer = LayoutAnalyzer.Load(geoJsonPath, airportCode, applyFillets: !noFillets);
         }
         catch (Exception ex)
         {
@@ -210,6 +214,7 @@ public static class Program
         Console.WriteLine("  --path <node-id> <twy>   BFS trace from node through taxiway to hold-short");
         Console.WriteLine("  --parking                Show all parking nodes");
         Console.WriteLine("  --spots                  Show all spot/named nodes");
+        Console.WriteLine("  --no-fillets             Skip fillet arc generation (unfilleted graph for comparison)");
         Console.WriteLine("  --dump                   Dump everything (nodes, taxiways, runways, exits) as JSON");
         Console.WriteLine("  --json                   Output as JSON");
         Console.WriteLine("  --airport-code <ICAO>    Airport code for NavData runway widths");

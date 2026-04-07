@@ -315,7 +315,7 @@ public class GeoJsonParserTests
             bool hasBEdge = false;
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("B"))
                 {
                     hasBEdge = true;
                     break;

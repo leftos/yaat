@@ -1056,12 +1056,12 @@ public class TaxiPathfinderTests
         }
 
         // Check that B's FromNodeId is actually in the graph
-        var bEdge = layout.Edges.First(e => string.Equals(e.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase));
+        var bEdge = layout.Edges.First(e => e.MatchesTaxiway("B"));
         Assert.True(layout.Nodes.ContainsKey(bEdge.Nodes[0].Id), $"B edge Nodes[0].Id {bEdge.Nodes[0].Id} should exist in nodes");
 
         // Check we can walk B from its first node
         var bStartNode = layout.Nodes[bEdge.Nodes[0].Id];
-        bool hasBEdge = bStartNode.Edges.Any(e => string.Equals(e.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase));
+        bool hasBEdge = bStartNode.Edges.Any(e => e.MatchesTaxiway("B"));
         Assert.True(hasBEdge, $"Node {bEdge.Nodes[0].Id} should have B edges");
     }
 
@@ -1075,7 +1075,7 @@ public class TaxiPathfinderTests
         }
 
         // Find all W3 edges
-        var w3Edges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "W3", StringComparison.OrdinalIgnoreCase)).ToList();
+        var w3Edges = layout.Edges.Where(e => e.MatchesTaxiway("W3")).ToList();
         Assert.True(w3Edges.Count > 0, "Should have W3 edges");
 
         // Try walking from each W3 endpoint
@@ -1118,7 +1118,7 @@ public class TaxiPathfinderTests
         TaxiRoute? route = null;
         string? failReason = null;
 
-        var w3Edges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "W3", StringComparison.OrdinalIgnoreCase)).ToList();
+        var w3Edges = layout.Edges.Where(e => e.MatchesTaxiway("W3")).ToList();
         Assert.True(w3Edges.Count > 0, "Should have W3 edges");
 
         var triedNodes = new HashSet<int>();
@@ -1177,7 +1177,7 @@ public class TaxiPathfinderTests
         TaxiRoute? route = null;
         string? failReason = null;
 
-        var w3Edges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "W3", StringComparison.OrdinalIgnoreCase)).ToList();
+        var w3Edges = layout.Edges.Where(e => e.MatchesTaxiway("W3")).ToList();
         Assert.True(w3Edges.Count > 0, "Should have W3 edges");
 
         var triedNodes = new HashSet<int>();
@@ -1223,7 +1223,7 @@ public class TaxiPathfinderTests
         string? failReason = null;
         int usedStartNode = -1;
 
-        var bEdges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase)).ToList();
+        var bEdges = layout.Edges.Where(e => e.MatchesTaxiway("B")).ToList();
         Assert.True(bEdges.Count > 0, "Should have B edges");
 
         var triedNodes = new HashSet<int>();
@@ -1319,7 +1319,7 @@ public class TaxiPathfinderTests
         }
 
         // Find a starting node on taxiway D (before the 15/33 crossing)
-        var dEdges = layout.Edges.Where(e => string.Equals(e.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase)).ToList();
+        var dEdges = layout.Edges.Where(e => e.MatchesTaxiway("D")).ToList();
         Assert.True(dEdges.Count > 0, "Should have D edges");
 
         // Try resolving D → F from multiple starting nodes until one succeeds
@@ -1465,7 +1465,7 @@ public class TaxiPathfinderTests
         const double StartLat = 37.609046;
         const double StartLon = -122.383669;
         var startNode = layout
-            .Nodes.Values.Where(n => n.Edges.Any(e => string.Equals(e.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase)))
+            .Nodes.Values.Where(n => n.Edges.Any(e => e.MatchesTaxiway("B")))
             .OrderBy(n => Math.Abs(n.Latitude - StartLat) + Math.Abs(n.Longitude - StartLon))
             .First();
 
@@ -1504,9 +1504,9 @@ public class TaxiPathfinderTests
         // Start from a parking node connected to Y (SWA7348 is at parking B12 → node on Y)
         var parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
             n.Type == GroundNodeType.Parking
-            && n.Edges.Any(e => string.Equals(e.TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase))
+            && n.Edges.Any(e => e.IsRamp)
             && layout.Nodes.Values.Any(adj =>
-                adj.Edges.Any(ae => string.Equals(ae.TaxiwayName, "Y", StringComparison.OrdinalIgnoreCase)) && n.Edges.Any(pe => pe.HasNode(adj.Id))
+                adj.Edges.Any(ae => ae.MatchesTaxiway("Y")) && n.Edges.Any(pe => pe.HasNode(adj.Id))
             )
         );
         if (parkingNode is null)
@@ -1681,7 +1681,7 @@ public class TaxiPathfinderTests
         Assert.NotNull(exitNode);
 
         double distToExit = GeoMath.DistanceNm(acLat, acLon, exitNode.Latitude, exitNode.Longitude);
-        bool hasRunwayEdge = exitNode.Edges.Any(e => e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase));
+        bool hasRunwayEdge = exitNode.Edges.Any(e => e.IsRunway);
         string exitTaxiway = layout.GetExitTaxiwayName(exitNode) ?? "?";
         var edgeNames = string.Join(", ", exitNode.Edges.Select(e => e.TaxiwayName));
 
@@ -1693,7 +1693,7 @@ public class TaxiPathfinderTests
             + $"hasRwyEdge={hasRunwayEdge}, edges=[{edgeNames}]";
 
         // Verify: exit node must have taxiway edges so the aircraft can leave
-        bool hasTaxiwayEdge = exitNode.Edges.Any(e => !e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase));
+        bool hasTaxiwayEdge = exitNode.Edges.Any(e => !e.IsRunway);
         Assert.True(hasTaxiwayEdge, $"Exit node has no taxiway edges — aircraft is stuck on runway. {output}");
 
         // Verify: exit node must be geometrically OFF the runway rectangle
@@ -1731,7 +1731,7 @@ public class TaxiPathfinderTests
 
         // The clear node is at hold-short distance — it should NOT have
         // runway centerline edges (those only connect on-runway nodes).
-        bool clearHasRunwayEdge = clearNode.Edges.Any(e => e.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase));
+        bool clearHasRunwayEdge = clearNode.Edges.Any(e => e.IsRunway);
         var clearEdges = string.Join(", ", clearNode.Edges.Select(e => e.TaxiwayName));
 
         Assert.False(clearHasRunwayEdge, $"Clear node {clearNode.Id} should not have runway edges but has: [{clearEdges}]");
@@ -1756,15 +1756,15 @@ public class TaxiPathfinderTests
             bool hasRwy = false;
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, "W5", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("W5"))
                 {
                     hasW5 = true;
                 }
-                if (string.Equals(edge.TaxiwayName, "W", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("W"))
                 {
                     hasW = true;
                 }
-                if (edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                if (edge.IsRunway)
                 {
                     hasRwy = true;
                 }
@@ -1840,11 +1840,11 @@ public class TaxiPathfinderTests
             bool hasB = false;
             foreach (var edge in node.Edges)
             {
-                if (string.Equals(edge.TaxiwayName, "D", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("D"))
                 {
                     hasD = true;
                 }
-                if (string.Equals(edge.TaxiwayName, "B", StringComparison.OrdinalIgnoreCase))
+                if (edge.MatchesTaxiway("B"))
                 {
                     hasB = true;
                 }
