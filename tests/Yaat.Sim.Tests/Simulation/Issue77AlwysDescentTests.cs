@@ -14,7 +14,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// onAltitudeProfile=true. BERKS has an altitude constraint (cross at 5000)
 /// in the RW19B runway transition, but aircraft stay too high.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue77AlwysDescentTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue77-alwys-descent-recording.json";

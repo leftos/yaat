@@ -18,7 +18,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S2-OAK-1 (2) VFR Takeoff/Landing — N2BP is an SR22 spawned at
 /// 4500ft. Commands EF 28R at t=633, ERD 28R at t=749, EF 28L at t=851.
 /// </summary>
-[Collection("NavDbMutator")]
 public class N2bpPatternDescentTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/n2bp-pattern-descent-recording.zip";

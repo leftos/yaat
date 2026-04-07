@@ -20,7 +20,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   t=1156: FH 210, CM 030
 ///   t=1232: PTAC 150 030 (heading 150°, 3000ft, cleared ILS 12)
 /// </summary>
-[Collection("NavDbMutator")]
 public class Ils12LocalizerCaptureTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/ils12-localizer-capture-recording.json";

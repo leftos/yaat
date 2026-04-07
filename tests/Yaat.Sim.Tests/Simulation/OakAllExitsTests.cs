@@ -17,7 +17,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Same structure as <see cref="Sfo28rAllExitsTests"/>: spawn on short final,
 /// test every exit for smooth monotonic turns.
 /// </summary>
-[Collection("NavDbMutator")]
 public class OakAllExitsTests(ITestOutputHelper output)
 {
     private SimulationEngine? BuildEngine()

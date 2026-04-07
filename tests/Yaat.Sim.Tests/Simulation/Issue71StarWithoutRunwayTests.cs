@@ -17,7 +17,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Root cause: ApplyAltitudeProfile and ExpandStarBody skip runway-transition
 /// CIFP legs when no runway designator is in the token.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue71StarWithoutRunwayTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue67-dvia-recording.json";

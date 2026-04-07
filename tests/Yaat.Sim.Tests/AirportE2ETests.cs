@@ -16,7 +16,6 @@ namespace Yaat.Sim.Tests;
 /// Tests go through GroundCommandHandler with real OAK/SFO data.
 /// Silently skip if yaat-server ArtccResources are not available.
 /// </summary>
-[Collection("NavDbMutator")]
 public class AirportE2ETests
 {
     private static readonly ILogger Logger = new NullLogger<AirportE2ETests>();

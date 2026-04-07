@@ -5,12 +5,18 @@ using Yaat.Sim.Phases;
 
 namespace Yaat.Sim.Tests;
 
-[Collection("NavDbMutator")]
-public class CtoParserTests
+public class CtoParserTests : IDisposable
 {
+    private readonly IDisposable _scope;
+
     public CtoParserTests()
     {
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+        _scope = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
+    }
+
+    public void Dispose()
+    {
+        _scope.Dispose();
     }
 
     [Fact]
@@ -251,7 +257,8 @@ public class CtoParserTests
     [Fact]
     public void Cto_Dct_DirectFix()
     {
-        NavigationDatabase.SetInstance(
+        _scope.Dispose();
+        using var _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8) })
         );
         var cmd = CommandParser.Parse("CTO DCT SUNOL");
@@ -265,7 +272,8 @@ public class CtoParserTests
     [Fact]
     public void Cto_Dct_WithAlt()
     {
-        NavigationDatabase.SetInstance(
+        _scope.Dispose();
+        using var _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8) })
         );
         var cmd = CommandParser.Parse("CTO DCT SUNOL 050");

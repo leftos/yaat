@@ -12,7 +12,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// ERB 28R at t=919, CLAND at t=920, then TAXI E RWY 28R at t=953.
 /// The aircraft is still airborne at t=953, so the TAXI command should fail.
 /// </summary>
-[Collection("NavDbMutator")]
 public class TaxiAirborneRejectionTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/taxi-airborne-recording.zip";

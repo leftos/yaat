@@ -11,7 +11,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// with SUSEY enroute transition. Verifies the aircraft meets each altitude
 /// constraint at each fix using step-climb planning with variable climb rate.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Cndel5ClimbProfileTests(ITestOutputHelper output)
 {
     /// <summary>

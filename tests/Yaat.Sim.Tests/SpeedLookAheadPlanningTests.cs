@@ -9,7 +9,6 @@ namespace Yaat.Sim.Tests;
 /// Aircraft should start decelerating/accelerating before reaching a speed-constrained fix,
 /// not react after sequencing past it.
 /// </summary>
-[Collection("NavDbMutator")]
 public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
 {
     private void Log(AircraftState ac, string label)

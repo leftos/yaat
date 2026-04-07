@@ -13,7 +13,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S2-OAK-4 VFR Transitions/Radar Concepts — CLAND at t=820.
 /// </summary>
-[Collection("NavDbMutator")]
 public class RunwayExitDoubleDecelTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/oak-runway-exit-4kts-recording.yaat-recording.zip";

@@ -12,7 +12,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S1-SFO-2 Ground Control 28/01 — N70234 on the ground at SFO.
 /// </summary>
-[Collection("NavDbMutator")]
 public class SfoRampCrossesRunwayTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/09304e0c727e.zip";

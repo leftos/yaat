@@ -14,7 +14,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// BDEGA3 → BDEGA4, expand the STAR body, and enable descend-via when
 /// onAltitudeProfile is true.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue67ProcedureVersionTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue67-procedure-version-recording.json";

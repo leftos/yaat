@@ -18,7 +18,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Later commands in the recording re-taxi N346G (t=108, t=234) and clear for
 /// takeoff (t=250). Tests replay only to t=32 to capture the initial route with HS E.
 /// </summary>
-[Collection("NavDbMutator")]
 public class SfoHoldShortTaxiwayTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/sfo-hs-taxiway-recording.zip";

@@ -24,7 +24,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S2-OAK-4 VFR Transitions/Radar Concepts — OAK tower scenario.
 /// N436MS starts at hold-short of 28R on taxiway B, gets CTO at t=47.
 /// </summary>
-[Collection("NavDbMutator")]
 public class DiagonalLineup28rTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/diagonal-lineup-28r-recording.zip";

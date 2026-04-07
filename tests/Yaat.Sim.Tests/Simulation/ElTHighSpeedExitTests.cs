@@ -16,7 +16,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// the hold-short point — FindAdjacentHoldShort's single-hop search never
 /// finds it.
 /// </summary>
-[Collection("NavDbMutator")]
 public class ElTHighSpeedExitTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/el-t-high-speed-exit-recording.zip";

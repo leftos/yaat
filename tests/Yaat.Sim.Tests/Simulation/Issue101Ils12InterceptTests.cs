@@ -22,7 +22,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   t=1412: FHN 150
 ///   t=1415: CAPP (3rd attempt)
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue101Ils12InterceptTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue101-ils12-intercept-recording.json";

@@ -16,7 +16,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Root cause: TryConvergence returns true and continues, skipping the
 /// closing proximity check that would have stopped the winner.
 /// </summary>
-[Collection("NavDbMutator")]
 public class GroundConflictConvergenceTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/ground-conflict-bundle.yaat-bug-report-bundle.zip";

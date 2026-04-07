@@ -18,7 +18,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S3-NCTA-1 | Area A Familiarization — CMD02 is an EC35 helicopter
 /// airborne at low altitude near SJC.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue121CtoppTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue121-ctopp-recording.json";

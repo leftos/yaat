@@ -15,7 +15,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// onAltitudeProfile=false. After reaching PIRAT, the aircraft should turn
 /// toward SAU, but instead goes straight.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue70RouteFollowingTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue70-route-following-recording.json";

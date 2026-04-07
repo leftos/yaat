@@ -2,7 +2,6 @@ using Xunit;
 
 namespace Yaat.Sim.Tests;
 
-[Collection("NavDbMutator")]
 public class VisualDetectionTests
 {
     // KOAK: 37.721, -122.221, elevation 9ft, Runway 28R heading ~284°

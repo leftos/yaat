@@ -20,7 +20,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// N172SP taxis via D C B to 28R. LUAW at t=449 stores departure clearance but
 /// the aircraft never reaches the hold-short node, so the clearance is never applied.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue133Rwy28rTakeoffTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue133-rwy28r-takeoff-recording.json";

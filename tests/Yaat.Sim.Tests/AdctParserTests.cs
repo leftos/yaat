@@ -4,13 +4,12 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
-[Collection("NavDbMutator")]
 public class AdctParserTests
 {
     [Fact]
     public void Adct_SingleFix_ParsesAsAppendDirectTo()
     {
-        NavigationDatabase.SetInstance(
+        using var _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8) })
         );
         var cmd = CommandParser.Parse("ADCT SUNOL");
@@ -23,7 +22,7 @@ public class AdctParserTests
     [Fact]
     public void Adct_MultipleFixes_ParsesAll()
     {
-        NavigationDatabase.SetInstance(
+        using var _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(
                 fixes: new Dictionary<string, (double Lat, double Lon)> { ["SUNOL"] = (37.5, -121.8), ["MODESTO"] = (37.6, -121.0) }
             )
@@ -39,7 +38,7 @@ public class AdctParserTests
     [Fact]
     public void Adct_ChainsFiledRoute()
     {
-        NavigationDatabase.SetInstance(
+        using var _ = NavigationDatabase.ScopedOverride(
             NavigationDatabase.ForTesting(
                 fixes: new Dictionary<string, (double Lat, double Lon)>
                 {
@@ -61,7 +60,7 @@ public class AdctParserTests
     [Fact]
     public void Adct_UnknownFix_ReturnsNull()
     {
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
         var cmd = CommandParser.Parse("ADCT BOGUS");
 
         Assert.False(cmd.IsSuccess);
@@ -70,7 +69,7 @@ public class AdctParserTests
     [Fact]
     public void Adct_NoArg_ReturnsNull()
     {
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
         var cmd = CommandParser.Parse("ADCT");
 
         Assert.False(cmd.IsSuccess);

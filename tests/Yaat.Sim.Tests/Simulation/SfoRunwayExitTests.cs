@@ -18,7 +18,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: SFO scenario, SKW3398 (CRJ2) landing 28R, "EL T" at t=382.
 /// </summary>
-[Collection("NavDbMutator")]
 public class SfoRunwayExitTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/sfo-exit-el-t-recording.yaat-bug-report-bundle.zip";

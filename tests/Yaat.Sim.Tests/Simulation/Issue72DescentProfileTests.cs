@@ -15,7 +15,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// onAltitudeProfile=true, starts at FL290. Should descend ahead of STAR
 /// constraints to meet crossing restrictions, not wait until passing each fix.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue72DescentProfileTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue70-route-following-recording.json";

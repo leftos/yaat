@@ -13,7 +13,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// on 28L with no exit instruction. The aircraft exits between taxiways J and P
 /// into the grass area instead of at a proper taxiway intersection.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue134OakRunwayExitTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue134-oak-runway-exit-recording.json";

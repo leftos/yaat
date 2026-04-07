@@ -20,7 +20,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Root cause: WalkTaxiway has no stop condition for the destination spot
 /// node — it uses destinationHintNode only for direction, not as a stop.
 /// </summary>
-[Collection("NavDbMutator")]
 public class SpotOvershootTaxiRouteTests(ITestOutputHelper output)
 {
     private AirportGroundLayout? LoadSfoLayout()

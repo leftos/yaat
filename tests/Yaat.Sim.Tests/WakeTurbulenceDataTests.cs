@@ -2,7 +2,6 @@ using Xunit;
 
 namespace Yaat.Sim.Tests;
 
-[Collection("NavDbMutator")]
 public class WakeTurbulenceDataTests
 {
     public WakeTurbulenceDataTests()

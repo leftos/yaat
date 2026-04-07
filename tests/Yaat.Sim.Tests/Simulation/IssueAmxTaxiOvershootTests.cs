@@ -17,7 +17,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S1-SFO-2 Ground Control 28_01
 /// </summary>
-[Collection("NavDbMutator")]
 public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue-amx-taxi-overshoot-recording.yaat-bug-report-bundle.zip";

@@ -4,7 +4,6 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
-[Collection("NavDbMutator")]
 public class AtAltitudeConditionTests
 {
     private static readonly CommandScheme Scheme = CommandScheme.Default();

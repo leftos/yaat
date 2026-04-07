@@ -15,7 +15,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S1-SFO-2 Ground Control 28_01 bug report bundle.
 /// </summary>
-[Collection("NavDbMutator")]
 public class IssueSfo28rExitTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue-sfo-28r-exit-recording.yaat-bug-report-bundle.zip";

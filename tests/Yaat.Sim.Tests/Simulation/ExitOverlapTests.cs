@@ -14,7 +14,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S1-SFO-2 Ground Control 28/01
 /// </summary>
-[Collection("NavDbMutator")]
 public class ExitOverlapTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue-exit-overlap-recording.yaat-bug-report-bundle.zip";

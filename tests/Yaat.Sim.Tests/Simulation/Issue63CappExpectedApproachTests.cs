@@ -12,7 +12,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S3-NCTC-2 Area C Sequencing — USC28 has expectedApproach: "I28R",
 /// no destinationRunway, spawnDelay=0. A bare CAPP should resolve to ILS 28R.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue63CappExpectedApproachTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue63-capp-expected-approach-recording.json";

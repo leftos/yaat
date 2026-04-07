@@ -17,7 +17,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///    (e.g., "SKIZM EMZOH4.30") that cause 180° turns because PopulateNavigationRoute
 ///    strips the STAR name to a fix and creates a backwards route.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue58JstarIntermediateFixTests(ITestOutputHelper output)
 {
     private static SessionRecording LoadRecording(string path)

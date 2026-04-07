@@ -6,7 +6,6 @@ using Yaat.Sim.Tests.Helpers;
 
 namespace Yaat.Sim.Tests.Simulation;
 
-[Collection("NavDbMutator")]
 public class Issue134DiagnosticTest(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue134-v3-commands-only.json";

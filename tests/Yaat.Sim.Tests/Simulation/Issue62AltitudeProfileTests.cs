@@ -13,7 +13,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Recording: S3-NCTC-2 Area C Sequencing — all aircraft have onAltitudeProfile: true
 /// and STARs in their NavigationPath (e.g., "SKIZM EMZOH4.30").
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue62AltitudeProfileTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue62-altitude-profile-recording.json";

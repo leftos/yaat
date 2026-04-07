@@ -4,7 +4,6 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
-[Collection("NavDbMutator")]
 public class ProcedureCommandTests
 {
     private static AircraftState CreateAircraft(double altitude = 5000)

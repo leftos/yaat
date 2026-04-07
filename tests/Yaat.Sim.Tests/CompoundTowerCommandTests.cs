@@ -14,7 +14,6 @@ namespace Yaat.Sim.Tests;
 /// followed by post-departure blocks (DCT, FH, CM, etc.).
 /// Verifies that blocks after `;` are enqueued and execute after phases complete.
 /// </summary>
-[Collection("NavDbMutator")]
 public class CompoundTowerCommandTests
 {
     private readonly ITestOutputHelper _output;

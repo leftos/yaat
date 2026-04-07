@@ -14,7 +14,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// intercepts OAK 30 at 12nm. Before the fix, it would immediately slow to
 /// FAS (140kts) from 224kts at 12nm.
 /// </summary>
-[Collection("NavDbMutator")]
 public class FinalApproachSpeedTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/fas-too-early-recording.yaat-recording.zip";

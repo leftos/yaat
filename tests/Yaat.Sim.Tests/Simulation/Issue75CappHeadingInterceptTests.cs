@@ -25,7 +25,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   t=928: FH 240 (explicit heading → AssignedHeading = 240)
 ///   t=984: CAPP → should use InterceptCoursePhase (aircraft was vectored)
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue75CappHeadingInterceptTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue75-capp-heading-intercept-recording.json";

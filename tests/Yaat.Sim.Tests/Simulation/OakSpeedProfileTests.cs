@@ -15,7 +15,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Diagnostic: tick-by-tick speed profiles for OAK exits.
 /// Logs phase, speed, heading, and distance to exit branch node each second.
 /// </summary>
-[Collection("NavDbMutator")]
 public class OakSpeedProfileTests(ITestOutputHelper output)
 {
     private SimulationEngine? BuildEngine()

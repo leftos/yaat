@@ -15,7 +15,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// with route SNS HOSNU. Scenario primaryApproach is I30L, primaryAirportId is SJC.
 /// HOSNU connects to the R32L approach at NUQ.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue128CappWrongAirportTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue121-ctopp-recording.json";

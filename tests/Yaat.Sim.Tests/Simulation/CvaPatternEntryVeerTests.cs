@@ -15,7 +15,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///
 /// Recording: S2-OAK-1 VFR Takeoff/Landing — N3212L (C150).
 /// </summary>
-[Collection("NavDbMutator")]
 public class CvaPatternEntryVeerTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/cva-pattern-entry-veer-recording.zip";

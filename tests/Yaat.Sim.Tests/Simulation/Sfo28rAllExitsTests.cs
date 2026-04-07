@@ -21,7 +21,6 @@ namespace Yaat.Sim.Tests.Simulation;
 ///   - Exits too close to threshold (pilot says unable, picks next)
 ///   - High-speed shallow exits (T, Q at ~20°) and standard 90° exits
 /// </summary>
-[Collection("NavDbMutator")]
 public class Sfo28rAllExitsTests(ITestOutputHelper output)
 {
     // 28R exits ordered from threshold (east) to departure end (west).

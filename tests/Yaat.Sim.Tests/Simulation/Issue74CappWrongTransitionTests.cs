@@ -17,7 +17,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// BERKS as a transition leg, selecting the CCR transition and routing the aircraft
 /// to CCR (miles off course). The fix excludes common leg fixes from transition matching.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue74CappWrongTransitionTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue74-capp-wrong-transition-recording.json";

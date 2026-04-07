@@ -13,7 +13,6 @@ namespace Yaat.Sim.Tests.Simulation;
 /// Multiple aircraft receive CLAND but the clearance state is lost before
 /// FinalApproachPhase checks it, causing unexpected go-arounds.
 /// </summary>
-[Collection("NavDbMutator")]
 public class Issue131ClearToLandTests(ITestOutputHelper output)
 {
     private const string RecordingPath = "TestData/issue131-clear-to-land-recording.json";

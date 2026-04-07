@@ -4,7 +4,6 @@ using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
-[Collection("NavDbMutator")]
 public class SpeedParserTests
 {
     // --- SPD with modifiers ---
@@ -73,7 +72,7 @@ public class SpeedParserTests
     [Fact]
     public void AtfnCondition_ParsedInCompound()
     {
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
         var compound = CommandParser.ParseCompound("ATFN 10 SPD 180");
         Assert.True(compound.IsSuccess);
         Assert.Single(compound.Value!.Blocks);
@@ -89,7 +88,7 @@ public class SpeedParserTests
     [Fact]
     public void AtfnChained_ParsedCorrectly()
     {
-        NavigationDatabase.SetInstance(NavigationDatabase.ForTesting());
+        using var _ = NavigationDatabase.ScopedOverride(NavigationDatabase.ForTesting());
         var compound = CommandParser.ParseCompound("SPD 210; ATFN 10 SPD 180");
         Assert.True(compound.IsSuccess);
         Assert.Equal(2, compound.Value!.Blocks.Count);
