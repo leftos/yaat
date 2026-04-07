@@ -33,7 +33,7 @@ public class FilletVisualizerTests
         _output.WriteLine($"Probe node {probe.Id} ({probe.Type}): {probe.Edges.Count} edges");
         foreach (var e in probe.Edges)
         {
-            string type = e is GroundArc a ? $"ARC R={a.RadiusFt:F1}ft" : "EDGE";
+            string type = e is GroundArc a ? $"ARC MinR={a.MinRadiusOfCurvatureFt:F1}ft" : "EDGE";
             _output.WriteLine($"  {type} {e.TaxiwayName}: {e.Nodes[0].Id}--{e.Nodes[1].Id}");
         }
 
@@ -160,28 +160,13 @@ public class FilletVisualizerTests
                 continue;
             }
 
-            double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
-            double bearingStart = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[0].Latitude, arc.Nodes[0].Longitude);
-            double bearingEnd = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[1].Latitude, arc.Nodes[1].Longitude);
-
-            double diff = bearingEnd - bearingStart;
-            if (diff > 180)
-            {
-                diff -= 360;
-            }
-
-            if (diff < -180)
-            {
-                diff += 360;
-            }
-
-            int steps = 20;
+            var bezier = arc.ToBezier();
+            const int steps = 20;
             var arcPoints = new List<(double X, double Y)>();
             for (int s = 0; s <= steps; s++)
             {
                 double t = (double)s / steps;
-                double bearing = bearingStart + t * diff;
-                var (lat, lon) = GeoMath.ProjectPointRaw(arc.CenterLat, arc.CenterLon, bearing, radiusNm);
+                var (lat, lon) = bezier.Evaluate(t);
                 arcPoints.Add((ScaleX(lon), ScaleY(lat)));
             }
 
@@ -197,14 +182,9 @@ public class FilletVisualizerTests
             var mid = arcPoints[arcPoints.Count / 2];
             sb.AppendLine(
                 Fmt(
-                    $"<text x=\"{mid.X}\" y=\"{mid.Y - 5}\" fill=\"#44ff44\" font-size=\"9\" text-anchor=\"middle\">{arc.TaxiwayName} arc ({id0}-{id1}) R={arc.RadiusFt:F0}ft</text>"
+                    $"<text x=\"{mid.X}\" y=\"{mid.Y - 5}\" fill=\"#44ff44\" font-size=\"9\" text-anchor=\"middle\">{arc.TaxiwayName} arc ({id0}-{id1}) MinR={arc.MinRadiusOfCurvatureFt:F0}ft</text>"
                 )
             );
-
-            // Arc center marker
-            double cx = ScaleX(arc.CenterLon);
-            double cy = ScaleY(arc.CenterLat);
-            sb.AppendLine(Fmt($"<circle cx=\"{cx}\" cy=\"{cy}\" r=\"3\" fill=\"#44ff44\" opacity=\"0.5\" />"));
         }
 
         // Draw nodes

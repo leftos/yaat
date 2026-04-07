@@ -683,25 +683,15 @@ public sealed class GroundRenderer : IDisposable
 
     private static void DrawArcSegment(SKCanvas canvas, MapViewport vp, GroundArc arc, (float X, float Y) from, (float X, float Y) to, SKPaint paint)
     {
-        double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
-        double bearingStart = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[0].Latitude, arc.Nodes[0].Longitude);
-        double bearingEnd = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[1].Latitude, arc.Nodes[1].Longitude);
-
-        double sweep = GeoMath.SignedBearingDifference(bearingEnd, bearingStart);
-        if (Math.Abs(sweep) > 180)
-        {
-            sweep = sweep > 0 ? sweep - 360 : sweep + 360;
-        }
-
-        int steps = Math.Max(8, (int)(Math.Abs(sweep) / 5));
+        var bezier = arc.ToBezier();
+        const int steps = 16;
         using var path = new SKPath();
         path.MoveTo(from.X, from.Y);
 
         for (int s = 1; s < steps; s++)
         {
             double t = (double)s / steps;
-            double bearing = bearingStart + t * sweep;
-            var (lat, lon) = GeoMath.ProjectPoint(arc.CenterLat, arc.CenterLon, new TrueHeading(bearing), radiusNm);
+            var (lat, lon) = bezier.Evaluate(t);
             var (sx, sy) = vp.LatLonToScreen(lat, lon);
             path.LineTo(sx, sy);
         }
@@ -841,10 +831,7 @@ public sealed class GroundRenderer : IDisposable
         var nodeEdgeNames = new Dictionary<int, List<string>>();
         foreach (var edge in layout.Edges)
         {
-            if (
-                edge.IsRunway
-                || edge.IsRamp
-            )
+            if (edge.IsRunway || edge.IsRamp)
             {
                 continue;
             }

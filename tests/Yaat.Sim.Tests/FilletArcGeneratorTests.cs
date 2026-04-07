@@ -64,7 +64,7 @@ public class FilletArcGeneratorTests
         Assert.Single(layout.Arcs);
 
         var arc = layout.Arcs[0];
-        Assert.True(arc.RadiusFt > 0);
+        Assert.True(arc.MinRadiusOfCurvatureFt > 0);
         Assert.True(arc.DistanceNm > 0);
 
         // Two shortened edges remain (from original endpoints to tangent points)
@@ -238,9 +238,12 @@ public class FilletArcGeneratorTests
 
         FilletArcGenerator.Apply(layout);
 
-        // Arc should be created with reduced radius
+        // Arc should be created with reduced curvature (fits the short edge)
         Assert.Single(layout.Arcs);
-        Assert.True(layout.Arcs[0].RadiusFt <= 50.1, $"Radius {layout.Arcs[0].RadiusFt:F1}ft should be ≤50ft (clamped to short edge)");
+        Assert.True(
+            layout.Arcs[0].MinRadiusOfCurvatureFt <= 55,
+            $"MinRadius {layout.Arcs[0].MinRadiusOfCurvatureFt:F1}ft should be ≤55ft (clamped to short edge)"
+        );
 
         // Intersection node should be removed
         Assert.False(layout.Nodes.ContainsKey(0));
@@ -261,36 +264,49 @@ public class FilletArcGeneratorTests
     }
 
     [Fact]
-    public void ArcCenter_IsOnInsideOfTurn()
+    public void BezierControlPoints_AreOnInsideOfTurn()
     {
-        // North and East edges: the inside of the turn is in the NE quadrant
+        // North and East edges: the inside of the turn is in the NE quadrant.
+        // P1 and P2 should be between the two edges (NE of the tangent points).
         var layout = BuildLayout((0.01, 0), (0, 0.01));
 
         FilletArcGenerator.Apply(layout);
 
         var arc = layout.Arcs[0];
 
-        // Center should be NE of the original intersection (positive lat, positive lon)
-        Assert.True(arc.CenterLat > 0, $"Center lat {arc.CenterLat} should be positive (NE of origin)");
-        Assert.True(arc.CenterLon > 0, $"Center lon {arc.CenterLon} should be positive (NE of origin)");
+        // P1 is along the north edge toward intersection → should have lon near 0, lat < node[0]
+        // P2 is along the east edge toward intersection → should have lat near 0, lon < node[1]
+        // Both control points should be inside the turn (toward the NE quadrant relative to their endpoints)
+        Assert.True(arc.MinRadiusOfCurvatureFt > 0, "MinRadiusOfCurvatureFt should be positive");
+
+        // The midpoint of the bezier should be in the NE quadrant (inside the turn)
+        var bezier = arc.ToBezier();
+        var (midLat, midLon) = bezier.Evaluate(0.5);
+        Assert.True(midLat > 0, $"Bezier midpoint lat {midLat} should be positive (inside turn)");
+        Assert.True(midLon > 0, $"Bezier midpoint lon {midLon} should be positive (inside turn)");
     }
 
     [Fact]
-    public void ArcEndpoints_AreAtCorrectRadiusFromCenter()
+    public void BezierArc_TangentDirectionsMatchEdgeBearings()
     {
+        // North and East edges at the origin: 90° turn.
+        // Tangent at P0 (on north edge) should point roughly south (toward intersection).
+        // Tangent at P3 (on east edge) should point roughly west (toward intersection).
         var layout = BuildLayout((0.01, 0), (0, 0.01));
 
         FilletArcGenerator.Apply(layout);
 
         var arc = layout.Arcs[0];
-        double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
+        var bezier = arc.ToBezier();
 
-        // Each endpoint should be approximately RadiusFt from the center
-        double distA = GeoMath.DistanceNm(arc.CenterLat, arc.CenterLon, arc.Nodes[0].Latitude, arc.Nodes[0].Longitude);
-        double distB = GeoMath.DistanceNm(arc.CenterLat, arc.CenterLon, arc.Nodes[1].Latitude, arc.Nodes[1].Longitude);
+        double tangentAtP0 = bezier.TangentBearing(0.0);
+        double tangentAtP3 = bezier.TangentBearing(1.0);
 
-        Assert.InRange(distA, radiusNm * 0.95, radiusNm * 1.05);
-        Assert.InRange(distB, radiusNm * 0.95, radiusNm * 1.05);
+        // P0 is on the north edge: tangent should be roughly 180° (south, toward intersection)
+        // or roughly 0° (north, away from intersection) — depends on which node is P0.
+        // The key constraint: the two tangents should be roughly 90° apart.
+        double angleBetween = GeoMath.AbsBearingDifference(tangentAtP0, tangentAtP3);
+        Assert.InRange(angleBetween, 80, 100); // Should be ~90° for a right-angle turn
     }
 
     [Fact]

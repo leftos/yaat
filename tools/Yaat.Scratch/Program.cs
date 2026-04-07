@@ -13,31 +13,54 @@ foreach (double angle in angles)
     int nextId = 0;
 
     // Three runway nodes: left — center (intersection) — right
-    double cLat = 37.73, cLon = -122.22;
+    double cLat = 37.73,
+        cLon = -122.22;
     double rwyLen = 0.03; // nm each side
 
     var (lLat, lLon) = GeoMath.ProjectPoint(cLat, cLon, new TrueHeading(270), rwyLen);
     var (rLat, rLon) = GeoMath.ProjectPoint(cLat, cLon, new TrueHeading(90), rwyLen);
 
-    var nodeL = new GroundNode { Id = nextId++, Latitude = lLat, Longitude = lLon, Type = GroundNodeType.TaxiwayIntersection };
-    var nodeC = new GroundNode { Id = nextId++, Latitude = cLat, Longitude = cLon, Type = GroundNodeType.TaxiwayIntersection };
-    var nodeR = new GroundNode { Id = nextId++, Latitude = rLat, Longitude = rLon, Type = GroundNodeType.TaxiwayIntersection };
+    var nodeL = new GroundNode
+    {
+        Id = nextId++,
+        Latitude = lLat,
+        Longitude = lLon,
+        Type = GroundNodeType.TaxiwayIntersection,
+    };
+    var nodeC = new GroundNode
+    {
+        Id = nextId++,
+        Latitude = cLat,
+        Longitude = cLon,
+        Type = GroundNodeType.TaxiwayIntersection,
+    };
+    var nodeR = new GroundNode
+    {
+        Id = nextId++,
+        Latitude = rLat,
+        Longitude = rLon,
+        Type = GroundNodeType.TaxiwayIntersection,
+    };
     layout.Nodes[nodeL.Id] = nodeL;
     layout.Nodes[nodeC.Id] = nodeC;
     layout.Nodes[nodeR.Id] = nodeR;
 
-    layout.Edges.Add(new GroundEdge
-    {
-        Nodes = [nodeL, nodeC],
-        TaxiwayName = "RWY10/28",
-        DistanceNm = GeoMath.DistanceNm(lLat, lLon, cLat, cLon),
-    });
-    layout.Edges.Add(new GroundEdge
-    {
-        Nodes = [nodeC, nodeR],
-        TaxiwayName = "RWY10/28",
-        DistanceNm = GeoMath.DistanceNm(cLat, cLon, rLat, rLon),
-    });
+    layout.Edges.Add(
+        new GroundEdge
+        {
+            Nodes = [nodeL, nodeC],
+            TaxiwayName = "RWY10/28",
+            DistanceNm = GeoMath.DistanceNm(lLat, lLon, cLat, cLon),
+        }
+    );
+    layout.Edges.Add(
+        new GroundEdge
+        {
+            Nodes = [nodeC, nodeR],
+            TaxiwayName = "RWY10/28",
+            DistanceNm = GeoMath.DistanceNm(cLat, cLon, rLat, rLon),
+        }
+    );
 
     // Branch taxiway going south at the given angle, 0.03nm long
     double branchBearing = 90 + angle; // relative to runway heading 90°
@@ -52,12 +75,14 @@ foreach (double angle in angles)
     };
     layout.Nodes[nodeB.Id] = nodeB;
 
-    layout.Edges.Add(new GroundEdge
-    {
-        Nodes = [nodeC, nodeB],
-        TaxiwayName = $"T{angle:F0}",
-        DistanceNm = GeoMath.DistanceNm(cLat, cLon, bLat, bLon),
-    });
+    layout.Edges.Add(
+        new GroundEdge
+        {
+            Nodes = [nodeC, nodeB],
+            TaxiwayName = $"T{angle:F0}",
+            DistanceNm = GeoMath.DistanceNm(cLat, cLon, bLat, bLon),
+        }
+    );
 
     layout.RebuildAdjacencyLists();
     FilletArcGenerator.Apply(layout);
@@ -66,10 +91,10 @@ foreach (double angle in angles)
     var allPos = layout.Nodes.Values.Select(n => (n.Latitude, n.Longitude)).ToList();
     foreach (var arc in layout.Arcs)
     {
-        double rNm = arc.RadiusFt / GeoMath.FeetPerNm;
-        for (int d = 0; d < 360; d += 30)
+        var bezier = arc.ToBezier();
+        for (int s = 0; s <= 10; s++)
         {
-            var (lat, lon) = GeoMath.ProjectPoint(arc.CenterLat, arc.CenterLon, new TrueHeading(d), rNm);
+            var (lat, lon) = bezier.Evaluate((double)s / 10);
             allPos.Add((lat, lon));
         }
     }
@@ -105,53 +130,53 @@ foreach (double angle in angles)
     sb.AppendLine(F($"<svg width=\"{sz}\" height=\"{sz}\" xmlns=\"http://www.w3.org/2000/svg\" style=\"background: #222;\">\n"));
 
     // Title
-    sb.AppendLine(F($"<text x=\"{sz / 2}\" y=\"18\" fill=\"#ccc\" font-size=\"14\" text-anchor=\"middle\" font-family=\"Consolas\">{angle}° exit</text>"));
+    sb.AppendLine(
+        F($"<text x=\"{sz / 2}\" y=\"18\" fill=\"#ccc\" font-size=\"14\" text-anchor=\"middle\" font-family=\"Consolas\">{angle}° exit</text>")
+    );
 
     // Straight edges
     foreach (var edge in layout.Edges)
     {
-        double x1 = ScaleX(edge.Nodes[0].Longitude), y1 = ScaleY(edge.Nodes[0].Latitude);
-        double x2 = ScaleX(edge.Nodes[1].Longitude), y2 = ScaleY(edge.Nodes[1].Latitude);
+        double x1 = ScaleX(edge.Nodes[0].Longitude),
+            y1 = ScaleY(edge.Nodes[0].Latitude);
+        double x2 = ScaleX(edge.Nodes[1].Longitude),
+            y2 = ScaleY(edge.Nodes[1].Latitude);
         string color = edge.IsRunwayCenterline ? "#ff6666" : "#4488cc";
         sb.AppendLine(F($"<line x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\" stroke=\"{color}\" stroke-width=\"2\" />"));
     }
 
-    // Arcs
+    // Arcs (bezier curves)
     foreach (var arc in layout.Arcs)
     {
-        double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
-        double b0 = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[0].Latitude, arc.Nodes[0].Longitude);
-        double b1 = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[1].Latitude, arc.Nodes[1].Longitude);
-        double diff = b1 - b0;
-        if (diff > 180) diff -= 360;
-        if (diff < -180) diff += 360;
-
+        var bezier = arc.ToBezier();
         var pts = new List<(double X, double Y)>();
         for (int s = 0; s <= 24; s++)
         {
             double t = (double)s / 24;
-            double bearing = b0 + t * diff;
-            var (lat, lon) = GeoMath.ProjectPoint(arc.CenterLat, arc.CenterLon, new TrueHeading(bearing), radiusNm);
+            var (lat, lon) = bezier.Evaluate(t);
             pts.Add((ScaleX(lon), ScaleY(lat)));
         }
         for (int s = 0; s < pts.Count - 1; s++)
         {
-            sb.AppendLine(F($"<line x1=\"{pts[s].X}\" y1=\"{pts[s].Y}\" x2=\"{pts[s + 1].X}\" y2=\"{pts[s + 1].Y}\" stroke=\"#44ff44\" stroke-width=\"2.5\" />"));
+            sb.AppendLine(
+                F($"<line x1=\"{pts[s].X}\" y1=\"{pts[s].Y}\" x2=\"{pts[s + 1].X}\" y2=\"{pts[s + 1].Y}\" stroke=\"#44ff44\" stroke-width=\"2.5\" />")
+            );
         }
 
         // Arc info
         var mid = pts[pts.Count / 2];
-        sb.AppendLine(F($"<text x=\"{mid.X}\" y=\"{mid.Y - 5}\" fill=\"#44ff44\" font-size=\"9\" text-anchor=\"middle\" font-family=\"Consolas\">R={arc.RadiusFt:F0}</text>"));
-
-        // Center dot
-        double cx = ScaleX(arc.CenterLon), cy = ScaleY(arc.CenterLat);
-        sb.AppendLine(F($"<circle cx=\"{cx}\" cy=\"{cy}\" r=\"2\" fill=\"#44ff44\" opacity=\"0.5\" />"));
+        sb.AppendLine(
+            F(
+                $"<text x=\"{mid.X}\" y=\"{mid.Y - 5}\" fill=\"#44ff44\" font-size=\"9\" text-anchor=\"middle\" font-family=\"Consolas\">MinR={arc.MinRadiusOfCurvatureFt:F0}</text>"
+            )
+        );
     }
 
     // Nodes
     foreach (var node in layout.Nodes.Values)
     {
-        double x = ScaleX(node.Longitude), y = ScaleY(node.Latitude);
+        double x = ScaleX(node.Longitude),
+            y = ScaleY(node.Latitude);
         string fill = node.Type == GroundNodeType.RunwayHoldShort ? "#ffaa00" : "#ccc";
         sb.AppendLine(F($"<circle cx=\"{x}\" cy=\"{y}\" r=\"3\" fill=\"{fill}\" />"));
     }
@@ -161,7 +186,9 @@ foreach (double angle in angles)
 }
 
 string outPath = "X:/dev/yaat/.tmp/fillet-angle-test.html";
-File.WriteAllText(outPath, $"""
+File.WriteAllText(
+    outPath,
+    $"""
 <!DOCTYPE html>
 <html>
 <head><title>Fillet Arc Angle Test</title></head>
@@ -174,5 +201,6 @@ File.WriteAllText(outPath, $"""
 </div>
 </body>
 </html>
-""");
+"""
+);
 Console.WriteLine($"Written to {outPath}");

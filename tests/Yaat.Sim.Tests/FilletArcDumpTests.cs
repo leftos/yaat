@@ -300,9 +300,18 @@ internal static class FilletArcGeneratorTraced
             int idxB = edgeBearings.FindIndex(x => x.Edge == edgeB);
             double bearingA = edgeBearings[idxA].Bearing;
             double bearingB = edgeBearings[idxB].Bearing;
-            var (cLat, cLon) = ComputeArcCenter(intersection, bearingA, bearingB, radiusFt);
+
             double sweepRad = (180.0 - turnAngleDeg) * (Math.PI / 180.0);
-            double arcLenNm = (radiusFt * sweepRad) / GeoMath.FeetPerNm;
+            double kappa = (4.0 / 3.0) * Math.Tan(sweepRad / 4.0);
+            double depthA = kappa * edgeTangentSpecs[edgeA].TangentDistNm;
+            double depthB = kappa * edgeTangentSpecs[edgeB].TangentDistNm;
+
+            double bearingAToInt = (bearingA + 180.0) % 360.0;
+            var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(tanA.Latitude, tanA.Longitude, bearingAToInt, depthA);
+            double bearingBToInt = (bearingB + 180.0) % 360.0;
+            var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(tanB.Latitude, tanB.Longitude, bearingBToInt, depthB);
+
+            var bezier = new CubicBezier(tanA.Latitude, tanA.Longitude, p1Lat, p1Lon, p2Lat, p2Lon, tanB.Latitude, tanB.Longitude);
 
             bool sameTaxiway = edgeA.SharesTaxiway(edgeB);
 
@@ -311,10 +320,12 @@ internal static class FilletArcGeneratorTraced
                 {
                     Nodes = [tanA, tanB],
                     TaxiwayNames = sameTaxiway ? [edgeA.TaxiwayName] : [edgeA.TaxiwayName, edgeB.TaxiwayName],
-                    CenterLat = cLat,
-                    CenterLon = cLon,
-                    RadiusFt = radiusFt,
-                    DistanceNm = arcLenNm,
+                    P1Lat = p1Lat,
+                    P1Lon = p1Lon,
+                    P2Lat = p2Lat,
+                    P2Lon = p2Lon,
+                    MinRadiusOfCurvatureFt = bezier.MinRadiusOfCurvatureFt(tanA.Latitude, 10),
+                    DistanceNm = bezier.ArcLengthNm(20),
                 }
             );
             arcsCreated++;
@@ -463,25 +474,6 @@ internal static class FilletArcGeneratorTraced
             }
         }
         return GeoMath.BearingTo(intersection.Latitude, intersection.Longitude, other.Latitude, other.Longitude);
-    }
-
-    private static (double Lat, double Lon) ComputeArcCenter(GroundNode intersection, double bearingA, double bearingB, double radiusFt)
-    {
-        double bisector = ComputeInsideBisector(bearingA, bearingB);
-        double halfAngleDeg = GeoMath.AbsBearingDifference(bearingA, bisector);
-        double halfAngleRad = halfAngleDeg * (Math.PI / 180.0);
-        double centerDistNm = (radiusFt / Math.Cos(halfAngleRad)) / GeoMath.FeetPerNm;
-        return GeoMath.ProjectPointRaw(intersection.Latitude, intersection.Longitude, bisector, centerDistNm);
-    }
-
-    private static double ComputeInsideBisector(double bearingA, double bearingB)
-    {
-        double a = bearingA * (Math.PI / 180.0);
-        double b = bearingB * (Math.PI / 180.0);
-        double x = Math.Cos(a) + Math.Cos(b);
-        double y = Math.Sin(a) + Math.Sin(b);
-        double deg = Math.Atan2(y, x) * (180.0 / Math.PI);
-        return deg < 0 ? deg + 360.0 : deg;
     }
 
     private static double SelectRadius(GroundEdge edgeA, GroundEdge edgeB, double turnAngleDeg)

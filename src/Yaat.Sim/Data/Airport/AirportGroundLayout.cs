@@ -159,7 +159,9 @@ public sealed class GroundEdge : IGroundEdge
         };
 
     public bool IsRunwayCenterline => TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
+
     public bool MatchesRunway(string designator) => IsRunwayCenterline && IGroundEdge.RunwayNameContainsDesignator(TaxiwayName, designator);
+
     public bool IsRamp => string.Equals(TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
 
     public GroundNode OtherNode(GroundNode node) => Nodes[0].Id == node.Id ? Nodes[1] : Nodes[0];
@@ -190,9 +192,22 @@ public sealed class GroundEdge : IGroundEdge
 public sealed class GroundArc : IGroundEdge
 {
     public required GroundNode[] Nodes { get; init; }
-    public required double CenterLat { get; init; }
-    public required double CenterLon { get; init; }
-    public required double RadiusFt { get; init; }
+
+    /// <summary>
+    /// Bezier control points P1 and P2. P0 = Nodes[0].Lat/Lon, P3 = Nodes[1].Lat/Lon.
+    /// P1 lies along edge-A direction from P0; P2 lies along edge-B direction from P3.
+    /// </summary>
+    public required double P1Lat { get; init; }
+    public required double P1Lon { get; init; }
+    public required double P2Lat { get; init; }
+    public required double P2Lon { get; init; }
+
+    /// <summary>
+    /// Tightest radius of curvature along the bezier, precomputed at construction time.
+    /// Used for worst-case speed constraint back-propagation.
+    /// </summary>
+    public required double MinRadiusOfCurvatureFt { get; init; }
+
     public required double DistanceNm { get; init; }
 
     /// <summary>
@@ -222,10 +237,15 @@ public sealed class GroundArc : IGroundEdge
         return false;
     }
 
+    /// <summary>
+    /// Construct a <see cref="CubicBezier"/> from this arc's control points and node positions.
+    /// </summary>
+    public CubicBezier ToBezier() => new(Nodes[0].Latitude, Nodes[0].Longitude, P1Lat, P1Lon, P2Lat, P2Lon, Nodes[1].Latitude, Nodes[1].Longitude);
+
     public double MaxSafeSpeedKts(double turnRateDegPerSec)
     {
         double turnRateRadSec = turnRateDegPerSec * (Math.PI / 180.0);
-        double radiusNm = RadiusFt / GeoMath.FeetPerNm;
+        double radiusNm = MinRadiusOfCurvatureFt / GeoMath.FeetPerNm;
         return turnRateRadSec * radiusNm * 3600.0;
     }
 
@@ -353,27 +373,24 @@ public sealed class GroundArc : IGroundEdge
 
     /// <summary>
     /// Returns the tangent bearing at <paramref name="atNode"/> when traversing the arc
-    /// from <paramref name="fromNode"/> to <paramref name="toNode"/> (minor arc convention).
-    /// The tangent is perpendicular to the radial (center → atNode), rotated in the sweep direction.
+    /// from <paramref name="fromNode"/> to <paramref name="toNode"/>.
+    /// Computed from the bezier tangent direction at the relevant endpoint.
     /// <paramref name="atNode"/> must be one of <paramref name="fromNode"/> or <paramref name="toNode"/>.
     /// </summary>
     public double TangentBearingAt(GroundNode atNode, GroundNode fromNode, GroundNode toNode)
     {
-        double radial = GeoMath.BearingTo(CenterLat, CenterLon, atNode.Latitude, atNode.Longitude);
-        double bearingFrom = GeoMath.BearingTo(CenterLat, CenterLon, fromNode.Latitude, fromNode.Longitude);
-        double bearingTo = GeoMath.BearingTo(CenterLat, CenterLon, toNode.Latitude, toNode.Longitude);
+        var bezier = ToBezier();
+        bool forward = fromNode.Id == Nodes[0].Id;
 
-        // Minor arc sweep direction: positive = CW, negative = CCW
-        double sweep = GeoMath.SignedBearingDifference(bearingFrom, bearingTo);
-        if (Math.Abs(sweep) > 180)
+        if (forward)
         {
-            sweep = sweep > 0 ? sweep - 360 : sweep + 360;
+            // Forward traversal: P0→P3. t=0 at fromNode, t=1 at toNode.
+            return atNode.Id == fromNode.Id ? bezier.TangentBearing(0.0) : bezier.TangentBearing(1.0);
         }
 
-        // Tangent is perpendicular to radial, rotated in sweep direction
-        return sweep > 0
-            ? (radial + 90) % 360
-            : ((radial - 90) + 360) % 360;
+        // Reversed traversal: P3→P0. Tangent directions flip 180°.
+        double t = atNode.Id == fromNode.Id ? 1.0 : 0.0;
+        return (bezier.TangentBearing(t) + 180.0) % 360.0;
     }
 }
 
@@ -727,9 +744,7 @@ public sealed class AirportGroundLayout
 
             // For junction arcs (e.g. ["G", "RWY28R/10L"]), use the non-runway name
             // so the BFS can match subsequent single-name taxiway edges.
-            string branchName = edge is GroundArc { IsRunwayJunction: true } ja
-                ? ja.FirstNonRunwayName()
-                : edge.TaxiwayName;
+            string branchName = edge is GroundArc { IsRunwayJunction: true } ja ? ja.FirstNonRunwayName() : edge.TaxiwayName;
             queue.Enqueue((neighbor, branchName, [centerlineNode, neighbor], edge.DistanceNm, 1));
         }
 

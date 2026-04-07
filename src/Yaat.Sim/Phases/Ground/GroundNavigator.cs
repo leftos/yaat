@@ -85,7 +85,13 @@ public sealed class GroundNavigator
         string segType = _currentArc is not null ? "arc" : "straight";
         Log.LogDebug(
             "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} type={Type} edge={Edge} dist={Dist:F4}nm",
-            route.CurrentSegmentIndex, route.Segments.Count, TargetNodeId, segType, seg.TaxiwayName, seg.Edge.DistanceNm);
+            route.CurrentSegmentIndex,
+            route.Segments.Count,
+            TargetNodeId,
+            segType,
+            seg.TaxiwayName,
+            seg.Edge.DistanceNm
+        );
 
         // A. Compute required speed at the immediate target node
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
@@ -111,7 +117,13 @@ public sealed class GroundNavigator
                 _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
                 Log.LogDebug(
                     "[Nav]   turn at node {NodeId}: inbound={In:F1}° outbound={Out:F1}° angle={Angle:F1}° reqSpeed={Speed:F1}kts nextIsArc={IsArc}",
-                    TargetNodeId, inboundBearing, outboundBearing, turnAngle, _currentNodeRequiredSpeed, _nextSegmentIsArc);
+                    TargetNodeId,
+                    inboundBearing,
+                    outboundBearing,
+                    turnAngle,
+                    _currentNodeRequiredSpeed,
+                    _nextSegmentIsArc
+                );
             }
             else
             {
@@ -217,7 +229,9 @@ public sealed class GroundNavigator
 
         Log.LogDebug(
             "[Nav]   constraints: reqSpeed={ReqSpeed:F1}kts, {Count} future constraints",
-            _currentNodeRequiredSpeed, _speedConstraints.Count);
+            _currentNodeRequiredSpeed,
+            _speedConstraints.Count
+        );
         foreach (var (d, s, n) in _speedConstraints)
         {
             Log.LogDebug("[Nav]     dist={Dist:F4}nm speed={Speed:F1}kts node={Node}", d, s, n);
@@ -240,8 +254,7 @@ public sealed class GroundNavigator
         // aircraft starts steering toward the next segment sooner, creating a smooth arc.
         // Suppress when arcs are involved — the arc geometry handles the smooth turn;
         // anticipation would cause early segment advancement that skips the arc.
-        if (!isLastSegment && (_nextSegmentBearing is not null) && (_currentNodeRequiredSpeed > 0.5)
-            && (_currentArc is null) && !_nextSegmentIsArc)
+        if (!isLastSegment && (_nextSegmentBearing is not null) && (_currentNodeRequiredSpeed > 0.5) && (_currentArc is null) && !_nextSegmentIsArc)
         {
             double inboundBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
             double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, _nextSegmentBearing.Value);
@@ -265,7 +278,12 @@ public sealed class GroundNavigator
         {
             Log.LogDebug(
                 "[Nav] ARRIVED at {NodeId}: dist={Dist:F4}nm threshold={Thr:F4}nm overshot={Over} stalled={Stall}",
-                TargetNodeId, dist, arrivalThreshold, overshot, stalledAtThreshold);
+                TargetNodeId,
+                dist,
+                arrivalThreshold,
+                overshot,
+                stalledAtThreshold
+            );
             PrevDistToTarget = double.MaxValue;
             return NavigatorResult.ArrivedAtNode;
         }
@@ -320,8 +338,17 @@ public sealed class GroundNavigator
 
         Log.LogTrace(
             "[Nav] Tick node={NodeId} dist={Dist:F4}nm brg={Brg:F1}° hdg={Hdg:F1}° angleDiff={Diff:F1}° gs={Gs:F1} target={TgtSpd:F1} brake={Brake:F1} arcLim={ArcLim:F1} isArc={IsArc}",
-            TargetNodeId, dist, bearing, ctx.Aircraft.TrueHeading.Degrees, angleDiff,
-            ctx.Aircraft.GroundSpeed, targetSpeed, brakingLimit, arcSpeedLimit, _currentArc is not null);
+            TargetNodeId,
+            dist,
+            bearing,
+            ctx.Aircraft.TrueHeading.Degrees,
+            angleDiff,
+            ctx.Aircraft.GroundSpeed,
+            targetSpeed,
+            brakingLimit,
+            arcSpeedLimit,
+            _currentArc is not null
+        );
 
         AdjustSpeed(ctx, targetSpeed);
         return NavigatorResult.Navigating;
@@ -337,57 +364,45 @@ public sealed class GroundNavigator
         double acLat = ctx.Aircraft.Latitude;
         double acLon = ctx.Aircraft.Longitude;
 
-        GroundNode fromNode = fromNodeIsZero ? arc.Nodes[0] : arc.Nodes[1];
-        GroundNode toNode = fromNodeIsZero ? arc.Nodes[1] : arc.Nodes[0];
-
-        double bearingFrom = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, fromNode.Latitude, fromNode.Longitude);
-        double bearingTo = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, toNode.Latitude, toNode.Longitude);
-        double bearingAc = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, acLat, acLon);
-
-        // Compute sweep: the angular range from start to end (minor arc convention)
-        // Note: argument order gives bearingFrom - bearingTo (reverse direction), but the
-        // projection math (acOffset/sweep, lookaheadT) is calibrated to this convention.
-        double sweep = GeoMath.SignedBearingDifference(bearingTo, bearingFrom);
-        // Ensure sweep takes the minor arc direction
-        if (Math.Abs(sweep) > 180)
+        // Build bezier in traversal direction
+        CubicBezier bezier;
+        if (fromNodeIsZero)
         {
-            sweep = sweep > 0 ? sweep - 360 : sweep + 360;
+            bezier = arc.ToBezier();
+        }
+        else
+        {
+            // Reversed traversal: swap endpoints and control points
+            bezier = new CubicBezier(
+                arc.Nodes[1].Latitude,
+                arc.Nodes[1].Longitude,
+                arc.P2Lat,
+                arc.P2Lon,
+                arc.P1Lat,
+                arc.P1Lon,
+                arc.Nodes[0].Latitude,
+                arc.Nodes[0].Longitude
+            );
         }
 
-        // Project aircraft onto the arc: where along the sweep is the aircraft?
-        double acOffset = GeoMath.SignedBearingDifference(bearingAc, bearingFrom);
-        // Normalize to same sign as sweep
-        if ((sweep > 0) && (acOffset < 0))
-        {
-            acOffset += 360;
-        }
+        // Project aircraft onto curve
+        double t = bezier.ClosestT(acLat, acLon, 20);
 
-        if ((sweep < 0) && (acOffset > 0))
-        {
-            acOffset -= 360;
-        }
-
-        double t = (Math.Abs(sweep) > 0.001) ? acOffset / sweep : 0;
-        t = Math.Clamp(t, 0, 1);
-
-        // Lookahead: advance t by a small amount along the arc
-        double lookaheadDeg = 10.0; // degrees along the arc
-        double lookaheadT = t + (lookaheadDeg / Math.Abs(sweep));
-        lookaheadT = Math.Min(lookaheadT, 1.0);
-
-        // Compute the lookahead point on the arc
-        double lookaheadBearing = bearingFrom + lookaheadT * sweep;
-        double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
-        var (laLat, laLon) = GeoMath.ProjectPointRaw(arc.CenterLat, arc.CenterLon, lookaheadBearing, radiusNm);
+        // Lookahead: advance t by a fraction of the curve
+        double lookaheadT = Math.Min(t + 0.15, 1.0);
+        var (laLat, laLon) = bezier.Evaluate(lookaheadT);
 
         // Bearing from aircraft to lookahead point
         double steerBearing = GeoMath.BearingTo(acLat, acLon, laLat, laLon);
 
-        // Max speed through this arc: V = ω * R
+        // Dynamic speed from local curvature at current position.
+        // Floor at the precomputed min-radius speed to avoid near-zero speed from
+        // numerical curvature spikes at the bezier endpoints.
+        double localRadiusFt = Math.Max(bezier.RadiusOfCurvatureFt(t, acLat), arc.MinRadiusOfCurvatureFt);
         double turnRateDegSec = CategoryPerformance.GroundTurnRate(ctx.Category);
         double turnRateRadSec = turnRateDegSec * Math.PI / 180.0;
-        double maxSpeedNmSec = turnRateRadSec * radiusNm;
-        double maxSpeedKts = maxSpeedNmSec * 3600.0;
+        double radiusNm = localRadiusFt / GeoMath.FeetPerNm;
+        double maxSpeedKts = turnRateRadSec * radiusNm * 3600.0;
 
         return (steerBearing, maxSpeedKts);
     }

@@ -299,23 +299,13 @@ internal sealed class FrameRenderer
 
         foreach (var arc in _layout.Arcs)
         {
-            double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
-            double bearingStart = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[0].Latitude, arc.Nodes[0].Longitude);
-            double bearingEnd = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[1].Latitude, arc.Nodes[1].Longitude);
-
-            double sweep = GeoMath.SignedBearingDifference(bearingEnd, bearingStart);
-            if (Math.Abs(sweep) > 180)
-            {
-                sweep = sweep > 0 ? sweep - 360 : sweep + 360;
-            }
-
-            int steps = Math.Max(8, (int)(Math.Abs(sweep) / 5));
+            var bezier = arc.ToBezier();
+            const int steps = 16;
             using var path = new SKPath();
             for (int s = 0; s <= steps; s++)
             {
                 double t = (double)s / steps;
-                double bearing = bearingStart + t * sweep;
-                var (lat, lon) = GeoMath.ProjectPoint(arc.CenterLat, arc.CenterLon, new TrueHeading(bearing), radiusNm);
+                var (lat, lon) = bezier.Evaluate(t);
                 float sx = ToX(lon);
                 float sy = ToY(lat);
                 if (s == 0)

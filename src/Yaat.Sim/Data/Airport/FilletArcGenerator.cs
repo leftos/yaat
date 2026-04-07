@@ -213,7 +213,7 @@ public static class FilletArcGenerator
             edgeTangentNodes[edge] = node;
         }
 
-        // --- Phase C: Create arcs between tangent-point pairs ---
+        // --- Phase C: Create bezier arcs between tangent-point pairs ---
         int arcsCreated = 0;
         foreach (var (edgeA, edgeB, radiusFt, turnAngleDeg) in plannedArcs)
         {
@@ -227,10 +227,25 @@ public static class FilletArcGenerator
             double bearingA = edgeBearings[idxA].Bearing;
             double bearingB = edgeBearings[idxB].Bearing;
 
-            var (centerLat, centerLon) = ComputeArcCenter(intersection, bearingA, bearingB, radiusFt);
-
+            // Bezier control point depth: κ = (4/3) * tan(sweep/4)
             double sweepRad = (180.0 - turnAngleDeg) * (Math.PI / 180.0);
-            double arcLengthNm = (radiusFt * sweepRad) / GeoMath.FeetPerNm;
+            double kappa = (4.0 / 3.0) * Math.Tan(sweepRad / 4.0);
+
+            double depthA = kappa * edgeTangentSpecs[edgeA].TangentDistNm;
+            double depthB = kappa * edgeTangentSpecs[edgeB].TangentDistNm;
+
+            // P1: from tanNodeA toward intersection (reverse of edge bearing from intersection)
+            double bearingAToIntersection = (bearingA + 180.0) % 360.0;
+            var (p1Lat, p1Lon) = GeoMath.ProjectPointRaw(tanNodeA.Latitude, tanNodeA.Longitude, bearingAToIntersection, depthA);
+
+            // P2: from tanNodeB toward intersection
+            double bearingBToIntersection = (bearingB + 180.0) % 360.0;
+            var (p2Lat, p2Lon) = GeoMath.ProjectPointRaw(tanNodeB.Latitude, tanNodeB.Longitude, bearingBToIntersection, depthB);
+
+            var bezier = new CubicBezier(tanNodeA.Latitude, tanNodeA.Longitude, p1Lat, p1Lon, p2Lat, p2Lon, tanNodeB.Latitude, tanNodeB.Longitude);
+
+            double minRadiusFt = bezier.MinRadiusOfCurvatureFt(tanNodeA.Latitude, 10);
+            double arcLengthNm = bezier.ArcLengthNm(20);
 
             bool sameTaxiway = edgeA.SharesTaxiway(edgeB);
 
@@ -239,9 +254,11 @@ public static class FilletArcGenerator
                 {
                     Nodes = [tanNodeA, tanNodeB],
                     TaxiwayNames = sameTaxiway ? [edgeA.TaxiwayName] : [edgeA.TaxiwayName, edgeB.TaxiwayName],
-                    CenterLat = centerLat,
-                    CenterLon = centerLon,
-                    RadiusFt = radiusFt,
+                    P1Lat = p1Lat,
+                    P1Lon = p1Lon,
+                    P2Lat = p2Lat,
+                    P2Lon = p2Lon,
+                    MinRadiusOfCurvatureFt = minRadiusFt,
                     DistanceNm = arcLengthNm,
                 }
             );
@@ -385,48 +402,6 @@ public static class FilletArcGenerator
         }
 
         return best;
-    }
-
-    private static (double Lat, double Lon) ComputeArcCenter(GroundNode intersection, double bearingA, double bearingB, double radiusFt)
-    {
-        // The arc center is at distance R / cos(halfAngle) from the intersection,
-        // along the bisector of the two edge bearings, on the inside of the turn.
-        double bisector = ComputeInsideBisector(bearingA, bearingB);
-
-        // The angle from the bisector to either edge
-        double halfAngleDeg = GeoMath.AbsBearingDifference(bearingA, bisector);
-        double halfAngleRad = halfAngleDeg * (Math.PI / 180.0);
-
-        double centerDistFt = radiusFt / Math.Cos(halfAngleRad);
-        double centerDistNm = centerDistFt / GeoMath.FeetPerNm;
-
-        return GeoMath.ProjectPointRaw(intersection.Latitude, intersection.Longitude, bisector, centerDistNm);
-    }
-
-    /// <summary>
-    /// Computes the bisector direction on the inside of the turn formed by two bearings
-    /// (both going away from the intersection).
-    /// </summary>
-    private static double ComputeInsideBisector(double bearingA, double bearingB)
-    {
-        // The two bearings go away from the intersection along each edge.
-        // The "inside" of the turn is between the two edges.
-        // The bisector of the angle between them points to the inside.
-        double a = bearingA * (Math.PI / 180.0);
-        double b = bearingB * (Math.PI / 180.0);
-
-        // Average the unit vectors
-        double x = Math.Cos(a) + Math.Cos(b);
-        double y = Math.Sin(a) + Math.Sin(b);
-
-        double bisectorRad = Math.Atan2(y, x);
-        double bisectorDeg = bisectorRad * (180.0 / Math.PI);
-        if (bisectorDeg < 0)
-        {
-            bisectorDeg += 360.0;
-        }
-
-        return bisectorDeg;
     }
 
     /// <summary>
