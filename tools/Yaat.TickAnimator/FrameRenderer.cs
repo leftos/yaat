@@ -1,4 +1,5 @@
 using SkiaSharp;
+using Yaat.Sim;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 
@@ -285,6 +286,49 @@ internal sealed class FrameRenderer
             {
                 canvas.DrawLine(ToX(n0.Longitude), ToY(n0.Latitude), ToX(n1.Longitude), ToY(n1.Latitude), paint);
             }
+        }
+
+        // Draw arcs
+        using var arcPaint = new SKPaint
+        {
+            Color = new SKColor(80, 200, 80, 120),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 3f,
+            IsAntialias = true,
+        };
+
+        foreach (var arc in _layout.Arcs)
+        {
+            double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
+            double bearingStart = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[0].Latitude, arc.Nodes[0].Longitude);
+            double bearingEnd = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[1].Latitude, arc.Nodes[1].Longitude);
+
+            double sweep = GeoMath.SignedBearingDifference(bearingEnd, bearingStart);
+            if (Math.Abs(sweep) > 180)
+            {
+                sweep = sweep > 0 ? sweep - 360 : sweep + 360;
+            }
+
+            int steps = Math.Max(8, (int)(Math.Abs(sweep) / 5));
+            using var path = new SKPath();
+            for (int s = 0; s <= steps; s++)
+            {
+                double t = (double)s / steps;
+                double bearing = bearingStart + t * sweep;
+                var (lat, lon) = GeoMath.ProjectPoint(arc.CenterLat, arc.CenterLon, new TrueHeading(bearing), radiusNm);
+                float sx = ToX(lon);
+                float sy = ToY(lat);
+                if (s == 0)
+                {
+                    path.MoveTo(sx, sy);
+                }
+                else
+                {
+                    path.LineTo(sx, sy);
+                }
+            }
+
+            canvas.DrawPath(path, arcPaint);
         }
 
         // Draw nodes

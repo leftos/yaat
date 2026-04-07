@@ -38,6 +38,12 @@ public sealed class GroundNavigator
     private List<(double PathDistNm, double RequiredSpeedKts, int NodeId)> _speedConstraints = [];
 
     /// <summary>
+    /// When the current segment is a <see cref="GroundArc"/>, this holds the arc geometry
+    /// and the traversal direction (from/to node). Null for straight edges.
+    /// </summary>
+    private (GroundArc Arc, bool FromNodeIsZero)? _currentArc;
+
+    /// <summary>
     /// Set up navigation for the current segment of a route. Computes speed
     /// constraints by walking future segments and back-propagating braking limits.
     /// </summary>
@@ -58,6 +64,17 @@ public sealed class GroundNavigator
         TargetLat = targetNode.Latitude;
         TargetLon = targetNode.Longitude;
         PrevDistToTarget = double.MaxValue;
+
+        // Detect arc segments for carrot-on-a-stick path following
+        if (seg.Edge.Edge is GroundArc arc)
+        {
+            bool fromIsZero = arc.Nodes[0].Id == seg.Edge.FromNode.Id;
+            _currentArc = (arc, fromIsZero);
+        }
+        else
+        {
+            _currentArc = null;
+        }
 
         // A. Compute required speed at the immediate target node
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
@@ -208,15 +225,28 @@ public sealed class GroundNavigator
             return NavigatorResult.ArrivedAtNode;
         }
 
-        // Steer toward target
-        double bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+        // Steer: arc-following or straight-to-target
+        double bearing;
+        double arcSpeedLimit = double.MaxValue;
+
+        if (_currentArc is { } ca)
+        {
+            var (steerBearing, speedLimit) = ComputeArcSteering(ctx, ca.Arc, ca.FromNodeIsZero);
+            bearing = steerBearing;
+            arcSpeedLimit = speedLimit;
+        }
+        else
+        {
+            bearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
+        }
+
         double maxTurn = CategoryPerformance.GroundTurnRate(ctx.Category) * ctx.DeltaSeconds;
         ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearing, maxTurn);
 
-        // Speed: scale by heading error
+        // Speed: scale by heading error, clamp to arc speed limit
         double angleDiff = ctx.Aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
         double speedFraction = Math.Clamp(1.0 - (angleDiff / 120.0), 0.15, 1.0);
-        double targetSpeed = MaxSpeedKts * speedFraction;
+        double targetSpeed = Math.Min(MaxSpeedKts * speedFraction, arcSpeedLimit);
 
         // Multi-segment braking
         double decelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
@@ -245,6 +275,73 @@ public sealed class GroundNavigator
 
         AdjustSpeed(ctx, targetSpeed);
         return NavigatorResult.Navigating;
+    }
+
+    /// <summary>
+    /// "Carrot on a stick" arc following. Projects the aircraft position onto the arc,
+    /// computes a lookahead point along the curve, and returns the bearing to steer toward.
+    /// Also returns the max speed for the arc radius.
+    /// </summary>
+    private static (double Bearing, double MaxSpeedKts) ComputeArcSteering(
+        PhaseContext ctx,
+        GroundArc arc,
+        bool fromNodeIsZero
+    )
+    {
+        double acLat = ctx.Aircraft.Latitude;
+        double acLon = ctx.Aircraft.Longitude;
+
+        GroundNode fromNode = fromNodeIsZero ? arc.Nodes[0] : arc.Nodes[1];
+        GroundNode toNode = fromNodeIsZero ? arc.Nodes[1] : arc.Nodes[0];
+
+        double bearingFrom = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, fromNode.Latitude, fromNode.Longitude);
+        double bearingTo = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, toNode.Latitude, toNode.Longitude);
+        double bearingAc = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, acLat, acLon);
+
+        // Compute sweep: the angular range from start to end (minor arc convention)
+        double sweep = GeoMath.SignedBearingDifference(bearingTo, bearingFrom);
+        // Ensure sweep takes the minor arc direction
+        if (Math.Abs(sweep) > 180)
+        {
+            sweep = sweep > 0 ? sweep - 360 : sweep + 360;
+        }
+
+        // Project aircraft onto the arc: where along the sweep is the aircraft?
+        double acOffset = GeoMath.SignedBearingDifference(bearingAc, bearingFrom);
+        // Normalize to same sign as sweep
+        if ((sweep > 0) && (acOffset < 0))
+        {
+            acOffset += 360;
+        }
+
+        if ((sweep < 0) && (acOffset > 0))
+        {
+            acOffset -= 360;
+        }
+
+        double t = (Math.Abs(sweep) > 0.001) ? acOffset / sweep : 0;
+        t = Math.Clamp(t, 0, 1);
+
+        // Lookahead: advance t by a small amount along the arc
+        double lookaheadDeg = 10.0; // degrees along the arc
+        double lookaheadT = t + (lookaheadDeg / Math.Abs(sweep));
+        lookaheadT = Math.Min(lookaheadT, 1.0);
+
+        // Compute the lookahead point on the arc
+        double lookaheadBearing = bearingFrom + lookaheadT * sweep;
+        double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
+        var (laLat, laLon) = GeoMath.ProjectPointRaw(arc.CenterLat, arc.CenterLon, lookaheadBearing, radiusNm);
+
+        // Bearing from aircraft to lookahead point
+        double steerBearing = GeoMath.BearingTo(acLat, acLon, laLat, laLon);
+
+        // Max speed through this arc: V = ω * R
+        double turnRateDegSec = CategoryPerformance.GroundTurnRate(ctx.Category);
+        double turnRateRadSec = turnRateDegSec * Math.PI / 180.0;
+        double maxSpeedNmSec = turnRateRadSec * radiusNm;
+        double maxSpeedKts = maxSpeedNmSec * 3600.0;
+
+        return (steerBearing, maxSpeedKts);
     }
 
     private static void AdjustSpeed(PhaseContext ctx, double targetSpeed)

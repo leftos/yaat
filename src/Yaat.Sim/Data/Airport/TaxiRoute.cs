@@ -218,7 +218,7 @@ public sealed class TaxiRoute
                 return null;
             }
 
-            GroundEdge? edge = null;
+            IGroundEdge? edge = null;
             foreach (var e in fromNode.Edges)
             {
                 if (e.HasNode(seg.ToNodeId))
@@ -266,7 +266,7 @@ public sealed class TaxiRoute
 
 public sealed class TaxiRouteSegment
 {
-    public required DirectionalGroundEdge Edge { get; init; }
+    public required DirectionalEdge Edge { get; init; }
     public required string TaxiwayName { get; init; }
 
     public int FromNodeId => Edge.FromNodeId;

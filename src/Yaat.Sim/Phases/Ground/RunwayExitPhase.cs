@@ -432,7 +432,7 @@ public sealed class RunwayExitPhase : Phase
         return true;
     }
 
-    private static GroundEdge? FindEdgeBetween(GroundNode fromNode, int toNodeId)
+    private static IGroundEdge? FindEdgeBetween(GroundNode fromNode, int toNodeId)
     {
         foreach (var edge in fromNode.Edges)
         {

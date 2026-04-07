@@ -681,6 +681,42 @@ public sealed class GroundRenderer : IDisposable
         return false;
     }
 
+    private static void DrawArcSegment(
+        SKCanvas canvas,
+        MapViewport vp,
+        GroundArc arc,
+        (float X, float Y) from,
+        (float X, float Y) to,
+        SKPaint paint
+    )
+    {
+        double radiusNm = arc.RadiusFt / GeoMath.FeetPerNm;
+        double bearingStart = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[0].Latitude, arc.Nodes[0].Longitude);
+        double bearingEnd = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, arc.Nodes[1].Latitude, arc.Nodes[1].Longitude);
+
+        double sweep = GeoMath.SignedBearingDifference(bearingEnd, bearingStart);
+        if (Math.Abs(sweep) > 180)
+        {
+            sweep = sweep > 0 ? sweep - 360 : sweep + 360;
+        }
+
+        int steps = Math.Max(8, (int)(Math.Abs(sweep) / 5));
+        using var path = new SKPath();
+        path.MoveTo(from.X, from.Y);
+
+        for (int s = 1; s < steps; s++)
+        {
+            double t = (double)s / steps;
+            double bearing = bearingStart + t * sweep;
+            var (lat, lon) = GeoMath.ProjectPoint(arc.CenterLat, arc.CenterLon, new TrueHeading(bearing), radiusNm);
+            var (sx, sy) = vp.LatLonToScreen(lat, lon);
+            path.LineTo(sx, sy);
+        }
+
+        path.LineTo(to.X, to.Y);
+        canvas.DrawPath(path, paint);
+    }
+
     private void DrawActiveRoute(SKCanvas canvas, MapViewport vp, GroundLayoutDto layout, TaxiRoute? route)
     {
         DrawRoute(canvas, vp, layout, route, _activeRoutePaint);
@@ -762,11 +798,15 @@ public sealed class GroundRenderer : IDisposable
                 continue;
             }
 
-            if (seg.Edge.Edge.IntermediatePoints.Count > 0)
+            if (seg.Edge.Edge is GroundArc arc)
+            {
+                DrawArcSegment(canvas, vp, arc, from, to, paint);
+            }
+            else if (seg.Edge.Edge is GroundEdge straight && straight.IntermediatePoints.Count > 0)
             {
                 using var path = new SKPath();
                 path.MoveTo(from.X, from.Y);
-                foreach (var (lat, lon) in seg.Edge.Edge.IntermediatePoints)
+                foreach (var (lat, lon) in straight.IntermediatePoints)
                 {
                     var (sx, sy) = vp.LatLonToScreen(lat, lon);
                     path.LineTo(sx, sy);

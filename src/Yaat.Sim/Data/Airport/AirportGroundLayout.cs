@@ -35,15 +35,36 @@ public sealed class GroundNode
     /// Not serialized — rebuilt by <see cref="AirportGroundLayout.RebuildAdjacencyLists"/> after deserialization.
     /// </summary>
     [JsonIgnore]
-    public List<GroundEdge> Edges { get; init; } = [];
+    public List<IGroundEdge> Edges { get; init; } = [];
 }
 
 /// <summary>
-/// A non-directional edge in the airport ground graph connecting two nodes.
-/// <c>Nodes[0]</c> and <c>Nodes[1]</c> are the two endpoints — no implied direction.
-/// For directional traversal (routes, navigation), wrap in <see cref="DirectionalGroundEdge"/>.
+/// Common interface for ground graph edges — straight lines and circular arcs.
+/// Both <see cref="GroundEdge"/> and <see cref="GroundArc"/> implement this.
 /// </summary>
-public sealed class GroundEdge
+public interface IGroundEdge
+{
+    /// <summary>The two endpoint nodes. Fixed-size 2, no implied direction.</summary>
+    GroundNode[] Nodes { get; }
+    string TaxiwayName { get; }
+    double DistanceNm { get; }
+
+    GroundNode OtherNode(GroundNode node);
+    int OtherNodeId(int nodeId);
+    bool HasNode(int nodeId);
+
+    /// <summary>
+    /// Create a <see cref="DirectionalEdge"/> capturing a specific traversal direction.
+    /// </summary>
+    DirectionalEdge Directed(GroundNode fromNode, GroundNode toNode);
+}
+
+/// <summary>
+/// A non-directional straight edge in the airport ground graph connecting two nodes.
+/// <c>Nodes[0]</c> and <c>Nodes[1]</c> are the two endpoints — no implied direction.
+/// For directional traversal (routes, navigation), wrap via <see cref="Directed"/>.
+/// </summary>
+public sealed class GroundEdge : IGroundEdge
 {
     /// <summary>The two endpoint nodes. Fixed-size 2, no implied direction.</summary>
     public required GroundNode[] Nodes { get; init; }
@@ -56,25 +77,11 @@ public sealed class GroundEdge
     /// </summary>
     public List<(double Lat, double Lon)> IntermediatePoints { get; init; } = [];
 
-    /// <summary>
-    /// Returns the node on the other end of this edge from <paramref name="node"/>.
-    /// </summary>
     public GroundNode OtherNode(GroundNode node) => Nodes[0].Id == node.Id ? Nodes[1] : Nodes[0];
-
-    /// <summary>
-    /// Returns the ID of the node on the other end from <paramref name="nodeId"/>.
-    /// </summary>
     public int OtherNodeId(int nodeId) => Nodes[0].Id == nodeId ? Nodes[1].Id : Nodes[0].Id;
-
-    /// <summary>
-    /// Returns true if this edge connects a node with <paramref name="nodeId"/>.
-    /// </summary>
     public bool HasNode(int nodeId) => Nodes[0].Id == nodeId || Nodes[1].Id == nodeId;
 
-    /// <summary>
-    /// Create a <see cref="DirectionalGroundEdge"/> capturing a specific traversal direction.
-    /// </summary>
-    public DirectionalGroundEdge Directed(GroundNode fromNode, GroundNode toNode) =>
+    public DirectionalEdge Directed(GroundNode fromNode, GroundNode toNode) =>
         new()
         {
             Edge = this,
@@ -84,13 +91,45 @@ public sealed class GroundEdge
 }
 
 /// <summary>
-/// A directional view of a <see cref="GroundEdge"/> — captures a specific traversal direction.
+/// A circular arc edge connecting two tangent-point nodes at a filleted intersection.
+/// Bidirectional — can be traversed in either direction. The navigator follows
+/// the curve using lookahead-based path tracking rather than point-to-point steering.
+/// <para>
+/// The arc is always the minor arc (shorter path around the circle, ≤180°).
+/// Sweep direction is determined at traversal time by which node is "from" vs "to".
+/// Start/end angles are derived from <c>BearingTo(Center, Node)</c> — not stored.
+/// </para>
+/// </summary>
+public sealed class GroundArc : IGroundEdge
+{
+    public required GroundNode[] Nodes { get; init; }
+    public required string TaxiwayName { get; init; }
+    public required double CenterLat { get; init; }
+    public required double CenterLon { get; init; }
+    public required double RadiusFt { get; init; }
+    public required double DistanceNm { get; init; }
+
+    public GroundNode OtherNode(GroundNode node) => Nodes[0].Id == node.Id ? Nodes[1] : Nodes[0];
+    public int OtherNodeId(int nodeId) => Nodes[0].Id == nodeId ? Nodes[1].Id : Nodes[0].Id;
+    public bool HasNode(int nodeId) => Nodes[0].Id == nodeId || Nodes[1].Id == nodeId;
+
+    public DirectionalEdge Directed(GroundNode fromNode, GroundNode toNode) =>
+        new()
+        {
+            Edge = this,
+            FromNode = fromNode,
+            ToNode = toNode,
+        };
+}
+
+/// <summary>
+/// A directional view of an <see cref="IGroundEdge"/> — captures a specific traversal direction.
 /// Created when building routes/paths. Multiple instances can reference the same edge
 /// (different directions, or same direction for U-turns).
 /// </summary>
-public sealed class DirectionalGroundEdge
+public sealed class DirectionalEdge
 {
-    public required GroundEdge Edge { get; init; }
+    public required IGroundEdge Edge { get; init; }
     public required GroundNode FromNode { get; init; }
     public required GroundNode ToNode { get; init; }
 
@@ -113,7 +152,11 @@ public sealed class AirportGroundLayout
 
     public Dictionary<int, GroundNode> Nodes { get; init; } = [];
     public List<GroundEdge> Edges { get; init; } = [];
+    public List<GroundArc> Arcs { get; init; } = [];
     public List<GroundRunway> Runways { get; init; } = [];
+
+    /// <summary>All edges (straight and arc) for iteration.</summary>
+    public IEnumerable<IGroundEdge> AllEdges => Edges.Cast<IGroundEdge>().Concat(Arcs);
 
     /// <summary>
     /// Rebuild <see cref="GroundNode.Edges"/> adjacency lists from the <see cref="Edges"/> collection.
@@ -126,7 +169,7 @@ public sealed class AirportGroundLayout
             node.Edges.Clear();
         }
 
-        foreach (var edge in Edges)
+        foreach (var edge in AllEdges)
         {
             if (Nodes.TryGetValue(edge.Nodes[0].Id, out var nodeA))
             {
@@ -1458,7 +1501,7 @@ public sealed class AirportGroundLayout
         return true;
     }
 
-    private static bool IsRunwayEdge(GroundEdge edge)
+    private static bool IsRunwayEdge(IGroundEdge edge)
     {
         return edge.TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
     }

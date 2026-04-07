@@ -477,7 +477,8 @@ public class RecordingArchiveTests
         Assert.Equal("J", restoredNode1.Name);
         Assert.Single(restoredNode1.Edges);
         Assert.Equal("J", restoredNode1.Edges[0].TaxiwayName);
-        Assert.Single(restoredNode1.Edges[0].IntermediatePoints);
+        var restoredEdge = Assert.IsType<GroundEdge>(restoredNode1.Edges[0]);
+        Assert.Single(restoredEdge.IntermediatePoints);
 
         var restoredNode2 = restored.Nodes[2];
         Assert.Equal(GroundNodeType.RunwayHoldShort, restoredNode2.Type);

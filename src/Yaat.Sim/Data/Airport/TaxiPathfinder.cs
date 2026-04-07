@@ -445,7 +445,7 @@ public static class TaxiPathfinder
         }
 
         // Find all edges on this taxiway from the current node
-        var candidateEdges = new List<GroundEdge>();
+        var candidateEdges = new List<IGroundEdge>();
         foreach (var edge in currentNode.Edges)
         {
             if (string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
@@ -504,7 +504,7 @@ public static class TaxiPathfinder
             }
         }
 
-        GroundEdge? startEdge = candidateEdges.Count switch
+        IGroundEdge? startEdge = candidateEdges.Count switch
         {
             0 => null,
             1 => candidateEdges[0],
@@ -632,7 +632,7 @@ public static class TaxiPathfinder
             }
 
             // Collect all unvisited edges on this taxiway
-            var candidates = new List<(GroundEdge Edge, int NodeId)>();
+            var candidates = new List<(IGroundEdge Edge, int NodeId)>();
             foreach (var edge in node.Edges)
             {
                 if (!string.Equals(edge.TaxiwayName, taxiwayName, StringComparison.OrdinalIgnoreCase))
@@ -647,7 +647,7 @@ public static class TaxiPathfinder
                 }
             }
 
-            GroundEdge? nextEdge;
+            IGroundEdge? nextEdge;
             int nextNodeId;
             if (candidates.Count == 0)
             {
@@ -726,10 +726,10 @@ public static class TaxiPathfinder
     /// When the starting node has multiple edges on the same taxiway, pick the
     /// direction that leads toward the next taxiway. Falls back to first edge.
     /// </summary>
-    private static GroundEdge PickBestStartEdge(
+    private static IGroundEdge PickBestStartEdge(
         AirportGroundLayout layout,
         int startNodeId,
-        List<GroundEdge> candidates,
+        List<IGroundEdge> candidates,
         string? nextTaxiwayName,
         GroundNode? destinationHint = null
     )
@@ -747,7 +747,7 @@ public static class TaxiPathfinder
                 return candidates[0];
             }
 
-            GroundEdge bestHint = candidates[0];
+            IGroundEdge bestHint = candidates[0];
             double bestHintDist = double.MaxValue;
             foreach (var edge in candidates)
             {
@@ -777,7 +777,7 @@ public static class TaxiPathfinder
         var goal = layout.Nodes[goalNode.NodeId];
 
         // Score each candidate: prefer the one whose destination is closer to the goal
-        GroundEdge best = candidates[0];
+        IGroundEdge best = candidates[0];
         double bestDist = double.MaxValue;
 
         foreach (var edge in candidates)
@@ -801,9 +801,9 @@ public static class TaxiPathfinder
     /// During the walk loop, when multiple unvisited edges branch on the same taxiway,
     /// prefer the one leading toward the next taxiway.
     /// </summary>
-    private static (GroundEdge Edge, int NodeId) PickBestWalkEdge(
+    private static (IGroundEdge Edge, int NodeId) PickBestWalkEdge(
         AirportGroundLayout layout,
-        List<(GroundEdge Edge, int NodeId)> candidates,
+        List<(IGroundEdge Edge, int NodeId)> candidates,
         string? nextTaxiwayName,
         GroundNode? destinationHint = null
     )
@@ -816,7 +816,7 @@ public static class TaxiPathfinder
             }
 
             // Pick the candidate closest to the destination hint
-            (GroundEdge Edge, int NodeId) bestHint = candidates[0];
+            (IGroundEdge Edge, int NodeId) bestHint = candidates[0];
             double bestHintDist = double.MaxValue;
             foreach (var (edge, nodeId) in candidates)
             {
@@ -845,7 +845,7 @@ public static class TaxiPathfinder
 
         // Otherwise pick the candidate whose node has an edge on nextTaxiway nearest
         // (simple heuristic: check if the next taxiway's nearest node is closer)
-        (GroundEdge Edge, int NodeId) best = candidates[0];
+        (IGroundEdge Edge, int NodeId) best = candidates[0];
         double bestDist = double.MaxValue;
 
         foreach (var (edge, nodeId) in candidates)
@@ -910,7 +910,7 @@ public static class TaxiPathfinder
         }
 
         var openSet = new PriorityQueue<int, double>();
-        var cameFrom = new Dictionary<int, (int NodeId, GroundEdge Edge)>();
+        var cameFrom = new Dictionary<int, (int NodeId, IGroundEdge Edge)>();
         var gScore = new Dictionary<int, double> { [fromNodeId] = 0 };
 
         double heuristic = GeoMath.DistanceNm(startNode.Latitude, startNode.Longitude, endNode.Latitude, endNode.Longitude);
@@ -989,7 +989,7 @@ public static class TaxiPathfinder
     /// runway 15/33) without allowing traversal via other named taxiways.
     /// Limited to <see cref="MaxRunwayBridgeNm"/> to prevent long runway walks.
     /// </summary>
-    private static (int FoundId, GroundEdge? FoundEdge) BridgeViaRunwayEdges(
+    private static (int FoundId, IGroundEdge? FoundEdge) BridgeViaRunwayEdges(
         AirportGroundLayout layout,
         int startNodeId,
         string taxiwayName,
@@ -997,7 +997,7 @@ public static class TaxiPathfinder
     )
     {
         var openSet = new PriorityQueue<int, double>();
-        var cameFrom = new Dictionary<int, (int NodeId, GroundEdge Edge)>();
+        var cameFrom = new Dictionary<int, (int NodeId, IGroundEdge Edge)>();
         var gScore = new Dictionary<int, double> { [startNodeId] = 0 };
         openSet.Enqueue(startNodeId, 0);
 
@@ -1070,7 +1070,7 @@ public static class TaxiPathfinder
         pathSegments.Reverse();
         segments.AddRange(pathSegments);
 
-        GroundEdge? foundEdge = null;
+        IGroundEdge? foundEdge = null;
         if (layout.Nodes.TryGetValue(foundId, out var endNode))
         {
             foreach (var edge in endNode.Edges)
@@ -1093,7 +1093,7 @@ public static class TaxiPathfinder
     /// walk. This lets users omit the current taxiway from instructions (e.g.,
     /// aircraft on W5 told "TAXI W V T" doesn't need to say "TAXI W5 W V T").
     /// </summary>
-    private static (int FoundId, GroundEdge? FoundEdge) WalkCurrentTaxiwayToTarget(
+    private static (int FoundId, IGroundEdge? FoundEdge) WalkCurrentTaxiwayToTarget(
         AirportGroundLayout layout,
         int startNodeId,
         string targetTaxiwayName,
@@ -1127,12 +1127,12 @@ public static class TaxiPathfinder
         // Try walking each candidate taxiway toward the target; keep the shortest
         List<TaxiRouteSegment>? bestSegments = null;
         int bestEndId = -1;
-        GroundEdge? bestEdge = null;
+        IGroundEdge? bestEdge = null;
 
         foreach (string twName in candidateNames)
         {
             var trialSegments = new List<TaxiRouteSegment>();
-            (int endId, GroundEdge? edge) = WalkTaxiwayToward(layout, startNodeId, twName, targetTaxiwayName, trialSegments);
+            (int endId, IGroundEdge? edge) = WalkTaxiwayToward(layout, startNodeId, twName, targetTaxiwayName, trialSegments);
 
             if (endId != -1 && (bestSegments is null || trialSegments.Count < bestSegments.Count))
             {
@@ -1157,7 +1157,7 @@ public static class TaxiPathfinder
     /// At forks, prefers the branch closer to the nearest target-taxiway node.
     /// Returns (-1, null) if the walk dead-ends without reaching the target.
     /// </summary>
-    private static (int FoundId, GroundEdge? FoundEdge) WalkTaxiwayToward(
+    private static (int FoundId, IGroundEdge? FoundEdge) WalkTaxiwayToward(
         AirportGroundLayout layout,
         int startNodeId,
         string walkTaxiwayName,
@@ -1176,7 +1176,7 @@ public static class TaxiPathfinder
             }
 
             // Collect unvisited edges on the walk taxiway
-            var candidates = new List<(GroundEdge Edge, int NodeId)>();
+            var candidates = new List<(IGroundEdge Edge, int NodeId)>();
             foreach (var edge in node.Edges)
             {
                 if (!string.Equals(edge.TaxiwayName, walkTaxiwayName, StringComparison.OrdinalIgnoreCase))
@@ -1197,7 +1197,7 @@ public static class TaxiPathfinder
             }
 
             // Pick the candidate closest to any node on the target taxiway
-            GroundEdge nextEdge;
+            IGroundEdge nextEdge;
             int nextNodeId;
             if (candidates.Count == 1)
             {
@@ -1220,7 +1220,7 @@ public static class TaxiPathfinder
 
             if (NodeHasEdgeTo(layout, currentId, targetTaxiwayName))
             {
-                GroundEdge? targetEdge = null;
+                IGroundEdge? targetEdge = null;
                 if (layout.Nodes.TryGetValue(currentId, out var targetNode))
                 {
                     foreach (var edge in targetNode.Edges)
@@ -1266,7 +1266,7 @@ public static class TaxiPathfinder
     /// node that has an edge on the target taxiway. Adds connecting segments.
     /// Returns (-1, null) if no path found.
     /// </summary>
-    private static (int FoundId, GroundEdge? FoundEdge) BfsToTaxiway(
+    private static (int FoundId, IGroundEdge? FoundEdge) BfsToTaxiway(
         AirportGroundLayout layout,
         int startNodeId,
         string taxiwayName,
@@ -1276,11 +1276,11 @@ public static class TaxiPathfinder
         const int maxHops = 3;
         var visited = new HashSet<int> { startNodeId };
         var queue = new Queue<(int NodeId, int Depth)>();
-        var cameFrom = new Dictionary<int, (int ParentId, GroundEdge Edge)>();
+        var cameFrom = new Dictionary<int, (int ParentId, IGroundEdge Edge)>();
         queue.Enqueue((startNodeId, 0));
 
         int foundId = -1;
-        GroundEdge? foundEdge = null;
+        IGroundEdge? foundEdge = null;
 
         while (queue.Count > 0 && foundId == -1)
         {
@@ -1362,7 +1362,7 @@ public static class TaxiPathfinder
     /// an edge on the target taxiway. Used for parking/ramp areas where
     /// graph connectivity to the taxiway may be missing.
     /// </summary>
-    private static (int NodeId, double DistNm, GroundEdge? Edge) FindNearestNodeOnTaxiway(
+    private static (int NodeId, double DistNm, IGroundEdge? Edge) FindNearestNodeOnTaxiway(
         AirportGroundLayout layout,
         GroundNode fromNode,
         string taxiwayName
@@ -1370,7 +1370,7 @@ public static class TaxiPathfinder
     {
         int nearestId = -1;
         double nearestDist = double.MaxValue;
-        GroundEdge? nearestEdge = null;
+        IGroundEdge? nearestEdge = null;
 
         foreach (var node in layout.Nodes.Values)
         {
@@ -1439,7 +1439,7 @@ public static class TaxiPathfinder
         return false;
     }
 
-    private static TaxiRoute ReconstructRoute(AirportGroundLayout layout, Dictionary<int, (int NodeId, GroundEdge Edge)> cameFrom, int endNodeId)
+    private static TaxiRoute ReconstructRoute(AirportGroundLayout layout, Dictionary<int, (int NodeId, IGroundEdge Edge)> cameFrom, int endNodeId)
     {
         var segments = new List<TaxiRouteSegment>();
         int current = endNodeId;

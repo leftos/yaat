@@ -249,10 +249,12 @@ Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 
 # Data/Airport/
 IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGroundLayout?
-AirportGroundLayout.cs         # Graph: GroundNode + GroundEdge (non-directional, Nodes[2]) + DirectionalGroundEdge (traversal direction)
-                               # FindAdjacentHoldShort (BFS, max 12 hops), FindExitPath (hold-short→centerline), FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
+AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (circular fillet arc: center+radius), DirectionalEdge (traversal direction)
+                               # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
+FilletArcGenerator.cs          # Replaces intersection nodes with fillet arcs; plan-then-execute: compute tangent points → create arcs → rebuild edges → delete node
+                               # Radius fits to edge length, collinear merges produce inner straight edges, orphans reconnect. Not auto-applied yet.
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching
-TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
+TaxiRoute.cs                   # Resolved path: TaxiRouteSegment (DirectionalEdge wrapping IGroundEdge) + HoldShortPoints (with dynamic lat/lon offset) + DestinationParking/DestinationSpot + completion
 TaxiPathfinder.cs              # ResolveExplicitPath (destinationHintNode for parking direction), FindRoute (A*), variant inference
                                # Multi-candidate bridge scoring: BFS + WalkCurrentTaxiway scored by transitions+distance
 TaxiVariantResolver.cs         # Variant path resolution (e.g., A vs A1)
