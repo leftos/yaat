@@ -1505,9 +1505,7 @@ public class TaxiPathfinderTests
         var parkingNode = layout.Nodes.Values.FirstOrDefault(n =>
             n.Type == GroundNodeType.Parking
             && n.Edges.Any(e => e.IsRamp)
-            && layout.Nodes.Values.Any(adj =>
-                adj.Edges.Any(ae => ae.MatchesTaxiway("Y")) && n.Edges.Any(pe => pe.HasNode(adj.Id))
-            )
+            && layout.Nodes.Values.Any(adj => adj.Edges.Any(ae => ae.MatchesTaxiway("Y")) && n.Edges.Any(pe => pe.HasNode(adj.Id)))
         );
         if (parkingNode is null)
         {

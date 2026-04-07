@@ -62,19 +62,22 @@ public interface IGroundEdge
 
 **No bare `string.Equals` on TaxiwayName** — all taxiway name comparisons go through these interface methods. This ensures junction arcs at taxiway intersections are matched correctly.
 
-`GroundArc` stores **center + radius + taxiway names** — angles are derived from `BearingTo(center, node)`, and the minor arc (≤180°) is used by convention. Sweep direction is determined at traversal time by which node is "from" vs "to" in the `DirectionalEdge`.
+`GroundArc` stores **bezier control points P1/P2 + precomputed MinRadiusOfCurvatureFt**. P0/P3 are the endpoint nodes (`Nodes[0]`/`Nodes[1]`). Tangent bearings computed from the bezier derivative at t=0 and t=1. Speed constraints use `MinRadiusOfCurvatureFt` for back-propagation and local curvature for dynamic speed during arc following.
 
 ```csharp
 public sealed class GroundArc : IGroundEdge
 {
     public required GroundNode[] Nodes { get; init; }
     public required string[] TaxiwayNames { get; init; } // ["W"] or ["W", "W3"] — no precedence
-    public required double CenterLat { get; init; }
-    public required double CenterLon { get; init; }
-    public required double RadiusFt { get; init; }
+    public required double P1Lat { get; init; }           // bezier control point near Nodes[0]
+    public required double P1Lon { get; init; }
+    public required double P2Lat { get; init; }           // bezier control point near Nodes[1]
+    public required double P2Lon { get; init; }
+    public required double MinRadiusOfCurvatureFt { get; init; } // tightest curvature, precomputed
     public required double DistanceNm { get; init; }
-    // TaxiwayName => "W" or "W/W3" (display only — use MatchesTaxiway for checks)
-    // MaxSafeSpeedKts => V = ω × R (computed from radius and aircraft turn rate)
+    // ToBezier() => CubicBezier from Nodes + control points
+    // MaxSafeSpeedKts => V = ω × MinR (worst-case speed for braking)
+    // TangentBearingAt => bezier tangent direction at t=0 or t=1
     // IGroundEdge methods...
 }
 ```
@@ -93,18 +96,18 @@ Three levels of comparison, each for different use cases:
 
 ### How the navigator follows an arc
 
-"Carrot on a stick" path tracking (replaces point-to-point steering for arc segments):
+"Carrot on a stick" bezier path tracking (replaces point-to-point steering for arc segments):
 
-1. **Project** the aircraft position onto the arc to find the closest point (parameter `t` in `[0, 1]`)
-2. **Lookahead**: advance `t` by a small distance along the arc to get a target point ahead
+1. **Project** the aircraft position onto the bezier via `ClosestT` (coarse scan + ternary search)
+2. **Lookahead**: advance `t` by 0.15 along the curve to get a target point ahead
 3. **Steer** toward the lookahead point (same `TurnHeadingToward` as straight edges)
-4. **Speed**: compute max safe speed for the arc radius and aircraft turn rate: `V = ω * R`
+4. **Speed**: dynamic from local curvature at current `t`: `V = ω * R(t)`. Faster on gentle sections, slower at the tightest point. Floored at `MinRadiusOfCurvatureFt` speed to prevent numerical curvature spikes.
 
 The aircraft smoothly follows the painted curve. Different aircraft types negotiate the same curb radius at different speeds based on their category turn rate.
 
 ### How the renderer draws an arc
 
-Polyline approximation from `BearingTo(center, node)` sweep — produces a smooth curve at any zoom level.
+Bezier polyline evaluation at 16 steps — produces a smooth curve at any zoom level.
 
 ### Graph Structure After Filleting
 
@@ -125,8 +128,9 @@ A turn at what was previously a single intersection becomes: straight edge → a
 For two edges meeting at angle θ at a node:
 - **Curb radius** `R` — sized to fit: `R = min(edgeLenA, edgeLenB) / tan(θ/2)`, clamped to a maximum
 - **Tangent distance** `T = R * tan(θ/2)` — distance from intersection to tangent point on each edge
-- **Arc length** `L = R * θ` — curve length
-- **Arc center** — offset from intersection along the bisector by `R / cos(θ/2)`
+- **Bezier control point depth** `κ = (4/3) * tan(sweep/4)` where `sweep = π - θ` — standard circular arc approximation. Each control point is at distance `κ * T` from the tangent point along the edge toward the intersection.
+- **Arc length** — polyline approximation over 20 bezier evaluation steps
+- **Min radius of curvature** — sampled at 10 points along the bezier for worst-case speed constraint
 
 ### Curb Radius Selection
 
@@ -226,29 +230,29 @@ List<TaxiRoute> FindRoutes(layout, from, to,
 3. A route's final score = max across strategies (surfaces it if it's best at anything)
 4. Deduplicated by taxiway sequence, sorted by score descending, top N returned
 
-### Phase 4: Navigator Arc Following — IN PROGRESS
+### Phase 4: Navigator Arc Following ✅
 
 - [x] `GroundNavigator` detects `GroundArc` segments and switches to carrot-on-a-stick steering
-  - Projects aircraft position onto arc via bearing from center
-  - Computes lookahead point 10° ahead along the arc
+  - Projects aircraft onto bezier via `ClosestT` (coarse scan + ternary search)
+  - Computes lookahead point at `t + 0.15` along the curve
   - Steers toward lookahead point
-  - Computes max speed from arc radius and category turn rate (`V = ω * R`)
+  - Dynamic speed from local curvature: `V = ω * R(t)` (faster on gentle sections, slower on tight)
+  - Floored at `MinRadiusOfCurvatureFt` speed to prevent numerical curvature spikes from stalling
 - [x] Arc speed limit applied alongside heading-error scaling and multi-segment braking
-- [x] `DirectionalEdge.DepartureBearing` / `ArrivalBearing` — tangent-aware bearings for arcs
+- [x] `DirectionalEdge.DepartureBearing` / `ArrivalBearing` — bezier tangent at t=0/t=1
 - [x] `SetupSegment` uses edge bearings for turn angle computation
-- [x] Arc `MaxSafeSpeedKts` back-propagated in `SetupSegment` forward walk
+- [x] Arc `MaxSafeSpeedKts` back-propagated in `SetupSegment` forward walk (uses `MinRadiusOfCurvatureFt`)
 - [x] Forward walk uses `edge.DistanceNm` instead of straight-line distance
 - [x] Turn anticipation suppressed for arc segments (current or next)
-- [ ] Rework `ComputeArcSteering` for bezier curves (blocked on arc geometry fix)
 - [ ] Evaluate removing turn anticipation entirely once bezier arcs handle all turns
 
 ### Phase 5: Rendering ✅
 
-- [x] `GroundRenderer`: `DrawArcSegment` draws arcs as polyline curves for route visualization
-- [x] `FrameRenderer` (TickAnimator): draws arc edges in green polyline
-- [ ] Verify visual quality in Ground View at various zoom levels — **deferred** (needs fillets enabled in production)
+- [x] `GroundRenderer`: `DrawArcSegment` draws bezier polylines (16-segment evaluation)
+- [x] `FrameRenderer` (TickAnimator): draws bezier arc edges in green polyline
+- [ ] Verify visual quality in Ground View at various zoom levels
 
-### Phase 6: Integration & Validation — IN PROGRESS
+### Phase 6: Integration & Validation ✅
 
 #### Enabling fillets in production
 
@@ -259,38 +263,19 @@ List<TaxiRoute> FindRoutes(layout, from, to,
 - [x] Walker prefers straight edges over arcs when staying on the same taxiway
 - [x] A* transition penalty uses `SharesTaxiway` to avoid penalizing junction arcs
 - [x] `ResolveArcSegmentName` picks contextually correct name for route summaries
-- [ ] Fix remaining 15 test failures (down from 39 at start)
+- [x] Replace circular arcs with cubic bezier curves — fixes 14 of 16 arc geometry failures
+- [x] Global post-fillet merge pass for coincident nodes from adjacent intersection filleting
+- [x] Rework LineUpPhase to analog navigation (no ground graph node dependency)
+- [x] All 2253 tests pass (0 failures)
 - [ ] Add `GroundArcDto` to `ServerConnection.cs` and update `GroundLayoutDto` / `ReconstructLayout` for client-server transmission
 - [ ] Update `docs/architecture.md`
 
-#### Blocked: arc geometry must be fixed first
+#### Remaining work
 
-All remaining test failures trace back to broken arc geometry in `FilletArcGenerator`. The navigator changes (tangent bearings, arc speed back-propagation, turn anticipation suppression) are structurally correct but can't produce good results when the arcs themselves curve the wrong way.
-
-**Sequence:**
-1. Replace circular arcs with cubic bezier curves in `FilletArcGenerator`
-2. Update `GroundArc` data model (bezier control points)
-3. Update `ComputeArcSteering` to follow bezier curves
-4. Update `SetupSegment` with bezier-aware speed constraints and tangent bearings
-5. Run tests — most behavioral failures should resolve with correct geometry
-6. Investigate remaining failures individually (see `docs/plans/open-issues/fillet-test-failures.md`)
-
-#### Navigator improvements (done, waiting for correct geometry)
-
-- [x] `DirectionalEdge.DepartureBearing` / `ArrivalBearing` — tangent-aware bearings
-- [x] `SetupSegment` uses edge bearings instead of node-to-node bearings for turn angles
-- [x] Arc speed constraints back-propagated in `SetupSegment` forward walk
-- [x] Forward walk uses `edge.DistanceNm` (arc length) instead of straight-line distance
-- [x] Turn anticipation suppressed when current or next segment is an arc
-- [x] `_nextSegmentIsArc` flag for turn anticipation decisions
-
-#### Additional tests needed
-
+- [ ] Evaluate removing turn anticipation entirely — arcs handle smooth turns now
+- [ ] Verify visual quality in Ground View at various zoom levels
 - [ ] Synthetic fillet test: runway + taxiways at 20°–160° angles (use `tools/Yaat.Scratch`)
 - [ ] Navigator bezier following unit tests (projection, lookahead, speed constraint)
-- [ ] All OakAllExitsTests pass with fillets
-- [ ] All Sfo28rAllExitsTests pass with fillets
-- [ ] End-to-end taxi with fillet arcs
 - [ ] TickAnimator before/after GIFs for visual comparison
 
 ## What This Replaces
@@ -335,39 +320,28 @@ The `FilletArcGenerator` has two critical bugs:
 
 Verified by visual inspection: arcs at 90° intersections (H at OAK) look correct. Arcs at non-90° intersections (P, J at OAK) curve outward instead of inward.
 
-### Replace circular arcs with cubic bezier curves (decided)
-Circular arcs are the wrong primitive. A cubic bezier naturally solves the asymmetric tangent problem:
-- P0 = tangent point on edge A (shared with other curves on that edge)
-- P1 = control point along edge A direction (depth controls curvature)
-- P2 = control point along edge B direction
-- P3 = tangent point on edge B (shared with other curves on that edge)
+### Cubic bezier curves replace circular arcs (implemented)
+`GroundArc` stores P1/P2 bezier control points instead of center/radius. P0 = `Nodes[0]`, P3 = `Nodes[1]` (not stored redundantly). Control point depth uses the standard arc-approximation formula: `κ = (4/3) * tan(sweep/4)`. `CubicBezier` struct in `Data/Airport/CubicBezier.cs` provides evaluation, derivative, curvature, arc length (polyline sum), and closest-t projection (coarse scan + ternary search). Navigator uses dynamic speed from local curvature. Renderers evaluate bezier at 16 steps for polyline drawing.
 
-Benefits:
-- Tangent directions at endpoints are trivially correct (P0→P1 and P2→P3)
-- Asymmetric tangent distances are natural — control point distances are independent
-- One tangent point per edge is fine — each curve pair adjusts its control points
-- No "center + radius" to get wrong
-- `MaxSafeSpeedKts` computed from minimum radius of curvature along the curve
+### Coincident node merge pass (implemented)
+Complex intersections (5+ edges) and adjacent filleted intersections produce tangent-point nodes at the same position (within 5ft). Global post-fillet pass `MergeCoincidentNodes` in `FilletArcGenerator.Apply` consolidates them, removes self-loop edges/arcs, duplicate edges, and redundant arcs (arcs that duplicate a straight edge between the same nodes). Also a per-intersection merge in `FilletNode` between Phase B and Phase C.
 
-This requires reworking:
-- `GroundArc` data model: store P0/P1/P2/P3 instead of center/radius
-- `ComputeArcSteering` in navigator: project onto bezier, lookahead along curve
-- `MaxSafeSpeedKts`: compute from tightest curvature along bezier
-- `TangentBearingAt`: trivial with bezier (P0→P1 or P2→P3)
-- `FilletArcGenerator`: compute control points instead of circle center
-- Renderers: draw bezier polyline instead of circular arc
+### LineUpPhase reworked to analog navigation (implemented)
+`LineUpPhase` no longer searches the ground graph for an on-runway node. The old `FindOnRunwayNode` was fragile with fillets — tangent-point nodes from adjacent intersections displaced the expected neighbor. New approach: turn perpendicular → drive to centerline (cross-track measurement) → turn to runway heading. Fully analog, no node dependency, consistent with the landing/exit analog principle.
 
 ## Key Files
 
-- `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — `IGroundEdge`, `GroundArc`, `DirectionalEdge`, graph structure, `MatchesTaxiway`/`SharesTaxiway`/`SameTaxiway`
-- `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` — arc generation algorithm
+- `src/Yaat.Sim/Data/Airport/AirportGroundLayout.cs` — `IGroundEdge`, `GroundArc` (bezier), `DirectionalEdge`, graph structure
+- `src/Yaat.Sim/Data/Airport/CubicBezier.cs` — bezier math: evaluate, derivative, curvature, arc length, closest-t
+- `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` — arc generation, coincident node merge, graph cleanup
 - `src/Yaat.Sim/Data/Airport/GeoJsonParser.cs` — Step 8: `FilletArcGenerator.Apply` after `RebuildAdjacencyLists`
-- `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — arc-following mode (`ComputeArcSteering`)
+- `src/Yaat.Sim/Phases/Ground/GroundNavigator.cs` — bezier arc-following (`ComputeArcSteering`)
+- `src/Yaat.Sim/Phases/Tower/LineUpPhase.cs` — analog lineup (cross-track + heading alignment)
 - `src/Yaat.Sim/Phases/Ground/RunwayExitPhase.cs` — exit route building
 - `src/Yaat.Sim/Data/Airport/TaxiRoute.cs` — route segments supporting `IGroundEdge`
 - `src/Yaat.Sim/Data/Airport/TaxiPathfinder.cs` — 3-strategy A* + Yen's K-shortest, `RoutePreference` enum
-- `src/Yaat.Client/Views/Ground/GroundRenderer.cs` — `DrawArcSegment` for route rendering
-- `tools/Yaat.TickAnimator/FrameRenderer.cs` — arc edge rendering
+- `src/Yaat.Client/Views/Ground/GroundRenderer.cs` — `DrawArcSegment` bezier polyline rendering
+- `tools/Yaat.TickAnimator/FrameRenderer.cs` — bezier arc edge rendering
 - `tests/Yaat.Sim.Tests/FilletArcGeneratorTests.cs` — unit tests
 - `tests/Yaat.Sim.Tests/FilletPathfindingTests.cs` — pathfinding integration tests
 - `tests/Yaat.Sim.Tests/FilletVisualizerTests.cs` — HTML visualization for debugging

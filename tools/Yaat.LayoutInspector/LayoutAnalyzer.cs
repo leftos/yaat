@@ -1,7 +1,6 @@
 using Yaat.Sim;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
-
 using static Yaat.Sim.Data.Airport.AirportGroundLayout;
 
 namespace Yaat.LayoutInspector;
@@ -712,7 +711,14 @@ public sealed class LayoutAnalyzer
                 if (!edge.MatchesTaxiway(branchTwy))
                 {
                     edgesExplored.Add(
-                        new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, nextType, "SKIP", $"taxiway {edge.TaxiwayName} does not match {branchTwy}")
+                        new BfsEdgeExplored(
+                            nextId,
+                            edge.TaxiwayName,
+                            edge.DistanceNm,
+                            nextType,
+                            "SKIP",
+                            $"taxiway {edge.TaxiwayName} does not match {branchTwy}"
+                        )
                     );
                     continue;
                 }

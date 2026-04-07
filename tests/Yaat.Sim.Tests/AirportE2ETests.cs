@@ -803,9 +803,7 @@ public class AirportE2ETests
         var t7aNodeIds = t7aEdges.SelectMany(e => new[] { e.Nodes[0].Id, e.Nodes[1].Id }).Distinct().ToHashSet();
 
         // Junction: T7A node that also has an A edge
-        var junction = layout.Nodes.Values.FirstOrDefault(n =>
-            t7aNodeIds.Contains(n.Id) && n.Edges.Any(e => e.MatchesTaxiway("A"))
-        );
+        var junction = layout.Nodes.Values.FirstOrDefault(n => t7aNodeIds.Contains(n.Id) && n.Edges.Any(e => e.MatchesTaxiway("A")));
 
         // Pushback node: T7A point 2 at (37.620251, -122.385900) — the node SKW5966 pushed back to
         // Find the T7A node closest to that coordinate
@@ -1050,9 +1048,7 @@ public class AirportE2ETests
 
         // Find a C-only node (not at C/E junction) to simulate a realistic start
         var cOnlyNode = layout.Nodes.Values.FirstOrDefault(n =>
-            n.Edges.Any(e => e.MatchesTaxiway("C"))
-            && !n.Edges.Any(e => e.MatchesTaxiway("E"))
-            && n.Type == GroundNodeType.TaxiwayIntersection
+            n.Edges.Any(e => e.MatchesTaxiway("C")) && !n.Edges.Any(e => e.MatchesTaxiway("E")) && n.Type == GroundNodeType.TaxiwayIntersection
         );
         Assert.NotNull(cOnlyNode);
 

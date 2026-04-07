@@ -236,10 +236,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             string nearestInfo = "(none)";
             if (exit is not null)
             {
-                var tws = exit
-                    .Edges.Where(e => !e.IsRunwayCenterline)
-                    .Select(e => e.TaxiwayName)
-                    .Distinct(StringComparer.OrdinalIgnoreCase);
+                var tws = exit.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
                 double dist = GeoMath.DistanceNm(lat, lon, exit.Latitude, exit.Longitude);
                 nearestInfo = $"node={exit.Id} dist={dist:F3}nm tws=[{string.Join(",", tws)}] type={exit.Type}";
             }
@@ -248,10 +245,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             if (exitAhead is not null)
             {
                 var n = exitAhead.Value.Node;
-                var tws = n
-                    .Edges.Where(e => !e.IsRunwayCenterline)
-                    .Select(e => e.TaxiwayName)
-                    .Distinct(StringComparer.OrdinalIgnoreCase);
+                var tws = n.Edges.Where(e => !e.IsRunwayCenterline).Select(e => e.TaxiwayName).Distinct(StringComparer.OrdinalIgnoreCase);
                 double dist = GeoMath.DistanceNm(lat, lon, n.Latitude, n.Longitude);
                 aheadInfo = $"node={n.Id} dist={dist:F3}nm tw={exitAhead.Value.Taxiway} tws=[{string.Join(",", tws)}]";
             }

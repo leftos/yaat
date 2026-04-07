@@ -92,7 +92,16 @@ public static class GeoJsonParser
             Log.LogWarning("Skipped {Count} malformed feature(s) in {Airport}", skipped, airportId);
         }
 
-        return BuildLayout(airportId, parkingFeatures, helipadFeatures, spotFeatures, taxiwayFeatures, runwayFeatures, runwayAirportCode, applyFillets);
+        return BuildLayout(
+            airportId,
+            parkingFeatures,
+            helipadFeatures,
+            spotFeatures,
+            taxiwayFeatures,
+            runwayFeatures,
+            runwayAirportCode,
+            applyFillets
+        );
     }
 
     /// <summary>

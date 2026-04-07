@@ -73,7 +73,9 @@ public class OakSpeedProfileTests(ITestOutputHelper output)
         Assert.NotNull(layout);
 
         // Find the branch node dynamically: a node that has edges on both the runway and the exit taxiway
-        var branchNode = layout.Nodes.Values.FirstOrDefault(n => n.Edges.Any(e => e.IsRunwayCenterline) && n.Edges.Any(e => e.MatchesTaxiway(exitTaxiway)));
+        var branchNode = layout.Nodes.Values.FirstOrDefault(n =>
+            n.Edges.Any(e => e.IsRunwayCenterline) && n.Edges.Any(e => e.MatchesTaxiway(exitTaxiway))
+        );
         Assert.True(branchNode is not null, $"No branch node found for exit taxiway {exitTaxiway} on runway {runwayId}");
 
         double reciprocal = (runway.TrueHeading.Degrees + 180) % 360;
