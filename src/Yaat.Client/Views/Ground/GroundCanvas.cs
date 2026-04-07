@@ -862,6 +862,12 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
         InvalidateVisual();
     }
 
+    public void ResetView()
+    {
+        _hasFitBounds = false;
+        FitToLayout();
+    }
+
     private void FitToLayout()
     {
         if (_hasFitBounds || Layout is null || Layout.Nodes.Count == 0)

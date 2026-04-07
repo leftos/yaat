@@ -169,6 +169,11 @@ public partial class GroundView : UserControl
         };
     }
 
+    private void OnResetView(object? sender, RoutedEventArgs e)
+    {
+        Canvas.ResetView();
+    }
+
     private void OnToggleLock(object? sender, RoutedEventArgs e)
     {
         if (DataContext is GroundViewModel vm)

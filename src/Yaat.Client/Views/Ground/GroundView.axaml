@@ -85,6 +85,7 @@
             <Button Classes="gnd-filter" Classes.active="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowParking, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="PARK" Click="OnToggleParking" />
             <Button Classes="gnd-filter" Classes.active="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsActive}}" Classes.partial="{Binding ShowSpot, Converter={x:Static ground:GroundView.FilterIsPartial}}" Content="SPOT" Click="OnToggleSpot" />
             <Border Width="1" Background="#555" Margin="4,2" />
+            <Button Classes="gnd-filter" Content="RESET" Click="OnResetView" ToolTip.Tip="Reset view to fit airport" />
             <Button Classes="gnd-filter" Classes.active="{Binding IsPanZoomLocked}" Content="{Binding IsPanZoomLocked, Converter={x:Static ground:GroundView.BoolToLockLabel}}" Click="OnToggleLock" />
         </StackPanel>
 
