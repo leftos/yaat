@@ -103,6 +103,7 @@ public class GroundConflictDetectorTests
         layout.Nodes[2] = n2;
         layout.Edges.AddRange([edge01, edge12]);
 
+        layout.WireEdgeNodeReferences();
         return (layout, n0, n1, n2);
     }
 
@@ -161,6 +162,7 @@ public class GroundConflictDetectorTests
         layout.Nodes[2] = n2;
         layout.Edges.AddRange([edge02, edge12]);
 
+        layout.WireEdgeNodeReferences();
         return (layout, n0, n1, n2);
     }
 

@@ -16,7 +16,7 @@ namespace Yaat.Sim.Phases.Ground;
 public sealed class PushbackPhase : Phase
 {
     private const double DefaultPushbackDistanceNm = 0.015;
-    private const double TargetReachedThresholdNm = 0.005;
+    private const double TargetReachedThresholdNm = 0.0005;
     private const double HeadingReachedDeg = 0.5;
     private const double LogIntervalSeconds = 3.0;
     private const double NoseRotationProgressThreshold = 0.6;
@@ -181,8 +181,6 @@ public sealed class PushbackPhase : Phase
 
             if (dist <= TargetReachedThresholdNm)
             {
-                ctx.Aircraft.Latitude = TargetLatitude!.Value;
-                ctx.Aircraft.Longitude = TargetLongitude!.Value;
                 ctx.Aircraft.IndicatedAirspeed = 0;
                 ctx.Targets.TargetSpeed = 0;
                 _reachedTarget = true;

@@ -247,18 +247,6 @@ public sealed class TaxiingPhase : Phase
                 holdShort.Reason
             );
 
-            // Snap to exact hold-short position
-            if (holdShort.Latitude is not null && holdShort.Longitude is not null)
-            {
-                ctx.Aircraft.Latitude = holdShort.Latitude.Value;
-                ctx.Aircraft.Longitude = holdShort.Longitude.Value;
-            }
-            else if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_nav.TargetNodeId, out var hsNode))
-            {
-                ctx.Aircraft.Latitude = hsNode.Latitude;
-                ctx.Aircraft.Longitude = hsNode.Longitude;
-            }
-
             ctx.MarkHoldShortNodeOccupied?.Invoke(_nav.TargetNodeId);
 
             ctx.Aircraft.IndicatedAirspeed = 0;
@@ -279,17 +267,6 @@ public sealed class TaxiingPhase : Phase
         if (route.IsComplete)
         {
             ctx.Logger.LogDebug("[Taxi] {Callsign}: route complete after {SegCount} segments", ctx.Aircraft.Callsign, route.Segments.Count);
-
-            // Snap to the final destination node
-            if (route.Segments.Count > 0 && ctx.GroundLayout is not null)
-            {
-                int finalNodeId = route.Segments[^1].ToNodeId;
-                if (ctx.GroundLayout.Nodes.TryGetValue(finalNodeId, out var finalNode))
-                {
-                    ctx.Aircraft.Latitude = finalNode.Latitude;
-                    ctx.Aircraft.Longitude = finalNode.Longitude;
-                }
-            }
 
             ApplyDepartureClearanceIfPending(ctx);
 
@@ -336,7 +313,7 @@ public sealed class TaxiingPhase : Phase
             int? exitNodeId = FindRunwayCrossingExitNode(route, holdShort, ctx.GroundLayout);
             if (exitNodeId is not null)
             {
-                phases.Add(new CrossingRunwayPhase(exitNodeId.Value));
+                phases.Add(new CrossingRunwayPhase(holdShort.NodeId, exitNodeId.Value));
 
                 while (!route.IsComplete)
                 {

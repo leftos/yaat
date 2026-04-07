@@ -168,6 +168,7 @@ public class RunwayCrossingDetectorTests
 
         var edge = MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude));
         WireEdge(layout, edge);
+        layout.WireEdgeNodeReferences();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -202,6 +203,7 @@ public class RunwayCrossingDetectorTests
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
         WireEdge(layout, MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        layout.WireEdgeNodeReferences();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -238,6 +240,7 @@ public class RunwayCrossingDetectorTests
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
         WireEdge(layout, MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        layout.WireEdgeNodeReferences();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -268,6 +271,7 @@ public class RunwayCrossingDetectorTests
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
         WireEdge(layout, MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        layout.WireEdgeNodeReferences();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -304,6 +308,7 @@ public class RunwayCrossingDetectorTests
         layout.Nodes[1] = onNode;
         layout.Nodes[2] = offNode;
         WireEdge(layout, MakeEdge(1, 2, "A", GeoMath.DistanceNm(onNode.Latitude, onNode.Longitude, offNode.Latitude, offNode.Longitude)));
+        layout.WireEdgeNodeReferences();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -340,6 +345,7 @@ public class RunwayCrossingDetectorTests
 
         // Edge named "RWY18/36" — should be skipped
         WireEdge(layout, MakeEdge(1, 2, "RWY18/36", 0.1));
+        layout.WireEdgeNodeReferences();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);
@@ -372,6 +378,7 @@ public class RunwayCrossingDetectorTests
         layout.Nodes[1] = node1;
         layout.Nodes[2] = node2;
         WireEdge(layout, MakeEdge(1, 2, "A", 0.05));
+        layout.WireEdgeNodeReferences();
 
         int nextNodeId = 100;
         var coordIndex = new CoordinateIndex(0.0001);

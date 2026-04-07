@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -11,17 +12,19 @@ namespace Yaat.Sim.Phases.Ground;
 /// </summary>
 public sealed class CrossingRunwayPhase : Phase
 {
-    private const double ArrivalThresholdNm = 0.005;
+    private const double ArrivalThresholdNm = 0.001;
     private const double LogIntervalSeconds = 3.0;
 
+    private readonly int _approachNodeId;
     private readonly int _targetNodeId;
     private double _targetLat;
     private double _targetLon;
     private bool _initialized;
     private double _timeSinceLastLog;
 
-    public CrossingRunwayPhase(int targetNodeId)
+    public CrossingRunwayPhase(int approachNodeId, int targetNodeId)
     {
+        _approachNodeId = approachNodeId;
         _targetNodeId = targetNodeId;
     }
 
@@ -31,8 +34,22 @@ public sealed class CrossingRunwayPhase : Phase
     {
         if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var node))
         {
-            _targetLat = node.Latitude;
-            _targetLon = node.Longitude;
+            // Offset ½ aircraft length past the target node so the tail clears the runway edge.
+            double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
+            double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+
+            if (ctx.GroundLayout.Nodes.TryGetValue(_approachNodeId, out var approachNode))
+            {
+                var vn = VirtualNode.OffsetPast(ctx.GroundLayout, node, approachNode, halfLengthNm);
+                _targetLat = vn.Latitude;
+                _targetLon = vn.Longitude;
+            }
+            else
+            {
+                _targetLat = node.Latitude;
+                _targetLon = node.Longitude;
+            }
+
             _initialized = true;
         }
 
@@ -102,13 +119,6 @@ public sealed class CrossingRunwayPhase : Phase
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
             ctx.Targets.TargetSpeed = 0;
-
-            // Offset forward by half the aircraft length so the tail clears the runway edge
-            double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
-            double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
-            var (newLat, newLon) = GeoMath.ProjectPoint(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, ctx.Aircraft.TrueHeading, halfLengthNm);
-            ctx.Aircraft.Latitude = newLat;
-            ctx.Aircraft.Longitude = newLon;
         }
     }
 
@@ -129,6 +139,7 @@ public sealed class CrossingRunwayPhase : Phase
             Status = (int)Status,
             ElapsedSeconds = ElapsedSeconds,
             Requirements = SnapshotRequirements(),
+            ApproachNodeId = _approachNodeId,
             TargetNodeId = _targetNodeId,
             TargetLat = _targetLat,
             TargetLon = _targetLon,
@@ -138,7 +149,7 @@ public sealed class CrossingRunwayPhase : Phase
 
     public static CrossingRunwayPhase FromSnapshot(CrossingRunwayPhaseDto dto)
     {
-        var phase = new CrossingRunwayPhase(dto.TargetNodeId);
+        var phase = new CrossingRunwayPhase(dto.ApproachNodeId, dto.TargetNodeId);
         phase._targetLat = dto.TargetLat;
         phase._targetLon = dto.TargetLon;
         phase._initialized = dto.Initialized;

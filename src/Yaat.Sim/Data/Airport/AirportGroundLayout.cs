@@ -47,6 +47,22 @@ public sealed class GroundEdge
     /// Does NOT include the from/to node positions — those are looked up from nodes.
     /// </summary>
     public List<(double Lat, double Lon)> IntermediatePoints { get; init; } = [];
+
+    /// <summary>
+    /// Node reference, populated during layout construction. Null for virtual sentinel nodes.
+    /// </summary>
+    public GroundNode? FromNode { get; set; }
+
+    /// <summary>
+    /// Node reference, populated during layout construction or for virtual nodes.
+    /// </summary>
+    public GroundNode? ToNode { get; set; }
+
+    /// <summary>
+    /// Returns the node on the other end of this edge from <paramref name="node"/>.
+    /// Uses object references — no layout dictionary lookup needed.
+    /// </summary>
+    public GroundNode? OtherNode(GroundNode node) => FromNode == node ? ToNode : FromNode;
 }
 
 public sealed class GroundRunway
@@ -63,6 +79,27 @@ public sealed class AirportGroundLayout
     public Dictionary<int, GroundNode> Nodes { get; init; } = [];
     public List<GroundEdge> Edges { get; init; } = [];
     public List<GroundRunway> Runways { get; init; } = [];
+
+    /// <summary>
+    /// Populate <see cref="GroundEdge.FromNode"/> and <see cref="GroundEdge.ToNode"/>
+    /// on all edges from the <see cref="Nodes"/> dictionary. Call after constructing
+    /// edges outside of <see cref="GeoJsonParser"/> (e.g., in tests).
+    /// </summary>
+    public void WireEdgeNodeReferences()
+    {
+        foreach (var edge in Edges)
+        {
+            if (edge.FromNode is null && Nodes.TryGetValue(edge.FromNodeId, out var fromNode))
+            {
+                edge.FromNode = fromNode;
+            }
+
+            if (edge.ToNode is null && Nodes.TryGetValue(edge.ToNodeId, out var toNode))
+            {
+                edge.ToNode = toNode;
+            }
+        }
+    }
 
     public GroundNode? FindParkingByName(string name)
     {

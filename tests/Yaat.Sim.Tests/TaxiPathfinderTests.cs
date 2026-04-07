@@ -125,6 +125,7 @@ public class TaxiPathfinderTests
         nodeE.Edges.Add(edgeBE);
         parking.Edges.Add(edgePB);
 
+        layout.WireEdgeNodeReferences();
         return layout;
     }
 
@@ -241,6 +242,7 @@ public class TaxiPathfinderTests
         hs1.Edges.Add(edgeW1_2_hs1);
         hs2.Edges.Add(edgeW2_3_hs2);
 
+        layout.WireEdgeNodeReferences();
         return layout;
     }
 
@@ -320,6 +322,7 @@ public class TaxiPathfinderTests
         node2.Edges.AddRange([edgeW12, edgeZ2hs]);
         hs.Edges.Add(edgeZ2hs);
 
+        layout.WireEdgeNodeReferences();
         return layout;
     }
 
@@ -547,6 +550,7 @@ public class TaxiPathfinderTests
         node1.Edges.AddRange([edgeA, edgeW]);
         node2.Edges.AddRange([edgeW, edgeW1]);
         hs.Edges.Add(edgeW1);
+        layout.WireEdgeNodeReferences();
 
         var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30");
 
@@ -687,6 +691,7 @@ public class TaxiPathfinderTests
         node0.Edges.Add(edgeA);
         node1.Edges.AddRange([edgeA, edgeW]);
         node2.Edges.Add(edgeW);
+        layout.WireEdgeNodeReferences();
 
         var route = TaxiPathfinder.ResolveExplicitPath(layout, 0, ["A", "W"], out string? failReason, destinationRunway: "30");
 
@@ -783,6 +788,7 @@ public class TaxiPathfinderTests
         n1.Edges.AddRange([e01, e13]);
         n2.Edges.AddRange([e02, e23]);
         n3.Edges.AddRange([e13, e23]);
+        layout.WireEdgeNodeReferences();
 
         var routes = TaxiPathfinder.FindRoutes(layout, 0, 3);
 
@@ -894,6 +900,7 @@ public class TaxiPathfinderTests
         n1.Edges.AddRange([e01, e13]);
         n2.Edges.AddRange([e02, e23]);
         n3.Edges.AddRange([e13, e23]);
+        layout.WireEdgeNodeReferences();
 
         var routes = TaxiPathfinder.FindRoutes(layout, 0, 3);
 
@@ -999,6 +1006,7 @@ public class TaxiPathfinderTests
         n2.Edges.AddRange([e02, e24]);
         n3.Edges.AddRange([e03, e34]);
         n4.Edges.AddRange([e14, e24, e34]);
+        layout.WireEdgeNodeReferences();
 
         var routes = TaxiPathfinder.FindRoutes(layout, 0, 4, maxRoutes: 2);
 

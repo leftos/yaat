@@ -237,12 +237,14 @@ public static class TaxiPathfinder
             HoldShortAnnotator.AddDestinationHoldShort(layout, segments, holdShorts, destinationRunway);
         }
 
-        return new TaxiRoute
+        var route = new TaxiRoute
         {
             Segments = segments,
             HoldShortPoints = holdShorts,
             Warnings = warnings,
         };
+        route.WireEdgeNodeReferences(layout);
+        return route;
     }
 
     /// <summary>
@@ -333,6 +335,7 @@ public static class TaxiPathfinder
                 HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, combinedSegments, holdShorts);
 
                 var combined = new TaxiRoute { Segments = combinedSegments, HoldShortPoints = holdShorts };
+                combined.WireEdgeNodeReferences(layout);
                 candidates.Add(combined);
             }
 
@@ -1482,6 +1485,8 @@ public static class TaxiPathfinder
         var holdShorts = new List<HoldShortPoint>();
         HoldShortAnnotator.AddImplicitRunwayHoldShorts(layout, segments, holdShorts);
 
-        return new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
+        var route = new TaxiRoute { Segments = segments, HoldShortPoints = holdShorts };
+        route.WireEdgeNodeReferences(layout);
+        return route;
     }
 }

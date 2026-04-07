@@ -14,6 +14,7 @@ namespace Yaat.Sim.Phases.Ground;
 public sealed class PushbackToSpotPhase : Phase
 {
     private const double NodeArrivalThresholdNm = 0.008;
+    private const double FinalNodeArrivalThresholdNm = 0.0005;
     private const double HeadingReachedDeg = 2.0;
     private const double PivotThresholdDeg = 20.0;
     private const double LogIntervalSeconds = 3.0;
@@ -111,8 +112,10 @@ public sealed class PushbackToSpotPhase : Phase
         }
 
         double dist = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, _targetLat, _targetLon);
+        bool isLastSegment = _route.CurrentSegmentIndex + 1 >= _route.Segments.Count;
+        double threshold = isLastSegment ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
 
-        if (dist <= NodeArrivalThresholdNm)
+        if (dist <= threshold)
         {
             return ArriveAtNode(ctx);
         }
@@ -267,13 +270,6 @@ public sealed class PushbackToSpotPhase : Phase
             _route.CurrentSegmentIndex,
             _route.Segments.Count
         );
-
-        // Snap to node position
-        if (ctx.GroundLayout is not null && ctx.GroundLayout.Nodes.TryGetValue(_targetNodeId, out var node))
-        {
-            ctx.Aircraft.Latitude = node.Latitude;
-            ctx.Aircraft.Longitude = node.Longitude;
-        }
 
         _route.CurrentSegmentIndex++;
 

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
-using Yaat.Sim.Data.Faa;
 using Yaat.Sim.Simulation.Snapshots;
 
 namespace Yaat.Sim.Phases.Ground;
@@ -10,9 +9,8 @@ namespace Yaat.Sim.Phases.Ground;
 /// Speed=0, IsOnGround=true. Accepts Taxi, Hold, and Delete.
 /// Never completes on its own — waits for an RPO command.
 ///
-/// On start: offsets the aircraft forward by half its length so the tail clears
-/// the hold-short line, then broadcasts "clear of runway {rwy} at {twy}".
-/// Does NOT snap heading — the aircraft keeps the heading from TaxiingPhase.
+/// On start: broadcasts "clear of runway {rwy} at {twy}".
+/// Does NOT snap heading — the aircraft keeps the heading from RunwayExitPhase.
 /// </summary>
 public sealed class HoldingAfterExitPhase : Phase
 {
@@ -45,14 +43,6 @@ public sealed class HoldingAfterExitPhase : Phase
         ctx.Targets.TargetAltitude = null;
         ctx.Aircraft.IndicatedAirspeed = 0;
         ctx.Aircraft.IsOnGround = true;
-
-        // Offset forward by half the aircraft length so the tail clears the hold-short line.
-        // Same pattern as CrossingRunwayPhase.OnEnd.
-        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
-        double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
-        var (newLat, newLon) = GeoMath.ProjectPoint(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, ctx.Aircraft.TrueHeading, halfLengthNm);
-        ctx.Aircraft.Latitude = newLat;
-        ctx.Aircraft.Longitude = newLon;
 
         // Broadcast "clear of runway"
         string rwy = _runwayId ?? ctx.Aircraft.Phases?.AssignedRunway?.Designator ?? "unknown";

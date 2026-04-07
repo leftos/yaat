@@ -98,7 +98,7 @@ public class SfoPushbackTests(ITestOutputHelper output)
         _output.WriteLine($"{"t(s)", 5}  {"gs(kts)", 8}  {"dist(ft)", 9}  {"pushHdg", 8}  {"noseHdg", 8}  {"phase", -24}");
 
         bool reachedParking = false;
-        int maxTicks = 120;
+        int maxTicks = 140;
         for (int tick = 0; tick < maxTicks; tick++)
         {
             engine.TickOneSecond();

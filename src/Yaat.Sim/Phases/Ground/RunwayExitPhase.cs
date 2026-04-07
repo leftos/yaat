@@ -325,6 +325,7 @@ public sealed class RunwayExitPhase : Phase
                     ToNodeId = branchNode.Id,
                     TaxiwayName = $"RWY{_runwayId}",
                     DistanceNm = Math.Max(distToBranch, 0.001),
+                    ToNode = branchNode,
                 },
             }
         );
@@ -350,6 +351,24 @@ public sealed class RunwayExitPhase : Phase
                 }
             );
         }
+
+        // Append a virtual segment past the hold-short node so the aircraft's tail
+        // clears the hold-short line. The virtual node is offset along the graph edge.
+        var holdShortNode = _exitPath[^1];
+        double lengthFt = FaaAircraftDatabase.Get(ctx.Aircraft.AircraftType)?.LengthFt ?? 60.0;
+        double halfLengthNm = (lengthFt / 2.0) / GeoMath.FeetPerNm;
+
+        GroundNode virtualTarget;
+        if (_exitPath.Count >= 2)
+        {
+            virtualTarget = VirtualNode.OffsetPast(ctx.GroundLayout!, holdShortNode, _exitPath[^2], halfLengthNm);
+        }
+        else
+        {
+            virtualTarget = VirtualNode.OffsetPast(ctx.GroundLayout!, holdShortNode, ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, halfLengthNm);
+        }
+
+        segments.Add(VirtualNode.CreateSegment(holdShortNode, virtualTarget, _exitTaxiway));
 
         _exitRoute = new TaxiRoute { Segments = segments, HoldShortPoints = [] };
 

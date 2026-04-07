@@ -229,11 +229,13 @@ public static class GeoJsonParser
             if (layout.Nodes.TryGetValue(edge.FromNodeId, out var fromNode))
             {
                 fromNode.Edges.Add(edge);
+                edge.FromNode = fromNode;
             }
 
             if (layout.Nodes.TryGetValue(edge.ToNodeId, out var toNode))
             {
                 toNode.Edges.Add(edge);
+                edge.ToNode = toNode;
             }
         }
 
@@ -286,6 +288,8 @@ public static class GeoJsonParser
             ToNodeId = nearest.Id,
             TaxiwayName = "RAMP",
             DistanceNm = nearestDist,
+            FromNode = node,
+            ToNode = nearest,
         };
 
         layout.Edges.Add(edge);

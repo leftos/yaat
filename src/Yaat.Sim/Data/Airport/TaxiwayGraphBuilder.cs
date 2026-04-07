@@ -103,6 +103,8 @@ internal static class TaxiwayGraphBuilder
                 ToNodeId = toId,
                 TaxiwayName = tw.Name,
                 DistanceNm = dist,
+                FromNode = fromNode,
+                ToNode = toNode,
             };
 
             layout.Edges.Add(edge);

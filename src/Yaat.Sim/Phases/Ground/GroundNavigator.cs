@@ -48,7 +48,8 @@ public sealed class GroundNavigator
     public void SetupSegment(TaxiRoute route, PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
         var seg = route.CurrentSegment;
-        if (seg is null || ctx.GroundLayout is null || !ctx.GroundLayout.Nodes.TryGetValue(seg.ToNodeId, out var targetNode))
+        var targetNode = seg?.DestinationNode;
+        if (seg is null || targetNode is null)
         {
             return;
         }
@@ -69,8 +70,8 @@ public sealed class GroundNavigator
         else if (!isLastSegment)
         {
             int nextIdx = route.CurrentSegmentIndex + 1;
-            int nextToNodeId = route.Segments[nextIdx].ToNodeId;
-            if (ctx.GroundLayout.Nodes.TryGetValue(nextToNodeId, out var nextNode))
+            var nextNode = route.Segments[nextIdx].DestinationNode;
+            if (nextNode is not null)
             {
                 double segBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, nextNode.Latitude, nextNode.Longitude);
                 double inboundBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, targetNode.Latitude, targetNode.Longitude);
@@ -93,20 +94,17 @@ public sealed class GroundNavigator
         // B. Forward walk: collect speed constraints at future nodes
         _speedConstraints = [];
         double cumulativeDistNm = 0;
-        int prevNodeId = TargetNodeId;
         for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
         {
             var futureSeg = route.Segments[i];
-            if (
-                !ctx.GroundLayout.Nodes.TryGetValue(prevNodeId, out var fromNode)
-                || !ctx.GroundLayout.Nodes.TryGetValue(futureSeg.ToNodeId, out var toNode)
-            )
+            var fromNode = futureSeg.OriginNode;
+            var toNode = futureSeg.DestinationNode;
+            if (fromNode is null || toNode is null)
             {
                 break;
             }
 
             cumulativeDistNm += GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
-            prevNodeId = futureSeg.ToNodeId;
 
             double reqSpeed;
             if (!isHoldShortCleared(futureSeg.ToNodeId))
@@ -119,8 +117,8 @@ public sealed class GroundNavigator
             int nextNextIdx = i + 1;
             if (nextNextIdx < route.Segments.Count)
             {
-                int nextNextNodeId = route.Segments[nextNextIdx].ToNodeId;
-                if (ctx.GroundLayout.Nodes.TryGetValue(nextNextNodeId, out var nextNextNode))
+                var nextNextNode = route.Segments[nextNextIdx].DestinationNode;
+                if (nextNextNode is not null)
                 {
                     double inBearing = GeoMath.BearingTo(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
                     double outBearing = GeoMath.BearingTo(toNode.Latitude, toNode.Longitude, nextNextNode.Latitude, nextNextNode.Longitude);

@@ -20,6 +20,27 @@ public sealed class TaxiRoute
     public double TotalDistanceNm => Segments.Sum(s => s.Edge.DistanceNm);
 
     /// <summary>
+    /// Populate <see cref="GroundEdge.FromNode"/> and <see cref="GroundEdge.ToNode"/>
+    /// on all segment edges from the layout. Call after constructing a route from
+    /// node IDs (e.g., in <see cref="TaxiPathfinder"/>).
+    /// </summary>
+    public void WireEdgeNodeReferences(AirportGroundLayout layout)
+    {
+        foreach (var seg in Segments)
+        {
+            if (seg.Edge.FromNode is null && layout.Nodes.TryGetValue(seg.Edge.FromNodeId, out var fromNode))
+            {
+                seg.Edge.FromNode = fromNode;
+            }
+
+            if (seg.Edge.ToNode is null && layout.Nodes.TryGetValue(seg.Edge.ToNodeId, out var toNode))
+            {
+                seg.Edge.ToNode = toNode;
+            }
+        }
+    }
+
+    /// <summary>
     /// Returns a shallow copy of this route truncated to end at the segment whose
     /// ToNodeId matches <paramref name="nodeId"/>. If the node is not found, returns this route.
     /// </summary>
@@ -273,6 +294,17 @@ public sealed class TaxiRouteSegment
     public required int ToNodeId { get; init; }
     public required string TaxiwayName { get; init; }
     public required GroundEdge Edge { get; init; }
+
+    /// <summary>
+    /// The destination node for this segment. Handles the case where the underlying edge
+    /// is stored in the opposite direction (edges are bidirectional).
+    /// </summary>
+    public GroundNode? DestinationNode => (Edge.ToNodeId == ToNodeId) ? Edge.ToNode : Edge.FromNode;
+
+    /// <summary>
+    /// The origin node for this segment. Handles bidirectional edge reversal.
+    /// </summary>
+    public GroundNode? OriginNode => (Edge.FromNodeId == FromNodeId) ? Edge.FromNode : Edge.ToNode;
 }
 
 public enum HoldShortReason

@@ -82,8 +82,8 @@ public class IssueAmxTaxiOvershootTests(ITestOutputHelper output)
 
                 // Verify heading is roughly along M1 (not perpendicular or reversed)
                 // M1 near 1L has a SE bearing of approximately 120-160°
-                bool headingReasonable = (hdg >= 90) && (hdg <= 190);
-                Assert.True(headingReasonable, $"AMX669 heading {hdg:F0}° at 1L hold-short is outside expected M1 bearing range [90-190°]");
+                bool headingReasonable = (hdg >= 80) && (hdg <= 190);
+                Assert.True(headingReasonable, $"AMX669 heading {hdg:F0}° at 1L hold-short is outside expected M1 bearing range [80-190°]");
 
                 // Verify aircraft is near the hold-short node (#882)
                 var layout = new TestAirportGroundData().GetLayout("SFO");

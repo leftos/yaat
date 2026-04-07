@@ -222,6 +222,7 @@ public sealed class HoldingShortPhaseDto : PhaseDto
 
 public sealed class CrossingRunwayPhaseDto : PhaseDto
 {
+    public required int ApproachNodeId { get; init; }
     public required int TargetNodeId { get; init; }
     public required double TargetLat { get; init; }
     public required double TargetLon { get; init; }

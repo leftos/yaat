@@ -113,6 +113,7 @@ public class GroundCommandHandlerTests
         node2.Edges.Add(edge23);
         node3.Edges.Add(edge23);
 
+        layout.WireEdgeNodeReferences();
         return layout;
     }
 
@@ -744,6 +745,7 @@ public class GroundCommandHandlerTests
         minLayout.Edges.Add(edge);
         n1.Edges.Add(edge);
         n2.Edges.Add(edge);
+        minLayout.WireEdgeNodeReferences();
 
         var cmd2 = new TaxiCommand(["B"], []);
         var result = GroundCommandHandler.TryTaxi(ac, cmd2, minLayout);

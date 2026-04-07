@@ -309,6 +309,8 @@ internal static class RunwayCrossingDetector
                 ToNodeId = toId,
                 TaxiwayName = rwyEdgeName,
                 DistanceNm = dist,
+                FromNode = from,
+                ToNode = to,
             };
 
             layout.Edges.Add(rwyEdge);
@@ -491,6 +493,8 @@ internal static class RunwayCrossingDetector
             ToNodeId = midNode.Id,
             TaxiwayName = edge.TaxiwayName,
             DistanceNm = GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, midNode.Latitude, midNode.Longitude),
+            FromNode = fromNode,
+            ToNode = midNode,
         };
 
         var edgeB = new GroundEdge
@@ -499,6 +503,8 @@ internal static class RunwayCrossingDetector
             ToNodeId = edge.ToNodeId,
             TaxiwayName = edge.TaxiwayName,
             DistanceNm = GeoMath.DistanceNm(midNode.Latitude, midNode.Longitude, toNode.Latitude, toNode.Longitude),
+            FromNode = midNode,
+            ToNode = toNode,
         };
 
         layout.Edges.Add(edgeA);

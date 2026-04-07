@@ -211,9 +211,8 @@ internal static class HoldShortAnnotator
     internal static void ComputeHoldShortPositions(AirportGroundLayout layout, TaxiRoute route, double aircraftLengthFt)
     {
         const double bufferFt = 30.0;
-        const double ftPerNm = 6076.12;
-        double taxiwayOffsetNm = (aircraftLengthFt + bufferFt) / ftPerNm;
-        double runwayHalfLengthNm = (aircraftLengthFt / 2.0) / ftPerNm;
+        double taxiwayOffsetNm = (aircraftLengthFt + bufferFt) / GeoMath.FeetPerNm;
+        double runwayHalfLengthNm = (aircraftLengthFt / 2.0) / GeoMath.FeetPerNm;
 
         foreach (var hs in route.HoldShortPoints)
         {
@@ -226,75 +225,26 @@ internal static class HoldShortAnnotator
             // aircraft length so the aircraft center (position) stops with its nose at the node.
             if ((hs.Reason is HoldShortReason.RunwayCrossing or HoldShortReason.DestinationRunway) || (hsNode.Type == GroundNodeType.RunwayHoldShort))
             {
-                // Find approach direction from the segment that arrives at this node
-                int approachFromNodeId = FindApproachNodeId(route, hs.NodeId);
-                if (approachFromNodeId >= 0 && layout.Nodes.TryGetValue(approachFromNodeId, out var approachNode))
-                {
-                    double backBearing = GeoMath.BearingTo(hsNode.Latitude, hsNode.Longitude, approachNode.Latitude, approachNode.Longitude);
-                    double edgeLenNm = GeoMath.DistanceNm(approachNode.Latitude, approachNode.Longitude, hsNode.Latitude, hsNode.Longitude);
-                    double clampedOffset = Math.Min(runwayHalfLengthNm, edgeLenNm * 0.9);
-                    var (lat, lon) = GeoMath.ProjectPointRaw(hsNode.Latitude, hsNode.Longitude, backBearing, clampedOffset);
-                    hs.Latitude = lat;
-                    hs.Longitude = lon;
-                }
-                else
-                {
-                    hs.Latitude = hsNode.Latitude;
-                    hs.Longitude = hsNode.Longitude;
-                }
-
+                var vn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, runwayHalfLengthNm);
+                hs.Latitude = vn.Latitude;
+                hs.Longitude = vn.Longitude;
                 continue;
             }
 
             // Taxiway hold-short: offset back from intersection along approach edge.
-            int twyApproachId = FindApproachNodeId(route, hs.NodeId);
-
-            if (twyApproachId < 0 || !layout.Nodes.TryGetValue(twyApproachId, out var twyApproachNode))
-            {
-                // Can't determine approach direction — fall back to node position
-                hs.Latitude = hsNode.Latitude;
-                hs.Longitude = hsNode.Longitude;
-                continue;
-            }
-
-            // Bearing from intersection back toward approach node
-            double twyBackBearing = GeoMath.BearingTo(hsNode.Latitude, hsNode.Longitude, twyApproachNode.Latitude, twyApproachNode.Longitude);
-
-            // Clamp offset to 90% of edge length so the aircraft doesn't end up
-            // at or past the approach node (which would confuse segment navigation).
-            double twyEdgeLen = GeoMath.DistanceNm(twyApproachNode.Latitude, twyApproachNode.Longitude, hsNode.Latitude, hsNode.Longitude);
-            double twyClampedOffset = Math.Min(taxiwayOffsetNm, twyEdgeLen * 0.9);
-
-            var (twyLat, twyLon) = GeoMath.ProjectPointRaw(hsNode.Latitude, hsNode.Longitude, twyBackBearing, twyClampedOffset);
-            hs.Latitude = twyLat;
-            hs.Longitude = twyLon;
+            var twyVn = VirtualNode.OffsetBefore(layout, route, hs.NodeId, taxiwayOffsetNm);
+            hs.Latitude = twyVn.Latitude;
+            hs.Longitude = twyVn.Longitude;
 
             Log.LogDebug(
                 "[HoldShortAnnotator] Taxiway HS at node {NodeId} for {Target}: offset {OffsetFt:F0}ft back from intersection ({Lat:F6}, {Lon:F6})",
                 hs.NodeId,
                 hs.TargetName,
-                twyClampedOffset * ftPerNm,
-                twyLat,
-                twyLon
+                taxiwayOffsetNm * GeoMath.FeetPerNm,
+                twyVn.Latitude,
+                twyVn.Longitude
             );
         }
-    }
-
-    /// <summary>
-    /// Finds the FromNodeId of the first segment whose ToNodeId matches <paramref name="nodeId"/>.
-    /// Returns -1 if not found.
-    /// </summary>
-    private static int FindApproachNodeId(TaxiRoute route, int nodeId)
-    {
-        foreach (var seg in route.Segments)
-        {
-            if (seg.ToNodeId == nodeId)
-            {
-                return seg.FromNodeId;
-            }
-        }
-
-        return -1;
     }
 
     /// <summary>

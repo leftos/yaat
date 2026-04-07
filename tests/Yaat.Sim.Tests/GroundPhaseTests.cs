@@ -80,6 +80,7 @@ public class GroundPhaseTests
         layout.Nodes[2] = node2;
         layout.Nodes[3] = node3;
         layout.Edges.AddRange([edge01, edge12, edge23]);
+        layout.WireEdgeNodeReferences();
 
         return layout;
     }

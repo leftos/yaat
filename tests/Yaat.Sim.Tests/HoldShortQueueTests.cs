@@ -61,6 +61,7 @@ public class HoldShortQueueTests
             layout.Nodes[n.Id] = n;
         }
 
+        layout.WireEdgeNodeReferences();
         return (layout, 4);
     }
 
