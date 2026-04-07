@@ -399,7 +399,7 @@ public partial class GroundViewModel : ObservableObject
         var names = new List<string>();
         foreach (var edge in node.Edges)
         {
-            if (!edge.IsRunway && !edge.IsRamp && !names.Contains(edge.TaxiwayName))
+            if (!edge.IsRunwayCenterline && !edge.IsRamp && !names.Contains(edge.TaxiwayName))
             {
                 names.Add(edge.TaxiwayName);
             }
@@ -846,7 +846,7 @@ public partial class GroundViewModel : ObservableObject
                     continue;
                 }
 
-                if (adj.IsRunway || adj.IsRamp)
+                if (adj.IsRunwayCenterline || adj.IsRamp)
                 {
                     continue;
                 }

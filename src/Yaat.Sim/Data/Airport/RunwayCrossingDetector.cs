@@ -59,7 +59,7 @@ internal static class RunwayCrossingDetector
 
         foreach (var edge in edgeSnapshot)
         {
-            if (edge.IsRunway)
+            if (edge.IsRunwayCenterline)
             {
                 continue;
             }
@@ -390,7 +390,7 @@ internal static class RunwayCrossingDetector
 
             foreach (var edge in layout.Edges)
             {
-                if (edge.IsRunway)
+                if (edge.IsRunwayCenterline)
                 {
                     continue;
                 }
@@ -441,7 +441,7 @@ internal static class RunwayCrossingDetector
                 continue;
             }
 
-            if (edge.IsRunway)
+            if (edge.IsRunwayCenterline)
             {
                 continue;
             }

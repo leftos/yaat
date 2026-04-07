@@ -918,7 +918,7 @@ internal static class GroundCommandHandler
             // Case 2: Runway surface node (edge named "RWY...")
             foreach (var edge in node.Edges)
             {
-                if (edge.IsRunway)
+                if (edge.IsRunwayCenterline)
                 {
                     var rawDesignator = edge.TaxiwayName[3..];
                     rwyId = RunwayIdentifier.Parse(rawDesignator);

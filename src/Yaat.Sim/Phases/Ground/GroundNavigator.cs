@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation.Snapshots;
 
@@ -19,6 +20,8 @@ public enum NavigatorResult
 /// </summary>
 public sealed class GroundNavigator
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("GroundNavigator");
+
     private const double NodeArrivalThresholdNm = 0.015;
     private const double FinalNodeArrivalThresholdNm = 0.0003;
     private const double OvershootDetectionNm = 0.03;
@@ -42,6 +45,9 @@ public sealed class GroundNavigator
     /// and the traversal direction (from/to node). Null for straight edges.
     /// </summary>
     private (GroundArc Arc, bool FromNodeIsZero)? _currentArc;
+
+    /// <summary>True when the next segment is a <see cref="GroundArc"/>. Used to suppress turn anticipation.</summary>
+    private bool _nextSegmentIsArc;
 
     /// <summary>
     /// Set up navigation for the current segment of a route. Computes speed
@@ -76,8 +82,14 @@ public sealed class GroundNavigator
             _currentArc = null;
         }
 
+        string segType = _currentArc is not null ? "arc" : "straight";
+        Log.LogDebug(
+            "[Nav] SetupSegment seg={SegIdx}/{Total} target={NodeId} type={Type} edge={Edge} dist={Dist:F4}nm",
+            route.CurrentSegmentIndex, route.Segments.Count, TargetNodeId, segType, seg.TaxiwayName, seg.Edge.DistanceNm);
+
         // A. Compute required speed at the immediate target node
         bool isLastSegment = route.CurrentSegmentIndex + 1 >= route.Segments.Count;
+        _nextSegmentIsArc = false;
 
         if (!isHoldShortCleared(TargetNodeId))
         {
@@ -87,14 +99,19 @@ public sealed class GroundNavigator
         else if (!isLastSegment)
         {
             int nextIdx = route.CurrentSegmentIndex + 1;
-            var nextNode = route.Segments[nextIdx].Edge.ToNode;
-            if (nextNode is not null)
+            var nextSeg = route.Segments[nextIdx];
+            if (nextSeg.Edge.ToNode is not null)
             {
-                double segBearing = GeoMath.BearingTo(targetNode.Latitude, targetNode.Longitude, nextNode.Latitude, nextNode.Longitude);
-                double inboundBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, targetNode.Latitude, targetNode.Longitude);
-                double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, segBearing);
+                // Use edge-aware bearings: arc tangent directions instead of node-to-node
+                double inboundBearing = seg.Edge.ArrivalBearing;
+                double outboundBearing = nextSeg.Edge.DepartureBearing;
+                double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, outboundBearing);
                 _currentNodeRequiredSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngle);
-                _nextSegmentBearing = segBearing;
+                _nextSegmentBearing = outboundBearing;
+                _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
+                Log.LogDebug(
+                    "[Nav]   turn at node {NodeId}: inbound={In:F1}° outbound={Out:F1}° angle={Angle:F1}° reqSpeed={Speed:F1}kts nextIsArc={IsArc}",
+                    TargetNodeId, inboundBearing, outboundBearing, turnAngle, _currentNodeRequiredSpeed, _nextSegmentIsArc);
             }
             else
             {
@@ -106,11 +123,13 @@ public sealed class GroundNavigator
         {
             _currentNodeRequiredSpeed = 0;
             _nextSegmentBearing = null;
+            Log.LogDebug("[Nav]   last segment, reqSpeed=0");
         }
 
         // B. Forward walk: collect speed constraints at future nodes
         _speedConstraints = [];
         double cumulativeDistNm = 0;
+        double turnRate = CategoryPerformance.GroundTurnRate(ctx.Category);
         for (int i = route.CurrentSegmentIndex + 1; i < route.Segments.Count; i++)
         {
             var futureSeg = route.Segments[i];
@@ -121,24 +140,37 @@ public sealed class GroundNavigator
                 break;
             }
 
-            cumulativeDistNm += GeoMath.DistanceNm(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
+            // Use edge distance (arc length for arcs) instead of straight-line between nodes
+            cumulativeDistNm += futureSeg.Edge.DistanceNm;
 
-            double reqSpeed;
+            // Arc speed constraint: the arc's radius limits max speed through it.
+            // Add this at the arc's start (cumulative distance minus the arc length).
+            if (futureSeg.Edge.Edge is GroundArc futureArc)
+            {
+                double arcMaxSpeed = futureArc.MaxSafeSpeedKts(turnRate);
+                if (arcMaxSpeed < MaxSpeedKts)
+                {
+                    double arcStartDist = cumulativeDistNm - futureSeg.Edge.DistanceNm;
+                    _speedConstraints.Add((arcStartDist, arcMaxSpeed, futureSeg.Edge.FromNodeId));
+                }
+            }
+
             if (!isHoldShortCleared(futureSeg.ToNodeId))
             {
-                reqSpeed = 0;
-                _speedConstraints.Add((cumulativeDistNm, reqSpeed, futureSeg.ToNodeId));
+                _speedConstraints.Add((cumulativeDistNm, 0, futureSeg.ToNodeId));
                 break;
             }
 
             int nextNextIdx = i + 1;
+            double reqSpeed;
             if (nextNextIdx < route.Segments.Count)
             {
-                var nextNextNode = route.Segments[nextNextIdx].Edge.ToNode;
-                if (nextNextNode is not null)
+                var nextNextSeg = route.Segments[nextNextIdx];
+                if (nextNextSeg.Edge.ToNode is not null)
                 {
-                    double inBearing = GeoMath.BearingTo(fromNode.Latitude, fromNode.Longitude, toNode.Latitude, toNode.Longitude);
-                    double outBearing = GeoMath.BearingTo(toNode.Latitude, toNode.Longitude, nextNextNode.Latitude, nextNextNode.Longitude);
+                    // Use edge-aware bearings for turn angle at the junction
+                    double inBearing = futureSeg.Edge.ArrivalBearing;
+                    double outBearing = nextNextSeg.Edge.DepartureBearing;
                     double turnAngle = GeoMath.AbsBearingDifference(inBearing, outBearing);
                     reqSpeed = CategoryPerformance.CornerSpeedForAngle(ctx.Category, turnAngle);
                 }
@@ -182,6 +214,14 @@ public sealed class GroundNavigator
                 _currentNodeRequiredSpeed = backProp;
             }
         }
+
+        Log.LogDebug(
+            "[Nav]   constraints: reqSpeed={ReqSpeed:F1}kts, {Count} future constraints",
+            _currentNodeRequiredSpeed, _speedConstraints.Count);
+        foreach (var (d, s, n) in _speedConstraints)
+        {
+            Log.LogDebug("[Nav]     dist={Dist:F4}nm speed={Speed:F1}kts node={Node}", d, s, n);
+        }
     }
 
     /// <summary>
@@ -197,9 +237,11 @@ public sealed class GroundNavigator
         double arrivalThreshold = isLastSegment ? FinalNodeArrivalThresholdNm : NodeArrivalThresholdNm;
 
         // Turn anticipation: declare early arrival when approaching a turn node so the
-        // aircraft starts steering toward the next segment sooner, creating a smooth arc
-        // (like real taxiway fillet markings). Skip for hold-short nodes and last segment.
-        if (!isLastSegment && (_nextSegmentBearing is not null) && (_currentNodeRequiredSpeed > 0.5))
+        // aircraft starts steering toward the next segment sooner, creating a smooth arc.
+        // Suppress when arcs are involved — the arc geometry handles the smooth turn;
+        // anticipation would cause early segment advancement that skips the arc.
+        if (!isLastSegment && (_nextSegmentBearing is not null) && (_currentNodeRequiredSpeed > 0.5)
+            && (_currentArc is null) && !_nextSegmentIsArc)
         {
             double inboundBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, TargetLat, TargetLon);
             double turnAngle = GeoMath.AbsBearingDifference(inboundBearing, _nextSegmentBearing.Value);
@@ -221,6 +263,9 @@ public sealed class GroundNavigator
 
         if (dist <= arrivalThreshold || overshot || stalledAtThreshold)
         {
+            Log.LogDebug(
+                "[Nav] ARRIVED at {NodeId}: dist={Dist:F4}nm threshold={Thr:F4}nm overshot={Over} stalled={Stall}",
+                TargetNodeId, dist, arrivalThreshold, overshot, stalledAtThreshold);
             PrevDistToTarget = double.MaxValue;
             return NavigatorResult.ArrivedAtNode;
         }
@@ -273,6 +318,11 @@ public sealed class GroundNavigator
             targetSpeed = Math.Min(targetSpeed, maxSpeedForDist);
         }
 
+        Log.LogTrace(
+            "[Nav] Tick node={NodeId} dist={Dist:F4}nm brg={Brg:F1}° hdg={Hdg:F1}° angleDiff={Diff:F1}° gs={Gs:F1} target={TgtSpd:F1} brake={Brake:F1} arcLim={ArcLim:F1} isArc={IsArc}",
+            TargetNodeId, dist, bearing, ctx.Aircraft.TrueHeading.Degrees, angleDiff,
+            ctx.Aircraft.GroundSpeed, targetSpeed, brakingLimit, arcSpeedLimit, _currentArc is not null);
+
         AdjustSpeed(ctx, targetSpeed);
         return NavigatorResult.Navigating;
     }
@@ -295,6 +345,8 @@ public sealed class GroundNavigator
         double bearingAc = GeoMath.BearingTo(arc.CenterLat, arc.CenterLon, acLat, acLon);
 
         // Compute sweep: the angular range from start to end (minor arc convention)
+        // Note: argument order gives bearingFrom - bearingTo (reverse direction), but the
+        // projection math (acOffset/sweep, lookaheadT) is calibrated to this convention.
         double sweep = GeoMath.SignedBearingDifference(bearingTo, bearingFrom);
         // Ensure sweep takes the minor arc direction
         if (Math.Abs(sweep) > 180)

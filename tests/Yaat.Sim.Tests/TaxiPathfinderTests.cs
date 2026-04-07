@@ -1681,7 +1681,7 @@ public class TaxiPathfinderTests
         Assert.NotNull(exitNode);
 
         double distToExit = GeoMath.DistanceNm(acLat, acLon, exitNode.Latitude, exitNode.Longitude);
-        bool hasRunwayEdge = exitNode.Edges.Any(e => e.IsRunway);
+        bool hasRunwayEdge = exitNode.Edges.Any(e => e.IsRunwayCenterline);
         string exitTaxiway = layout.GetExitTaxiwayName(exitNode) ?? "?";
         var edgeNames = string.Join(", ", exitNode.Edges.Select(e => e.TaxiwayName));
 
@@ -1693,7 +1693,7 @@ public class TaxiPathfinderTests
             + $"hasRwyEdge={hasRunwayEdge}, edges=[{edgeNames}]";
 
         // Verify: exit node must have taxiway edges so the aircraft can leave
-        bool hasTaxiwayEdge = exitNode.Edges.Any(e => !e.IsRunway);
+        bool hasTaxiwayEdge = exitNode.Edges.Any(e => !e.IsRunwayCenterline);
         Assert.True(hasTaxiwayEdge, $"Exit node has no taxiway edges — aircraft is stuck on runway. {output}");
 
         // Verify: exit node must be geometrically OFF the runway rectangle
@@ -1731,7 +1731,7 @@ public class TaxiPathfinderTests
 
         // The clear node is at hold-short distance — it should NOT have
         // runway centerline edges (those only connect on-runway nodes).
-        bool clearHasRunwayEdge = clearNode.Edges.Any(e => e.IsRunway);
+        bool clearHasRunwayEdge = clearNode.Edges.Any(e => e.IsRunwayCenterline);
         var clearEdges = string.Join(", ", clearNode.Edges.Select(e => e.TaxiwayName));
 
         Assert.False(clearHasRunwayEdge, $"Clear node {clearNode.Id} should not have runway edges but has: [{clearEdges}]");
@@ -1764,7 +1764,7 @@ public class TaxiPathfinderTests
                 {
                     hasW = true;
                 }
-                if (edge.IsRunway)
+                if (edge.IsRunwayCenterline)
                 {
                     hasRwy = true;
                 }

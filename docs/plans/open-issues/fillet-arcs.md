@@ -226,7 +226,7 @@ List<TaxiRoute> FindRoutes(layout, from, to,
 3. A route's final score = max across strategies (surfaces it if it's best at anything)
 4. Deduplicated by taxiway sequence, sorted by score descending, top N returned
 
-### Phase 4: Navigator Arc Following ✅
+### Phase 4: Navigator Arc Following — IN PROGRESS
 
 - [x] `GroundNavigator` detects `GroundArc` segments and switches to carrot-on-a-stick steering
   - Projects aircraft position onto arc via bearing from center
@@ -234,8 +234,13 @@ List<TaxiRoute> FindRoutes(layout, from, to,
   - Steers toward lookahead point
   - Computes max speed from arc radius and category turn rate (`V = ω * R`)
 - [x] Arc speed limit applied alongside heading-error scaling and multi-segment braking
-- [ ] Integrate arc speed constraint with backward-propagated braking in `SetupSegment` — **deferred**
-- [ ] Evaluate removing turn anticipation — **deferred** (needs E2E validation with fillets enabled)
+- [x] `DirectionalEdge.DepartureBearing` / `ArrivalBearing` — tangent-aware bearings for arcs
+- [x] `SetupSegment` uses edge bearings for turn angle computation
+- [x] Arc `MaxSafeSpeedKts` back-propagated in `SetupSegment` forward walk
+- [x] Forward walk uses `edge.DistanceNm` instead of straight-line distance
+- [x] Turn anticipation suppressed for arc segments (current or next)
+- [ ] Rework `ComputeArcSteering` for bezier curves (blocked on arc geometry fix)
+- [ ] Evaluate removing turn anticipation entirely once bezier arcs handle all turns
 
 ### Phase 5: Rendering ✅
 
@@ -258,47 +263,34 @@ List<TaxiRoute> FindRoutes(layout, from, to,
 - [ ] Add `GroundArcDto` to `ServerConnection.cs` and update `GroundLayoutDto` / `ReconstructLayout` for client-server transmission
 - [ ] Update `docs/architecture.md`
 
-#### Remaining test failures (10 of 2253)
+#### Blocked: arc geometry must be fixed first
 
-Route quality and walk-regression tests are all fixed. Remaining failures are all behavioral/simulation:
+All remaining test failures trace back to broken arc geometry in `FilletArcGenerator`. The navigator changes (tangent bearings, arc speed back-propagation, turn anticipation suppression) are structurally correct but can't produce good results when the arcs themselves curve the wrong way.
 
-**Exit smoothness (2):**
-- [ ] `OAK30_B738_ExitsSmoothly(W4)` — heading reversal of 15.8°
-- [ ] `OAK28R_C172_ExitsSmoothly(E)`
+**Sequence:**
+1. Replace circular arcs with cubic bezier curves in `FilletArcGenerator`
+2. Update `GroundArc` data model (bezier control points)
+3. Update `ComputeArcSteering` to follow bezier curves
+4. Update `SetupSegment` with bezier-aware speed constraints and tangent bearings
+5. Run tests — most behavioral failures should resolve with correct geometry
+6. Investigate remaining failures individually (see `docs/plans/open-issues/fillet-test-failures.md`)
 
-**Exit behavior (3):**
-- [ ] `ExitKOvershootTests.DAL2581_ExitsAtK_NoHeadingReversal`
-- [ ] `ExitRightTaxiwaySelectionTests.WJA1508_ExitsAtTaxiwayD_NotE`
-- [ ] `RunwayExitSpeedTests.N569SX_ExitsRunwayWithinReasonableTime`
+#### Navigator improvements (done, waiting for correct geometry)
 
-**Taxi/ground (3):**
-- [ ] `OakFullLifecycleTests.LandExitTaxiCrossDepart`
-- [ ] `OakGroundE2ETests.OAK_FullGroundSequence_NoOverlapAndSIG1Reached`
-- [ ] `SfoTaxiToParkingStuckTests.ASA20_RePushAfterPushback_Accepted`
-
-**Lineup/approach (2):**
-- [ ] `SfoLineupDiagonalTests.N346G_LineUp28R_TickByTickTrace`
-- [ ] `CvaPatternEntryVeerTests.CvaAfterErd_AircraftDoesNotVeerAway`
-
-#### Known problem exits (must pass before merge)
-
-- [ ] **OAK 30 W6** (B738, 90° exit): was 122° total turn, should be ~90°
-- [ ] **OAK 30 W7** (B738, 90° exit): was 124° total turn
-- [ ] **OAK 28R P** (C172, 128° exit): heading reversals
-- [ ] **SFO 28R K** (B738, 90° exit): was 118° total turn, heading reversals
-
-#### Navigator integration
-
-- [ ] Backward-propagate arc speed constraints through `SetupSegment` (currently only applied in `Tick`)
-- [ ] Evaluate removing turn anticipation once arcs handle all turns
-- [ ] Test arc following at various speeds and aircraft categories
+- [x] `DirectionalEdge.DepartureBearing` / `ArrivalBearing` — tangent-aware bearings
+- [x] `SetupSegment` uses edge bearings instead of node-to-node bearings for turn angles
+- [x] Arc speed constraints back-propagated in `SetupSegment` forward walk
+- [x] Forward walk uses `edge.DistanceNm` (arc length) instead of straight-line distance
+- [x] Turn anticipation suppressed when current or next segment is an arc
+- [x] `_nextSegmentIsArc` flag for turn anticipation decisions
 
 #### Additional tests needed
 
-- [ ] Navigator arc following unit tests (projection, lookahead, speed constraint)
-- [ ] All OakAllExitsTests pass with fillets (34 tests)
+- [ ] Synthetic fillet test: runway + taxiways at 20°–160° angles (use `tools/Yaat.Scratch`)
+- [ ] Navigator bezier following unit tests (projection, lookahead, speed constraint)
+- [ ] All OakAllExitsTests pass with fillets
 - [ ] All Sfo28rAllExitsTests pass with fillets
-- [ ] End-to-end taxi with fillet arcs (A* finds paths, aircraft follow them smoothly)
+- [ ] End-to-end taxi with fillet arcs
 - [ ] TickAnimator before/after GIFs for visual comparison
 
 ## What This Replaces
@@ -310,7 +302,17 @@ Route quality and walk-regression tests are all fixed. Remaining failures are al
 ## Decisions & Learnings
 
 ### Arc taxiway naming (decided)
-An arc at a junction between taxiways W and W3 has `TaxiwayNames = ["W", "W3"]` — no precedence. Display name is `"W/W3"`. A same-taxiway arc (L-bend on taxiway A) has `TaxiwayNames = ["A"]` and is fully "same taxiway" as straight edges on A.
+An arc at a junction between taxiways W and W3 has `TaxiwayNames = ["W", "W3"]` — no precedence. Display name uses `" · "` separator (e.g., `"W · W3"`) to avoid collision with `"/"` in runway identifiers. A same-taxiway arc (L-bend on taxiway A) has `TaxiwayNames = ["A"]` and is fully "same taxiway" as straight edges on A.
+
+### IsRunway → IsRunwayCenterline (decided)
+Renamed `IsRunway` to `IsRunwayCenterline` on `IGroundEdge`. For `GroundEdge`, it checks `TaxiwayName.StartsWith("RWY")`. For `GroundArc`, always returns `false` — a runway centerline is straight by definition. Junction arcs between runway and taxiway are not centerline segments.
+
+Added `GroundArc.IsRunwayJunction` — true when the arc has one RWY name and one non-RWY name. These arcs are the exit/entry transitions between runway and taxiway.
+
+Added `IGroundEdge.MatchesRunway(string designator)` — proper runway designator matching that parses `"RWY10L/28R"` format and checks each end. Replaces all bare `TaxiwayName.Contains(designator)` patterns.
+
+### FindAdjacentHoldShort branchTwy fix (decided)
+When the BFS seeds from a junction arc, the branch name must be the non-runway taxiway name (via `GroundArc.FirstNonRunwayName()`), not the composite display name. The display name `"G · RWY28R/10L"` can't match subsequent single-name `GroundEdge`s in the BFS.
 
 ### Walker straight-edge preference (decided)
 When `WalkTaxiway` walks along a taxiway, it prefers straight `GroundEdge`s over `GroundArc`s. Arcs are only used as fallback when no straight edge continues the taxiway. This prevents the walker from detouring through junction arcs when collinear straight edges exist.
@@ -319,10 +321,41 @@ When `WalkTaxiway` walks along a taxiway, it prefers straight `GroundEdge`s over
 Replaced the single A* with transition penalty hack with a 3-strategy system (FewestTurns/Shortest/Fastest). Each runs Yen's K-shortest. Routes scored 0.0–1.0 per strategy, final score = max across strategies. Deduplicated by taxiway sequence. `FindRoute` defaults to FewestTurns (most natural taxi instruction).
 
 ### No bare string comparisons on TaxiwayName (enforced)
-All taxiway name checks go through `IGroundEdge` methods (`MatchesTaxiway`, `SharesTaxiway`, `SameTaxiway`, `IsRunway`, `IsRamp`). This is critical for junction arcs where the display name ("W/W3") doesn't match either individual taxiway. Tests still have some bare comparisons on `TaxiRouteSegment.TaxiwayName` (plain string on the segment, not `IGroundEdge`) — those are fine.
+All taxiway name checks go through `IGroundEdge` methods (`MatchesTaxiway`, `SharesTaxiway`, `SameTaxiway`, `IsRunwayCenterline`, `IsRamp`, `MatchesRunway`). This is critical for junction arcs where the display name doesn't match either individual taxiway. Tests still have some bare comparisons on `TaxiRouteSegment.TaxiwayName` (plain string on the segment, not `IGroundEdge`) — those are fine.
 
 ### Test fixup approach (learned)
-Enabling fillets broke 39 tests. Most were fixable by: (1) removing manual `FilletArcGenerator.Apply` calls (double-filleting), (2) replacing bare `string.Equals` with `MatchesTaxiway`, (3) replacing hardcoded node IDs with semantic lookups. The remaining 10 are behavioral — the filleted graph changes how aircraft navigate, which needs navigator/exit phase investigation.
+Enabling fillets broke 39 tests. Most were fixable by: (1) removing manual `FilletArcGenerator.Apply` calls (double-filleting), (2) replacing bare `string.Equals` with `MatchesTaxiway`, (3) replacing hardcoded node IDs with semantic lookups. The remaining failures are behavioral — the filleted graph changes how aircraft navigate.
+
+### Circular arc geometry is fundamentally broken (learned)
+The `FilletArcGenerator` has two critical bugs:
+
+1. **Shared tangent points corrupt arc geometry.** When an edge participates in multiple arc pairs (e.g., a taxiway at a 4-way intersection), each pair computes a different tangent distance. The "keep largest" logic forces all pairs to use the same tangent point, but the arc center is computed for a different tangent distance. Result: center-to-node distance doesn't match the declared radius (verified: 100ft radius but 215ft center-to-node distance).
+
+2. **Circular arcs can't handle asymmetric tangent constraints.** At a crossing intersection, two arcs share a tangent point on each edge. The arc on the acute side needs a small tangent distance; the arc on the obtuse side needs a large one. A circular fillet requires equal tangent distances on both edges (`R = d / tan(θ/2)`). When the shared tangent distance is forced by one pair, the other pair's circle can't pass through both tangent points.
+
+Verified by visual inspection: arcs at 90° intersections (H at OAK) look correct. Arcs at non-90° intersections (P, J at OAK) curve outward instead of inward.
+
+### Replace circular arcs with cubic bezier curves (decided)
+Circular arcs are the wrong primitive. A cubic bezier naturally solves the asymmetric tangent problem:
+- P0 = tangent point on edge A (shared with other curves on that edge)
+- P1 = control point along edge A direction (depth controls curvature)
+- P2 = control point along edge B direction
+- P3 = tangent point on edge B (shared with other curves on that edge)
+
+Benefits:
+- Tangent directions at endpoints are trivially correct (P0→P1 and P2→P3)
+- Asymmetric tangent distances are natural — control point distances are independent
+- One tangent point per edge is fine — each curve pair adjusts its control points
+- No "center + radius" to get wrong
+- `MaxSafeSpeedKts` computed from minimum radius of curvature along the curve
+
+This requires reworking:
+- `GroundArc` data model: store P0/P1/P2/P3 instead of center/radius
+- `ComputeArcSteering` in navigator: project onto bezier, lookahead along curve
+- `MaxSafeSpeedKts`: compute from tightest curvature along bezier
+- `TangentBearingAt`: trivial with bezier (P0→P1 or P2→P3)
+- `FilletArcGenerator`: compute control points instead of circle center
+- Renderers: draw bezier polyline instead of circular arc
 
 ## Key Files
 

@@ -91,7 +91,7 @@ public static class FilletArcGenerator
         int runwayEdgeCount = 0;
         foreach (var edge in node.Edges)
         {
-            if (edge.IsRunway)
+            if (edge.IsRunwayCenterline)
             {
                 runwayEdgeCount++;
             }
@@ -469,7 +469,7 @@ public static class FilletArcGenerator
 
     private static double SelectMaxRadius(GroundEdge edgeA, GroundEdge edgeB, double turnAngleDeg)
     {
-        bool hasRunway = edgeA.IsRunway || edgeB.IsRunway;
+        bool hasRunway = edgeA.IsRunwayCenterline || edgeB.IsRunwayCenterline;
         bool hasRamp = edgeA.IsRamp || edgeB.IsRamp;
 
         if (hasRamp)

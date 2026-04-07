@@ -508,7 +508,7 @@ public class AirportE2ETests
             // Hold-short nodes should NOT be at junctions — they should be on a
             // single taxiway between the runway surface and the next intersection.
             var taxiwayNames = hs
-                .Edges.Where(e => !e.IsRunway)
+                .Edges.Where(e => !e.IsRunwayCenterline)
                 .Select(e => e.TaxiwayName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -1089,7 +1089,7 @@ public class AirportE2ETests
         {
             foreach (var edge in hs.Edges)
             {
-                if (!edge.IsRunway)
+                if (!edge.IsRunwayCenterline)
                 {
                     connectingTaxiways.Add(edge.TaxiwayName);
                 }

@@ -81,7 +81,7 @@ public class LineUpPhaseTests
             bool hasTaxiEdge = false;
             foreach (var edge in node.Edges)
             {
-                if (edge.IsRunway)
+                if (edge.IsRunwayCenterline)
                 {
                     hasRwyEdge = true;
                 }

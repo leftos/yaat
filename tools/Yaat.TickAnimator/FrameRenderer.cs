@@ -268,7 +268,7 @@ internal sealed class FrameRenderer
         {
             var n0 = edge.Nodes[0];
             var n1 = edge.Nodes[1];
-            var paint = edge.IsRunway ? runwayEdgePaint : taxiwayPaint;
+            var paint = edge.IsRunwayCenterline ? runwayEdgePaint : taxiwayPaint;
 
             if (edge.IntermediatePoints.Count > 0)
             {
@@ -390,7 +390,7 @@ internal sealed class FrameRenderer
         var labeledEdges = new HashSet<string>();
         foreach (var edge in _layout.Edges)
         {
-            if (edge.IsRunway || string.IsNullOrEmpty(edge.TaxiwayName))
+            if (edge.IsRunwayCenterline || string.IsNullOrEmpty(edge.TaxiwayName))
             {
                 continue;
             }

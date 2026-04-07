@@ -37,7 +37,7 @@ public sealed class LayoutAnalyzer
         var taxiwayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var edge in Layout.AllEdges)
         {
-            if (!edge.IsRunway)
+            if (!edge.IsRunwayCenterline)
             {
                 if (edge is GroundArc arc)
                 {
@@ -86,7 +86,7 @@ public sealed class LayoutAnalyzer
                     neighbor?.Name,
                     neighbor?.RunwayId?.ToString(),
                     edge is GroundArc,
-                    edge.IsRunway,
+                    edge.IsRunwayCenterline,
                     edge.IsRamp
                 )
             );
@@ -140,7 +140,7 @@ public sealed class LayoutAnalyzer
 
             foreach (var edge in node.Edges)
             {
-                if (edge.IsRunway || edge.MatchesTaxiway(name))
+                if (edge.IsRunwayCenterline || edge.MatchesTaxiway(name))
                 {
                     continue;
                 }
@@ -380,7 +380,7 @@ public sealed class LayoutAnalyzer
             foreach (var edge in node.Edges)
             {
                 // Don't cross runways — runway edges connect centerline nodes
-                if (edge.IsRunway)
+                if (edge.IsRunwayCenterline)
                 {
                     continue;
                 }
@@ -642,7 +642,7 @@ public sealed class LayoutAnalyzer
             Layout.Nodes.TryGetValue(neighborId, out var neighbor);
             string neighborType = neighbor?.Type.ToString() ?? "Unknown";
 
-            if (edge.IsRunway)
+            if (edge.IsRunwayCenterline)
             {
                 seedEdges.Add(new BfsEdgeExplored(neighborId, edge.TaxiwayName, edge.DistanceNm, neighborType, "SKIP", "runway edge"));
                 continue;
@@ -703,7 +703,7 @@ public sealed class LayoutAnalyzer
                 Layout.Nodes.TryGetValue(nextId, out var next);
                 string nextType = next?.Type.ToString() ?? "Unknown";
 
-                if (edge.IsRunway)
+                if (edge.IsRunwayCenterline)
                 {
                     edgesExplored.Add(new BfsEdgeExplored(nextId, edge.TaxiwayName, edge.DistanceNm, nextType, "SKIP", "runway edge"));
                     continue;
@@ -759,7 +759,7 @@ public sealed class LayoutAnalyzer
                 }
             }
         }
-        else if (!edge.IsRunway)
+        else if (!edge.IsRunwayCenterline)
         {
             names.Add(edge.TaxiwayName);
         }

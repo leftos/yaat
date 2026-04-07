@@ -520,7 +520,7 @@ public static class TaxiPathfinder
     private static double CostShortest(IGroundEdge edge)
     {
         double cost = edge.DistanceNm;
-        if (edge.IsRunway)
+        if (edge.IsRunwayCenterline)
         {
             cost += RunwayEdgePenaltyCost;
         }
@@ -531,7 +531,7 @@ public static class TaxiPathfinder
     private static double CostFewestTurns(IGroundEdge edge, IGroundEdge? prevEdge)
     {
         double cost = edge.DistanceNm * FewestTurnsDistanceWeight;
-        if (edge.IsRunway)
+        if (edge.IsRunwayCenterline)
         {
             cost += RunwayEdgePenaltyCost;
         }
@@ -552,7 +552,7 @@ public static class TaxiPathfinder
 
     private static double CostFastest(IGroundEdge edge, double turnRateDegSec, double taxiSpeedKts)
     {
-        if (edge.IsRunway)
+        if (edge.IsRunwayCenterline)
         {
             return edge.DistanceNm + RunwayEdgePenaltyCost;
         }
@@ -1270,7 +1270,7 @@ public static class TaxiPathfinder
             foreach (var edge in currentNode.Edges)
             {
                 // Only follow runway centerline edges
-                if (!edge.IsRunway)
+                if (!edge.IsRunwayCenterline)
                 {
                     continue;
                 }
@@ -1356,7 +1356,7 @@ public static class TaxiPathfinder
         var candidateNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var edge in startNode.Edges)
         {
-            if (!edge.MatchesTaxiway(targetTaxiwayName) && !edge.IsRunway && !edge.IsRamp)
+            if (!edge.MatchesTaxiway(targetTaxiwayName) && !edge.IsRunwayCenterline && !edge.IsRamp)
             {
                 candidateNames.Add(edge.TaxiwayName);
             }

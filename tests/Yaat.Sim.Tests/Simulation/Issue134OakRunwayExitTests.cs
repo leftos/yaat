@@ -65,7 +65,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
         // The exit node must be a real taxiway intersection, not an intermediate
         // routing vertex. Count distinct non-runway taxiway names.
         var distinctTaxiways = exitNode
-            .Edges.Where(e => !e.IsRunway)
+            .Edges.Where(e => !e.IsRunwayCenterline)
             .Select(e => e.TaxiwayName)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -79,7 +79,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
         Assert.True(
             (distinctTaxiways.Count >= 2)
                 || (exitNode.Type is GroundNodeType.Spot or GroundNodeType.RunwayHoldShort)
-                || (exitNode.Edges.Count(e => !e.IsRunway) >= 3),
+                || (exitNode.Edges.Count(e => !e.IsRunwayCenterline) >= 3),
             $"Exit node {exitNode.Id} is an intermediate routing vertex with taxiways [{string.Join(", ", distinctTaxiways)}] — "
                 + "expected a real intersection with 2+ distinct taxiway names"
         );
@@ -112,7 +112,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
 
         var exitNode = result.Value.Node;
         var distinctTaxiways = exitNode
-            .Edges.Where(e => !e.IsRunway)
+            .Edges.Where(e => !e.IsRunwayCenterline)
             .Select(e => e.TaxiwayName)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -127,7 +127,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
         Assert.True(
             (distinctTaxiways.Count >= 2)
                 || (exitNode.Type is GroundNodeType.Spot or GroundNodeType.RunwayHoldShort)
-                || (exitNode.Edges.Count(e => !e.IsRunway) >= 3),
+                || (exitNode.Edges.Count(e => !e.IsRunwayCenterline) >= 3),
             $"Exit node {exitNode.Id} is an intermediate routing vertex with taxiways [{string.Join(", ", distinctTaxiways)}] — "
                 + "expected a real intersection"
         );
@@ -237,7 +237,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             if (exit is not null)
             {
                 var tws = exit
-                    .Edges.Where(e => !e.IsRunway)
+                    .Edges.Where(e => !e.IsRunwayCenterline)
                     .Select(e => e.TaxiwayName)
                     .Distinct(StringComparer.OrdinalIgnoreCase);
                 double dist = GeoMath.DistanceNm(lat, lon, exit.Latitude, exit.Longitude);
@@ -249,7 +249,7 @@ public class Issue134OakRunwayExitTests(ITestOutputHelper output)
             {
                 var n = exitAhead.Value.Node;
                 var tws = n
-                    .Edges.Where(e => !e.IsRunway)
+                    .Edges.Where(e => !e.IsRunwayCenterline)
                     .Select(e => e.TaxiwayName)
                     .Distinct(StringComparer.OrdinalIgnoreCase);
                 double dist = GeoMath.DistanceNm(lat, lon, n.Latitude, n.Longitude);

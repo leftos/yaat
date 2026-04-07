@@ -185,7 +185,7 @@ internal static class FilletArcGeneratorTraced
         int rwyCount = 0;
         foreach (var e in node.Edges)
         {
-            if (e.IsRunway)
+            if (e.IsRunwayCenterline)
             {
                 rwyCount++;
             }
@@ -486,7 +486,7 @@ internal static class FilletArcGeneratorTraced
 
     private static double SelectRadius(GroundEdge edgeA, GroundEdge edgeB, double turnAngleDeg)
     {
-        bool hasRwy = edgeA.IsRunway || edgeB.IsRunway;
+        bool hasRwy = edgeA.IsRunwayCenterline || edgeB.IsRunwayCenterline;
         bool hasRamp = edgeA.IsRamp || edgeB.IsRamp;
         if (hasRamp)
         {
