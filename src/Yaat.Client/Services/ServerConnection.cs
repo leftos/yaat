@@ -590,7 +590,7 @@ public record CrcRoomMemberDto(string ClientId, string? Cid, string? DisplayName
 
 public record CrcRoomMembersChangedDto(string RoomId, List<CrcRoomMemberDto> Members);
 
-public record GroundLayoutDto(string AirportId, List<GroundNodeDto> Nodes, List<GroundEdgeDto> Edges, List<GroundRunwayDto>? Runways);
+public record GroundLayoutDto(string AirportId, List<GroundNodeDto> Nodes, List<GroundEdgeDto> Edges, List<GroundArcDto>? Arcs, List<GroundRunwayDto>? Runways);
 
 public record GroundNodeDto(int Id, double Latitude, double Longitude, string Type, string? Name, double? Heading, string? RunwayId);
 
@@ -599,6 +599,18 @@ public record GroundEdgeDto(int FromNodeId, int ToNodeId, string TaxiwayName, do
     public bool IsRunway => TaxiwayName.StartsWith("RWY", StringComparison.OrdinalIgnoreCase);
     public bool IsRamp => string.Equals(TaxiwayName, "RAMP", StringComparison.OrdinalIgnoreCase);
 }
+
+public record GroundArcDto(
+    int FromNodeId,
+    int ToNodeId,
+    string[] TaxiwayNames,
+    double P1Lat,
+    double P1Lon,
+    double P2Lat,
+    double P2Lon,
+    double MinRadiusOfCurvatureFt,
+    double DistanceNm
+);
 
 public record GroundRunwayDto(string Name, List<double[]> Coordinates, double WidthFt);
 

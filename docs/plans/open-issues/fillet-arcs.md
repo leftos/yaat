@@ -267,7 +267,7 @@ List<TaxiRoute> FindRoutes(layout, from, to,
 - [x] Global post-fillet merge pass for coincident nodes from adjacent intersection filleting
 - [x] Rework LineUpPhase to analog navigation (no ground graph node dependency)
 - [x] All 2253 tests pass (0 failures)
-- [ ] Add `GroundArcDto` to `ServerConnection.cs` and update `GroundLayoutDto` / `ReconstructLayout` for client-server transmission
+- [x] Add `GroundArcDto` to `ServerConnection.cs` and update `GroundLayoutDto` / `ReconstructLayout` for client-server transmission
 - [ ] Update `docs/architecture.md`
 
 #### Remaining work

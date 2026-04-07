@@ -1223,6 +1223,31 @@ public partial class GroundViewModel : ObservableObject
             layout.Edges.Add(edge);
         }
 
+        if (dto.Arcs is not null)
+        {
+            foreach (var arcDto in dto.Arcs)
+            {
+                if (!layout.Nodes.TryGetValue(arcDto.FromNodeId, out var arcFrom) ||
+                    !layout.Nodes.TryGetValue(arcDto.ToNodeId, out var arcTo))
+                {
+                    continue;
+                }
+
+                var arc = new GroundArc
+                {
+                    Nodes = [arcFrom, arcTo],
+                    TaxiwayNames = arcDto.TaxiwayNames,
+                    P1Lat = arcDto.P1Lat,
+                    P1Lon = arcDto.P1Lon,
+                    P2Lat = arcDto.P2Lat,
+                    P2Lon = arcDto.P2Lon,
+                    MinRadiusOfCurvatureFt = arcDto.MinRadiusOfCurvatureFt,
+                    DistanceNm = arcDto.DistanceNm,
+                };
+                layout.Arcs.Add(arc);
+            }
+        }
+
         layout.RebuildAdjacencyLists();
         return layout;
     }

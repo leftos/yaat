@@ -494,6 +494,23 @@ public sealed class GroundRenderer : IDisposable
             canvas.DrawText(debugLabel, mx + 2, my + 4, _debugEdgeLabelPaint);
         }
 
+        if (layout.Arcs is not null)
+        {
+            foreach (var arc in layout.Arcs)
+            {
+                if (!nodeScreenPos.TryGetValue(arc.FromNodeId, out var from) || !nodeScreenPos.TryGetValue(arc.ToNodeId, out var to))
+                {
+                    continue;
+                }
+
+                var mx = (from.X + to.X) / 2f;
+                var my = (from.Y + to.Y) / 2f;
+                string arcName = arc.TaxiwayNames.Length == 1 ? arc.TaxiwayNames[0] : string.Join(" · ", arc.TaxiwayNames);
+                string debugLabel = $"⌒{arcName} {arc.FromNodeId}-{arc.ToNodeId}";
+                canvas.DrawText(debugLabel, mx + 2, my + 4, _debugEdgeLabelPaint);
+            }
+        }
+
         foreach (var node in layout.Nodes)
         {
             var (sx, sy) = nodeScreenPos[node.Id];
@@ -575,9 +592,11 @@ public sealed class GroundRenderer : IDisposable
     )
     {
         var nodeScreenPos = new Dictionary<int, (float X, float Y)>(layout.Nodes.Count);
+        var nodeLatLon = new Dictionary<int, (double Lat, double Lon)>(layout.Nodes.Count);
         foreach (var node in layout.Nodes)
         {
             nodeScreenPos[node.Id] = vp.LatLonToScreen(node.Latitude, node.Longitude);
+            nodeLatLon[node.Id] = (node.Latitude, node.Longitude);
         }
 
         // Track placed taxiway label positions for deduplication
@@ -655,6 +674,36 @@ public sealed class GroundRenderer : IDisposable
 
                 positions.Add((mx, my));
                 _labelCandidates.Add(new LabelCandidate([edge.TaxiwayName], mx + 3, my - 3, LabelPriority.Taxiway, _taxiLabelPaint, null));
+            }
+        }
+
+        // Draw arcs (bezier curves from fillet generation)
+        if (layout.Arcs is not null)
+        {
+            foreach (var arcDto in layout.Arcs)
+            {
+                if (!nodeScreenPos.TryGetValue(arcDto.FromNodeId, out var from) ||
+                    !nodeScreenPos.TryGetValue(arcDto.ToNodeId, out var to) ||
+                    !nodeLatLon.TryGetValue(arcDto.FromNodeId, out var fromLL) ||
+                    !nodeLatLon.TryGetValue(arcDto.ToNodeId, out var toLL))
+                {
+                    continue;
+                }
+
+                var bezier = new CubicBezier(fromLL.Lat, fromLL.Lon, arcDto.P1Lat, arcDto.P1Lon, arcDto.P2Lat, arcDto.P2Lon, toLL.Lat, toLL.Lon);
+                const int steps = 16;
+                using var path = new SKPath();
+                path.MoveTo(from.X, from.Y);
+                for (int s = 1; s < steps; s++)
+                {
+                    double t = (double)s / steps;
+                    var (lat, lon) = bezier.Evaluate(t);
+                    var (sx, sy) = vp.LatLonToScreen(lat, lon);
+                    path.LineTo(sx, sy);
+                }
+
+                path.LineTo(to.X, to.Y);
+                canvas.DrawPath(path, _taxiwayPaint);
             }
         }
     }
@@ -840,6 +889,23 @@ public sealed class GroundRenderer : IDisposable
             AddEdgeName(nodeEdgeNames, edge.ToNodeId, edge.TaxiwayName);
         }
 
+        if (layout.Arcs is not null)
+        {
+            foreach (var arc in layout.Arcs)
+            {
+                foreach (string name in arc.TaxiwayNames)
+                {
+                    if (name.StartsWith("RWY", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    AddEdgeName(nodeEdgeNames, arc.FromNodeId, name);
+                    AddEdgeName(nodeEdgeNames, arc.ToNodeId, name);
+                }
+            }
+        }
+
         var pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
 
         foreach (var node in layout.Nodes)
@@ -972,7 +1038,7 @@ public sealed class GroundRenderer : IDisposable
             return direct;
         }
 
-        // One hop: find neighbors via any edge, then check their taxiway names
+        // One hop: find neighbors via any edge or arc, then check their taxiway names
         var result = new List<string>();
         foreach (var edge in layout.Edges)
         {
@@ -990,19 +1056,46 @@ public sealed class GroundRenderer : IDisposable
                 continue;
             }
 
-            if (nodeEdgeNames.TryGetValue(neighborId, out var neighborNames))
+            AddNeighborNames(result, neighborId, nodeEdgeNames);
+        }
+
+        if (layout.Arcs is not null)
+        {
+            foreach (var arc in layout.Arcs)
             {
-                foreach (var name in neighborNames)
+                int neighborId;
+                if (arc.FromNodeId == nodeId)
                 {
-                    if (!result.Contains(name))
-                    {
-                        result.Add(name);
-                    }
+                    neighborId = arc.ToNodeId;
                 }
+                else if (arc.ToNodeId == nodeId)
+                {
+                    neighborId = arc.FromNodeId;
+                }
+                else
+                {
+                    continue;
+                }
+
+                AddNeighborNames(result, neighborId, nodeEdgeNames);
             }
         }
 
         return result;
+    }
+
+    private static void AddNeighborNames(List<string> result, int neighborId, Dictionary<int, List<string>> nodeEdgeNames)
+    {
+        if (nodeEdgeNames.TryGetValue(neighborId, out var neighborNames))
+        {
+            foreach (var name in neighborNames)
+            {
+                if (!result.Contains(name))
+                {
+                    result.Add(name);
+                }
+            }
+        }
     }
 
     private static string[] BuildHoverLines(string primaryLabel, int nodeId, Dictionary<int, List<string>> nodeEdgeNames)
