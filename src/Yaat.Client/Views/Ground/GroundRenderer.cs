@@ -820,6 +820,8 @@ public sealed class GroundRenderer : IDisposable
             AddEdgeName(nodeEdgeNames, edge.ToNodeId, edge.TaxiwayName);
         }
 
+        var pxPerFt = (float)(vp.Zoom * 5000.0 / FeetPerDegLat);
+
         foreach (var node in layout.Nodes)
         {
             var (sx, sy) = vp.LatLonToScreen(node.Latitude, node.Longitude);
@@ -830,7 +832,7 @@ public sealed class GroundRenderer : IDisposable
                 bool drawIcon = showHoldShort != GroundFilterMode.Off || isHovered;
                 if (drawIcon)
                 {
-                    DrawHoldShortBar(canvas, sx, sy, holdShortAngles.GetValueOrDefault(node.Id, 0f));
+                    DrawHoldShortBar(canvas, sx, sy, holdShortAngles.GetValueOrDefault(node.Id, 0f), pxPerFt);
                 }
 
                 if (node.RunwayId is not null)
@@ -1029,15 +1031,28 @@ public sealed class GroundRenderer : IDisposable
         angles[nodeId] = angle;
     }
 
-    private void DrawHoldShortBar(SKCanvas canvas, float sx, float sy, float taxiwayAngleRad)
+    /// <summary>Real-world half-width of the hold short bar in feet (~60 ft total, typical taxiway width).</summary>
+    private const float HoldShortHalfWidthFt = 30f;
+
+    /// <summary>Minimum half-length in pixels so bars remain visible when zoomed out.</summary>
+    private const float MinHoldShortHalfPx = 5f;
+
+    /// <summary>Minimum stroke width in pixels for hold short bars.</summary>
+    private const float MinHoldShortStrokePx = 1.5f;
+
+    /// <summary>Hold short bar stroke width in feet (≈1 ft painted line).</summary>
+    private const float HoldShortStrokeWidthFt = 1.5f;
+
+    private void DrawHoldShortBar(SKCanvas canvas, float sx, float sy, float taxiwayAngleRad, float pxPerFt)
     {
-        const float halfLen = 7f;
+        float halfLen = MathF.Max(HoldShortHalfWidthFt * pxPerFt, MinHoldShortHalfPx);
         // Perpendicular to the taxiway direction
         float perpAngle = taxiwayAngleRad + MathF.PI / 2f;
         float dx = halfLen * MathF.Cos(perpAngle);
         float dy = halfLen * MathF.Sin(perpAngle);
 
         _holdShortBarPaint.Color = _holdShortColor;
+        _holdShortBarPaint.StrokeWidth = MathF.Max(HoldShortStrokeWidthFt * pxPerFt, MinHoldShortStrokePx);
         canvas.DrawLine(sx - dx, sy - dy, sx + dx, sy + dy, _holdShortBarPaint);
     }
 
