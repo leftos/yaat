@@ -1303,16 +1303,83 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Snapshot current visual state for rollback on cancel
+        var snapshotGroundColors = vm.Ground.ColorScheme;
+        var snapshotSatBrightness = vm.Ground.SatelliteImageBrightness;
+        var snapshotMapBrightness = vm.Ground.VideoMapOverlayBrightness;
+        var snapshotGndBrightness = vm.Ground.YaatLayoutBrightness;
+        var snapshotDataGridScale = vm.DataGridScale;
+        var snapshotAssignmentTintEnabled = vm.Preferences.AssignmentTintEnabled;
+        var snapshotAssignmentTintColor = vm.Preferences.AssignmentTintColor;
+        var snapshotUnassignedTintEnabled = vm.Preferences.UnassignedTintEnabled;
+        var snapshotUnassignedTintColor = vm.Preferences.UnassignedTintColor;
+        var snapshotSelectedColor = vm.Preferences.SelectedColor;
+
         var dialog = new SettingsWindow(vm.Preferences);
+        var settingsVm = dialog.DataContext as SettingsViewModel;
+
+        // Subscribe to live preview
+        if (settingsVm is not null)
+        {
+            settingsVm.VisualSettingsChanged += OnPreview;
+        }
+
         await dialog.ShowDialog(this);
 
-        if ((dialog.DataContext as SettingsViewModel)?.Saved == true)
+        // Unsubscribe
+        if (settingsVm is not null)
         {
+            settingsVm.VisualSettingsChanged -= OnPreview;
+        }
+
+        if (settingsVm?.Saved == true)
+        {
+            // Apply final saved state (non-visual settings like keybinds, command scheme)
             vm.RefreshCommandScheme();
             vm.DataGridScale = vm.Preferences.DataGridFontSize / 12.0;
             ApplyKeybinds(vm.Preferences);
+            // Visual settings already applied via preview — just ensure final state is consistent
             SyncAllRadarViewTint();
             vm.Ground.ColorScheme = vm.Preferences.GroundColors;
+            vm.Ground.SatelliteImageBrightness = vm.Preferences.GroundSatelliteImageBrightness;
+            vm.Ground.VideoMapOverlayBrightness = vm.Preferences.GroundVideoMapOverlayBrightness;
+            vm.Ground.YaatLayoutBrightness = vm.Preferences.GroundYaatLayoutBrightness;
+        }
+        else
+        {
+            // Cancel — rollback to snapshot
+            vm.Ground.ColorScheme = snapshotGroundColors;
+            vm.Ground.SatelliteImageBrightness = snapshotSatBrightness;
+            vm.Ground.VideoMapOverlayBrightness = snapshotMapBrightness;
+            vm.Ground.YaatLayoutBrightness = snapshotGndBrightness;
+            vm.DataGridScale = snapshotDataGridScale;
+            vm.Preferences.SetAssignmentTint(snapshotAssignmentTintEnabled, snapshotAssignmentTintColor);
+            vm.Preferences.SetUnassignedTint(snapshotUnassignedTintEnabled, snapshotUnassignedTintColor);
+            vm.Preferences.SetSelectedColor(snapshotSelectedColor);
+            SyncAllRadarViewTint();
+        }
+
+        return;
+
+        void OnPreview()
+        {
+            if (settingsVm is null)
+            {
+                return;
+            }
+
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                vm.Ground.ColorScheme = settingsVm.GetCurrentGroundColors();
+                vm.Ground.SatelliteImageBrightness = settingsVm.GroundSatelliteImageBrightness;
+                vm.Ground.VideoMapOverlayBrightness = settingsVm.GroundVideoMapOverlayBrightness;
+                vm.Ground.YaatLayoutBrightness = settingsVm.GroundYaatLayoutBrightness;
+                vm.DataGridScale = settingsVm.DataGridFontSize / 12.0;
+                vm.Preferences.SetAssignmentTint(settingsVm.AssignmentTintEnabled, settingsVm.AssignmentTintColor);
+                vm.Preferences.SetUnassignedTint(settingsVm.UnassignedTintEnabled, settingsVm.UnassignedTintColor);
+                vm.Preferences.SetSelectedColor(settingsVm.SelectedColor);
+                SyncAllRadarViewTint();
+            });
         }
     }
 

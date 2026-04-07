@@ -94,6 +94,12 @@ public partial class SettingsViewModel : ObservableObject
 {
     private readonly UserPreferences _preferences;
 
+    /// <summary>
+    /// Fired when any visual/display property changes (colors, brightness, tints, font size).
+    /// Subscribers can apply the changes live for preview.
+    /// </summary>
+    public event Action? VisualSettingsChanged;
+
     private static readonly IReadOnlyList<CommandDefinition> DisplayCommands = CommandRegistry
         .All.Values.Where(c => c.Type != CanonicalCommandType.DirectTo)
         .ToArray();
@@ -917,4 +923,62 @@ public partial class SettingsViewModel : ObservableObject
         UnassignedTintColor = "#888888";
         SelectedColor = "#FFFFFF";
     }
+
+    /// <summary>
+    /// Returns the current ground color scheme from the editor fields (not yet saved).
+    /// </summary>
+    public GroundColorScheme GetCurrentGroundColors() =>
+        new(
+            GroundBackgroundColor,
+            GroundTaxiwayColor,
+            GroundTaxiLabelColor,
+            GroundRampEdgeColor,
+            GroundHoldShortColor,
+            GroundRunwayFillColor,
+            GroundRunwayOutlineColor,
+            GroundAircraftColor,
+            GroundDatablockTextColor,
+            GroundBrightness
+        );
+
+    // Visual property change handlers — fire VisualSettingsChanged for live preview
+    partial void OnGroundBackgroundColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundTaxiwayColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundTaxiLabelColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundRampEdgeColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundHoldShortColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundRunwayFillColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundRunwayOutlineColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundAircraftColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundDatablockTextColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundBrightnessChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundSatelliteImageBrightnessChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundVideoMapOverlayBrightnessChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundYaatLayoutBrightnessChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnAssignmentTintEnabledChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnAssignmentTintColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnUnassignedTintEnabledChanged(bool value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnUnassignedTintColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnSelectedColorChanged(string value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnDataGridFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnGroundHideDataBlocksByDefaultChanged(bool value) => VisualSettingsChanged?.Invoke();
 }
