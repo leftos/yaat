@@ -344,6 +344,15 @@ TextFormatter.cs               # Human-readable output
 JsonFormatter.cs               # JSON output (--json flag)
 ```
 
+## Yaat.TickAnimator — CLI tool (`tools/Yaat.TickAnimator/`)
+
+Renders animated GIFs of aircraft movement over airport ground layouts. Reads tick CSV data (from `TickRecorder` in tests) + airport GeoJSON, renders frames with SkiaSharp, combines via ffmpeg. See `docs/tick-animator.md`.
+
+```
+Program.cs                     # CLI entry: --layout, --ticks, --aircraft, --output, --start/--end, --fit-layout
+FrameRenderer.cs               # SkiaSharp frame rendering: layout, aircraft shape, trail, overlay
+```
+
 ## Yaat.ScenarioValidator — CLI tool (`tools/Yaat.ScenarioValidator/`)
 
 Standalone console app for validating ARTCC scenario preset commands. Downloads NavData from vNAS for procedure version validation, then fetches and validates scenarios from the vNAS API or local files.

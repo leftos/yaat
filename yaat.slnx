@@ -12,5 +12,6 @@
     <Project Path="tools/Yaat.ScenarioValidator/Yaat.ScenarioValidator.csproj" />
     <Project Path="tools/Yaat.RecordingConsolidator/Yaat.RecordingConsolidator.csproj" />
     <Project Path="tools/Yaat.Scratch/Yaat.Scratch.csproj" />
+    <Project Path="tools/Yaat.TickAnimator/Yaat.TickAnimator.csproj" />
   </Folder>
 </Solution>
