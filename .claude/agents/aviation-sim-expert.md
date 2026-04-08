@@ -119,4 +119,3 @@ Examples of what to record:
 - Simplifications made and their rationale (for consistency in future work)
 - Separation logic implementations and the standards they're based on
 - Airspace definitions and how they're modeled in code
-

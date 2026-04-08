@@ -1022,5 +1022,3 @@ Offline markdown reference for 7110.65.
 
 
 ### [7110.65 - Appendix B](appendix_b.md)
-
-

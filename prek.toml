@@ -1,0 +1,48 @@
+# Configuration file for `prek`, a git hook framework written in Rust.
+# See https://prek.j178.dev for more information.
+#:schema https://www.schemastore.org/prek.json
+
+[[repos]]
+repo = "builtin"
+hooks = [
+    { id = "trailing-whitespace" },
+    { id = "end-of-file-fixer" },
+    { id = "check-merge-conflict" },
+    { id = "detect-private-key", exclude = "tools/discord-bot/" },
+    { id = "check-added-large-files", args = ["--maxkb=1024"] },
+]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "dotnet-format-style"
+name = "dotnet format style"
+entry = "dotnet format style"
+language = "system"
+pass_filenames = false
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "dotnet-format-analyzers"
+name = "dotnet format analyzers"
+entry = "dotnet format analyzers"
+language = "system"
+pass_filenames = false
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "csharpier"
+name = "dotnet csharpier format"
+entry = "dotnet csharpier format ."
+language = "system"
+pass_filenames = false
+stages = ["pre-commit"]
+
+[[repos.hooks]]
+id = "dotnet-build"
+name = "dotnet build (warnings as errors)"
+entry = "dotnet build -p:TreatWarningsAsErrors=true"
+language = "system"
+pass_filenames = false
+stages = ["pre-commit"]
