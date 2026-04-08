@@ -140,6 +140,7 @@ When invoking aviation-sim-expert, always include:
 - **No guessing at root causes**: Reproduce with a test first. Use real airport layouts and E2E tests. Do not speculate.
 - **No synthetic data in tests**: Use `TestVnasData.EnsureInitialized()` (loads real `NavData.dat` and `FAACIFP18.gz` from `tests/Yaat.Sim.Tests/TestData/`). Synthetic stubs hide integration problems. If test data files absent, silently skip.
 - **Test access**: Making `internal` members `public` for tests is fine. No reflection or `InternalsVisibleTo` hacks.
+- **SimLog in tests**: `SimLog` falls back to `NullLoggerFactory` by default — all Yaat.Sim log output is silently swallowed in tests. To see logs, initialize with xUnit's output helper: `SimLog.Initialize(LoggerFactory.Create(b => b.AddXUnit(output).SetMinimumLevel(LogLevel.Debug)));` where `output` is `ITestOutputHelper`. Then run with `dotnet test -v detailed` and tee to a file.
 
 ### Code Style
 - **Line width**: 150 chars (CSharpier configured accordingly)

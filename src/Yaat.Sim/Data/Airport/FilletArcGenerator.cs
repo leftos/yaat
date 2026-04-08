@@ -346,8 +346,8 @@ public static class FilletArcGenerator
 
             if (newDist * GeoMath.FeetPerNm < 1.0)
             {
-                Log.LogWarning(
-                    "Fillet: degenerate shortened edge {Taxiway} ({NodeA}->{NodeB}) is {DistFt:F1}ft at intersection {IntId}",
+                Log.LogDebug(
+                    "Fillet: near-zero shortened edge {Taxiway} ({NodeA}->{NodeB}) is {DistFt:F1}ft at intersection {IntId}",
                     edge.TaxiwayName,
                     otherNode.Id,
                     tangentNode.Id,
@@ -445,12 +445,7 @@ public static class FilletArcGenerator
             // This keeps the threshold reachable while arcs provide smooth turn geometry.
             foreach (var (edge, tangentNode) in edgeTangentNodes)
             {
-                double stubDist = GeoMath.DistanceNm(
-                    intersection.Latitude,
-                    intersection.Longitude,
-                    tangentNode.Latitude,
-                    tangentNode.Longitude
-                );
+                double stubDist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, tangentNode.Latitude, tangentNode.Longitude);
                 layout.Edges.Add(
                     new GroundEdge
                     {
@@ -469,12 +464,7 @@ public static class FilletArcGenerator
                 bool bHasTangent = edgeTangentNodes.ContainsKey(edgeB);
                 if (!aHasTangent)
                 {
-                    double dist = GeoMath.DistanceNm(
-                        intersection.Latitude,
-                        intersection.Longitude,
-                        otherA.Latitude,
-                        otherA.Longitude
-                    );
+                    double dist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherA.Latitude, otherA.Longitude);
                     layout.Edges.Add(
                         new GroundEdge
                         {
@@ -487,12 +477,7 @@ public static class FilletArcGenerator
 
                 if (!bHasTangent)
                 {
-                    double dist = GeoMath.DistanceNm(
-                        intersection.Latitude,
-                        intersection.Longitude,
-                        otherB.Latitude,
-                        otherB.Longitude
-                    );
+                    double dist = GeoMath.DistanceNm(intersection.Latitude, intersection.Longitude, otherB.Latitude, otherB.Longitude);
                     layout.Edges.Add(
                         new GroundEdge
                         {
@@ -514,18 +499,122 @@ public static class FilletArcGenerator
     }
 
     /// <summary>
-    /// Global post-fillet pass: find all node pairs within 5ft and merge them.
-    /// Redirects all edge and arc node references from victim to survivor.
-    /// Removes zero-length edges and degenerate arcs created by the merge.
+    /// Global post-fillet pass: iteratively merge coincident TaxiwayIntersection nodes
+    /// within 5ft. Adjusts bezier control points so curves stay smooth when endpoints
+    /// move. Loops until no more merges occur (handles transitive chains).
     /// </summary>
     private static int MergeCoincidentNodes(AirportGroundLayout layout)
     {
         const double thresholdNm = 5.0 / GeoMath.FeetPerNm;
+        int totalMerged = 0;
 
-        // Build spatial index: only check TaxiwayIntersection nodes (tangent points)
+        for (int pass = 0; pass < 5; pass++)
+        {
+            var mergeMap = BuildMergeMap(layout, thresholdNm);
+            if (mergeMap.Count == 0)
+            {
+                break;
+            }
+
+            // Rewrite edge node references
+            foreach (var edge in layout.Edges)
+            {
+                for (int k = 0; k < edge.Nodes.Length; k++)
+                {
+                    if (mergeMap.TryGetValue(edge.Nodes[k].Id, out var survivor))
+                    {
+                        edge.Nodes[k] = survivor;
+                    }
+                }
+            }
+
+            // Rewrite arc node references with bezier control point adjustment
+            foreach (var arc in layout.Arcs)
+            {
+                for (int k = 0; k < arc.Nodes.Length; k++)
+                {
+                    if (mergeMap.TryGetValue(arc.Nodes[k].Id, out var survivor))
+                    {
+                        var victim = arc.Nodes[k];
+                        double dLat = survivor.Latitude - victim.Latitude;
+                        double dLon = survivor.Longitude - victim.Longitude;
+
+                        // Translate the corresponding control point to preserve the
+                        // tangent handle vector (P1-P0 or P2-P3) exactly.
+                        if (k == 0)
+                        {
+                            arc.P1Lat += dLat;
+                            arc.P1Lon += dLon;
+                        }
+                        else
+                        {
+                            arc.P2Lat += dLat;
+                            arc.P2Lon += dLon;
+                        }
+
+                        arc.Nodes[k] = survivor;
+                    }
+                }
+            }
+
+            // Remove self-loop edges (both endpoints are the same node after merge)
+            layout.Edges.RemoveAll(e => e.Nodes[0].Id == e.Nodes[1].Id);
+
+            // Remove degenerate arcs (both endpoints are the same node after merge)
+            layout.Arcs.RemoveAll(a => a.Nodes[0].Id == a.Nodes[1].Id);
+
+            // Remove duplicate edges and arcs (same two nodes after merge)
+            RemoveDuplicateEdges(layout);
+            RemoveDuplicateArcs(layout);
+
+            // Remove arcs that duplicate an existing straight edge (same endpoints, shared taxiway)
+            RemoveRedundantArcs(layout);
+
+            // Remove victim nodes from layout
+            foreach (int victimId in mergeMap.Keys)
+            {
+                layout.Nodes.Remove(victimId);
+            }
+
+            totalMerged += mergeMap.Count;
+        }
+
+        // Final pass: recompute cached distances for all edges and arcs so they
+        // reflect current node positions after any merges.
+        if (totalMerged > 0)
+        {
+            RecomputeDistances(layout);
+        }
+
+        return totalMerged;
+    }
+
+    /// <summary>
+    /// Recompute cached DistanceNm for all edges and MinRadiusOfCurvatureFt/DistanceNm
+    /// for all arcs from their current node positions and control points.
+    /// </summary>
+    private static void RecomputeDistances(AirportGroundLayout layout)
+    {
+        foreach (var edge in layout.Edges)
+        {
+            edge.DistanceNm = GeoMath.DistanceNm(edge.Nodes[0].Latitude, edge.Nodes[0].Longitude, edge.Nodes[1].Latitude, edge.Nodes[1].Longitude);
+        }
+
+        foreach (var arc in layout.Arcs)
+        {
+            var bezier = arc.ToBezier();
+            arc.MinRadiusOfCurvatureFt = bezier.MinRadiusOfCurvatureFt(arc.Nodes[0].Latitude, 10);
+            arc.DistanceNm = bezier.ArcLengthNm(20);
+        }
+    }
+
+    /// <summary>
+    /// Build a merge map of coincident TaxiwayIntersection node pairs within the given threshold.
+    /// Returns victimId → survivorNode mapping. Later nodes in the candidate list are victims.
+    /// </summary>
+    private static Dictionary<int, GroundNode> BuildMergeMap(AirportGroundLayout layout, double thresholdNm)
+    {
         var candidates = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).ToList();
-
-        // Map victim → survivor
         var mergeMap = new Dictionary<int, GroundNode>();
 
         for (int i = 0; i < candidates.Count; i++)
@@ -546,67 +635,18 @@ public static class FilletArcGenerator
 
                 if (dist <= thresholdNm)
                 {
-                    double distFt = dist * GeoMath.FeetPerNm;
                     Log.LogDebug(
                         "Fillet cleanup: merging node {VictimId} into {SurvivorId} ({DistFt:F1}ft apart)",
                         candidates[j].Id,
                         candidates[i].Id,
-                        distFt
+                        dist * GeoMath.FeetPerNm
                     );
                     mergeMap[candidates[j].Id] = candidates[i];
                 }
             }
         }
 
-        if (mergeMap.Count == 0)
-        {
-            return 0;
-        }
-
-        // Rewrite edge node references
-        foreach (var edge in layout.Edges)
-        {
-            for (int k = 0; k < edge.Nodes.Length; k++)
-            {
-                if (mergeMap.TryGetValue(edge.Nodes[k].Id, out var survivor))
-                {
-                    edge.Nodes[k] = survivor;
-                }
-            }
-        }
-
-        // Rewrite arc node references
-        foreach (var arc in layout.Arcs)
-        {
-            for (int k = 0; k < arc.Nodes.Length; k++)
-            {
-                if (mergeMap.TryGetValue(arc.Nodes[k].Id, out var survivor))
-                {
-                    arc.Nodes[k] = survivor;
-                }
-            }
-        }
-
-        // Remove self-loop edges (both endpoints are the same node after merge)
-        layout.Edges.RemoveAll(e => e.Nodes[0].Id == e.Nodes[1].Id);
-
-        // Remove degenerate arcs (both endpoints are the same node after merge)
-        layout.Arcs.RemoveAll(a => a.Nodes[0].Id == a.Nodes[1].Id);
-
-        // Remove duplicate edges and arcs (same two nodes after merge)
-        RemoveDuplicateEdges(layout);
-        RemoveDuplicateArcs(layout);
-
-        // Remove arcs that duplicate an existing straight edge (same endpoints, shared taxiway)
-        RemoveRedundantArcs(layout);
-
-        // Remove victim nodes from layout
-        foreach (int victimId in mergeMap.Keys)
-        {
-            layout.Nodes.Remove(victimId);
-        }
-
-        return mergeMap.Count;
+        return mergeMap;
     }
 
     private static void RemoveDuplicateEdges(AirportGroundLayout layout)

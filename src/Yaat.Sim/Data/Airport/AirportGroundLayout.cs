@@ -136,7 +136,7 @@ public sealed class GroundEdge : IGroundEdge
     /// <summary>The two endpoint nodes. Fixed-size 2, no implied direction.</summary>
     public required GroundNode[] Nodes { get; init; }
     public required string TaxiwayName { get; init; }
-    public required double DistanceNm { get; init; }
+    public required double DistanceNm { get; set; }
 
     /// <summary>
     /// Intermediate coordinates along this edge (lat, lon pairs) for curved paths.
@@ -197,18 +197,18 @@ public sealed class GroundArc : IGroundEdge
     /// Bezier control points P1 and P2. P0 = Nodes[0].Lat/Lon, P3 = Nodes[1].Lat/Lon.
     /// P1 lies along edge-A direction from P0; P2 lies along edge-B direction from P3.
     /// </summary>
-    public required double P1Lat { get; init; }
-    public required double P1Lon { get; init; }
-    public required double P2Lat { get; init; }
-    public required double P2Lon { get; init; }
+    public required double P1Lat { get; set; }
+    public required double P1Lon { get; set; }
+    public required double P2Lat { get; set; }
+    public required double P2Lon { get; set; }
 
     /// <summary>
     /// Tightest radius of curvature along the bezier, precomputed at construction time.
     /// Used for worst-case speed constraint back-propagation.
     /// </summary>
-    public required double MinRadiusOfCurvatureFt { get; init; }
+    public required double MinRadiusOfCurvatureFt { get; set; }
 
-    public required double DistanceNm { get; init; }
+    public required double DistanceNm { get; set; }
 
     /// <summary>
     /// The taxiway(s) this arc belongs to. Length 1 when both edges share the same name,

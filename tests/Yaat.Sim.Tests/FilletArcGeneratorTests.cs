@@ -1,10 +1,20 @@
+using Microsoft.Extensions.Logging;
 using Xunit;
+using Xunit.Abstractions;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Sim.Tests;
 
 public class FilletArcGeneratorTests
 {
+    private readonly ITestOutputHelper _output;
+
+    public FilletArcGeneratorTests(ITestOutputHelper output)
+    {
+        _output = output;
+        SimLog.Initialize(LoggerFactory.Create(b => b.AddXUnit(output).SetMinimumLevel(LogLevel.Debug)));
+    }
+
     /// <summary>
     /// Build a simple layout with a single intersection node and the given edge endpoints.
     /// The intersection node is at (0, 0) and edges connect to nodes at the given lat/lon positions.
@@ -328,6 +338,118 @@ public class FilletArcGeneratorTests
         foreach (var node in layout.Nodes.Values)
         {
             Assert.True(node.Edges.Count > 0, $"Node {node.Id} ({node.Type}) has no edges after filleting");
+        }
+    }
+
+    [Theory]
+    [InlineData("OAK")]
+    [InlineData("SFO")]
+    [InlineData("SJC")]
+    [InlineData("FAT")]
+    [InlineData("HWD")]
+    [InlineData("MER")]
+    [InlineData("RNO")]
+    public void Airport_FilletProducesCleanGraph(string airportId)
+    {
+        string path = Path.Combine("TestData", $"{airportId.ToLowerInvariant()}.geojson");
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        var layout = GeoJsonParser.Parse(airportId, File.ReadAllText(path), null);
+
+        // Skip airports with no taxiway geometry (runway-only layouts)
+        if (layout.Nodes.Count == 0)
+        {
+            return;
+        }
+
+        // No degenerate edges: no edge between two TaxiwayIntersection nodes shorter than 1ft
+        var degenerateEdges = new List<string>();
+        foreach (var edge in layout.Edges)
+        {
+            var n0 = layout.Nodes[edge.Nodes[0].Id];
+            var n1 = layout.Nodes[edge.Nodes[1].Id];
+            if ((n0.Type == GroundNodeType.TaxiwayIntersection) && (n1.Type == GroundNodeType.TaxiwayIntersection))
+            {
+                double actualDistFt = GeoMath.DistanceNm(n0.Latitude, n0.Longitude, n1.Latitude, n1.Longitude) * GeoMath.FeetPerNm;
+                if (actualDistFt < 1.0)
+                {
+                    degenerateEdges.Add($"{edge.TaxiwayName} ({n0.Id}->{n1.Id}): {actualDistFt:F1}ft");
+                }
+            }
+        }
+
+        Assert.True(degenerateEdges.Count == 0, $"{airportId}: {degenerateEdges.Count} degenerate edges:\n{string.Join("\n", degenerateEdges)}");
+
+        // No coincident node pairs: no two TaxiwayIntersection nodes within 5ft
+        double thresholdNm = 5.0 / GeoMath.FeetPerNm;
+        var intersectionNodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).ToList();
+        var coincidentPairs = new List<string>();
+        for (int i = 0; i < intersectionNodes.Count; i++)
+        {
+            for (int j = i + 1; j < intersectionNodes.Count; j++)
+            {
+                double dist = GeoMath.DistanceNm(
+                    intersectionNodes[i].Latitude,
+                    intersectionNodes[i].Longitude,
+                    intersectionNodes[j].Latitude,
+                    intersectionNodes[j].Longitude
+                );
+                if (dist <= thresholdNm)
+                {
+                    coincidentPairs.Add($"({intersectionNodes[i].Id}, {intersectionNodes[j].Id}): {dist * GeoMath.FeetPerNm:F1}ft");
+                }
+            }
+        }
+
+        Assert.True(coincidentPairs.Count == 0, $"{airportId}: {coincidentPairs.Count} coincident node pairs:\n{string.Join("\n", coincidentPairs)}");
+
+        // Graph connectivity: BFS from most-connected node reaches ≥ 90% of all nodes
+        var startNode = layout.Nodes.Values.OrderByDescending(n => n.Edges.Count).First();
+        var visited = new HashSet<int> { startNode.Id };
+        var queue = new Queue<int>();
+        queue.Enqueue(startNode.Id);
+        while (queue.Count > 0)
+        {
+            int nodeId = queue.Dequeue();
+            if (!layout.Nodes.TryGetValue(nodeId, out var node))
+            {
+                continue;
+            }
+
+            foreach (var edge in node.Edges)
+            {
+                int otherId = edge.OtherNodeId(nodeId);
+                if (visited.Add(otherId))
+                {
+                    queue.Enqueue(otherId);
+                }
+            }
+        }
+
+        double reachPct = (double)visited.Count / layout.Nodes.Count;
+        Assert.True(reachPct >= 0.9, $"{airportId}: only {visited.Count}/{layout.Nodes.Count} ({reachPct:P0}) nodes reachable");
+
+        // All arcs valid: positive MinRadiusOfCurvatureFt and DistanceNm
+        foreach (var arc in layout.Arcs)
+        {
+            Assert.True(
+                arc.MinRadiusOfCurvatureFt > 0,
+                $"{airportId}: arc {arc.Nodes[0].Id}->{arc.Nodes[1].Id} has MinRadius={arc.MinRadiusOfCurvatureFt:F1}ft"
+            );
+            Assert.True(arc.DistanceNm > 0, $"{airportId}: arc {arc.Nodes[0].Id}->{arc.Nodes[1].Id} has DistanceNm={arc.DistanceNm}");
+        }
+
+        // Every non-spot/helipad node has at least one edge (spots/helipads may be too
+        // far from taxiways to connect)
+        foreach (var node in layout.Nodes.Values)
+        {
+            if ((node.Type != GroundNodeType.Spot) && (node.Type != GroundNodeType.Helipad))
+            {
+                Assert.True(node.Edges.Count > 0, $"{airportId}: node {node.Id} ({node.Type}) has no edges");
+            }
         }
     }
 }
