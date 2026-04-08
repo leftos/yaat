@@ -1,11 +1,44 @@
 # Architecture — File Tree
 
 > **Read this file when you need to locate specific files or understand project structure.**
-> CLAUDE.md contains a summary; this file has the full annotated tree.
+> CLAUDE.md contains the architectural summary; this file has the full annotated tree.
 
-Three projects across two repos. **Yaat.Sim** is shared by both Yaat.Client and yaat-server.
+## Task Index — "I need to change X, which files?"
 
-**Yaat.Sim owns all simulation/aviation logic** — physics, phases, pattern geometry, performance constants, command dispatch, command queue. Server is a thin comms layer.
+| Task | Key files (in order of relevance) |
+|------|----------------------------------|
+| **Add a new command** | `CommandRegistry.cs` → `CommandScheme.cs` → `CommandSchemeParser.cs` → `CommandDispatcher.cs` → appropriate `*CommandHandler.cs` |
+| **Add a new phase** | `Phase.cs` (base) → new phase class → `PhaseList.cs` (registration) → `PhaseRunner.cs` (lifecycle) → `PhaseSnapshotDto.cs` (serialization) → `CommandDispatcher.cs` (acceptance) |
+| **Altitude commands** | `AltitudeResolver.cs`, `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateAltitude), `ControlTargets.cs` |
+| **Speed commands** | `FlightCommandHandler.cs`, `FlightPhysics.cs` (UpdateSpeed/UpdateSpeedPlanning), `ControlTargets.cs`, `AircraftPerformance.cs` |
+| **Heading/navigation** | `FlightCommandHandler.cs`, `NavigationCommandHandler.cs`, `FlightPhysics.cs` (UpdateNavigation/UpdateHeading), `ControlTargets.cs` |
+| **Ground taxiing** | `GroundNavigator.cs`, `TaxiPathfinder.cs`, `TaxiingPhase.cs`, `TaxiRoute.cs`, `AirportGroundLayout.cs` |
+| **Ground layout parsing** | `GeoJsonParser.cs`, `FilletArcGenerator.cs`, `TaxiwayGraphBuilder.cs`, `CoordinateIndex.cs` |
+| **Runway exits** | `LandingPhase.cs`, `RunwayExitPhase.cs`, `ExitPreference.cs`, `AirportGroundLayout.cs` (FindExitPath) |
+| **Approach procedures** | `ApproachCommandHandler.cs`, `ApproachNavigationPhase.cs`, `FinalApproachPhase.cs`, `CifpParser.cs` |
+| **SID/STAR** | `DepartureClearanceHandler.cs`, `InitialClimbPhase.cs`, `CifpParser.cs`, `NavigationDatabase.cs` |
+| **Radar rendering** | `RadarCanvas.cs` (input/zoom) → `RadarRenderer.cs` (drawing) → `TargetRenderer.cs` (datablocks) → `VideoMapRenderer.cs` (maps) |
+| **Ground view rendering** | `GroundCanvas.cs` (input/hit-test) → `GroundRenderer.cs` (drawing, 3 layers) |
+| **Command input UX** | `CommandInputController.cs` (parse pipeline) → `ArgumentSuggester.cs` (dropdown values) → `SignatureHelpState.cs` (inline hints) |
+| **Weather** | `WeatherProfile.cs`, `WeatherTimeline.cs`, `WindInterpolator.cs`, `LiveWeatherService.cs` |
+| **Scenarios** | `ScenarioLoader.cs`, `ScenarioModels.cs`, `AircraftInitializer.cs`, `ScenarioLifecycleService.cs` (server) |
+| **Snapshots/replay** | `StateSnapshotDto.cs`, `AircraftSnapshotDto.cs`, `RecordingArchive.cs`, `SimulationEngine.cs` |
+| **CRC protocol** | `CrcDtos*.cs` (wire format) → `DtoConverter.cs` (translation) → `CrcBroadcastService.cs` (dispatch) → `CrcWebSocketHandler.cs` (connection) |
+
+## Integration Footguns
+
+- **Modify `AircraftState`** → must mirror changes in `AircraftSnapshotDto.cs` + add migration in `SnapshotSchemaMigrator.cs`
+- **New command type** → must add to `CanonicalCommandType` enum, `CommandRegistry` definitions, AND `CommandScheme.Default()`. Tests enforce completeness.
+- **New phase** → must add `[JsonDerivedType]` attribute in `PhaseSnapshotDto.cs` for serialization
+- **Modify `ControlTargets`** → check `ControlTargetsDto.cs` snapshot parity
+- **Aircraft performance** → sync `AircraftProfiles.json` + `AircraftProfileDatabase` + `AircraftPerformance.cs` fallback logic
+
+## Test Locations
+
+- **Sim tests**: `tests/Yaat.Sim.Tests/` — commands, phases, physics, parsers, nav data
+- **Client tests**: `tests/Yaat.Client.Tests/` — view model logic, command input
+- **Test data**: `tests/Yaat.Sim.Tests/TestData/` — real NavData.dat, FAACIFP18.gz, airport GeoJSON
+- **Shared loader**: `TestVnasData.EnsureInitialized()` — always use this, never synthetic stubs
 
 ## Root Scripts
 
@@ -33,6 +66,7 @@ Services/
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional &1 or named &hdg)
   MacroExpander.cs              # Static TryExpand: scan-and-replace #NAME args in command text
   TrainingDataService.cs         # Fetches scenarios/weather from vNAS data API (data-api.vnas.vatsim.net)
+  ArgumentSuggester.cs           # Command argument autocomplete from CommandRegistry metadata (literal options + contextual fix/runway suggestions)
   FixSuggester.cs               # Fix name suggestions from FixDb
   AddCommandSuggester.cs        # ADD command callsign/model suggestions
   SuggestionItem.cs             # Suggestion display model (text, kind, description)
@@ -106,14 +140,9 @@ No UI deps. Deps: Google.Protobuf, Microsoft.Extensions.Logging.Abstractions.
 
 ```
 # Core
-AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops
+AircraftState.cs               # Mutable entity: position, flight plan, identity, control, track ops, visual approach state, pattern overrides
                                # GroundLayout is [JsonIgnore]; GroundLayoutAirportId preserves reference for archive restore
-                               # IndicatedAirspeed (IAS, primary speed state), Track (ground track = heading + wind drift)
-                               # BankAngle (degrees, +right/-left, computed by FlightPhysics.UpdateHeading from TAS + turn rate)
-                               # ActiveSidId/ActiveStarId, SidViaMode/StarViaMode, SidViaCeiling/StarViaFloor
-                               # HasReportedFieldInSight, HasReportedTrafficInSight, FollowingCallsign (visual approach)
-                               # PatternSizeOverrideNm (override for pattern downwind offset distance)
-                               # IsExpediting (1.5x climb/descent rate multiplier, cleared at altitude snap or by NORM/CM/DM)
+                               # FOOTGUN: changes here must be mirrored in AircraftSnapshotDto + SnapshotSchemaMigrator
 ControlTargets.cs              # Autopilot targets: heading, altitude, speed (IAS), NavigationRoute
                                # NavigationTarget: optional AltitudeRestriction + SpeedRestriction (for SID/STAR via mode)
                                # TargetMach: when set, UpdateSpeed recomputes equivalent IAS each tick (Mach hold)
@@ -255,7 +284,7 @@ Data/VideoMapParser.cs         # GeoJSON → VideoMapData
 IAirportGroundData.cs          # Interface: GetLayout(airportId) → AirportGroundLayout?
 AirportGroundLayout.cs         # Graph: IGroundEdge interface, GroundNode, GroundEdge (straight), GroundArc (bezier fillet arc: P1/P2 control points + MinRadiusOfCurvatureFt), DirectionalEdge (traversal direction)
                                # AllEdges (Edges+Arcs), FindAdjacentHoldShort (BFS, max 12 hops), FindExitPath, FindNearestHoldShortAhead, FindExitAheadOnRunway, ComputeExitAngle
-CubicBezier.cs                 # Bezier math: evaluate, derivative, curvature, arc length (polyline sum), closest-t projection (coarse scan + ternary search), tangent bearing
+CubicBezier.cs                 # Bezier math utilities; used by FilletArcGenerator (arc generation) and GroundNavigator (path following)
 FilletArcGenerator.cs          # Replaces intersection nodes with bezier fillet arcs; plan-then-execute: compute tangent points → create arcs → rebuild edges → delete node
                                # Radius fits to edge length, collinear merges produce inner straight edges, coincident node merge pass, applied as Step 8 in GeoJsonParser
 RunwayIdentifier.cs            # Struct: runway designator parsing/matching

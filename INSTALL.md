@@ -4,7 +4,7 @@ This guide walks you through installing and running YAAT from scratch, assuming 
 
 ## What You Need
 
-- **Windows 10 or later**, **macOS**, or **Linux** (YAAT uses Avalonia UI and runs on all three platforms)
+- **Windows 10 or later**, **macOS**, or **Linux**
 - **An internet connection** (to download tools and code)
 
 ## Platform Notes
@@ -33,9 +33,15 @@ sudo dnf install fontconfig freetype
 sudo pacman -S fontconfig freetype2
 ```
 
-You also need a monospace font installed. Most distros include `DejaVu Sans Mono` by default; if not, install it (e.g., `sudo apt install fonts-dejavu-core`).
+You also need a monospace font installed. Most distros include a default monospace font, but if you see text rendering issues when you run YAAT, install `DejaVu Sans Mono`:
 
-**Wayland note:** Avalonia supports Wayland but window position save/restore may not work (Wayland doesn't allow apps to set their own window position). Everything else works normally.
+```bash
+sudo apt install fonts-dejavu-core    # Debian/Ubuntu
+sudo dnf install fonts-dejavu-core    # Fedora
+sudo pacman -S ttf-dejavu             # Arch
+```
+
+**Wayland note:** Avalonia supports Wayland, but window position save/restore does not work — the app opens in a default position each time. Everything else works normally.
 
 ### macOS
 
@@ -122,11 +128,9 @@ git clone https://github.com/leftos/yaat.git
 git clone https://github.com/leftos/yaat-server.git
 ```
 
-This creates two folders side by side (`yaat` and `yaat-server`).
+This creates two folders side by side (`yaat` and `yaat-server`). Both folders must be in the same parent directory — the server references shared simulation code from the client repo.
 
-**Important:** Both folders must be in the same parent directory. The server references shared code from the client repo, so they need to be next to each other.
-
-4. Set up git hooks in yaat-server (keeps the `Yaat.Sim` submodule pin in sync automatically):
+4. Set up git hooks in yaat-server (keeps the shared code reference in sync automatically):
 
 ```bash
 cd yaat-server
@@ -137,48 +141,56 @@ git config core.hooksPath .githooks
 
 ### Option A: Use the Start Script (Recommended)
 
-The easiest way to run everything is the included start script. It builds and launches both the server and client for you.
+The start script builds both projects and launches the server and client together:
 
-1. Open a terminal
-2. Navigate to the yaat folder:
+```powershell
+cd yaat
 
-```bash
-cd yaat    # or the full path, e.g. C:\dev\yaat or ~/dev/yaat
+.\start.ps1          # Windows (PowerShell)
 ```
 
-3. Run the start script:
-
 ```bash
-# Windows (PowerShell)
-.\start.ps1
+cd yaat
 
-# macOS / Linux
-./start.sh
+./start.sh           # macOS / Linux
 ```
 
-**Windows only:** If you get an error about "execution policies", run this first and try again:
+The script will:
+1. Build both the YAAT client and yaat-server
+2. Start the server on `http://localhost:5000`
+3. Launch the YAAT client, which connects automatically
+
+Press **Ctrl+C** to stop everything.
+
+**Windows only:** If you see an error like "cannot be loaded because running scripts is disabled," run this once in PowerShell and try again:
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-The script builds both projects and starts them. You'll see log output from both the server and client. Press **Ctrl+C** to stop everything.
+### Option B: Join a Remote Server
 
-### Option A2: Connect to Someone Else's Server
+If an instructor is already hosting a YAAT server (e.g., at `https://yaat1.leftos.dev`), you don't need to run your own server. The `--sync` flag automatically:
 
-If another user is already hosting a yaat-server (e.g. at `https://yaat1.leftos.dev`), you can skip running your own server entirely. The `--sync` flag checks out the exact client version the remote server was built with, builds it, and auto-connects:
+1. Checks out the exact client version the remote server was built with (ensures compatibility)
+2. Builds the client
+3. Launches it and connects to the remote server
 
-```bash
-# Windows (PowerShell)
-.\start.ps1 -Sync https://yaat1.leftos.dev
-
-# macOS / Linux
-./start.sh --sync https://yaat1.leftos.dev
+```powershell
+.\start.ps1 -Sync https://yaat1.leftos.dev    # Windows (PowerShell)
 ```
 
-Your working tree must be clean (no uncommitted changes). This leaves you in detached HEAD state — run `git checkout main` to return to the latest code afterward.
+```bash
+./start.sh --sync https://yaat1.leftos.dev     # macOS / Linux
+```
 
-### Option B: Run Manually
+Your git working tree must be clean (no uncommitted changes). After you're done, return to the latest code with:
+
+```bash
+git checkout main
+```
+
+### Option C: Run Manually
 
 If you prefer to run each piece separately (useful for troubleshooting):
 
@@ -198,40 +210,27 @@ cd yaat
 dotnet run --project src/Yaat.Client
 ```
 
-## Step 5: First-Time Setup
+## Next Steps
 
-Once the client window opens:
-
-1. Open **Settings** (gear icon or menu)
-2. Go to the **Identity** tab
-3. Fill in:
-   - **VATSIM CID** — your VATSIM ID number
-   - **Initials** — any two letters (e.g., your initials)
-   - **ARTCC ID** — the facility you want to train (e.g., `ZOA`)
-4. Close Settings
-5. **File > Connect** to connect to the server
-
-You're now ready to create a room and load a scenario. See the [User Guide](USER_GUIDE.md) for detailed usage instructions.
-
-## Step 6: Connect CRC (Optional)
-
-If you want students to connect with [CRC](https://crc.virtualnas.net), you need to configure CRC to point at your YAAT server. See the [User Guide — Connecting CRC](USER_GUIDE.md#connecting-crc-optional) for setup options and connection instructions.
+Once the client window opens, head to **[Getting Started](GETTING_STARTED.md)** to configure your identity and run your first training session.
 
 ## Updating to the Latest Version
 
 When there's a new version available:
 
-```bash
-# Windows (PowerShell)
-cd C:\dev\yaat
-.\start.ps1 -Pull
+```powershell
+cd yaat
 
-# macOS / Linux
-cd ~/dev/yaat
-./start.sh --pull
+.\start.ps1 -Pull          # Windows (PowerShell)
 ```
 
-The `-Pull` / `--pull` flag downloads the latest code for both repos before building. Alternatively, you can update manually:
+```bash
+cd yaat
+
+./start.sh --pull           # macOS / Linux
+```
+
+The `-Pull` / `--pull` flag downloads the latest code for both repos before building. Alternatively, update manually:
 
 ```bash
 cd yaat

@@ -6,7 +6,7 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 
 ## Features
 
-- **Cross-platform** — built to run natively on Windows, MacOS, and Linux
+- **Cross-platform** — runs natively on Windows, macOS, and Linux
 - **Training rooms** — create or join isolated rooms; multiple concurrent sessions supported
 - **Scenario management** — load predefined traffic scenarios with automatic aircraft spawning
 - **Command input** — text-based ATC commands with autocomplete, macros, and compound syntax
@@ -15,50 +15,17 @@ Instructors and RPOs use YAAT to create training rooms, load scenarios, issue AT
 - **Weather** — load ATCTrainer-compatible wind/weather profiles; wind affects aircraft physics
 - **Full nav data** — VNAS protobuf nav data, FAA CIFP procedures (SIDs, STARs, approaches), and aircraft performance specs downloaded automatically
 - **CRC integration** — CRC clients connect to the same server and see all simulated traffic
+- **Rewind** — scrub back through a session and replay from any point
 
-## Getting Started
+## Documentation
 
-### Prerequisites
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [yaat-server](https://github.com/leftos/yaat-server) cloned as a sibling directory (private repo — access required)
-- **Linux only:** `libfontconfig1` and `libfreetype6` (required by SkiaSharp for font rendering)
-
-### Quick Start
-
-The included start script builds both projects and launches the server and client together. Press Ctrl-C to stop the server.
-
-```powershell
-.\start.ps1          # Windows (PowerShell)
-```
-
-```bash
-./start.sh           # macOS / Linux
-```
-
-The client auto-connects to the server on startup. Create or join a training room, load a scenario, and start issuing commands.
-
-### Building and Running Manually
-
-**Server** (from the yaat-server repo):
-
-```bash
-dotnet build src/Yaat.Server
-dotnet run --project src/Yaat.Server
-```
-
-The server listens on `http://localhost:5000` by default.
-
-**Client** (from this repo):
-
-```bash
-dotnet build
-dotnet run --project src/Yaat.Client
-```
-
-The client connects to `http://localhost:5000` by default.
-
-**CRC setup** (for students connecting via the radar client): see the [User Guide — Connecting CRC](USER_GUIDE.md#connecting-crc-optional) for setup script and manual configuration options.
+| Document | Audience | Content |
+|----------|----------|---------|
+| **[Installation Guide](INSTALL.md)** | New users | System prerequisites, downloading the code, building and running |
+| **[Getting Started](GETTING_STARTED.md)** | First-time users | First connection, identity setup, loading your first scenario |
+| **[User Guide](USER_GUIDE.md)** | Active users | Interface, views, scenarios, weather, settings, and workflows |
+| **[Command Reference](COMMANDS.md)** | Active users | Complete command reference — every verb, alias, and example |
+| **[Contributing](CONTRIBUTING.md)** | Developers | Development setup, code style, and formatting |
 
 ## Project Structure
 
@@ -86,14 +53,6 @@ tests/              Unit tests for both projects
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/) — MVVM source generators
 - [ASP.NET SignalR Client](https://learn.microsoft.com/en-us/aspnet/core/signalr/) — real-time server communication
 - [Google.Protobuf](https://protobuf.dev/) — VNAS nav data deserialization
-
-## Documentation
-
-See [USER_GUIDE.md](USER_GUIDE.md) for detailed usage instructions, command reference, and feature documentation.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and formatting instructions.
 
 ## License
 
