@@ -737,6 +737,19 @@ public sealed class AirportGroundLayout
                 continue;
             }
 
+            // Skip arcs whose departure tangent faces away from the runway heading.
+            // Threshold fillets create arcs for both runway directions — an arc designed
+            // for 10L traffic curves backward for a 28R aircraft.
+            if (edge is GroundArc arc)
+            {
+                double departureBearing = arc.TangentBearingAt(centerlineNode, centerlineNode, neighbor);
+                double bearingDiff = runwayHeading.AbsAngleTo(new TrueHeading(departureBearing));
+                if (bearingDiff > 90)
+                {
+                    continue;
+                }
+            }
+
             if (preference?.Taxiway is { } prefTwy && !edge.MatchesTaxiway(prefTwy))
             {
                 continue;

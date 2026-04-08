@@ -29,13 +29,20 @@ public static class FilletArcGenerator
         int nextNodeId = layout.Nodes.Keys.DefaultIfEmpty(0).Max() + 1;
 
         // Snapshot the intersection nodes to process — we'll be mutating the graph.
-        var intersections = layout.Nodes.Values.Where(IsEligibleForFilleting).ToList();
+        var intersections = new List<(GroundNode Node, bool PreserveNode)>();
+        foreach (var node in layout.Nodes.Values)
+        {
+            if (IsEligibleForFilleting(node, out bool preserve))
+            {
+                intersections.Add((node, preserve));
+            }
+        }
 
         int filletedCount = 0;
         int arcCount = 0;
         int mergedCount = 0;
 
-        foreach (var node in intersections)
+        foreach (var (node, preserveNode) in intersections)
         {
             // Skip nodes already removed by a prior iteration (e.g., collinear merge
             // removed both endpoints of a pair that shared this node).
@@ -53,7 +60,7 @@ public static class FilletArcGenerator
                 continue;
             }
 
-            var result = FilletNode(layout, node, ref nextNodeId);
+            var result = FilletNode(layout, node, preserveNode, ref nextNodeId);
             if (result.Success)
             {
                 filletedCount++;
@@ -81,6 +88,19 @@ public static class FilletArcGenerator
 
     private static bool IsEligibleForFilleting(GroundNode node)
     {
+        return IsEligibleForFilleting(node, out _);
+    }
+
+    /// <summary>
+    /// Check if a node is eligible for filleting. Sets <paramref name="preserveNode"/> to true
+    /// for runway threshold nodes — arcs are created but the node itself is kept in the graph,
+    /// connected to tangent points via stub edges. This allows aircraft rolling to the runway
+    /// end to smoothly turn onto taxiways via arcs while keeping the threshold node reachable.
+    /// </summary>
+    private static bool IsEligibleForFilleting(GroundNode node, out bool preserveNode)
+    {
+        preserveNode = false;
+
         // Only fillet plain intersection nodes — not hold-shorts, parking, spots, helipads
         if (node.Type != GroundNodeType.TaxiwayIntersection)
         {
@@ -92,29 +112,44 @@ public static class FilletArcGenerator
             return false;
         }
 
-        // Skip runway endpoints — nodes with exactly one RWY edge (threshold / end of centerline).
-        // Mid-centerline nodes (2+ RWY edges) are fine: the collinear RWY pair merges and
-        // taxiway branches get arcs.
+        // Count runway and non-runway edges
         int runwayEdgeCount = 0;
+        int nonRunwayEdgeCount = 0;
         foreach (var edge in node.Edges)
         {
             if (edge.IsRunwayCenterline)
             {
                 runwayEdgeCount++;
             }
+            else
+            {
+                nonRunwayEdgeCount++;
+            }
         }
 
-        if (runwayEdgeCount == 1)
+        // Runway threshold: exactly 1 RWY edge + at least 1 taxiway edge.
+        // Create arcs but preserve the node (connected via stub edges to tangent points).
+        if ((runwayEdgeCount == 1) && (nonRunwayEdgeCount > 0))
+        {
+            preserveNode = true;
+            return true;
+        }
+
+        // Pure runway endpoint with no taxiway connections — no turn to smooth
+        if ((runwayEdgeCount == 1) && (nonRunwayEdgeCount == 0))
         {
             return false;
         }
 
+        // Mid-centerline nodes (2+ RWY edges) are fine: the collinear RWY pair merges and
+        // taxiway branches get arcs.
         return true;
     }
 
     private static (bool Success, int ArcsCreated, int EdgesMerged) FilletNode(
         AirportGroundLayout layout,
         GroundNode intersection,
+        bool preserveNode,
         ref int nextNodeId
     )
     {
@@ -404,8 +439,76 @@ public static class FilletArcGenerator
         // Remove all original edges at this intersection
         layout.Edges.RemoveAll(e => consumedEdges.Contains(e));
 
-        // Remove the intersection node
-        layout.Nodes.Remove(intersection.Id);
+        if (preserveNode)
+        {
+            // Threshold fillet: keep the intersection node, connect it to tangent points via stub edges.
+            // This keeps the threshold reachable while arcs provide smooth turn geometry.
+            foreach (var (edge, tangentNode) in edgeTangentNodes)
+            {
+                double stubDist = GeoMath.DistanceNm(
+                    intersection.Latitude,
+                    intersection.Longitude,
+                    tangentNode.Latitude,
+                    tangentNode.Longitude
+                );
+                layout.Edges.Add(
+                    new GroundEdge
+                    {
+                        Nodes = [intersection, tangentNode],
+                        TaxiwayName = edge.TaxiwayName,
+                        DistanceNm = stubDist,
+                    }
+                );
+            }
+
+            // Also add stubs to collinear merge endpoints that don't have tangent points,
+            // so the intersection stays connected through merged collinear paths.
+            foreach (var (edgeA, otherA, edgeB, otherB) in plannedMerges)
+            {
+                bool aHasTangent = edgeTangentNodes.ContainsKey(edgeA);
+                bool bHasTangent = edgeTangentNodes.ContainsKey(edgeB);
+                if (!aHasTangent)
+                {
+                    double dist = GeoMath.DistanceNm(
+                        intersection.Latitude,
+                        intersection.Longitude,
+                        otherA.Latitude,
+                        otherA.Longitude
+                    );
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [intersection, otherA],
+                            TaxiwayName = edgeA.TaxiwayName,
+                            DistanceNm = dist,
+                        }
+                    );
+                }
+
+                if (!bHasTangent)
+                {
+                    double dist = GeoMath.DistanceNm(
+                        intersection.Latitude,
+                        intersection.Longitude,
+                        otherB.Latitude,
+                        otherB.Longitude
+                    );
+                    layout.Edges.Add(
+                        new GroundEdge
+                        {
+                            Nodes = [intersection, otherB],
+                            TaxiwayName = edgeB.TaxiwayName,
+                            DistanceNm = dist,
+                        }
+                    );
+                }
+            }
+        }
+        else
+        {
+            // Standard fillet: remove the intersection node entirely
+            layout.Nodes.Remove(intersection.Id);
+        }
 
         return (true, arcsCreated, edgesMerged);
     }
