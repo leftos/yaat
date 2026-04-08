@@ -29,7 +29,7 @@ Key patterns and pain points:
 **Downsides:** Slightly slower commits (build runs every time). Can be bypassed with --no-verify if needed.
 **Confidence:** 95%
 **Complexity:** Low
-**Status:** Unexplored
+**Status:** Explored — implemented 2026-04-08
 
 ### 2. Unify CommandScheme + CommandMetadata into single registry
 **Description:** Merge the two command registries that must stay in sync into one. Tests currently enforce parity -- the existence of those tests proves the duplication causes real drift. A single registry eliminates the failure mode entirely and deletes the sync-enforcement tests.
@@ -37,7 +37,7 @@ Key patterns and pain points:
 **Downsides:** One-time migration effort. Need to decide which registry's shape wins.
 **Confidence:** 80%
 **Complexity:** Medium
-**Status:** Unexplored
+**Status:** Explored — deprioritized 2026-04-08. CommandScheme.Default() already derives from CommandRegistry.All via .ToDictionary(); they can't drift. The parity tests are a safety net, not evidence of real drift. Adding a new command only touches CommandRegistry.Build(). ROI of flattening is modest (~80 lines deleted, ~8 files touched) for marginal ongoing benefit. The real maintenance hazard is #3 (dual command input pipeline), not this.
 
 ### 3. Unify dual command input pipeline
 **Description:** Merge autocomplete (ArgumentSuggester + UpdateSuggestions) and signature help (SignatureHelpState + UpdateSignatureHelp) into a single parse-once, render-twice architecture. Both systems parse the same command text independently; special rewrite verbs need dedicated code paths in both.
@@ -45,7 +45,7 @@ Key patterns and pain points:
 **Downsides:** Medium-large refactor touching the entire command input path. Risk of introducing input UX regressions.
 **Confidence:** 75%
 **Complexity:** Medium-High
-**Status:** Unexplored
+**Status:** Explored — brainstormed 2026-04-08. Design: parse-once, render-twice via shared CommandInputParseResult record carrying resolved CommandDefinition. Add RWY to CommandRegistry as proper entry (two overloads) to eliminate all hardcoded RWY special cases. Plan at docs/plans/open-issues/unify-command-input-pipeline.md.
 
 ### 4. Headless simulation runner
 **Description:** Build a CLI tool that loads a scenario, executes a script of timed commands, and outputs structured state logs -- no Avalonia required. Foundation for CI regression tests, benchmarking, and batch validation.

@@ -17,73 +17,37 @@ internal static class ArgumentSuggester
     /// Returns true if this command type has argument suggestions (even if none matched the partial).
     /// </summary>
     internal static bool TryAddArgumentSuggestions(
-        string fragment,
+        CommandInputParseResult parsed,
         string fullText,
-        CommandScheme scheme,
         AircraftModel? targetAircraft,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
         int maxSuggestions
     )
     {
-        var words = fragment.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (words.Length < 1)
+        if (parsed.VerbIndex < 0 || parsed.Definition is null)
         {
             return false;
         }
 
-        int verbIndex = FindVerbIndex(words, scheme);
-        if (verbIndex < 0)
+        if (parsed.Definition.ArgMode == ArgMode.None)
         {
             return false;
         }
 
-        var verb = words[verbIndex];
-        var hasTrailingSpace = fragment.EndsWith(' ');
-        var wordsAfterVerb = words.Length - verbIndex - 1;
-        var isAfterVerb = hasTrailingSpace || wordsAfterVerb > 0;
+        var wordsAfterVerb = parsed.Tokens.Length - parsed.VerbIndex - 1;
+        var isAfterVerb = parsed.HasTrailingSpace || wordsAfterVerb > 0;
 
         if (!isAfterVerb)
         {
             return false;
         }
 
-        // RWY is a special rewrite verb not in the registry
-        // Supports: RWY {runway} and RWY {runway} [TAXI] {taxiway...}
-        if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase))
-        {
-            var argsAfterVerb = words.Length - verbIndex - 1;
-            var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
-            var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
-
-            // Effective param position (0-based): which arg slot the cursor is on
-            int paramPos = hasTrailingSpace ? argsAfterVerb : argsAfterVerb - 1;
-
-            if (paramPos == 0)
-            {
-                // First arg: suggest runway designators
-                AddRunwaySuggestions(partial, prefix, suggestions, primaryAirportId, maxSuggestions);
-            }
-            else if (paramPos == 1)
-            {
-                // Second arg (after runway): suggest TAXI keyword
-                AddOption("TAXI", "Taxi via route", partial, prefix, suggestions, maxSuggestions);
-            }
-
-            return true;
-        }
-
-        var def = FindCommandDefinition(verb, scheme);
-        if (def is null)
-        {
-            return false;
-        }
-
         return AddRegistrySuggestions(
-            def,
-            words,
-            verbIndex,
-            hasTrailingSpace,
+            parsed.Definition,
+            parsed.Tokens,
+            parsed.VerbIndex,
+            parsed.HasTrailingSpace,
             fullText,
             targetAircraft,
             suggestions,
@@ -149,7 +113,18 @@ internal static class ArgumentSuggester
             }
         }
 
-        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach)
+        // When past all overload parameters, suggest compound modifiers if available
+        bool hasModifiers = false;
+        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && def.CompoundModifiers is { Length: > 0 })
+        {
+            bool allOverloadsExhausted = def.Overloads.All(o => paramIndex >= o.Parameters.Length);
+            if (allOverloadsExhausted)
+            {
+                hasModifiers = true;
+            }
+        }
+
+        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasModifiers)
         {
             return false;
         }
@@ -174,6 +149,11 @@ internal static class ArgumentSuggester
         if (hasFix)
         {
             FixSuggester.AddFixSuggestions(partial, prefix, targetAircraft, suggestions, maxSuggestions);
+        }
+
+        if (hasModifiers)
+        {
+            AddCompoundModifierSuggestions(def, words, verbIndex, partial, prefix, suggestions, maxSuggestions);
         }
 
         return true;
@@ -251,6 +231,41 @@ internal static class ArgumentSuggester
         }
     }
 
+    private static void AddCompoundModifierSuggestions(
+        CommandDefinition def,
+        string[] words,
+        int verbIndex,
+        string partial,
+        string prefix,
+        ObservableCollection<SuggestionItem> suggestions,
+        int maxSuggestions
+    )
+    {
+        // Collect already-typed modifier keywords so we don't re-suggest non-repeatable ones
+        var typedModifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (int i = verbIndex + 1; i < words.Length; i++)
+        {
+            typedModifiers.Add(words[i]);
+        }
+
+        foreach (var mod in def.CompoundModifiers!)
+        {
+            if (suggestions.Count >= maxSuggestions)
+            {
+                break;
+            }
+
+            // Skip non-repeatable modifiers that are already typed
+            if (!mod.Repeatable && typedModifiers.Contains(mod.Keyword))
+            {
+                continue;
+            }
+
+            var description = mod.ArgHint is not null ? $"+ {mod.ArgHint}" : "modifier";
+            AddOption(mod.Keyword, description, partial, prefix, suggestions, maxSuggestions);
+        }
+    }
+
     private static bool IsRunwayHint(string typeHint)
     {
         return typeHint.Contains("runway", StringComparison.OrdinalIgnoreCase);
@@ -264,27 +279,6 @@ internal static class ArgumentSuggester
     private static bool IsApproachHint(string typeHint)
     {
         return typeHint.Contains("approach ID", StringComparison.OrdinalIgnoreCase);
-    }
-
-    internal static CommandDefinition? FindCommandDefinition(string verb, CommandScheme scheme)
-    {
-        foreach (var (type, def) in CommandRegistry.All)
-        {
-            if (!scheme.Patterns.TryGetValue(type, out var pattern))
-            {
-                continue;
-            }
-
-            foreach (var alias in pattern.Aliases)
-            {
-                if (string.Equals(alias, verb, StringComparison.OrdinalIgnoreCase))
-                {
-                    return def;
-                }
-            }
-        }
-
-        return null;
     }
 
     private static void AddRunwaySuggestions(
@@ -396,32 +390,5 @@ internal static class ArgumentSuggester
                 InsertText = prefix + value + " ",
             }
         );
-    }
-
-    private static int FindVerbIndex(string[] words, CommandScheme scheme)
-    {
-        if (IsRecognizedVerb(words[0], scheme))
-        {
-            return 0;
-        }
-
-        if (words.Length >= 2 && IsRecognizedVerb(words[1], scheme))
-        {
-            return 1;
-        }
-
-        return -1;
-    }
-
-    private static bool IsRecognizedVerb(string token, CommandScheme scheme)
-    {
-        // RWY is a special rewrite verb not in the registry
-        if (string.Equals(token, "RWY", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        // Any verb that maps to a registry command with arguments gets suggestions
-        return FindCommandDefinition(token, scheme) is { ArgMode: not ArgMode.None };
     }
 }

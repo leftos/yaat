@@ -70,11 +70,12 @@ Three projects across two repos. **Yaat.Sim** is shared by both Yaat.Client and 
 
 ### Command Input UX
 
-Two systems in `CommandInputController` — keep them in sync:
-- **Autocomplete**: `ArgumentSuggester` → `UpdateSuggestions()` — dropdown value suggestions
-- **Signature help**: `SignatureHelpState` + `CommandSignatureSet` → `UpdateSignatureHelp()` — inline parameter hints
+Unified parse-once architecture in `CommandInputController`:
+- `ParseCommandInput()` produces a `CommandInputParseResult` (verb, definition, param index, typed args)
+- **Autocomplete**: `ArgumentSuggester` consumes the parse result → dropdown value suggestions
+- **Signature help**: `SignatureHelpState` consumes the parse result → inline parameter hints
 
-Registry commands (`CommandRegistry`) get both automatically. **Special rewrite verbs** (e.g. `RWY`) need dedicated code paths in both systems.
+All commands including rewrite verbs (e.g. `RWY`) go through `CommandRegistry` — no special-case code paths needed.
 
 ## Tech Stack
 

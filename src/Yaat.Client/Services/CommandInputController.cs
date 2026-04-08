@@ -68,39 +68,28 @@ public partial class CommandInputController : ObservableObject
         Suggestions.Clear();
         SelectedSuggestionIndex = -1;
 
-        if (string.IsNullOrWhiteSpace(text))
+        var parsed = ParseCommandInput(text, scheme);
+        if (parsed is null)
         {
             IsSuggestionsVisible = false;
             return;
         }
 
-        // For compound commands, only suggest for the fragment after the last separator
-        var fragment = GetCurrentFragment(text);
-        if (string.IsNullOrWhiteSpace(fragment))
+        // If still typing a condition argument (empty stripped fragment)
+        if (string.IsNullOrWhiteSpace(parsed.StrippedFragment))
         {
-            IsSuggestionsVisible = false;
-            return;
-        }
-
-        // Strip leading condition (LV/AT) prefix if present within the fragment
-        var fragmentForSuggestion = StripConditionPrefix(fragment, out var conditionVerb);
-        if (string.IsNullOrWhiteSpace(fragmentForSuggestion))
-        {
-            // Condition keyword typed, argument still in progress
-            // For AT conditions, suggest fix names as the argument
-            if (string.Equals(conditionVerb, "AT", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(parsed.ConditionVerb, "AT", StringComparison.OrdinalIgnoreCase))
             {
-                var atArg = GetConditionArgFragment(fragment);
+                var atArg = GetConditionArgFragment(parsed.CurrentFragment);
                 var atPrefix = FixSuggester.GetTextBeforeLastWord(text);
                 FixSuggester.AddFixSuggestions(atArg, atPrefix, selectedAircraft, Suggestions, MaxSuggestions);
             }
             else if (
-                string.Equals(conditionVerb, "GIVEWAY", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(conditionVerb, "BEHIND", StringComparison.OrdinalIgnoreCase)
+                string.Equals(parsed.ConditionVerb, "GIVEWAY", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(parsed.ConditionVerb, "BEHIND", StringComparison.OrdinalIgnoreCase)
             )
             {
-                // For GIVEWAY/BEHIND conditions, suggest callsigns
-                var callsignArg = GetConditionArgFragment(fragment, isGiveWay: true);
+                var callsignArg = GetConditionArgFragment(parsed.CurrentFragment, isGiveWay: true);
                 var callsignPrefix = FixSuggester.GetTextBeforeLastWord(text);
                 AddCallsignSuggestionsWithPrefix(callsignArg, callsignPrefix, aircraft);
             }
@@ -109,13 +98,17 @@ public partial class CommandInputController : ObservableObject
             return;
         }
 
+        var fragmentForSuggestion = parsed.StrippedFragment;
         var parts = fragmentForSuggestion.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var firstToken = parts[0];
         var hasSpace = fragmentForSuggestion.Contains(' ');
 
+        // First token is a verb if the parse result found the verb at index 0
+        bool firstTokenIsVerb = parsed.VerbIndex == 0;
+
         // Resolve the target aircraft for filtering commands.
         // If the first token is a callsign (not a verb), find it in the list.
-        var targetAircraft = ResolveTargetAircraft(firstToken, hasSpace, aircraft, selectedAircraft, scheme);
+        var targetAircraft = ResolveTargetAircraft(firstToken, hasSpace, firstTokenIsVerb, aircraft, selectedAircraft);
 
         // Check if the trailing token is a macro reference (!NAME) at any position
         var trailingToken = hasSpace ? GetTrailingToken(fragmentForSuggestion) : null;
@@ -152,17 +145,7 @@ public partial class CommandInputController : ObservableObject
         {
             // ADD command positional argument suggestions
         }
-        else if (
-            ArgumentSuggester.TryAddArgumentSuggestions(
-                fragmentForSuggestion,
-                text,
-                scheme,
-                targetAircraft,
-                Suggestions,
-                PrimaryAirportId,
-                MaxSuggestions
-            )
-        )
+        else if (ArgumentSuggester.TryAddArgumentSuggestions(parsed, text, targetAircraft, Suggestions, PrimaryAirportId, MaxSuggestions))
         {
             // Command-specific argument suggestions (CTO modifiers, runways, fixes)
         }
@@ -174,7 +157,7 @@ public partial class CommandInputController : ObservableObject
         {
             // After first token + space + partial second token
             // Only suggest verbs if the first token is NOT a known verb (i.e., it's a callsign)
-            if (!IsKnownVerb(firstToken, scheme))
+            if (!firstTokenIsVerb)
             {
                 AddCommandVerbSuggestions(parts[1].TrimStart(), text, scheme, targetAircraft);
             }
@@ -184,7 +167,7 @@ public partial class CommandInputController : ObservableObject
             // Token + trailing space, no second token yet
             // If it's a known verb, argument is expected — no suggestions
             // If it's not a verb, it's a callsign — show all command verbs
-            if (!IsKnownVerb(firstToken, scheme))
+            if (!firstTokenIsVerb)
             {
                 AddCommandVerbSuggestions("", text, scheme, targetAircraft);
             }
@@ -214,104 +197,18 @@ public partial class CommandInputController : ObservableObject
 
     public void UpdateSignatureHelp(string text, CommandScheme scheme)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        var parsed = ParseCommandInput(text, scheme);
+        if (parsed is null || parsed.Definition is null || parsed.VerbIndex < 0)
         {
             SignatureHelp.Dismiss();
             return;
         }
 
-        var fragment = GetCurrentFragment(text);
-        if (string.IsNullOrWhiteSpace(fragment))
+        // Only show signature help once the user has typed past the verb (space after verb)
+        int argStartIndex = parsed.VerbIndex + 1;
+        if (parsed.Tokens.Length == argStartIndex && !parsed.HasTrailingSpace)
         {
-            SignatureHelp.Dismiss();
-            return;
-        }
-
-        var stripped = StripConditionPrefix(fragment, out _);
-        if (string.IsNullOrWhiteSpace(stripped))
-        {
-            SignatureHelp.Dismiss();
-            return;
-        }
-
-        var parts = stripped.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0)
-        {
-            SignatureHelp.Dismiss();
-            return;
-        }
-
-        // Find the verb token — could be first or second (after callsign)
-        string? verb = null;
-        int argStartIndex = 1;
-
-        if (IsKnownVerb(parts[0], scheme))
-        {
-            verb = parts[0];
-            argStartIndex = 1;
-        }
-        else if (parts.Length >= 2 && IsKnownVerb(parts[1], scheme))
-        {
-            verb = parts[1];
-            argStartIndex = 2;
-        }
-
-        if (verb is null)
-        {
-            SignatureHelp.Dismiss();
-            return;
-        }
-
-        // Check if the user has typed past the verb (needs a space after verb)
-        bool hasSpaceAfterVerb = stripped.Length > verb.Length && stripped.TrimStart().Contains(' ');
-        if (parts.Length <= argStartIndex - 1)
-        {
-            SignatureHelp.Dismiss();
-            return;
-        }
-
-        // RWY is a special rewrite verb — build signature set directly
-        CommandSignatureSet sigSet;
-        if (string.Equals(verb, "RWY", StringComparison.OrdinalIgnoreCase))
-        {
-            sigSet = BuildRwySignatureSet();
-        }
-        else
-        {
-            var commandType = ResolveVerbToType(verb, scheme);
-            if (commandType is null)
-            {
-                SignatureHelp.Dismiss();
-                return;
-            }
-
-            var def = CommandRegistry.Get(commandType.Value);
-            if (def is null)
-            {
-                SignatureHelp.Dismiss();
-                return;
-            }
-
-            IReadOnlyList<string> aliases = scheme.Patterns.TryGetValue(commandType.Value, out var pattern) ? pattern.Aliases : def.DefaultAliases;
-            sigSet = CommandSignatureSet.FromDefinition(def, aliases);
-        }
-
-        // Calculate active parameter index: words after verb
-        var typedArgs = parts.Skip(argStartIndex).ToArray();
-        int paramIndex = typedArgs.Length;
-
-        // If there's a trailing space, user is starting next param
-        // If no trailing space and args exist, user is still typing current param
-        bool hasTrailingSpace = stripped.EndsWith(' ');
-        if (!hasTrailingSpace && paramIndex > 0)
-        {
-            paramIndex--;
-        }
-
-        // Only show signature help if user has typed past the verb
-        if (parts.Length == argStartIndex && !hasTrailingSpace)
-        {
-            // Verb typed but no space after it yet — only show if there's a trailing space
+            bool hasSpaceAfterVerb = parsed.StrippedFragment.Length > parsed.Verb!.Length && parsed.StrippedFragment.TrimStart().Contains(' ');
             if (!hasSpaceAfterVerb)
             {
                 SignatureHelp.Dismiss();
@@ -319,7 +216,100 @@ public partial class CommandInputController : ObservableObject
             }
         }
 
-        SignatureHelp.Show(sigSet, paramIndex, typedArgs);
+        var sigSet = CommandSignatureSet.FromDefinition(parsed.Definition, parsed.Aliases);
+        SignatureHelp.Show(sigSet, parsed.ParameterIndex, parsed.TypedArgs);
+    }
+
+    /// <summary>
+    /// Single parse pass over the command input text. Both autocomplete and signature help
+    /// consume this result instead of parsing independently.
+    /// </summary>
+    internal static CommandInputParseResult? ParseCommandInput(string text, CommandScheme scheme)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var fragment = GetCurrentFragment(text);
+        if (string.IsNullOrWhiteSpace(fragment))
+        {
+            return null;
+        }
+
+        var strippedFragment = StripConditionPrefix(fragment, out var conditionVerb);
+        if (string.IsNullOrWhiteSpace(strippedFragment))
+        {
+            // Still typing condition argument — return partial result with condition info
+            return new CommandInputParseResult(fragment, conditionVerb, "", [], -1, null, null, null, [], -1, [], fragment.EndsWith(' '));
+        }
+
+        var tokens = strippedFragment.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return null;
+        }
+
+        // Find the verb token — could be first (direct verb) or second (after callsign)
+        int verbIndex = -1;
+        string? verb = null;
+
+        if (IsKnownVerb(tokens[0], scheme))
+        {
+            verbIndex = 0;
+            verb = tokens[0];
+        }
+        else if (tokens.Length >= 2 && IsKnownVerb(tokens[1], scheme))
+        {
+            verbIndex = 1;
+            verb = tokens[1];
+        }
+
+        // Resolve to command type and definition
+        CanonicalCommandType? commandType = null;
+        CommandDefinition? definition = null;
+        IReadOnlyList<string> aliases = [];
+
+        if (verb is not null)
+        {
+            commandType = ResolveVerbToType(verb, scheme);
+            if (commandType is not null)
+            {
+                definition = CommandRegistry.Get(commandType.Value);
+                aliases = scheme.Patterns.TryGetValue(commandType.Value, out var pattern) ? pattern.Aliases : definition?.DefaultAliases ?? [];
+            }
+        }
+
+        // Calculate parameter index and typed args
+        bool hasTrailingSpace = strippedFragment.EndsWith(' ');
+        string[] typedArgs = [];
+        int paramIndex = -1;
+
+        if (verbIndex >= 0)
+        {
+            int argStartIndex = verbIndex + 1;
+            typedArgs = tokens.Skip(argStartIndex).ToArray();
+            paramIndex = typedArgs.Length;
+            if (!hasTrailingSpace && paramIndex > 0)
+            {
+                paramIndex--;
+            }
+        }
+
+        return new CommandInputParseResult(
+            fragment,
+            conditionVerb,
+            strippedFragment,
+            tokens,
+            verbIndex,
+            verb,
+            commandType,
+            definition,
+            aliases,
+            paramIndex,
+            typedArgs,
+            hasTrailingSpace
+        );
     }
 
     private static CanonicalCommandType? ResolveVerbToType(string verb, CommandScheme scheme)
@@ -336,30 +326,6 @@ public partial class CommandInputController : ObservableObject
         }
 
         return null;
-    }
-
-    private static CommandSignatureSet BuildRwySignatureSet()
-    {
-        var aliases = (IReadOnlyList<string>)["RWY"];
-        CommandSignature assignSig = new(
-            CanonicalCommandType.AssignRunway,
-            "Assign Runway",
-            aliases,
-            [new CommandParameter("runway", "runway designator", false)],
-            "Assign runway"
-        );
-        CommandSignature taxiSig = new(
-            CanonicalCommandType.Taxi,
-            "Taxi to Runway",
-            aliases,
-            [
-                new CommandParameter("runway", "runway designator", false),
-                new CommandParameter("TAXI", "", false, IsLiteral: true),
-                new CommandParameter("route", "taxiway names", false),
-            ],
-            "Taxi via route to runway"
-        );
-        return new CommandSignatureSet([assignSig, taxiSig]);
     }
 
     public void MoveSelection(int delta)
@@ -452,12 +418,12 @@ public partial class CommandInputController : ObservableObject
     private static AircraftModel? ResolveTargetAircraft(
         string firstToken,
         bool hasSpace,
+        bool firstTokenIsVerb,
         IReadOnlyCollection<AircraftModel> aircraft,
-        AircraftModel? selectedAircraft,
-        CommandScheme scheme
+        AircraftModel? selectedAircraft
     )
     {
-        if (hasSpace && !IsKnownVerb(firstToken, scheme))
+        if (hasSpace && !firstTokenIsVerb)
         {
             // First token looks like a callsign — find matching aircraft
             foreach (var ac in aircraft)
@@ -495,12 +461,6 @@ public partial class CommandInputController : ObservableObject
 
     private static bool IsKnownVerb(string token, CommandScheme scheme)
     {
-        // RWY is a special rewrite verb, not in CommandScheme
-        if (string.Equals(token, "RWY", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
         foreach (var pattern in scheme.Patterns.Values)
         {
             foreach (var alias in pattern.Aliases)

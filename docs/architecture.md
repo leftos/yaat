@@ -26,7 +26,8 @@ Models/
 
 Services/
   ServerConnection.cs           # SignalR client to /hubs/training (JSON); inline DTOs
-  CommandInputController.cs     # Autocomplete (callsign/command/fix/macro), history nav, signature help, FixDb binary search
+  CommandInputController.cs     # Autocomplete (callsign/command/fix/macro), history nav, signature help, FixDb binary search; unified ParseCommandInput drives both suggestion and signature pipelines
+  CommandInputParseResult.cs    # Immutable parse result consumed by both autocomplete and signature help
   CommandSignature.cs           # SignaturePart record (AXAML DataType dependency)
   SignatureHelpState.cs         # Observable state for signature help tooltip (overload nav, active param, dedup)
   MacroDefinition.cs            # Macro model: Name, Expansion, ParameterNames (positional &1 or named &hdg)
