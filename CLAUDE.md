@@ -156,7 +156,7 @@ When invoking aviation-sim-expert, always include:
 ### Build & Format
 - **Warnings are errors**: Build with `dotnet build -p:TreatWarningsAsErrors=true` before committing.
 - **No `-q` flag**: Never pass `-q` to any dotnet command — causes spurious errors.
-- **Pre-commit**: `dotnet format style` → `dotnet format analyzers` → `dotnet csharpier format .` → `dotnet build -p:TreatWarningsAsErrors=true`. Do NOT run bare `dotnet format`. Do NOT pass `-v q`, `--nologo`, or extra flags to `dotnet format`.
+- **Pre-commit**: Automated via `prek` (`prek.toml`). Runs: trailing-whitespace fix, EOF newline fix, merge conflict check, private key detection, large file check, `dotnet format style`, `dotnet format analyzers`, `dotnet csharpier format .`, `dotnet build -p:TreatWarningsAsErrors=true`. Run `prek run` manually to check; hooks fire automatically on `git commit`. Do NOT run bare `dotnet format`. Do NOT pass `-v q`, `--nologo`, or extra flags to `dotnet format`.
 
 ### Documentation
 - Update `USER_GUIDE.md` before committing user-facing changes.
