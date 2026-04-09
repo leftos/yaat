@@ -80,14 +80,42 @@ public static class MetarInterpolator
 
     private static MetarParser.ParsedMetar Interpolate(List<(MetarParser.ParsedMetar Metar, double DistNm)> stations, string airportId)
     {
-        // Ceiling: use minimum from all nearby stations (conservative)
-        int? minCeiling = null;
+        // Layers: pick the station with the lowest BKN/OVC ceiling and use its full
+        // layer set (most conservative + preserves multi-layer fidelity from that
+        // station). If no station reports a ceiling, union all FEW/SCT layers across
+        // stations and dedupe.
+        MetarParser.ParsedMetar? lowestCeilingStation = null;
         foreach (var (metar, _) in stations)
         {
-            if (metar.CeilingFeetAgl is { } ceil)
+            if (metar.CeilingFeetAgl is null)
             {
-                minCeiling = minCeiling is null ? ceil : Math.Min(minCeiling.Value, ceil);
+                continue;
             }
+            if (lowestCeilingStation is null || metar.CeilingFeetAgl < lowestCeilingStation.CeilingFeetAgl)
+            {
+                lowestCeilingStation = metar;
+            }
+        }
+
+        IReadOnlyList<MetarParser.CloudLayer> layers;
+        int? ceiling;
+        if (lowestCeilingStation is not null)
+        {
+            layers = lowestCeilingStation.Layers;
+            ceiling = lowestCeilingStation.CeilingFeetAgl;
+        }
+        else
+        {
+            var unioned = new HashSet<MetarParser.CloudLayer>();
+            foreach (var (metar, _) in stations)
+            {
+                foreach (var layer in metar.Layers)
+                {
+                    unioned.Add(layer);
+                }
+            }
+            layers = unioned.OrderBy(l => l.BaseFeetAgl).ToList();
+            ceiling = null;
         }
 
         // Visibility: inverse-distance-weighted average
@@ -114,6 +142,6 @@ public static class MetarInterpolator
         }
 
         string icao = MetarParser.ToIcao(airportId);
-        return new MetarParser.ParsedMetar(icao, minCeiling, weightedVis);
+        return new MetarParser.ParsedMetar(icao, ceiling, layers, weightedVis);
     }
 }

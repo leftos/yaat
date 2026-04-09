@@ -4,9 +4,20 @@ namespace Yaat.Sim;
 
 public static partial class MetarParser
 {
+    public enum CloudCover
+    {
+        Few,
+        Scattered,
+        Broken,
+        Overcast,
+    }
+
+    public record CloudLayer(CloudCover Cover, int BaseFeetAgl);
+
     public record ParsedMetar(
         string StationId,
         int? CeilingFeetAgl,
+        IReadOnlyList<CloudLayer> Layers,
         double? VisibilityStatuteMiles,
         int? WindDirectionDeg = null,
         int? WindSpeedKts = null,
@@ -73,11 +84,11 @@ public static partial class MetarParser
         }
 
         double? visibility = ParseVisibility(metar);
-        int? ceiling = ParseCeiling(metar);
+        var (layers, ceiling) = ParseLayers(metar);
         var (windDir, windSpd, windGust) = ParseWind(metar);
         double? altimeter = ParseAltimeter(metar);
 
-        return new ParsedMetar(stationId, ceiling, visibility, windDir, windSpd, windGust, altimeter);
+        return new ParsedMetar(stationId, ceiling, layers, visibility, windDir, windSpd, windGust, altimeter);
     }
 
     public static ParsedMetar? FindStation(IEnumerable<string> metars, string airportId)
@@ -181,27 +192,43 @@ public static partial class MetarParser
         return false;
     }
 
-    private static int? ParseCeiling(string metar)
+    private static (IReadOnlyList<CloudLayer> Layers, int? CeilingFeetAgl) ParseLayers(string metar)
     {
-        // CLR/SKC = no ceiling
+        // CLR/SKC = no layers, no ceiling
         if (ClearSkyRegex().IsMatch(metar))
         {
-            return null;
+            return (Array.Empty<CloudLayer>(), null);
         }
 
+        var layers = new List<CloudLayer>();
         int? lowestCeiling = null;
 
         foreach (Match match in CloudLayerRegex().Matches(metar))
         {
             var coverage = match.Groups[1].Value;
-            if (coverage is not ("BKN" or "OVC"))
+            if (!int.TryParse(match.Groups[2].Value, out int hundreds))
             {
                 continue;
             }
 
-            if (int.TryParse(match.Groups[2].Value, out int hundreds))
+            CloudCover? cover = coverage switch
             {
-                int altFeet = hundreds * 100;
+                "FEW" => CloudCover.Few,
+                "SCT" => CloudCover.Scattered,
+                "BKN" => CloudCover.Broken,
+                "OVC" => CloudCover.Overcast,
+                _ => null,
+            };
+            if (cover is null)
+            {
+                continue;
+            }
+
+            int altFeet = hundreds * 100;
+            layers.Add(new CloudLayer(cover.Value, altFeet));
+
+            if (cover is CloudCover.Broken or CloudCover.Overcast)
+            {
                 if (lowestCeiling is null || altFeet < lowestCeiling)
                 {
                     lowestCeiling = altFeet;
@@ -209,18 +236,75 @@ public static partial class MetarParser
             }
         }
 
-        // VV (vertical visibility / indefinite ceiling) — total obscuration
+        // VV (vertical visibility / indefinite ceiling) — total obscuration; modeled as a synthetic OVC layer
+        // so the multi-layer obstruction logic in VisualDetection treats it consistently with regular OVC.
         var vvMatch = VerticalVisibilityRegex().Match(metar);
         if (vvMatch.Success && int.TryParse(vvMatch.Groups[1].Value, out int vvHundreds))
         {
             int vvFeet = vvHundreds * 100;
+            layers.Add(new CloudLayer(CloudCover.Overcast, vvFeet));
             if (lowestCeiling is null || vvFeet < lowestCeiling)
             {
                 lowestCeiling = vvFeet;
             }
         }
 
-        return lowestCeiling;
+        layers.Sort((a, b) => a.BaseFeetAgl.CompareTo(b.BaseFeetAgl));
+
+        return (layers, lowestCeiling);
+    }
+
+    /// <summary>
+    /// Returns the lowest BKN/OVC layer base from a layer list, or null if none.
+    /// Used by interpolation consumers to derive a fresh <c>CeilingFeetAgl</c>
+    /// from an interpolated layer list rather than lerping the old scalar.
+    /// </summary>
+    public static int? CeilingFromLayers(IReadOnlyList<CloudLayer> layers)
+    {
+        int? lowest = null;
+        foreach (var layer in layers)
+        {
+            if (layer.Cover is CloudCover.Broken or CloudCover.Overcast)
+            {
+                if (lowest is null || layer.BaseFeetAgl < lowest)
+                {
+                    lowest = layer.BaseFeetAgl;
+                }
+            }
+        }
+        return lowest;
+    }
+
+    /// <summary>
+    /// Pairwise interpolation of two cloud layer lists between weather periods.
+    /// Pairs by index (both lists are sorted ascending by base altitude); base
+    /// altitudes lerp linearly while cover types step-change at t=0.5 (cover is
+    /// discrete and cannot be averaged). Extras on the longer side pass through
+    /// unchanged.
+    /// </summary>
+    public static IReadOnlyList<CloudLayer> InterpolateLayers(IReadOnlyList<CloudLayer> from, IReadOnlyList<CloudLayer> to, double t)
+    {
+        int paired = Math.Min(from.Count, to.Count);
+        var result = new List<CloudLayer>(Math.Max(from.Count, to.Count));
+
+        for (int i = 0; i < paired; i++)
+        {
+            int baseAlt = (int)Math.Round(from[i].BaseFeetAgl + t * (to[i].BaseFeetAgl - from[i].BaseFeetAgl));
+            var cover = t < 0.5 ? from[i].Cover : to[i].Cover;
+            result.Add(new CloudLayer(cover, baseAlt));
+        }
+
+        for (int i = paired; i < from.Count; i++)
+        {
+            result.Add(from[i]);
+        }
+        for (int i = paired; i < to.Count; i++)
+        {
+            result.Add(to[i]);
+        }
+
+        result.Sort((a, b) => a.BaseFeetAgl.CompareTo(b.BaseFeetAgl));
+        return result;
     }
 
     private static (int? Direction, int? Speed, int? Gust) ParseWind(string metar)

@@ -14,6 +14,8 @@ public class VisualDetectionTests
         TestVnasData.EnsureInitialized();
     }
 
+    private static IReadOnlyList<MetarParser.CloudLayer> Bkn(int agl) => [new MetarParser.CloudLayer(MetarParser.CloudCover.Broken, agl)];
+
     // -------------------------------------------------------------------------
     // CanSeeAirport — basic cases
     // -------------------------------------------------------------------------
@@ -22,7 +24,7 @@ public class VisualDetectionTests
     public void CanSeeAirport_InFront_WithinRange_BelowCeiling_True()
     {
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, 5000, 10.0, 0.0).Acquired);
+        Assert.True(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(5000), 10.0, 0.0).Acquired);
     }
 
     [Fact]
@@ -30,7 +32,7 @@ public class VisualDetectionTests
     {
         // Aircraft heading north, airport to the south → behind
         var ac = MakeAircraft(37.75, -122.221, heading: 0, altitude: 3000);
-        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, 5000, 10.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(5000), 10.0, 0.0).Acquired);
     }
 
     [Fact]
@@ -38,7 +40,7 @@ public class VisualDetectionTests
     {
         // 1SM visibility ≈ 0.869nm, airport ~2nm away
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, 5000, 1.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(5000), 1.0, 0.0).Acquired);
     }
 
     [Fact]
@@ -46,7 +48,7 @@ public class VisualDetectionTests
     {
         // Ceiling 2000 AGL + 9ft elevation = 2009 MSL, aircraft at 3000 MSL
         var ac = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, 2000, 10.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireAirport(ac, AptLat, AptLon, AptElev, Bkn(2000), 10.0, 0.0).Acquired);
     }
 
     [Fact]
@@ -112,7 +114,7 @@ public class VisualDetectionTests
     {
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
         var tgt = MakeAircraft(37.73, -122.221, heading: 180, altitude: 3000);
-        Assert.True(VisualDetection.TryAcquireTraffic(own, tgt, 5000, AptElev, 10.0, 0.0).Acquired);
+        Assert.True(VisualDetection.TryAcquireTraffic(own, tgt, Bkn(5000), AptElev, 10.0, 0.0).Acquired);
     }
 
     [Fact]
@@ -120,7 +122,7 @@ public class VisualDetectionTests
     {
         var own = MakeAircraft(37.73, -122.221, heading: 180, altitude: 3000);
         var tgt = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        Assert.False(VisualDetection.TryAcquireTraffic(own, tgt, 5000, AptElev, 10.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireTraffic(own, tgt, Bkn(5000), AptElev, 10.0, 0.0).Acquired);
     }
 
     [Fact]
@@ -129,7 +131,7 @@ public class VisualDetectionTests
         // Ceiling at 3000 AGL + 9 = 3009 MSL. Own at 2500 (below), target at 4000 (above)
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 2500);
         var tgt = MakeAircraft(37.73, -122.221, heading: 180, altitude: 4000);
-        Assert.False(VisualDetection.TryAcquireTraffic(own, tgt, 3000, AptElev, 10.0, 0.0).Acquired);
+        Assert.False(VisualDetection.TryAcquireTraffic(own, tgt, Bkn(3000), AptElev, 10.0, 0.0).Acquired);
     }
 
     [Fact]

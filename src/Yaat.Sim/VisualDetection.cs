@@ -74,12 +74,12 @@ public static class VisualDetection
         double airportLat,
         double airportLon,
         double airportElevation,
-        int? ceilingAgl,
+        IReadOnlyList<MetarParser.CloudLayer>? layers,
         double? visibilitySm,
         double bankAngleDeg
     )
     {
-        return TryAcquireAirportCore(aircraft, airportLat, airportLon, airportElevation, ceilingAgl, visibilitySm, runwayHeading: null, bankAngleDeg);
+        return TryAcquireAirportCore(aircraft, airportLat, airportLon, airportElevation, layers, visibilitySm, runwayHeading: null, bankAngleDeg);
     }
 
     /// <summary>
@@ -94,13 +94,13 @@ public static class VisualDetection
         double airportLat,
         double airportLon,
         double airportElevation,
-        int? ceilingAgl,
+        IReadOnlyList<MetarParser.CloudLayer>? layers,
         double? visibilitySm,
         TrueHeading runwayHeading,
         double bankAngleDeg
     )
     {
-        return TryAcquireAirportCore(aircraft, airportLat, airportLon, airportElevation, ceilingAgl, visibilitySm, runwayHeading, bankAngleDeg);
+        return TryAcquireAirportCore(aircraft, airportLat, airportLon, airportElevation, layers, visibilitySm, runwayHeading, bankAngleDeg);
     }
 
     /// <summary>
@@ -112,7 +112,7 @@ public static class VisualDetection
     public static VisualAcquisitionResult TryAcquireTraffic(
         AircraftState ownship,
         AircraftState target,
-        int? ceilingAgl,
+        IReadOnlyList<MetarParser.CloudLayer>? layers,
         double airportElevation,
         double? visibilitySm,
         double bankAngleDeg
@@ -125,10 +125,12 @@ public static class VisualDetection
             maxRange = Math.Min(visibilitySm.Value * SmToNm, maxRange);
         }
 
-        // Both must be on same side of ceiling (if ceiling exists)
-        if (ceilingAgl is not null)
+        // Both must be on same side of the lowest BKN/OVC layer (FEW/SCT ignored).
+        // C2 will replace this with a per-layer obstruction check.
+        int? lowestObstructingAgl = LowestObstructingLayerAgl(layers);
+        if (lowestObstructingAgl is not null)
         {
-            double ceilingMsl = ceilingAgl.Value + airportElevation;
+            double ceilingMsl = lowestObstructingAgl.Value + airportElevation;
             bool ownBelow = ownship.Altitude < ceilingMsl;
             bool tgtBelow = target.Altitude < ceilingMsl;
             if (ownBelow != tgtBelow)
@@ -207,7 +209,7 @@ public static class VisualDetection
         double airportLat,
         double airportLon,
         double airportElevation,
-        int? ceilingAgl,
+        IReadOnlyList<MetarParser.CloudLayer>? layers,
         double? visibilitySm,
         TrueHeading? runwayHeading,
         double bankAngleDeg
@@ -222,10 +224,12 @@ public static class VisualDetection
             return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.InClassA, distance, maxRange);
         }
 
-        // Must be below ceiling MSL (if ceiling exists)
-        if (ceilingAgl is not null)
+        // Must be below the lowest BKN/OVC layer (FEW/SCT ignored).
+        // C2 will replace this with an "above any BKN/OVC" check that surfaces the binding layer.
+        int? lowestObstructingAgl = LowestObstructingLayerAgl(layers);
+        if (lowestObstructingAgl is not null)
         {
-            double ceilingMsl = ceilingAgl.Value + airportElevation;
+            double ceilingMsl = lowestObstructingAgl.Value + airportElevation;
             if (aircraft.Altitude >= ceilingMsl)
             {
                 return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.AboveCeiling, distance, maxRange);
@@ -267,5 +271,25 @@ public static class VisualDetection
         }
 
         return VisualAcquisitionResult.Success(distance, maxRange);
+    }
+
+    private static int? LowestObstructingLayerAgl(IReadOnlyList<MetarParser.CloudLayer>? layers)
+    {
+        if (layers is null)
+        {
+            return null;
+        }
+        int? lowest = null;
+        foreach (var layer in layers)
+        {
+            if (layer.Cover is MetarParser.CloudCover.Broken or MetarParser.CloudCover.Overcast)
+            {
+                if (lowest is null || layer.BaseFeetAgl < lowest)
+                {
+                    lowest = layer.BaseFeetAgl;
+                }
+            }
+        }
+        return lowest;
     }
 }

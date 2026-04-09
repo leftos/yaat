@@ -1031,7 +1031,7 @@ internal static class NavigationCommandHandler
             aptPos.Value.Lat,
             aptPos.Value.Lon,
             aptElevation.Value,
-            metar?.CeilingFeetAgl,
+            metar?.Layers,
             metar?.VisibilityStatuteMiles,
             aircraft.BankAngle
         );
@@ -1073,21 +1073,21 @@ internal static class NavigationCommandHandler
             return new CommandResult(false, $"Negative contact, {targetCallsign} not on this frequency");
         }
 
-        // Ceiling/visibility reference the destination airport — that's where the
-        // relevant METAR lives. If no destination, skip the ceiling-side check.
-        int? ceilingAgl = null;
+        // Cloud layers/visibility reference the destination airport — that's where the
+        // relevant METAR lives. If no destination, skip the layer-side check.
+        IReadOnlyList<MetarParser.CloudLayer>? layers = null;
         double? visibilitySm = null;
         double aptElevation = 0.0;
         var destination = aircraft.Destination;
         if (!string.IsNullOrWhiteSpace(destination))
         {
             var metar = ctx.Weather?.GetWeatherForAirport(destination);
-            ceilingAgl = metar?.CeilingFeetAgl;
+            layers = metar?.Layers;
             visibilitySm = metar?.VisibilityStatuteMiles;
             aptElevation = NavigationDatabase.Instance.GetAirportElevation(destination) ?? 0.0;
         }
 
-        var result = VisualDetection.TryAcquireTraffic(aircraft, target, ceilingAgl, aptElevation, visibilitySm, aircraft.BankAngle);
+        var result = VisualDetection.TryAcquireTraffic(aircraft, target, layers, aptElevation, visibilitySm, aircraft.BankAngle);
 
         if (result.Acquired)
         {

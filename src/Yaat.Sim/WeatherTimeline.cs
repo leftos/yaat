@@ -221,11 +221,12 @@ public class WeatherTimeline
                 continue;
             }
 
-            int? ceiling = LerpNullableInt(fromMetar.CeilingFeetAgl, toMetar.CeilingFeetAgl, t);
+            var interpolatedLayers = MetarParser.InterpolateLayers(fromMetar.Layers, toMetar.Layers, t);
+            int? ceiling = MetarParser.CeilingFromLayers(interpolatedLayers);
             double? visibility = LerpNullableDouble(fromMetar.VisibilityStatuteMiles, toMetar.VisibilityStatuteMiles, t);
             double? altimeter = LerpNullableDouble(fromMetar.AltimeterInHg, toMetar.AltimeterInHg, t);
 
-            overrides[stationId] = new MetarParser.ParsedMetar(stationId, ceiling, visibility, AltimeterInHg: altimeter);
+            overrides[stationId] = new MetarParser.ParsedMetar(stationId, ceiling, interpolatedLayers, visibility, AltimeterInHg: altimeter);
         }
 
         return overrides.Count > 0 ? overrides : null;
@@ -243,15 +244,6 @@ public class WeatherTimeline
             }
         }
         return result;
-    }
-
-    private static int? LerpNullableInt(int? from, int? to, double t)
-    {
-        if (from is null || to is null)
-        {
-            return to;
-        }
-        return (int)(from.Value + t * (to.Value - from.Value));
     }
 
     private static double? LerpNullableDouble(double? from, double? to, double t)
