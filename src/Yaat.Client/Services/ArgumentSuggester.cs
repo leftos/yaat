@@ -20,6 +20,7 @@ internal static class ArgumentSuggester
         CommandInputParseResult parsed,
         string fullText,
         AircraftModel? targetAircraft,
+        IReadOnlyCollection<AircraftModel> aircraft,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
         int maxSuggestions
@@ -50,6 +51,7 @@ internal static class ArgumentSuggester
             parsed.HasTrailingSpace,
             fullText,
             targetAircraft,
+            aircraft,
             suggestions,
             primaryAirportId,
             maxSuggestions
@@ -63,6 +65,7 @@ internal static class ArgumentSuggester
         bool hasTrailingSpace,
         string fullText,
         AircraftModel? targetAircraft,
+        IReadOnlyCollection<AircraftModel> aircraft,
         ObservableCollection<SuggestionItem> suggestions,
         string? primaryAirportId,
         int maxSuggestions
@@ -75,11 +78,26 @@ internal static class ArgumentSuggester
         var partial = hasTrailingSpace ? "" : (wordsAfterVerb > 0 ? words[^1] : "");
         var prefix = FixSuggester.GetTextBeforeLastWord(fullText);
 
+        // CVA has a custom parser path (LEFT|RIGHT|FOLLOW <cs>) that isn't declared via
+        // Overloads or CompoundModifiers, so we handle its callsign flyout here.
+        if (def.Type == CanonicalCommandType.ClearedVisualApproach && wordsAfterVerb >= 1)
+        {
+            // Find the token immediately before the position being typed. When hasTrailingSpace
+            // is true the last word itself is "previous"; otherwise it is the second-to-last.
+            int prevIdx = hasTrailingSpace ? words.Length - 1 : words.Length - 2;
+            if (prevIdx > verbIndex && string.Equals(words[prevIdx], "FOLLOW", StringComparison.OrdinalIgnoreCase))
+            {
+                AddCallsignSuggestions(partial, prefix, aircraft, suggestions, maxSuggestions);
+                return true;
+            }
+        }
+
         // Collect what kinds of suggestions exist at this parameter position
         bool hasLiterals = false;
         bool hasRunway = false;
         bool hasFix = false;
         bool hasApproach = false;
+        bool hasCallsign = false;
 
         foreach (var overload in def.Overloads)
         {
@@ -111,11 +129,15 @@ internal static class ArgumentSuggester
             {
                 hasFix = true;
             }
+            else if (IsCallsignHint(param.TypeHint))
+            {
+                hasCallsign = true;
+            }
         }
 
         // When past all overload parameters, suggest compound modifiers if available
         bool hasModifiers = false;
-        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && def.CompoundModifiers is { Length: > 0 })
+        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && def.CompoundModifiers is { Length: > 0 })
         {
             bool allOverloadsExhausted = def.Overloads.All(o => paramIndex >= o.Parameters.Length);
             if (allOverloadsExhausted)
@@ -124,7 +146,7 @@ internal static class ArgumentSuggester
             }
         }
 
-        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasModifiers)
+        if (!hasLiterals && !hasRunway && !hasFix && !hasApproach && !hasCallsign && !hasModifiers)
         {
             return false;
         }
@@ -149,6 +171,11 @@ internal static class ArgumentSuggester
         if (hasFix)
         {
             FixSuggester.AddFixSuggestions(partial, prefix, targetAircraft, suggestions, maxSuggestions);
+        }
+
+        if (hasCallsign)
+        {
+            AddCallsignSuggestions(partial, prefix, aircraft, suggestions, maxSuggestions);
         }
 
         if (hasModifiers)
@@ -279,6 +306,44 @@ internal static class ArgumentSuggester
     private static bool IsApproachHint(string typeHint)
     {
         return typeHint.Contains("approach ID", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCallsignHint(string typeHint)
+    {
+        return typeHint.Contains("callsign", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void AddCallsignSuggestions(
+        string partial,
+        string prefix,
+        IReadOnlyCollection<AircraftModel> aircraft,
+        ObservableCollection<SuggestionItem> suggestions,
+        int maxSuggestions
+    )
+    {
+        foreach (var ac in aircraft)
+        {
+            if (suggestions.Count >= maxSuggestions)
+            {
+                return;
+            }
+
+            if (partial.Length > 0 && !ac.Callsign.Contains(partial, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var desc = $"{ac.AircraftType} {ac.Departure}-{ac.Destination}".Trim();
+            suggestions.Add(
+                new SuggestionItem
+                {
+                    Kind = SuggestionKind.Callsign,
+                    Text = ac.Callsign,
+                    Description = desc,
+                    InsertText = prefix + ac.Callsign + " ",
+                }
+            );
+        }
     }
 
     private static void AddRunwaySuggestions(

@@ -145,9 +145,9 @@ public partial class CommandInputController : ObservableObject
         {
             // ADD command positional argument suggestions
         }
-        else if (ArgumentSuggester.TryAddArgumentSuggestions(parsed, text, targetAircraft, Suggestions, PrimaryAirportId, MaxSuggestions))
+        else if (ArgumentSuggester.TryAddArgumentSuggestions(parsed, text, targetAircraft, aircraft, Suggestions, PrimaryAirportId, MaxSuggestions))
         {
-            // Command-specific argument suggestions (CTO modifiers, runways, fixes)
+            // Command-specific argument suggestions (CTO modifiers, runways, fixes, callsigns)
         }
         else if (FixSuggester.TryAddFixSuggestions(fragmentForSuggestion, text, targetAircraft, scheme, Suggestions, MaxSuggestions))
         {

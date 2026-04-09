@@ -710,6 +710,20 @@ public partial class MainViewModel : ObservableObject
             commandText = resolved.Value.Remainder;
         }
 
+        // Rewrite partial callsign arguments (FOLLOW, RTIS, CVA FOLLOW, ...) into canonical
+        // callsigns before parsing. Matches the first-word partial-match behavior.
+        var rewrite = CallsignArgumentResolver.TryRewrite(commandText, scheme, Aircraft);
+        if (rewrite.Error is not null)
+        {
+            StatusText = rewrite.Error;
+            return;
+        }
+
+        if (rewrite.Text is not null)
+        {
+            commandText = rewrite.Text;
+        }
+
         // RPO control commands (client-local, bypass command pipeline)
         var rpoResult = await TryHandleRpoCommand(commandText, target, text);
         if (rpoResult)
@@ -1085,28 +1099,13 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private AircraftModel? ResolveAircraft(string token)
     {
-        // Exact match first (case-insensitive)
-        var exact = Aircraft.FirstOrDefault(a => string.Equals(a.Callsign, token, StringComparison.OrdinalIgnoreCase));
-        if (exact is not null)
+        var (match, outcome, candidates) = CallsignMatcher.Match(token, Aircraft);
+        if (outcome == CallsignMatcher.Outcome.Ambiguous)
         {
-            return exact;
+            StatusText = CallsignMatcher.FormatAmbiguityMessage(token, candidates);
         }
 
-        // Partial match: substring anywhere in callsign
-        var matches = Aircraft.Where(a => a.Callsign.Contains(token, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        if (matches.Count == 1)
-        {
-            return matches[0];
-        }
-
-        if (matches.Count > 1)
-        {
-            var names = string.Join(", ", matches.Select(a => a.Callsign).Take(5));
-            StatusText = $"\"{token}\" matches multiple aircraft: {names}";
-        }
-
-        return null;
+        return match;
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteInRoom))]
