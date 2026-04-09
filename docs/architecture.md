@@ -184,7 +184,9 @@ MetarParser.cs                 # Static METAR parsing: station ID, ceiling (BKN/
 MetarInterpolator.cs           # Static: GetWeatherForAirport — exact station match then IDW interpolation within 50nm
 WindsAloftParser.cs            # Static: parses FAA FD fixed-width text → StationWinds[]; DecodeWind handles 100+kt, light/variable
 MagneticDeclination.cs         # Static: approximate CONUS magnetic declination from lon; TrueToMagnetic conversion
-VisualDetection.cs             # Static: CanSeeAirport, CanSeeAirportForRunway, CanSeeTraffic, IsOccludedByBank
+VisualDetection.cs             # Static: TryAcquireAirport, TryAcquireAirportForRunway, TryAcquireTraffic, IsOccludedByBank
+                               # Returns VisualAcquisitionResult { Acquired, Reason, DistanceNm, MaxRangeNm }
+                               # VisualAcquisitionFailure enum: InClassA, AboveCeiling, MixedCeiling, BehindOwnship, OccludedByBank, OutOfRange, OppositeSideOfRunway
                                # Forward hemisphere, visibility, ceiling, bank angle occlusion (7110.65 §7-4-4.c.2), WTG-based traffic range
                                # FL180 gate on airport (visual approach eligibility) but NOT traffic (pilots can see in Class A)
 WakeTurbulenceData.cs          # Static: WTG code lookup from AircraftSpecs.json; TrafficDetectionRangeNm by WTG (A=15nm to F=3nm)
@@ -212,6 +214,8 @@ Commands/CommandDispatcher.cs       # Static: DispatchCompound (phase interactio
                                     # TryApplyTowerCommand, queue infrastructure, condition conversion, shared utilities
                                     # ClearConflictingBlocks: dimension-aware selective queue clearing
                                     # SplitBlockNonConflicting: splits mixed-dimension blocks on partial conflicts
+Commands/DispatchContext.cs         # Record: GroundLayout, Rng, Weather, FindAircraft, ValidateDctFixes, AutoCrossRunway
+                                    # Bundled at SimulationEngine/RoomEngine call sites; threaded through all internal helpers
 Commands/FlightCommandHandler.cs    # Heading, altitude, speed, squawk, direct-to, warp, wait/say commands
 Commands/NavigationCommandHandler.cs # Multi-block navigation: JRADO/JRADI, depart/cross fix, JARR STAR resolution,
                                     # JAWY airway intercept, CVIA/DVIA (DVIA SPD fix), JFAC, holding pattern, RFIS/RTIS, list approaches

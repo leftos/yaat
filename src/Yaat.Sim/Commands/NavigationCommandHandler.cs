@@ -1001,30 +1001,128 @@ internal static class NavigationCommandHandler
         }
     }
 
-    internal static CommandResult DispatchReportFieldInSight(AircraftState aircraft)
+    internal static CommandResult DispatchReportFieldInSight(AircraftState aircraft, DispatchContext ctx)
     {
+        // Fast path: if the tick processor has already confirmed acquisition on a
+        // visual approach, just echo the in-sight response.
         if (aircraft.HasReportedFieldInSight)
         {
             aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the field in sight");
             return CommandDispatcher.Ok("Field in sight");
         }
 
-        return new CommandResult(false, "Unable, field not in sight");
+        var destination = aircraft.Destination;
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            return new CommandResult(false, "Unable, no arrival airport assigned");
+        }
+
+        var navDb = NavigationDatabase.Instance;
+        var aptPos = navDb.GetFixPosition(destination);
+        var aptElevation = navDb.GetAirportElevation(destination);
+        if (aptPos is null || aptElevation is null)
+        {
+            return new CommandResult(false, $"Unable, {destination} not in nav database");
+        }
+
+        var metar = ctx.Weather?.GetWeatherForAirport(destination);
+        var result = VisualDetection.TryAcquireAirport(
+            aircraft,
+            aptPos.Value.Lat,
+            aptPos.Value.Lon,
+            aptElevation.Value,
+            metar?.CeilingFeetAgl,
+            metar?.VisibilityStatuteMiles,
+            aircraft.BankAngle
+        );
+
+        if (result.Acquired)
+        {
+            // Setting the flag here unblocks the CVA FOLLOW gate and lets the tick
+            // processor take over maintained-contact tracking once visual clearance
+            // becomes active.
+            aircraft.HasReportedFieldInSight = true;
+            aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the field in sight");
+            return CommandDispatcher.Ok("Field in sight");
+        }
+
+        return new CommandResult(false, FormatFieldFailure(result, metar, destination));
     }
 
-    internal static CommandResult DispatchReportTrafficInSight(AircraftState aircraft, string? targetCallsign)
+    internal static CommandResult DispatchReportTrafficInSight(AircraftState aircraft, string? targetCallsign, DispatchContext ctx)
     {
+        // Fast path: if the tick processor has already confirmed acquisition on an
+        // active FOLLOW, just echo the in-sight response.
         if (aircraft.HasReportedTrafficInSight)
         {
-            var msg = targetCallsign is not null
+            var fastMsg = targetCallsign is not null
                 ? $"{aircraft.Callsign} has the traffic in sight ({targetCallsign})"
                 : $"{aircraft.Callsign} has the traffic in sight";
-            aircraft.PendingNotifications.Add(msg);
+            aircraft.PendingNotifications.Add(fastMsg);
             return CommandDispatcher.Ok("Traffic in sight");
         }
 
-        return new CommandResult(false, "Unable, traffic not in sight");
+        if (string.IsNullOrWhiteSpace(targetCallsign))
+        {
+            return new CommandResult(false, "Unable, no traffic specified");
+        }
+
+        var target = ctx.FindAircraft?.Invoke(targetCallsign);
+        if (target is null)
+        {
+            return new CommandResult(false, $"Negative contact, {targetCallsign} not on this frequency");
+        }
+
+        // Ceiling/visibility reference the destination airport — that's where the
+        // relevant METAR lives. If no destination, skip the ceiling-side check.
+        int? ceilingAgl = null;
+        double? visibilitySm = null;
+        double aptElevation = 0.0;
+        var destination = aircraft.Destination;
+        if (!string.IsNullOrWhiteSpace(destination))
+        {
+            var metar = ctx.Weather?.GetWeatherForAirport(destination);
+            ceilingAgl = metar?.CeilingFeetAgl;
+            visibilitySm = metar?.VisibilityStatuteMiles;
+            aptElevation = NavigationDatabase.Instance.GetAirportElevation(destination) ?? 0.0;
+        }
+
+        var result = VisualDetection.TryAcquireTraffic(aircraft, target, ceilingAgl, aptElevation, visibilitySm, aircraft.BankAngle);
+
+        if (result.Acquired)
+        {
+            aircraft.HasReportedTrafficInSight = true;
+            aircraft.PendingNotifications.Add($"{aircraft.Callsign} has the traffic in sight ({targetCallsign})");
+            return CommandDispatcher.Ok("Traffic in sight");
+        }
+
+        return new CommandResult(false, FormatTrafficFailure(result, targetCallsign));
     }
+
+    // Phraseology borrowed from AIM §4-1-15 and §5-5-8 (traffic advisories use
+    // "negative contact" when the pilot cannot visually acquire a target) and
+    // 7110.65 §7-2-1 (visual separation boundary at FL180).
+    private static string FormatFieldFailure(VisualAcquisitionResult r, MetarParser.ParsedMetar? metar, string airportId) =>
+        r.Reason switch
+        {
+            VisualAcquisitionFailure.InClassA => "Unable visual, in Class Alpha",
+            VisualAcquisitionFailure.AboveCeiling => $"Unable, {airportId} below the layer, ceiling {metar?.CeilingFeetAgl ?? 0} AGL",
+            VisualAcquisitionFailure.BehindOwnship => $"Unable, {airportId} behind us",
+            VisualAcquisitionFailure.OccludedByBank => $"Unable, {airportId} lost visual in the turn",
+            VisualAcquisitionFailure.OutOfRange => $"Negative contact, {airportId}, {r.DistanceNm:F0} miles out",
+            VisualAcquisitionFailure.OppositeSideOfRunway => $"Unable, {airportId} on the opposite side",
+            _ => $"Unable, {airportId} not in sight",
+        };
+
+    private static string FormatTrafficFailure(VisualAcquisitionResult r, string callsign) =>
+        r.Reason switch
+        {
+            VisualAcquisitionFailure.MixedCeiling => $"Negative contact, {callsign}, cloud layer between us",
+            VisualAcquisitionFailure.BehindOwnship => $"Unable, {callsign} behind us",
+            VisualAcquisitionFailure.OccludedByBank => $"Unable, {callsign} lost visual in the turn",
+            VisualAcquisitionFailure.OutOfRange => $"Negative contact, {callsign}, {r.DistanceNm:F0} miles",
+            _ => $"Negative contact, {callsign}",
+        };
 
     internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft)
     {

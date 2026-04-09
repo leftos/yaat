@@ -427,11 +427,11 @@ public static class CommandDispatcher
             case ClearedVisualApproachCommand cmd:
                 return ApproachCommandHandler.TryClearedVisualApproach(cmd, aircraft);
             case ReportFieldInSightCommand:
-                return NavigationCommandHandler.DispatchReportFieldInSight(aircraft);
+                return NavigationCommandHandler.DispatchReportFieldInSight(aircraft, ctx);
             case ReportFieldInSightForcedCommand:
                 return NavigationCommandHandler.DispatchReportFieldInSightForced(aircraft);
             case ReportTrafficInSightCommand cmd:
-                return NavigationCommandHandler.DispatchReportTrafficInSight(aircraft, cmd.TargetCallsign);
+                return NavigationCommandHandler.DispatchReportTrafficInSight(aircraft, cmd.TargetCallsign, ctx);
             case ReportTrafficInSightForcedCommand cmd:
                 return NavigationCommandHandler.DispatchReportTrafficInSightForced(aircraft, cmd.TargetCallsign);
 

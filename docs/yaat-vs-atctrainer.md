@@ -399,6 +399,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 - `CVA` command with LEFT/RIGHT/FOLLOW options
 - Three execution paths (straight-in, angled join, pattern entry)
 - Airborne `FOLLOW` command for pattern and approach aircraft — adjusts speed and extends downwind to maintain visual separation
+- `RFIS`/`RTIS` run live visual detection on demand per 7110.65 §7-4-3 / AIM §5-4-23 and return a specific failure reason (behind us, above ceiling, too far, occluded by bank, out of range, wrong side of runway) so RPOs understand why
 - `RFISF`/`RTISF` forced variants bypass visual detection for RPO convenience
 - CVA FOLLOW requires RTIS/RTISF (traffic in sight gate)
 - Auto-cancels follow with warning when separation can't be maintained at minimum speed

@@ -685,7 +685,14 @@ public sealed class SimulationEngine
         }
 
         var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-        var dispatchCtx = new DispatchContext(groundLayout, World.Rng, Scenario?.ValidateDctFixes ?? true, Scenario?.AutoCrossRunway ?? false);
+        var dispatchCtx = new DispatchContext(
+            groundLayout,
+            World.Rng,
+            World.Weather,
+            FindAircraft,
+            Scenario?.ValidateDctFixes ?? true,
+            Scenario?.AutoCrossRunway ?? false
+        );
         return CommandDispatcher.DispatchCompound(parseResult.Value!, aircraft, dispatchCtx);
     }
 
@@ -893,6 +900,8 @@ public sealed class SimulationEngine
                 var deferredCtx = new DispatchContext(
                     groundLayout,
                     World.Rng,
+                    World.Weather,
+                    FindAircraft,
                     Scenario?.ValidateDctFixes ?? true,
                     Scenario?.AutoCrossRunway ?? false
                 );
@@ -1195,7 +1204,14 @@ public sealed class SimulationEngine
             }
 
             var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-            var presetCtx = new DispatchContext(groundLayout, World.Rng, scenario.ValidateDctFixes, scenario.AutoCrossRunway);
+            var presetCtx = new DispatchContext(
+                groundLayout,
+                World.Rng,
+                World.Weather,
+                FindAircraft,
+                scenario.ValidateDctFixes,
+                scenario.AutoCrossRunway
+            );
             CommandDispatcher.DispatchCompound(compound, aircraft, presetCtx);
 
             EmitTerminal("System", preset.Callsign, $"[Preset] {preset.Command}");
@@ -1289,7 +1305,14 @@ public sealed class SimulationEngine
         }
 
         var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-        var singlePresetCtx = new DispatchContext(groundLayout, World.Rng, Scenario!.ValidateDctFixes, Scenario!.AutoCrossRunway);
+        var singlePresetCtx = new DispatchContext(
+            groundLayout,
+            World.Rng,
+            World.Weather,
+            FindAircraft,
+            Scenario!.ValidateDctFixes,
+            Scenario!.AutoCrossRunway
+        );
         CommandDispatcher.DispatchCompound(compound, aircraft, singlePresetCtx);
 
         EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
@@ -1456,7 +1479,14 @@ public sealed class SimulationEngine
         }
 
         var groundLayout = aircraft.GroundLayout ?? ResolveGroundLayout(aircraft);
-        var replayCtx = new DispatchContext(groundLayout, World.Rng, Scenario?.ValidateDctFixes ?? true, Scenario?.AutoCrossRunway ?? false);
+        var replayCtx = new DispatchContext(
+            groundLayout,
+            World.Rng,
+            World.Weather,
+            FindAircraft,
+            Scenario?.ValidateDctFixes ?? true,
+            Scenario?.AutoCrossRunway ?? false
+        );
         CommandDispatcher.DispatchCompound(replayResult.Value!, aircraft, replayCtx);
     }
 

@@ -1,6 +1,53 @@
 namespace Yaat.Sim;
 
 /// <summary>
+/// Reasons an attempted visual acquisition of an airport or another aircraft
+/// can fail. These map directly to the ordered checks inside
+/// <see cref="VisualDetection"/> and exist so RPO-facing messages can explain
+/// exactly why the pilot cannot see the target.
+/// </summary>
+public enum VisualAcquisitionFailure
+{
+    /// <summary>Acquisition succeeded.</summary>
+    None,
+
+    /// <summary>Ownship is at or above the Class A floor (FL180). Airport only.</summary>
+    InClassA,
+
+    /// <summary>Ownship is at or above the reported ceiling — field is in IMC. Airport only.</summary>
+    AboveCeiling,
+
+    /// <summary>Ownship and target are on opposite sides of the cloud layer. Traffic only.</summary>
+    MixedCeiling,
+
+    /// <summary>Target bearing lies outside the ±90° forward hemisphere of the ownship.</summary>
+    BehindOwnship,
+
+    /// <summary>During a turn, the high wing blocks the view of the target.</summary>
+    OccludedByBank,
+
+    /// <summary>Distance exceeds the reported visibility or the maximum detection range.</summary>
+    OutOfRange,
+
+    /// <summary>Airport-with-runway variant: ownship would have to overfly the field to reach the approach end.</summary>
+    OppositeSideOfRunway,
+}
+
+/// <summary>
+/// Result of a visual acquisition attempt. Always carries the computed distance
+/// and the maximum range used for the distance check so failure messages can
+/// say "5 nm too far" instead of just "too far".
+/// </summary>
+public readonly record struct VisualAcquisitionResult(bool Acquired, VisualAcquisitionFailure Reason, double DistanceNm, double MaxRangeNm)
+{
+    public static VisualAcquisitionResult Success(double distanceNm, double maxRangeNm) =>
+        new(true, VisualAcquisitionFailure.None, distanceNm, maxRangeNm);
+
+    public static VisualAcquisitionResult Fail(VisualAcquisitionFailure reason, double distanceNm, double maxRangeNm) =>
+        new(false, reason, distanceNm, maxRangeNm);
+}
+
+/// <summary>
 /// Determines whether an aircraft can visually acquire the airport or another aircraft,
 /// per FAA 7110.65 §7-4-3 and AIM §5-4-23.
 /// Bank angle occlusion per 7110.65 §7-4-4.c.2 NOTE 1 and AIM §4-4-15.
@@ -19,31 +66,30 @@ public static class VisualDetection
     private const double NoseConeDeg = 10.0;
 
     /// <summary>
-    /// Can the aircraft visually acquire the airport?
-    /// Checks forward hemisphere, bank occlusion, distance vs visibility, altitude vs ceiling, and Class A.
-    /// Pass bankAngleDeg for initial acquisition checks; pass 0 for maintained-contact checks.
+    /// Attempts to visually acquire the airport. Pass <paramref name="bankAngleDeg"/> for
+    /// initial acquisition checks; pass 0 for maintained-contact checks.
     /// </summary>
-    public static bool CanSeeAirport(
+    public static VisualAcquisitionResult TryAcquireAirport(
         AircraftState aircraft,
         double airportLat,
         double airportLon,
         double airportElevation,
         int? ceilingAgl,
         double? visibilitySm,
-        double bankAngleDeg = 0.0
+        double bankAngleDeg
     )
     {
-        return CanSeeAirportCore(aircraft, airportLat, airportLon, airportElevation, ceilingAgl, visibilitySm, runwayHeading: null, bankAngleDeg);
+        return TryAcquireAirportCore(aircraft, airportLat, airportLon, airportElevation, ceilingAgl, visibilitySm, runwayHeading: null, bankAngleDeg);
     }
 
     /// <summary>
-    /// Can the aircraft visually acquire the airport for a specific runway?
-    /// In addition to basic visual checks, ensures the aircraft is on the approach
-    /// side of the runway (not opposite direction where the pilot would need to
-    /// overfly the field to reach the approach end).
-    /// Pass bankAngleDeg for initial acquisition checks; pass 0 for maintained-contact checks.
+    /// Attempts to visually acquire the airport for a specific runway. In addition to
+    /// the basic visual checks, ensures the aircraft is on the approach side of the
+    /// runway (not on the opposite side, where the pilot would need to overfly the
+    /// field). Pass <paramref name="bankAngleDeg"/> for initial acquisition checks;
+    /// pass 0 for maintained-contact checks.
     /// </summary>
-    public static bool CanSeeAirportForRunway(
+    public static VisualAcquisitionResult TryAcquireAirportForRunway(
         AircraftState aircraft,
         double airportLat,
         double airportLon,
@@ -51,27 +97,34 @@ public static class VisualDetection
         int? ceilingAgl,
         double? visibilitySm,
         TrueHeading runwayHeading,
-        double bankAngleDeg = 0.0
+        double bankAngleDeg
     )
     {
-        return CanSeeAirportCore(aircraft, airportLat, airportLon, airportElevation, ceilingAgl, visibilitySm, runwayHeading, bankAngleDeg);
+        return TryAcquireAirportCore(aircraft, airportLat, airportLon, airportElevation, ceilingAgl, visibilitySm, runwayHeading, bankAngleDeg);
     }
 
     /// <summary>
-    /// Can the ownship visually acquire the target aircraft?
-    /// Checks forward hemisphere, bank occlusion, distance vs visibility, ceiling separation.
-    /// No FL180 gate — pilots can see traffic in Class A; only visual separation is prohibited (7110.65 §7-1-1).
-    /// Pass bankAngleDeg for initial acquisition checks; pass 0 for maintained-contact checks.
+    /// Attempts to visually acquire another aircraft. No FL180 gate — pilots can see
+    /// traffic in Class A; only visual separation is prohibited (7110.65 §7-1-1).
+    /// Pass <paramref name="bankAngleDeg"/> for initial acquisition checks; pass 0 for
+    /// maintained-contact checks.
     /// </summary>
-    public static bool CanSeeTraffic(
+    public static VisualAcquisitionResult TryAcquireTraffic(
         AircraftState ownship,
         AircraftState target,
         int? ceilingAgl,
         double airportElevation,
         double? visibilitySm,
-        double bankAngleDeg = 0.0
+        double bankAngleDeg
     )
     {
+        double distance = GeoMath.DistanceNm(ownship.Latitude, ownship.Longitude, target.Latitude, target.Longitude);
+        double maxRange = WakeTurbulenceData.TrafficDetectionRangeNm(target.AircraftType, AircraftCategorization.Categorize(target.AircraftType));
+        if (visibilitySm is not null)
+        {
+            maxRange = Math.Min(visibilitySm.Value * SmToNm, maxRange);
+        }
+
         // Both must be on same side of ceiling (if ceiling exists)
         if (ceilingAgl is not null)
         {
@@ -80,7 +133,7 @@ public static class VisualDetection
             bool tgtBelow = target.Altitude < ceilingMsl;
             if (ownBelow != tgtBelow)
             {
-                return false;
+                return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.MixedCeiling, distance, maxRange);
             }
         }
 
@@ -89,24 +142,21 @@ public static class VisualDetection
         double angleDiff = ownship.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
         if (angleDiff > 90.0)
         {
-            return false;
+            return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.BehindOwnship, distance, maxRange);
         }
 
         // Bank angle occlusion: high wing blocks view of targets on that side at/below altitude
         if (IsOccludedByBank(bankAngleDeg, ownship.TrueHeading, new TrueHeading(bearing), ownship.Altitude, target.Altitude))
         {
-            return false;
+            return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.OccludedByBank, distance, maxRange);
         }
 
-        // Distance check: max range scales with target aircraft WTG size
-        double maxRange = WakeTurbulenceData.TrafficDetectionRangeNm(target.AircraftType, AircraftCategorization.Categorize(target.AircraftType));
-        if (visibilitySm is not null)
+        if (distance > maxRange)
         {
-            maxRange = Math.Min(visibilitySm.Value * SmToNm, maxRange);
+            return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.OutOfRange, distance, maxRange);
         }
 
-        double distance = GeoMath.DistanceNm(ownship.Latitude, ownship.Longitude, target.Latitude, target.Longitude);
-        return distance <= maxRange;
+        return VisualAcquisitionResult.Success(distance, maxRange);
     }
 
     /// <summary>
@@ -152,7 +202,7 @@ public static class VisualDetection
         return targetAltitude <= ownshipAltitude + altBuffer;
     }
 
-    private static bool CanSeeAirportCore(
+    private static VisualAcquisitionResult TryAcquireAirportCore(
         AircraftState aircraft,
         double airportLat,
         double airportLon,
@@ -163,10 +213,13 @@ public static class VisualDetection
         double bankAngleDeg
     )
     {
+        double distance = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, airportLat, airportLon);
+        double maxRange = visibilitySm is not null ? Math.Min(visibilitySm.Value * SmToNm, MaxAirportRangeNm) : MaxAirportRangeNm;
+
         // Class A: no visual approaches at or above FL180 (7110.65 §7-2-1.a)
         if (aircraft.Altitude >= ClassAFloorFt)
         {
-            return false;
+            return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.InClassA, distance, maxRange);
         }
 
         // Must be below ceiling MSL (if ceiling exists)
@@ -175,7 +228,7 @@ public static class VisualDetection
             double ceilingMsl = ceilingAgl.Value + airportElevation;
             if (aircraft.Altitude >= ceilingMsl)
             {
-                return false;
+                return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.AboveCeiling, distance, maxRange);
             }
         }
 
@@ -184,21 +237,18 @@ public static class VisualDetection
         double angleDiff = aircraft.TrueHeading.AbsAngleTo(new TrueHeading(bearing));
         if (angleDiff > 90.0)
         {
-            return false;
+            return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.BehindOwnship, distance, maxRange);
         }
 
         // Bank angle occlusion: airport is always below the aircraft
         if (IsOccludedByBank(bankAngleDeg, aircraft.TrueHeading, new TrueHeading(bearing), aircraft.Altitude, airportElevation))
         {
-            return false;
+            return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.OccludedByBank, distance, maxRange);
         }
 
-        // Distance check
-        double distance = GeoMath.DistanceNm(aircraft.Latitude, aircraft.Longitude, airportLat, airportLon);
-        double maxRange = visibilitySm is not null ? Math.Min(visibilitySm.Value * SmToNm, MaxAirportRangeNm) : MaxAirportRangeNm;
         if (distance > maxRange)
         {
-            return false;
+            return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.OutOfRange, distance, maxRange);
         }
 
         // Runway direction check: aircraft should not need to overfly the airport.
@@ -212,10 +262,10 @@ public static class VisualDetection
             double sideAngle = approachSide.AbsAngleTo(new TrueHeading(bearingFromAirport));
             if (sideAngle > 120.0)
             {
-                return false;
+                return VisualAcquisitionResult.Fail(VisualAcquisitionFailure.OppositeSideOfRunway, distance, maxRange);
             }
         }
 
-        return true;
+        return VisualAcquisitionResult.Success(distance, maxRange);
     }
 }
