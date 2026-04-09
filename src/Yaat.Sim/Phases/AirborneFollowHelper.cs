@@ -19,6 +19,14 @@ public static class AirborneFollowHelper
     /// <summary>Desired following distance when leader is a jet (nm).</summary>
     private const double DesiredDistanceLargeNm = 2.0;
 
+    // Free-flight spacing is wider than pattern-tight spacing: pilots maintaining
+    // visual separation outside the pattern have less context (no runway cues,
+    // higher closure risk at distance), so give them more room. On pattern join
+    // the tighter pattern constants above take over.
+    private const double FreeFlightDistanceSmallNm = 1.5;
+    private const double FreeFlightDistanceMediumNm = 2.0;
+    private const double FreeFlightDistanceLargeNm = 2.5;
+
     /// <summary>Speed correction gain: kts per nm of distance error.</summary>
     private const double SpeedGainPerNm = 25.0;
 
@@ -55,10 +63,53 @@ public static class AirborneFollowHelper
             return null;
         }
 
-        double distance = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, target.Latitude, target.Longitude);
+        return ComputeAdjustedSpeed(ctx.Aircraft, target, normalSpeed, minSpeed, ctx.Logger);
+    }
 
-        var leaderCategory = AircraftCategorization.Categorize(target.AircraftType);
+    /// <summary>
+    /// Phase-context-free variant used by <see cref="VfrFollowPhase"/> during free
+    /// pursuit (lead not in a pattern). Treats the lead's ground speed as the
+    /// "normal" target so the follower tracks the lead's speed with distance-based
+    /// correction, using the wider free-flight desired distances. Does not read
+    /// or clear <see cref="AircraftState.FollowingCallsign"/> — the caller
+    /// (VfrFollowPhase) owns that lifecycle.
+    /// </summary>
+    /// <param name="follower">Follower aircraft.</param>
+    /// <param name="lead">Lead aircraft.</param>
+    /// <param name="minSpeed">Absolute floor — never returns below this.</param>
+    /// <param name="logger">Logger for warnings when separation cannot be maintained.</param>
+    public static double AdjustedFreeFlightSpeed(AircraftState follower, AircraftState lead, double minSpeed, ILogger logger)
+    {
+        double normalSpeed = Math.Max(lead.IndicatedAirspeed, minSpeed);
+        var leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
+        double desired = FreeFlightDistanceForLeader(leaderCategory);
+        var result = ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, logger);
+        return result ?? normalSpeed;
+    }
+
+    /// <summary>
+    /// Core distance/error/clamp math shared by both the pattern-phase path and
+    /// the free-flight path. Returns null only when separation cannot be maintained
+    /// (follower too close at min speed) — in that case the caller decides how to
+    /// cancel follow.
+    /// </summary>
+    private static double? ComputeAdjustedSpeed(AircraftState follower, AircraftState lead, double normalSpeed, double minSpeed, ILogger logger)
+    {
+        var leaderCategory = AircraftCategorization.Categorize(lead.AircraftType);
         double desired = DesiredDistanceForLeader(leaderCategory);
+        return ComputeAdjustedSpeedWithDesired(follower, lead, normalSpeed, minSpeed, desired, logger);
+    }
+
+    private static double? ComputeAdjustedSpeedWithDesired(
+        AircraftState follower,
+        AircraftState lead,
+        double normalSpeed,
+        double minSpeed,
+        double desired,
+        ILogger logger
+    )
+    {
+        double distance = GeoMath.DistanceNm(follower.Latitude, follower.Longitude, lead.Latitude, lead.Longitude);
         double error = distance - desired;
         double speedAdjust = Math.Clamp(error * SpeedGainPerNm, -MaxSpeedAdjustKts, MaxSpeedAdjustKts);
         double adjusted = normalSpeed + speedAdjust;
@@ -68,12 +119,12 @@ public static class AirborneFollowHelper
         // separation. Cancel follow and warn once so the controller can intervene.
         if ((adjusted < minSpeed) && (distance < desired * 0.5))
         {
-            ctx.Aircraft.FollowingCallsign = null;
-            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to maintain separation from {targetCallsign}, cancelling follow");
-            ctx.Logger.LogWarning(
+            follower.FollowingCallsign = null;
+            follower.PendingWarnings.Add($"{follower.Callsign} unable to maintain separation from {lead.Callsign}, cancelling follow");
+            logger.LogWarning(
                 "[Follow] {Callsign}: cancelled follow on {Target}, at min speed with dist={Dist:F2}nm (desired={Desired:F1}nm)",
-                ctx.Aircraft.Callsign,
-                targetCallsign,
+                follower.Callsign,
+                lead.Callsign,
                 distance,
                 desired
             );
@@ -122,8 +173,9 @@ public static class AirborneFollowHelper
     }
 
     /// <summary>
-    /// Returns the desired following distance based on the leader's aircraft category.
-    /// Larger/faster leaders require more spacing.
+    /// Returns the desired following distance (pattern-tight) based on the leader's
+    /// aircraft category. Used by <see cref="DownwindPhase"/> / <see cref="BasePhase"/>
+    /// / <see cref="FinalApproachPhase"/>. Larger/faster leaders require more spacing.
     /// </summary>
     public static double DesiredDistanceForLeader(AircraftCategory leaderCategory)
     {
@@ -134,6 +186,23 @@ public static class AirborneFollowHelper
             AircraftCategory.Piston => DesiredDistanceSmallNm,
             AircraftCategory.Helicopter => DesiredDistanceSmallNm,
             _ => DesiredDistanceMediumNm,
+        };
+    }
+
+    /// <summary>
+    /// Wider free-flight desired distance (used by <see cref="VfrFollowPhase"/>
+    /// outside the pattern) — pilots maintaining visual separation without
+    /// pattern cues want more margin than the pattern-tight values.
+    /// </summary>
+    public static double FreeFlightDistanceForLeader(AircraftCategory leaderCategory)
+    {
+        return leaderCategory switch
+        {
+            AircraftCategory.Jet => FreeFlightDistanceLargeNm,
+            AircraftCategory.Turboprop => FreeFlightDistanceMediumNm,
+            AircraftCategory.Piston => FreeFlightDistanceSmallNm,
+            AircraftCategory.Helicopter => FreeFlightDistanceSmallNm,
+            _ => FreeFlightDistanceMediumNm,
         };
     }
 }

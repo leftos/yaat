@@ -196,6 +196,7 @@ public sealed class PatternWaypointsDto
 [JsonDerivedType(typeof(CrosswindPhaseDto), "Crosswind")]
 [JsonDerivedType(typeof(DownwindPhaseDto), "Downwind")]
 [JsonDerivedType(typeof(UpwindPhaseDto), "Upwind")]
+[JsonDerivedType(typeof(VfrFollowPhaseDto), "VfrFollow")]
 [JsonDerivedType(typeof(HoldingPatternPhaseDto), "HoldingPattern")]
 [JsonDerivedType(typeof(ApproachNavigationPhaseDto), "ApproachNavigation")]
 [JsonDerivedType(typeof(InterceptCoursePhaseDto), "InterceptCourse")]
@@ -588,6 +589,11 @@ public sealed class UpwindPhaseDto : PhaseDto
     public required double TargetLon { get; init; }
     public required double UpwindHeadingDeg { get; init; }
     public required double MinTurnAltitude { get; init; } = 0.0;
+}
+
+public sealed class VfrFollowPhaseDto : PhaseDto
+{
+    public required string TargetCallsign { get; init; }
 }
 
 // --- Approach phases ---

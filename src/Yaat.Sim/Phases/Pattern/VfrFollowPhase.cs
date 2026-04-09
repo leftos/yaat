@@ -1,0 +1,302 @@
+using Microsoft.Extensions.Logging;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
+using Yaat.Sim.Simulation.Snapshots;
+
+namespace Yaat.Sim.Phases.Pattern;
+
+/// <summary>
+/// VFR follow phase: the follower pursues another VFR aircraft in free flight,
+/// matching heading toward the lead's position and the lead's speed with
+/// distance-based spacing correction. Altitude is left unchanged — real pilots
+/// told "follow traffic" maintain their current/assigned altitude (often staying
+/// visually above the lead), and the pattern phases take over altitude on join.
+///
+/// When the lead is in a pattern phase and the follower is within
+/// <see cref="JoinRangeNm"/> of the lead's downwind abeam point, within
+/// <see cref="MaxJoinGapNm"/> of the lead itself, and on the same side of the
+/// runway as the pattern, this phase swaps itself out for a full pattern circuit
+/// (PatternEntryPhase → DownwindPhase → BasePhase → FinalApproachPhase → LandingPhase)
+/// copying the lead's runway, direction, and altitude — after which the existing
+/// <see cref="AirborneFollowHelper"/> machinery in the pattern phases takes over.
+/// </summary>
+public sealed class VfrFollowPhase : Phase
+{
+    /// <summary>Distance from the lead's downwind abeam point at which we auto-join the pattern.</summary>
+    public const double JoinRangeNm = 3.0;
+
+    /// <summary>Maximum distance follower-to-lead allowed at pattern join — guards against joining a stale pattern when the lead has moved.</summary>
+    public const double MaxJoinGapNm = 5.0;
+
+    /// <summary>Seconds of continuously-growing gap beyond which the follow auto-cancels (runaway distance).</summary>
+    private const double RunawayGraceSeconds = 30.0;
+
+    public string TargetCallsign { get; private set; }
+
+    // Non-serialized runtime state: the best (smallest) distance we've seen to the lead,
+    // and elapsed seconds during which the distance has been monotonically greater than
+    // that best. When the elapsed exceeds RunawayGraceSeconds, we cancel the follow.
+    private double _bestGapNm = double.PositiveInfinity;
+    private double _runawayElapsed;
+
+    public override string Name => "VFR Follow";
+    public override bool ManagesSpeed => true;
+
+    public VfrFollowPhase(string targetCallsign)
+    {
+        TargetCallsign = targetCallsign;
+    }
+
+    /// <summary>Update the follow target without recreating the phase.</summary>
+    public void UpdateTarget(string targetCallsign)
+    {
+        TargetCallsign = targetCallsign;
+        _bestGapNm = double.PositiveInfinity;
+        _runawayElapsed = 0;
+    }
+
+    public override void OnStart(PhaseContext ctx)
+    {
+        ctx.Targets.NavigationRoute.Clear();
+        ctx.Targets.PreferredTurnDirection = null;
+        _bestGapNm = double.PositiveInfinity;
+        _runawayElapsed = 0;
+        ctx.Logger.LogDebug("[VfrFollow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, TargetCallsign);
+    }
+
+    public override bool OnTick(PhaseContext ctx)
+    {
+        var lead = ctx.AircraftLookup?.Invoke(TargetCallsign);
+        if (lead is null)
+        {
+            ctx.Logger.LogDebug("[VfrFollow] {Callsign}: target {Target} not found, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
+            ctx.Aircraft.FollowingCallsign = null;
+            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} lost sight of {TargetCallsign}, cancelling follow");
+            return true;
+        }
+
+        if (lead.IsOnGround)
+        {
+            ctx.Logger.LogDebug("[VfrFollow] {Callsign}: target {Target} on ground, ending follow", ctx.Aircraft.Callsign, TargetCallsign);
+            ctx.Aircraft.FollowingCallsign = null;
+            ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} {TargetCallsign} has landed, cancelling follow");
+            return true;
+        }
+
+        double gapNm = GeoMath.DistanceNm(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, lead.Latitude, lead.Longitude);
+
+        // Runaway-distance cancel: if the gap has been strictly increasing for
+        // more than RunawayGraceSeconds, the follower can't catch up — give up.
+        if (gapNm <= _bestGapNm)
+        {
+            _bestGapNm = gapNm;
+            _runawayElapsed = 0;
+        }
+        else
+        {
+            _runawayElapsed += ctx.DeltaSeconds;
+            if (_runawayElapsed >= RunawayGraceSeconds)
+            {
+                ctx.Logger.LogDebug(
+                    "[VfrFollow] {Callsign}: gap to {Target} growing >30s (best={Best:F1}nm, now={Now:F1}nm), cancelling",
+                    ctx.Aircraft.Callsign,
+                    TargetCallsign,
+                    _bestGapNm,
+                    gapNm
+                );
+                ctx.Aircraft.FollowingCallsign = null;
+                ctx.Aircraft.PendingWarnings.Add($"{ctx.Aircraft.Callsign} unable to catch up to {TargetCallsign}, cancelling follow");
+                return true;
+            }
+        }
+
+        // If the lead is in a pattern, see if we're close enough to join.
+        if (TryJoinLeadPattern(ctx, lead, gapNm))
+        {
+            // Phase list has been replaced — this phase is no longer current.
+            return true;
+        }
+
+        // Free pursuit: steer toward the lead and match speed with spacing correction.
+        // Altitude is deliberately not touched — the controller's last assignment stands.
+        double targetBearing = GeoMath.BearingTo(ctx.Aircraft.Latitude, ctx.Aircraft.Longitude, lead.Latitude, lead.Longitude);
+        ctx.Targets.TargetTrueHeading = new TrueHeading(targetBearing);
+
+        double minSpeed = AircraftPerformance.ApproachSpeed(ctx.AircraftType, ctx.Category);
+        ctx.Targets.TargetSpeed = AirborneFollowHelper.AdjustedFreeFlightSpeed(ctx.Aircraft, lead, minSpeed, ctx.Logger);
+
+        return false;
+    }
+
+    /// <summary>
+    /// If the lead is in a pattern phase and the follower is close enough to the
+    /// lead's pattern entry, rebuild the follower's phase list with a pattern
+    /// circuit copying the lead's runway/direction/altitude and return true.
+    /// </summary>
+    private bool TryJoinLeadPattern(PhaseContext ctx, AircraftState lead, double gapToLeadNm)
+    {
+        // Extract pattern waypoints from the lead's current phase.
+        var leadWaypoints = ExtractPatternWaypoints(lead);
+        if (leadWaypoints is null)
+        {
+            return false;
+        }
+
+        var leadRunway = lead.Phases?.AssignedRunway;
+        if (leadRunway is null)
+        {
+            return false;
+        }
+
+        // Gate 1: follower must be close to the lead's downwind abeam point.
+        double distToEntry = GeoMath.DistanceNm(
+            ctx.Aircraft.Latitude,
+            ctx.Aircraft.Longitude,
+            leadWaypoints.DownwindAbeamLat,
+            leadWaypoints.DownwindAbeamLon
+        );
+        if (distToEntry > JoinRangeNm)
+        {
+            return false;
+        }
+
+        // Gate 2: and reasonably close to the lead itself. Guards against joining
+        // a stale pattern fix when the lead has already moved on (e.g., turning base).
+        if (gapToLeadNm > MaxJoinGapNm)
+        {
+            return false;
+        }
+
+        // Gate 3: follower must be on the pattern side of the runway centerline.
+        // A follower on the opposite side would have to cross final to reach
+        // the abeam point — a real pilot would refuse, so reject the auto-join.
+        if (!IsOnPatternSide(ctx.Aircraft, leadRunway, leadWaypoints.Direction))
+        {
+            return false;
+        }
+
+        ctx.Logger.LogDebug(
+            "[VfrFollow] {Callsign}: joining pattern copied from {Lead} on runway {Rwy}, direction {Dir}, dist={Dist:F2}nm",
+            ctx.Aircraft.Callsign,
+            TargetCallsign,
+            leadRunway.Designator,
+            leadWaypoints.Direction,
+            distToEntry
+        );
+
+        // Build the pattern circuit using the follower's own category (spacing
+        // depends on what *we* can fly, not the lead).
+        var airportRunways = NavigationDatabase.Instance.GetRunways(leadRunway.AirportId);
+        var circuit = PatternBuilder.BuildCircuit(
+            leadRunway,
+            ctx.Category,
+            leadWaypoints.Direction,
+            PatternEntryLeg.Downwind,
+            touchAndGo: false,
+            finalDistanceNm: null,
+            patternSizeNm: null,
+            altitudeOverrideFt: leadWaypoints.PatternAltitude,
+            airportRunways: airportRunways
+        );
+
+        // Insert a PatternEntryPhase to navigate to the downwind abeam point.
+        TrueHeading reverseDownwind = leadWaypoints.DownwindHeading.ToReciprocal();
+        var leadIn = GeoMath.ProjectPoint(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon, reverseDownwind, 1.0);
+
+        var entry = new PatternEntryPhase
+        {
+            EntryLat = leadWaypoints.DownwindAbeamLat,
+            EntryLon = leadWaypoints.DownwindAbeamLon,
+            PatternAltitude = leadWaypoints.PatternAltitude,
+            LeadInLat = leadIn.Lat,
+            LeadInLon = leadIn.Lon,
+        };
+
+        // Replace the follower's phase list entirely.
+        var phases = ctx.Aircraft.Phases ?? new PhaseList();
+        phases.Clear(ctx);
+        ctx.Aircraft.Phases = new PhaseList
+        {
+            AssignedRunway = leadRunway,
+            TrafficDirection = leadWaypoints.Direction,
+            PatternRunway = leadRunway,
+        };
+        ctx.Aircraft.Phases.Add(entry);
+        foreach (var p in circuit)
+        {
+            ctx.Aircraft.Phases.Add(p);
+        }
+
+        // Preserve the follow target so the pattern phases keep adjusting spacing.
+        ctx.Aircraft.FollowingCallsign = TargetCallsign;
+        ctx.Aircraft.DestinationRunway = leadRunway.Designator;
+
+        // Start the first phase in the new list.
+        ctx.Aircraft.Phases.Start(ctx);
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the lead's current pattern waypoints if the lead is in a pattern
+    /// phase (Downwind/Base/Crosswind/Upwind), otherwise null.
+    /// </summary>
+    private static PatternWaypoints? ExtractPatternWaypoints(AircraftState lead)
+    {
+        return lead.Phases?.CurrentPhase switch
+        {
+            DownwindPhase d => d.Waypoints,
+            BasePhase b => b.Waypoints,
+            CrosswindPhase c => c.Waypoints,
+            UpwindPhase u => u.Waypoints,
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Returns true if <paramref name="follower"/> is on the same side of the
+    /// runway centerline as the pattern (the side the downwind lies on).
+    /// A left pattern has downwind to the left of the runway when viewed in the
+    /// direction of landing; follower must be on that same side.
+    /// </summary>
+    private static bool IsOnPatternSide(AircraftState follower, RunwayInfo runway, PatternDirection direction)
+    {
+        // Signed cross-track distance from the runway centerline: positive = right
+        // of runway heading, negative = left.
+        double crossTrack = GeoMath.SignedCrossTrackDistanceNm(
+            follower.Latitude,
+            follower.Longitude,
+            runway.ThresholdLatitude,
+            runway.ThresholdLongitude,
+            runway.TrueHeading
+        );
+        return direction == PatternDirection.Left ? crossTrack <= 0 : crossTrack >= 0;
+    }
+
+    public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
+    {
+        return cmd switch
+        {
+            CanonicalCommandType.Follow => CommandAcceptance.Allowed,
+            CanonicalCommandType.Delete => CommandAcceptance.ClearsPhase,
+            // Any other command (heading/altitude/speed/pattern/etc.) clears
+            // this phase and hands control back to the controller's direct targets.
+            _ => CommandAcceptance.ClearsPhase,
+        };
+    }
+
+    public override PhaseDto ToSnapshot() =>
+        new VfrFollowPhaseDto
+        {
+            Status = (int)Status,
+            ElapsedSeconds = ElapsedSeconds,
+            Requirements = Requirements.Count > 0 ? Requirements.Select(r => r.ToSnapshot()).ToList() : null,
+            TargetCallsign = TargetCallsign,
+        };
+
+    public static VfrFollowPhase FromSnapshot(VfrFollowPhaseDto dto)
+    {
+        var phase = new VfrFollowPhase(dto.TargetCallsign) { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
+        phase.RestoreRequirements(dto.Requirements);
+        return phase;
+    }
+}

@@ -10,13 +10,23 @@ namespace Yaat.Sim.Tests.Scenarios;
 /// Scenarios are NOT committed to the repo — download them locally with tools/refresh-scenarios.py.
 /// Tests are skipped when the snapshot directory is empty or missing.
 /// </summary>
-public class VnasScenarioParseTests(ITestOutputHelper output)
+[Collection("NavDbMutator")]
+public class VnasScenarioParseTests
 {
     private static readonly string ScenariosRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "TestData", "Scenarios")
     );
 
-    private readonly ITestOutputHelper _output = output;
+    private readonly ITestOutputHelper _output;
+
+    public VnasScenarioParseTests(ITestOutputHelper output)
+    {
+        _output = output;
+        // ScenarioValidator reads NavigationDatabase.Instance for procedure lookups.
+        // Tests in isolation would otherwise fail with "not initialized" — the full
+        // suite only worked by accident because other test fixtures initialized first.
+        TestVnasData.EnsureInitialized();
+    }
 
     [Theory]
     [InlineData("ZAB")]

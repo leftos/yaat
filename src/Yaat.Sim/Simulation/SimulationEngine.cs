@@ -996,6 +996,9 @@ public sealed class SimulationEngine
             OccupiedHoldShortNodes = occupiedNodes,
             MarkHoldShortNodeOccupied = occupiedNodes is not null ? nodeId => occupiedNodes.Add(nodeId) : null,
             TowerPosition = (Scenario?.IsStudentTowerPosition == true) ? Scenario.StudentPosition : null,
+            // Phases that consult follow targets (pattern spacing, VfrFollowPhase)
+            // need a way to resolve the lead aircraft by callsign.
+            AircraftLookup = World.FindAircraft,
         };
 
         PhaseRunner.Tick(aircraft, ctx);

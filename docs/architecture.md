@@ -264,7 +264,9 @@ HoldingPatternPhase.cs         # AIM 5-3-8 holding with entry determination; Max
 ApproachClearance.cs           # Record on PhaseList storing active approach state + pre-built MAP fixes
 
 # Phases/Pattern/
-UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase
+UpwindPhase / CrosswindPhase / DownwindPhase / BasePhase / MidfieldCrossingPhase / PatternEntryPhase
+VfrFollowPhase.cs              # VFR FOLLOW command phase. Pursues lead (heading + speed with spacing correction, altitude untouched); auto-joins lead's pattern when within 3 nm of the downwind abeam point AND within 5 nm of the lead AND on the correct side of the runway. Runaway-distance cancel after 30 s of growing gap. Spacing uses wider free-flight distances (1.5/2.0/2.5 nm) vs pattern-tight (1.0/1.5/2.0 nm)
+AirborneFollowHelper.cs        # Shared spacing math. GetAdjustedSpeed for pattern phases (ctx-based) + AdjustedFreeFlightSpeed for VfrFollowPhase (wider margins). Auto-cancels with warning if follower can't maintain separation at min speed
 
 # Phases/Ground/
 AtParkingPhase / PushbackPhase / PushbackToSpotPhase / TaxiingPhase / HoldingShortPhase

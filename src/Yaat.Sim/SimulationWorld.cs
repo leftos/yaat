@@ -47,6 +47,27 @@ public sealed class SimulationWorld
         }
     }
 
+    /// <summary>
+    /// Look up an aircraft by callsign (case-insensitive). Used by phases that
+    /// need to resolve a follow target — e.g. <see cref="Phases.Pattern.VfrFollowPhase"/>
+    /// and <see cref="Phases.AirborneFollowHelper"/>. The lock is reentrant, so
+    /// this is safe to call from inside <see cref="Tick(double, Action{AircraftState, double}?)"/>.
+    /// </summary>
+    public AircraftState? FindAircraft(string callsign)
+    {
+        lock (_lock)
+        {
+            foreach (var ac in _aircraft)
+            {
+                if (string.Equals(ac.Callsign, callsign, StringComparison.OrdinalIgnoreCase))
+                {
+                    return ac;
+                }
+            }
+            return null;
+        }
+    }
+
     public void Tick(double deltaSeconds)
     {
         Tick(deltaSeconds, preTick: null);

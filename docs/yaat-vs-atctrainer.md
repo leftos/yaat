@@ -189,7 +189,7 @@ YAAT's CTO command supports a comprehensive set of departure modifiers that ATCT
 | Rich approach forms | — | `CAPP AT SUNOL ILS28R`, `CAPP DCT SUNOL ILS28R` | YAAT-only — combines navigation + clearance |
 | Expect approach | — | `EAPP I28R` | YAAT-only — sets expected approach for DCT fix programming feature |
 | Visual approach | — | `CVA 28R` (+ LEFT/RIGHT/FOLLOW) | YAAT-only |
-| Follow (airborne) | — | `FOLLOW`/`FOL` | YAAT-only — speed/timing adjustment for visual separation |
+| Follow (airborne VFR) | — | `FOLLOW`/`FOL` | YAAT-only — VFR-only, requires RTIS/RTISF (traffic in sight gate). From any airborne state: pursues lead (heading + speed with spacing correction) and auto-joins the lead's pattern when within 3 nm of the downwind abeam point. Altitude held per controller assignment. |
 | Report field in sight | — | `RFIS` | YAAT-only |
 | Report field (forced) | — | `RFISF` | YAAT-only — bypasses visual detection |
 | Report traffic in sight | — | `RTIS` | YAAT-only |
@@ -398,7 +398,7 @@ VFR-oriented commands (pattern entry, traffic pattern turns/modifiers, VFR holds
 ### Visual Approach & Follow System
 - `CVA` command with LEFT/RIGHT/FOLLOW options
 - Three execution paths (straight-in, angled join, pattern entry)
-- Airborne `FOLLOW` command for pattern and approach aircraft — adjusts speed and extends downwind to maintain visual separation
+- Airborne `FOLLOW` command (VFR-only, requires RTIS/RTISF like CVA FOLLOW) works from any airborne state: pursues the lead with heading/speed control and auto-joins the lead's pattern when within 3 nm of the downwind abeam point. Inside pattern phases, spacing is handled by the existing downwind/base/final speed-adjust and extend-downwind logic per 7110.65 §7-6-7 "Sequencing"
 - `RFIS`/`RTIS` run live visual detection on demand per 7110.65 §7-4-3 / AIM §5-4-23 and return a specific failure reason (behind us, above ceiling, too far, occluded by bank, out of range, wrong side of runway) so RPOs understand why
 - `RFISF`/`RTISF` forced variants bypass visual detection for RPO convenience
 - CVA FOLLOW requires RTIS/RTISF (traffic in sight gate)

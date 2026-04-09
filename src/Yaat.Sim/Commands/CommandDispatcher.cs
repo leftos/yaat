@@ -1552,11 +1552,53 @@ public static class CommandDispatcher
 
     private static CommandResult TryAirborneFollow(AircraftState aircraft, FollowCommand follow)
     {
-        if (aircraft.Phases is null || aircraft.Phases.CurrentPhase is null)
+        // FOLLOW is VFR-only — IFR traffic uses CVA FOLLOW for visual separation.
+        if (!aircraft.IsVfr)
         {
-            return new CommandResult(false, "No active approach or pattern");
+            return new CommandResult(false, "FOLLOW only available for VFR aircraft");
         }
 
+        if (aircraft.IsOnGround)
+        {
+            return new CommandResult(false, "FOLLOW requires the aircraft to be airborne");
+        }
+
+        // RTIS gate: a pilot cannot follow traffic they haven't visually acquired.
+        // Matches CVA FOLLOW behavior — controllers can force this with RTISF.
+        if (!aircraft.HasReportedTrafficInSight)
+        {
+            return new CommandResult(false, "Traffic not in sight — issue RTIS first");
+        }
+
+        // If the follower is already in a pattern phase that honors FollowingCallsign,
+        // just update the target — existing AirborneFollowHelper handles spacing.
+        var current = aircraft.Phases?.CurrentPhase;
+        if (current is DownwindPhase or BasePhase or FinalApproachPhase)
+        {
+            aircraft.FollowingCallsign = follow.TargetCallsign;
+            return Ok($"Follow {follow.TargetCallsign}");
+        }
+
+        // If the follower is already in VfrFollowPhase, retarget in place.
+        if (current is VfrFollowPhase vfp)
+        {
+            vfp.UpdateTarget(follow.TargetCallsign);
+            aircraft.FollowingCallsign = follow.TargetCallsign;
+            return Ok($"Follow {follow.TargetCallsign}");
+        }
+
+        // Otherwise install a fresh VfrFollowPhase, replacing any existing phases.
+        // Build a new PhaseList (mirrors ApproachCommandHandler.TryClearedVisualApproach)
+        // so we don't inherit stale phase indices from the old list.
+        if (aircraft.Phases is { } existing)
+        {
+            var clearCtx = BuildMinimalContext(aircraft, groundLayout: null);
+            existing.Clear(clearCtx);
+        }
+        aircraft.Phases = new PhaseList();
+        aircraft.Phases.Phases.Add(new VfrFollowPhase(follow.TargetCallsign));
+        var startCtx = BuildMinimalContext(aircraft, groundLayout: null);
+        aircraft.Phases.Start(startCtx);
         aircraft.FollowingCallsign = follow.TargetCallsign;
         return Ok($"Follow {follow.TargetCallsign}");
     }

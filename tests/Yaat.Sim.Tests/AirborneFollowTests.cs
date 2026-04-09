@@ -242,19 +242,26 @@ public class AirborneFollowTests : IDisposable
     public void Follow_Airborne_SetsFollowingCallsign()
     {
         var ac = MakeAircraft();
+        ac.FlightRules = "VFR";
+        ac.HasReportedTrafficInSight = true;
         ac.Phases = new PhaseList();
         ac.Phases.Add(new DownwindPhase());
+        // Start the phase so CurrentPhase is set.
+        var startCtx = CommandDispatcher.BuildMinimalContext(ac);
+        ac.Phases.Start(startCtx);
 
         var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 
         Assert.True(result.Success, $"Expected success but got: {result.Message}");
+        Assert.Equal("LEAD", ac.FollowingCallsign);
     }
 
     [Fact]
-    public void Follow_Airborne_FailsWithNoPhases()
+    public void Follow_Airborne_NotVfr_Rejected()
     {
+        // FOLLOW only applies to VFR aircraft — IFR traffic uses CVA FOLLOW for visual separation.
         var ac = MakeAircraft();
-        ac.Phases = null;
+        ac.FlightRules = "IFR";
 
         var result = CommandDispatcher.Dispatch(new FollowCommand("LEAD"), ac, TestDispatch.Context(Random.Shared));
 

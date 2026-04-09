@@ -564,7 +564,7 @@ The `GA` altitude argument uses the same format as CM/DM (see [Altitude Argument
 | `MLS` / `MRS` | S-turns on final, initial left/right (default 2 turns) |
 | `MLS 3` / `MRS 4` | S-turns with specified count |
 | `CA` / `CIRCLE` | Circle the airport |
-| `FOLLOW UAL123` | Follow traffic: adjust speed and extend downwind to maintain separation |
+| `FOLLOW UAL123` | Follow traffic (VFR): pursue lead and auto-join its pattern when close |
 
 All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional runway argument. ELB/ERB also accept an optional distance argument that controls how far from the threshold the final turn occurs.
 
@@ -572,7 +572,14 @@ All pattern entry commands (ELB, ERB, ELD, ERD, ELC, ERC, EF) accept an optional
 
 `PS` sets the pattern downwind offset distance. The crosswind extension and base extension scale proportionally. The override persists across pattern circuits.
 
-`FOLLOW` tells a pattern or approach aircraft to maintain visual separation from the specified traffic. The follower adjusts speed (+/- 20 kts) and extends downwind if too close. Follow is cancelled automatically if the leader disappears, if a new approach clearance is issued, or if the follower can't maintain separation at minimum speed (a warning is broadcast). For IFR visual approaches, use `CVA 28R FOLLOW AAL123` — this requires the pilot to have reported traffic in sight first (`RTIS`/`RTISF`).
+`FOLLOW` is a **VFR-only** command (per 7110.65 §7-6-7 "Sequencing"). It requires the pilot to have reported the traffic in sight first (`RTIS` or the forced `RTISF`) — a pilot cannot follow traffic they haven't visually acquired. Once `HasReportedTrafficInSight` is set, `FOLLOW` works from any airborne state — you do not need to put the follower in a pattern first. Behavior depends on where the follower and lead are:
+
+- **Free pursuit** (lead not yet in a pattern, or follower far from the pattern): the follower turns toward the lead and matches the lead's speed with distance-based correction (±20 kts, wider free-flight spacing of 1.5/2.0/2.5 nm by category). Altitude is left at whatever the controller last assigned — real pilots do not dive/climb onto the lead; they maintain visual separation from their current level.
+- **Pattern auto-join** (lead is in a pattern phase, follower within 3 nm of the lead's downwind abeam point, within 5 nm of the lead, and on the correct side of the runway): the follower's phase list is rebuilt with `PatternEntryPhase → DownwindPhase → BasePhase → FinalApproachPhase → LandingPhase` copying the lead's runway, pattern direction, and altitude. From then on, the existing pattern-tight spacing (1.0/1.5/2.0 nm) and extend-downwind logic take over.
+
+Follow is cancelled automatically when the lead disappears, lands, the follower can't maintain separation at minimum speed, or the gap to the lead has been growing for more than 30 seconds (runaway-distance cancel). Any subsequent vector command (`FH`, `CM`, `SPD`, etc.) clears the follow phase and returns control to the controller's direct targets. To retarget, just issue another `FOLLOW` with a different callsign — the existing phase updates in place.
+
+For **IFR** visual approaches, use `CVA 28R FOLLOW AAL123` instead — a distinct clearance that requires the pilot to have reported traffic in sight first (`RTIS`/`RTISF`).
 
 ### Approach Options
 
