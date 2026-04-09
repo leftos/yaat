@@ -1020,6 +1020,11 @@ public sealed class SimulationEngine
                 }
             }
         }
+
+        if (spawned.Count > 0 && scenario.DelayedQueue.Count == 0)
+        {
+            EmitTerminal("System", "", "[Scenario] No delayed spawns left");
+        }
     }
 
     private void ProcessGenerators(List<AircraftState> spawned)
