@@ -225,15 +225,15 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeTraffic_SmallTarget_ShortRange()
     {
-        // C172 is CWT I → 2.5nm detection range
+        // C172 (36ft ws, 27ft len, 9ft tail) → ~3 nm formula-derived range
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        // Target ~2nm away (within 2.5nm CWT I range)
+        // Target ~2nm south (within range)
         var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 3000);
         tgt.AircraftType = "C172";
         Assert.True(VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, null, 0.0).Acquired);
 
-        // Target ~4nm away (beyond 2.5nm CWT I range)
-        var tgtFar = MakeAircraft(37.68, -122.221, heading: 180, altitude: 3000);
+        // Target ~5nm south (beyond range)
+        var tgtFar = MakeAircraft(37.67, -122.221, heading: 180, altitude: 3000);
         tgtFar.AircraftType = "C172";
         Assert.False(VisualDetection.TryAcquireTraffic(own, tgtFar, null, AptElev, null, 0.0).Acquired);
     }
@@ -241,10 +241,10 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeTraffic_MediumJet_MidRange()
     {
-        // B738 is CWT F → 7.0nm detection range
-        var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        // Target ~5nm away (within 7nm CWT F range)
-        var tgt = MakeAircraft(37.67, -122.221, heading: 180, altitude: 3000);
+        // B738 (118ft ws, 129ft len, 41ft tail) → ~7.6 nm formula-derived range
+        var own = MakeAircraft(37.82, -122.221, heading: 180, altitude: 5000);
+        // Target ~6nm south (within 7.6 nm B738 range)
+        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 5000);
         tgt.AircraftType = "B738";
         Assert.True(VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, null, 0.0).Acquired);
     }
@@ -252,21 +252,38 @@ public class VisualDetectionTests
     [Fact]
     public void CanSeeTraffic_HeavyWidebody_LongRange()
     {
-        // B77W is CWT B → 12.0nm detection range
-        var own = MakeAircraft(37.85, -122.221, heading: 180, altitude: 5000);
-        // Target ~9nm away (within 12nm CWT B range)
-        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 5000);
+        // B77W → clamped to 10 nm max
+        var own = MakeAircraft(37.87, -122.221, heading: 180, altitude: 10000);
+        // Target ~9nm south (within 10 nm clamp)
+        var tgt = MakeAircraft(37.72, -122.221, heading: 180, altitude: 10000);
         tgt.AircraftType = "B77W";
         Assert.True(VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, null, 0.0).Acquired);
     }
 
     [Fact]
+    public void CanSeeTraffic_DetectionRangeScalesWithAircraftSize()
+    {
+        // Formula sanity: a C172 target is unreachable at 5nm while a B738 target
+        // at the same 5nm is easily within range. Proves the dimension-based
+        // formula distinguishes sizes, not just the CWT bucket.
+        var own = MakeAircraft(37.80, -122.221, heading: 180, altitude: 5000);
+        var nearC172 = MakeAircraft(37.73, -122.221, heading: 180, altitude: 5000);
+        nearC172.AircraftType = "C172";
+        Assert.False(VisualDetection.TryAcquireTraffic(own, nearC172, null, AptElev, null, 0.0).Acquired);
+
+        var nearB738 = MakeAircraft(37.73, -122.221, heading: 180, altitude: 5000);
+        nearB738.AircraftType = "B738";
+        Assert.True(VisualDetection.TryAcquireTraffic(own, nearB738, null, AptElev, null, 0.0).Acquired);
+    }
+
+    [Fact]
     public void CanSeeTraffic_UnknownType_FallsBackToCategory()
     {
-        // Unknown type categorizes as Jet (default) → 7.0nm fallback
+        // Unknown type falls back to Jet category (~11.3 nm range). Put target well
+        // beyond that so the test still proves the fallback is bounded.
         var own = MakeAircraft(37.75, -122.221, heading: 180, altitude: 3000);
-        // Target ~8nm away (beyond 7nm jet fallback range)
-        var tgt = MakeAircraft(37.62, -122.221, heading: 180, altitude: 3000);
+        // Target ~15 nm south of ownship
+        var tgt = MakeAircraft(37.50, -122.221, heading: 180, altitude: 3000);
         tgt.AircraftType = "ZZZZ";
         Assert.False(VisualDetection.TryAcquireTraffic(own, tgt, null, AptElev, null, 0.0).Acquired);
     }

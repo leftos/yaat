@@ -1096,7 +1096,7 @@ internal static class NavigationCommandHandler
             return CommandDispatcher.Ok("Traffic in sight");
         }
 
-        return new CommandResult(false, FormatTrafficFailure(result, targetCallsign));
+        return new CommandResult(false, FormatTrafficFailure(result, target));
     }
 
     // Phraseology borrowed from AIM §4-1-15 and §5-5-8 (traffic advisories use
@@ -1107,22 +1107,38 @@ internal static class NavigationCommandHandler
         {
             VisualAcquisitionFailure.InClassA => "Unable visual, in Class Alpha",
             VisualAcquisitionFailure.AboveCeiling => $"Unable, {airportId} below the layer, ceiling {metar?.CeilingFeetAgl ?? 0} AGL",
-            VisualAcquisitionFailure.BehindOwnship => $"Unable, {airportId} behind us",
-            VisualAcquisitionFailure.OccludedByBank => $"Unable, {airportId} lost visual in the turn",
-            VisualAcquisitionFailure.OutOfRange => $"Negative contact, {airportId}, {r.DistanceNm:F0} miles out",
-            VisualAcquisitionFailure.OppositeSideOfRunway => $"Unable, {airportId} on the opposite side",
+            VisualAcquisitionFailure.BehindOwnship => $"Unable, {airportId} behind us (outside forward hemisphere)",
+            VisualAcquisitionFailure.OccludedByBank => $"Unable, {airportId} lost visual in the turn (high wing blocking view)",
+            VisualAcquisitionFailure.OutOfRange =>
+                $"Negative contact, {airportId}, {r.DistanceNm:F1} miles out (need {r.MaxRangeNm:F1} nm or less{VisibilityQualifier(metar)})",
+            VisualAcquisitionFailure.OppositeSideOfRunway => $"Unable, {airportId} on the opposite side of the runway",
             _ => $"Unable, {airportId} not in sight",
         };
 
-    private static string FormatTrafficFailure(VisualAcquisitionResult r, string callsign) =>
+    private static string FormatTrafficFailure(VisualAcquisitionResult r, AircraftState target) =>
         r.Reason switch
         {
-            VisualAcquisitionFailure.MixedCeiling => $"Negative contact, {callsign}, cloud layer between us",
-            VisualAcquisitionFailure.BehindOwnship => $"Unable, {callsign} behind us",
-            VisualAcquisitionFailure.OccludedByBank => $"Unable, {callsign} lost visual in the turn",
-            VisualAcquisitionFailure.OutOfRange => $"Negative contact, {callsign}, {r.DistanceNm:F0} miles",
-            _ => $"Negative contact, {callsign}",
+            VisualAcquisitionFailure.MixedCeiling => $"Negative contact, {target.Callsign}, cloud layer between us",
+            VisualAcquisitionFailure.BehindOwnship => $"Unable, {target.Callsign} behind us (outside forward hemisphere)",
+            VisualAcquisitionFailure.OccludedByBank => $"Unable, {target.Callsign} lost visual in the turn (high wing blocking view)",
+            VisualAcquisitionFailure.OutOfRange =>
+                $"Negative contact, {target.Callsign}, {r.DistanceNm:F1} miles out (detection range {r.MaxRangeNm:F1} nm for {target.AircraftType})",
+            _ => $"Negative contact, {target.Callsign}",
         };
+
+    /// <summary>
+    /// Clarifies the max-range qualifier for field acquisition: airport detection
+    /// is capped at 12 nm normally but drops with low visibility. If visibility is
+    /// the binding constraint, mention it; otherwise report the hard cap.
+    /// </summary>
+    private static string VisibilityQualifier(MetarParser.ParsedMetar? metar)
+    {
+        if (metar?.VisibilityStatuteMiles is double visSm && visSm * 0.869 < 12.0)
+        {
+            return $" — visibility {visSm:F0} SM";
+        }
+        return string.Empty;
+    }
 
     internal static CommandResult DispatchReportFieldInSightForced(AircraftState aircraft)
     {

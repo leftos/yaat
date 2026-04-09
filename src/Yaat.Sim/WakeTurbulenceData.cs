@@ -1,3 +1,5 @@
+using Yaat.Sim.Data.Faa;
+
 namespace Yaat.Sim;
 
 /// <summary>
@@ -22,37 +24,98 @@ public static class WakeTurbulenceData
     }
 
     /// <summary>
-    /// Max visual detection range (nm) for a target aircraft based on its CWT size category.
-    /// CWT A (Super, e.g. A388) has the largest visual signature; CWT I (Small, e.g. C172) the smallest.
-    /// Falls back to AircraftCategory when CWT is unknown.
+    /// Max visual detection range (nm) for a target aircraft — the distance at which
+    /// a pilot with normal vision, actively scanning, can first visually acquire the
+    /// target silhouette in clear-air, high-contrast conditions.
+    ///
+    /// <para>Uses the FAA Aircraft Characteristics Database (wingspan, length, tail
+    /// height) to compute a principled small-angle physics estimate. Falls back to
+    /// CWT-bucketed values (derived by running the same formula on a representative
+    /// type per bucket) when the aircraft type is not in the FAA ACD.</para>
     /// </summary>
     public static double TrafficDetectionRangeNm(string aircraftType, AircraftCategory fallbackCategory)
     {
+        // Physical-dimensions path: most airline and GA types have real data here.
+        var acd = FaaAircraftDatabase.Get(aircraftType);
+        if (acd is not null)
+        {
+            var rangeFromDims = ComputeRangeFromDimensions(acd);
+            if (rangeFromDims > 0.0)
+            {
+                return rangeFromDims;
+            }
+        }
+
+        // Fallback 1: CWT bucket. Values derived by evaluating ComputeRangeFromDimensions
+        // on a representative type per bucket with the 12 arcmin threshold (see below).
         var cwt = GetCwt(aircraftType);
         if (cwt is not null)
         {
             return cwt switch
             {
-                "A" => 15.0, // Super (A388): 262ft wingspan
-                "B" => 12.0, // Upper Heavy (B744, B77W): 195-225ft
-                "C" => 10.0, // Lower Heavy (B763, A332, B788): 156-198ft
-                "D" => 8.0, // B757: 124ft wingspan, 155ft fuselage
-                "E" => 8.0, // Large Low (DC85, IL76): 148-165ft wingspan
-                "F" => 7.0, // Upper Medium (B738, A320): 112-118ft
-                "G" => 5.0, // Lower Medium (CRJ7, E170): 72-94ft
-                "H" => 3.5, // Upper Small (C208, PC12): 52-58ft
-                "I" => 2.5, // Small (C172, PA28): 36-39ft
-                _ => 7.0,
+                "A" => 10.0, // Super (A388): silhouette ~332 ft → ~16 nm, clamped
+                "B" => 10.0, // Upper Heavy (B744): silhouette ~288 ft → ~14 nm, clamped
+                "C" => 10.0, // Lower Heavy (B763): silhouette ~219 ft → ~10 nm, clamped
+                "D" => 8.5, // B757: silhouette ~181 ft
+                "E" => 9.9, // Large Low (IL76): silhouette ~210 ft
+                "F" => 7.6, // Upper Medium (B738): silhouette ~161 ft
+                "G" => 4.8, // Lower Medium (CRJ7): silhouette ~102 ft
+                "H" => 2.9, // Upper Small (C208): silhouette ~62 ft
+                "I" => 2.0, // Small (C172/PA28): silhouette ~43 ft
+                _ => 4.8,
             };
         }
 
+        // Fallback 2: broad aircraft category. Values mirror a representative CWT bucket.
         return fallbackCategory switch
         {
-            AircraftCategory.Jet => 7.0,
-            AircraftCategory.Turboprop => 5.0,
-            AircraftCategory.Piston => 2.5,
-            AircraftCategory.Helicopter => 2.5,
-            _ => 7.0,
+            AircraftCategory.Jet => 7.6,
+            AircraftCategory.Turboprop => 4.8,
+            AircraftCategory.Piston => 2.0,
+            AircraftCategory.Helicopter => 2.0,
+            _ => 4.8,
         };
+    }
+
+    /// <summary>
+    /// Computes clear-air visual detection range from physical dimensions using a
+    /// small-angle geometry model: distance = effective_size / minimum_visual_angle.
+    ///
+    /// <para>The threshold angle (≈12 arcminutes) is an empirical value for first
+    /// detection of a contrasting silhouette by a pilot scanning in good but not
+    /// ideal conditions. Below the ~1 arcmin 20/20 Snellen resolution but coarser
+    /// than theoretical CAVOK-best-case (~8 arcmin) to reflect typical training
+    /// scenario conditions rather than empty-sky ideal. Consistent with the spirit
+    /// of FAA AC 90-48 (Pilots' Role in Collision Avoidance) empirical studies and
+    /// AIM §8-1-6 scanning discussion.</para>
+    ///
+    /// <para>Effective silhouette size blends wingspan (dominant from head-on/abeam),
+    /// length (oblique views), and tail height (small vertical contribution). The
+    /// weights give wingspan full weight, length 70%, and tail 30% — a rough average
+    /// over pilot viewing geometries during approach and en-route scanning.</para>
+    /// </summary>
+    private static double ComputeRangeFromDimensions(FaaAircraftRecord rec)
+    {
+        // 12 arcmin ≈ 0.003491 rad. See AC 90-48 / AIM §8-1-6 discussion.
+        const double DetectionThresholdRad = 0.003491;
+        const double FtPerNm = 6076.12;
+        const double MinRangeNm = 1.5;
+        const double MaxRangeNm = 10.0;
+
+        double wingspan = rec.WingspanFtWithWinglets ?? rec.WingspanFtWithoutWinglets ?? 0.0;
+        double length = rec.LengthFt ?? 0.0;
+        double tailHeight = rec.TailHeightAtOewFt ?? 0.0;
+
+        if (wingspan <= 0.0 && length <= 0.0)
+        {
+            return 0.0;
+        }
+
+        double silhouetteFt = Math.Sqrt((wingspan * wingspan) + (0.7 * length * length) + (0.3 * tailHeight * tailHeight));
+
+        double rangeFt = silhouetteFt / DetectionThresholdRad;
+        double rangeNm = rangeFt / FtPerNm;
+
+        return Math.Clamp(rangeNm, MinRangeNm, MaxRangeNm);
     }
 }
